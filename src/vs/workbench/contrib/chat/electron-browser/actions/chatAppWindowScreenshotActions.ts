@@ -15,6 +15,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../../base/common/platform.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -105,6 +106,17 @@ interface IAppWindowScreenshotRequest {
 	readonly pick?: boolean;
 	/** The window to capture, which a menu named. */
 	readonly window?: INativeAppWindow;
+	/** The session of the chat to attach the screenshot to, instead of the chat that had focus last. */
+	readonly sessionResource?: URI;
+}
+
+/** The arguments of Attach Screenshot of App Window, for callers that know which chat to attach the screenshot to. */
+interface IAttachAppWindowScreenshotArgs {
+	readonly sessionResource: URI;
+}
+
+function isAttachAppWindowScreenshotArgs(args: unknown): args is IAttachAppWindowScreenshotArgs {
+	return typeof args === 'object' && args !== null && URI.isUri((args as Partial<IAttachAppWindowScreenshotArgs>).sessionResource);
 }
 
 /**
@@ -269,8 +281,8 @@ async function enableSystemWideKeybinding(accessor: ServicesAccessor, confirm: b
 }
 
 /**
- * Captures the window of another app and attaches it to the chat input that was in use, or the one that comes to the
- * front when that chat isn't shown anymore.
+ * Captures the window of another app and attaches it to the chat that the request names, or else the chat input that
+ * was in use, or to the one that comes to the front when that chat isn't shown anymore.
  */
 async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IAppWindowScreenshotRequest): Promise<void> {
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -284,12 +296,12 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 		return;
 	}
 	const inBackground = !hostService.hasFocus;
-	const chatInUse = chatWidgetService.lastFocusedWidget;
+	const chatInUse = request.sessionResource ? chatWidgetService.getWidgetBySessionResource(request.sessionResource) : chatWidgetService.lastFocusedWidget;
 	if (chatInUse && !chatInUse.attachmentCapabilities.supportsImageAttachments) {
 		notificationService.info(localize('appWindowScreenshot.noImages', "This chat does not accept images."));
 		return;
 	}
-	const sessionInUse = chatInUse?.viewModel?.sessionResource;
+	const sessionInUse = request.sessionResource ?? chatInUse?.viewModel?.sessionResource;
 
 	// Captures before VS Code comes to the front, which would change which window is in front.
 	const entry = await instantiationService.invokeFunction(captureAppWindowScreenshot, request);
@@ -341,8 +353,8 @@ class AttachAppWindowScreenshotAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): Promise<void> {
-		return attachAppWindowScreenshot(accessor, { source: 'command' });
+	run(accessor: ServicesAccessor, args?: unknown): Promise<void> {
+		return attachAppWindowScreenshot(accessor, { source: 'command', sessionResource: isAttachAppWindowScreenshotArgs(args) ? args.sessionResource : undefined });
 	}
 }
 
@@ -450,6 +462,7 @@ class AppWindowScreenshotHintContribution extends Disposable implements IChatWid
 		widget: IChatWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICommandService commandService: ICommandService,
 	) {
 		super();
 
@@ -468,7 +481,15 @@ class AppWindowScreenshotHintContribution extends Disposable implements IChatWid
 					&& (isAutoLanguageModel(model) || !!model?.metadata.capabilities?.vision)
 					&& contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 			},
-		}, { id: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, title: ATTACH_APP_WINDOW_SCREENSHOT_TITLE.value }));
+		}, {
+			id: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID,
+			title: ATTACH_APP_WINDOW_SCREENSHOT_TITLE.value,
+			// Attaches to the chat that shows the hint, which need not be the chat that had focus last.
+			run: () => {
+				const sessionResource = widget.viewModel?.sessionResource;
+				void commandService.executeCommand(ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, sessionResource ? { sessionResource } satisfies IAttachAppWindowScreenshotArgs : undefined);
+			},
+		}));
 	}
 }
 

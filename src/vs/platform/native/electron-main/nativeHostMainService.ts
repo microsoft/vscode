@@ -918,8 +918,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async getAppWindows(windowId: number | undefined, options?: { readonly interactive?: boolean }): Promise<INativeAppWindows> {
 		const interactive = !!options?.interactive;
-		// Chromium only lets the user pick a window in the system's picker in Wayland sessions, even under XWayland.
-		if (isLinux && process.env['XDG_SESSION_TYPE'] === 'wayland' && !interactive) {
+		// Chromium lets the user pick a window in the system's picker in Wayland sessions, even under XWayland. The test is
+		// WebRTC's own (`DesktopCapturer::IsRunningUnderWayland`): without it, Chromium lists the windows through X11.
+		if (isLinux && process.env['XDG_SESSION_TYPE']?.startsWith('wayland') && process.env['WAYLAND_DISPLAY'] && !interactive) {
 			return { kind: 'systemPicker' };
 		}
 		// Listing the windows asks for the permission the first time.

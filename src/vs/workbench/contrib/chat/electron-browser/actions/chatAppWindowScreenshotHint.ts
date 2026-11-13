@@ -13,8 +13,8 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
@@ -79,6 +79,8 @@ export interface IAppWindowScreenshotHintCommand {
 	readonly id: string;
 	/** The title that the Command Palette shows. */
 	readonly title: string;
+	/** Runs the command for the chat that shows the hint, as the hint's link does. */
+	run(): void;
 }
 
 /**
@@ -100,16 +102,15 @@ export class AppWindowScreenshotHint extends Disposable {
 	private _shownAt: number | undefined;
 	private _loggedOpportunity = false;
 	private _leading = false;
-	/** Whether this window claimed the hint's one showing, which it does once the hint first leads. */
-	private _owned = false;
 	private _claiming = false;
+	/** The claim that this window gave back last, which its cached value can hold for a moment longer. */
+	private _releasedClaim: string | undefined;
 
 	constructor(
 		private readonly _target: IAppWindowScreenshotHintTarget,
 		private readonly _command: IAppWindowScreenshotHintCommand,
 		@IChatUserImageAttachmentService userImageAttachmentService: IChatUserImageAttachmentService,
 		@IAppWindowScreenshotService private readonly _appWindowScreenshotService: IAppWindowScreenshotService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
@@ -197,7 +198,17 @@ export class AppWindowScreenshotHint extends Disposable {
 
 	/** Whether the hint showed, as far as this window knows: another window may have shown it a moment ago. */
 	private _wasShown(): boolean {
-		return this._storageService.getBoolean(HINT_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED, false);
+		return this._isClaimed(this._storageService.get(HINT_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED));
+	}
+
+	/** Whether a stored value claims the hint's showing, which neither an empty value nor a claim that this window gave back does. */
+	private _isClaimed(value: string | undefined): boolean {
+		return !!value && value !== this._releasedClaim;
+	}
+
+	/** Whether the hint can show now, which a claim of its one showing needs before and after it. */
+	private _isReadyToShow(): boolean {
+		return !this._store.isDisposed && this._leading && this._isEligible();
 	}
 
 	private _hasImagesAttached(): boolean {
@@ -215,49 +226,51 @@ export class AppWindowScreenshotHint extends Disposable {
 			return;
 		}
 		// Things may have changed while the hint waited for other notices.
-		if (!this._isEligible() || (!this._owned && this._wasShown())) {
+		if (!this._isEligible() || this._wasShown()) {
 			this._end('expired');
 			return;
 		}
-		if (this._owned) {
-			this._show();
-		} else {
-			void this._claimShowing();
-		}
+		void this._claimShowing();
 	}
 
-	/** Claims the hint's one showing, which only one window can do, and shows it if it still leads. */
+	/**
+	 * Claims the hint's one showing, which only one window can do, and shows it. The claim is the stored value, so the
+	 * hint only claims while it can show, and gives the claim back when it went away or stood down meanwhile.
+	 */
 	private async _claimShowing(): Promise<void> {
 		if (this._claiming) {
 			return;
 		}
 		this._claiming = true;
-		let owned = false;
+		let claim: string | undefined;
+		let shownElsewhere = false;
 		try {
 			// The cached value can lag behind other windows, so the claim reads and swaps the value that they share.
 			const shown = await this._storageService.readApplicationSharedValue(HINT_SHOWN_STORAGE_KEY);
-			if (shown === undefined && !this._store.isDisposed) {
-				owned = (await this._storageService.compareAndSwapApplicationSharedValue(HINT_SHOWN_STORAGE_KEY, undefined, String(true))).swapped;
+			if (this._isClaimed(shown)) {
+				shownElsewhere = true;
+			} else if (this._isReadyToShow()) {
+				const id = generateUuid();
+				if ((await this._storageService.compareAndSwapApplicationSharedValue(HINT_SHOWN_STORAGE_KEY, shown, id)).swapped) {
+					claim = id;
+				} else {
+					shownElsewhere = true;
+				}
 			}
 		} finally {
 			this._claiming = false;
 		}
-		// The hint may have gone meanwhile, or another window showed it.
-		if (this._store.isDisposed || !this._imageIds.size) {
-			return;
-		}
-		if (!owned) {
+
+		if (claim && this._isReadyToShow()) {
+			this._show();
+		} else if (claim) {
+			// An empty value lets the next paste or drop claim the showing, unless another window claimed it since.
+			this._releasedClaim = claim;
+			void this._storageService.compareAndSwapApplicationSharedValue(HINT_SHOWN_STORAGE_KEY, claim, '');
+		} else if (shownElsewhere && !this._store.isDisposed) {
 			this._end('expired');
-			return;
 		}
-		this._owned = true;
-		if (this._leading) {
-			if (this._isEligible()) {
-				this._show();
-			} else {
-				this._end('expired');
-			}
-		}
+		// Otherwise the hint went away, or stood down and claims again once it leads.
 	}
 
 	private _show(): void {
@@ -320,7 +333,7 @@ export class AppWindowScreenshotHint extends Disposable {
 		if (this._shownAt !== undefined) {
 			this._log('clicked', this._gesture, this._copy, this._imageIds.size, Date.now() - this._shownAt);
 		}
-		void this._commandService.executeCommand(this._command.id);
+		this._command.run();
 	}
 
 	/** Takes the hint away. When it never showed, the next paste or drop can show it. */
@@ -333,7 +346,6 @@ export class AppWindowScreenshotHint extends Disposable {
 		}
 		this._imageIds.clear();
 		this._shownAt = undefined;
-		this._owned = false;
 		this._copy = 'none';
 		// Released before the content goes, so the notice host moves focus back to the input only when it was in the hint.
 		this._claim.clear();

@@ -15,7 +15,6 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -66,7 +65,6 @@ suite('AppWindowScreenshotHint', () => {
 		});
 
 		const executed: string[] = [];
-		instantiationService.stub(ICommandService, { executeCommand: async (id: string) => { executed.push(id); return undefined; } });
 		instantiationService.stub(IMarkdownRendererService, { render: (markdown: IMarkdownString, options?: MarkdownRenderOptions) => renderMarkdown(markdown, options) });
 
 		const events: string[] = [];
@@ -90,7 +88,7 @@ suite('AppWindowScreenshotHint', () => {
 			onDidChangeAttachments: onDidChangeAttachments.event,
 			onDidChangeDraft: onDidChangeDraft.event,
 			canAttachScreenshots: () => true,
-		}, COMMAND));
+		}, { ...COMMAND, run: () => executed.push(COMMAND.id) }));
 
 		return {
 			events,
@@ -151,7 +149,7 @@ suite('AppWindowScreenshotHint', () => {
 		assert.deepStrictEqual({
 			text,
 			events: hint.events,
-			shownStored: hint.storageService.getBoolean('chat.appWindowScreenshots.hintShown', StorageScope.APPLICATION_SHARED),
+			shownStored: !!hint.storageService.get('chat.appWindowScreenshots.hintShown', StorageScope.APPLICATION_SHARED),
 		}, {
 			text: {
 				otherInput: '',
@@ -203,6 +201,31 @@ suite('AppWindowScreenshotHint', () => {
 				'screenshotTool.appWindowHint used drop inApp 1',
 			],
 		});
+	});
+
+	test('keeps its one showing when the draft goes while it claims it', async () => {
+		let onWillSwap: (() => void) | undefined;
+		const storageService = disposables.add(new class extends TestStorageService {
+			override compareAndSwapApplicationSharedValue(key: string, expectedValue: string | undefined, newValue: string) {
+				onWillSwap?.();
+				return super.compareAndSwapApplicationSharedValue(key, expectedValue, newValue);
+			}
+		});
+		const hint = createHint({ storageService });
+		hint.attach('image1');
+		hint.send();
+		await claimed();
+		onWillSwap = () => {
+			onWillSwap = undefined;
+			hint.send();
+		};
+		hint.attach('image2');
+		await claimed();
+		const otherWindow = createHint({ storageService });
+		otherWindow.attach('image3');
+		await claimed();
+
+		assert.strictEqual(otherWindow.text(), IN_CHAT);
 	});
 
 	test('shows in only one window when two get images at once', async () => {
