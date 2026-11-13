@@ -94,8 +94,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
-	private readonly _onDidChangeSession = this._register(new Emitter<ISessionChange>());
-	readonly onDidChangeSession: Event<ISessionChange> = this._onDidChangeSession.event;
+	private readonly _onDidChangeSession = this._register(new Emitter<readonly ISessionChange[]>());
+	readonly onDidChangeSession: Event<readonly ISessionChange[]> = this._onDidChangeSession.event;
 	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
 	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
@@ -239,14 +239,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	}
 
 	private _fireDidChangeEachSession(e: ISessionsChangeEvent): void {
-		for (const session of e.added) {
-			this._onDidChangeSession.fire({ session, kind: 'added' });
-		}
-		for (const session of e.removed) {
-			this._onDidChangeSession.fire({ session, kind: 'removed' });
-		}
-		for (const session of e.changed) {
-			this._onDidChangeSession.fire({ session, kind: 'changed' });
+		const changes: ISessionChange[] = [
+			...e.added.map(session => ({ session, kind: 'added' as const })),
+			...e.removed.map(session => ({ session, kind: 'removed' as const })),
+			...e.changed.map(session => ({ session, kind: 'changed' as const })),
+		];
+		if (changes.length) {
+			this._onDidChangeSession.fire(changes);
 		}
 	}
 

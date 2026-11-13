@@ -389,12 +389,12 @@ export interface ISessionsManagementService {
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
 	/**
-	 * Fires for each session that is added, removed or changes, also a session outside a provider's listing scope, which
-	 * {@link getSession} and {@link getSessionForChatResource} still find: for following a session, such as the one a chat
-	 * editor shows, wherever it is listed. A session leaving or entering a listing scope is no change of it. As a provider
-	 * registers, its sessions are added.
+	 * Fires with the sessions that are added, removed or change together, such as as a provider registers, each once, also
+	 * a session outside a provider's listing scope, which {@link getSession} and {@link getSessionForChatResource} still
+	 * find: for following a session, such as the one a chat editor shows, wherever it is listed. A session leaving or
+	 * entering a listing scope is no change of it. As a provider registers, its sessions are added.
 	 */
-	readonly onDidChangeSession: Event<ISessionChange>;
+	readonly onDidChangeSession: Event<readonly ISessionChange[]>;
 	/**
 	 * Fires when a brand-new session is started by this window via
 	 * {@link sendNewChatRequest}.

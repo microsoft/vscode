@@ -510,7 +510,7 @@ suite('SessionsManagementService', () => {
 		}(listed);
 		const { service } = createSessionsManagementService(listed, disposables, [scoped]);
 		const changes: string[] = [];
-		disposables.add(service.onDidChangeSession(({ session, kind }) => changes.push(`${kind} ${session.sessionId}`)));
+		disposables.add(service.onDidChangeSession(batch => changes.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`).join(', '))));
 		onDidChangeAllSessions.fire({ added: [], removed: [], changed: [hidden] });
 
 		assert.deepStrictEqual({
@@ -2759,13 +2759,30 @@ suite('SessionsManagementService', () => {
 			const listed: ISessionChangeEvent[] = [];
 			const each: string[] = [];
 			disposables.add(service.onDidChangeSessions(e => listed.push(e)));
-			disposables.add(service.onDidChangeSession(({ session, kind }) => each.push(`${kind} ${session.sessionId}`)));
+			disposables.add(service.onDidChangeSession(batch => each.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`).join(', '))));
 
 			disposables.add(providersService.registerProvider(provider));
 			onDidChangeSessions.fire({ added: [second], removed: [first], changed: [] });
 
-			const fromListed = listed.flatMap(e => [...e.added.map(s => `added ${s.sessionId}`), ...e.removed.map(s => `removed ${s.sessionId}`), ...e.changed.map(s => `changed ${s.sessionId}`)]);
+			// One batch for each change of the listed sessions
+			const fromListed = listed.map(e => [...e.added.map(s => `added ${s.sessionId}`), ...e.removed.map(s => `removed ${s.sessionId}`), ...e.changed.map(s => `changed ${s.sessionId}`)].join(', '));
 			assert.deepStrictEqual({ each, count: listed.length }, { each: fromListed, count: 2 });
+		});
+
+		test('reports the sessions of a provider that registers, also those outside its listing scope, in one change', () => {
+			const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
+			const provider = new class extends TestSessionsProvider {
+				override getSessions(): ISession[] { return sessions.slice(0, 1); }
+				override getAllSessions(): ISession[] { return sessions; }
+			}(sessions[0]);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(sessions[0], disposables, providersService);
+			const batches: string[][] = [];
+			disposables.add(service.onDidChangeSession(batch => batches.push(batch.map(({ session, kind }) => `${kind} ${session.sessionId}`))));
+
+			disposables.add(providersService.registerProvider(provider));
+
+			assert.deepStrictEqual(batches, [['added a', 'added b', 'added c']]);
 		});
 
 		test('announces cached sessions when a provider registers', () => {

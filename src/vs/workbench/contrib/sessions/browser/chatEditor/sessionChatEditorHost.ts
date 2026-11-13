@@ -60,12 +60,14 @@ export async function waitForSessionChat(sessionsManagementService: ISessionsMan
 	try {
 		return await raceTimeout(new Promise<IResolvedSessionChat | undefined>(resolve => {
 			// Of every session, also one outside a listing scope, such as of another folder, which a host can show
-			store.add(sessionsManagementService.onDidChangeSession(({ kind }) => {
-				if (kind === 'removed') {
+			store.add(sessionsManagementService.onDidChangeSession(changes => {
+				if (store.isDisposed || changes.every(({ kind }) => kind === 'removed')) {
 					return;
 				}
 				const loaded = resolveSessionChat(sessionsManagementService, resource);
 				if (loaded) {
+					// Stop following the sessions as soon as it resolves
+					store.dispose();
 					resolve(loaded);
 				}
 			}));
@@ -209,12 +211,12 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.
 		const sessionsChanged = observableSignal(this);
 		// Of every session, also one outside a listing scope, such as of another folder, which its host can show
-		this._register(this.sessionsManagementService.onDidChangeSession(({ session, kind }) => {
+		this._register(this.sessionsManagementService.onDidChangeSession(changes => {
 			const known = this._knownSession;
-			if (known && kind === 'removed' && isEqual(session.resource, known.resource)) {
+			if (known && changes.some(({ session, kind }) => kind === 'removed' && isEqual(session.resource, known.resource))) {
 				this._knownSessionRemoved = true;
 			}
-			if (!known || kind !== 'changed' || (session !== known && session.sessionId === known.sessionId)) {
+			if (!known || changes.some(({ session, kind }) => kind !== 'changed' || (session !== known && session.sessionId === known.sessionId))) {
 				sessionsChanged.trigger(undefined);
 			}
 		}));
