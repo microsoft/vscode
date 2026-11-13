@@ -13,7 +13,8 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
-import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestLifecycleService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ILifecycleService, LifecyclePhase } from '../../../lifecycle/common/lifecycle.js';
 import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, NAMED_LAYOUTS_ENABLED_SETTING } from '../../common/namedLayouts.js';
 import { NamedLayoutsService } from '../../common/namedLayoutsService.js';
 
@@ -116,6 +117,7 @@ suite('NamedLayoutsService', () => {
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IStorageService, storageService);
+		instantiationService.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 		instantiationService.stub(ILogService, new NullLogService());
 	});
 
@@ -259,7 +261,7 @@ suite('NamedLayoutsService', () => {
 
 		assert.deepStrictEqual({ afterFirstSwitch, afterSwitchBack, afterReset, deleteError, afterUninstall, afterReinstall }, {
 			afterFirstSwitch: {
-				active: { id: 'publisher.extension/debug', name: 'Debugging', contribution: { extensionId: 'Publisher.Extension', extensionName: 'Extension', id: 'debug', canReset: true } },
+				active: { id: 'publisher.extension/debug', name: 'Debugging', contribution: { extensionId: 'Publisher.Extension', extensionName: 'Extension', id: 'debug', canReset: true, locked: false } },
 				setting: 'contributedValue',
 				definesUnknownSetting: false,
 				state: 'vertical over default state'
@@ -269,6 +271,101 @@ suite('NamedLayoutsService', () => {
 			deleteError: 'A layout contributed by an extension cannot be deleted.',
 			afterUninstall: { layouts: ['Default'], active: DEFAULT_NAMED_LAYOUT_ID, setting: 'userValue', state: 'default state' },
 			afterReinstall: [{ name: 'Default', canReset: undefined }, { name: 'Debugging', canReset: true }]
+		});
+	});
+
+	test('changes to a locked layout are not saved and can be reverted, unlocking keeps them', async () => {
+		const participant = new TestParticipant();
+		const testObject = createService(participant);
+		const defaultLayout = testObject.activeLayout;
+		participant.state = 'default state';
+		await testObject.createLayout('Debug');
+		participant.state = 'debug state';
+		await testObject.setLayoutLocked(testObject.activeLayout, true);
+		const lockedLayout = testObject.activeLayout;
+
+		participant.state = 'changed state';
+		configurationService.setLayoutConfiguration({ [LAYOUT_SETTING]: 'changedValue' });
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		await testObject.revertLayout();
+		const afterRevert = { state: participant.state, setting: configurationService.getValue(LAYOUT_SETTING) };
+
+		participant.state = 'changed state';
+		await testObject.switchLayout(defaultLayout);
+		await testObject.switchLayout(lockedLayout);
+		const afterSwitchBack = participant.state;
+
+		participant.state = 'changed state';
+		await testObject.setLayoutLocked(testObject.activeLayout, false);
+		await testObject.switchLayout(defaultLayout);
+		await testObject.switchLayout(lockedLayout);
+		const afterUnlock = { locked: testObject.activeLayout.locked, state: participant.state };
+
+		const lockDefaultError = await testObject.setLayoutLocked(defaultLayout, true).then(() => undefined, error => error.message);
+
+		assert.deepStrictEqual({ lockedLayout, afterRevert, afterSwitchBack, afterUnlock, lockDefaultError }, {
+			lockedLayout: { id: lockedLayout.id, name: 'Debug', locked: true },
+			afterRevert: { state: 'debug state', setting: 'userValue' },
+			afterSwitchBack: 'debug state',
+			afterUnlock: { locked: undefined, state: 'changed state' },
+			lockDefaultError: 'The default layout cannot be locked.'
+		});
+	});
+
+	test('restores the saved state of a locked layout when the window is restored', async () => {
+		const first = createService(new TestParticipant());
+		await first.createLayout('Debug');
+		await first.setLayoutLocked(first.activeLayout, true);
+		configurationService.setLayoutConfiguration({ [LAYOUT_SETTING]: 'changedValue' });
+		storageService.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
+
+		// Simulate a new window of the same workspace, the workbench restores the changed arrangement itself
+		configurationService.setLayoutConfiguration({});
+		const lifecycleService = disposables.add(new TestLifecycleService());
+		lifecycleService.usePhases = true;
+		instantiationService.stub(ILifecycleService, lifecycleService);
+		const participant = new TestParticipant();
+		participant.state = 'changed state';
+		const second = createService(participant);
+		const beforeRestored = participant.state;
+
+		lifecycleService.phase = LifecyclePhase.Restored;
+		await lifecycleService.when(LifecyclePhase.Restored);
+		await second.switchLayout(second.activeLayout); // queued after the restore
+
+		assert.deepStrictEqual({ beforeRestored, afterRestored: participant.state, setting: configurationService.getValue(LAYOUT_SETTING) }, {
+			beforeRestored: 'changed state',
+			afterRestored: 'initial',
+			setting: 'userValue'
+		});
+	});
+
+	test('a layout locked by its extension always starts from its definition and cannot be unlocked', async () => {
+		const participant = new TestDefinitionParticipant();
+		const testObject = createService(participant);
+		const defaultLayout = testObject.activeLayout;
+		participant.state = 'default state';
+		testObject.setContributedLayouts([{ extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', label: 'Focus', locked: true, definition: { editor: { orientation: 'horizontal' } } }]);
+		const layout = testObject.layouts.find(candidate => candidate.contribution)!;
+
+		await testObject.switchLayout(layout);
+		participant.state = 'changed state';
+		await testObject.revertLayout();
+		const afterRevert = participant.state;
+
+		participant.state = 'changed state';
+		await testObject.switchLayout(defaultLayout);
+		participant.state = 'changed default state';
+		await testObject.switchLayout(layout);
+		const afterSwitchBack = participant.state;
+
+		const unlockError = await testObject.setLayoutLocked(layout, false).then(() => undefined, error => error.message);
+
+		assert.deepStrictEqual({ layout: testObject.activeLayout, afterRevert, afterSwitchBack, unlockError }, {
+			layout: { id: 'publisher.extension/focus', name: 'Focus', contribution: { extensionId: 'publisher.extension', extensionName: 'Extension', id: 'focus', canReset: false, locked: true }, locked: true },
+			afterRevert: 'horizontal over default state',
+			afterSwitchBack: 'horizontal over changed default state',
+			unlockError: 'A layout locked by its extension cannot be locked or unlocked.'
 		});
 	});
 });

@@ -64,6 +64,7 @@ export const namedLayoutContributionSchema: IJSONSchema = {
 	properties: {
 		id: { type: 'string', description: localize('layouts.id', "The identifier of the layout. It must be unique within the layouts of the extension.") },
 		label: { type: 'string', description: localize('layouts.label', "The human readable name of the layout.") },
+		locked: { type: 'boolean', description: localize('layouts.locked', "Whether the layout is locked. Users can rearrange a locked layout, but the changes are not saved and can be reverted. Switching to the layout always applies its definition. Users cannot unlock it.") },
 		settings: {
 			type: 'object',
 			markdownDescription: localize('layouts.settings', "Values of settings that the layout defines. Only layout related settings such as `#workbench.editor.showTabs#` are supported, other settings are ignored.")

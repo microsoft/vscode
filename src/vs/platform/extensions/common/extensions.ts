@@ -251,6 +251,7 @@ export interface IChatFileContribution {
 export interface ILayoutContribution {
 	readonly id: string;
 	readonly label: string;
+	readonly locked?: boolean;
 }
 
 export interface IExtensionContributions {

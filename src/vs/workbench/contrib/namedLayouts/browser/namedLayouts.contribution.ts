@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
@@ -12,7 +13,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -33,7 +34,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
-			markdownDescription: localize('namedLayouts.enabled', "Controls whether the current layout of a window can be saved as a named layout and whether a window can switch between named layouts. A named layout contains the arrangement of the side bars, the panel and the editor groups, the location, visibility and order of view containers and views, and the values of layout related settings such as {0}. Changes made while a named layout is active are saved into that layout.", '`#workbench.editor.showTabs#`')
+			markdownDescription: localize('namedLayouts.enabled', "Controls whether the current layout of a window can be saved as a named layout and whether a window can switch between named layouts. A named layout contains the arrangement of the side bars, the panel and the editor groups, the location, visibility and order of view containers and views, and the values of layout related settings such as {0}. Changes made while a named layout is active are saved into that layout, unless the layout is locked.", '`#workbench.editor.showTabs#`')
 		}
 	}
 });
@@ -62,43 +63,77 @@ registerWorkbenchContribution2(NamedLayoutParticipantsContribution.ID, NamedLayo
 registerWorkbenchContribution2(NamedLayoutsExtensionPointContribution.ID, NamedLayoutsExtensionPointContribution, WorkbenchPhase.BlockRestore);
 
 const NamedLayoutsEnabledContext = ContextKeyExpr.equals(`config.${NAMED_LAYOUTS_ENABLED_SETTING}`, true);
+const ActiveNamedLayoutLockedContext = new RawContextKey<boolean>('activeNamedLayoutLocked', false, localize('activeNamedLayoutLocked', "Whether the active layout is locked."));
+const ActiveNamedLayoutLockableContext = new RawContextKey<boolean>('activeNamedLayoutLockable', false, localize('activeNamedLayoutLockable', "Whether the active layout can be locked and unlocked."));
 
 const NEW_LAYOUT_COMMAND_ID = 'workbench.action.newLayout';
 const SWITCH_LAYOUT_COMMAND_ID = 'workbench.action.switchLayout';
 
 /**
+ * Whether users can lock and unlock the given layout. The default layout and layouts
+ * that their extension locked cannot be locked or unlocked.
+ */
+function isLockable(layout: INamedLayout): boolean {
+	return layout.id !== DEFAULT_NAMED_LAYOUT_ID && !layout.contribution?.locked;
+}
+
+async function setLayoutLocked(namedLayoutsService: INamedLayoutsService, layout: INamedLayout, locked: boolean): Promise<void> {
+	await namedLayoutsService.setLayoutLocked(layout, locked);
+	status(locked ? localize('layoutLocked', "Locked layout {0}", layout.name) : localize('layoutUnlocked', "Unlocked layout {0}", layout.name));
+}
+
+async function revertLayout(namedLayoutsService: INamedLayoutsService): Promise<void> {
+	const layout = namedLayoutsService.activeLayout;
+	await namedLayoutsService.revertLayout();
+	status(localize('layoutReverted', "Reverted the changes to layout {0}", layout.name));
+}
+
+/**
  * Contributes the layout switcher of the activity bar. Its title names the active layout,
- * and selecting it opens the picker of {@link SWITCH_LAYOUT_COMMAND_ID}.
+ * and selecting it opens the picker of {@link SWITCH_LAYOUT_COMMAND_ID}. Also tracks
+ * whether the active layout is locked.
  */
 class NamedLayoutsSwitcherContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.namedLayoutsSwitcher';
 
 	private readonly switcherEntry = this._register(new MutableDisposable());
-	private activeLayoutName: string | undefined;
+	private switcherTitle: string | undefined;
+
+	private readonly activeLayoutLocked: IContextKey<boolean>;
+	private readonly activeLayoutLockable: IContextKey<boolean>;
 
 	constructor(
-		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService
+		@INamedLayoutsService private readonly namedLayoutsService: INamedLayoutsService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super();
 
-		this.registerSwitcherEntry();
-		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.registerSwitcherEntry()));
+		this.activeLayoutLocked = ActiveNamedLayoutLockedContext.bindTo(contextKeyService);
+		this.activeLayoutLockable = ActiveNamedLayoutLockableContext.bindTo(contextKeyService);
+
+		this.update();
+		this._register(namedLayoutsService.onDidChangeActiveLayout(() => this.update()));
 
 		// The name of the active layout changes when the extension that contributes it is updated
-		this._register(namedLayoutsService.onDidChangeLayouts(() => {
-			if (this.activeLayoutName !== namedLayoutsService.activeLayout.name) {
-				this.registerSwitcherEntry();
-			}
-		}));
+		this._register(namedLayoutsService.onDidChangeLayouts(() => this.update()));
 	}
 
-	private registerSwitcherEntry(): void {
-		this.activeLayoutName = this.namedLayoutsService.activeLayout.name;
+	private update(): void {
+		const activeLayout = this.namedLayoutsService.activeLayout;
+		this.activeLayoutLocked.set(!!activeLayout.locked);
+		this.activeLayoutLockable.set(isLockable(activeLayout));
+
+		const title = activeLayout.locked ? localize('activeLockedLayoutTitle', "Layout: {0} (Locked)", activeLayout.name) : localize('activeLayoutTitle', "Layout: {0}", activeLayout.name);
+		if (title === this.switcherTitle) {
+			return;
+		}
+
+		this.switcherTitle = title;
 		this.switcherEntry.value = MenuRegistry.appendMenuItem(MenuId.NamedLayoutsActivity, {
 			command: {
 				id: SWITCH_LAYOUT_COMMAND_ID,
-				title: localize('activeLayoutTitle', "Layout: {0}", this.activeLayoutName)
+				title
 			},
 			when: NamedLayoutsEnabledContext
 		});
@@ -115,6 +150,13 @@ interface ILayoutSwitcherQuickPickItem extends IQuickPickItem {
 	readonly layout?: INamedLayout;
 }
 
+function getLayoutAriaLabel(layout: INamedLayout, active: boolean): string | undefined {
+	if (active) {
+		return layout.locked ? localize('activeLockedLayoutAriaLabel', "{0} (Active, Locked)", layout.name) : localize('activeLayoutAriaLabel', "{0} (Active)", layout.name);
+	}
+	return layout.locked ? localize('lockedLayoutAriaLabel', "{0} (Locked)", layout.name) : undefined;
+}
+
 function toQuickPickItems(layouts: readonly INamedLayout[], activeLayout: INamedLayout): INamedLayoutQuickPickItem[] {
 	return layouts.map(layout => {
 		const active = layout.id === activeLayout.id;
@@ -123,7 +165,8 @@ function toQuickPickItems(layouts: readonly INamedLayout[], activeLayout: INamed
 			label: layout.name,
 			// A check mark marks the active layout, the other layouts keep its space so that the labels align
 			iconClass: ThemeIcon.asClassName(active ? Codicon.check : Codicon.blank),
-			ariaLabel: active ? localize('activeLayoutAriaLabel', "{0} (Active)", layout.name) : undefined
+			description: layout.locked ? `$(${Codicon.lock.id})` : undefined,
+			ariaLabel: getLayoutAriaLabel(layout, active)
 		};
 	});
 }
@@ -192,19 +235,30 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 		picker.ariaLabel = localize('switchLayout.ariaLabel', "Select a layout to switch to");
 
 		const deleteButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.trash), tooltip: localize('deleteLayoutButton', "Delete Layout") };
-		const resetButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.discard), tooltip: localize('resetLayoutButton', "Reset Layout") };
+		const resetButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.history), tooltip: localize('resetLayoutButton', "Reset Layout") };
+		// The lock buttons show the current state of the layout, their tooltips name the action
+		const lockButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.unlock), tooltip: localize('lockLayoutButton', "Lock Layout") };
+		const unlockButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.lock), tooltip: localize('unlockLayoutButton', "Unlock Layout") };
+		const revertButton: IQuickInputButton = { iconClass: ThemeIcon.asClassName(Codicon.discard), tooltip: localize('revertLayoutButton', "Revert Layout Changes") };
 		const newLayoutItem: ILayoutSwitcherQuickPickItem = { label: localize('newLayoutItem', "New Layout..."), iconClass: ThemeIcon.asClassName(Codicon.blank) };
+		const getButtons = (layout: INamedLayout): IQuickInputButton[] => {
+			const buttons: IQuickInputButton[] = [];
+			if (layout.locked && layout.id === namedLayoutsService.activeLayout.id) {
+				buttons.push(revertButton);
+			}
+			if (isLockable(layout)) {
+				buttons.push(layout.locked ? unlockButton : lockButton);
+			}
+			if (layout.contribution?.canReset) {
+				buttons.push(resetButton);
+			} else if (layout.id !== DEFAULT_NAMED_LAYOUT_ID && !layout.contribution) {
+				buttons.push(deleteButton);
+			}
+			return buttons;
+		};
 		const updateItems = () => {
 			const layoutItems = toQuickPickItems(namedLayoutsService.layouts, namedLayoutsService.activeLayout)
-				.map(item => {
-					if (item.layout.id === DEFAULT_NAMED_LAYOUT_ID) {
-						return item;
-					}
-					if (item.layout.contribution) {
-						return item.layout.contribution.canReset ? { ...item, buttons: [resetButton] } : item;
-					}
-					return { ...item, buttons: [deleteButton] };
-				});
+				.map(item => ({ ...item, buttons: getButtons(item.layout) }));
 
 			// Layouts contributed by extensions are grouped by extension
 			const items: (ILayoutSwitcherQuickPickItem | IQuickPickSeparator)[] = [];
@@ -228,11 +282,17 @@ registerAction2(class SwitchLayoutAction extends Action2 {
 			if (!item.layout) {
 				return;
 			}
-			if (button === resetButton) {
-				namedLayoutsService.resetLayout(item.layout).catch(onUnexpectedError);
+			let result: Promise<void>;
+			if (button === revertButton) {
+				result = revertLayout(namedLayoutsService);
+			} else if (button === lockButton || button === unlockButton) {
+				result = setLayoutLocked(namedLayoutsService, item.layout, button === lockButton);
+			} else if (button === resetButton) {
+				result = namedLayoutsService.resetLayout(item.layout);
 			} else {
-				namedLayoutsService.deleteLayout(item.layout).catch(onUnexpectedError);
+				result = namedLayoutsService.deleteLayout(item.layout);
 			}
+			result.catch(onUnexpectedError);
 		}));
 
 		const pick = await new Promise<ILayoutSwitcherQuickPickItem | undefined>(resolve => {
@@ -327,6 +387,65 @@ registerAction2(class ResetLayoutAction extends Action2 {
 		if (pick) {
 			await namedLayoutsService.resetLayout(pick.layout);
 		}
+	}
+});
+
+registerAction2(class LockLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.lockLayout',
+			title: localize2('lockLayout', "Lock Layout"),
+			metadata: {
+				description: localize2('lockLayout.description', "Locks the active layout. Changes made to a locked layout are not saved and can be reverted."),
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockableContext, ActiveNamedLayoutLockedContext.negate()),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const namedLayoutsService = accessor.get(INamedLayoutsService);
+		await setLayoutLocked(namedLayoutsService, namedLayoutsService.activeLayout, true);
+	}
+});
+
+registerAction2(class UnlockLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.unlockLayout',
+			title: localize2('unlockLayout', "Unlock Layout"),
+			metadata: {
+				description: localize2('unlockLayout.description', "Unlocks the active layout. The changes made while it was locked are saved into the layout."),
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockableContext, ActiveNamedLayoutLockedContext),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const namedLayoutsService = accessor.get(INamedLayoutsService);
+		await setLayoutLocked(namedLayoutsService, namedLayoutsService.activeLayout, false);
+	}
+});
+
+registerAction2(class RevertLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.revertLayout',
+			title: localize2('revertLayout', "Revert Layout Changes"),
+			metadata: {
+				description: localize2('revertLayout.description', "Discards the changes made to the active locked layout."),
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(NamedLayoutsEnabledContext, ActiveNamedLayoutLockedContext),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		await revertLayout(accessor.get(INamedLayoutsService));
 	}
 });
 

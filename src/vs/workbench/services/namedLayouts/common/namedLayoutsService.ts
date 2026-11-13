@@ -16,6 +16,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { getLayoutOverridableSettings, isLayoutOverridableSetting, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
 import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
 interface IStoredNamedLayout {
@@ -33,6 +34,11 @@ interface IStoredNamedLayout {
 interface IStoredNamedLayoutContribution {
 	readonly extensionId: string;
 	readonly id: string;
+
+	/**
+	 * Whether the extension locked the layout. Known before the contributions are.
+	 */
+	readonly locked?: boolean;
 }
 
 function isStoredNamedLayout(candidate: unknown): candidate is IStoredNamedLayout {
@@ -45,7 +51,7 @@ function isStoredNamedLayout(candidate: unknown): candidate is IStoredNamedLayou
 		&& isString(name)
 		&& isObject(settings)
 		&& isObject(state)
-		&& (contribution === undefined || (isObject(contribution) && isString(contribution.extensionId) && isString(contribution.id)));
+		&& (contribution === undefined || (isObject(contribution) && isString(contribution.extensionId) && isString(contribution.id) && (contribution.locked === undefined || typeof contribution.locked === 'boolean')));
 }
 
 function getContributedLayoutId(extensionId: string, id: string): string {
@@ -66,12 +72,18 @@ function getContributedLayoutId(extensionId: string, id: string): string {
  * A layout contributed by an extension starts from its definition the first
  * time it becomes active. Its changes are then saved like the changes of other
  * named layouts, in a stored layout that refers to the contribution.
+ *
+ * Changes made to a locked layout are not saved. They are discarded when another
+ * layout becomes active, and the saved state of a locked layout is applied again
+ * after the window reloads. A layout that its extension locked always starts from
+ * its definition when it becomes active.
  */
 export class NamedLayoutsService extends Disposable implements INamedLayoutsService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private static readonly LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts';
+	private static readonly LOCKED_LAYOUTS_STORAGE_KEY = 'workbench.namedLayouts.locked';
 	private static readonly ACTIVE_LAYOUT_STORAGE_KEY = 'workbench.namedLayouts.active';
 	private static readonly DEFAULT_LAYOUT_STATE_STORAGE_KEY = 'workbench.namedLayouts.defaultState';
 
@@ -86,6 +98,11 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private readonly sequencer = new Sequencer();
 
 	private storedLayouts: IStoredNamedLayout[];
+
+	/**
+	 * Layouts that users locked. Layouts that extensions lock are not part of it.
+	 */
+	private lockedLayoutIds: Set<string>;
 	private activeLayoutId: string;
 	private isApplying = false;
 
@@ -100,15 +117,31 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
 		this.storedLayouts = this.loadLayouts();
+		this.lockedLayoutIds = this.loadLockedLayoutIds();
 		this.activeLayoutId = this.restoreActiveLayout();
+
+		// The workbench restores the arrangement it saved itself. For a locked layout that
+		// arrangement can contain changes that must not be kept, so the saved state of the
+		// layout is applied once the workbench is restored
+		const restoredLayoutId = this.activeLayoutId;
+		if (this.isLocked(restoredLayoutId)) {
+			lifecycleService.when(LifecyclePhase.Restored).then(() => this.sequencer.queue(async () => {
+				const storedLayout = this.getStoredLayout(restoredLayoutId);
+				if (storedLayout && this.activeLayoutId === restoredLayoutId && this.isLocked(restoredLayoutId)) {
+					await this.applyLayoutState(storedLayout, [...this.participants]);
+				}
+			})).catch(error => this.logService.error('[named layouts] Failed to restore the locked layout.', error));
+		}
 
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeStoredLayouts()));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeLockedLayouts()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(NAMED_LAYOUTS_ENABLED_SETTING) && !this.isEnabled()) {
 				this.queueSwitchToDefaultLayout(true);
@@ -119,7 +152,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	get layouts(): readonly INamedLayout[] {
 		const namedLayouts = this.storedLayouts
 			.filter(layout => !layout.contribution)
-			.map(({ id, name }) => ({ id, name }))
+			.map(({ id }) => this.getLayout(id))
+			.filter((layout): layout is INamedLayout => !!layout)
 			.sort((a, b) => a.name.localeCompare(b.name));
 		const contributedLayouts = [...this.contributedLayouts.keys()]
 			.map(id => this.getLayout(id))
@@ -206,6 +240,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			}
 
 			if (this.removeStoredLayout(layout.id)) {
+				if (this.lockedLayoutIds.delete(layout.id)) {
+					this.storeLockedLayoutIds();
+				}
 				this._onDidChangeLayouts.fire();
 			}
 		});
@@ -223,6 +260,61 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 				await this.applyContributedLayout(layout.id, contributedLayout);
 			} else {
 				this._onDidChangeLayouts.fire();
+			}
+		});
+	}
+
+	setLayoutLocked(layout: INamedLayout, locked: boolean): Promise<void> {
+		return this.sequencer.queue(async () => {
+			if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
+				throw new Error('The default layout cannot be locked.');
+			}
+			if (!this.getLayout(layout.id)) {
+				throw new Error(`Unknown named layout '${layout.id}'.`);
+			}
+			if (this.isLockedByContribution(layout.id)) {
+				throw new Error('A layout locked by its extension cannot be locked or unlocked.');
+			}
+			if (this.lockedLayoutIds.has(layout.id) === locked) {
+				return;
+			}
+
+			if (locked) {
+				// A locked layout keeps the arrangement it had when it was locked
+				if (this.activeLayoutId === layout.id) {
+					this.saveActiveLayout();
+				}
+				this.lockedLayoutIds.add(layout.id);
+			} else {
+				this.lockedLayoutIds.delete(layout.id);
+				// The changes made while the layout was locked are kept
+				if (this.activeLayoutId === layout.id) {
+					this.saveActiveLayout();
+				}
+			}
+
+			this.storeLockedLayoutIds();
+			this._onDidChangeLayouts.fire();
+		});
+	}
+
+	revertLayout(): Promise<void> {
+		return this.sequencer.queue(async () => {
+			if (!this.isLocked(this.activeLayoutId)) {
+				throw new Error('Only the changes of a locked layout can be reverted.');
+			}
+
+			const storedLayout = this.getStoredLayout(this.activeLayoutId);
+			if (storedLayout) {
+				this.configurationService.setLayoutConfiguration(storedLayout.settings);
+				await this.applyLayoutState(storedLayout, [...this.participants]);
+				return;
+			}
+
+			// Another window reset the contributed layout
+			const contributedLayout = this.contributedLayouts.get(this.activeLayoutId);
+			if (contributedLayout) {
+				await this.applyContributedLayout(this.activeLayoutId, contributedLayout);
 			}
 		});
 	}
@@ -281,7 +373,8 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.saveOutgoingLayout();
 		}
 
-		if (contributedLayout && !storedLayout) {
+		// A layout that its extension locked always starts from its definition
+		if (contributedLayout && (!storedLayout || contributedLayout.locked)) {
 			await this.applyContributedLayout(layoutId, contributedLayout);
 			return;
 		}
@@ -293,9 +386,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	}
 
 	/**
-	 * Applies the definition of a contributed layout that has no saved changes and
-	 * saves the result as the changes of the layout. Must only be called from a task
-	 * of the sequencer.
+	 * Applies the definition of a contributed layout and saves the result as the
+	 * changes of the layout, replacing previously saved changes. Must only be called
+	 * from a task of the sequencer.
 	 */
 	private async applyContributedLayout(layoutId: string, contributedLayout: IContributedNamedLayout): Promise<void> {
 		const { definition } = contributedLayout;
@@ -338,9 +431,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			name: contributedLayout.label,
 			settings,
 			state: this.captureState(),
-			contribution: { extensionId: contributedLayout.extensionId, id: contributedLayout.id }
+			contribution: this.toStoredContribution(contributedLayout)
 		};
-		this.storedLayouts = [...this.storedLayouts, layout];
+		this.storedLayouts = [...this.storedLayouts.filter(candidate => candidate.id !== layoutId), layout];
 		this.storeLayouts();
 		this._onDidChangeLayouts.fire();
 
@@ -362,11 +455,14 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			return this.defaultLayout;
 		}
 
+		const locked = this.isLocked(layoutId) ? { locked: true } : {};
 		const storedLayout = this.getStoredLayout(layoutId);
 		const contributedLayout = this.contributedLayouts.get(layoutId);
 		if (contributedLayout) {
 			const { extensionId, extensionName, id, label } = contributedLayout;
-			return { id: layoutId, name: label, contribution: { extensionId, extensionName, id, canReset: !!storedLayout } };
+			const lockedByContribution = !!contributedLayout.locked;
+			// The saved state of a layout locked by its extension is replaced whenever it becomes active
+			return { id: layoutId, name: label, contribution: { extensionId, extensionName, id, canReset: !!storedLayout && !lockedByContribution, locked: lockedByContribution }, ...locked };
 		}
 
 		if (!storedLayout) {
@@ -376,10 +472,27 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (storedLayout.contribution) {
 			// Until the contributed layouts are known, the saved changes represent the layout
 			const { extensionId, id } = storedLayout.contribution;
-			return this.contributedLayoutsKnown ? undefined : { id: layoutId, name: storedLayout.name, contribution: { extensionId, extensionName: extensionId, id, canReset: true } };
+			const lockedByContribution = !!storedLayout.contribution.locked;
+			return this.contributedLayoutsKnown ? undefined : { id: layoutId, name: storedLayout.name, contribution: { extensionId, extensionName: extensionId, id, canReset: !lockedByContribution, locked: lockedByContribution }, ...locked };
 		}
 
-		return { id: storedLayout.id, name: storedLayout.name };
+		return { id: storedLayout.id, name: storedLayout.name, ...locked };
+	}
+
+	private isLocked(layoutId: string): boolean {
+		return layoutId !== DEFAULT_NAMED_LAYOUT_ID && (this.lockedLayoutIds.has(layoutId) || this.isLockedByContribution(layoutId));
+	}
+
+	private isLockedByContribution(layoutId: string): boolean {
+		const contributedLayout = this.contributedLayouts.get(layoutId);
+		if (contributedLayout) {
+			return !!contributedLayout.locked;
+		}
+		return !this.contributedLayoutsKnown && !!this.getStoredLayout(layoutId)?.contribution?.locked;
+	}
+
+	private toStoredContribution({ extensionId, id, locked }: IContributedNamedLayout): IStoredNamedLayoutContribution {
+		return { extensionId, id, ...(locked ? { locked } : {}) };
 	}
 
 	private restoreActiveLayout(): string {
@@ -425,6 +538,9 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (this.isApplying) {
 			return; // do not save a partially applied layout
 		}
+		if (this.isLocked(this.activeLayoutId)) {
+			return; // changes to a locked layout are not saved
+		}
 
 		// The workbench persists the state of the default layout itself
 		const activeLayout = this.getStoredLayout(this.activeLayoutId);
@@ -434,7 +550,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		// The saved changes of an active contributed layout are recreated if another window reset the layout
-		const contribution = activeLayout?.contribution ?? (contributedLayout ? { extensionId: contributedLayout.extensionId, id: contributedLayout.id } : undefined);
+		const contribution = activeLayout?.contribution ?? (contributedLayout ? this.toStoredContribution(contributedLayout) : undefined);
 		const updatedLayout: IStoredNamedLayout = {
 			id: this.activeLayoutId,
 			name: contributedLayout?.label ?? activeLayout?.name ?? this.activeLayoutId,
@@ -564,6 +680,40 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			this.storageService.store(NamedLayoutsService.LAYOUTS_STORAGE_KEY, JSON.stringify(this.storedLayouts), StorageScope.PROFILE, StorageTarget.USER);
 		} else {
 			this.storageService.remove(NamedLayoutsService.LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+		}
+	}
+
+	private onDidChangeLockedLayouts(): void {
+		const lockedLayoutIds = this.loadLockedLayoutIds();
+		if (equals([...lockedLayoutIds], [...this.lockedLayoutIds])) {
+			return; // changed by this window
+		}
+
+		// Changes made to the active layout while another window locked it are not saved
+		this.lockedLayoutIds = lockedLayoutIds;
+		this._onDidChangeLayouts.fire();
+	}
+
+	private loadLockedLayoutIds(): Set<string> {
+		const value = this.storageService.get(NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
+		if (!value) {
+			return new Set();
+		}
+
+		try {
+			const ids: unknown = JSON.parse(value);
+			return new Set(Array.isArray(ids) ? ids.filter(isString) : []);
+		} catch (error) {
+			this.logService.error('[named layouts] Failed to parse the locked named layouts.', error);
+			return new Set();
+		}
+	}
+
+	private storeLockedLayoutIds(): void {
+		if (this.lockedLayoutIds.size) {
+			this.storageService.store(NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, JSON.stringify([...this.lockedLayoutIds]), StorageScope.PROFILE, StorageTarget.USER);
+		} else {
+			this.storageService.remove(NamedLayoutsService.LOCKED_LAYOUTS_STORAGE_KEY, StorageScope.PROFILE);
 		}
 	}
 

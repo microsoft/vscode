@@ -45,6 +45,11 @@ export interface INamedLayoutContribution {
 	 * Whether the changes made to the layout are saved. Resetting the layout discards them.
 	 */
 	readonly canReset: boolean;
+
+	/**
+	 * Whether the extension locked the layout. Users cannot unlock it.
+	 */
+	readonly locked: boolean;
 }
 
 export interface INamedLayout {
@@ -55,6 +60,13 @@ export interface INamedLayout {
 	 * Set for layouts that extensions contribute.
 	 */
 	readonly contribution?: INamedLayoutContribution;
+
+	/**
+	 * Whether the layout is locked. Changes made to a locked layout are not saved,
+	 * they can be reverted and are discarded when another layout becomes active or
+	 * the window reloads.
+	 */
+	readonly locked?: boolean;
 }
 
 /**
@@ -156,6 +168,12 @@ export interface IContributedNamedLayout {
 	 */
 	readonly id: string;
 	readonly label: string;
+
+	/**
+	 * Whether the extension locked the layout. Changes made to it are never saved and
+	 * switching to it always applies its definition. Users cannot unlock it.
+	 */
+	readonly locked?: boolean;
 	readonly definition: INamedLayoutDefinition;
 }
 
@@ -215,8 +233,8 @@ export interface INamedLayoutsService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fires when named layouts were created, deleted or reset, or when the layouts
-	 * contributed by extensions changed.
+	 * Fires when named layouts were created, deleted, reset, locked or unlocked, or
+	 * when the layouts contributed by extensions changed.
 	 */
 	readonly onDidChangeLayouts: Event<void>;
 
@@ -273,6 +291,19 @@ export interface INamedLayoutsService {
 	 * If the layout is active, its definition is applied again.
 	 */
 	resetLayout(layout: INamedLayout): Promise<void>;
+
+	/**
+	 * Locks or unlocks the given named layout. Locking the active layout saves its
+	 * current state first, unlocking it saves the changes made while it was locked.
+	 * The default layout and layouts locked by their extension cannot be locked or unlocked.
+	 */
+	setLayoutLocked(layout: INamedLayout, locked: boolean): Promise<void>;
+
+	/**
+	 * Discards the changes made to the active layout since it was locked or became active
+	 * by applying its saved state again. The active layout must be locked.
+	 */
+	revertLayout(): Promise<void>;
 
 	/**
 	 * Describes the current layout of this window in the format of layouts that

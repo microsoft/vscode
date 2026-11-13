@@ -73,12 +73,16 @@ export class NamedLayoutsExtensionPointContribution extends Disposable implement
 					for (const problem of problems) {
 						collector.warn(localize('layouts.problem', "Layout '{0}': {1}", id, problem));
 					}
+					if (candidate.locked !== undefined && typeof candidate.locked !== 'boolean') {
+						collector.warn(localize('layouts.invalidLocked', "Layout '{0}': The value of 'locked' is invalid and ignored.", id));
+					}
 
 					contributedLayouts.push({
 						extensionId: description.identifier.value,
 						extensionName: description.displayName || description.name,
 						id,
 						label,
+						locked: candidate.locked === true,
 						definition
 					});
 				}
@@ -109,12 +113,13 @@ class LayoutsDataRenderer extends Disposable implements IExtensionFeatureTableRe
 		const layouts = manifest.contributes?.layouts ?? [];
 		const rows: IRowData[][] = layouts.map(layout => [
 			new MarkdownString().appendMarkdown(`\`${layout.id}\``),
-			layout.label
+			layout.label,
+			layout.locked === true ? localize('layouts.lockedYes', "Yes") : ''
 		]);
 
 		return {
 			data: {
-				headers: [localize('layouts.idHeader', "ID"), localize('layouts.labelHeader', "Label")],
+				headers: [localize('layouts.idHeader', "ID"), localize('layouts.labelHeader', "Label"), localize('layouts.lockedHeader', "Locked")],
 				rows
 			},
 			dispose: () => { }
