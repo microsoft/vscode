@@ -656,6 +656,8 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+// Switching to a smaller context can require model inference before it commits.
+const MODEL_SWITCH_COMPACTION_TIMEOUT_MS = 10 * 60_000;
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
 /** Bounds the Connector status read that classifies a server published Connector state does not know, so a token never waits on it for long. */
 const CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS = 10_000;
@@ -1374,6 +1376,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _pendingMcpSkillConsents = new Map<string, DeferredPromise<boolean>>();
 	/** Cancels callbacks that began before or during an SDK abort. */
 	private readonly _abortCts = this._register(new MutableDisposable<CancellationTokenSource>());
+	private readonly _modelSwitchCts = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly _lifetimeCts = this._register(new CancellationTokenSource());
 	/** Delays cancelled callbacks until the SDK abort settles or the session is disposed. */
 	private _abortBarrier: DeferredPromise<void> | undefined;
@@ -4594,6 +4597,7 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _beginAbort(): void {
+		this._modelSwitchCts.value?.cancel();
 		if (this._abortToken.isCancellationRequested) {
 			return;
 		}
@@ -7760,31 +7764,66 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort'], contextTier?: SessionConfig['contextTier'], autoTier?: NonNullable<SessionConfig['capi']>['autoTier'] | null, requested?: ModelSelection): Promise<void> {
-		// The runtime rejects a BYOK model that is not registered on the session.
+		const wrapper = this._wrapper;
+		// Selection precedes send(), which resets the previous turn's abort token.
+		// Cancel this operation independently, including while BYOK discovery waits.
+		this._modelSwitchCts.value?.cancel();
+		const cancellation = this._modelSwitchCts.value = new CancellationTokenSource(this._lifetimeCts.token);
+		let dispatched = false;
+		const switchModel = async (request: Parameters<CopilotSession['rpc']['model']['switchTo']>[0], timeoutMs = this._controlPlaneRpcTimeoutMs) => {
+			if (cancellation.token.isCancellationRequested || this._wrapper !== wrapper) {
+				throw new CancellationError();
+			}
+			dispatched = true;
+			const result = await this._awaitControlPlaneRpc('session.model.switchTo', raceCancellationError(wrapper.session.rpc.model.switchTo(request), cancellation.token), timeoutMs);
+			if (cancellation.token.isCancellationRequested || this._wrapper !== wrapper) {
+				throw new CancellationError();
+			}
+			return result;
+		};
 		try {
-			await this.syncByokModels();
-		} catch (err) {
-			// Deliberately non-fatal: let `setModel` report the runtime's own error
-			// rather than this one. Note a timed-out `provider.sync` still marks the
-			// session control-plane desynchronized, so the failure is not dropped.
-			this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
-		}
-		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		try {
+			// The runtime rejects a BYOK model that is not registered on the session.
+			try {
+				await raceCancellationError(this.syncByokModels(), cancellation.token);
+			} catch (err) {
+				// Deliberately non-fatal: let the switch report the runtime's own error.
+				// A timed-out provider.sync still marks the control-plane desynchronized.
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to register BYOK models before changing model`, err);
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
+			if (cancellation.token.isCancellationRequested || this._wrapper !== wrapper) {
+				throw new CancellationError();
+			}
 			if (isAutoModel(model) && contextTier === 'default') {
-				const result = await this._awaitControlPlaneRpc('session.options.update', this._wrapper.session.rpc.options.update({ contextTier }));
+				dispatched = true;
+				const result = await this._awaitControlPlaneRpc('session.options.update', raceCancellationError(wrapper.session.rpc.options.update({ contextTier }), cancellation.token));
 				if (!result.success) {
 					throw new Error('The runtime did not reset the context tier.');
 				}
 			}
-			await this._awaitControlPlaneRpc('session.setModel', this._wrapper.session.setModel(model, {
-				reasoningEffort,
-				contextTier,
-				...(autoTier !== undefined ? { autoTier } : {}),
-			}));
+			const request = { modelId: model, reasoningEffort, contextTier, ...(autoTier !== undefined ? { autoTier } : {}) };
+			// The SDK's setModel() discards the switch result, including a request
+			// for compaction that leaves the previous model active.
+			let result = await switchModel(request);
+			if (result.status === 'confirmation_required' && !result.deferred) {
+				result = await switchModel({ ...request, compactionDecision: 'compact' }, MODEL_SWITCH_COMPACTION_TIMEOUT_MS);
+			}
+			if (result.status !== 'applied' || result.deferred || result.modelId !== model) {
+				throw new Error(localize('copilotAgent.modelSwitchNotApplied', "The model change was not applied. Please try again before continuing the conversation."));
+			}
 			this._requestedModel = requested ?? { id: model };
 			this._appliedModelSelection = this._requestedModel;
+		} catch (error) {
+			if (dispatched && isCancellationError(error) && this._wrapper === wrapper) {
+				// An RPC cancelled locally can still mutate the runtime later.
+				this._controlPlaneDesynchronized = true;
+			}
+			throw error;
 		} finally {
+			cancellation.dispose(true);
+			if (this._modelSwitchCts.value === cancellation) {
+				this._modelSwitchCts.clear();
+			}
 			this.refreshModelConfiguration();
 		}
 		this._lastSeenModelId = model;
@@ -8407,14 +8446,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	/** Bounds a short SDK control-plane RPC so it cannot wedge the owning chat queue. */
-	private async _awaitControlPlaneRpc<T>(operation: string, rpc: Promise<T>): Promise<T> {
-		const result = await raceTimeout(rpc.then(value => ({ value })), this._controlPlaneRpcTimeoutMs);
+	/** Bounds an SDK control-plane RPC; inference-backed operations can supply a longer deadline. */
+	private async _awaitControlPlaneRpc<T>(operation: string, rpc: Promise<T>, timeoutMs = this._controlPlaneRpcTimeoutMs): Promise<T> {
+		const result = await raceTimeout(rpc.then(value => ({ value })), timeoutMs);
 		if (!result) {
 			// The request is still in flight and may still mutate SDK state, so
 			// mark the session for resync rather than continuing to use it.
 			this._controlPlaneDesynchronized = true;
-			const error = new Error(`[Copilot:${this.sessionId}] ${operation} timed out after ${this._controlPlaneRpcTimeoutMs}ms`);
+			const error = new Error(`[Copilot:${this.sessionId}] ${operation} timed out after ${timeoutMs}ms`);
 			this._logService.error(error, `[Copilot:${this.sessionId}] Control-plane RPC timed out: ${operation}`);
 			throw error;
 		}

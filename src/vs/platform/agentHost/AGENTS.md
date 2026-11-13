@@ -666,6 +666,9 @@ Each additional chat is backed by a fresh top-level SDK session (`sdkSessionId =
 
 ### Copilot (`node/copilot/copilotAgent.ts`)
 
+Model changes use the runtime's structured `rpc.model.switchTo` result. A required-compaction confirmation is resolved once, and the requested selection is recorded as applied only after the runtime commits that exact model. Compaction has an inference-sized deadline instead of the short control-plane deadline. Deferred, failed or cancelled switches block the next send; cancelled in-flight RPCs require control-plane resynchronization. Model selection has its own cancellation token, cancelled by abort and the session lifetime, so a previously aborted turn cannot cancel a later selection and a late summary cannot commit stale host intent.
+
+
 `AgentConfigurationService.copilotM365EnabledAtStartup` captures the validated `m365Enabled` root value once after loading persisted configuration. Only `true` enables it; missing or invalid values leave it off. The root value remains live requested configuration, while the effective value stays fixed for that Agent Host lifetime. A new host reads the persisted request; restarting VS Code recreates the local host. Reloading a window, connecting another client, or restarting only the Copilot SDK runtime does not recapture the value in an existing host. This is a host-lifetime snapshot, not a separate application-lifetime latch, and does not initiate account discovery, choose a service or migrate history.
 
 Copilot also has no AH-session container:
