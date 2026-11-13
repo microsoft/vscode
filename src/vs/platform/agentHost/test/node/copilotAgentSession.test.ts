@@ -30584,9 +30584,22 @@ Use the attached image as context.
 		};
 
 		test('MCP routing includes every enabled SDK-discovered server without starting it', async () => {
+			const activeClientToolSet = new ActiveClientToolSet();
+			activeClientToolSet.set('tool-search-client', globalMcpRoutingSnapshot.tools);
+			let dormantEnabled = true;
 			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables, {
 				clientSnapshot: globalMcpRoutingSnapshot,
+				activeClientToolSet,
 				rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: true },
+				resolveCustomizationEnablement: target => {
+					const enabled = target.name !== 'dormant' || dormantEnabled;
+					return {
+						kind: 'resolved',
+						enablement: enabled ? [] : [{ kind: CustomizationEnablementKind.Session, enabled: false }],
+						enabled,
+						workingDirectory: { kind: 'workspaceless' },
+					};
+				},
 				configureMockSession: mock => {
 					mock.mcpConfiguredListResult = {
 						servers: [
@@ -30606,6 +30619,28 @@ Use the attached image as context.
 			await waitForSignal(signal => isAction(signal, ActionType.SessionMetaChanged)
 				&& signal.action.type === ActionType.SessionMetaChanged
 				&& readMcpRoutingServers(signal.action, session.chatChannelUri.toString()).includes('box'));
+			const tools = mockSession.setToolsCalls.at(-1)!;
+			const search = tools.find(tool => tool.name === RUNTIME_TOOL_SEARCH_TOOL_NAME)!;
+			const dormant = tools.find(tool => tool.name.startsWith('mcp_route_dormant_'))!;
+			const findDormant = async (toolCallId: string) => {
+				session.resetTurnState(toolCallId);
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: search.name, arguments: { query: 'dormant' } });
+				const resultPromise = invokeClientToolHandler(search, toolCallId, { query: 'dormant' }, [{
+					name: dormant.name, description: dormant.description ?? '', deferLoading: true,
+				}]);
+				await waitForSignal(signal => isAction(signal, ActionType.ChatToolCallReady)
+					&& signal.action.type === ActionType.ChatToolCallReady && signal.action.toolCallId === toolCallId);
+				session.handleClientToolCallComplete(toolCallId, {
+					success: true, pastTenseMessage: 'Searched tools',
+					content: [{ type: ToolResultContentType.Text, text: JSON.stringify([dormant.name]) }],
+				});
+				const result = await resultPromise;
+				const ready = getActions(signals).find((action): action is ChatToolCallReadyAction => action.type === ActionType.ChatToolCallReady && action.toolCallId === toolCallId)!;
+				return { candidates: readToolCallMeta(ready).toolSearchCandidates, references: result.toolReferences };
+			};
+			const enabledSearch = await findDormant('find-dormant');
+			dormantEnabled = false;
+			const disabledSearch = await findDormant('find-disabled-dormant');
 			assert.deepStrictEqual({
 				routedServers: getActions(signals).flatMap(action => action.type === ActionType.SessionMetaChanged
 					? [[...readMcpRoutingServers(action, session.chatChannelUri.toString())]] : []).at(-1),
@@ -30614,10 +30649,13 @@ Use the attached image as context.
 				materializingInventory: mockSession.mcpMaterializingListCalls,
 				toolDiscovery: mockSession.mcpListToolsCalls,
 				projectedServers: session.appliedSnapshot.mcpServers,
+				enabledSearch, disabledSearch,
 			}, {
 				routedServers: ['box', 'builtin', 'dormant', 'managed'],
 				proxies: Array.from({ length: 4 }, () => ({ defer: 'auto', noCachedMetadata: true })),
 				starts: [], materializingInventory: 0, toolDiscovery: [], projectedServers: {},
+				enabledSearch: { candidates: [{ name: dormant.name, description: dormant.description }], references: [dormant.name] },
+				disabledSearch: { candidates: [], references: [] },
 			});
 		});
 
@@ -30701,6 +30739,59 @@ Use the attached image as context.
 				tools: [RUNTIME_TOOL_SEARCH_TOOL_NAME], routedServers: [], starts: [],
 			});
 		});
+
+		for (const change of ['disabled', 'removed', 'failed', 'cancelled'] as const) {
+			test(`MCP routing waits for superseding inventory before activation (${change})`, async () => {
+				const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
+					clientSnapshot: globalMcpRoutingSnapshot,
+					rootValues: { [AgentHostMcpToolRoutingEnabledConfigKey]: true },
+					configureMockSession: mock => {
+						mock.mcpListResult = { servers: [{ name: 'box', source: 'plugin', status: 'stopped' }] };
+					},
+					duringLaunch: runtime => {
+						runtime.createClientSdkTools(true);
+						runtime.configureClientTools!(clientToolConfiguration(true));
+					},
+				});
+				await waitForSignal(signal => isAction(signal, ActionType.SessionMetaChanged)
+					&& signal.action.type === ActionType.SessionMetaChanged
+					&& readMcpRoutingServers(signal.action, session.chatChannelUri.toString()).includes('box'));
+				await timeout(0);
+				const proxy = mockSession.setToolsCalls.at(-1)!.find(tool => tool.name.startsWith('mcp_route_'))!;
+				const activationRead = new DeferredPromise<void>();
+				const supersedingRead = new DeferredPromise<void>();
+				const readCount = mockSession.mcpListCalls;
+				mockSession.mcpListGates.push(activationRead.p);
+				mockSession.mcpStartServerError = new Error('Stale activation must not start a server');
+				session.resetTurnState('stale-box');
+				let completed = false;
+				const activation = invokeClientToolHandler(proxy, 'stale-box').then(result => {
+					completed = true;
+					return result;
+				});
+				await timeout(0);
+				mockSession.mcpListResult = { servers: change === 'removed' ? [] : [{ name: 'box', source: 'plugin', status: 'disabled' }] };
+				mockSession.mcpListGates.push(supersedingRead.p);
+				mockSession.fire('session.mcp_servers_loaded', { servers: [] });
+				await activationRead.complete();
+				await timeout(0);
+				const beforeCurrentInventory = { completed, starts: [...mockSession.mcpStartServerCalls], reads: mockSession.mcpListCalls - readCount };
+				if (change === 'cancelled') {
+					await session.abort();
+					await activation;
+				}
+				if (change === 'failed') {
+					await supersedingRead.error(new Error('Current inventory is unavailable'));
+				} else {
+					await supersedingRead.complete();
+				}
+				const result = await activation;
+				assert.deepStrictEqual({ beforeCurrentInventory, resultType: result.resultType, starts: mockSession.mcpStartServerCalls }, {
+					beforeCurrentInventory: { completed: false, starts: [], reads: 2 },
+					resultType: 'failure', starts: [],
+				});
+			});
+		}
 
 		test('MCP routing inventory refresh preserves a concurrent client tool replacement', async () => {
 			const { session, mockSession, waitForSignal } = await createAgentSession(disposables, {
