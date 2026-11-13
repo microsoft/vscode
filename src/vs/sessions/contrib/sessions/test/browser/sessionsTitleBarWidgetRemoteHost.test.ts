@@ -88,7 +88,10 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 				onDidChangeSessions: Event.None,
 				onDidChangeSessionTypes: onDidChangeSessionTypes.event,
 			}),
-			upcastPartial<ITestSessionsService>({ activeSession }),
+			upcastPartial<ITestSessionsService>({
+				activeSession,
+				getRecentlyOpenedSessions: () => ({ recent: [], other: [] }),
+			}),
 			upcastPartial<ISessionHost>({ session: activeSession, chat: derived(reader => activeSession.read(reader)?.activeChat.read(reader)) }),
 			providersService,
 			upcastPartial<ICommandService>({}),

@@ -217,6 +217,9 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 			const activeSession = this.activeSession.read(reader);
 			return this.slotPanes.read(reader).find(pane => pane.session.read(reader) === activeSession);
 		});
+		override getRecentlyOpenedSessions() {
+			return { recent: sessions, other: [] };
+		}
 		/** Makes the pane of `session` the active one, as focusing it does. */
 		activate(session: ITestSessionWithChat | undefined): void {
 			this.activeSession.set(session, undefined);
