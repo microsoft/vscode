@@ -600,4 +600,3 @@ suite('ChatViewPane widget readiness', () => {
 		assert.deepStrictEqual(steps, ['render', 'resolved to the widget']);
 	});
 });
-
