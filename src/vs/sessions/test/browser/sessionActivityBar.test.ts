@@ -491,7 +491,7 @@ suite('Sessions - Session Activity Bar', () => {
 		const element = docked.element!;
 		const host = element.parentElement!;
 		// As the hosts lay it out: to the left of the column they keep.
-		const chat = append(host, $('.chat-view'));
+		const chat = append(host, $('.chat-view.sessions-chat'));
 		chat.style.cssText = `position: absolute; top: 0; left: 0; height: 100%; width: calc(100% - ${docked.reservedWidth.get()}px);`;
 		const bounds = element.getBoundingClientRect();
 		const button = element.querySelector<HTMLElement>('.action-label')!.getBoundingClientRect();

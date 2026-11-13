@@ -7,6 +7,8 @@ import assert from 'assert';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
+import { Action } from '../../../../../../../base/common/actions.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { Lazy } from '../../../../../../../base/common/lazy.js';
 import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -21,9 +23,11 @@ import { createTextModel } from '../../../../../../../editor/test/common/testTex
 import { IAccessibilitySignalService } from '../../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IMenuService, MenuId } from '../../../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../../platform/actions/common/actions.js';
+import { IActionWidgetService } from '../../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { MenuService } from '../../../../../../../platform/actions/common/menuService.js';
+import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
@@ -35,6 +39,9 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { getSimpleEditorOptions } from '../../../../../codeEditor/browser/simpleEditorOptions.js';
 import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
 import { ChatInputPart, getChatInputEditorMetrics, IChatInputPartOptions } from '../../../../browser/widget/input/chatInputPart.js';
+import { ChatQueuePickerActionItem } from '../../../../browser/widget/input/chatQueuePickerActionItem.js';
+import { ChatQueueMessageAction } from '../../../../browser/actions/chatQueueActions.js';
+import { IChatWidget, IChatWidgetService } from '../../../../browser/chat.js';
 import { ChatSessionWorkingSetKeptChanges } from '../../../../browser/widget/input/chatSessionWorkingSet.js';
 import { ChatSessionReviewPreferencesService, IChatSessionReviewPreferencesService } from '../../../../common/editing/chatSessionReviewPreferences.js';
 import { CollapsibleListPool } from '../../../../browser/widget/chatContentParts/chatReferencesContentPart.js';
@@ -60,6 +67,86 @@ import { IChatSessionFileChange2 } from '../../../../../../common/chatSessionFil
 
 suite('ChatInputPart', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const busy of [false, true]) {
+		test(`send dropdown shares the queue control and routes actions with busy=${busy}`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const config = new TestConfigurationService({ [ChatConfiguration.RequestQueueingDefaultAction]: 'queue' });
+			const contextKeyService = store.add(new ContextKeyService(config));
+			ChatContextKeys.inputHasText.bindTo(contextKeyService).set(true);
+			instantiationService.stub(IConfigurationService, config);
+			instantiationService.stub(IContextKeyService, contextKeyService);
+			instantiationService.stub(IChatWidgetService, { lastFocusedWidget: undefined });
+			const calls: { id: string; args: unknown[] }[] = [];
+			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
+				override async executeCommand<T>(id: string, ...args: unknown[]): Promise<T | undefined> {
+					calls.push({ id, args });
+					return undefined;
+				}
+			});
+			instantiationService.stub(IMenuService, store.add(instantiationService.createInstance(MenuService)));
+			let labels: (string | undefined)[] = [];
+			let enabled: boolean[] = [];
+			let sendLaterIcon: { id: string | undefined; hidden: boolean | undefined } | undefined;
+			let selectLast: (() => void) | undefined;
+			instantiationService.stub(IActionWidgetService, {
+				hide() { },
+				show: (_user, _preview, items, delegate) => {
+					labels = items.map(item => item.label);
+					enabled = items.map(item => !item.disabled);
+					sendLaterIcon = { id: items.at(-1)?.group?.icon?.id, hidden: items.at(-1)?.hideIcon };
+					const last = items.at(-1)?.item;
+					selectLast = () => {
+						if (last) {
+							delegate.onSelect(last);
+							delegate.onHide?.();
+						}
+					};
+				},
+			});
+			store.add(MenuRegistry.appendMenuItem(MenuId.ChatExecuteSecondary, { command: { id: 'test.sendLater', title: 'Send Later...', icon: Codicon.clock } }));
+			const send = instantiationService.createInstance(MenuItemAction, { id: 'test.send', title: 'Send', icon: Codicon.arrowUp }, undefined, { shouldForwardArgs: true }, undefined, undefined);
+			const queue = store.add(new Action('test.queue', 'Queue'));
+			const item = store.add(instantiationService.createInstance(ChatQueuePickerActionItem, busy ? queue : send, busy ? {} : { primaryAction: instantiationService.createInstance(MenuEntryActionViewItem, send, {}) }));
+			const context = { widget: upcastPartial<IChatWidget>({}) };
+			item.setActionContext(context);
+			const root = dom.append(mainWindow.document.body, dom.$('.interactive-session'));
+			store.add(toDisposable(() => root.remove()));
+			const toolbars = dom.append(root, dom.$('.chat-input-toolbars'));
+			const toolbar = dom.append(toolbars, dom.$('.chat-execute-toolbar'));
+			const actionBar = dom.append(toolbar, dom.$('.monaco-action-bar'));
+			const container = dom.append(actionBar, dom.$('.action-item'));
+			item.render(container);
+			item.focus();
+			const primary = container.querySelector<HTMLElement>('.action-container .action-label')!;
+			primary.click();
+			primary.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+			const dropdown = container.querySelector<HTMLElement>('.dropdown-action-container .action-label')!;
+			const dropdownFocused = mainWindow.document.activeElement === dropdown;
+			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }));
+			const primaryFocused = mainWindow.document.activeElement === primary;
+			dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+			selectLast?.();
+			await timeout(0);
+			assert.deepStrictEqual({
+				sharedControl: container.classList.contains('monaco-dropdown-with-default'),
+				circularSend: !!container.querySelector('.chat-submit-button'),
+				nestedButtons: container.querySelectorAll('[role="button"] [role="button"]').length,
+				dropdownFocused, primaryFocused, labels, calls, sendLaterIcon,
+			}, {
+				sharedControl: true, circularSend: false, nestedButtons: 0,
+				dropdownFocused: true, primaryFocused: true,
+				labels: busy ? ['Stop and Send', 'Add to Queue', 'Steer with Message', 'Send Later...'] : ['Send Later...'],
+				sendLaterIcon: { id: Codicon.clock.id, hidden: false },
+				calls: [{ id: busy ? ChatQueueMessageAction.ID : 'test.send', args: busy ? [] : [context] }, { id: 'test.sendLater', args: [context] }],
+			});
+			if (busy) {
+				ChatContextKeys.inputHasText.bindTo(contextKeyService).set(false);
+				dropdown.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				assert.deepStrictEqual(enabled, [true, false, false, true]);
+			}
+		});
+	}
 
 	test('component metrics override the configured chat font size', () => {
 		assert.deepStrictEqual([
@@ -87,6 +174,27 @@ suite('ChatInputPart', () => {
 		});
 		input.refreshToolbars();
 		assert.deepStrictEqual(updates, ['input', 'execute', 'secondary', 'layout']);
+	});
+
+	test('announces a model once across metadata refreshes and transient loading states', () => {
+		const announcements: string[] = [];
+		const labels: string[] = [];
+		const input: ChatInputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+			chatModelIdKey: { set: () => { } },
+			accessibilityService: { alert: (message: string) => announcements.push(message) },
+			_inputEditor: { updateOptions: ({ ariaLabel }: { ariaLabel: string }) => labels.push(ariaLabel) },
+			_getAriaLabel: () => 'Chat input',
+		});
+		const model = (identifier: string) => upcastPartial<ILanguageModelChatMetadataAndIdentifier>({
+			identifier, metadata: upcastPartial<ILanguageModelChatMetadata>({ id: identifier, name: identifier }),
+		});
+		const update = Reflect.get(ChatInputPart.prototype, '_updateSelectedModel') as (this: ChatInputPart, model: ILanguageModelChatMetadataAndIdentifier | undefined) => void;
+		for (const selected of [undefined, model('first'), model('first'), undefined, model('first'), model('second'), model('second')]) {
+			update.call(input, selected);
+		}
+		assert.deepStrictEqual({ announcements, labelUpdates: labels.length }, {
+			announcements: ['first', 'second'], labelUpdates: 7,
+		});
 	});
 
 	for (const placement of ['primary', 'secondary'] as const) {
@@ -1085,6 +1193,7 @@ suite('ChatInputPart', () => {
 				attachedContextContainer: dom.$('div'),
 				attachmentsContainer: dom.$('div'),
 				attachedContextDisposables,
+				attachedContextElements: new Map(),
 				_attachmentModel: { attachments: [chip] },
 				configurationService: { getValue: () => false },
 				options: {},

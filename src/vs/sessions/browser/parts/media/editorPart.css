@@ -286,7 +286,7 @@
  * The overlay ignores the pointer so the empty group's double-click and context menu keep working around the list. */
 .agent-sessions-workbench .part.editor > .content .editor-group-container.empty.sessions-has-add-tab-watermark > .sessions-empty-group-add-tab-watermark {
 	position: absolute;
-	inset: 0 var(--sessions-editor-content-right-inset, 0px) 0 0;
+	inset: var(--sessions-editor-content-top-inset, 0px) var(--sessions-editor-content-right-inset, 0px) var(--sessions-editor-content-bottom-inset, 0px) var(--sessions-editor-content-left-inset, 0px);
 	display: flex;
 	align-items: center;
 	justify-content: center;

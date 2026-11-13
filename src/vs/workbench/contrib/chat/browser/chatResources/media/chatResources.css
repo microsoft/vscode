@@ -1,0 +1,101 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The embedded resource floats above the pills, whose container lets clicks fall through to the transcript. */
+.chat-embedded-resources {
+	position: relative;
+	z-index: 1;
+	pointer-events: auto;
+}
+
+.chat-embedded-resources:empty {
+	display: none;
+}
+
+/* Padding rather than margin, so the measured height that the transcript reserves includes it. */
+.chat-embedded-resources:not(:empty) {
+	padding-bottom: 4px;
+}
+
+.chat-embedded-resource {
+	position: relative;
+	border: 1px solid var(--vscode-input-border, var(--vscode-widget-border, transparent));
+	border-radius: 4px;
+	overflow: hidden;
+	background: var(--vscode-chat-list-background, var(--vscode-sideBar-background));
+}
+
+.chat-embedded-resource-header {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 22px;
+	padding: 0 4px 0 8px;
+	user-select: none;
+	border-bottom: 1px solid var(--vscode-widget-border, transparent);
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+}
+
+/* The resize edge is the edge that moves: the top one. */
+.chat-embedded-resource-sash {
+	height: 4px;
+	cursor: ns-resize;
+	transition: background-color 0.1s ease-out;
+}
+
+.chat-embedded-resource-sash:hover,
+.chat-embedded-resource-sash.active {
+	background: var(--vscode-sash-hoverBorder);
+	transition-delay: 0.2s;
+}
+
+.chat-embedded-resource-sash.active {
+	transition-delay: 0s;
+}
+
+.chat-embedded-resource-title {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-embedded-resource-actions {
+	display: flex;
+	gap: 2px;
+}
+
+.chat-embedded-resource-actions .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 18px;
+	height: 18px;
+	border-radius: 3px;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+}
+
+.chat-embedded-resource-actions .action-label:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-embedded-resource-body {
+	position: relative;
+}
+
+.chat-embedded-resource-error,
+.chat-embedded-resource-message {
+	padding: 6px 8px;
+}
+
+.chat-embedded-resource-error {
+	color: var(--vscode-errorForeground);
+}
+
+.chat-embedded-resource-message {
+	color: var(--vscode-descriptionForeground);
+}

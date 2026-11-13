@@ -6,6 +6,7 @@
 import type { McpSdkServerConfigWithInstance } from '@anthropic-ai/claude-agent-sdk';
 import type { IAgentServerToolDefinition, IAgentServerToolHost } from '../../common/agentServerTools.js';
 import type { IClaudeAgentSdkService } from './claudeAgentSdkService.js';
+import { extractToolUseId } from './clientTools/claudeClientToolMcpServer.js';
 import { jsonSchemaToZodRawShape } from './clientTools/claudeJsonSchemaToZod.js';
 
 /**
@@ -64,9 +65,9 @@ export async function buildServerToolMcpServer(
 		def.name,
 		def.description ?? '',
 		jsonSchemaToZodRawShape(def.inputSchema),
-		async args => {
+		async (args, extra) => {
 			try {
-				const text = await host.executeTool(chatUri, def.name, args);
+				const text = await host.executeTool(chatUri, def.name, args, extractToolUseId(extra));
 				return { content: [{ type: 'text' as const, text }] };
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

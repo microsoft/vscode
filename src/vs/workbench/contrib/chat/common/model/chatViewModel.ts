@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { IAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -14,6 +15,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { IChatDraft } from '../attachments/chatDraft.js';
 import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpAuthenticationRequired, IChatMcpServersStarting, IChatMcpServersStartingSlow, IChatPlanReview, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
@@ -33,6 +35,10 @@ export function isPendingDividerVM(item: unknown): item is IChatPendingDividerVi
 	return !!item && typeof item === 'object' && (item as IChatPendingDividerViewModel).kind === 'pendingDivider';
 }
 
+export function isScheduledRequestVM(item: unknown): item is IChatScheduledRequestViewModel {
+	return !!item && typeof item === 'object' && 'kind' in item && item.kind === 'scheduledRequest';
+}
+
 interface IChatViewModelItemWithPendingState {
 	readonly id: string;
 	readonly kind?: string;
@@ -40,7 +46,7 @@ interface IChatViewModelItemWithPendingState {
 }
 
 function isPendingChatViewModelItem(item: IChatViewModelItemWithPendingState): boolean {
-	return item.kind === 'pendingDivider' || item.pendingKind !== undefined;
+	return item.kind === 'pendingDivider' || item.kind === 'scheduledRequest' || item.pendingKind !== undefined;
 }
 
 /**
@@ -99,7 +105,8 @@ export interface IChatViewModel {
 	readonly onDidChange: Event<IChatViewModelChangeEvent>;
 	readonly onDidChangeEditing: Event<void>;
 	readonly inputPlaceholder?: string;
-	getItems(): readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[];
+	getItems(): readonly ChatViewModelItem[];
+	setScheduledRequests(requests: readonly IChatScheduledRequest[]): void;
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 	editing?: IChatRequestViewModel;
@@ -260,12 +267,45 @@ export interface IChatResponseViewModel {
 	readonly shouldBeBlocked: IObservable<boolean>;
 }
 
+export interface IChatScheduledRequestEditing {
+	text: string;
+	input?: IChatDraft;
+	readonly retainedAttachments?: readonly string[];
+	readonly isSaving?: IObservable<boolean>;
+	runAt: string;
+	description: string;
+	readonly selectTime: IAction;
+	save(): Promise<void>;
+	cancel(): void;
+}
+
+/** Requests owned by a scheduler, never entries in the immediate-send queue. */
+export interface IChatScheduledRequest {
+	readonly id: string;
+	readonly text: string;
+	readonly description: string;
+	readonly attachments: readonly string[];
+	readonly actions: readonly IAction[];
+	readonly editAction?: IAction;
+	readonly editing?: IChatScheduledRequestEditing;
+}
+
+export interface IChatScheduledRequestViewModel extends IChatScheduledRequest {
+	readonly kind: 'scheduledRequest';
+	readonly sessionResource: URI;
+	readonly dataId: string;
+	readonly isComplete: true;
+	currentRenderedHeight: number | undefined;
+}
+
+export type ChatViewModelItem = IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel | IChatScheduledRequestViewModel;
+
 export interface IChatPendingDividerViewModel {
 	readonly kind: 'pendingDivider';
 	readonly id: string; // e.g., 'pending-divider-steering' or 'pending-divider-queued'
 	readonly sessionResource: URI;
 	readonly isComplete: true;
-	readonly dividerKind: ChatRequestQueueKind;
+	readonly dividerKind: ChatRequestQueueKind | 'scheduled';
 	readonly isSystemInitiated?: boolean;
 	currentRenderedHeight: number | undefined;
 }
@@ -296,7 +336,9 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
 	/** Result of {@link getItems}, rebuilt lazily after any model or view-model change. */
-	private _visibleItemsCache: readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] | undefined;
+	private _visibleItemsCache: readonly ChatViewModelItem[] | undefined;
+	private _scheduledRequests: readonly IChatScheduledRequestViewModel[] = [];
+	private _scheduledRequestsVersion = 0;
 	private readonly _responseDisposables = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _inputPlaceholder: string | undefined = undefined;
@@ -411,12 +453,26 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		this._items.splice(index, 0, response);
 	}
 
-	getItems(): readonly (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
+	setScheduledRequests(requests: readonly IChatScheduledRequest[]): void {
+		const version = ++this._scheduledRequestsVersion;
+		this._scheduledRequests = requests.map(request => ({
+			...request,
+			id: `scheduled:${request.id}`,
+			dataId: `scheduled:${request.id}:${version}`,
+			kind: 'scheduledRequest',
+			sessionResource: this.sessionResource,
+			isComplete: true,
+			currentRenderedHeight: undefined,
+		}));
+		this._onDidChange.fire(null);
+	}
+
+	getItems(): readonly ChatViewModelItem[] {
 		return this._visibleItemsCache ??= this.computeItems();
 	}
 
-	private computeItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item, index) => {
+	private computeItems(): ChatViewModelItem[] {
+		let items: ChatViewModelItem[] = this._items.filter((item, index) => {
 			if (item.isHiddenFromTranscript || (isRequestVM(item) && item.isRequestHiddenFromTranscript) || (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop)) {
 				return false;
 			}
@@ -469,6 +525,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			}
 		}
 
+		if (this._scheduledRequests.length > 0) {
+			items.push({ kind: 'pendingDivider', id: 'pending-divider-scheduled', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: 'scheduled', currentRenderedHeight: undefined });
+			items.push(...this._scheduledRequests);
+		}
 		return items;
 	}
 

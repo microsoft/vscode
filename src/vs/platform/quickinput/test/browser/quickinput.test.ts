@@ -202,6 +202,32 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.deepStrictEqual(states, controls.map(() => ({ supportsWidget: false, contentAttached: false })));
 	});
 
+	test('quick tree checkbox clicks retain focus and selection when listeners replace items', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickTree());
+		picker.sortByLabel = false;
+		picker.setItemTree([
+			{ id: 'first', label: 'First', checked: false },
+			{ id: 'second', label: 'Second', checked: false },
+		]);
+		store.add(picker.onDidChangeCheckboxState(() => {
+			picker.setItemTree(picker.itemTree.map(item => ({ ...item })));
+		}));
+		picker.show();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-tree > .monaco-list')!;
+		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
+		if (!(tree instanceof ObjectTree)) {
+			throw new Error('Expected the Quick Input tree');
+		}
+		fixture.querySelectorAll<HTMLElement>('.quick-input-tree-entry .monaco-checkbox')[1].click();
+		const replacement = picker.itemTree[1];
+		assert.deepStrictEqual({
+			checked: picker.checkedLeafItems.map(item => item.id),
+			focused: tree.getFocus()[0] === replacement,
+			selected: tree.getSelection()[0] === replacement,
+		}, { checked: ['second'], focused: true, selected: true });
+	});
+
 	test('quick widgets retain their content when shown again without disturbing focus on updates', () => {
 		const picker = store.add(controller.createQuickWidget());
 		const content = mainWindow.document.createElement('input');
@@ -661,6 +687,42 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				inert: false,
 			},
 		});
+	});
+
+	test('overlay picker follows its anchor when the anchor is resized while open', async () => {
+		fixture.style.width = '600px';
+		fixture.style.height = '400px';
+		controller.layout({ width: 600, height: 400 }, 0);
+
+		const anchor = document.createElement('div');
+		anchor.style.position = 'absolute';
+		anchor.style.left = '80px';
+		anchor.style.top = '40px';
+		anchor.style.width = '300px';
+		anchor.style.height = '26px';
+		fixture.appendChild(anchor);
+
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.anchor = anchor;
+		quickpick.anchorPosition = 'overlay';
+		quickpick.show();
+
+		const input = fixture.querySelector<HTMLElement>('.quick-input-filter .monaco-inputbox')!;
+		const initialWidth = input.getBoundingClientRect().width;
+
+		anchor.style.width = '200px';
+		let frame = 0;
+		try {
+			await raceTimeout(new Promise<void>(resolve => {
+				const check = () => input.getBoundingClientRect().width === 200 ? resolve() : frame = mainWindow.requestAnimationFrame(check);
+				check();
+			}), 2000);
+		} finally {
+			mainWindow.cancelAnimationFrame(frame);
+		}
+
+		assert.deepStrictEqual({ initialWidth, resizedWidth: input.getBoundingClientRect().width }, { initialWidth: 300, resizedWidth: 200 });
+		quickpick.hide();
 	});
 
 	test('positions an anchored picker below its anchor when requested', () => {

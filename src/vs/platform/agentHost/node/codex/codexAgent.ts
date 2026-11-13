@@ -35,6 +35,7 @@ import { ContextSizeConfigKey, createContextSizeConfigSchemaProperty, createCont
 import { CHATGPT_SUBSCRIPTION_MODEL_SOURCE_ID, createAgentModelGroupMeta, createAgentModelSourceMeta } from '../../common/agentModelSource.js';
 import { withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
+import { toToolCallMeta } from '../../common/meta/agentToolCallMeta.js';
 import { AgentSdkSetupChannel } from '../agentSdkSetupChannel.js';
 import { CODEX_ACCOUNT_META_KEY, CODEX_ACCOUNT_REFRESH_REQUEST_KEY, CODEX_ACCOUNT_SIGN_IN_REQUEST_KEY, CODEX_ACCOUNT_SIGN_OUT_REQUEST_KEY, type ICodexAccountInfo } from '../../common/codexAccount.js';
 import { getReasoningEffortDescription, getReasoningEffortLabel, resolveDefaultReasoningEffort } from '../../common/reasoningEffort.js';
@@ -178,7 +179,7 @@ import { ensurePortableCodexProxyProvider } from './codexProviderConfiguration.j
 import { CODEX_COPILOT_MODEL_PROVIDER, parseCodexModelSelection, toCodexModelSelectionId, toCodexModelProvider } from '../../common/codexModelSelection.js';
 export { parseCodexModelSelection, toCodexModelSelectionId } from '../../common/codexModelSelection.js';
 import { reportCodexProviderSwitch } from './codexProviderSwitchTelemetry.js';
-import { formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
+import { formatGuardianApprovalMessage, formatGuardianDenialNotification, formatGuardianReviewStatusNotification, summarizeGuardianReviewAction, toGuardianAssessmentEventJson } from './codexGuardianReview.js';
 import { CodexThreadCreationSequencer } from './codexThreadCreationSequencer.js';
 import { CODEX_COMPACT_SLASH_COMMAND } from '../codexCompactCommand.js';
 
@@ -201,6 +202,8 @@ const CODEX_CHILD_REUSE_TOOLS: ReadonlySet<CollabAgentTool> = new Set(['sendInpu
 const CODEX_DESKTOP_WORKSPACE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const CODEX_DESKTOP_SESSION_META_PATTERN = /"type"\s*:\s*"session_meta".*"payload"\s*:\s*\{[^}]*"originator"\s*:\s*"Codex Desktop"/s;
 const CODEX_GUARDIAN_TURN_INTERRUPTION_PREFIX = 'Automatic approval review rejected too many approval requests for this turn';
+/** Codex's id for running on the app-server's own machine (`codex_exec_server::LOCAL_ENVIRONMENT_ID`). */
+const CODEX_LOCAL_ENVIRONMENT_ID = 'local';
 
 function isCodexWriterLockError(error: unknown, threadId: string | undefined): error is JsonRpcError {
 	// InvalidRequest is shared by unrelated failures; Codex has no dedicated lock code.
@@ -3088,7 +3091,7 @@ export class CodexAgent extends Disposable implements IAgent {
 						return { result: this._toolFailure(`Server tool ${params.tool} was not approved`) };
 					}
 				}
-				const text = host.executeTool(chatChannel, params.tool, params.arguments);
+				const text = host.executeTool(chatChannel, params.tool, params.arguments, session.mapState.itemToToolCall.get(params.callId)?.toolCallId);
 				return { result: { contentItems: [{ type: 'inputText', text: await text }], success: true } };
 			} catch (err) {
 				return { result: this._toolFailure(`Server tool ${params.tool} failed: ${err instanceof Error ? err.message : String(err)}`) };
@@ -4256,13 +4259,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		return { result: { decision } };
 	}
 
-	private async _handleCommandApprovalRequest(params: {
-		readonly threadId: string;
-		readonly turnId: string;
-		readonly itemId: string;
-		readonly command?: string | null;
-		readonly reason?: string | null;
-	}): Promise<CommandExecutionApprovalDecision> {
+	private async _handleCommandApprovalRequest(params: CommandExecutionRequestApprovalParams): Promise<CommandExecutionApprovalDecision> {
 		const target = this._resolveApprovalTarget(params.threadId);
 		if (!target) {
 			this._logService.warn(`[Codex] commandExecution/requestApproval for unknown threadId=${params.threadId}; declining`);
@@ -4290,6 +4287,11 @@ export class CodexAgent extends Disposable implements IAgent {
 		if (command && session.acceptedForSession.has(command)) {
 			return 'acceptForSession';
 		}
+		// Where the command runs is part of what the user approves: the same
+		// relative command line runs a different program in another directory
+		// or environment.
+		const workingDirectory = params.cwd || undefined;
+		const environment = params.environmentId && params.environmentId !== CODEX_LOCAL_ENVIRONMENT_ID ? params.environmentId : undefined;
 		const confirmationTitle = params.reason ?? 'Run shell command';
 		// Atomically register the deferred and fire the
 		// PendingConfirmation signal so a synchronous responder can't
@@ -4302,6 +4304,15 @@ export class CodexAgent extends Disposable implements IAgent {
 				invocationMessage: displayCommand,
 				toolInput: displayCommand,
 				confirmationTitle,
+				// The reducer replaces the whole `_meta` bag, so restate the terminal kind.
+				_meta: {
+					...entry.meta,
+					...toToolCallMeta({
+						toolKind: 'terminal',
+						'vscode.terminalWorkingDirectory': workingDirectory,
+						'vscode.terminalEnvironment': environment,
+					}),
+				},
 			});
 		});
 		// Track accept-for-session decisions for the next request.
@@ -4484,7 +4495,7 @@ export class CodexAgent extends Disposable implements IAgent {
 		// block on this card, so if the turn ends first the reducer cancels it and
 		// {@link _handleTurnCompletedNotification} unwinds the parked deferred.
 		const toolCallId = generateUuid();
-		const invocationMessage = summary.detail || summary.title;
+		const intention = summary.detail || summary.title;
 		const confirmationTitle = 'Approve anyway';
 		// Deliberately render this as a PLAIN confirmation card, NOT a terminal
 		// pill: the denied action already appears as its real commandExecution
@@ -4506,13 +4517,13 @@ export class CodexAgent extends Disposable implements IAgent {
 					toolCallId,
 					toolName: 'auto_review_denied',
 					displayName: summary.title,
-					intention: invocationMessage,
+					intention,
 				});
 				this._fire(session.sessionUri, {
 					type: ActionType.ChatToolCallReady,
 					turnId,
 					toolCallId,
-					invocationMessage,
+					invocationMessage: formatGuardianApprovalMessage(summary),
 					confirmationTitle,
 				});
 			});

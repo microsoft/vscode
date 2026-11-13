@@ -450,6 +450,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				this.editorService.openEditor({
 					resource: undefined,
+					untitledOrigin: 'tabBarDoubleClick',
 					options: {
 						pinned: true,
 						index: this.groupView.count, // always at the end
@@ -585,7 +586,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Figure out scrolling direction but ignore it if too subtle
 			let tabSwitchDirection: number;
-			if (e.deltaX + e.deltaY < - MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
+			if (e.deltaX + e.deltaY < -MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = -1;
 			} else if (e.deltaX + e.deltaY > MultiEditorTabsControl.MOUSE_WHEEL_DISTANCE_THRESHOLD) {
 				tabSwitchDirection = 1;
@@ -2208,11 +2209,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const actionPadding = Number.parseFloat(style.getPropertyValue('--modern-ui-tab-action-fit-padding')) || 28;
 		const currentActionPadding = Number.parseFloat(tab.classList.contains('tab-actions-left') ? style.paddingLeft : style.paddingRight);
 		const intrinsicWidth = hasPersistentAction ? width + Math.max(0, actionPadding - currentActionPadding) : width;
-		/* eslint-disable no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
+		/* eslint-disable eslint-js/no-restricted-syntax -- IconLabel exposes its root, but not its text-layout elements. */
 		const label = tab.querySelector<HTMLElement>('.tab-label');
 		const name = label?.querySelector<HTMLElement>('.monaco-icon-name-container');
 		const labelContainer = label?.querySelector<HTMLElement>('.monaco-icon-label-container');
-		/* eslint-enable no-restricted-syntax */
+		/* eslint-enable eslint-js/no-restricted-syntax */
 		const nameWidth = name ? Number.parseFloat(targetWindow.getComputedStyle(name).width) : 0;
 		const adornmentWidth = label && labelContainer ? Number.parseFloat(targetWindow.getComputedStyle(label).width) - Number.parseFloat(targetWindow.getComputedStyle(labelContainer).width) : 0;
 		const borderWidth = Number.parseFloat(style.borderLeftWidth) + Number.parseFloat(style.borderRightWidth);

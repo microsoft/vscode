@@ -65,6 +65,7 @@ class TestRemotesModel extends Disposable implements IRemotesModel {
 	async copyAddress(): Promise<void> { }
 	async changePreferredAgentLocation(): Promise<void> { }
 	async updateServer(): Promise<void> { }
+	async setSharedAsGitHubEnvironment(): Promise<void> { }
 	async deleteTunnel(): Promise<void> { }
 	async deleteSSHHost(): Promise<void> { }
 	async remove(): Promise<void> { }
@@ -81,10 +82,14 @@ class TestRemoteTunnelService extends mock<IRemoteTunnelService>() {
 	override readonly onDidChangeTunnelStatus = this.onDidChangeStatusEmitter.event;
 	override readonly onDidChangeMode = Event.None;
 	override async getMode(): Promise<TunnelMode> { return INACTIVE_TUNNEL_MODE; }
-	override async getTunnelStatus(): Promise<TunnelStatus> { return { type: 'disconnected' }; }
+	private status: TunnelStatus = { type: 'disconnected' };
+	override async getTunnelStatus(): Promise<TunnelStatus> { return this.status; }
 	override async getTunnelName(): Promise<string | undefined> { return 'my-workstation'; }
 	override async stopTunnel(): Promise<void> { }
-	fireStatus(status: TunnelStatus): void { this.onDidChangeStatusEmitter.fire(status); }
+	fireStatus(status: TunnelStatus): void {
+		this.status = status;
+		this.onDidChangeStatusEmitter.fire(status);
+	}
 	dispose(): void { this.onDidChangeStatusEmitter.dispose(); }
 }
 

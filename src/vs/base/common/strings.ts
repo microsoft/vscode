@@ -704,6 +704,16 @@ export function containsUnusualLineTerminators(str: string): boolean {
 	return UNUSUAL_LINE_TERMINATORS.test(str);
 }
 
+/**
+ * Replaces control, format (such as bidirectional overrides and zero-width
+ * characters) and line or paragraph separator characters with visible
+ * `\u{…}` escapes, so displayed text cannot hide characters, break a line,
+ * or reorder how it reads.
+ */
+export function escapeControlAndFormatCharacters(str: string): string {
+	return str.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, character => `\\u{${character.codePointAt(0)?.toString(16)}}`);
+}
+
 export function isFullWidthCharacter(charCode: number): boolean {
 	// Do a cheap trick to better support wrapping of wide characters, treat them as 2 columns
 	// http://jrgraphix.net/research/unicode_blocks.php

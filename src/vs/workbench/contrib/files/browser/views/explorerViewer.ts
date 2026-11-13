@@ -737,7 +737,7 @@ export class CompressedNavigationController implements ICompressedNavigationCont
 	}
 
 	private updateLabels(templateData: IFileTemplateData): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this._labels = Array.from(templateData.container.querySelectorAll('.label-name'));
 		let parents = '';
 		for (let i = 0; i < this.labels.length; i++) {
@@ -907,7 +907,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		// File Label
 		if (!editableData) {
 			templateData.label.element.style.display = 'flex';
-			this.renderStat(stat, stat.name, undefined, node.filterData, templateData);
+			this.renderStat(stat, stat.isRoot ? this.getRootLabel(stat) : stat.name, undefined, node.filterData, templateData);
 		}
 
 		// Input Box
@@ -996,7 +996,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		const theme = this.themeService.getFileIconTheme();
 
 		// Hack to always render chevrons for file nests, or else may not be able to identify them.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const twistieContainer = templateData.container.parentElement?.parentElement?.querySelector('.monaco-tl-twistie');
 		twistieContainer?.classList.toggle('force-twistie', stat.hasNests && theme.hidesExplorerArrows);
 
@@ -1116,7 +1116,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	// IAccessibilityProvider
 
 	getAriaLabel(element: ExplorerItem): string {
-		return element.name;
+		return element.isRoot ? this.getRootLabel(element) : element.name;
+	}
+
+	private getRootLabel(stat: ExplorerItem): string {
+		const location = stat.isRoot ? this.labelService.getFolderLocationLabel(stat.resource) : undefined;
+		return location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, location) : stat.name;
 	}
 
 	getAriaLevel(element: ExplorerItem): number {

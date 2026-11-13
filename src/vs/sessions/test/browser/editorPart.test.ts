@@ -16,6 +16,7 @@ import { AGENTS_SIDE_PANE_MULTIPLE_TABS_CLASS } from '../../../workbench/browser
 import '../../browser/parts/media/editorPart.css';
 import '../../browser/media/workbench.css';
 import '../../browser/media/style.css';
+import '../../browser/media/floatingAuxiliaryBar.css';
 import '../../../workbench/browser/parts/editor/media/multieditortabscontrol.css';
 // eslint-disable-next-line local/code-import-patterns
 import '../../../workbench/contrib/modernUI/browser/media/tabs.css';
@@ -290,6 +291,100 @@ suite('Sessions - EditorPart', () => {
 			frame: mainWindow.getComputedStyle(group, '::after').content,
 			outerBorder: mainWindow.getComputedStyle(card).borderTopColor,
 		}, { frame: 'none', outerBorder: 'rgb(171, 205, 239)' });
+	});
+
+	for (const position of ['left', 'top', 'bottom']) {
+		test(`keeps the connected outer frame above ${position} details without adding another stroke`, () => {
+			const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel');
+			workbench.style.setProperty('--vscode-strokeThickness', '1px');
+			workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+			workbench.style.setProperty('--vscode-contrastBorder', '#abcdef');
+			workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
+			workbench.style.setProperty('--vscode-agentsPanel-border', '#abcdef');
+			const card = appendElement(appendElement(workbench, 'monaco-grid-view'), 'part editor editor-tabs-multiple');
+			const content = appendElement(card, 'content');
+			const group = appendElement(content, 'editor-group-container');
+			const pane = appendElement(group, 'editor-container');
+			const details = appendElement(card, `part auxiliarybar docked-auxiliarybar docked-auxiliarybar-${position}`);
+			try {
+				for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+					workbench.classList.add(theme);
+					const frame = mainWindow.getComputedStyle(group, '::after');
+					const dockedIsolation = mainWindow.getComputedStyle(content).isolation;
+					card.classList.add('floating-details-visible');
+					const floatingIsolation = mainWindow.getComputedStyle(content).isolation;
+					const floatingPaneIsolation = mainWindow.getComputedStyle(pane).isolation;
+					card.classList.remove('floating-details-visible');
+					assert.deepStrictEqual({
+						dockedIsolation, floatingIsolation, floatingPaneIsolation,
+						restoredIsolation: mainWindow.getComputedStyle(content).isolation,
+						frameAboveDetails: Number(frame.zIndex) > Number(mainWindow.getComputedStyle(details).zIndex),
+						frameColor: frame.borderColor,
+						frameWidth: frame.borderWidth,
+						pointerEvents: frame.pointerEvents,
+						outerFrame: mainWindow.getComputedStyle(card, '::after').content,
+					}, {
+						dockedIsolation: 'auto', floatingIsolation: 'auto', floatingPaneIsolation: 'isolate', restoredIsolation: 'auto',
+						frameAboveDetails: true,
+						frameColor: theme.startsWith('hc-') ? 'rgb(171, 205, 239)' : 'rgb(68, 85, 102)',
+						frameWidth: '1px', pointerEvents: 'none', outerFrame: 'none',
+					}, theme);
+					workbench.classList.remove(theme);
+				}
+			} finally {
+				workbench.remove();
+			}
+		});
+	}
+
+	test('keeps the existing connected frame above detached webview overlays while Details float', () => {
+		const workbench = appendElement(mainWindow.document.body, 'monaco-workbench agent-sessions-workbench modern-ui-tabs modern-ui-connected-editor-tabs dock-detail-panel markdown-frame-layer-test');
+		store.add(toDisposable(() => workbench.remove()));
+		Object.assign(workbench.style, { position: 'fixed', left: '0', top: '0', width: '800px', height: '600px' });
+		workbench.style.setProperty('--vscode-strokeThickness', '1px');
+		workbench.style.setProperty('--vscode-cornerRadius-large', '8px');
+		workbench.style.setProperty('--vscode-editorGroupHeader-tabsBorder', '#445566');
+		workbench.style.setProperty('--vscode-agentsPanel-border', '#abcdef');
+		workbench.style.setProperty('--vscode-editor-background', '#112233');
+		workbench.style.setProperty('--vscode-contrastBorder', '#abcdef');
+		const grid = appendElement(workbench, 'monaco-grid-view');
+		Object.assign(grid.style, { width: '100%', height: '100%' });
+		const card = appendElement(grid, 'part editor editor-tabs-multiple floating-details-visible');
+		Object.assign(card.style, { position: 'absolute', left: '20px', top: '20px', width: '600px', height: '500px' });
+		const content = appendElement(card, 'content');
+		Object.assign(content.style, { position: 'absolute', inset: '0' });
+		const group = appendElement(content, 'editor-group-container');
+		Object.assign(group.style, { width: '100%', height: '100%' });
+		const pane = appendElement(group, 'editor-container');
+		const overlay = appendElement(workbench, 'webview-overlay-content');
+		const bounds = group.getBoundingClientRect();
+		Object.assign(overlay.style, {
+			position: 'fixed', zIndex: '2', left: `${bounds.left}px`, top: `${bounds.top + 64}px`,
+			width: `${bounds.width}px`, height: `${bounds.height - 64}px`,
+			backgroundColor: 'var(--vscode-editor-background)',
+		});
+		const probe = mainWindow.document.createElement('style');
+		workbench.appendChild(probe);
+		for (const theme of ['vs-dark', 'vs', 'hc-black', 'hc-light']) {
+			workbench.classList.add(theme);
+			probe.textContent = '';
+			const pointerEvents = mainWindow.getComputedStyle(group, '::after').pointerEvents;
+			// Make the existing frame hit-testable to verify its paint order, then restore its pointer transparency.
+			probe.textContent = '.monaco-workbench.agent-sessions-workbench.modern-ui-tabs.modern-ui-connected-editor-tabs.dock-detail-panel.markdown-frame-layer-test:not(.phone-layout) .part.editor.editor-tabs-multiple:not(.modal-editor-part) > .content .editor-group-container::after { pointer-events: auto; }';
+			const points = [[bounds.left + 0.5, bounds.top + 100], [bounds.right - 0.5, bounds.top + 100], [bounds.left + 100, bounds.bottom - 0.5]];
+			assert.deepStrictEqual({
+				frameAboveWebview: points.map(([x, y]) => mainWindow.document.elementFromPoint(x, y) === group),
+				pointerEvents,
+				border: mainWindow.getComputedStyle(group, '::after').borderWidth,
+				outerFrame: mainWindow.getComputedStyle(card, '::after').content,
+				contentIsolation: mainWindow.getComputedStyle(content).isolation,
+				paneIsolation: mainWindow.getComputedStyle(pane).isolation,
+			}, { frameAboveWebview: [true, true, true], pointerEvents: 'none', border: '1px', outerFrame: 'none', contentIsolation: 'auto', paneIsolation: 'isolate' }, theme);
+			probe.textContent = '';
+			workbench.classList.remove(theme);
+		}
+		card.classList.add('modal-editor-part');
+		assert.strictEqual(mainWindow.getComputedStyle(pane).isolation, 'auto');
 	});
 
 	test('constrains the Browser navbar to the editor header height', () => {

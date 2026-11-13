@@ -3,39 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from '../../../../base/browser/dom.js';
-import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { localize2 } from '../../../../nls.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
-import { getLabeledPickerResponsiveItems } from '../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
-import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
-import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
-import { ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SharedChatInputComposer } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { ChatInputCanScheduleContext, ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsViewGroupingContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { IScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
+import { SharedChatInputComposerContribution, registerSharedChatInputComposerToolbar } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
 
-const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
-const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
-export const COMPOSER_SESSION_CONTROLS_ACTION_ID = 'sessions.newChatComposer.sessionControls';
+registerSharedChatInputComposerToolbar();
 
 export class SendInBackgroundAction extends Action2 {
 	constructor() {
@@ -58,7 +51,7 @@ export class SendInBackgroundAction extends Action2 {
 				weight: KeybindingWeight.SessionsContrib,
 			}, {
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals(`config.${SESSIONS_LIST_INBOX_ENABLED_SETTING}`, true)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox)),
 				weight: KeybindingWeight.SessionsContrib,
 			}],
 		});
@@ -74,125 +67,45 @@ export class SendInBackgroundAction extends Action2 {
 
 registerAction2(SendInBackgroundAction);
 
-MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
-	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },
-	group: 'navigation',
-	order: -2,
-});
-
-for (const [id, title, busy] of [
-	[COMPOSER_INITIALIZING_ACTION_ID, localize2('sessionsSharedChatInput.initializing', "Initializing..."), 'initializing'],
-	[COMPOSER_SENDING_ACTION_ID, localize2('sessionsSharedChatInput.sending', "Loading..."), 'sending'],
-] as const) {
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id,
-				title,
-				f1: false,
-				menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 100, when: SharedChatInputComposerBusyContext.isEqualTo(busy) },
-			});
-		}
-		override run(): void { /* progress only */ }
-	});
-}
-
-registerAction2(class extends Action2 {
+export class SendLaterAction extends Action2 {
 	constructor() {
 		super({
-			id: COMPOSER_SESSION_CONTROLS_ACTION_ID,
-			title: localize2('sessionsSharedChatInput.sessionControls', "Session Controls"),
-			f1: false,
-			menu: { id: Menus.NewSessionChatInputToolbar, group: 'navigation', order: 0 },
+			id: 'sessions.sendLater',
+			title: localize2('sessions.sendLater', "Send Later..."),
+			category: CHAT_CATEGORY,
+			icon: Codicon.clock,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				group: 'navigation',
+				order: 99,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext),
+			},
 		});
 	}
-	override run(): void { /* rendered by the action view item */ }
-});
 
-/** Progress in the composer's input toolbar, labelled by its action. */
-class ComposerBusyActionViewItem extends BaseActionViewItem {
-	override render(container: HTMLElement): void {
-		// Not interactive, so without the base item's pointer handling.
-		this.element = container;
-		container.classList.add('sessions-shared-chat-input-busy');
-		container.setAttribute('role', 'status');
-		const icon = dom.append(container, renderIcon(ThemeIcon.modify(Codicon.loadingCompact, 'spin')));
-		icon.setAttribute('aria-hidden', 'true');
-		this.updateTooltip();
-	}
-
-	protected override getTooltip(): string {
-		return this.action.label;
-	}
-}
-
-/**
- * Hosts the session controls toolbar inside the input toolbar.
- * The nested pickers own pointer and keyboard input, and focus moves into them.
- */
-class ComposerSessionControlsActionViewItem extends BaseActionViewItem {
-	private _controls: HTMLElement | undefined;
-	private _toolbar: MenuWorkbenchToolBar | undefined;
-
-	constructor(action: IAction, private readonly _instantiationService: IInstantiationService) {
-		super(undefined, action);
-	}
-
-	override render(container: HTMLElement): void {
-		// The base item's pointer handling would cancel the pickers' focus, flash
-		// the whole group as pressed and run this placeholder action on click.
-		this.element = container;
-		container.classList.add('sessions-shared-chat-input-session-controls');
-		const controls = this._controls = dom.append(container, dom.$('.sessions-chat-config-toolbar.new-chat-session-controls'));
-		this._toolbar = this._register(createNewSessionControlToolbar(controls, this._instantiationService, localize('sessionsSharedChatInput.sessionControlsAria', "Session controls")));
-	}
-
-	override focus(fromRight?: boolean): void {
-		const count = this._toolbar?.getItemsLength() ?? 0;
-		if (count > 0) {
-			this._toolbar?.focus(fromRight ? count - 1 : 0);
-		}
-	}
-
-	override isFocused(): boolean {
-		return !!this._controls && dom.isAncestorOfActiveElement(this._controls);
-	}
-
-	override blur(): void {
-		const active = this._controls && dom.getActiveElement();
-		if (dom.isHTMLElement(active) && this._controls?.contains(active)) {
-			active.blur();
-		}
-	}
-
-	override setFocusable(focusable: boolean): void {
-		this._toolbar?.setFocusable(focusable);
-	}
-
-	isCompact(): boolean {
-		const items = this._controls ? getLabeledPickerResponsiveItems(this._controls) : [];
-		return items.length > 0 && items.every(item => item.isCompact());
-	}
-
-	setCompact(compact: boolean): void {
-		for (const item of this._controls ? getLabeledPickerResponsiveItems(this._controls) : []) {
-			item.setCompact(compact);
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (widget) {
+			const notificationService = accessor.get(INotificationService);
+			try {
+				const composer = SharedChatInputComposer.getBackgroundComposer(widget);
+				if (composer) {
+					await composer.schedule();
+				} else {
+					await accessor.get(IScheduledChatsService).scheduleChatInput(widget);
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					notificationService.error(toErrorMessage(error));
+				}
+			}
 		}
 	}
 }
 
-/** Renders the composer's progress and session controls in its input toolbar. */
-export class SharedChatInputComposerContribution extends Disposable implements IWorkbenchContribution {
-	static readonly ID = 'sessions.contrib.sharedChatInputComposer';
-
-	constructor(@IActionViewItemService actionViewItemService: IActionViewItemService) {
-		super();
-		for (const id of [COMPOSER_INITIALIZING_ACTION_ID, COMPOSER_SENDING_ACTION_ID]) {
-			this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, id, action => new ComposerBusyActionViewItem(undefined, action)));
-		}
-		this._register(actionViewItemService.register(Menus.NewSessionChatInputToolbar, COMPOSER_SESSION_CONTROLS_ACTION_ID, (action, _options, instantiationService) => new ComposerSessionControlsActionViewItem(action, instantiationService)));
-	}
-}
+registerAction2(SendLaterAction);
 
 // Register before restoration: adding a factory later does not refresh existing toolbars.
 registerWorkbenchContribution2(SharedChatInputComposerContribution.ID, SharedChatInputComposerContribution, WorkbenchPhase.BlockRestore);

@@ -210,7 +210,7 @@ export class ConfigurationModel implements IConfigurationModel {
 				}
 			}
 
-			contents[key] = contentsForKey;
+			json.setObjectProperty(contents, key, contentsForKey);
 		}
 
 		return new ConfigurationModel(contents, this.keys, this.overrides, undefined, this.logService);
@@ -218,13 +218,13 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	private mergeContents(source: IStringDictionary<unknown>, target: IStringDictionary<unknown>): void {
 		for (const key of Object.keys(target)) {
-			if (key in source) {
+			if (Object.hasOwn(source, key)) {
 				if (types.isObject(source[key]) && types.isObject(target[key])) {
 					this.mergeContents(source[key] as IStringDictionary<unknown>, target[key] as IStringDictionary<unknown>);
 					continue;
 				}
 			}
-			source[key] = objects.deepClone(target[key]);
+			json.setObjectProperty(source, key, objects.deepClone(target[key]));
 		}
 	}
 
@@ -464,7 +464,7 @@ export class ConfigurationModelParser {
 			return { included: this.shouldInclude(path, propertySchema, excludedPropertySchema, options), value, restricted: propertySchema.restricted ? [path] : [], hasExcludedProperties: false };
 		}
 		if (!types.isObject(value) || Array.isArray(value)) {
-			return { included: this.shouldInclude(path, propertySchema, excludedPropertySchema, options), value, restricted: [], hasExcludedProperties: false };
+			return this.filterUnregisteredLeaf(path, value, excludedPropertySchema, configurationProperties, excludedConfigurationProperties, options);
 		}
 		// Excluded properties can themselves be object-typed (e.g. `mcp.enterpriseManagedAuth.idp`), so treat them as a leaf too.
 		if (excludedPropertySchema) {
@@ -476,7 +476,7 @@ export class ConfigurationModelParser {
 		}
 		const keys = Object.keys(value);
 		if (keys.length === 0) {
-			return { included: this.shouldInclude(path, propertySchema, excludedPropertySchema, options), value, restricted: [], hasExcludedProperties: false };
+			return this.filterUnregisteredLeaf(path, value, excludedPropertySchema, configurationProperties, excludedConfigurationProperties, options);
 		}
 		const nested: IStringDictionary<unknown> = {};
 		const restricted: string[] = [];
@@ -496,6 +496,28 @@ export class ConfigurationModelParser {
 			}
 		}
 		return { included, value: nested, restricted, hasExcludedProperties };
+	}
+
+	private filterUnregisteredLeaf(path: string, value: unknown, excludedPropertySchema: IRegisteredConfigurationPropertySchema | undefined, configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, options: ConfigurationParseOptions): { included: boolean; value: unknown; restricted: string[]; hasExcludedProperties: boolean } {
+		const ancestor = excludedPropertySchema ? undefined : this.findRegisteredAncestor(path, configurationProperties, excludedConfigurationProperties);
+		if (ancestor) {
+			return { included: this.shouldInclude(ancestor.path, ancestor.schema, ancestor.excludedSchema, options), value, restricted: ancestor.schema?.restricted ? [ancestor.path] : [], hasExcludedProperties: false };
+		}
+		return { included: this.shouldInclude(path, undefined, excludedPropertySchema, options), value, restricted: [], hasExcludedProperties: false };
+	}
+
+	private findRegisteredAncestor(path: string, configurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>, excludedConfigurationProperties: IStringDictionary<IRegisteredConfigurationPropertySchema>): { path: string; schema: IRegisteredConfigurationPropertySchema | undefined; excludedSchema: IRegisteredConfigurationPropertySchema | undefined } | undefined {
+		let index = path.lastIndexOf('.');
+		while (index > 0) {
+			const ancestorPath = path.substring(0, index);
+			const schema = Object.hasOwn(configurationProperties, ancestorPath) ? configurationProperties[ancestorPath] : undefined;
+			const excludedSchema = Object.hasOwn(excludedConfigurationProperties, ancestorPath) ? excludedConfigurationProperties[ancestorPath] : undefined;
+			if (schema || excludedSchema) {
+				return { path: ancestorPath, schema, excludedSchema };
+			}
+			index = path.lastIndexOf('.', index - 1);
+		}
+		return undefined;
 	}
 
 	private shouldInclude(key: string, propertySchema: IConfigurationPropertySchema | undefined, excludedPropertySchema: IRegisteredConfigurationPropertySchema | undefined, options: ConfigurationParseOptions): boolean {
@@ -1028,6 +1050,14 @@ export class Configuration {
 
 	get folderConfigurations(): ResourceMap<ConfigurationModel> {
 		return this._folderConfigurations;
+	}
+
+	get memoryConfiguration(): ConfigurationModel {
+		return this._memoryConfiguration;
+	}
+
+	get memoryConfigurationByResource(): ResourceMap<ConfigurationModel> {
+		return this._memoryConfigurationByResource;
 	}
 
 	private getConsolidatedConfigurationModel(section: string | undefined, overrides: IConfigurationOverrides, workspace: Workspace | undefined): ConfigurationModel {

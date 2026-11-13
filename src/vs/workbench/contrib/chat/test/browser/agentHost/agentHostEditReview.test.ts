@@ -17,6 +17,7 @@ import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js'
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../../editor/common/core/range.js';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from '../../../../../../editor/common/diff/documentDiffProvider.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { DiffAlgorithmName, IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
@@ -170,7 +171,7 @@ suite('AgentHostEditReview', () => {
 	/** How long diffs take. */
 	let diffDelay: number;
 	let diffGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
-	let stringDiffGate: { started: DeferredPromise<void>; release: DeferredPromise<void> } | undefined;
+	let stringDiffGate: { started: DeferredPromise<void>; release: DeferredPromise<void>; when?: (original: string, modified: string) => boolean } | undefined;
 	let stringDiffCoarse: boolean;
 	let version: number;
 	/** The diff editors that are open. */
@@ -290,6 +291,27 @@ suite('AgentHostEditReview', () => {
 		diffEditors.push({ editor: store.add(new DiffEditorInput(undefined, undefined, original, modified, undefined, editorService)), groupId: 1 });
 	}
 
+	class TestDelayedWorkerService extends TestWorkerService {
+		override async computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
+			const result = await computeStringDiffWithMetadata(...args);
+			if (stringDiffGate && (!stringDiffGate.when || stringDiffGate.when(args[0], args[1]))) {
+				stringDiffGate.started.complete();
+				await stringDiffGate.release.p;
+			}
+			return { ...result, isCoarse: stringDiffCoarse || result.isCoarse };
+		}
+		override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
+			if (diffGate) {
+				diffGate.started.complete();
+				await diffGate.release.p;
+			}
+			if (diffDelay) {
+				await timeout(diffDelay);
+			}
+			return super.computeDiff(original, modified, options, algorithm);
+		}
+	}
+
 	async function useRealTextFiles(content: string) {
 		review.dispose();
 		const files = store.add(new class extends FileService {
@@ -325,11 +347,7 @@ suite('AgentHostEditReview', () => {
 			override warn(message: string) { errors.push(message); warning.fire(message); }
 			override error(message: string) { errors.push(message); }
 		}());
-		instantiation.stub(IEditorWorkerService, store.add(instantiation.createInstance(class extends TestWorkerService {
-			override computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
-				return computeStringDiffWithMetadata(...args);
-			}
-		})));
+		instantiation.stub(IEditorWorkerService, store.add(instantiation.createInstance(TestDelayedWorkerService)));
 		const service = instantiation.get(ITextFileService);
 		store.add(service.files.retainResolvedContent());
 		await files.writeFile(URI.file('/dirty.ts'), VSBuffer.fromString(content));
@@ -372,27 +390,6 @@ suite('AgentHostEditReview', () => {
 		backendSession = URI.parse('copilot:/session');
 		store.add(host.onDidChangeWorkingSet);
 		store.add(host.onDidErrorWorkingSet);
-
-		class TestDelayedWorkerService extends TestWorkerService {
-			override async computeStringEditFromDiffWithMetadata(...args: Parameters<IEditorWorkerService['computeStringEditFromDiffWithMetadata']>) {
-				const result = await computeStringDiffWithMetadata(...args);
-				if (stringDiffGate) {
-					stringDiffGate.started.complete();
-					await stringDiffGate.release.p;
-				}
-				return { ...result, isCoarse: stringDiffCoarse || result.isCoarse };
-			}
-			override async computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null> {
-				if (diffGate) {
-					diffGate.started.complete();
-					await diffGate.release.p;
-				}
-				if (diffDelay) {
-					await timeout(diffDelay);
-				}
-				return super.computeDiff(original, modified, options, algorithm);
-			}
-		}
 
 		const collection = new ServiceCollection();
 		collection.set(IAgentHostConnectionsService, new class extends mock<IAgentHostConnectionsService>() {
@@ -1244,6 +1241,480 @@ suite('AgentHostEditReview', () => {
 		userTypes('/a.ts', 3, 1, 'X');
 
 		assert.deepStrictEqual({ original: entry.originalModel.getValue(), changes: await getChanges(entry) }, { original: 'one\ntwo\nXthree\nfour\n', changes: ['[4,5)'] });
+	});
+
+	for (const eol of ['\n', '\r\n']) {
+		test(`a disk reload and editor undo/redo keep pulled changes outside the agent edit out of review (${JSON.stringify(eol)})`, async () => {
+			const baseline = ['first', 'unchanged before', 'middle', 'unchanged after', 'last', ''].join(eol);
+			const current = ['first', 'unchanged before', 'MIDDLE', 'unchanged after', 'last', ''].join(eol);
+			const pulled = ['FIRST', 'unchanged before', 'MIDDLE', 'unchanged after', 'LAST', ''].join(eol);
+			const pulledOriginal = ['FIRST', 'unchanged before', 'middle', 'unchanged after', 'LAST', ''].join(eol);
+			const { model, files } = await useRealTextFiles(current);
+			host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+			await waitForEntries('/dirty.ts');
+			const entry = getEntry('/dirty.ts');
+			await getChanges(entry);
+			const describe = async () => ({
+				changes: await getChanges(entry),
+				original: entry.originalModel.getValue(),
+				text: model.textEditorModel.getValue(),
+				dirty: model.isDirty(),
+			});
+
+			await files.writeFile(model.resource, VSBuffer.fromString(pulled));
+			await model.resolve({ forceReadFromFile: true });
+			await review.resolveEntry(model.resource);
+			const afterPull = await describe();
+
+			await model.textEditorModel.undo();
+			await review.resolveEntry(model.resource);
+			const afterUndo = await describe();
+
+			await model.textEditorModel.redo();
+			await review.resolveEntry(model.resource);
+			const afterRedo = await describe();
+
+			assert.deepStrictEqual({ afterPull, afterUndo, afterRedo, invoked: host.invoked, errors }, {
+				afterPull: { changes: ['[3,4)'], original: pulledOriginal, text: pulled, dirty: false },
+				afterUndo: { changes: ['[3,4)'], original: baseline, text: current, dirty: true },
+				afterRedo: { changes: ['[3,4)'], original: pulledOriginal, text: pulled, dirty: false },
+				invoked: [],
+				errors: [],
+			});
+		});
+	}
+
+	test('keeps reviewing a file whose changes are stashed and restored outside the session', async () => {
+		hostWrites('/a.ts', 'A\nb\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'a\nb\n', 'A\nb\n', 'tc1')]);
+		await waitForEntries('/a.ts');
+		const entry = getEntry('/a.ts');
+		const describe = async () => {
+			await review.resolveEntry(entry.modifiedURI);
+			return { state: entry.state.get(), changes: await getChanges(entry), reviewing: getEntry('/a.ts') === entry };
+		};
+		const shown = await describe();
+
+		// Like `git stash`, which the session doesn't record.
+		hostWrites('/a.ts', 'a\nb\n');
+		const stashed = await describe();
+
+		// Like `git stash pop`.
+		hostWrites('/a.ts', 'A\nb\n');
+		const restored = await describe();
+
+		assert.deepStrictEqual({ shown, stashed, restored, invoked: host.invoked, errors }, {
+			shown: { state: ModifiedFileEntryState.Modified, changes: ['[1,2)'], reviewing: true },
+			stashed: { state: ModifiedFileEntryState.Modified, changes: [], reviewing: true },
+			restored: { state: ModifiedFileEntryState.Modified, changes: ['[1,2)'], reviewing: true },
+			invoked: [],
+			errors: [],
+		});
+	});
+
+	test('keeps reviewing changes after the user undoes and redoes the reload of the agent edit', async () => {
+		const baseline = 'first\nmiddle\nlast\n';
+		const current = 'first\nMIDDLE\nlast\n';
+		const { model, files } = await useRealTextFiles(baseline);
+		// The document is open when the agent writes the file, and reloads it.
+		await files.writeFile(model.resource, VSBuffer.fromString(current));
+		await model.resolve({ forceReadFromFile: true });
+		host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		const describe = async () => {
+			await review.resolveEntry(model.resource);
+			return { state: entry.state.get(), changes: await getChanges(entry), text: model.textEditorModel.getValue() };
+		};
+		const shown = await describe();
+
+		await model.textEditorModel.undo();
+		const afterUndo = await describe();
+
+		await model.textEditorModel.redo();
+		const afterRedo = await describe();
+
+		assert.deepStrictEqual({ shown, afterUndo, afterRedo, invoked: host.invoked, errors }, {
+			shown: { state: ModifiedFileEntryState.Modified, changes: ['[2,3)'], text: current },
+			afterUndo: { state: ModifiedFileEntryState.Modified, changes: [], text: baseline },
+			afterRedo: { state: ModifiedFileEntryState.Modified, changes: ['[2,3)'], text: current },
+			invoked: [],
+			errors: [],
+		});
+	});
+
+	for (const otherAgentEdit of [false, true]) {
+		test(`undo/redo preserves user text adjacent to a removed agent edit (other agent edit: ${otherAgentEdit})`, async () => {
+			const suffix = otherAgentEdit ? 'unchanged\nlast\n' : '';
+			const modifiedSuffix = otherAgentEdit ? 'unchanged\nLAST\n' : '';
+			const baseline = `start\nend\n${suffix}`;
+			const current = `start\nAAA\nend\n${modifiedSuffix}`;
+			const { model } = await useRealTextFiles(current);
+			host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+			await waitForEntries('/dirty.ts');
+			const entry = getEntry('/dirty.ts');
+			await getChanges(entry);
+
+			model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'ZZZ\n')], () => null);
+			model.textEditorModel.pushStackElement();
+			await getChanges(entry);
+			const originalWithUserText = entry.originalModel.getValue();
+
+			model.textEditorModel.pushEditOperations(null, [EditOperation.delete(new Range(2, 1, 3, 1))], () => null);
+			model.textEditorModel.pushStackElement();
+			await getChanges(entry);
+			await model.textEditorModel.undo();
+			await review.resolveEntry(model.resource);
+			await getChanges(entry);
+			await model.textEditorModel.redo();
+			await review.resolveEntry(model.resource);
+
+			assert.deepStrictEqual({
+				originalWithUserText,
+				original: entry.originalModel.getValue(),
+				text: model.textEditorModel.getValue(),
+				changes: await getChanges(entry),
+				dirty: model.isDirty(),
+				invoked: host.invoked,
+				errors,
+			}, {
+				originalWithUserText: `start\nZZZ\nend\n${suffix}`,
+				original: `start\nZZZ\nend\n${suffix}`,
+				text: `start\nZZZ\nend\n${modifiedSuffix}`,
+				changes: otherAgentEdit ? ['[5,6)'] : [],
+				dirty: true,
+				invoked: [],
+				errors: [],
+			});
+		});
+	}
+
+	test('a broad disk reload preserves adjacent user text already tracked in the review baseline', async () => {
+		const baseline = 'first\nstart\nend\nunchanged\nmiddle\nunchanged after\nlast\n';
+		const current = 'first\nstart\nAAA\nend\nunchanged\nMIDDLE\nunchanged after\nlast\n';
+		const { model, files } = await useRealTextFiles(current);
+		host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+		await waitForEntries('/dirty.ts');
+		const entry = getEntry('/dirty.ts');
+		await getChanges(entry);
+
+		model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(4, 1), 'ZZZ\n')], () => null);
+		model.textEditorModel.pushStackElement();
+		await getChanges(entry);
+		model.textEditorModel.pushEditOperations(null, [EditOperation.delete(new Range(3, 1, 4, 1))], () => null);
+		model.textEditorModel.pushStackElement();
+		await getChanges(entry);
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+
+		const pulled = 'FIRST\nstart\nZZZ\nend\nunchanged\nMIDDLE\nunchanged after\nLAST\n';
+		await files.writeFile(model.resource, VSBuffer.fromString(pulled));
+		await model.resolve({ forceReadFromFile: true });
+		await review.resolveEntry(model.resource);
+		const afterPull = { original: entry.originalModel.getValue(), changes: await getChanges(entry) };
+		await model.textEditorModel.undo();
+		await review.resolveEntry(model.resource);
+		const afterUndo = { original: entry.originalModel.getValue(), changes: await getChanges(entry) };
+		await model.textEditorModel.redo();
+		await review.resolveEntry(model.resource);
+		const afterRedo = { original: entry.originalModel.getValue(), changes: await getChanges(entry) };
+
+		assert.deepStrictEqual({ afterPull, afterUndo, afterRedo, text: model.textEditorModel.getValue(), dirty: model.isDirty(), errors }, {
+			afterPull: { original: 'FIRST\nstart\nZZZ\nend\nunchanged\nmiddle\nunchanged after\nLAST\n', changes: ['[6,7)'] },
+			afterUndo: { original: 'first\nstart\nZZZ\nend\nunchanged\nmiddle\nunchanged after\nlast\n', changes: ['[6,7)'] },
+			afterRedo: { original: 'FIRST\nstart\nZZZ\nend\nunchanged\nmiddle\nunchanged after\nLAST\n', changes: ['[6,7)'] },
+			text: pulled,
+			dirty: false,
+			errors: [],
+		});
+	});
+
+	for (const retainedText of ['z', '']) {
+		test(`reload refinement preserves inline user text and deleted separators (${JSON.stringify(retainedText)})`, async () => {
+			const separator = retainedText ? '' : '-';
+			const baseline = `before${separator}after\nunchanged\nlast\nunchanged after\ntail\n`;
+			const current = `beforeXXX${separator}after\nunchanged\nLAST\nunchanged after\ntail\n`;
+			const { model, files } = await useRealTextFiles(current);
+			host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+			await waitForEntries('/dirty.ts');
+			const entry = getEntry('/dirty.ts');
+			await getChanges(entry);
+
+			model.textEditorModel.pushEditOperations(null, [EditOperation.replace(new Range(1, 10, 1, 10 + separator.length), retainedText)], () => null);
+			await getChanges(entry);
+			model.textEditorModel.pushEditOperations(null, [EditOperation.delete(new Range(1, 7, 1, 10))], () => null);
+			await getChanges(entry);
+			await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+			const tracked = entry.originalModel.getValue();
+
+			const pulled = retainedText ? 'BEFOREzAFTER\nunchanged\nLAST\nunchanged after\nTAIL\n' : 'beforeYafter\nunchanged\nLAST\nunchanged after\nTAIL\n';
+			await files.writeFile(model.resource, VSBuffer.fromString(pulled));
+			await model.resolve({ forceReadFromFile: true });
+			await review.resolveEntry(model.resource);
+
+			assert.deepStrictEqual({
+				tracked,
+				original: entry.originalModel.getValue(),
+				text: model.textEditorModel.getValue(),
+				dirty: model.isDirty(),
+				errors,
+			}, {
+				tracked: `before${retainedText}after\nunchanged\nlast\nunchanged after\ntail\n`,
+				original: `before${retainedText}after\nunchanged\nlast\nunchanged after\nTAIL\n`,
+				text: pulled,
+				dirty: false,
+				errors: [],
+			});
+		});
+	}
+
+	test('a suspended review retains adjacent user text through save recovery', async () => {
+		const baseline = 'start\nend\nunchanged\nlast\n';
+		const current = 'start\nAAA\nend\nunchanged\nLAST\n';
+		const { model, files, type } = await useRealTextFiles(current);
+		const file = workingSetFile('/dirty.ts', baseline, current, 'tc1');
+		host.setWorkingSet([file]);
+		await waitForEntries('/dirty.ts');
+		const previousEntry = getEntry('/dirty.ts');
+		await getChanges(previousEntry);
+
+		model.textEditorModel.pushEditOperations(null, [EditOperation.insert(new Position(3, 1), 'ZZZ\n')], () => null);
+		model.textEditorModel.pushStackElement();
+		await getChanges(previousEntry);
+		model.textEditorModel.pushEditOperations(null, [EditOperation.delete(new Range(2, 1, 3, 1))], () => null);
+		model.textEditorModel.pushStackElement();
+		await getChanges(previousEntry);
+		await model.textEditorModel.undo();
+		await review.resolveEntry(model.resource);
+		await getChanges(previousEntry);
+
+		stringDiffCoarse = true;
+		const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		await model.textEditorModel.redo();
+		await gate.started.p;
+		await getChanges(previousEntry);
+		stringDiffGate = undefined;
+		gate.release.complete();
+		await review.resolveEntry(model.resource);
+		const suspended = { entries: review.entries.get().length, text: model.textEditorModel.getValue() };
+
+		type();
+		stringDiffCoarse = false;
+		await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+		await review.resolveEntry(model.resource);
+		const recovered = getEntry('/dirty.ts');
+		const afterRecovery = { original: recovered.originalModel.getValue(), changes: await getChanges(recovered) };
+		host.setWorkingSet([]);
+		await review.resolveEntry(model.resource);
+
+		assert.deepStrictEqual({
+			suspended,
+			afterRecovery,
+			disk: (await files.readFile(model.resource)).value.toString(),
+			released: recovered.originalModel.isDisposed(),
+			warnings: errors.length,
+		}, {
+			suspended: { entries: 0, text: 'start\nZZZ\nend\nunchanged\nLAST\n' },
+			afterRecovery: { original: 'start\nuser ZZZ\nend\nunchanged\nlast\n', changes: ['[5,6)'] },
+			disk: 'start\nuser ZZZ\nend\nunchanged\nLAST\n',
+			released: true,
+			warnings: 1,
+		});
+	});
+
+	for (const replacement of [false, true]) {
+		test(`a suspended review follows removal or replacement of its Working Set file (replacement: ${replacement})`, async () => {
+			hostWrites('/a.ts', 'ONE\nmiddle\nlast\n');
+			const file = workingSetFile('/a.ts', 'one\nmiddle\nlast\n', 'ONE\nmiddle\nlast\n', 'tc1');
+			host.setWorkingSet([file]);
+			await review.resolveEntry(URI.file('/a.ts'));
+			const entry = getEntry('/a.ts');
+			await getChanges(entry);
+			stringDiffCoarse = true;
+			const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+			hostWrites('/a.ts', 'ONE\nmiddle\nLAST\n');
+			await gate.started.p;
+			await getChanges(entry);
+			stringDiffGate = undefined;
+			gate.release.complete();
+			await review.resolveEntry(entry.modifiedURI);
+			const suspendedEntries = review.entries.get().length;
+
+			stringDiffCoarse = false;
+			if (replacement) {
+				host.setWorkingSet([{ ...file, isEditing: true }]);
+				hostWrites('/a.ts', 'ONE\nMIDDLE\nLAST\n');
+				host.setWorkingSet([workingSetFile('/a.ts', 'ONE\nmiddle\nLAST\n', 'ONE\nMIDDLE\nLAST\n', 'tc2')]);
+			} else {
+				host.setWorkingSet([]);
+			}
+			await review.resolveEntry(entry.modifiedURI);
+			const recovered = getEntry('/a.ts');
+			const afterUpdate = recovered ? { original: recovered.originalModel.getValue(), changes: await getChanges(recovered) } : undefined;
+			if (recovered) {
+				await review.accept();
+			}
+			review.dispose();
+
+			assert.deepStrictEqual({ suspendedEntries, afterUpdate, released: entry.originalModel.isDisposed(), invoked: host.invoked, warnings: errors.length }, {
+				suspendedEntries: 0,
+				afterUpdate: replacement ? { original: 'ONE\nmiddle\nLAST\n', changes: ['[2,3)'] } : undefined,
+				released: true,
+				invoked: replacement ? ['keep /a.ts @tc2'] : [],
+				warnings: 1,
+			});
+		});
+	}
+
+	for (const spansAgentEdit of [false, true]) {
+		test(`an imprecise disk reload comparison suspends review and recovers after saving (spans agent edit: ${spansAgentEdit})`, async () => {
+			const baseline = 'first\nunchanged before\nmiddle\nunchanged after\nlast\n';
+			const current = 'first\nunchanged before\nMIDDLE\nunchanged after\nlast\n';
+			const last = spansAgentEdit ? 'LAST' : 'last';
+			const pulled = `FIRST\nunchanged before\nMIDDLE\nunchanged after\n${last}\n`;
+			const { model, files, type } = await useRealTextFiles(current);
+			host.setWorkingSet([workingSetFile('/dirty.ts', baseline, current, 'tc1')]);
+			await waitForEntries('/dirty.ts');
+			const previousEntry = getEntry('/dirty.ts');
+			await getChanges(previousEntry);
+
+			stringDiffCoarse = true;
+			const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+			await files.writeFile(model.resource, VSBuffer.fromString(pulled));
+			await model.resolve({ forceReadFromFile: true });
+			await gate.started.p;
+			await getChanges(previousEntry);
+			stringDiffGate = undefined;
+			gate.release.complete();
+			await review.resolveEntry(model.resource);
+			const suspended = { entries: review.entries.get().length, text: model.textEditorModel.getValue(), dirty: model.isDirty() };
+			await review.reject();
+
+			stringDiffCoarse = false;
+			type();
+			await model.save({ skipSaveParticipants: true, ignoreErrorHandler: true });
+			await review.resolveEntry(model.resource);
+			const entry = getEntry('/dirty.ts');
+
+			assert.deepStrictEqual({
+				suspended,
+				recovered: { changes: await getChanges(entry), original: entry.originalModel.getValue(), text: model.textEditorModel.getValue(), dirty: model.isDirty() },
+				disk: (await files.readFile(model.resource)).value.toString(),
+				invoked: host.invoked,
+				errors,
+			}, {
+				suspended: { entries: 0, text: pulled, dirty: false },
+				recovered: {
+					changes: ['[3,4)'],
+					original: `FIRST\nuser unchanged before\nmiddle\nunchanged after\n${last}\n`,
+					text: `FIRST\nuser unchanged before\nMIDDLE\nunchanged after\n${last}\n`,
+					dirty: false,
+				},
+				disk: `FIRST\nuser unchanged before\nMIDDLE\nunchanged after\n${last}\n`,
+				invoked: [],
+				errors: ['Could not update editor review for \'dirty.ts\': The file\'s changes could not be compared precisely. Your text has been preserved. Resolve the file\'s changes and save or revert it to resume editor review.'],
+			});
+		});
+	}
+
+	test('a disk reload refresh preserves subsequent reloads and typing while its diff is pending', async () => {
+		const baseline = 'first\nunchanged before\nmiddle\nunchanged after\nlast\n';
+		const current = 'first\nunchanged before\nMIDDLE\nunchanged after\nlast\n';
+		hostWrites('/a.ts', current);
+		host.setWorkingSet([workingSetFile('/a.ts', baseline, current, 'tc1')]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+
+		modelService.updateModel(entry.modifiedModel, 'FIRST\nunchanged before\nMIDDLE\nunchanged after\nlast\n', EditSources.reloadFromDisk());
+		await gate.started.p;
+		modelService.updateModel(entry.modifiedModel, 'FIRST\nunchanged before\nMIDDLE\nunchanged after\nLAST\n', EditSources.reloadFromDisk());
+		userTypes('/a.ts', 2, 1, 'user ');
+		stringDiffGate = undefined;
+		gate.release.complete();
+		await review.resolveEntry(entry.modifiedURI);
+
+		assert.deepStrictEqual({
+			changes: await getChanges(entry),
+			original: entry.originalModel.getValue(),
+			text: entry.modifiedModel.getValue(),
+			invoked: host.invoked,
+			errors,
+		}, {
+			changes: ['[3,4)'],
+			original: 'FIRST\nuser unchanged before\nmiddle\nunchanged after\nLAST\n',
+			text: 'FIRST\nuser unchanged before\nMIDDLE\nunchanged after\nLAST\n',
+			invoked: [],
+			errors: [],
+		});
+	});
+
+	test('a superseded reload comparison retries without suspending review', async () => {
+		const baseline = 'first\nunchanged before\nmiddle\nunchanged after\nlast\n';
+		const current = 'first\nunchanged before\nMIDDLE\nunchanged after\nlast\n';
+		hostWrites('/a.ts', current);
+		host.setWorkingSet([workingSetFile('/a.ts', baseline, current, 'tc1')]);
+		await review.resolveEntry(URI.file('/a.ts'));
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+
+		const when = (original: string, modified: string) => original === baseline && modified === current;
+		const first = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>(), when };
+		modelService.updateModel(entry.modifiedModel, 'FIRST\nunchanged before\nMIDDLE\nunchanged after\nLAST\n', EditSources.reloadFromDisk());
+		await first.started.p;
+		await getChanges(entry);
+		userTypes('/a.ts', 2, 1, 'one ');
+		const second = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>(), when };
+		first.release.complete();
+		await second.started.p;
+		await getChanges(entry);
+		userTypes('/a.ts', 2, 1, 'two ');
+		await getChanges(entry);
+		stringDiffGate = undefined;
+		second.release.complete();
+		await review.resolveEntry(entry.modifiedURI);
+		await review.resolveEntry(entry.modifiedURI);
+
+		assert.deepStrictEqual({
+			sameEntry: getEntry('/a.ts') === entry,
+			original: entry.originalModel.isDisposed() ? undefined : entry.originalModel.getValue(),
+			changes: entry.originalModel.isDisposed() ? undefined : await getChanges(entry),
+			errors,
+		}, {
+			sameEntry: true,
+			original: 'FIRST\ntwo one unchanged before\nmiddle\nunchanged after\nLAST\n',
+			changes: ['[3,4)'],
+			errors: [],
+		});
+	});
+
+	test('a disk reload refresh cannot overwrite newer agent edits published while its diff is pending', async () => {
+		const baseline = 'first\nunchanged before\nmiddle\nunchanged after\nlast\n';
+		const current = 'first\nunchanged before\nMIDDLE\nunchanged after\nlast\n';
+		hostWrites('/a.ts', current);
+		host.setWorkingSet([workingSetFile('/a.ts', baseline, current, 'tc1')]);
+		await settle();
+		const entry = getEntry('/a.ts');
+		await getChanges(entry);
+		const gate = stringDiffGate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+
+		hostWrites('/a.ts', 'FIRST\nunchanged before\nMIDDLE\nunchanged after\nLAST\n');
+		await gate.started.p;
+		hostWritesWithoutReload('/a.ts', 'FIRST\nunchanged before\nMIDDLE\nAGENT\nLAST\n');
+		host.setWorkingSet([workingSetFile('/a.ts', 'FIRST\nunchanged before\nmiddle\nunchanged after\nLAST\n', 'FIRST\nunchanged before\nMIDDLE\nAGENT\nLAST\n', 'tc2')]);
+		stringDiffGate = undefined;
+		gate.release.complete();
+		await review.resolveEntry(entry.modifiedURI);
+		const changes = await getChanges(entry);
+		const original = entry.originalModel.getValue();
+		await review.accept();
+
+		assert.deepStrictEqual({ changes, original, invoked: host.invoked, errors }, {
+			changes: ['[3,5)'],
+			original: 'FIRST\nunchanged before\nmiddle\nunchanged after\nLAST\n',
+			invoked: ['keep /a.ts @tc2'],
+			errors: [],
+		});
 	});
 
 	test('typing before the first diff is computed does not change the baseline', async () => {

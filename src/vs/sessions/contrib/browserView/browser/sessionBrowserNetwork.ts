@@ -3,18 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../../base/common/lifecycle.js';
-import { derivedOpts, IReader, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { derivedOpts, IObservable, IReader, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostTcpSupport, getAgentHostTcpSupport } from '../../../../platform/agentHost/common/agentHostTcpSupport.js';
+import { getAgentHostPathStyle } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
+import { readAgentHostResources } from '../../../../platform/agentHost/common/meta/agentHostResources.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { PathStyle } from '../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { BrowserViewStorageScope, getBrowserViewSessionAffinity, IBrowserViewNetwork, IBrowserViewOwner, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { BrowserRemoteProxyEnabledSettingId, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, IBrowserViewWorkbenchService } from '../../../../workbench/contrib/browserView/common/browserView.js';
@@ -63,6 +69,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 
 	/** Browser tabs opened from the new-session composer. */
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
+	/** The folders of the sessions on remote agent hosts that are trusted, for {@link IBrowserViewNetworkResolver.getTrustedFileRoots}. */
+	private _trustedFileRoots: URI[] = [];
+	/** Recomputes of the trusted roots run one at a time, so the latest one wins. */
+	private readonly _trustedFileRootsUpdates = new Sequencer();
+	/** Whether the file system of each connected host (keyed by authority) distinguishes paths by case, once its operating system is known. */
+	private readonly _caseSensitiveHosts: IObservable<{ readonly [authority: string]: boolean }>;
 	/** Moves of composer tabs run one at a time, so each sees the tabs earlier moves created. */
 	private readonly _composerTabMoves = new Sequencer();
 
@@ -77,6 +89,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
@@ -89,6 +102,26 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		const onDidChangeNetworkStatus = this._register(new Emitter<void>());
 		this._register(runOnChange(statuses, () => onDidChangeNetworkStatus.fire()));
 
+		const onDidChangeFileAccess = this._register(new Emitter<void>());
+		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
+			const roots = await this._computeTrustedFileRoots();
+			const comparisonKeys = (uris: readonly URI[]) => uris.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort();
+			if (!equals(comparisonKeys(roots), comparisonKeys(this._trustedFileRoots))) {
+				this._trustedFileRoots = roots;
+				onDidChangeFileAccess.fire();
+			}
+		});
+		this._register(this._sessionsManagementService.onDidChangeSessions(updateTrustedFileRoots));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrust(updateTrustedFileRoots));
+		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(updateTrustedFileRoots));
+		// Connecting, disconnecting or finishing a handshake can reveal the path style of a host.
+		this._caseSensitiveHosts = derivedOpts({ owner: this, equalsFn: structuralEquals }, reader => {
+			connectionsChanged.read(reader);
+			return this._computeCaseSensitiveHosts(reader);
+		});
+		this._register(runOnChange(this._caseSensitiveHosts, () => onDidChangeFileAccess.fire()));
+		updateTrustedFileRoots();
+
 		this._register(this._browserViewService.registerNetworkResolver({
 			resolveNetwork: owner => {
 				const host = this._resolveHost(owner);
@@ -96,6 +129,9 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 				return owner.type === 'agent' && !host ? null : this._getNetwork(host?.authority);
 			},
 			resolveStorageAffinity: owner => this._getStorageAffinity(this._resolveHost(owner)),
+			getTrustedFileRoots: () => this._trustedFileRoots,
+			isPathCaseSensitive: network => this._caseSensitiveHosts.get()[network.authority],
+			onDidChangeFileAccess: onDidChangeFileAccess.event,
 			getNetworkStatus: network => this._getNetworkStatus(network.authority, undefined),
 			onDidChangeNetworkStatus: onDidChangeNetworkStatus.event,
 		}));
@@ -167,6 +203,43 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 			return provider.remoteAddress ? agentHostAuthority(provider.remoteAddress) : AMBIENT_AGENT_HOST_AUTHORITY;
 		}
 		return undefined;
+	}
+
+	/**
+	 * The working directories of all sessions on remote agent hosts, not just the focused one the window mounts.
+	 * Follows the rule for mounting a session's folders: sessions that require workspace trust only count
+	 * when their folder is trusted.
+	 */
+	private async _computeTrustedFileRoots(): Promise<URI[]> {
+		const candidates: { readonly folder: URI; readonly requiresTrust: boolean }[] = [];
+		for (const session of this._sessionsManagementService.getSessions()) {
+			const workspace = session.workspace.get();
+			if (workspace && this._getNetwork(this._getSessionAuthority(session))) {
+				candidates.push(...workspace.folders.map(folder => ({ folder: folder.workingDirectory, requiresTrust: workspace.requiresWorkspaceTrust })));
+			}
+		}
+		const trusted = await Promise.all(candidates.map(async ({ folder, requiresTrust }) => !requiresTrust || (await this._workspaceTrustManagementService.getUriTrustInfo(folder)).trusted));
+		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
+	}
+
+	/** Looks up the path style of every connected host. Hosts whose platform and style are unknown are left out and treated as case-sensitive. */
+	private _computeCaseSensitiveHosts(reader: IReader): { readonly [authority: string]: boolean } {
+		const hosts: { [authority: string]: boolean } = {};
+		for (const { authority } of this._agentHostConnectionsService.connections) {
+			const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
+			// Reading the handshake tracks it, so the style is picked up once it completes.
+			connection?.initializeResult?.read(reader);
+			const root = connection?.rootState?.value;
+			const platform = readAgentHostResources(root instanceof Error ? undefined : root)?.platform;
+			const pathStyle = connection && getAgentHostPathStyle(connection);
+			if (platform) {
+				// Posix path style also covers macOS, whose file systems are usually case-insensitive.
+				hosts[authority] = platform === 'linux';
+			} else if (pathStyle) {
+				hosts[authority] = pathStyle === PathStyle.Posix;
+			}
+		}
+		return hosts;
 	}
 
 	private _getNetworkStatus(authority: string, reader: IReader | undefined): IBrowserViewNetworkStatus {

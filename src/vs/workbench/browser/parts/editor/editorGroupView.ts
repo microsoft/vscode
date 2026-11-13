@@ -142,6 +142,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` (default) is a no-op for all other layouts.
 	 */
 	private _contentRightInset = 0;
+	private _contentLeftInset = 0;
+	private _contentTopInset = 0;
+	private _contentBottomInset = 0;
 
 	private readonly _onDidRelayout = this._register(new Emitter<void>());
 	readonly onDidRelayout = this._onDidRelayout.event;
@@ -425,6 +428,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.editorService.openEditor({
 					resource: undefined,
+					untitledOrigin: 'emptyGroupDoubleClick',
 					options: {
 						pinned: true,
 						override: DEFAULT_EDITOR_ASSOCIATION.id
@@ -2299,24 +2303,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this.lastLayout = { width, height, top, left };
 		this.element.classList.toggle('max-height-478px', height <= 478);
 
-		const contentWidth = Math.max(0, width - this._contentRightInset);
+		const contentWidth = Math.max(0, width - this._contentLeftInset - this._contentRightInset);
 		this.titleContainer.style.setProperty('--title-border-bottom-width', `${contentWidth}px`);
+		this.titleContainer.style.setProperty('--title-border-bottom-left', `${this._contentLeftInset}px`);
 
 		// Keep tabs full-width while the header and editor pane follow the content inset.
 		const titleControlSize = this.titleProvidedByEditor ? new Dimension(width, 0) : this.titleControl.layout({
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
-		}, contentWidth);
+		}, contentWidth, this._contentLeftInset);
 
 		// Update progress bar location
 		this.progressBar.getContainer().style.top = `${Math.max(this.titleHeight.offset - 2, 0)}px`;
 
-		// The editor pane is inset on the right by `_contentRightInset` so a docked
-		// panel can sit beside it under the full-width title (0 = fill the group).
-		const editorHeight = Math.max(0, height - titleControlSize.height);
+		const editorHeight = Math.max(0, height - titleControlSize.height - this._contentTopInset - this._contentBottomInset);
 		this.editorContainer.style.width = `${contentWidth}px`;
 		this.editorContainer.style.height = `${editorHeight}px`;
-		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height, left });
+		this.editorContainer.style.marginTop = this._contentTopInset > 0 ? `${this._contentTopInset}px` : '';
+		this.editorContainer.style.marginLeft = this._contentLeftInset > 0 ? `${this._contentLeftInset}px` : '';
+		this.editorPane.layout({ width: contentWidth, height: editorHeight, top: top + titleControlSize.height + this._contentTopInset, left: left + this._contentLeftInset });
 	}
 
 	/**
@@ -2324,11 +2329,30 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	 * `0` restores the default full-width content.
 	 */
 	setContentRightInset(inset: number): void {
-		const next = Math.max(0, Math.round(inset));
-		if (next === this._contentRightInset) {
+		this.setContentHorizontalInsets(this._contentLeftInset, inset);
+	}
+
+	/** Reserves space beside the editor header and pane while tabs remain full-width. */
+	setContentHorizontalInsets(left: number, right: number): void {
+		const nextLeft = Math.max(0, Math.round(left));
+		const nextRight = Math.max(0, Math.round(right));
+		if (nextLeft === this._contentLeftInset && nextRight === this._contentRightInset) {
 			return;
 		}
-		this._contentRightInset = next;
+		this._contentLeftInset = nextLeft;
+		this._contentRightInset = nextRight;
+		this.relayout();
+	}
+
+	/** Reserves space above and below editor content without moving its tabs or header. */
+	setContentVerticalInsets(top: number, bottom: number): void {
+		const nextTop = Math.max(0, Math.round(top));
+		const nextBottom = Math.max(0, Math.round(bottom));
+		if (nextTop === this._contentTopInset && nextBottom === this._contentBottomInset) {
+			return;
+		}
+		this._contentTopInset = nextTop;
+		this._contentBottomInset = nextBottom;
 		this.relayout();
 	}
 

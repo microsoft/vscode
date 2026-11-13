@@ -13,7 +13,7 @@ import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { ActionType, ActionEnvelope, ActionOrigin, INotification, IRootConfigChangedAction, SessionAction, ChatAction, RootAction, StateAction, TerminalAction, ChangesetAction, ClientChangesetAction, AnnotationsAction, ClientAnnotationsAction, isRootAction, isSessionAction, isChatAction, isChangesetAction, isAnnotationsAction, isAutomationAction, isAutomationRunAction, isPassiveSessionMetadataAction, type AuthRequiredParams, type ChatConfigChangedAction, type ClientAutomationAction, type ClientAutomationRunAction, type ProgressParams, type SessionSummaryChangedParams, type SessionSummaryChanges } from '../common/state/sessionActions.js';
 import { ProtocolError, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer, chatReducer, changesetReducer, annotationsReducer, automationReducer, automationRunReducer } from '../common/state/sessionReducers.js';
-import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isChatInSessionReadAggregate, isSessionStatusArchived, isSessionStatusRead, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatConfigState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
+import { createRootState, createSessionState, createChatState, createDefaultChatSummary, chatSummaryFromState, parseSubagentSessionUri, isAhpChatChannel, isAhpAutomationCatalogChannel, isAhpAutomationRunChannel, isChatInSessionReadAggregate, isSessionStatusArchived, isSessionStatusRead, mergeSessionWithDefaultChat, isAhpRootChannel, readSessionExternal, SessionLifecycle, withHostBuildInfo, withSessionStatusFlag, type AutomationState, type AutomationRunState, type Changeset, type ChangesetState, type AnnotationsState, type ChatConfigState, type ChatState, type ChatSummary, type Customization, type ISessionWithDefaultChat, type Message, type RootState, type SessionConfigState, type SessionMeta, type SessionState, type SessionSummary, type ToolCallState, type Turn, type URI, ROOT_STATE_URI, ChangesetStatus, ChatOriginKind, IHostBuildInfo, SessionStatus, ResponsePartKind, ToolCallStatus } from '../common/state/sessionState.js';
 import { AgentHostTelemetryLevelConfigKey, IPermissionsValue, platformRootSchema, telemetryLevelToAgentHostConfigValue } from '../common/agentHostSchema.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
 import { sandboxConfigSchema } from '../common/sandboxConfigSchema.js';
@@ -36,6 +36,7 @@ import { withAgentHostResources } from '../common/meta/agentHostResources.js';
 import { withRemoteSessionsCapability } from '../common/meta/agentRemoteSessionMeta.js';
 import { withAgentSessionGitHubReferences } from '../common/meta/agentSessionGitHubReferences.js';
 import { isPresentationOnlyToolCall, readToolCallMeta, toToolCallMeta } from '../common/meta/agentToolCallMeta.js';
+import { getSystemTurnActivity } from '../common/systemTurnActivity.js';
 import { collectAgentHostResources } from './agentHostResources.js';
 
 export interface IAgentHostStateManagerOptions {
@@ -571,6 +572,35 @@ export class AgentHostStateManager extends Disposable {
 
 	get hasActiveSessions(): boolean {
 		return this._sessionsWithActiveTurn.size > 0;
+	}
+
+	/** The number of chats that currently have an active turn. */
+	get activeTurnCount(): number {
+		let count = 0;
+		for (const chats of this._sessionsWithActiveTurn.values()) {
+			count += chats.size;
+		}
+		return count;
+	}
+
+	/** The tool calls running in active turns. */
+	getRunningToolCalls(): ToolCallState[] {
+		const toolCalls: ToolCallState[] = [];
+		for (const chats of this._sessionsWithActiveTurn.values()) {
+			for (const chat of chats) {
+				for (const part of this.getChatState(chat)?.activeTurn?.responseParts ?? []) {
+					if (part.kind === ResponsePartKind.ToolCall && part.toolCall.status === ToolCallStatus.Running) {
+						toolCalls.push(part.toolCall);
+					}
+				}
+			}
+		}
+		return toolCalls;
+	}
+
+	/** The number of sessions loaded in memory. */
+	get loadedSessionCount(): number {
+		return this._sessionStates.size;
 	}
 
 	/**
@@ -3361,7 +3391,9 @@ export class AgentHostStateManager extends Disposable {
 	 * Aggregates a session's chat catalog into the derived session-summary
 	 * fields, promoting `InputNeeded` before `InProgress` over the default chat's
 	 * status (else the most recently modified chat's). Activity follows the
-	 * driving chat; `modifiedAt` is the max across chats.
+	 * driving chat; while that chat runs a turn the host sent for Agent Merge or
+	 * an artifact action and reports no activity of its own, it describes that
+	 * turn. `modifiedAt` is the max across chats.
 	 */
 	private _aggregateChatSummaries(chats: readonly ChatSummary[], defaultChat: URI | undefined): { status?: SessionStatus; activity?: string; modifiedAt?: number } {
 		if (chats.length === 0) {
@@ -3384,7 +3416,15 @@ export class AgentHostStateManager extends Disposable {
 			driver = inProgressChat;
 		}
 		const modifiedAt = chats.reduce((max, c) => Math.max(max, Date.parse(c.modifiedAt)), 0);
-		return { status, activity: driver.activity, modifiedAt };
+		// Derived here rather than set as the chat's own activity, which `session/chatUpdated` could not clear again
+		// once forwarded to the chat catalog.
+		const activity = driver.activity ?? (status === SessionStatus.InProgress ? this._getSystemTurnActivity(driver.resource) : undefined);
+		return { status, activity, modifiedAt };
+	}
+
+	private _getSystemTurnActivity(chat: URI): string | undefined {
+		const message = this._chatEntries.get(chat)?.state?.activeTurn?.message;
+		return message && getSystemTurnActivity(message);
 	}
 
 	/**

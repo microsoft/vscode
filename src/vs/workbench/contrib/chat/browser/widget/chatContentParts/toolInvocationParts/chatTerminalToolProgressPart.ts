@@ -110,6 +110,11 @@ function getTerminalFullOutputLabel(runId: string): string {
  */
 const expandedStateByInvocation = new WeakMap<IChatToolInvocation | IChatToolInvocationSerialized, boolean>();
 
+/**
+ * Invocations whose expanded state the user chose. Only these keep that state once the command is done.
+ */
+const userToggledInvocations = new WeakSet<IChatToolInvocation | IChatToolInvocationSerialized>();
+
 // --- Command registrations for terminal tool progress toolbar ---
 
 CommandsRegistry.registerCommand(TerminalContribCommandId.FocusChatInstanceAction, async (_accessor: unknown, progressPart?: IChatTerminalToolProgressPart) => {
@@ -293,7 +298,7 @@ class TerminalCommandDecoration extends Disposable {
  * - Long-running commands with output auto-expand after a short delay
  * - Fast commands that complete quickly don't auto-expand (prevents flickering)
  * - Failed commands can be configured to auto-expand via settings
- * - Successful commands auto-collapse if output was auto-expanded
+ * - Finished commands collapse unless the user toggled them or their failure is configured to stay expanded
  */
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart implements IChatTerminalToolProgressPart {
 	public readonly domNode: HTMLElement;
@@ -326,7 +331,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private readonly _outputSourceListener = this._register(new MutableDisposable<IDisposable>());
 	private readonly _pendingOutputRestore = this._register(new MutableDisposable<IDisposable>());
 	private readonly _decoration: TerminalCommandDecoration;
-	private _userToggledOutput: boolean = false;
+	/** Whether the command was running when this part was created, so its completion collapses the part once. */
+	private _awaitsCompletion: boolean;
+	/** The wait for focus to leave the card before a finished command collapses. */
+	private readonly _pendingFocusCollapse = this._register(new MutableDisposable<IDisposable>());
 	private _isInThinkingContainer: boolean = false;
 	private _usesCollapsibleWrapper: boolean = false;
 	private _thinkingCollapsibleWrapper: ChatTerminalThinkingCollapsibleWrapper | undefined;
@@ -380,6 +388,10 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		this._terminalData = terminalData;
 		this._terminalCommandUri = terminalData.terminalCommandUri ? URI.revive(terminalData.terminalCommandUri) : undefined;
 		this._isSerializedInvocation = (toolInvocation.kind === 'toolInvocationSerialized');
+		this._awaitsCompletion = this._isInvocationRunning();
+		if (!this._awaitsCompletion && !userToggledInvocations.has(toolInvocation)) {
+			expandedStateByInvocation.delete(toolInvocation);
+		}
 
 		const elements = h('.chat-terminal-content-part@container', [
 			h('.chat-terminal-content-title@title', [
@@ -626,6 +638,11 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			this._isInThinkingContainer,
 		));
 		this._thinkingCollapsibleWrapper = wrapper;
+		this._register(dom.addDisposableListener(wrapper.domNode, ChatCollapsibleContentPart.userToggleEvent, e => {
+			if (e.target === wrapper.domNode) {
+				userToggledInvocations.add(toolInvocation);
+			}
+		}));
 
 		// Sync terminal output expansion with the collapsible wrapper.
 		// Skip the initial run — initial state is handled separately.
@@ -905,14 +922,16 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	/**
 	 * Determines whether the terminal output should auto-expand.
 	 * Returns false if already expanded, user has manually toggled, component is disposed,
-	 * or if the invocation was previously expanded (to preserve state across re-renders).
+	 * the command is no longer running, or if the invocation was previously expanded
+	 * (to preserve state across re-renders).
 	 */
 	private _shouldAutoExpand(): boolean {
 		return !this._outputView.isExpanded &&
-			!this._userToggledOutput &&
+			!userToggledInvocations.has(this.toolInvocation) &&
 			!this._store.isDisposed &&
 			(!this._forceExpandTerminalOutput || !expandedStateByInvocation.has(this.toolInvocation)) &&
-			!expandedStateByInvocation.get(this.toolInvocation);
+			!expandedStateByInvocation.get(this.toolInvocation) &&
+			this._isInvocationRunning();
 	}
 
 	/**
@@ -1002,7 +1021,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				this._updateToolbarContextKeys(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
 
-				this._handleCommandCompletion(resolvedCommand);
+				this._handleCommandCompletion(resolvedCommand?.exitCode);
 
 				if (resolvedCommand?.endMarker) {
 					commandDetectionListener.clear();
@@ -1013,7 +1032,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			const resolvedImmediately = await tryResolveCommand();
 			if (resolvedImmediately?.endMarker) {
 				commandDetectionListener.clear();
-				this._handleCommandCompletion(resolvedImmediately);
+				this._handleCommandCompletion(resolvedImmediately.exitCode);
 				return;
 			}
 		};
@@ -1083,7 +1102,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			if (this._terminalData.terminalCommandId === cmd.id) {
 				this._updateToolbarContextKeys(terminalInstance, this._terminalData.terminalToolSessionId);
 				const resolvedCommand = this._getResolvedCommand(terminalInstance);
-				this._handleCommandCompletion(resolvedCommand);
+				this._handleCommandCompletion(resolvedCommand?.exitCode);
 			}
 		}));
 
@@ -1092,31 +1111,55 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		// Check if the command was already resolved (e.g. during content replay)
 		const resolvedCommand = this._resolveCommand(terminalInstance);
 		if (resolvedCommand?.endMarker) {
-			this._handleCommandCompletion(resolvedCommand);
+			this._handleCommandCompletion(resolvedCommand.exitCode);
 		}
 	}
 
 	/**
-	 * Handles the completion of a terminal command by updating the UI state.
-	 * This includes marking the collapsible wrapper as complete, auto-collapsing
-	 * successful commands, and keeping failed commands expanded.
-	 *
-	 * @param resolvedCommand The completed terminal command with exit code information.
+	 * Marks the collapsible wrapper complete and, once the command is done, collapses it
+	 * unless the user chose its expanded state or its failure is configured to stay expanded.
 	 */
-	private _handleCommandCompletion(resolvedCommand: ITerminalCommand | undefined): void {
-		// Update title to show completion state
+	private _handleCommandCompletion(exitCode: number | undefined): void {
 		this.markCollapsibleWrapperComplete();
 
-		// Auto-collapse on success (exit code 0)
-		if (resolvedCommand?.exitCode === 0 && this._outputView.isExpanded && !this._userToggledOutput && !this._forceExpandTerminalOutput) {
-			this._toggleOutput(false);
+		// The event can belong to another command in the same terminal
+		if (this._isInvocationRunning() || userToggledInvocations.has(this.toolInvocation) || this._forceExpandTerminalOutput) {
+			return;
 		}
 
-		// Keep outer wrapper expanded on error for visibility
 		const autoExpandFailures = this._configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures);
-		if (autoExpandFailures && resolvedCommand?.exitCode !== undefined && resolvedCommand.exitCode !== 0 && this._thinkingCollapsibleWrapper) {
+		if (autoExpandFailures && exitCode !== undefined && exitCode !== 0) {
 			this.expandCollapsibleWrapper();
+		} else if (this._awaitsCompletion) {
+			this._collapseWhenUnfocused();
 		}
+		this._awaitsCompletion = false;
+	}
+
+	/**
+	 * Collapses the finished command once keyboard focus is outside its card, so the collapse
+	 * never hides the output or control a user is on.
+	 */
+	private _collapseWhenUnfocused(): void {
+		const collapse = () => {
+			this._pendingFocusCollapse.clear();
+			// The user may have chosen the card's state while the collapse waited.
+			if (!userToggledInvocations.has(this.toolInvocation)) {
+				this._thinkingCollapsibleWrapper?.collapse();
+				void this._toggleOutput(false).catch(onUnexpectedError);
+			}
+		};
+		if (!dom.isAncestorOfActiveElement(this.domNode)) {
+			collapse();
+			return;
+		}
+		this._pendingFocusCollapse.value = dom.addDisposableListener(this.domNode, dom.EventType.FOCUS_OUT, (event: FocusEvent) => {
+			// Focus that moves within the card, or stays in it while the window is inactive, has not left.
+			const movesWithinCard = dom.isHTMLElement(event.relatedTarget) && this.domNode.contains(event.relatedTarget);
+			if (!movesWithinCard && !dom.isAncestorOfActiveElement(this.domNode)) {
+				collapse();
+			}
+		});
 	}
 
 	private async _toggleOutput(expanded: boolean): Promise<boolean> {
@@ -1220,14 +1263,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			void this._outputView.refresh();
 			if (source.hasExited) {
 				onCommandFinished.fire();
-				this.markCollapsibleWrapperComplete();
+				this._handleCommandCompletion(source.exitCode);
 			}
 		}));
 		this._outputSourceListener.value = store;
 		onCommandExecuted.fire();
 		if (source.hasExited) {
 			onCommandFinished.fire();
-			this.markCollapsibleWrapperComplete();
+			this._handleCommandCompletion(source.exitCode);
 		}
 		this._decoration.update();
 		this._updateToolbarContextKeys(undefined, this._terminalData.terminalToolSessionId);
@@ -1330,7 +1373,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public async toggleOutputFromAction(): Promise<void> {
-		this._userToggledOutput = true;
+		userToggledInvocations.add(this.toolInvocation);
 
 		type ToggleChatTerminalOutputTelemetryEvent = {
 			previousExpanded: boolean;
@@ -1352,7 +1395,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	}
 
 	public async toggleOutputFromKeyboard(): Promise<void> {
-		this._userToggledOutput = true;
+		userToggledInvocations.add(this.toolInvocation);
 		if (!this._outputView.isExpanded) {
 			await this._toggleOutput(true);
 			this.focusOutput();
@@ -1444,6 +1487,8 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	private readonly _fullOutputLink = this._register(new MutableDisposable<Link>());
 	private _lastRenderedLineCount: number | undefined;
 	private readonly _outputRelayout = this._register(new MutableDisposable());
+	/** The latest requested state, so a collapse requested while the output still loads is not undone. */
+	private _expandRequested = false;
 
 	private readonly _onDidFocusEmitter = this._register(new Emitter<void>());
 	public get onDidFocus() { return this._onDidFocusEmitter.event; }
@@ -1506,6 +1551,7 @@ export class ChatTerminalToolOutputSection extends Disposable {
 	}
 
 	public async toggle(expanded: boolean): Promise<boolean> {
+		this._expandRequested = expanded;
 		const currentlyExpanded = this.isExpanded;
 		if (expanded === currentlyExpanded) {
 			if (expanded) {
@@ -1524,6 +1570,9 @@ export class ChatTerminalToolOutputSection extends Disposable {
 			await this._createScrollableContainer();
 		}
 		await this._updateTerminalContent();
+		if (!this._expandRequested) {
+			return false;
+		}
 
 		// Only now show the expanded state (after content is ready)
 		this._setExpanded(true);
@@ -2249,6 +2298,10 @@ export class ChatTerminalThinkingCollapsibleWrapper extends ChatCollapsibleConte
 
 	public expand(): void {
 		this.setExpanded(true);
+	}
+
+	public collapse(): void {
+		this.setExpanded(false);
 	}
 
 	override hasSameContent(_other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

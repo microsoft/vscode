@@ -177,9 +177,11 @@ export class NativeMenubarControl extends MenubarControl {
 	private getAdditionalKeybindings(): { [id: string]: IMenubarKeybinding } {
 		const keybindings: { [id: string]: IMenubarKeybinding } = {};
 		if (isMacintosh) {
-			const keybinding = this.getMenubarKeybinding('workbench.action.quit');
-			if (keybinding) {
-				keybindings['workbench.action.quit'] = keybinding;
+			for (const commandId of ['workbench.action.quit', 'workbench.action.toggleWindowAlwaysOnTop']) {
+				const keybinding = this.getMenubarKeybinding(commandId);
+				if (keybinding) {
+					keybindings[commandId] = keybinding;
+				}
 			}
 		}
 

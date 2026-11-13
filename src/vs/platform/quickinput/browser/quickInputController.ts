@@ -100,6 +100,7 @@ export class QuickInputController extends Disposable {
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
 	private readonly closeAnimation = this._register(new MutableDisposable<IDisposable>());
+	private readonly anchorResizeObserver = this._register(new MutableDisposable<IDisposable>());
 
 	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
 	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
@@ -803,6 +804,7 @@ export class QuickInputController extends Disposable {
 		ui.container.classList.toggle(QUICK_INPUT_OVERLAY_CLASS, controller.anchorPosition === 'overlay');
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.observeAnchorResize(controller.anchor);
 		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
 		if (controller.anchor) {
@@ -816,6 +818,21 @@ export class QuickInputController extends Disposable {
 		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
+	}
+
+	/** Keeps an element-anchored input aligned when the anchor is resized after the input is shown. */
+	private observeAnchorResize(anchor: IQuickInput['anchor']): void {
+		this.anchorResizeObserver.clear();
+		if (!dom.isHTMLElement(anchor)) {
+			return;
+		}
+		const store = new DisposableStore();
+		const observer = store.add(new dom.DisposableResizeObserver('QuickInputController.anchor', () => {
+			this.overlayLayoutCorrection = undefined;
+			this.updateLayout();
+		}, dom.getWindow(anchor)));
+		store.add(observer.observe(anchor));
+		this.anchorResizeObserver.value = store;
 	}
 
 	isVisible(): boolean {
@@ -878,6 +895,7 @@ export class QuickInputController extends Disposable {
 			return;
 		}
 		controller.willHide(reason);
+		this.anchorResizeObserver.clear();
 
 		const container = this.ui?.container;
 		// The active element of the container's own root: not the deep active element,

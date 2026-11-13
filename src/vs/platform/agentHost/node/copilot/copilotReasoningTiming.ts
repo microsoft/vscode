@@ -35,6 +35,17 @@ export interface IRecordedResponseParts {
 	readonly recorded: readonly StoredAssistantResponsePart[];
 }
 
+/** Whether streamed text is the text a provider saved; some providers save text without the whitespace around it. */
+function isSavedText(streamed: string, saved: string): boolean {
+	return streamed === saved || (!!saved.trim() && streamed.trim() === saved.trim());
+}
+
+/** Whether the parts observed while a response streamed carry the reasoning and answer of its saved assistant message. */
+export function hasSavedMessageText(parts: readonly StoredAssistantResponsePart[], reasoningText: string | undefined, content: string): boolean {
+	return isSavedText(parts.filter(part => part.kind === ResponsePartKind.Reasoning).map(part => part.content).join(''), reasoningText ?? '')
+		&& isSavedText(parts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join(''), content);
+}
+
 /** Measures contiguous reasoning output independently of SDK block and message boundaries. */
 export class CopilotReasoningTiming extends Disposable {
 	private readonly _scopes = new Map<string | undefined, IReasoningScope>();
@@ -125,9 +136,7 @@ export class CopilotReasoningTiming extends Disposable {
 		}
 		const parts = scope.parts;
 		scope.parts = [];
-		const matches = parts.filter(part => part.kind === ResponsePartKind.Reasoning).map(part => part.content).join('') === (reasoningText ?? '')
-			&& parts.filter(part => part.kind === ResponsePartKind.Markdown).map(part => part.content).join('') === content;
-		if (!matches) {
+		if (!hasSavedMessageText(parts, reasoningText, content)) {
 			if (scope.active && parts.some(part => part.kind === ResponsePartKind.Reasoning && part.id === scope.active?.partId)) {
 				scope.active.persistable = false;
 			}

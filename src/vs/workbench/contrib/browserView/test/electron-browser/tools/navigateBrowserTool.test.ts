@@ -18,6 +18,7 @@ import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
 import { NavigateBrowserTool } from '../../../electron-browser/tools/navigateBrowserTool.js';
 import { IToolInvocation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 
 function createRemoteExplorerService(localUri: string): IRemoteExplorerService {
 	return upcastPartial<IRemoteExplorerService>({
@@ -171,6 +172,72 @@ suite('NavigateBrowserTool', () => {
 		}, {
 			invocationCount: 0,
 			error: networkFilterService.formatError(URI.parse('https://blocked-tunnel.example/private')),
+		});
+	});
+
+	test('maps remote resource URLs to the file URL of the page\'s network before navigating', async () => {
+		const networkFilterService = disposables.add(new AgentNetworkFilterService(new TestConfigurationService()));
+		const navigationUrls: (string | undefined)[] = [];
+		const page = upcastPartial<BrowserEditorInput>({ model: upcastPartial<IBrowserViewModel>({ network: { authority: 'host' } }) });
+		const tool = new NavigateBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				invokeFunction: async (_sessionId, _pageId, _fnDef, args) => {
+					navigationUrls.push(typeof args?.[0] === 'string' ? args[0] : undefined);
+					return { summary: '' };
+				},
+			}),
+			networkFilterService,
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map([['page', page]]), resolveNetwork: () => undefined }),
+			upcastPartial<IRemoteExplorerService>({}),
+		);
+
+		for (const url of ['vscode-remote://host/repo/index.html?view=preview#top', 'vscode-remote://other/repo/index.html']) {
+			await tool.invoke(
+				upcastPartial<IToolInvocation>({ parameters: { pageId: 'page', type: 'url', url } }),
+				async () => 0,
+				upcastPartial<ToolProgress>({ report: () => { } }),
+				CancellationToken.None,
+			);
+		}
+
+		assert.deepStrictEqual(navigationUrls, ['file:///repo/index.html?view=preview#top', 'vscode-remote://other/repo/index.html']);
+	});
+
+	test('applies network policy to the file URL of a remote resource of the page\'s network', async () => {
+		const checked: string[] = [];
+		const networkFilterService = upcastPartial<AgentNetworkFilterService>({
+			isUriAllowed: uri => {
+				checked.push(uri.toString());
+				return uri.scheme === 'file';
+			},
+			formatError: uri => `Blocked ${uri.toString()}`,
+		});
+		const navigationUrls: (string | undefined)[] = [];
+		const tool = new NavigateBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				invokeFunction: async (_sessionId, _pageId, _fnDef, args) => {
+					navigationUrls.push(typeof args?.[0] === 'string' ? args[0] : undefined);
+					return { summary: '' };
+				},
+			}),
+			networkFilterService,
+			upcastPartial<IBrowserViewWorkbenchService>({ getKnownBrowserViews: () => new Map(), resolveNetwork: () => ({ authority: 'host-a' }) }),
+			upcastPartial<IRemoteExplorerService>({}),
+		);
+		const parameters = { pageId: 'page', type: 'url', url: toAgentHostUri(URI.file('/repo/index.html'), 'host-a').toString() };
+
+		await tool.prepareToolInvocation({ parameters, toolCallId: 'test-tool-call', chatSessionResource: undefined }, CancellationToken.None);
+		const result = await tool.invoke(
+			upcastPartial<IToolInvocation>({ parameters }),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({ checked: [...new Set(checked)], error: result.toolResultError, navigationUrls }, {
+			checked: ['file:///repo/index.html'],
+			error: undefined,
+			navigationUrls: ['file:///repo/index.html'],
 		});
 	});
 

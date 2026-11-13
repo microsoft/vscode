@@ -8,9 +8,9 @@ import { ApiPaginationOptions, ApiRequestOptions } from '../client/request.js';
 import { numberSegment, pathSegment, repositoryPath, withQuery } from '../client/routing.js';
 import { parse } from '../client/schema.js';
 import { PageOptions, RepositoryRef } from '../client/types.js';
-import { RepositoryIdentity } from './core.js';
-import { CoreClient, parseAccount, parseChangedFile, parseRepositoryIdentity, repositoryIdentitySchema } from './coreClient.js';
-import { Branch, BranchProtection, Commit, Comparison, CreateRepositoryRequest, ForkRepositoryRequest, IRepositoriesClient, ListRepositoriesOptions, ListRulesetsOptions, Repository, RepositoryRuleset } from './repositories.js';
+import { Connection, CursorOptions, RepositoryIdentity } from './core.js';
+import { CoreClient, cursorVariables, parseAccount, parseChangedFile, parseConnection, parseRepositoryIdentity, repositoryIdentitySchema } from './coreClient.js';
+import { Branch, BranchProtection, Commit, Comparison, CreateRepositoryRequest, ForkRepositoryRequest, IRepositoriesClient, ListRepositoriesOptions, ListRulesetsOptions, Repository, RepositoryAssignableUser, RepositoryCommitAuthor, RepositoryRuleset, RepositoryRulesetNode, RepositoryViewerInfo } from './repositories.js';
 
 export class RepositoriesClient implements IRepositoriesClient {
 	constructor(private readonly _client: CoreClient) { }
@@ -35,6 +35,52 @@ export class RepositoriesClient implements IRepositoriesClient {
 			expectedStatus: 200,
 			options
 		}, signal, parseRepository);
+	}
+
+	async getViewerInfo(repository: RepositoryRef, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryViewerInfo | null> {
+		return this._client.graphql(
+			'repositories',
+			repositoryViewerQuery,
+			{ owner: repository.owner, name: repository.repo },
+			signal,
+			data => parseRepositoryViewerResponse(data).repository,
+			options
+		);
+	}
+
+	async listRulesetConnection(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryRulesetNode> | null> {
+		const { query = {}, ...requestOptions } = options ?? {};
+		return this._client.graphqlPages(
+			'repositories',
+			repositoryRulesetsQuery,
+			{ owner: repository.owner, name: repository.repo, ...cursorVariables(query) },
+			signal,
+			data => parseRepositoryRulesetsResponse(data).repository?.rulesets ?? null,
+			requestOptions
+		);
+	}
+
+	async listAssignableUsers(repository: RepositoryRef, signal: AbortSignal, options?: ApiPaginationOptions<CursorOptions>): Promise<Connection<RepositoryAssignableUser> | null> {
+		const { query = {}, ...requestOptions } = options ?? {};
+		return this._client.graphqlPages(
+			'repositories',
+			repositoryAssignableUsersQuery,
+			{ owner: repository.owner, name: repository.repo, ...cursorVariables(query) },
+			signal,
+			data => parseRepositoryAssignableUsersResponse(data).repository?.assignableUsers ?? null,
+			requestOptions
+		);
+	}
+
+	async getCommitAuthor(repository: RepositoryRef, ref: string, signal: AbortSignal, options?: ApiRequestOptions): Promise<RepositoryCommitAuthor | null> {
+		return this._client.graphql(
+			'repositories',
+			repositoryCommitAuthorQuery,
+			{ owner: repository.owner, name: repository.repo, expression: ref },
+			signal,
+			data => parseRepositoryCommitAuthorResponse(data).repository?.object?.author ?? null,
+			options
+		);
 	}
 
 	async listForAuthenticatedUser(signal: AbortSignal, options?: ListRepositoriesOptions): Promise<readonly Repository[]> {
@@ -304,5 +350,100 @@ const parseBranchProtection = parse.object<BranchProtection>({
 	})),
 	required_conversation_resolution: parse.optional(parse.object({
 		enabled: parse.boolean
+	})),
+});
+
+const repositoryViewerQuery = `query RepositoryViewerInfo($owner: String!, $name: String!) {
+	repository(owner: $owner, name: $name) {
+		defaultBranchRef { name }
+		viewerPermission
+	}
+}`;
+
+const repositoryRulesetsQuery = `query RepositoryRulesets($owner: String!, $name: String!, $first: Int = 100, $after: String) {
+	repository(owner: $owner, name: $name) {
+		rulesets(includeParents: true, first: $first, after: $after) {
+			nodes {
+				name target enforcement
+				rules(type: PULL_REQUEST) { totalCount }
+				conditions { refName { include exclude } }
+			}
+			pageInfo { endCursor hasNextPage }
+		}
+	}
+}`;
+
+const repositoryAssignableUsersQuery = `query RepositoryAssignableUsers($owner: String!, $name: String!, $first: Int = 100, $after: String) {
+	repository(owner: $owner, name: $name) {
+		assignableUsers(first: $first, after: $after) {
+			nodes { id login name email avatarUrl }
+			pageInfo { endCursor hasNextPage }
+		}
+	}
+}`;
+
+const repositoryCommitAuthorQuery = `query RepositoryCommitAuthor($owner: String!, $name: String!, $expression: String!) {
+	repository(owner: $owner, name: $name) {
+		object(expression: $expression) {
+			... on Commit {
+				author { name email avatarUrl user { id login } }
+			}
+		}
+	}
+}`;
+
+const parseRepositoryViewerResponse = parse.object({
+	repository: parse.nullable(parse.object<RepositoryViewerInfo>({
+		defaultBranchRef: parse.nullable(parse.object({
+			name: parse.nonEmptyString
+		})),
+		viewerPermission: parse.nullable(parse.oneOf('ADMIN', 'MAINTAIN', 'WRITE', 'TRIAGE', 'READ')),
+	})),
+});
+
+const parseRepositoryRulesetsResponse = parse.object({
+	repository: parse.nullable(parse.object({
+		rulesets: parse.nullable(parseConnection(parse.object<RepositoryRulesetNode>({
+			name: parse.string,
+			target: parse.nullable(parse.string),
+			enforcement: parse.string,
+			rules: parse.nullable(parse.object({
+				totalCount: parse.nonNegativeInteger
+			})),
+			conditions: parse.nullable(parse.object({
+				refName: parse.nullable(parse.object({
+					include: parse.strings,
+					exclude: parse.strings
+				})),
+			})),
+		}))),
+	})),
+});
+
+const parseRepositoryAssignableUsersResponse = parse.object({
+	repository: parse.nullable(parse.object({
+		assignableUsers: parseConnection(parse.object<RepositoryAssignableUser>({
+			id: parse.nonEmptyString,
+			login: parse.nonEmptyString,
+			name: parse.nullable(parse.string),
+			email: parse.string,
+			avatarUrl: parse.string,
+		})),
+	})),
+});
+
+const parseRepositoryCommitAuthorResponse = parse.object({
+	repository: parse.nullable(parse.object({
+		object: parse.nullable(parse.object({
+			author: parse.optional(parse.nullable(parse.object<RepositoryCommitAuthor>({
+				name: parse.nullable(parse.string),
+				email: parse.nullable(parse.string),
+				avatarUrl: parse.string,
+				user: parse.nullable(parse.object({
+					id: parse.nonEmptyString,
+					login: parse.nonEmptyString
+				})),
+			}))),
+		})),
 	})),
 });

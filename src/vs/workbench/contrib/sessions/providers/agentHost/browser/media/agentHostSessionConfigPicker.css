@@ -81,3 +81,18 @@
 .action-widget .actionList.sessions-chat-isolation-listed-changes .monaco-list-row.separator > span:not(:empty) {
 	padding-left: 0;
 }
+
+/* Like the count after Branch, the label of the uncommitted files shares the color of modified files. */
+.action-widget .actionList.sessions-chat-isolation-listed-changes .monaco-list-row.separator > span:not(:empty) {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+/* A quiet pill, like Recommended in the permissions picker, for a recommendation the user already knows. */
+.action-widget .monaco-list-row.action.sessions-chat-config-secondary-badge .action-item-badge {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	color: var(--vscode-descriptionForeground);
+}
+
+.action-widget .monaco-list-row.action.sessions-chat-config-secondary-badge.focused .action-item-badge {
+	color: inherit;
+}

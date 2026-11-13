@@ -416,7 +416,8 @@ export class LiveTestResult extends Disposable implements ITestResult {
 		}
 
 		for (let i = 1; i < chain.length; i++) {
-			parent = this.addTestToRun(controllerId, chain[i], parent.item.extId);
+			// Another profile's batch may register the same node after it has reported results.
+			parent = this.testById.get(chain[i].extId) ?? this.addTestToRun(controllerId, chain[i], parent.item.extId);
 		}
 
 		return undefined;

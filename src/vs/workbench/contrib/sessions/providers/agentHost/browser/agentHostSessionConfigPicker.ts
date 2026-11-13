@@ -24,7 +24,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { IActionViewItemService, type IActionViewItemFactory } from '../../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2, MenuId, MenuItemAction, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -59,7 +59,9 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IChatPhoneInputPresenter } from '../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
+import { createChatPhoneInputSessionContext } from '../../../browser/chatPhoneInputContext.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
 import type { ISessionsProvider } from '../../../common/sessionsProvider.js';
 import { type IAgentHostSessionsProvider, isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID, REMOTE_AGENT_HOST_PROVIDER_RE } from '../../../common/agentHostSessionsProvider.js';
@@ -85,9 +87,8 @@ import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/comm
 import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
-import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
+import { getChangedFileUri, getModifiedFilesSectionLabel, getUncommittedFilesDescription } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
-import { readPaneSessions } from '../../../../../services/sessions/browser/sessionGridPane.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
 const LegacySessionComposerLayout = SessionUsesExperimentalComposerLayoutContext.negate();
@@ -119,6 +120,8 @@ export interface IConfigPickerItem {
 	readonly disabled?: boolean;
 	/** Text shown after the label, such as "Recommended". */
 	readonly badge?: string;
+	/** Shows {@link badge} as a quiet secondary pill instead of in the badge color. */
+	readonly secondaryBadge?: boolean;
 	/** Runs instead of selecting a value, for rows that are not options, such as reviewing uncommitted changes. */
 	readonly run?: () => void;
 }
@@ -158,10 +161,13 @@ function formatUncommittedChanges(count: number): string {
 		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
-/** Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. */
-function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion): IConfigPickerItem {
+/**
+ * Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. Once
+ * the user has started a session in a new worktree, the recommendation is a quieter secondary pill.
+ */
+function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion, hasCreatedWorktreeSession: boolean): IConfigPickerItem {
 	if (item.value === 'worktree') {
-		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended") };
+		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended"), secondaryBadge: hasCreatedWorktreeSession };
 	}
 	if (item.value === 'folder' || item.value === 'workspace') {
 		return {
@@ -185,6 +191,9 @@ const LISTED_FILES_MAX = 3;
 
 /** Aligns the label of the isolation picker's section of uncommitted files with the files. */
 const LISTED_FILES_CLASS = 'sessions-chat-isolation-listed-changes';
+
+/** Styles the badge of a row whose item has {@link IConfigPickerItem.secondaryBadge}. */
+const SECONDARY_BADGE_CLASS = 'sessions-chat-config-secondary-badge';
 
 /** Prefixes the values of rows that are not options, which no option value contains. */
 const LISTED_FILE_VALUE_PREFIX = '\0worktreeSuggestion:';
@@ -258,7 +267,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : item.badge ? { badge: item.badge } : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : item.badge ? { badge: item.badge, ...(item.secondaryBadge ? { className: SECONDARY_BADGE_CLASS } : {}) } : {}),
 			detail,
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: detail,
@@ -1200,7 +1209,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		// Counts the files the section lists, which the repository's count can briefly disagree with.
 		const total = this._worktreeSuggestionService.getUncommittedChanges(suggestion, undefined)?.length ?? suggestion.uncommittedChanges;
-		const sectionLabel = getUncommittedFilesSectionLabel(total);
+		const sectionLabel = getModifiedFilesSectionLabel(total);
 		const files = toConfigPickerItems(this._worktreeSuggestionService.getUncommittedChangesListItems(WorktreeSuggestionVariant.UncommittedFilesCount, suggestion, LISTED_FILES_MAX))
 			// Screen readers skip separators and the header, so each row carries the section in its group title.
 			.map(row => ({ ...row, group: { ...row.group, title: sectionLabel } }));
@@ -1317,7 +1326,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		const { items: filteredItems, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
 		const isolationSuggestion = presentation === SessionConfigKey.Isolation ? this._getIsolationPickerRecommendation(sessionId) : undefined;
-		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion)) : filteredItems;
+		const hasCreatedWorktreeSession = !!isolationSuggestion && this._worktreeSuggestionService.hasCreatedWorktreeSession(undefined);
+		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion, hasCreatedWorktreeSession)) : filteredItems;
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const config = this._getSessionConfig(provider, sessionId);
 		const currentValue = config?.values[property] ?? schema.default;
@@ -2035,6 +2045,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -2048,9 +2060,13 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// because the classes are only accessed inside these factory
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
+		let shownKey: string | undefined;
 		this._register(autorun(reader => {
-			readPaneSessions(this._sessionsService.slotPanes, reader);
-			this._refreshRepositoryMenuItems(actionViewItemService);
+			const key = this._readShownSessions(reader).map(shown => `${shown.session.sessionId} ${shown.chat.toString()}`).join('\n');
+			if (key !== shownKey) {
+				shownKey = key;
+				this._refreshRepositoryMenuItems(actionViewItemService);
+			}
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -2101,7 +2117,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			NEW_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, host));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, host), host);
 			},
 		));
 		this._register(actionViewItemService.register(
@@ -2109,7 +2125,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			NEW_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, host));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, host), host);
 			},
 		));
 		registerRunningSessionPicker(
@@ -2120,14 +2136,14 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			RUNNING_SESSION_PERMISSION_MODE_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, host));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostClaudePermissionModePicker, host), host);
 			},
 		);
 		registerRunningSessionPicker(
 			RUNNING_SESSION_CODEX_APPROVALS_PICKER_ID,
 			(_action, _options, scopedInstantiationService) => {
 				const host = scopedInstantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
-				return new PickerActionViewItem(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, host));
+				return this._createEnumPermissionPicker(scopedInstantiationService.createInstance(AgentHostCodexApprovalsPicker, host), host);
 			},
 		);
 	}
@@ -2139,25 +2155,37 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (readPaneSessions(this._sessionsService.slotPanes, undefined).some(session => session.sessionId === sessionId)) {
+				if (this._readShownSessions(undefined).some(shown => shown.session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
 		}
 	}
 
+	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: URI }[] {
+		const shown = new Map<string, { readonly session: ISession; readonly chat: URI }>();
+		const add = (session: ISession | undefined, chat: IChat | undefined) => {
+			if (session && !shown.has(session.sessionId)) {
+				shown.set(session.sessionId, { session, chat: (chat ?? session.mainChat.read(reader)).resource });
+			}
+		};
+		for (const pane of this._sessionsService.slotPanes.read(reader)) {
+			add(pane.session.read(reader), pane.chat.read(reader));
+		}
+		for (const host of this._sessionHostService.hosts.read(reader)) {
+			add(host.session.read(reader), host.chat.read(reader));
+		}
+		return [...shown.values()];
+	}
+
 	private _refreshRepositoryMenuItems(actionViewItemService: IActionViewItemService): void {
 		this._repositoryMenuItems.clear();
-		for (const pane of this._sessionsService.slotPanes.get()) {
-			const session = pane.session.get();
-			if (!session) {
-				continue;
-			}
+		for (const { session, chat } of this._readShownSessions(undefined)) {
 			const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, (pane.chat.get() ?? session.mainChat.get()).resource);
+			const config = provider.getSessionConfig(session.sessionId, chat);
 			if (!config) {
 				continue;
 			}
@@ -2234,6 +2262,17 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		return new PickerActionViewItem(picker, delegate);
 	}
 
+	private _createEnumPermissionPicker(picker: AgentHostClaudePermissionModePicker | AgentHostCodexApprovalsPicker, host: ISessionHost): PickerActionViewItem {
+		if (this._phonePresenter.supportsUnifiedConfiguration) {
+			picker.setPickerPresenter(anchor => this._phonePresenter.showCombinedModeAndModelSheet(anchor, {
+				kind: 'session',
+				getSessionContext: () => createChatPhoneInputSessionContext(host.session.get(), host.chat.get()),
+				initialSection: 'permissions',
+			}));
+		}
+		return new PickerActionViewItem(picker);
+	}
+
 	/**
 	 * Inside a running chat widget, use the workbench
 	 * {@link PermissionPickerActionItem} so it matches the standard chat-input
@@ -2243,6 +2282,9 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		return (action, _options, instantiationService) => {
 			if (!(action instanceof MenuItemAction)) {
 				return undefined;
+			}
+			if (this._phonePresenter.supportsUnifiedConfiguration) {
+				return this._createNewSessionPermissionPicker(instantiationService);
 			}
 			const host = instantiationService.invokeFunction(accessor => accessor.get(ISessionHost));
 			const pickerOptions = {
@@ -2479,3 +2521,23 @@ export class RunningSessionModePickerAction extends Action2 {
 	}
 }
 
+/**
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerAgentHostSessionConfigPickerActions(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
+	return store;
+}

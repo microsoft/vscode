@@ -29,14 +29,14 @@ import { ISessionsPartService } from '../../../../../workbench/services/sessions
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IChat } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
-import { AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING, AGENTS_PICKER_IN_ATTACH_CONTEXT_MENU_SETTING, COMPARE_AGENTS_ENABLED_SETTING, COMPARE_AGENTS_TOOLS_ENABLED_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_CONNECTOR_RECOMMENDATIONS_SETTING, NEW_SESSION_WELCOME_PHRASES_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../../workbench/contrib/sessions/browser/chat/sessionArchiveNudge.js';
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -45,29 +45,29 @@ import { DevContainerAgentHostEnabledSettingId, DevContainerSamplesEnabledSettin
 import { getCloudSandboxPreparationAccessibilityHelp } from '../../../../../workbench/contrib/chat/browser/actions/chatAccessibilityHelp.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../../chatWindow/common/chatWindows.js';
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
+import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
+import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../../workbench/contrib/webview/browser/webview.js';
+import { WebviewFindAccessibilityHelp } from '../../../../../workbench/contrib/webview/browser/webviewFindAccessibilityHelp.js';
+import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('documents inline row actions only when enabled and AI is visible', () => {
-		const results = [[false, false], [true, false], [true, true]].map(([enabled, aiDisabled]) => {
-			const instantiationService = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({
-				[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: enabled,
-				'chat.disableAIFeatures': aiDisabled,
-			});
-			store.add(configuration.onDidChangeConfigurationEmitter);
-			instantiationService.stub(IConfigurationService, configuration);
-			stubContextKeyService(instantiationService, configuration);
-			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
-			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
-			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-			instantiationService.stub(ISessionsHostLayoutService, {});
-			return store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent()
-				.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.');
-		});
-		assert.deepStrictEqual(results, [false, true, false]);
+	test('defers to webview Find help while the Find input is focused', () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const context = store.add(new ContextKeyService(configuration));
+		IsSessionsWindowContext.bindTo(context).set(true);
+		const findFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(context);
+		const implementations = [new SessionsChatAccessibilityHelp(), new WebviewFindAccessibilityHelp()];
+		assert.deepStrictEqual([false, true].map(focused => {
+			findFocused.set(focused);
+			return implementations
+				.filter(implementation => context.contextMatchesRules(implementation.when))
+				.sort((a, b) => b.priority - a.priority)
+				.map(implementation => implementation.name);
+		}), [['sessionsChat'], ['webview-find']]);
 	});
 
 	test('documents comment card previews, secondary actions and review states', () => {
@@ -92,10 +92,15 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { preview: true, keyboard: true, scrolling: true, secondaryActions: true, states: true });
 	});
 
-	for (const { aiDisabled, hidden } of [{ aiDisabled: false, hidden: false }, { aiDisabled: true, hidden: false }, { aiDisabled: false, hidden: true }]) {
-		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden})`, () => {
+	for (const { aiDisabled, hidden, htmlEnabled } of [
+		{ aiDisabled: false, hidden: false, htmlEnabled: true },
+		{ aiDisabled: true, hidden: false, htmlEnabled: true },
+		{ aiDisabled: false, hidden: true, htmlEnabled: true },
+		{ aiDisabled: false, hidden: false, htmlEnabled: false },
+	]) {
+		test(`documents View Mode only when AI is visible (disabled: ${aiDisabled}, hidden: ${hidden}, HTML: ${htmlEnabled})`, () => {
 			const instantiation = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled });
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.HtmlPreviewEnabled]: htmlEnabled });
 			store.add(configuration.onDidChangeConfigurationEmitter);
 			instantiation.stub(IConfigurationService, configuration);
 			stubContextKeyService(instantiation, configuration);
@@ -106,15 +111,63 @@ suite('SessionsChatAccessibilityHelp', () => {
 			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
 			instantiation.stub(ISessionsHostLayoutService, {});
 			const help = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			const visible = !aiDisabled && !hidden;
+			const rendersHtml = visible && htmlEnabled;
 			assert.deepStrictEqual({
 				modes: help.includes('View Mode to select Compact, Verbose, or Conversation'),
 				checked: help.includes('The active mode is checked'),
 				setting: help.includes('Selecting a mode updates chat.persistentProgressVerbosity'),
 				thinking: help.includes('only when a live section finishes with its header in view'),
 				noBackfill: help.includes('Opening a chat, returning to it, scrolling or expanding existing sections never generates titles'),
-			}, { modes: !aiDisabled && !hidden, checked: !aiDisabled && !hidden, setting: !aiDisabled && !hidden, thinking: !aiDisabled && !hidden, noBackfill: !aiDisabled && !hidden });
+				htmlPreview: help.includes('html-preview code fence'),
+				htmlSourceToggle: help.includes('Use Tab to focus the HTML preview and press Shift+F10'),
+				htmlAccessibleSource: help.includes('original source is also available in the chat Accessible View'),
+				htmlExport: help.includes('Save HTML asks where to save a sanitized, self-contained HTML file'),
+				htmlExpansion: help.includes('Open Preview opens a larger editor'),
+				htmlScrolling: help.includes('Inline previews grow to fit their content and scroll with the chat transcript.'),
+				htmlFindSource: help.includes('Find in Chat searches the original HTML and shows source'),
+				htmlSetting: help.includes(ChatConfiguration.HtmlPreviewEnabled),
+				htmlDisabled: help.includes('Inline HTML previews are disabled'),
+				htmlSkillAdvertised: help.includes('built-in /html-preview skill'),
+			}, {
+				modes: visible, checked: visible, setting: visible, thinking: visible, noBackfill: visible,
+				htmlPreview: visible, htmlSourceToggle: rendersHtml, htmlAccessibleSource: rendersHtml, htmlExport: rendersHtml,
+				htmlExpansion: rendersHtml, htmlScrolling: rendersHtml, htmlFindSource: rendersHtml, htmlSetting: visible, htmlDisabled: visible && !htmlEnabled,
+				htmlSkillAdvertised: rendersHtml,
+			});
 		});
 	}
+
+	test('documents native visuals only while this window renders them', () => {
+		const help = (nativeComponentsEnabled: boolean, aiDisabled = false) => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.NativeComponentsEnabled]: nativeComponentsEnabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden: false } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			return {
+				visuals: content.includes('vscode-ui code fence'),
+				sourceToggle: content.includes('Choose Show Source to toggle the original markup'),
+				textAlternative: content.includes('presents each visual as text'),
+				setting: content.includes(ChatConfiguration.NativeComponentsEnabled),
+				skill: content.includes('built-in /vscode-ui skill'),
+			};
+		};
+		const all = (documented: boolean) => ({ visuals: documented, sourceToggle: documented, textAlternative: documented, setting: documented, skill: documented });
+
+		const withoutRenderer = help(true);
+		store.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		assert.deepStrictEqual({ withoutRenderer, enabled: help(true), settingOff: help(false), aiDisabled: help(true, true) }, {
+			withoutRenderer: all(false), enabled: all(true), settingOff: all(false), aiDisabled: all(false),
+		});
+	});
 
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
@@ -235,8 +288,23 @@ suite('SessionsChatAccessibilityHelp', () => {
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
+			commandCenterPreview: content.includes('hover over the session command center to preview recent sessions'),
+			commandCenterCurrentSession: content.includes('The current session is selected in the preview.'),
+			persistentAttention: content.includes('Opening that session dismisses the message; if you navigate to a different session while the request is still unresolved, a compact orange question marker remains as a reminder'),
+			attentionListModes: content.includes('the full orange attention message and its preview focuses on sessions needing attention') && content.includes('the preview returns to the full recent sessions list'),
+			detailPositions: content.includes('to the left or right of, above, or below editor content inside the side panel. The side panel stays beside chat.'),
+			floatingDetails: content.includes('Activate Unpin to return to hover-preview mode without collapsing the view or moving focus.'),
+			instantSelection: content.includes('Opening a file or diff collapses an unpinned preview immediately, without a delay or collapse animation; expanding a folder does not.'),
+			passiveDetailsHeader: content.includes('Clicking the title or header does not change the pin state.'),
+			hoverPreview: content.includes('Moving the pointer away starts a short collapse delay; moving back into the widget cancels it.'),
+			floatingMove: content.includes('Tab to the Move grip and use Arrow keys; hold Shift for larger steps or press Home to reset its position.'),
+			contentFit: content.includes('Files and Changes shrink to their contents up to the saved height limit; larger lists scroll.'),
+			floatingMarkdown: content.includes('The floating Files widget remains available alongside Markdown Editor and Markdown previews.'),
+			floatingFocus: content.includes('A preview stays open while keyboard focus is inside it, even if the pointer leaves.'),
+			floatingResize: content.includes('Increase Current View Size and Decrease Current View Size resize the floating view while its tree or header has focus.'),
+			keyboardResize: content.includes('width or height resize handle, labelled with the view name'),
 			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, moveToSession: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, commandCenterPreview: true, commandCenterCurrentSession: true, persistentAttention: true, attentionListModes: true, detailPositions: true, floatingDetails: true, instantSelection: true, passiveDetailsHeader: true, hoverPreview: true, floatingMove: true, contentFit: true, floatingMarkdown: true, floatingFocus: true, floatingResize: true, keyboardResize: true, moveToSession: true });
 	});
 
 	test('documents terminal command descriptions and Explain in confirmations', () => {
@@ -754,7 +822,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				hasClearWorkspace: true,
 			},
 			{
-				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
+				controls: 'When an Agent picker is available in a new or running session, it appears in Add Context when the default agent is selected. Open Add Context and choose Agent to select an agent. A one-time spotlight may explain this change. Activate Understood or press Escape to dismiss it, or activate the highlighted Add Context action to open the menu and dismiss the tip. While a custom agent is selected, the Agent picker appears in its usual position. Selecting the default agent moves it back into Add Context. Other new-session controls remain in their layout-specific positions. Use Tab to reach toolbar controls, arrow keys to navigate toolbar items, and Enter or Space to open a picker.',
 				sync: 'When available for a folder session with incoming or outgoing commits, Sync Changes appears with the commit counts in the same repository toolbar as the worktree and branch controls above the input. It is hidden when New Worktree is selected. Use Tab and the arrow keys to reach it, then Enter or Space to synchronize the session\'s repository. The action is disabled while synchronization is running.',
 				hasSessionOptions: true,
 				sessionOptionsMentionsToggle: true,
@@ -885,7 +953,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		});
 	});
 
-	test('describes the Ask Question input when the response-selection menu is disabled', () => {
+	test('omits response-selection help when the menu is disabled', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService({
 			[AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING]: false,
@@ -900,10 +968,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 		instantiationService.stub(ISessionsHostLayoutService, {});
 		const provider = store.add(new SessionsChatAccessibilityHelp(true).getProvider(instantiationService));
 
-		assert.strictEqual(
-			provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')),
-			'When you select assistant response text, an Ask Question input appears. Type a side question and press Enter to send it, press Shift+Enter to insert a new line, or press Escape to dismiss the input.',
-		);
+		assert.strictEqual(provider.provideContent().split('\n').find(line => line.startsWith('When you select assistant response text')), undefined);
 	});
 
 	test('describes the response-selection menu when enabled', () => {
@@ -944,7 +1009,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			listedInKindPills: content?.includes('Other integrated artifacts and references are listed in the Artifacts, References, Pull Requests or Issues pill'),
 			listedRowDetails: content?.includes('where Enter or Space opens the artifact\'s details and the row\'s Open action opens the resource'),
-			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
+			mainOpens: content?.includes('Enter or Space on a main pill opens its resource'),
+			mainDetails: content?.includes('or a Details section when it has none, open an input-width details panel'),
 			runOnce: content?.includes('Actions below the lists run once'),
 			standingPermission: content?.includes('standing permission'),
 			turningOff: content?.includes('does not cancel work already started'),
@@ -953,7 +1019,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			switchKeyboard: content?.includes('Space to change a switch'),
 			listKeyboard: content?.includes('arrow keys navigate list rows'),
 			oldActionsSegment: content?.includes('Actions button'),
-		}, { listedInKindPills: true, listedRowDetails: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+		}, { listedInKindPills: true, listedRowDetails: true, mainOpens: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
 	test('describes grouped artifact pills, their list navigation, and pinning', () => {
@@ -974,10 +1040,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			grouped: content?.includes('they appear as one pill named by the integration'),
 			rows: content?.includes('Up and Down Arrow, Home and End move between artifacts'),
 			controls: content?.includes('Left and Right Arrow move between an artifact\'s controls'),
-			details: content?.includes('opens the artifact\'s details'),
+			opens: content?.includes('Enter or Space on the label opens the artifact\'s resource'),
+			details: content?.includes('offers a Details section that opens its details'),
 			pin: content?.includes('Pin moves the artifact into a pill of its own'),
 			escape: content?.includes('Escape closes the list and returns focus to the pill'),
-		}, { grouped: true, rows: true, controls: true, details: true, pin: true, escape: true });
+		}, { grouped: true, rows: true, controls: true, opens: true, details: true, pin: true, escape: true });
 	});
 
 	test('omits response-selection help when the widget is unsupported', () => {
@@ -1150,6 +1217,22 @@ suite('SessionsChatAccessibilityHelp', () => {
 		}, { activation: true, nextButton: true, tintKeyboardAccess: true, tintCheckedState: true, tintPreservesImage: true });
 	});
 
+	test('mobile help omits unavailable background controls and generation even when appearance tools are configured', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const configuration = new TestConfigurationService({ [AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING]: true });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiationService.stub(IConfigurationService, configuration);
+		stubContextKeyService(instantiationService, configuration);
+		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
+		instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+		instantiationService.stub(ISessionsHostLayoutService, {});
+		const content = store.add(new SessionsChatAccessibilityHelp(undefined, false).getProvider(instantiationService)).provideContent();
+		assert.deepStrictEqual(['Set Background', 'Change Background Layout', 'Tint Window to Match Background', 'Celebrate button', 'Get Theme Colors', '/generate-chat-background']
+			.filter(text => content.includes(text)), []);
+	});
+
 	test('describes generic directional navigation for the session grid', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const configuration = new TestConfigurationService();
@@ -1197,7 +1280,9 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			tools: [defaultHelp, enabledHelp, disabledHelp].map(content => content.includes('ask an agent to discover comparison models')),
 			manualComparison: defaultHelp.includes('activate Compare Models'),
-		}, { tools: [false, true, false], manualComparison: true });
+			openComparison: enabledHelp.includes('Use Tab to reach Open Comparison in the tool result and Enter'),
+			scopedDiscovery: enabledHelp.includes('list comparisons started by this chat'),
+		}, { tools: [false, true, false], manualComparison: true, openComparison: true, scopedDiscovery: true });
 	});
 
 	test('describes Run and Compare Agents only when enabled', async () => {

@@ -11,8 +11,8 @@ import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -137,7 +137,7 @@ suite('Artifact Integration Groups', () => {
 			['experiment', 'stepArtifact+scorecard1+scorecard2+stepArtifact2', 'loading1', 'loading2', 'remote', 'stepWithAutopilot']);
 	});
 
-	test('offers Open, the entry actions in pill dropdown order with Pin before Remove, and keeps the dropdown open only for membership changes', () => {
+	test('offers the entry actions in pill dropdown order with Pin before Remove, and keeps the dropdown open only for membership changes', () => {
 		const action = (id: string): IChatPillAction => toAction({ id, label: id, run: () => { } });
 		const [copy, changes, pin, remove] = ['copy', 'changes', 'pin', 'remove'].map(action);
 		const entry: IChatPillEntry = { id: 'pr', label: 'Pull request', ariaLabel: 'Open Pull Request', toolbarActions: [changes, copy], promotedAction: remove, open: () => { } };
@@ -148,8 +148,8 @@ suite('Artifact Integration Groups', () => {
 			// Without pinning, such as before a chat is known, and without removal support.
 			minimal: describe({ entry: { ...entry, promotedAction: undefined, toolbarActions: [copy] } }),
 		}, {
-			full: ['Open Pull Request', 'changes', 'copy', 'pin (stays open)', 'remove (stays open)'],
-			minimal: ['Open Pull Request', 'copy'],
+			full: ['changes', 'copy', 'pin (stays open)', 'remove (stays open)'],
+			minimal: ['copy'],
 		});
 	});
 
@@ -202,14 +202,16 @@ suite('Artifact Integration Groups', () => {
 			}
 			override hideHover(): void { }
 		}());
-		const toggles: { readonly id: string; readonly target: string; readonly selection?: ArtifactDetailsSelection }[] = [];
+		const toggles: { readonly id: string; readonly target: string; readonly selection?: ArtifactDetailsSelection; readonly sectionId?: string }[] = [];
 		const selected = observableValue<ArtifactIntegrationPresentation | undefined>('selected', undefined);
+		const activeSection = observableValue<string | undefined>('activeSection', undefined);
 		const detailsHost: IArtifactDetailsHost = {
-			id: 'details-host', selected,
-			toggle: (presentation, target, selection) => {
-				toggles.push({ id: presentation.model.snapshot.get().artifact.id, target: !target ? 'focused' : target.className.includes('chat-pill-button') ? 'pill' : target.className, ...(selection ? { selection } : {}) });
+			id: 'details-host', selected, activeSection,
+			toggle: (presentation, target, selection, sectionId) => {
+				toggles.push({ id: presentation.model.snapshot.get().artifact.id, target: !target ? 'focused' : target.className.includes('chat-pill-button') ? 'pill' : target.className, ...(selection ? { selection } : {}), ...(sectionId ? { sectionId } : {}) });
 			},
 			release: () => { },
+			suspend: () => Disposable.None,
 		};
 		const ran: string[] = [];
 		const action = (id: string, label: string, icon: ThemeIcon): IChatPillAction => toAction({ id, label, class: ThemeIcon.asClassName(icon), run: () => { ran.push(id); } });
@@ -250,9 +252,9 @@ suite('Artifact Integration Groups', () => {
 			const active = getActiveElement();
 			return isHTMLElement(active) ? active.getAttribute('aria-label') ?? active.className : undefined;
 		};
-		const keyCodes: Record<string, number> = { ArrowDown: 40, ArrowRight: 39, Escape: 27 };
+		const keyCodes: Record<string, number> = { ArrowDown: 40, ArrowRight: 39, Enter: 13, Escape: 27 };
 		const key = (target: HTMLElement, code: string) => target.dispatchEvent(new KeyboardEvent('keydown', { key: code, code, keyCode: keyCodes[code], bubbles: true, cancelable: true }));
-		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, member, hovers };
+		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, activeSection, member, hovers };
 	}
 
 	test('renders the group pill with its summary and an Autopilot section, and lists each artifact like its own pill', () => {
@@ -277,15 +279,15 @@ suite('Artifact Integration Groups', () => {
 			opened: {
 				expanded: 'true', header: 'Experiments',
 				rows: [
-					{ label: '#1', title: 'Title of 1', statuses: ['3/5'], actions: ['Open Title of 1', 'Copy Link 1', 'Pin 1', 'Remove 1'] },
-					{ label: '#2', title: 'Title of 2', statuses: ['1'], actions: ['Open Title of 2', 'Copy Link 2', 'Pin 2', 'Remove 2'] },
+					{ label: '#1', title: 'Title of 1', statuses: ['3/5'], actions: ['Copy Link 1', 'Pin 1', 'Remove 1'] },
+					{ label: '#2', title: 'Title of 2', statuses: ['1'], actions: ['Copy Link 2', 'Pin 2', 'Remove 2'] },
 				],
-				focused: 'Show artifact details: Experiment 1 is running',
+				focused: 'Open #1',
 			},
 		});
 	});
 
-	test('navigates rows and controls with the keyboard, opens details or a status list, and returns focus on Escape', () => {
+	test('navigates rows and controls with the keyboard, opens the artifact or a status list, and returns focus on Escape', () => {
 		const f = fixture();
 		f.button().focus();
 		f.button().click();
@@ -301,21 +303,37 @@ suite('Artifact Integration Groups', () => {
 		const escaped = { open: !!f.dropdown(), focusOnPill: getActiveElement() === f.button(), expanded: f.button().getAttribute('aria-expanded') };
 
 		f.button().click();
-		f.rows()[1].querySelector<HTMLElement>('.artifact-group-row-title')!.click();
-		const afterRow = !!f.dropdown();
+		f.key(f.dropdown()!, 'ArrowDown');
+		f.key(f.dropdown()!, 'Enter');
+		const afterMain = { open: !!f.dropdown(), focusOnPill: getActiveElement() === f.button() };
+		f.button().click();
+		f.rows()[0].querySelector<HTMLElement>('.artifact-group-row-title')!.click();
+		const afterTitle = !!f.dropdown();
 		f.button().click();
 		f.rows()[0].querySelector<HTMLElement>('.artifact-group-row-status')!.click();
-		assert.deepStrictEqual({ steps, escaped, afterRow, open: !!f.dropdown(), toggles: f.toggles }, {
-			steps: [
-				'Show artifact details: Experiment 1 is running',
-				'Show artifact details: Experiment 2 is running',
-				'Show Autopilot: 1 enabled',
-				'Show artifact details: Experiment 1 is running',
-			],
+		assert.deepStrictEqual({ steps, escaped, afterMain, afterTitle, open: !!f.dropdown(), ran: f.ran, toggles: f.toggles }, {
+			steps: ['Open #1', 'Open #2', 'Show Autopilot: 1 enabled', 'Open #1'],
 			escaped: { open: false, focusOnPill: true, expanded: 'false' },
-			afterRow: false,
+			afterMain: { open: false, focusOnPill: true },
+			afterTitle: false,
 			open: false,
-			toggles: [{ id: '2', target: 'pill' }, { id: '1', target: 'pill', selection: ['experiments', 'checks'] }],
+			ran: ['open.2', 'open.1'],
+			toggles: [{ id: '1', target: 'pill', selection: ['experiments', 'checks'], sectionId: '["experiments","checks"]' }],
+		});
+	});
+
+	test('a row without status sections offers a Details section that opens the artifact\'s details', () => {
+		const f = fixture();
+		f.members.set([...f.members.get(), f.member(snapshot('3', { groupLabel: 'Experiments' }))], undefined);
+		f.button().click();
+		const details = f.rows()[2].querySelector<HTMLElement>('.artifact-group-row-status')!;
+		const described = { statuses: f.describeRow(f.rows()[2]).statuses, label: details.getAttribute('aria-label'), icon: !!details.querySelector('.codicon-info') };
+		details.click();
+		assert.deepStrictEqual({ described, open: !!f.dropdown(), ran: f.ran, toggles: f.toggles }, {
+			described: { statuses: [''], label: 'Show artifact details: Experiment 3 is running', icon: true },
+			open: false,
+			ran: [],
+			toggles: [{ id: '3', target: 'pill', sectionId: 'artifact-details' }],
 		});
 	});
 
@@ -332,22 +350,22 @@ suite('Artifact Integration Groups', () => {
 		tab();
 		steps.push(f.focused());
 		assert.deepStrictEqual({ steps, open: !!f.dropdown() }, {
-			steps: ['Show artifact details: Experiment 1 is running', 'Remove 2', 'Show artifact details: Experiment 1 is running', 'Show details: 3/5 for 1'],
+			steps: ['Open #1', 'Remove 2', 'Open #1', 'Show details: 3/5 for 1'],
 			open: true,
 		});
 	});
 
-	test('runs row actions, keeping the dropdown open for pinning and closing it for open and copy', async () => {
+	test('runs row actions, keeping the dropdown open for pinning and closing it for copy', async () => {
 		const f = fixture();
 		f.button().click();
 		const actions = (index: number) => [...f.rows()[index].querySelectorAll<HTMLElement>('.artifact-group-row-action')];
-		actions(0)[2].click();
+		actions(0)[1].click();
 		const afterPin = !!f.dropdown();
 		// The pinned artifact leaves the group while its row has focus; focus moves to a neighbour and the dropdown stays.
 		f.members.set([f.members.get()[1], f.member(snapshot('3', { groupLabel: 'Experiments' }))], undefined);
 		await timeout(0);
 		const updated = { rows: f.rows().map(row => row.querySelector('.artifact-group-row-label')?.textContent), label: f.button().querySelector('.chat-pill-label')?.textContent };
-		actions(1)[1].click();
+		actions(1)[0].click();
 		assert.deepStrictEqual({ afterPin, updated, afterCopy: !!f.dropdown(), ran: f.ran }, {
 			afterPin: true, updated: { rows: ['#2', '#3'], label: '2 Experiments' }, afterCopy: false, ran: ['pin.1', 'copy.3'],
 		});
@@ -384,12 +402,34 @@ suite('Artifact Integration Groups', () => {
 		assert.deepStrictEqual({ before, during, after: pill.classList.contains('artifact-pill-selected') }, { before: false, during: true, after: false });
 	});
 
+	test('expands only the status section that shows a member\'s details in its row', () => {
+		const f = fixture();
+		f.members.set([...f.members.get(), f.member(snapshot('3', { groupLabel: 'Experiments', sections: [{ id: 'checks', label: '1/2', icon: 'pass' }, { id: 'reviews', label: '2', icon: 'comment' }] }))], undefined);
+		f.button().click();
+		const expanded = () => f.rows().map(row => [...row.querySelectorAll('.artifact-group-row-status')].map(status => status.getAttribute('aria-expanded')));
+		const before = expanded();
+		transaction(tx => {
+			f.selected.set(f.members.get()[2].presentation, tx);
+			f.activeSection.set('["experiments","reviews"]', tx);
+		});
+		const during = expanded();
+		transaction(tx => {
+			f.selected.set(undefined, tx);
+			f.activeSection.set(undefined, tx);
+		});
+		assert.deepStrictEqual({ before, during, after: expanded() }, {
+			before: [['false'], ['false'], ['false', 'false']],
+			during: [['false'], ['false'], ['false', 'true']],
+			after: [['false'], ['false'], ['false', 'false']],
+		});
+	});
+
 	test('pill sources keep a group pill while its members change, pin through shared storage, and never group references', () => {
 		const f = fixture();
 		const [one, two, three] = ['1', '2', '3'].map(id => f.member(snapshot(id, { groupLabel: 'Experiments' })));
 		const reference = f.member(snapshot('ref'));
 		const item = (member: IArtifactIntegrationGroupMember, kind = SessionChatPillKind.Artifacts, isArtifact = true): IArtifactIntegrationPillItem =>
-			({ entry: member.entry, presentation: member.presentation, kind, isArtifact, visible: true });
+		({ entry: member.entry, presentation: member.presentation, kind, isArtifact, visible: true });
 		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [item(one), item(reference, SessionChatPillKind.References, false), item(two), item(three)]);
 		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
 		const pills = derived(reader => sources.sources.read(reader).filter(source => source.isVisible?.read(reader) ?? true).flatMap(source => source.pills.read(reader)));
@@ -415,7 +455,7 @@ suite('Artifact Integration Groups', () => {
 	test('pill sources group artifacts by group ID across integrations, and apart from other group IDs', () => {
 		const f = fixture();
 		const withGroupId = (value: ArtifactSnapshot, groupId: string): ArtifactSnapshot =>
-			({ ...value, contributions: value.contributions.map(contribution => ({ ...contribution, view: { ...contribution.view, groupId } })) });
+		({ ...value, contributions: value.contributions.map(contribution => ({ ...contribution, view: { ...contribution.view, groupId } })) });
 		const item = (value: ArtifactSnapshot): IArtifactIntegrationPillItem => {
 			const member = f.member(value);
 			return { entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true };
@@ -440,7 +480,7 @@ suite('Artifact Integration Groups', () => {
 			return f.member({ ...base, contributions: base.contributions.map(contribution => ({ ...contribution, resourceKey })) });
 		};
 		const item = (member: IArtifactIntegrationGroupMember, isArtifact: boolean): IArtifactIntegrationPillItem =>
-			({ entry: member.entry, presentation: member.presentation, kind: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References, isArtifact, visible: true });
+		({ entry: member.entry, presentation: member.presentation, kind: isArtifact ? SessionChatPillKind.Artifacts : SessionChatPillKind.References, isArtifact, visible: true });
 		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [
 			item(bound('draft', 'experiment/draft'), true),
 			item(bound('scorecard1', 'step'), false),
@@ -468,7 +508,7 @@ suite('Artifact Integration Groups', () => {
 			return f.member({ ...base, contributions: base.contributions.map(contribution => ({ ...contribution, resourceKey })) });
 		};
 		const item = (member: IArtifactIntegrationGroupMember): IArtifactIntegrationPillItem =>
-			({ entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true });
+		({ entry: member.entry, presentation: member.presentation, kind: SessionChatPillKind.Artifacts, isArtifact: true, visible: true });
 		const items = observableValue<readonly IArtifactIntegrationPillItem[]>('items', [item(bound('a', 'step')), item(bound('b', 'step')), item(bound('c', 'other'))]);
 		const sources = store.add(f.instantiation.createInstance(ArtifactIntegrationPillSources, items, constObservable('chat'), f.detailsHost));
 		const pills = derived(reader => sources.sources.read(reader).filter(source => source.isVisible?.read(reader) ?? true).flatMap(source => source.pills.read(reader)));

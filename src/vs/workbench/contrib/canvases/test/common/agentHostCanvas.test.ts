@@ -11,11 +11,13 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IAgentCanvasCloseRequest, IAgentCanvasInfo, IAgentCanvasOpenRequest, IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
+import type { AgentCanvasOpenResult } from '../../../../../platform/agentHost/common/agent.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { ChatState, ComponentToState, ResponsePartKind, StateComponents, ToolCallCompletedState, ToolCallConfirmationReason, ToolCallStatus, Turn, type ActiveTurn, type ResponsePart } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { AgentHostCanvas, AgentHostCanvasCollection, getAgentHostCanvasDefinitionsChangedEvent } from '../../common/agentHostCanvas.js';
 import { ICanvas, ICanvasOwner } from '../../../../common/canvasReference.js';
 
@@ -52,7 +54,7 @@ suite('AgentHost canvases', () => {
 				};
 			}
 		}();
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService()));
 		const references = observableValue<readonly CanvasReference[] | undefined>('references', [{ resource: resource.toString() }]);
 		const context = collection.createContext(owner, references);
 		let canvases: readonly ICanvas[] | undefined;
@@ -95,11 +97,12 @@ suite('AgentHost canvases', () => {
 				calls.push(['list', session.toString(), chat.toString()]);
 				return [definition];
 			}
-			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+			override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<AgentCanvasOpenResult> {
 				calls.push(['open', session.toString(), chat.toString(), request]);
+				return { kind: 'opened' };
 			}
 		}();
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService()));
 		const context = collection.createContext(owner, constObservable([]), undefined, definitionsChanged.event);
 		assert.ok(context.definitionProvider);
 		store.add(context.definitionProvider.onDidChangeDefinitions(() => changeCount++));
@@ -154,8 +157,8 @@ suite('AgentHost canvases', () => {
 			} : undefined;
 		}();
 		const references = constObservable<readonly CanvasReference[] | undefined>([]);
-		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService())).createContext(owner, references);
-		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService())).createContext(owner, references);
+		const closing = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(true), new NullLogService(), new TestDialogService())).createContext(owner, references);
+		const unsupported = store.add(new AgentHostCanvasCollection(owner.providerId, createConnection(false), new NullLogService(), new TestDialogService())).createContext(owner, references);
 
 		await closing.closeCanvas?.(new AgentHostCanvas(resource, state, new NullLogService()));
 
@@ -185,7 +188,7 @@ suite('AgentHost canvases', () => {
 		};
 		const first = upcastPartial<Turn>({ id: 'turn', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: call }] });
 		const chat = observableValue<ChatState | undefined>('chat', upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [first] }));
-		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService()));
+		const collection = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService()));
 		const context = collection.createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
 		const initial = context.openRequests?.get().get('preview');
 		const running = upcastPartial<Turn>({
@@ -202,6 +205,95 @@ suite('AgentHost canvases', () => {
 			pending: { id: 'next\u0000running', succeeded: false, pending: true },
 			latest: { id: 'next\u0000failed', succeeded: false },
 		});
+	});
+
+	test('does not rescan completed history while the active turn streams', () => {
+		const uiState: CanvasState = { ...state, instanceId: 'ui-opened' };
+		const uiResource = URI.parse('ahp-canvas:/host-specific/ui-opened');
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
+			override getSubscription<T extends StateComponents>(_kind: T, channel: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const value = (channel.toString() === uiResource.toString() ? uiState : state) as ComponentToState[T];
+				return {
+					object: { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
+					dispose: () => { },
+				};
+			}
+		}();
+		const createCall = (toolCallId: string, instanceId: string, status: ToolCallStatus.Running | ToolCallStatus.Completed) => ({
+			toolCallId, toolName: 'open_canvas', displayName: 'Open Canvas',
+			invocationMessage: 'Opening canvas', pastTenseMessage: 'Opened canvas',
+			status, success: true, confirmed: ToolCallConfirmationReason.NotNeeded, toolInput: JSON.stringify({ instanceId }),
+		} as ToolCallCompletedState);
+		let completedReads = 0;
+		const completedParts: ResponsePart[] = [{ kind: ResponsePartKind.ToolCall, toolCall: createCall('first', 'preview', ToolCallStatus.Completed) }];
+		let olderReads = 0;
+		const older = upcastPartial<Turn>({
+			id: 'older', get responseParts() {
+				olderReads++;
+				return [];
+			},
+		});
+		const completed = upcastPartial<Turn>({
+			id: 'turn', get responseParts() {
+				completedReads++;
+				return completedParts;
+			},
+		});
+		const turns = [older, completed];
+		const createChat = (activeTurn?: ActiveTurn) => upcastPartial<ChatState>({ resource: owner.chat.toString(), turns, activeTurn });
+		const chat = observableValue<ChatState | undefined>('chat', createChat());
+		const references = constObservable([{ resource: resource.toString() }, { resource: uiResource.toString() }]);
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService())).createContext(owner, references, chat);
+		const requests: unknown[] = [];
+		store.add(autorun(reader => {
+			const current = context.openRequests?.read(reader);
+			requests.push([current?.get('preview')?.id, current?.get('ui-opened')?.id, current?.get('ui-opened')?.pending]);
+		}));
+		const streaming = (text: string) => upcastPartial<ActiveTurn>({ id: 'active', responseParts: [{ kind: ResponsePartKind.Markdown, id: 'text', content: text }] });
+		chat.set(createChat(streaming('a')), undefined);
+		chat.set(createChat(streaming('ab')), undefined);
+		chat.set(createChat(upcastPartial<ActiveTurn>({ id: 'active', responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCall('second', 'ui-opened', ToolCallStatus.Running) }] })), undefined);
+
+		assert.deepStrictEqual({ requests, completedReads, olderReads }, {
+			requests: [
+				['turn\u0000first', undefined, undefined],
+				['turn\u0000first', 'active\u0000second', true],
+			],
+			completedReads: 1,
+			olderReads: 1,
+		});
+	});
+
+	test('stops scanning completed history once the requested instances are resolved', () => {
+		let olderReads = 0;
+		const older = upcastPartial<Turn>({
+			id: 'older', get responseParts() {
+				olderReads++;
+				return [];
+			},
+		});
+		const newest = upcastPartial<Turn>({
+			id: 'newest', responseParts: [{
+				kind: ResponsePartKind.ToolCall, toolCall: {
+					toolCallId: 'open', toolName: 'open_canvas', status: ToolCallStatus.Completed, success: true, toolInput: JSON.stringify({ instanceId: 'preview' }),
+				} as ToolCallCompletedState,
+			}],
+		});
+		const connection = new class extends mock<IAgentConnection>() {
+			override readonly initializeResult = constObservable(undefined);
+			override getSubscription<T extends StateComponents>(_kind: T, _channel: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+				const value = state as ComponentToState[T];
+				return {
+					object: { value, verifiedValue: value, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
+					dispose: () => { },
+				};
+			}
+		}();
+		const chat = constObservable<ChatState | undefined>(upcastPartial<ChatState>({ resource: owner.chat.toString(), turns: [older, newest] }));
+		const context = store.add(new AgentHostCanvasCollection(owner.providerId, connection, new NullLogService(), new TestDialogService())).createContext(owner, constObservable([{ resource: resource.toString() }]), chat);
+
+		assert.deepStrictEqual({ id: context.openRequests?.get().get('preview')?.id, olderReads }, { id: 'newest\u0000open', olderReads: 0 });
 	});
 
 	test('projects live metadata while leaving transient sources out of channel identity', () => {

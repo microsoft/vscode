@@ -31,7 +31,7 @@ import { SessionsRecencyHistory } from '../../../services/sessions/browser/sessi
 import { VisibleSessions } from '../../../services/sessions/browser/visibleSessions.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ISessionsPartService, SessionGridRequest } from '../../../services/sessions/browser/sessionsPartService.js';
-import { IChatHostClosedChat, IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
+import { IChatHostClosedChat, IChatHostOpener, IChatHostOpenerService } from '../../../services/sessions/browser/chatHostOpener.js';
 import { ICustomViewService } from './customView.js';
 import { IWindowCanvasService } from './windowCanvas.js';
 import { IsNewChatSessionContext } from '../common/contextkeys.js';
@@ -153,7 +153,10 @@ export interface INavigationOrigin {
 	readonly from?: ISessionHost;
 }
 
-export interface IOpenChatOptions extends IOpenSessionOptions, INavigationOrigin { }
+export interface IOpenChatOptions extends IOpenSessionOptions, INavigationOrigin {
+	/** The chat this one was started from. When another surface, such as a chat window, shows it, the chat opens beside it there. */
+	readonly referenceChatResource?: URI;
+}
 
 export interface IOpenNewChatInSessionOptions extends ICreateNewChatInSessionOptions, INavigationOrigin { }
 
@@ -439,6 +442,12 @@ export interface ISessionsService extends ISessionGridPanes {
 
 	/** Navigate to the next session in the navigation history. */
 	openNextSession(): Promise<void>;
+
+	/** Registers history restoration; return false without changing input when unavailable, and honor cancellation and preserveNavigation when opening. */
+	registerSavedDraftOpener(opener: (draftId: string, token: CancellationToken) => Promise<boolean>): IDisposable;
+
+	/** Identifies the current composition; preserve its history entry when clearing a draft during navigation. */
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry?: boolean): void;
 }
 
 export const ISessionsService = createDecorator<ISessionsService>('sessionsService');
@@ -492,6 +501,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 	private readonly _pendingRestoredChatResources = new ResourceMap<URI>();
 	private readonly _pendingExplicitChatOpens = new ResourceMap<{ readonly chatResource: URI; readonly token: CancellationToken }>();
 	private readonly _navigation: SessionsNavigation;
+	private _savedDraftOpener: ((draftId: string, token: CancellationToken) => Promise<boolean>) | undefined;
 	/**
 	 * The single source of truth for session recency (most-recently-opened
 	 * first), persisted across restarts. Both the recent-sessions picker (via
@@ -587,6 +597,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				openSession: (resource, options) => this._openSession(resource, options, 'history'),
 				openChat: (session, resource) => this._openChatSession(session, resource, { source: 'navigation' }, 'history'),
 				openNewSession: async () => { await this._openNewSession({ cancelRestore: true }, CancellationToken.None, 'history'); },
+				openSavedDraft: async (draftId, token) => this._savedDraftOpener?.(draftId, token) ?? false,
 			},
 			this.activePane,
 			this.customViewService,
@@ -647,7 +658,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 
 		// Reflect both provider session replacement (e.g. a draft graduating)
 		// and pre-send draft replacement onto the same visible grid slot.
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this._onDidReplaceSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to, chats }) => this._onDidReplaceSession(from, to, chats)));
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this._onDidReplaceSession(from, to)));
 
 		// A chat that moved to another session keeps being shown there.
@@ -711,10 +722,10 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}));
 	}
 
-	private _onDidReplaceSession(from: ISession, to: ISession): void {
+	private _onDidReplaceSession(from: ISession, to: ISession, chats?: ResourceMap<URI>): void {
 		const sessionView = this.sessionsPartService.getSessionView(from.sessionId);
 		const preserveFocus = !sessionView || this.sessionsPartService.getFocusedSessionView() !== sessionView;
-		this._visibility.updateSession(from, to, preserveFocus);
+		this._visibility.updateSession(from, to, preserveFocus, chats);
 	}
 
 	/**
@@ -1231,6 +1242,12 @@ export class SessionsService extends Disposable implements ISessionsService {
 			if (opener) {
 				navigation.complete();
 				await opener.reveal(chatUri, { preserveFocus: options?.preserveFocus });
+				return;
+			}
+			const referenceOpener = this._getOpenerShowingReference(options?.referenceChatResource);
+			if (referenceOpener) {
+				navigation.complete();
+				await referenceOpener.openBeside(chatUri, options!.referenceChatResource!, { preserveFocus: options?.preserveFocus });
 				return;
 			}
 			if (options?.source) {
@@ -1883,6 +1900,14 @@ export class SessionsService extends Disposable implements ISessionsService {
 		}
 	}
 
+	/**
+	 * Returns the chat host opener, such as a chat window, that shows the chat a new chat was started from, so the new chat
+	 * opens in that host rather than in the main window.
+	 */
+	private _getOpenerShowingReference(referenceChatResource: URI | undefined): IChatHostOpener | undefined {
+		return referenceChatResource ? this.chatHostOpenerService.getOpenerOf(referenceChatResource) : undefined;
+	}
+
 	private async _showChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }): Promise<void> {
 		// A chat another surface shows, such as a chat window, is revealed there; a subagent chat opens beside its reference
 		// chat where that surface shows it.
@@ -1892,8 +1917,8 @@ export class SessionsService extends Disposable implements ISessionsService {
 			return;
 		}
 		const reference = options?.referenceChatResource;
-		const referenceShownBy = reference && this.chatHostOpenerService.getOpenerOf(reference);
-		if (reference && referenceShownBy && session.chats.get().find(candidate => this.uriIdentityService.extUri.isEqual(candidate.resource, chatResource))?.origin?.kind === ChatOriginKind.Tool) {
+		const referenceShownBy = this._getOpenerShowingReference(reference);
+		if (reference && referenceShownBy) {
 			await referenceShownBy.openBeside(chatResource, reference, options);
 			return;
 		}
@@ -1966,6 +1991,21 @@ export class SessionsService extends Disposable implements ISessionsService {
 		return this._openNewSession(options, token, 'explicit');
 	}
 
+	registerSavedDraftOpener(opener: (draftId: string, token: CancellationToken) => Promise<boolean>): IDisposable {
+		this._navigation.cancelPendingDraftOpen();
+		this._savedDraftOpener = opener;
+		return toDisposable(() => {
+			if (this._savedDraftOpener === opener) {
+				this._savedDraftOpener = undefined;
+				this._navigation.cancelPendingDraftOpen();
+			}
+		});
+	}
+
+	setCurrentDraftId(draftId: string | undefined, preserveCurrentEntry?: boolean): void {
+		this._navigation.setCurrentDraftId(draftId, preserveCurrentEntry);
+	}
+
 	private async _openNewSession(options: IOpenNewSessionOptions | undefined, token: CancellationToken, intent: SessionNavigationIntent): Promise<IOpenNewSessionResult> {
 		// A draft of another slot is never shown in the grid, so it does not navigate, like a preserved custom view.
 		const draftSlot = options?.draftSlot && options.draftSlot !== this.sessionsManagementService.defaultNewSessionSlot ? options.draftSlot : undefined;
@@ -2027,7 +2067,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 					this._activateOrInsert(session, options?.toSide, intent);
 				}
 				if (intent === 'explicit' && !options?.preserveNavigation) {
-					this._navigation.recordOpened({ kind: 'newSession' });
+					this._navigation.recordNewSessionOpened();
 				}
 				return { session, trustDeclined: false };
 			} catch (e) {
@@ -2058,7 +2098,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 				}
 			}
 			if (intent === 'explicit' && !options?.preserveNavigation) {
-				this._navigation.recordOpened({ kind: 'newSession' });
+				this._navigation.recordNewSessionOpened();
 			}
 			return { session: undefined, trustDeclined: false };
 		}
@@ -2077,7 +2117,7 @@ export class SessionsService extends Disposable implements ISessionsService {
 			: newSession;
 		this._activateOrInsert(targetSession, options?.toSide, intent, options?.preserveCustomView);
 		if (intent === 'explicit' && !options?.preserveNavigation) {
-			this._navigation.recordOpened({ kind: 'newSession' });
+			this._navigation.recordNewSessionOpened();
 		}
 		return { session: targetSession, trustDeclined: false };
 	}
@@ -2774,7 +2814,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const target = targets[idx];
 			let session: ISession | null | undefined;
 			if (!target.resource) {
-				session = null; // empty new-session slot
+				const draft = this.sessionsManagementService.newSession.get();
+				// Workspace restoration can populate the composer before the persisted grid is applied.
+				session = draft && this._slotSessions.get().some(visible => visible?.sessionId === draft.sessionId) ? draft : null;
 			} else if (idx === activeIdx) {
 				session = activeSession;
 			} else {

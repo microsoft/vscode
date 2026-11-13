@@ -468,8 +468,8 @@ jobs:
           key-prefix: pnpm-store-copilot-linux
           lookup-only: 'true'
 
-      # Only the dependencies of the root project, of the local ESLint rules that Copilot's lint loads
-      # through the root ESLint configuration, and of Copilot and chat-lib. pnpm runs the root install
+      # Only the dependencies of the root project, of the local lint rules that Copilot's lint loads
+      # through the root lint configuration, and of Copilot and chat-lib. pnpm runs the root install
       # scripts, which install the whole repository, on every install that runs scripts, filtered or
       # not: the install skips the scripts, then builds Copilot's dependencies and runs its postinstall.
       - name: Install dependencies
@@ -513,8 +513,8 @@ jobs:
           key-prefix: pnpm-store-copilot-windows
           lookup-only: 'true'
 
-      # Only the dependencies of the root project, of the local ESLint rules that Copilot's lint loads
-      # through the root ESLint configuration, and of Copilot and chat-lib. pnpm runs the root install
+      # Only the dependencies of the root project, of the local lint rules that Copilot's lint loads
+      # through the root lint configuration, and of Copilot and chat-lib. pnpm runs the root install
       # scripts, which install the whole repository, on every install that runs scripts, filtered or
       # not: the install skips the scripts, then builds Copilot's dependencies and runs its postinstall.
       - name: Install dependencies

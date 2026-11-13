@@ -15,7 +15,7 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IGitHubService } from '../../../../workbench/contrib/sessions/browser/github/githubService.js';
-import { SessionIsActiveContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionArtifactIntegrationsEnabledContext, SessionIsActiveContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
 import { whenChatWidgetForSession } from '../../../../workbench/contrib/sessions/browser/chat/chatWidgetUtils.js';
 import { submitFixCIChecks, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested } from '../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
@@ -38,7 +38,7 @@ class FixCIChecksAction extends Action2 {
 				id: MenuId.AgentsChangesPrimaryActionSubMenu,
 				group: '5_checks',
 				order: 4,
-				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested.negate()),
+				when: ContextKeyExpr.and(IsSessionsWindowContext, hasActiveSessionFailedCIChecks, activeSessionCIFixRequested.negate(), SessionArtifactIntegrationsEnabledContext.negate()),
 			}],
 		});
 	}

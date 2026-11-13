@@ -76,8 +76,13 @@ export interface IChatTipProvider {
 	resetSession?(): void;
 	clearDismissedTips?(): void;
 	hasMultipleTips?(): boolean;
+	/** Overrides navigation with a provider-owned tip collection. Otherwise the tip joins catalog navigation. */
 	navigateTip?(direction: 1 | -1): IChatTip | undefined;
 }
+
+type ChatTipNavigationTarget =
+	| { readonly kind: 'catalog'; readonly id: string; readonly definition: ITipDefinition }
+	| { readonly kind: 'provider'; readonly id: string; readonly tip: IChatTip; readonly provider: IChatTipProvider };
 
 export interface IChatTipService {
 	readonly _serviceBrand: undefined;
@@ -200,6 +205,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	private readonly _tipProviders = new Set<IChatTipProvider>();
 	private _activeTipProvider: IChatTipProvider | undefined;
 	private _activeProvidedTip: IChatTip | undefined;
+	private _isNavigatingTips = false;
 
 	/**
 	 * The request ID that was assigned a tip (for stable rerenders).
@@ -361,7 +367,10 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	registerTipProvider(provider: IChatTipProvider): IDisposable {
 		const store = new DisposableStore();
 		this._tipProviders.add(provider);
-		store.add(provider.onDidChange(() => this._onDidChangeTip.fire()));
+		store.add(provider.onDidChange(() => {
+			this._isNavigatingTips = false;
+			this._onDidChangeTip.fire();
+		}));
 		store.add(toDisposable(() => {
 			this._tipProviders.delete(provider);
 			if (this._activeTipProvider === provider) {
@@ -374,6 +383,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	resetSession(): void {
+		this._isNavigatingTips = false;
 		for (const provider of this._tipProviders) {
 			provider.resetSession?.();
 		}
@@ -412,6 +422,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	clearDismissedTips(): void {
+		this._isNavigatingTips = false;
 		this._storageService.remove(ChatTipStorageKeys.DismissedTips, StorageScope.APPLICATION);
 		this._storageService.remove(ChatTipStorageKeys.DismissedTips, StorageScope.PROFILE);
 		this._shownTip = undefined;
@@ -533,6 +544,12 @@ export class ChatTipService extends Disposable implements IChatTipService {
 		}
 
 		for (const provider of this._tipProviders) {
+			if (this._isNavigatingTips && this._shownTip) {
+				break;
+			}
+			if (this._isNavigatingTips && this._activeTipProvider && this._activeTipProvider !== provider) {
+				continue;
+			}
 			const tip = provider.provideTip();
 			if (tip) {
 				const isNewTip = this._activeTipProvider !== provider || this._activeProvidedTip?.id !== tip.id;
@@ -751,7 +768,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	hasMultipleTips(): boolean {
-		if (this._activeProvidedTip) {
+		if (this._activeProvidedTip && this._activeTipProvider?.navigateTip) {
 			return this._activeTipProvider?.hasMultipleTips?.() ?? false;
 		}
 		if (!this._contextKeyService) {
@@ -763,7 +780,7 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	private _navigateTip(direction: 1 | -1, contextKeyService: IContextKeyService): IChatTip | undefined {
-		if (this._activeTipProvider && this._activeProvidedTip) {
+		if (this._activeTipProvider?.navigateTip && this._activeProvidedTip) {
 			const previousTip = this._activeProvidedTip;
 			const tip = this._activeTipProvider.navigateTip?.(direction);
 			if (tip) {
@@ -776,15 +793,16 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return tip;
 		}
 		this._createSlashCommandsUsageTracker.syncContextKey(contextKeyService);
-		if (!this._shownTip) {
+		const previousTip = this._activeProvidedTip ?? this._shownTip;
+		if (!previousTip) {
 			return undefined;
 		}
-		const orderedTips = this._getOrderedEligibleTips(contextKeyService);
+		const orderedTips = this._getOrderedNavigationTips(contextKeyService);
 		if (!orderedTips.length) {
 			return undefined;
 		}
 
-		const currentIndex = orderedTips.findIndex(tip => tip.id === this._shownTip!.id);
+		const currentIndex = orderedTips.findIndex(tip => tip.id === previousTip.id);
 		if (orderedTips.length === 1 && currentIndex !== -1) {
 			return undefined;
 		}
@@ -795,11 +813,17 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			: (currentIndex + direction + orderedTips.length) % orderedTips.length;
 		const candidate = orderedTips[nextIndex];
 		if (candidate) {
-			this._logTipTelemetry(this._shownTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
-			this._shownTip = candidate;
+			this._logTipTelemetry(previousTip.id, direction === 1 ? 'navigateNext' : 'navigatePrevious');
+			const provided = candidate.kind === 'provider';
+			this._isNavigatingTips = true;
+			this._activeTipProvider = provided ? candidate.provider : undefined;
+			this._activeProvidedTip = provided ? candidate.tip : undefined;
+			this._shownTip = provided ? undefined : candidate.definition;
 			this._tipRequestId = 'welcome';
-			this._storageService.store(ChatTipStorageKeys.LastTipId, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
-			const tip = this._createTip(candidate);
+			if (!provided) {
+				this._storageService.store(ChatTipStorageKeys.LastTipId, candidate.id, StorageScope.APPLICATION, StorageTarget.USER);
+			}
+			const tip = provided ? candidate.tip : this._createTip(candidate.definition);
 			this._logTipTelemetry(candidate.id, 'shown');
 			this._trackTipCommandClicks(tip);
 			this._onDidNavigateTip.fire(tip);
@@ -810,12 +834,13 @@ export class ChatTipService extends Disposable implements IChatTipService {
 	}
 
 	private _hasNavigableTip(contextKeyService: IContextKeyService): boolean {
-		const orderedTips = this._getOrderedEligibleTips(contextKeyService);
+		const orderedTips = this._getOrderedNavigationTips(contextKeyService);
 		if (!orderedTips.length) {
 			return false;
 		}
 
-		if (!this._shownTip) {
+		const currentTip = this._activeProvidedTip ?? this._shownTip;
+		if (!currentTip) {
 			return orderedTips.length > 1;
 		}
 
@@ -823,7 +848,23 @@ export class ChatTipService extends Disposable implements IChatTipService {
 			return true;
 		}
 
-		return orderedTips[0].id !== this._shownTip.id;
+		return orderedTips[0].id !== currentTip.id;
+	}
+
+	private _getOrderedNavigationTips(contextKeyService: IContextKeyService): ChatTipNavigationTarget[] {
+		const tips: ChatTipNavigationTarget[] = [];
+		for (const provider of this._tipProviders) {
+			if (!provider.navigateTip) {
+				const tip = provider.provideTip();
+				if (tip) {
+					tips.push({ kind: 'provider', id: tip.id, tip, provider });
+				}
+			}
+		}
+		for (const definition of this._getOrderedEligibleTips(contextKeyService)) {
+			tips.push({ kind: 'catalog', id: definition.id, definition });
+		}
+		return tips;
 	}
 
 	private _getOrderedEligibleTips(contextKeyService: IContextKeyService, options?: { excludeShownTip?: boolean; includeTipId?: string }): ITipDefinition[] {

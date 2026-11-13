@@ -201,4 +201,17 @@ suite('Tool invocation summaries', () => {
 			openEndedView: { kind: 'read', resources: [{ uri: URI.file('/file.ts') }] },
 		});
 	});
+
+	test('a view call is a read or a listing when the host reports what its path named', () => {
+		const resources = [{ uri: URI.file('/workspace/src') }];
+		assert.deepStrictEqual({
+			file: getToolInvocationSummaryFromInput('view', { path: '/workspace/src' }, undefined, 'file'),
+			directory: getToolInvocationSummaryFromInput('view', { path: '/workspace/src' }, undefined, 'directory'),
+			relativeFile: getToolInvocationSummaryFromInput('view', { path: 'src' }, undefined, 'file'),
+		}, {
+			file: { kind: 'read', resources },
+			directory: { kind: 'list', resources },
+			relativeFile: undefined,
+		});
+	});
 });

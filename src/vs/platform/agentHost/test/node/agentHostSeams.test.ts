@@ -502,6 +502,19 @@ suite('Agent Host provider seams', () => {
 
 	suite('AgentHostSessionTitleSignal', () => {
 
+		test('reads current titles and listed titles without restoring a session', () => {
+			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
+			const session = URI.parse(sessionKey);
+			const titles = [signal.getSessionTitle(session)];
+			manager.prepareSessionSummariesForListing([{ ...summary(), title: 'Listed' }]);
+			titles.push(signal.getSessionTitle(session));
+			manager.createSession({ ...summary(), title: 'Loaded' });
+			titles.push(signal.getSessionTitle(session));
+			manager.dispatchServerAction(sessionKey, { type: ActionType.SessionTitleChanged, title: 'Renamed' });
+			titles.push(signal.getSessionTitle(session));
+			assert.deepStrictEqual(titles, [undefined, 'Listed', 'Loaded', 'Renamed']);
+		});
+
 		test('centralizes the provider filter and conversation-id derivation', () => {
 			const signal = disposables.add(new AgentHostSessionTitleSignal(manager));
 			const fired: { provider: string; session: string; conversationId: string; title: string }[] = [];

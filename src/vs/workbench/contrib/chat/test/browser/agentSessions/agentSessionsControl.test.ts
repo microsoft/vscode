@@ -54,7 +54,7 @@ suite('AgentSessionsControl', () => {
 		return {
 			onDidChange: Event.None,
 			exclude: () => false,
-			getExcludes: () => ({ providers: [], states: [], archived: false, read: false, repositoryGroupCapped: true }),
+			getExcludes: () => ({ providers: [], states: [], archived: false, read: false, automation: true, repositoryGroupCapped: true }),
 			isDefault: () => true,
 			reset: () => { },
 		};
@@ -97,7 +97,7 @@ suite('AgentSessionsControl', () => {
 					...createFilter(), groupResults: () => AgentSessionsGrouping.Date,
 					exclude: () => filtered,
 					isDefault: () => !filtered,
-					getExcludes: () => ({ providers: [], states: [], archived: initiallyVisible, read: false, repositoryGroupCapped: true }),
+					getExcludes: () => ({ providers: [], states: [], archived: initiallyVisible, read: false, automation: true, repositoryGroupCapped: true }),
 				},
 				createNewChat: () => { }, getHoverPosition: () => HoverPosition.BELOW, trackActiveEditorSession: () => false,
 			}));

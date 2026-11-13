@@ -1061,6 +1061,16 @@ suite('CloudSandboxApiService identity credentials', () => {
 		});
 	});
 
+	test('preserves network failure attribution when acquiring identity credentials', async () => {
+		const failure = new GitHubRequestError('network unavailable', 'network');
+		const { service } = createService(store, {
+			tasks: [], repositories: new Map(),
+			missionControlProvider: { request: async () => { throw failure; } },
+		});
+		await assert.rejects(service.getIdentityToken(accountKey, CancellationToken.None), error => error instanceof Error
+			&& error.name === 'CloudSandboxNetworkError' && error.cause === undefined);
+	});
+
 	test('refreshes the identity cache after a REST request recovers with a new GitHub credential', async () => {
 		let lookups = 0;
 		let environmentRequests = 0;

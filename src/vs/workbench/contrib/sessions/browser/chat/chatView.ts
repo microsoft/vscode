@@ -50,6 +50,7 @@ import { ChatRequestTextPart } from '../../../chat/common/requestParser/chatPars
 import { Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { getHarnessPresentationOrDefault, ISendRequestOptions, ISessionsProvider } from '../../common/sessionsProvider.js';
 import { ISessionsProvidersService, observeSessionSandboxToggle } from '../sessionsProvidersService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../chat/common/constants.js';
@@ -58,7 +59,7 @@ import { IChatSessionsService, localChatSessionType } from '../../../chat/common
 import { IChatSessionHistoryStatus } from '../../../../../platform/chat/common/chatSessionHistory.js';
 import { isPhoneLayout } from '../../../../browser/parts/sessions/mobileLayout.js';
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
-import { AbstractChatView, ChatViewKind, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../parts/chatView.js';
+import { AbstractChatView, ChatViewKind, IChatViewBackgroundReplica, IChatViewOptions, IChatViewRequestOutcome, IChatViewRequestSubmission } from '../parts/chatView.js';
 import { IsPhoneLayoutContext, SessionUsesExperimentalComposerLayoutContext } from '../../common/contextkeys.js';
 import { ChatInteractivity, getChatHarness, getSessionStatusMessage, IChat, isActiveSessionStatus, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { SessionStatusIcon } from '../sessionStatusIcon.js';
@@ -79,9 +80,6 @@ import { ISessionsChatViewStateService } from './chatViewStateService.js';
 import { ExternalSessionBanner } from './externalSessionBanner.js';
 import { ISessionOpenTelemetryService } from '../sessionOpenTelemetryService.js';
 import { ISessionArchiveNudgeTarget, SessionArchiveNudge } from './sessionArchiveNudge.js';
-import { SessionsChatBackgroundReplica } from '../chatBackgroundRenderer.js';
-import { SESSIONS_CHAT_SURFACE_CLASS } from '../sessionsChatSurface.js';
-import { ISessionsChatBackgroundService } from '../chatBackgroundService.js';
 import { SessionComparisonResult } from './sessionComparisonResult.js';
 import { ISessionPickerVisibility, noSessionPickerVisibility } from '../../common/sessionPickerVisibility.js';
 import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
@@ -195,7 +193,7 @@ export class NewChatView extends AbstractChatView {
 	override readonly pickerVisibility: IObservable<ISessionPickerVisibility>;
 
 	private readonly _widget: NewChatWidget | NewChatInSessionWidget;
-	private readonly _isVisibleObs = observableValue(this, true);
+	private readonly _isVisibleObs = observableValue(this, false);
 
 	constructor(
 		isNewChatInSession: boolean,
@@ -394,7 +392,8 @@ export class ChatView extends AbstractChatView {
 	private _providerReloadCts: CancellationTokenSource | undefined;
 	private _pendingLoadInput: { readonly resource: URI; readonly inputBeforeLoad: string; readonly inputModelToPreserve?: IInputModel } | undefined;
 
-	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<SessionsChatBackgroundReplica>());
+	private readonly _background: IChatViewOptions['background'];
+	private readonly _stickyScrollBackgroundReplica = this._register(new MutableDisposable<IChatViewBackgroundReplica>());
 	private _stickyScrollBackgroundContainer: HTMLElement | undefined;
 
 	/** Tracks the current chat's interactivity and hides the input for read-only chats. */
@@ -462,18 +461,19 @@ export class ChatView extends AbstractChatView {
 		@ISessionsChatViewStateService private readonly viewStateService: ISessionsChatViewStateService,
 		@ISessionOpenTelemetryService private readonly sessionOpenTelemetryService: ISessionOpenTelemetryService,
 		@IChatOpenDiagnosticsService private readonly chatOpenDiagnosticsService: IChatOpenDiagnosticsService,
-		@ISessionsChatBackgroundService private readonly chatBackgroundService: ISessionsChatBackgroundService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 		@ISessionComparisonService private readonly comparisonService: ISessionComparisonService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 		this._composerOnly = options.inputOnly === true;
+		this._background = options.background;
 		this._register(toDisposable(() => this._reportModelUnbound()));
-		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(!!this.chatBackgroundService.getBackground());
+		this._chatItemHorizontalPadding = getSessionChatItemHorizontalPadding(this._background?.hasBackground() ?? false);
 
 		this.element.classList.add('chat-view-chat');
 		this._widgetContainer = $('.chat-view-widget');
@@ -512,6 +512,8 @@ export class ChatView extends AbstractChatView {
 				supportsFileReferences: true,
 				rendererOptions: {
 					renderInputRequests: options.inputOnly ? false : undefined,
+					renderHtmlPreviews: true,
+					renderNativeComponents: true,
 					referencesExpandedWhenEmptyResponse: false,
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 					contentHorizontalPadding: this._chatItemHorizontalPadding,
@@ -529,10 +531,16 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
+				validateInput: query => {
+					if (this.scheduledChatsService.enabled.get() && query !== this._widget.getInput()) {
+						throw new Error(localize('chat.inputChangedBeforeSend', "The input changed while preparing this request. Review it before sending again."));
+					}
+					this.scheduledChatsService.assertChatInputUnscheduled(this._widget, query);
+				},
 				sandboxToggleChecked: observeSessionSandboxToggle(this._currentSessionObs, this._currentChatResourceObs, this.sessionsProvidersService),
 				transcriptTabIndex: -1,
 				enableFind: true,
-				persistentContentHeight: this.chatBackgroundService.getBackground() ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
+				persistentContentHeight: this._background?.hasBackground() ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT,
 				renderGettingStartedTip: () => shouldShowSessionChatTip(this._currentSessionObs.get()?.status.get()),
 			},
 			this._buildStyles(this._isActive)
@@ -555,8 +563,10 @@ export class ChatView extends AbstractChatView {
 				updateExperimentalComposerLayout();
 			}
 		}));
-		this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
-		this._register(this.chatBackgroundService.onDidChangeBackground(() => this._updateChatBackground()));
+		if (this._background) {
+			this._register(this._widget.onDidChangeStickyScrollDomNode(() => this._layoutStickyScrollBackground()));
+			this._register(this._background.onDidChange(() => this._updateChatBackground()));
+		}
 		this._externalSessionBanner = this._register(scopedInstantiationService.createInstance(
 			ExternalSessionBanner,
 			this.element,
@@ -639,12 +649,15 @@ export class ChatView extends AbstractChatView {
 			return isEqual(model?.sessionResource, this._currentChatResourceObs.read(reader))
 				&& !!model && !model.isReadOnly.read(reader) && !this.isLoadingTranscript.read(reader);
 		});
+		this._register(this.scheduledChatsService.registerChatInput(this._widget, this._currentSessionObs, this._currentChatResourceObs,
+			derived(this, reader => this._liveModelReady.read(reader) && !this.isInputBlocked.read(reader))));
 		this._register(this._widget.onDidChangeDraft(() => this._handleDraftInput()));
 		this._setupTranscriptPreparationProgress(chatModel);
 		this._setupInitialTranscriptContext(chatModel);
 
 		this._selectionSideChatController = this._register(scopedInstantiationService.createInstance(ResponseSelectionSideChatController, this._widget, isResponseSelectionSupported(), {
-			useActionMenu: () => configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING),
+			useActionMenu: () => true,
+			showOnSelection: configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) !== false,
 			onAction: (variant, action) => logResponseSelectionWidgetAction(telemetryService, variant, action),
 		}));
 
@@ -711,6 +724,9 @@ export class ChatView extends AbstractChatView {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING)) {
 				this._applyHistoryKey();
+			}
+			if (e.affectsConfiguration(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING)) {
+				this._selectionSideChatController.setShowOnSelection(this.configurationService.getValue<boolean>(AGENT_SESSIONS_RESPONSE_SELECTION_MENU_SETTING) !== false);
 			}
 		}));
 
@@ -1389,11 +1405,11 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _updateChatBackground(): void {
-		const background = this.chatBackgroundService.getBackground();
+		const hasBackground = this._background?.hasBackground() ?? false;
 		// Wallpaper cannot hide transcript content beneath floating controls.
-		this._widget.setPersistentContentHeight(background ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT);
-		this._updateChatItemHorizontalPadding(!!background);
-		this._stickyScrollBackgroundReplica.value?.setBackground(background);
+		this._widget.setPersistentContentHeight(hasBackground ? 0 : SESSION_CHAT_INPUT_TOOLBAR_HEIGHT);
+		this._updateChatItemHorizontalPadding(hasBackground);
+		this._stickyScrollBackgroundReplica.value?.updateBackground();
 	}
 
 	private _updateChatItemHorizontalPadding(hasBackground: boolean): void {
@@ -1407,6 +1423,9 @@ export class ChatView extends AbstractChatView {
 	}
 
 	private _layoutStickyScrollBackground(): void {
+		if (!this._background) {
+			return;
+		}
 		const stickyContainer = this._widget.stickyScrollDomNode;
 		if (stickyContainer !== this._stickyScrollBackgroundContainer) {
 			this._stickyScrollBackgroundReplica.clear();
@@ -1419,16 +1438,13 @@ export class ChatView extends AbstractChatView {
 
 		let replica = this._stickyScrollBackgroundReplica.value;
 		if (!replica) {
-			const surface = this.element.closest(`.${SESSIONS_CHAT_SURFACE_CLASS}`);
-			const source = surface ? Array.from(surface.children).find(element => element.classList.contains('sessions-chat-background')) : undefined;
-			if (!isHTMLElement(source)) {
+			replica = this._background.createReplica(this.element, stickyContainer);
+			if (!replica) {
 				return;
 			}
-
-			replica = new SessionsChatBackgroundReplica(source, stickyContainer);
 			this._stickyScrollBackgroundReplica.value = replica;
 			this._stickyScrollBackgroundContainer = stickyContainer;
-			replica.setBackground(this.chatBackgroundService.getBackground());
+			replica.updateBackground();
 		} else {
 			replica.layout();
 		}
@@ -1684,11 +1700,7 @@ export function findInitialTranscriptContextEntry(requests: readonly { readonly 
 		: findTranscriptContextEntry(requests);
 }
 
-/**
- * Default {@link IChatViewFactory} implementation. Lives in the contrib
- * layer where the concrete views are defined and is registered as an eager
- * singleton via the entry point.
- */
+/** Shared chat-view construction; each entry selects its presentation options. */
 export class ChatViewFactory implements IChatViewFactory {
 
 	declare readonly _serviceBrand: undefined;

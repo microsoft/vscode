@@ -48,6 +48,7 @@ export namespace ChatContextKeys {
 
 	export const inputHasText = new RawContextKey<boolean>('chatInputHasText', false, { type: 'boolean', description: localize('interactiveInputHasText', "True when the chat input has text.") });
 	export const inputHasSendableContent = new RawContextKey<boolean>('chatInputHasSendableContent', false, { type: 'boolean', description: localize('interactiveInputHasSendableContent', "True when the chat input has text or file attachments that can be sent.") });
+	export const hasSecondaryExecuteActions = new RawContextKey<boolean>('chatHasSecondaryExecuteActions', false, { type: 'boolean', description: localize('chatHasSecondaryExecuteActions', "True when the chat input has additional send actions.") });
 	export const inputHasFocus = new RawContextKey<boolean>('chatInputHasFocus', false, { type: 'boolean', description: localize('interactiveInputHasFocus', "True when the chat input has focus.") });
 	export const inChatInput = new RawContextKey<boolean>('inChatInput', false, { type: 'boolean', description: localize('inInteractiveInput', "True when focus is in the chat input, false otherwise.") });
 	export const inputInlineAttachmentActive = new RawContextKey<boolean>('chatInputInlineAttachmentActive', false, { type: 'boolean', description: localize('chatInputInlineAttachmentActive', "True when the cursor in the chat input is right after an attachment shown inline with the prompt, which Enter opens.") });
@@ -178,6 +179,10 @@ export namespace ChatContextKeys {
 	export const agentSessionsViewerOrientation = new RawContextKey<number>('agentSessionsViewerOrientation', undefined, { type: 'number', description: localize('agentSessionsViewerOrientation', "Orientation of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerPosition = new RawContextKey<number>('agentSessionsViewerPosition', undefined, { type: 'number', description: localize('agentSessionsViewerPosition', "Position of the agent sessions view in the chat view.") });
 	export const agentSessionsViewerVisible = new RawContextKey<boolean>('agentSessionsViewerVisible', undefined, { type: 'boolean', description: localize('agentSessionsViewerVisible', "Visibility of the agent sessions view in the chat view.") });
+	/** Whether a chat widget shows a session chat, as the Agents window does, in whatever window: it then behaves as there. */
+	export const inSessionsChat = new RawContextKey<boolean>('chatInSessionsChat', false, { type: 'boolean', description: localize('chatInSessionsChat', "True when the chat widget shows a session chat, as the Agents Window does.") });
+	/** Whether an editor window shows the Sessions view, whose chat part replaces the Chat view: it is set as the window starts. */
+	export const agentsViewActive = new RawContextKey<boolean>('chatAgentsViewActive', false, { type: 'boolean', description: localize('chatAgentsViewActive', "True when the window shows the Agents view, whose chat part replaces the Chat view.") });
 	export const hasCreatedSessionInAgentsWindow = new RawContextKey<boolean>('chatHasCreatedSessionInAgentsWindow', false, { type: 'boolean', description: localize('chatHasCreatedSessionInAgentsWindow', "True when the user has created at least one session in the Agents Window.") });
 	export const agentSessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('agentSessionType', "The type of the current agent session item.") });
 	export const isAgentSessionChild = new RawContextKey<boolean>('agentSessionIsChild', false, { type: 'boolean', description: localize('agentSessionIsChild', "True when the current agent session item is a child chat.") });

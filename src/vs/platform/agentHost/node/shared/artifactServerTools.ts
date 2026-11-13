@@ -39,6 +39,18 @@ const artifactInputSchema: NonNullable<ToolDefinition['inputSchema']> = {
 	required: ['type', 'label', 'isArtifact'],
 };
 
+/** Offered only while chat resources are enabled (`chat.resources.enabled`): how the chat shows a recorded file. */
+const artifactModeProperty = {
+	type: 'string',
+	enum: ['pinned', 'aboveInput'],
+	description: 'Optional, for files. How the chat shows the file; omit it to list the file with the others. `pinned` gives it a pill of its own. `aboveInput` also shows it above the chat input, for example a status or plan Markdown file you keep updating. The user can change it afterwards. Recording the file again with another mode asks again.',
+};
+
+const artifactInputSchemaWithMode: NonNullable<ToolDefinition['inputSchema']> = {
+	...artifactInputSchema,
+	properties: { ...artifactInputSchema.properties, mode: artifactModeProperty },
+};
+
 function createAddArtifactInputSchema(inputSchema: NonNullable<ToolDefinition['inputSchema']>): NonNullable<ToolDefinition['inputSchema']> {
 	return {
 		type: 'object',
@@ -79,7 +91,7 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 	{
 		name: ArtifactServerToolName.RemoveArtifactOrReference,
 		title: 'Remove Artifact or Reference',
-		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as automatic merging of a pull request. Only available in turns started by a person or a scheduled automation.',
+		description: 'Remove an artifact or reference recorded in this chat by id. Removing it also pauses any automation its integrations run for it, such as a pull request integration\'s own merge automation. Only available in turns started by a person or a scheduled automation.',
 		inputSchema: removeArtifactInputSchema,
 		annotations: { readOnlyHint: false, destructiveHint: true },
 		deferLoading: true,
@@ -98,6 +110,8 @@ export const artifactServerToolDefinitions: IAgentServerToolDefinition[] = [
 export interface IArtifactServerToolAccessor {
 	/** Whether the artifact tools are advertised and executable. */
 	readonly isEnabled: () => boolean;
+	/** Whether agents can choose how the chat shows what they record (`mode`). */
+	readonly isChatResourcesEnabled?: () => boolean;
 	/** Persists the session-wide artifact and reference collection, including entries from every chat. */
 	readonly persist: (session: string, artifacts: readonly ISessionArtifact[]) => void | Promise<void>;
 	/** Labels of the automation that integrations run for a recorded artifact, which removal pauses. */
@@ -144,8 +158,12 @@ function describeArtifact(artifact: ISessionArtifact): string {
 
 export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAccessor): IServerToolGroup {
 	const isEnabled = () => accessor?.isEnabled() === true;
+	const isChatResourcesEnabled = () => accessor?.isChatResourcesEnabled?.() === true;
 	return {
 		definitions: artifactServerToolDefinitions,
+		getDefinitions: () => isChatResourcesEnabled()
+			? artifactServerToolDefinitions.map(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference ? { ...definition, inputSchema: createAddArtifactInputSchema(artifactInputSchemaWithMode) } : definition)
+			: artifactServerToolDefinitions,
 		legacyToolNames: LEGACY_ARTIFACT_SERVER_TOOL_NAMES,
 		isEnabled,
 		isEnabledForSession: isEnabled,
@@ -197,7 +215,8 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 			const artifacts = new SessionArtifacts(stateManager, context.sessionUri, context.chatUri, accessor.persist);
 			switch (toolName) {
 				case ArtifactServerToolName.AddArtifactOrReference: {
-					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference);
+					// Without chat resources the parameter is not offered, and a mode an agent sends anyway is ignored, even an invalid one.
+					const inputs = parseSessionArtifactInputs(rawArgs, ArtifactServerToolName.AddArtifactOrReference, isChatResourcesEnabled());
 					for (const input of inputs) {
 						if (input.uri && URI.parse(input.uri).scheme === AGENT_HOST_SESSION_LINK_SCHEME) {
 							throw new Error(`Invalid ${ArtifactServerToolName.AddArtifactOrReference} input: sessions and chats created with session-management tools must not be recorded as artifacts or references.`);
@@ -208,9 +227,12 @@ export function createArtifactServerToolGroup(accessor?: IArtifactServerToolAcce
 						const pullRequestUrls = new Set<string>();
 						for (const input of inputs) {
 							const result = collection.addOrPromoteArtifact(input, generateUuid, { chat: context.chatUri, ...(context.turnId ? { turnId: context.turnId } : {}) });
+							const previous = collection.artifacts.find(candidate => candidate.id === result.artifact.id);
 							const status = result.added
 								? `Added ${entryNoun(result.artifact.isArtifact)}`
-								: result.artifacts !== collection.artifacts ? 'Promoted artifact' : 'Already recorded';
+								: previous && !previous.isArtifact && result.artifact.isArtifact ? 'Promoted artifact'
+									: previous && previous.mode !== result.artifact.mode ? `Updated how the chat shows the ${entryNoun(result.artifact.isArtifact)}`
+										: 'Already recorded';
 							messages.push(`${status}: ${result.artifact.id}`);
 							if (input.isArtifact && result.artifact.type === SessionArtifactType.PullRequest && result.artifact.isGitHub && result.artifact.link) {
 								pullRequestUrls.add(result.artifact.link);

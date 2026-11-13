@@ -64,6 +64,8 @@ interface IAgentHostCheckpoint {
  * regardless of how many tool calls it ran. The `stopId` parameters on
  * {@link restoreSnapshot}, {@link getSnapshotUri}, and {@link getSnapshotContents}
  * are accepted for interface compatibility but ignored.
+ * The forward branch remains available for redo until the next prompt commits
+ * the truncation of the host's conversation history.
  *
  * Hydrated by the session handler as turns and tool calls arrive, with
  * optional turn changesets resolved when checkpoint content is needed.

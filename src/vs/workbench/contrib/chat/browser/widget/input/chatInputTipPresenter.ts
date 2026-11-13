@@ -7,11 +7,14 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { TIP_CATALOG } from '../../chatTipCatalog.js';
 import { IChatTipService } from '../../chatTipService.js';
 import { ChatContentMarkdownRenderer } from '../chatContentMarkdownRenderer.js';
 import { ChatTipContentPart } from '../chatContentParts/chatTipContentPart.js';
 import { ChatInputNoticeHost, ChatInputNoticeLane } from './chatInputNoticeHost.js';
 import { ChatInputStackSlot, setChatInputStackSlot } from './chatInputStack.js';
+
+const tipConfigurationContextKeys = new Set(TIP_CATALOG.flatMap(tip => tip.when?.keys().filter(key => key.startsWith('config.')) ?? []));
 
 export interface IChatInputTipPresenterOptions {
 	/** The element the tip is rendered into. Hidden while no tip is showing. */
@@ -53,20 +56,27 @@ export class ChatInputTipPresenter extends Disposable {
 		// Takes the tip out of the container even if the notice host is already
 		// gone, so disposal never depends on a stand-down that will not arrive.
 		this._register(toDisposable(() => this._clearContent()));
-		this._register(this._chatTipService.onDidChangeTip(() => {
-			const hadFocus = this._partRef?.hasFocus() ?? false;
-			this._clearContent();
-			this.update();
-			if (hadFocus) {
-				if (this._partRef) {
-					this._partRef.focus();
-				} else {
-					this._options.focusInput();
-				}
+		this._register(this._chatTipService.onDidChangeTip(() => this._refreshTip()));
+		this._register(this._contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(tipConfigurationContextKeys)) {
+				this._refreshTip();
 			}
 		}));
 
 		this.update();
+	}
+
+	private _refreshTip(): void {
+		const hadFocus = this._partRef?.hasFocus() ?? false;
+		this._clearContent();
+		this.update();
+		if (hadFocus) {
+			if (this._partRef) {
+				this._partRef.focus();
+			} else {
+				this._options.focusInput();
+			}
+		}
 	}
 
 	/**

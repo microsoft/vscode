@@ -122,8 +122,9 @@ jobs:
           containerCommand: uname
         displayName: "Pull image"
 
-      - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
+      - script: ./build/azure-pipelines/linux/apt-install-with-retry.sh libkrb5-dev
         displayName: Install build dependencies
+        timeoutInMinutes: 25
 
       - script: |
           set -e

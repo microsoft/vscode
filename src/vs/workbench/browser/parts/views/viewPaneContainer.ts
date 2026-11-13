@@ -292,9 +292,13 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
+	private focusPreparation: (() => void) | undefined;
 	private lastMergedCollapsedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
+	private sizeToContent = false;
+	private readonly _onDidChangeOptimalHeight = this._register(new Emitter<void>());
+	readonly onDidChangeOptimalHeight = this._onDidChangeOptimalHeight.event;
 
 	private visible: boolean = false;
 
@@ -592,6 +596,16 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		return createActionViewItem(this.instantiationService, action, options);
 	}
 
+	/** Lets an embedding host reveal its content before container or individual-view focus. */
+	setFocusPreparation(prepare: () => void): IDisposable {
+		this.focusPreparation = prepare;
+		return toDisposable(() => {
+			if (this.focusPreparation === prepare) {
+				this.focusPreparation = undefined;
+			}
+		});
+	}
+
 	focus(): void {
 		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
@@ -605,6 +619,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			}
 		}
 		if (paneToFocus) {
+			this.focusPreparation?.();
 			paneToFocus.focus();
 		}
 	}
@@ -661,6 +676,32 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		return optimalWidth + additionalMargin;
 	}
 
+	setSizeToContent(enabled: boolean): void {
+		if (this.sizeToContent === enabled) {
+			return;
+		}
+		this.sizeToContent = enabled;
+		for (const pane of this.panes) {
+			pane.setSizeToContent(enabled);
+		}
+		this._onDidChangeOptimalHeight.fire();
+	}
+
+	getOptimalHeight(): number | undefined {
+		if (this.panes.length === 0) {
+			return undefined;
+		}
+		let height = 0;
+		for (const pane of this.panes) {
+			const paneHeight = pane.getOptimalHeight();
+			if (paneHeight === undefined) {
+				return undefined;
+			}
+			height += paneHeight;
+		}
+		return height;
+	}
+
 	addPanes(panes: { pane: ViewPane; size: number; index?: number; disposable: IDisposable }[]): void {
 		const wasMerged = this.isViewMergedWithContainer();
 
@@ -674,6 +715,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		}
 
 		this._onDidAddViews.fire(panes.map(({ pane }) => pane));
+		this._onDidChangeOptimalHeight.fire();
 	}
 
 	setVisible(visible: boolean): void {
@@ -774,6 +816,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		if (view) {
 			view.setExpanded(true);
 			if (focus) {
+				this.focusPreparation?.();
 				view.focus();
 			}
 		}
@@ -853,6 +896,9 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 	}
 
 	private addPane(pane: ViewPane, size: number, disposable: IDisposable, index = this.paneItems.length - 1): void {
+		if (this.sizeToContent) {
+			pane.setSizeToContent(true);
+		}
 		const onDidFocus = pane.onDidFocus(() => {
 			this._onDidFocusView.fire(pane);
 			this.lastFocusedPane = pane;
@@ -869,6 +915,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 			if (pane === this.lastFocusedPane && !pane.isExpanded()) {
 				this.lastFocusedPane = undefined;
 			}
+			this._onDidChangeOptimalHeight.fire();
 		});
 
 		const isPanel = this.viewDescriptorService.getViewContainerLocation(this.viewContainer) === ViewContainerLocation.Panel;
@@ -881,6 +928,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		});
 
 		const store = new DisposableStore();
+		store.add(pane.onDidChangeOptimalHeight(() => this._onDidChangeOptimalHeight.fire()));
 		store.add(disposable);
 		store.add(combinedDisposable(pane, onDidFocus, onDidBlur, onDidChangeTitleArea, onDidChange, onDidChangeVisibility));
 		const paneItem: IViewPaneItem = { pane, disposable: store };
@@ -1030,6 +1078,7 @@ export class ViewPaneContainer<MementoType extends object = object> extends Comp
 		}
 
 		this._onDidRemoveViews.fire(panes);
+		this._onDidChangeOptimalHeight.fire();
 	}
 
 	private removePane(pane: ViewPane): void {

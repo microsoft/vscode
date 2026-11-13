@@ -73,7 +73,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { escapeUntrustedMarkdown, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { ExtensionGalleryResourceType, ExtensionGalleryServiceUrlConfigKey, getExtensionGalleryManifestResourceUri, IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -2723,7 +2723,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				return true;
 			}
 
-			return localResult ?? remoteResult ?? webResult ?? new MarkdownString().appendText(nls.localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", extension.displayName ?? extension.identifier.id));
+			return localResult ?? remoteResult ?? webResult ?? new MarkdownString().appendMarkdown(nls.localize('cannot be installed', "Cannot install the '{0}' extension because it is not available in this setup.", escapeUntrustedMarkdown(extension.displayName ?? extension.identifier.id)));
 		}
 
 		if (extension.resourceExtension && await this.extensionManagementService.canInstall(extension.resourceExtension) === true) {

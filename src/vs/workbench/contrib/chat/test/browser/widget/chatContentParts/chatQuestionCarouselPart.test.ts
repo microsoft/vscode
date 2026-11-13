@@ -7,6 +7,7 @@ import assert from 'assert';
 import { isSafari } from '../../../../../../../base/browser/browser.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -45,6 +46,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
+	let submittedByUser: boolean | undefined;
 	let codeEditorService: ICodeEditorService;
 
 	/** Returns the answer editors rendered under the given root, in DOM order. */
@@ -77,8 +79,9 @@ suite('ChatQuestionCarouselPart', () => {
 		codeEditorService = instantiationService.get(ICodeEditorService);
 		const options: IChatQuestionCarouselOptions = {
 			...optionsOverrides,
-			onSubmit: (answers) => {
+			onSubmit: (answers, byUser) => {
 				submittedAnswers = answers;
+				submittedByUser = byUser;
 				onSubmit?.();
 			}
 		};
@@ -92,6 +95,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	teardown(() => {
 		submittedAnswers = null;
+		submittedByUser = undefined;
 	});
 
 	suite('Basic Rendering', () => {
@@ -669,78 +673,99 @@ suite('ChatQuestionCarouselPart', () => {
 
 	suite('Question Types', () => {
 		const booleanOptions = [
-			{ id: 'true', label: 'True', value: 'true' },
-			{ id: 'false', label: 'False', value: 'false' },
+			{ id: 'no', label: 'false', value: 'false' },
+			{ id: 'yes', label: 'true', value: 'true' },
 		];
 		const getFooterButtons = () => [...widget.domNode.querySelectorAll<HTMLElement>('.chat-question-footer-right .monaco-button')];
 
-		test('renders boolean questions as No/Yes footer buttons and submits the chosen answer', () => {
-			const renderButtons = (defaultValue: string | undefined) => {
-				createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions, defaultValue, allowFreeformInput: false }]));
-				const buttons = getFooterButtons();
-				return { buttons, state: buttons.map(button => ({ label: button.textContent, primary: !button.classList.contains('secondary') })) };
+		test('renders boolean questions as Yes/No options and submits No', () => {
+			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions }]));
+			const list = widget.domNode.querySelector('.chat-question-list')!;
+			const listItems = [...list.querySelectorAll<HTMLElement>('.chat-question-list-item')];
+			const rendered = {
+				role: list.getAttribute('role'),
+				labels: listItems.map(item => item.querySelector('.chat-question-list-label')?.textContent),
+				freeformBelow: list.nextElementSibling?.classList.contains('chat-question-freeform'),
+				footer: getFooterButtons().map(button => button.textContent),
 			};
+			listItems[1].click();
 
-			const byDefault = renderButtons(undefined);
-			const hasList = !!widget.domNode.querySelector('.chat-question-list-item');
-			widget.domNode.remove();
-			const defaultedToNo = renderButtons('false');
-			widget.domNode.remove();
-			const rendered = renderButtons(undefined);
-			rendered.buttons[1].click();
-
-			assert.deepStrictEqual({ byDefault: byDefault.state, hasList, defaultedToNo: defaultedToNo.state, submitted: submittedAnswers?.get('q1') }, {
-				byDefault: [{ label: 'No', primary: false }, { label: 'Yes', primary: true }],
-				hasList: false,
-				defaultedToNo: [{ label: 'No', primary: true }, { label: 'Yes', primary: false }],
-				submitted: { selectedValue: 'true', freeformValue: undefined },
+			assert.deepStrictEqual({ ...rendered, submitted: submittedAnswers?.get('q1') }, {
+				role: 'listbox',
+				labels: ['Yes', 'No'],
+				freeformBelow: true,
+				footer: ['Submit'],
+				submitted: { selectedValue: 'false', freeformValue: undefined },
 			});
 		});
 
-		test('boolean question with custom answers always shows the answer editor and swaps Yes/No for the primary button once it has text', () => {
-			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions, allowFreeformInput: true }]));
-			const editorNode = widget.domNode.querySelector<HTMLElement>('.chat-question-answer-editor')!;
-			const getState = () => ({
-				ghost: editorNode.classList.contains('ghost'),
-				footer: getFooterButtons().map(button => button.getAttribute('aria-label') ?? button.textContent),
-			});
-			const initial = getState();
-			const hasLink = !!widget.domNode.querySelector('.chat-question-custom-answer-link');
-
-			getAnswerEditor().focus();
-			const focused = getState();
-
-			setAnswer('Only on staging');
-			const typed = getState();
-
-			setAnswer('');
-			const cleared = getState();
-
-			setAnswer('Only on staging');
+		test('boolean default selects No without reordering options or enabling disallowed freeform input', () => {
+			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions, defaultValue: 'no', allowFreeformInput: false }]));
+			const options = [...widget.domNode.querySelectorAll('.chat-question-list-item')].map(item => ({
+				label: item.querySelector('.chat-question-list-label')?.textContent,
+				selected: item.classList.contains('selected'),
+			}));
+			const hasFreeform = !!widget.domNode.querySelector('.chat-question-freeform');
 			getFooterButtons()[0].click();
 
-			assert.deepStrictEqual({ hasLink, initial, focused, typed, cleared, submitted: submittedAnswers?.get('q1') }, {
-				hasLink: false,
-				initial: { ghost: true, footer: ['No', 'Yes'] },
-				focused: { ghost: false, footer: ['No', 'Yes'] },
-				typed: { ghost: false, footer: ['Submit'] },
-				cleared: { ghost: false, footer: ['No', 'Yes'] },
-				submitted: { selectedValue: undefined, freeformValue: 'Only on staging' },
+			assert.deepStrictEqual({ options, hasFreeform, submitted: submittedAnswers?.get('q1') }, {
+				options: [{ label: 'Yes', selected: false }, { label: 'No', selected: true }],
+				hasFreeform: false,
+				submitted: { selectedValue: 'false', freeformValue: undefined },
 			});
 		});
 
-		test('Escape in the empty custom answer editor of a boolean question blurs it instead of dismissing the carousel', () => {
+		test('renders the context and note as plain text around the description and answer', () => {
+			const context = 'Command:\nsudo -A tee "$(whoami)" <<\'EOF\'\n\n# Heading\n[link](https://example.com) $(lock) <b>bold</b>\nEOF';
+			createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'sudo needs a password', context, description: 'Password:', note: { icon: Codicon.lock, text: 'Your answer goes only to sudo.' } }]));
+			const body = widget.domNode.querySelector('.chat-question-body-scrollable')!;
+			const contextElement = body.querySelector('.chat-question-context');
+			const note = body.querySelector('.chat-question-note');
+
+			assert.deepStrictEqual({
+				context: contextElement?.textContent,
+				contextElements: contextElement?.childElementCount,
+				note: note?.textContent,
+				noteIcon: [...note?.querySelectorAll('.codicon') ?? []].map(icon => ({ lock: icon.classList.contains('codicon-lock'), ariaHidden: icon.getAttribute('aria-hidden') })),
+				order: [...body.querySelectorAll('.chat-question-description, .chat-question-note, .chat-question-answers')].map(element => element.classList.contains('chat-question-context') ? 'context' : element.className),
+			}, {
+				context,
+				contextElements: 0,
+				note: 'Your answer goes only to sudo.',
+				noteIcon: [{ lock: true, ariaHidden: 'true' }],
+				order: ['context', 'chat-question-description', 'chat-question-note', 'chat-question-answers'],
+			});
+		});
+
+		test('password questions use a masked input whose answer only submitting passes on', () => {
+			const carousel = new ChatQuestionCarouselData([{ id: 'secret', type: 'text', title: 'Password', required: true, password: true, defaultValue: 'prefilled' }], true);
+			createWidget(carousel);
+			const input = widget.domNode.querySelector<HTMLInputElement>('.chat-question-answers input')!;
+			const rendered = { type: input.type, value: input.value, autocomplete: input.autocomplete, answerEditors: getAnswerEditors().length };
+			input.value = 'private-password';
+			input.dispatchEvent(new Event('input'));
+			const drafts = carousel.draftAnswers;
+			getFooterButtons()[0].click();
+
+			assert.deepStrictEqual({ rendered, drafts, submitted: submittedAnswers?.get('secret'), shown: widget.domNode.textContent?.includes('private-password') }, {
+				rendered: { type: 'password', value: '', autocomplete: 'off', answerEditors: 0 },
+				drafts: {},
+				submitted: 'private-password',
+				shown: false,
+			});
+		});
+
+		test('boolean custom answers use the single-select freeform input and normal primary button', () => {
 			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions, allowFreeformInput: true }]));
-			const editor = getAnswerEditor();
-			editor.focus();
-			const focusedBefore = editor.hasTextFocus();
+			setAnswer('Only on staging');
+			const selectedOptions = widget.domNode.querySelectorAll('.chat-question-list-item.selected').length;
+			const footer = getFooterButtons().map(button => button.textContent);
+			getFooterButtons()[0].click();
 
-			editor.getDomNode()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true }));
-
-			assert.deepStrictEqual({ focusedBefore, carouselFocused: mainWindow.document.activeElement === widget.domNode, submittedAnswers }, {
-				focusedBefore: true,
-				carouselFocused: true,
-				submittedAnswers: null,
+			assert.deepStrictEqual({ selectedOptions, footer, submitted: submittedAnswers?.get('q1') }, {
+				selectedOptions: 0,
+				footer: ['Submit'],
+				submitted: { selectedValue: undefined, freeformValue: 'Only on staging' },
 			});
 		});
 
@@ -1038,6 +1063,30 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(submittedAnswers?.get('q1'), 'default answer', 'Skip should return default values');
 		});
 
+		test('only the person\'s own submission or dismissal is reported as theirs', () => {
+			const outcomes: { answers: unknown; byUser: boolean | undefined }[] = [];
+			const settle = (act: () => void) => {
+				createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }], true));
+				act();
+				outcomes.push({ answers: submittedAnswers && [...submittedAnswers], byUser: submittedByUser });
+			};
+
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click());
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-close')!.click());
+			settle(() => widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })));
+			// Defaults submitted when another message is sent, and a dismissal made for the person.
+			settle(() => widget.skip());
+			settle(() => widget.ignore());
+
+			assert.deepStrictEqual(outcomes, [
+				{ answers: [['q1', 'default answer']], byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: [['q1', 'default answer']], byUser: undefined },
+				{ answers: undefined, byUser: false },
+			]);
+		});
+
 		test('skip fails when allowSkip is false', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' }
@@ -1291,7 +1340,7 @@ suite('ChatQuestionCarouselPart', () => {
 		}
 
 		test('arrow keys move the selection and clamp at both ends', () => {
-			const list = createSelectWidget(3);
+			const list = createSelectWidget(3, false);
 
 			const start = selectedIndex();
 			press(list, 40 /* DownArrow */, 'ArrowDown');
@@ -1326,6 +1375,48 @@ suite('ChatQuestionCarouselPart', () => {
 				afterDigitPastEnd: -1,
 				freeformFocused: true,
 			});
+		});
+
+		test('down from the last option moves to the custom answer, and up from its start returns to the last option', () => {
+			const list = createSelectWidget(2);
+			const freeform = getAnswerEditor();
+			const freeformInput = freeform.getDomNode()!.querySelector<HTMLElement>('.native-edit-context') ?? freeform.getDomNode()!.querySelector<HTMLElement>('textarea')!;
+
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			press(list, 40 /* DownArrow */, 'ArrowDown');
+			const afterDown = { selected: selectedIndex(), freeformFocused: freeform.hasTextFocus() };
+
+			freeform.getModel()!.setValue('custom');
+			freeform.setPosition({ lineNumber: 1, column: 7 });
+			press(freeformInput, 38 /* UpArrow */, 'ArrowUp');
+			const upWithinText = { selected: selectedIndex(), freeformFocused: freeform.hasTextFocus() };
+
+			freeform.setPosition({ lineNumber: 1, column: 1 });
+			press(freeformInput, 38 /* UpArrow */, 'ArrowUp');
+			const upAtStart = { selected: selectedIndex(), listFocused: mainWindow.document.activeElement === list, freeformValue: freeform.getValue() };
+			press(list, 13 /* Enter */, 'Enter');
+			const answer = submittedAnswers?.get('q1');
+
+			assert.deepStrictEqual({ afterDown, upWithinText, upAtStart, answer }, {
+				afterDown: { selected: -1, freeformFocused: true },
+				upWithinText: { selected: -1, freeformFocused: true },
+				upAtStart: { selected: 1, listFocused: true, freeformValue: 'custom' },
+				answer: { selectedValue: 'b', freeformValue: undefined },
+			});
+		});
+
+		test('custom answer text that a selected option overrides survives navigating to another question and back', () => {
+			createWidget(createMockCarousel([
+				{ id: 'q1', type: 'singleSelect', title: 'Choose one', options: [{ id: 'a', label: 'Option A', value: 'a' }], allowFreeformInput: true },
+				{ id: 'q2', type: 'text', title: 'Anything else?' },
+			]));
+
+			setAnswer('custom');
+			// Selects the option, which goes to the next question
+			(widget.domNode.querySelector('.chat-question-list-item') as HTMLElement).click();
+			(widget.domNode.querySelector('.chat-question-nav-prev') as HTMLElement).click();
+
+			assert.deepStrictEqual({ selected: selectedIndex(), freeform: getAnswerEditor().getValue() }, { selected: 0, freeform: 'custom' });
 		});
 
 		test('aria-activedescendant follows the selection', () => {

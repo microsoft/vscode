@@ -7,13 +7,16 @@ import { Promises, raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
-import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { type AgentCanvasDefinitionSnapshot, type AgentProvider, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, IAgentCreateChatRequestOptions, IAgentCreateSessionConfig, type IAgentCustomizationInstallation, type IAgentCustomizationInstallationApplyRequest, type IAgentCustomizationInstallationApplyResult, type IAgentCustomizationInstallationPreparation, type IAgentCustomizationInstallationRequest, type IAgentCustomizationMarketplaceSearchRequest, type IAgentCustomizationMarketplaceSearchResult, type IAgentExtensionInventory, type IAgentManagedPluginRetryEntry, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest } from '../common/agent.js';
 import { IAgentHostInspectInfo, IAgentHostManagedSettingsDiagnostics, IAgentHostManagementService, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentHostSocketInfo, IAgentService, IConnectionTrackerService, type AgentHostDebugLogsArtifactKind, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, type IMissionControlOptions, type IMissionControlCredentialSealingRequest } from '../common/agentService.js';
 import { sealMissionControlCredential } from './missionControl/missionControlAuthentication.js';
 import { MissionControlEnvironment } from './missionControl/missionControlEnvironment.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { IAgentHostMacAccessibilityTrustService } from './agentHostMacAccessibilityTrustService.js';
 import { IAgentHostSystemWakeService } from './agentHostSystemWakeService.js';
+import { flushAgentHostTelemetry } from './agentHostTelemetryService.js';
+import { getConnectionDiagnosticError } from '../common/connectionDiagnostics.js';
 
 const SHUTDOWN_DRAIN_TIMEOUT_MS = 1000;
 const PROVIDER_SHUTDOWN_TIMEOUT_MS = 1500;
@@ -35,17 +38,23 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostSystemWakeService private readonly _systemWake: IAgentHostSystemWakeService,
 		@IAgentHostMacAccessibilityTrustService private readonly _macAccessibilityTrust: IAgentHostMacAccessibilityTrustService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	setMissionControl(service: MissionControlEnvironment | undefined): void {
 		this._missionControl = service;
 	}
 
-	configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): Promise<void> {
-		if (!this._missionControl) {
-			throw new Error('Mission Control is unavailable in this Agent Host');
+	async configureMissionControl(options: IMissionControlOptions | undefined, withdrawingAccountId?: string): ReturnType<IAgentHostManagementService['configureMissionControl']> {
+		try {
+			if (!this._missionControl) {
+				throw new Error('Mission Control is unavailable in this Agent Host');
+			}
+			await this._missionControl.configure(options, withdrawingAccountId);
+		} catch (error) {
+			this._logService.error('GitHub environment configuration failed', error);
+			return { error: getConnectionDiagnosticError(error) };
 		}
-		return this._missionControl.configure(options, withdrawingAccountId);
 	}
 
 	sealMissionControlCredential(request: IMissionControlCredentialSealingRequest): Promise<string> {
@@ -162,7 +171,7 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	setPluginEnabled(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		if (!this._agentService.setPluginEnabled) {
 			throw new Error('Agent Host plugin enablement is unavailable');
 		}
@@ -190,11 +199,11 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._agentService.listSessionCanvases(session, chat);
 	}
 
-	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+	openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
 		if (!this._agentService.openSessionCanvas) {
 			throw new Error('Opening Copilot canvases is unavailable');
 		}
-		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat));
+		return this._runMutation(() => this._agentService.openSessionCanvas!(session, request, chat, answer));
 	}
 
 	closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
@@ -218,21 +227,21 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.retryManagedPlugins!(provider, session, chat));
 	}
 
-	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI) {
+	listPluginMarketplaces(provider: AgentProvider, session?: URI, chat?: URI) {
 		if (!this._agentService.listPluginMarketplaces) {
 			throw new Error('Agent Host plugin marketplace inventory is unavailable');
 		}
 		return this._agentService.listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(provider: AgentProvider, session: URI | undefined, source: string, chat?: URI) {
 		if (!this._agentService.addPluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace registration is unavailable');
 		}
 		return this._runMutation(() => this._agentService.addPluginMarketplace!(provider, session, source, chat));
 	}
 
-	browsePluginMarketplace(provider: AgentProvider, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(provider: AgentProvider, session: URI | undefined, name: string, chat?: URI) {
 		if (!this._agentService.browsePluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace browse is unavailable');
 		}
@@ -333,9 +342,15 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		} catch (error) {
 			this._logService.error('Agent Host provider shutdown failed.', error);
 		}
-		await raceTimeout(this._sessionDataService.whenIdle(), SHUTDOWN_FLUSH_TIMEOUT_MS, () => {
-			this._logService.warn(`Agent Host session data did not finish flushing within ${SHUTDOWN_FLUSH_TIMEOUT_MS}ms during shutdown.`);
-		});
+		// After the providers, so telemetry they report while stopping is delivered too.
+		const telemetryFlush = flushAgentHostTelemetry(this._telemetryService, this._logService);
+		try {
+			await raceTimeout(this._sessionDataService.whenIdle(), SHUTDOWN_FLUSH_TIMEOUT_MS, () => {
+				this._logService.warn(`Agent Host session data did not finish flushing within ${SHUTDOWN_FLUSH_TIMEOUT_MS}ms during shutdown.`);
+			});
+		} finally {
+			await telemetryFlush;
+		}
 	}
 
 	private _runMutation<T>(operation: () => Promise<T>): Promise<T> {

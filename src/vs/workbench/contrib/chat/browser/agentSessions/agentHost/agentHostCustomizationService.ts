@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { cancelOnDispose, CancellationToken } from '../../../../../../base/common/cancellation.js';
@@ -12,8 +13,11 @@ import { getErrorMessage, isCancellationError } from '../../../../../../base/com
 import { StringSHA1 } from '../../../../../../base/common/hash.js';
 import { Disposable, DisposableResourceMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
-import { AgentHostMcpServers, AgentHostMcpServersConfigKey } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { AgentHostMcpServers, AgentHostMcpServersConfigKey, IPermissionsValue } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { affectsAgentHostProviderPreference, IAgentConnection, isLocalAgentHostProviderDisabledByPolicy } from '../../../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
+import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
 import { getAgentHostCustomizationUri } from '../../../common/agentHostSessionCustomizations.js';
 import { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { hasReadableCustomizationContent } from '../../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
@@ -25,7 +29,7 @@ import { getCustomizationDisabledReason, isCustomizationEnabled, withCustomizati
 import { type IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { ActionType } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { CustomizationEnablementKind, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { CustomizationEnablementKind, CustomizationLoadStatus, CustomizationType, McpServerCustomization, McpServerStatus, type Customization, type CustomizationEnablement, type McpServerState, type PluginCustomization, type RootConfigState, type SessionState } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { AgentCustomization, DEFAULT_CHAT_ID, ROOT_STATE_URI, StateComponents, getSessionChatResource, readSessionFolderPickerDecision, type ISessionFolderPickerDecision } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -66,6 +70,8 @@ export interface IAgentHostCustomizationService {
 	getCustomAgents(sessionResource: URI): readonly AgentCustomization[];
 
 	getCustomizations(sessionResource: URI): readonly Customization[];
+	/** Projects runtime plugin activation for the selected, host-advertised chat rather than the default chat. */
+	resolveRuntimePluginEnablement?(sessionResource: URI, customizations: readonly Customization[]): Promise<readonly Customization[]>;
 	/** Returns this client's plugin source, never a foreign client's filesystem resource. */
 	getClientPluginUri(sessionResource: URI, plugin: Pick<PluginCustomization, 'uri' | 'clientId'>): URI | undefined;
 
@@ -101,6 +107,12 @@ export interface IAgentHostCustomizationService {
 	 */
 	getMcpServers(sessionResource: URI): readonly IAgentHostMcpServer[];
 
+	/** Returns host-wide permissions, or undefined when the host does not advertise writable permissions. */
+	getHostPermissions(sessionResource: URI): IPermissionsValue | undefined;
+
+	/** Updates host-wide permissions on the connection backing the session. */
+	setHostPermissions(sessionResource: URI, permissions: IPermissionsValue): void;
+
 	/**
 	 * Adds (or replaces) an agent-host-level MCP server in the root config of
 	 * the agent host backing `sessionResource`. The write is routed to the
@@ -121,6 +133,8 @@ export interface IAgentHostCustomizationService {
 
 	/** Changes one scope while preserving all other explicit decisions. */
 	setCustomizationEnablement(sessionResource: URI, customizationId: string, currentEnablement: readonly CustomizationEnablement[] | undefined, kind: CustomizationEnablementKind, enabled: boolean): void;
+	canSetRuntimePluginEnablement?(sessionResource: URI): boolean;
+	setRuntimePluginEnablement?(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean | null): Promise<void>;
 
 	/**
 	 * Reveals the per-server MCP diagnostics Output channel for the server
@@ -168,6 +182,13 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 	getMcpServers(_sessionResource: URI): readonly IAgentHostMcpServer[] {
 		return [];
 	}
+	getHostPermissions(_sessionResource: URI): IPermissionsValue | undefined {
+		return undefined;
+	}
+	setHostPermissions(_sessionResource: URI, _permissions: IPermissionsValue): void {
+		// no-op
+	}
+
 	addMcpServer(_sessionResource: URI, _name: string, _config: IMcpServerConfiguration): void {
 		// no-op
 	}
@@ -184,6 +205,7 @@ export class NullAgentHostCustomizationService implements IAgentHostCustomizatio
 
 export interface IAgentHostCustomizationTarget {
 	readonly backendSession: URI;
+	readonly defaultChatResource?: URI;
 	readonly clientId?: string;
 	readonly customizations: readonly Customization[];
 	readonly resourceUris: IAgentHostResourceUriMapper;
@@ -198,6 +220,8 @@ export interface IAgentHostCustomizationTarget {
 	authenticate(request: IAgentHostAuthenticateRequest): Promise<unknown>;
 	handleMcpRequest?(channel: string, method: string, params: Record<string, unknown> | undefined): Promise<unknown>;
 	setCustomizationEnablement(rawId: string, enablement: readonly CustomizationEnablement[]): void;
+	setPluginEnabled?(provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	listPluginInstallations?(provider: AgentProvider, session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	startMcpServer(rawId: string): Promise<void>;
 	stopMcpServer(rawId: string): Promise<void>;
 	backgroundMcpServer(rawId: string): Promise<void>;
@@ -323,6 +347,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				const clientPluginUri = plugin?.clientId !== undefined ? getAgentHostCustomizationUri(URI.parse(plugin.uri), target, plugin) : undefined;
 				const channel = server.channel;
 				const handleMcpRequest = target.handleMcpRequest;
+				const runtimePlugin = plugin && readRuntimePluginEnablement(plugin);
+				const waitingForSessionStart = runtimePlugin !== undefined && runtimePlugin.globalEnabled !== false
+					&& runtimePlugin.effectiveEnabled === undefined && plugin?.load?.kind === CustomizationLoadStatus.Loading
+					&& isCustomizationEnabled(server);
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
@@ -341,6 +369,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					isClientBundled: clientPluginUri !== undefined && target.isBundledMcpServer(clientPluginUri.toString(), server.name),
 					owningPluginClientId: plugin?.clientId,
 					disabledReason: getCustomizationDisabledReason(server, plugin),
+					...(waitingForSessionStart ? { waitingForSessionStart: true } : {}),
 					status: server.state.kind,
 					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
@@ -488,6 +517,21 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				this._mcpAutoAuthentication.delete(key);
 			}
 		}
+	}
+
+	getHostPermissions(sessionResource: URI): IPermissionsValue | undefined {
+		const rootConfig = this._resolveTarget(sessionResource)?.rootConfig;
+		const permissionsSchema = rootConfig?.schema.properties[SessionConfigKey.Permissions];
+		if (!rootConfig || !permissionsSchema || permissionsSchema.readOnly) {
+			return undefined;
+		}
+		// The host validates permissions when it reads them, so use the published value as is.
+		const value = rootConfig.values[SessionConfigKey.Permissions] as Partial<IPermissionsValue> | undefined;
+		return { ...value, allow: value?.allow ?? [], deny: value?.deny ?? [] };
+	}
+
+	setHostPermissions(sessionResource: URI, permissions: IPermissionsValue): void {
+		this._resolveTarget(sessionResource)?.setRootConfigValue(SessionConfigKey.Permissions, permissions);
 	}
 
 	addMcpServer(sessionResource: URI, name: string, config: IMcpServerConfiguration): void {
@@ -679,6 +723,9 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			this._logService.warn(`[AgentHostCustomizationService] Cannot change enablement for unavailable customization '${customizationId}'.`);
 			return;
 		}
+		if (readRuntimePluginEnablement(customization)) {
+			throw new Error(localize('runtimePluginEnablementRequired', "Change this plugin through its owning runtime."));
+		}
 		const entry = kind === CustomizationEnablementKind.Workspace
 			? this._workspaceEnablementEntry(target, enabled)
 			: { kind, enabled };
@@ -687,6 +734,93 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 			return;
 		}
 		target.setCustomizationEnablement(customization.id, withCustomizationEnablement(currentEnablement, kind, entry));
+	}
+
+	canSetRuntimePluginEnablement(sessionResource: URI): boolean {
+		return this._resolveTarget(sessionResource)?.setPluginEnabled !== undefined;
+	}
+
+	async resolveRuntimePluginEnablement(sessionResource: URI, customizations: readonly Customization[]): Promise<readonly Customization[]> {
+		const providers = new Set(customizations.map(customization => readRuntimePluginEnablement(customization)?.provider).filter(provider => provider !== undefined));
+		if (providers.size === 0) {
+			return customizations;
+		}
+		const target = this._resolveTarget(sessionResource);
+		const chat = this.getBackendChatResource(sessionResource);
+		const failedProviders = new Set<string>();
+		const inventories = new Map(await Promise.all([...providers].map(async provider => {
+			try {
+				return [provider, await target?.listPluginInstallations?.(provider, target.backendSession, chat)] as const;
+			} catch (error) {
+				this._logService.warn(`[AgentHostCustomizationService] Failed to read runtime plugin inventory for '${provider}'`, error);
+				failedProviders.add(provider);
+				return [provider, undefined] as const;
+			}
+		})));
+		return customizations.map(customization => {
+			const runtime = readRuntimePluginEnablement(customization);
+			if (customization.type !== CustomizationType.Plugin || !runtime) {
+				return customization;
+			}
+			if (target && !target.listPluginInstallations && chat && target.defaultChatResource
+				&& isEqual(chat, target.defaultChatResource) && runtime.effectiveEnabled !== undefined) {
+				return customization;
+			}
+			const matches = inventories.get(runtime.provider)?.filter(installation =>
+				(installation.directSourceId ?? `${installation.name}@${installation.marketplace}`) === runtime.plugin);
+			const installation = matches?.length === 1 ? matches[0] : undefined;
+			const effectiveEnabled = chat ? installation?.effectiveEnabled : undefined;
+			const load = failedProviders.has(runtime.provider)
+				? { kind: CustomizationLoadStatus.Error, message: localize('runtimePluginInventoryFailed', "Plugin activation could not be determined because runtime plugin inventory is unavailable.") } as const
+				: matches?.length === 0
+					? { kind: CustomizationLoadStatus.Error, message: localize('runtimePluginMissing', "This plugin is no longer installed.") } as const
+					: customization.load?.kind === CustomizationLoadStatus.Error ? customization.load
+						: { kind: effectiveEnabled === undefined ? CustomizationLoadStatus.Loading : CustomizationLoadStatus.Loaded } as const;
+			return {
+				...customization,
+				load,
+				enablement: [{ kind: CustomizationEnablementKind.Global, enabled: effectiveEnabled ?? false }],
+				_meta: withRuntimePluginEnablement(customization._meta, {
+					...runtime,
+					globalEnabled: installation?.enabled ?? runtime.globalEnabled,
+					managedDesiredEnabled: installation ? installation.managedDesiredEnabled : runtime.managedDesiredEnabled,
+					effectiveEnabled,
+					repositoryEnabled: installation?.repositoryEnabled,
+				}),
+			};
+		});
+	}
+
+	async setRuntimePluginEnablement(sessionResource: URI, customizationId: string, scope: 'global' | 'repository', enabled: boolean | null): Promise<void> {
+		if (scope === 'global' && enabled === null) {
+			throw new Error(localize('runtimePluginGlobalInheritanceUnsupported', "Global plugin enablement must be enabled or disabled."));
+		}
+		const target = this._resolveTarget(sessionResource);
+		const customization = target?.customizations.find(customization => customization.type === CustomizationType.Plugin && customization.id === customizationId);
+		const runtime = customization && readRuntimePluginEnablement(customization);
+		if (!target?.setPluginEnabled || !customization || !runtime) {
+			throw new Error(localize('runtimePluginEnablementUnavailable', "Plugin enablement is unavailable on this host."));
+		}
+		if (runtime.managedDesiredEnabled !== undefined) {
+			throw new Error(localize('runtimePluginEnablementManaged', "This plugin is managed by your organization."));
+		}
+		const [resolved] = await this.resolveRuntimePluginEnablement(sessionResource, [customization]);
+		const currentRuntime = readRuntimePluginEnablement(resolved);
+		if (currentRuntime?.effectiveEnabled === undefined) {
+			throw new Error(localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready."));
+		}
+		if (currentRuntime.managedDesiredEnabled !== undefined) {
+			throw new Error(localize('runtimePluginEnablementManaged', "This plugin is managed by your organization."));
+		}
+		const chat = this.getBackendChatResource?.(sessionResource);
+		if (scope === 'repository' && (!currentRuntime.repositorySupported || !chat || enabled === null && currentRuntime.repositoryEnabled === undefined)) {
+			throw new Error(localize('runtimePluginRepositoryUnavailable', "Repository plugin enablement requires a supported plugin and an initialized chat."));
+		}
+		await target.setPluginEnabled(runtime.provider, runtime.plugin, enabled, scope, target.backendSession, chat);
+	}
+
+	getBackendChatResource(_sessionResource: URI): URI | undefined {
+		return undefined;
 	}
 
 	private _workspaceEnablementEntry(target: IAgentHostCustomizationTarget, enabled: boolean): CustomizationEnablement | undefined {
@@ -712,7 +846,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 		return undefined;
 	}
 
-	private _findCustomization(customizations: readonly Customization[], customizationId: string): { readonly id: string } | undefined {
+	private _findCustomization(customizations: readonly Customization[], customizationId: string): { readonly id: string; readonly _meta?: Record<string, unknown> } | undefined {
 		for (const customization of customizations) {
 			if (customization.id === customizationId || this._isScopedMcpServerIdForRawId(customizationId, customization.id)) {
 				return customization;
@@ -1005,8 +1139,10 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		const clientWorkingDirectories = provisionalWorkingDirectories ?? workingDirectories.map(directory => target.connection.resourceUris.fromAgentHost(URI.parse(directory)));
 		const rootState = target.connection.rootState.value;
 		const channel = target.backendSession.toString();
+		const defaultChatResource = sessionState && getSessionChatResource(sessionState, DEFAULT_CHAT_ID, sessionState.defaultChat);
 		return {
 			backendSession: target.backendSession,
+			defaultChatResource: defaultChatResource ? URI.parse(defaultChatResource.toString()) : undefined,
 			clientId: target.connection.clientId,
 			customizations: sessionState?.customizations ?? [],
 			resourceUris: target.connection.resourceUris,
@@ -1027,6 +1163,12 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 						: entry),
 				});
 			},
+			setPluginEnabled: target.connection.setPluginEnabled
+				? (provider, plugin, enabled, scope, session, chat) => target.connection.setPluginEnabled!(provider, plugin, enabled, scope, session, chat)
+				: undefined,
+			listPluginInstallations: target.connection.listPluginInstallations
+				? (provider, session, chat) => target.connection.listPluginInstallations!(provider, session, chat)
+				: undefined,
 			startMcpServer: rawId => {
 				target.connection.dispatch(channel, {
 					type: ActionType.SessionMcpServerStartRequested,
@@ -1112,7 +1254,7 @@ export class WorkbenchAgentHostCustomizationService extends AbstractAgentHostCus
 		return [...tools.values()];
 	}
 
-	getBackendChatResource(sessionResource: URI): URI | undefined {
+	override getBackendChatResource(sessionResource: URI): URI | undefined {
 		const owningSession = sessionResource.with({ fragment: null });
 		const target = this._resolveSessionTarget(owningSession);
 		const entry = target ? this._ensureSessionStateSubscription(owningSession, target) : undefined;

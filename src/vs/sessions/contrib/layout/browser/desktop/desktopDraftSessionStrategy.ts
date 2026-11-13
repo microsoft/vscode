@@ -31,6 +31,7 @@ import {
 	FilesDetailsState,
 	getFilesDetailsState,
 	getLayoutWorkspace,
+	getFloatingMarkdownDetailsState,
 	isChangesEditorInput,
 	isEditorWithoutDockedDetails,
 	isMainPartEmpty,
@@ -597,6 +598,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 			this._layoutService.onDidChangePartVisibility,
 			() => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART),
 		);
+		const floatingDetailsObs = observableFromEvent(this, this._layoutService.onDidChangeAuxiliaryBarFloating, () => this._layoutService.isAuxiliaryBarFloating());
 		let previousActiveEditor: EditorInput | undefined;
 		let previousEditorPartVisible = false;
 		let previousEditorSessionKey: string | undefined;
@@ -638,6 +640,7 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 					editorMaximizedObs,
 					editorPartVisible,
 					workspace,
+					floatingDetailsObs.read(reader),
 				);
 				if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
 					detailVisibleObs.read(reader);
@@ -697,11 +700,21 @@ export class DesktopDraftSessionStrategy extends DesktopLayoutStrategy {
 		editorMaximizedObs: IObservable<boolean>,
 		editorPartVisible: boolean,
 		workspace: ISessionWorkspace,
+		floatingDetails: boolean,
 	): DetailPanelTarget {
 		// A New Session's empty editor group is normal (the Files detail is owned by the
 		// managed-tabs reconcile while its Files tab is (re)ensured), unlike an Existing
 		// Session where an empty group means the whole side pane was closed — so, unlike
 		// Existing, New never hides on an empty group.
+
+		if (activeEditor && floatingDetails) {
+			switch (getFloatingMarkdownDetailsState(activeEditor, workspace)) {
+				case FilesDetailsState.Active:
+					return DetailPanelTarget.FilesForced;
+				case FilesDetailsState.Available:
+					return editorPartVisible ? DetailPanelTarget.FilesHidden : DetailPanelTarget.Files;
+			}
+		}
 
 		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
 			return editorPartVisible ? DetailPanelTarget.EditorHidden : DetailPanelTarget.Files;

@@ -121,12 +121,14 @@ Operations needing redirect status and headers, such as Actions log-URL retrieva
 
 ## Internal extension module
 
-The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception for CommonJS importers, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. It exposes only the Gist operations needed by [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts):
+The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. Node ESM consumers use `createRequire(import.meta.url)`; native ESM imports are not supported. The consumers are [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts) and [GitHub](../../../../extensions/github/src/auth.ts).
 
-- `getClient(sessionId, token?)`: a disposable GitHub.com client with `gists.get` and `gists.create`.
+- `getClient(sessionId, token?)`: a disposable GitHub.com client with typed Gist, repository, user, repository-search and pull-request operations. Repository queries also cover viewer permissions, inherited rulesets, assignable users and commit authors.
 - `getAnonymousClient(token?)`: a disposable client with `gists.get` only.
 
-The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, or arbitrary HTTP requests. Additional domains can be exposed later as typed client properties.
+Ruleset reads support shared page collection through `maxPages`. The GitHub extension collects at most 1,000 pages; exceeding the limit fails rather than returning partial branch-protection rules.
+
+The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, arbitrary HTTP requests or caller-provided GraphQL. A retained authenticated client reports an unusable authorization or lease through `onDidInvalidate` when a request fails; callers release it and acquire a fresh client rather than automatically replaying mutations.
 
 The [main-thread bridge](../../workbench/api/browser/mainThreadGitHub.ts) enforces extension account access, rechecks it after acquisition and before requests, and invalidates pending/active authenticated clients when the provider is removed. The [extension-host facade](../../workbench/api/common/extHostGitHub.ts) provides cancellation and disposable handles. Desktop calls reach the shared-process service; web calls use the local service, and remote extension hosts reach the same main-thread bridge through RPC. Caller attribution is `extension.<extensionId>`.
 
