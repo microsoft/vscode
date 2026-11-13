@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CopilotClient, RuntimeConnection, approveAll, type CopilotSession, type PermissionHandler, type PermissionRequest, type PermissionRequestResult, type SessionConfig } from '@github/copilot-sdk';
-import { retry } from '../../../../base/common/async.js';
+import { raceTimeout, retry } from '../../../../base/common/async.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -332,21 +332,23 @@ await joinSession({
 	 */
 	test('asks for sensitive environment consent without a tool call, keeps a denial until resume, and forgets session approvals on resume', async function () {
 		this.timeout(180_000);
-		const requests: { toolCallId: string | undefined; extensionName: string; environmentVariables: readonly string[] }[] = [];
+		const requests: { toolCallId: string | undefined; extensionName: string; environmentVariables: readonly string[]; pluginInventoryReadable: boolean }[] = [];
 		let decide: (request: Extract<PermissionRequest, { kind: 'extension-env-access' }>) => PermissionRequestResult = () => ({ kind: 'reject' });
+		let session: CopilotSession | undefined;
 		const { root, config, createClient } = await createCanvasContract({
 			lazy: true,
 			sensitiveEnvironment: true,
-			onPermissionRequest: request => {
+			onPermissionRequest: async request => {
 				if (request.kind !== 'extension-env-access') {
 					return { kind: 'approve-once' };
 				}
-				requests.push({ toolCallId: request.toolCallId, extensionName: request.extensionName, environmentVariables: request.environmentVariables });
+				// The Agent Host reads the plugin inventory while the runtime waits, to tell which install a plugin's extension comes from.
+				const pluginInventoryReadable = await raceTimeout(session!.rpc.plugins.list().then(() => true, () => false), 10_000) ?? false;
+				requests.push({ toolCallId: request.toolCallId, extensionName: request.extensionName, environmentVariables: request.environmentVariables, pluginInventoryReadable });
 				return decide(request);
 			},
 		});
 		const client = createClient();
-		let session: CopilotSession | undefined;
 		const status = async (target: CopilotSession) => (await target.rpc.extensions.list()).extensions.find(extension => extension.id === 'project:canvas-contract')?.status;
 		const open = async () => {
 			const target = session!;
@@ -382,7 +384,7 @@ await joinSession({
 			observations.push(await open());
 
 			assert.deepStrictEqual({ request: requests[0], observations }, {
-				request: { toolCallId: undefined, extensionName: 'project:canvas-contract', environmentVariables: [sensitiveVariable] },
+				request: { toolCallId: undefined, extensionName: 'project:canvas-contract', environmentVariables: [sensitiveVariable], pluginInventoryReadable: true },
 				observations: [
 					'extension did not become ready: project:canvas-contract; asked 1; failed',
 					'No canvas "contract" is registered.; asked 0; failed',

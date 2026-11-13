@@ -656,6 +656,8 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+/** Bounds reading which install a plugin's extension comes from; when unknown, its consent is not remembered across sessions. */
+const PLUGIN_SOURCE_LOOKUP_TIMEOUT_MS = 5_000;
 
 function canvasConsentOpenKey(consentId: string, instanceId: string): string {
 	return `${consentId}\u0000${instanceId}`;
@@ -1441,6 +1443,8 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _canvasOpens = new Set<ICanvasOpenOperation>();
 	/** The open each consent request shown to a client belongs to, by consent and instance ID; kept after the open settles so a late answer gets its outcome. */
 	private readonly _canvasConsentOpens = new LRUCache<string, ICanvasOpenOperation>(32);
+	/** Keys session approvals that must not outlive this runtime. */
+	private readonly _runtimeInstanceId = generateUuid();
 	/** The working directory the runtime discovered project extensions from; a later change applies only to its replacement. */
 	private readonly _launchWorkingDirectory: URI | undefined;
 	private _requiresExtensionConsentRetry = false;
@@ -9840,7 +9844,9 @@ export class CopilotAgentSession extends Disposable {
 	 * one of the extension's canvases, whichever answers first.
 	 */
 	private async _handleExtensionConsentRequest(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): Promise<PermissionRequestResult | AttributedPermissionResult> {
-		const gate = this._createExtensionConsentGate(request);
+		// A plugin is named after its package, which another source can reuse, so its access to secrets is remembered only for the install it was granted to.
+		const pluginSource = request.kind === 'extension-env-access' && request.extensionName.startsWith('plugin:') ? await this._resolvePluginInstallIdentity(request.extensionName) : undefined;
+		const gate = this._createExtensionConsentGate(request, pluginSource);
 		const lifetimeToken = this._lifetimeCts.token;
 		try {
 			while (!gate.decision.isSettled) {
@@ -9879,12 +9885,14 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	private _createExtensionConsentGate(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>): IExtensionConsentGate {
+	/** @param pluginSource The install a plugin extension that asks for environment variables comes from, if it can be told. */
+	private _createExtensionConsentGate(request: Extract<PermissionRequest, { kind: 'extension-permission-access' | 'extension-env-access' }>, pluginSource: string | undefined): IExtensionConsentGate {
 		const environment = request.kind === 'extension-env-access';
 		const items = environment ? [...request.environmentVariables] : [...request.capabilities];
 		const sorted = [...items].sort().join(', ');
+		const plugin = environment && request.extensionName.startsWith('plugin:');
 		const identity = environment
-			? `${request.extensionName} (environment variables: ${sorted})`
+			? `${request.extensionName}${pluginSource !== undefined ? ` from ${pluginSource}` : ''} (environment variables: ${sorted})`
 			: `${request.extensionName} (${sorted})`;
 		return {
 			consent: {
@@ -9893,18 +9901,36 @@ export class CopilotAgentSession extends Disposable {
 				extensionName: request.extensionName,
 				displayName: request.extensionName.split(':').at(-1) || request.extensionName,
 				items,
-				// Only a user extension's access to secrets is remembered across sessions: a project extension is named after its folder,
-				// which another repository can reuse, and a plugin after its package, which another source can reuse.
-				persistable: !environment || request.extensionName.startsWith('user:'),
+				// A project extension is named after its folder, so another repository can reuse the name: its access to secrets is never remembered across sessions.
+				persistable: !environment || request.extensionName.startsWith('user:') || pluginSource !== undefined,
 			},
 			identity,
-			// Session approvals outlive this runtime. A project extension's approval only covers the folder this runtime found it in.
-			approvalKey: request.extensionName.startsWith('project:') ? `${identity} in ${this._launchWorkingDirectory?.toString() ?? ''}` : identity,
+			// Session approvals outlive this runtime. A project extension's approval only covers the folder this runtime found it in,
+			// and a plugin whose install is unknown is approved for this runtime only.
+			approvalKey: request.extensionName.startsWith('project:') ? `${identity} in ${this._launchWorkingDirectory?.toString() ?? ''}`
+				: plugin && pluginSource === undefined ? `${identity} in runtime ${this._runtimeInstanceId}`
+					: identity,
 			decision: new DeferredPromise(),
 			confirmingInTurn: false,
 			turnConfirmationId: undefined,
 			presentedToClient: false,
 		};
+	}
+
+	/** The install identity of the one enabled plugin that contributes `extensionName` (`plugin:<plugin>:<extension>`), if it can be told. */
+	private async _resolvePluginInstallIdentity(extensionName: string): Promise<string | undefined> {
+		try {
+			const inventory = await raceTimeout(this._wrapper.session.rpc.plugins.list(), PLUGIN_SOURCE_LOOKUP_TIMEOUT_MS);
+			const matches = inventory?.plugins.filter(plugin => plugin.enabled && extensionName.startsWith(`plugin:${plugin.name}:`)) ?? [];
+			if (matches.length !== 1) {
+				return undefined;
+			}
+			const [plugin] = matches;
+			return plugin.id ?? plugin.directSourceId ?? (plugin.marketplace ? `${plugin.name}@${plugin.marketplace}` : undefined);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to read the plugin inventory for extension consent: ${getErrorMessage(error)}`);
+			return undefined;
+		}
 	}
 
 	/** The decision the user already made for all sessions or for this chat, if any. */
