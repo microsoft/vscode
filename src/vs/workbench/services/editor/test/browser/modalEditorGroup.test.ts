@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { addDisposableListener, EventType, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, IDimension, isHTMLElement } from '../../../../../base/browser/dom.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { timeout } from '../../../../../base/common/async.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
@@ -1100,6 +1101,40 @@ suite('Modal Editor Group', () => {
 			// Too narrow: the frame keeps the minimum width with a sidebar, and the sidebar shrinks to fit the editor
 			{ left: '20px', frameWidth: '560px', sashes: 1, sidebarLayoutWidth: 143, sidebarFillsHeight: true },
 		]);
+	});
+
+	test('modal editor part shrinks an oversized sidebar when the window shrinks while it is open', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const layoutService = instantiationService.get(IWorkbenchLayoutService) as TestLayoutService;
+		const onDidLayoutMainContainer = disposables.add(new Emitter<IDimension>());
+		layoutService.onDidLayoutMainContainer = onDidLayoutMainContainer.event;
+		layoutService.mainContainerOffset = { top: 35, quickPickTop: 0 };
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const layouts: { height: number; width: number }[] = [];
+		const results: { frameWidth: string; sidebarLayoutWidth: number; editorWidth: number }[] = [];
+		const resizeWindow = (width: number) => {
+			layoutService.mainContainerDimension = { width, height: 800 };
+			onDidLayoutMainContainer.fire(layoutService.mainContainerDimension);
+			results.push({ frameWidth: getModalFrame(modalPart).width, sidebarLayoutWidth: layouts.at(-1)!.width, editorWidth: modalPart.contentDimension.width });
+		};
+
+		layoutService.mainContainerDimension = { width: 1000, height: 800 };
+		const modalPart = await parts.createModalEditorPart({ sidebar: { sidebarWidth: 300, render: (_container, onDidLayout) => onDidLayout(e => layouts.push(e)) } });
+		resizeWindow(1000);
+		resizeWindow(300);
+		resizeWindow(250);
+
+		assert.deepStrictEqual(results, [
+			{ frameWidth: '900px', sidebarLayoutWidth: 283, editorWidth: 598 },
+			// The sidebar shrinks to its minimum so the editor keeps some width
+			{ frameWidth: '300px', sidebarLayoutWidth: 143, editorWidth: 138 },
+			{ frameWidth: '250px', sidebarLayoutWidth: 143, editorWidth: 88 },
+		]);
+
+		await modalPart.close();
 	});
 
 	test('modal editor part ignores and drops size, position and maximized state from older versions', async () => {

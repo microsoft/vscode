@@ -516,7 +516,6 @@ export class ModalEditorPart {
 
 		// Layout the modal editor part: a fixed fraction of the window, always
 		// centered. It cannot be moved or resized by the user.
-		let isFirstLayout = true;
 		const layoutModal = () => {
 			const containerDimension = this.layoutService.mainContainerDimension;
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
@@ -530,10 +529,9 @@ export class ModalEditorPart {
 			const left = (containerDimension.width - width) / 2;
 			const top = Math.max(titleBarOffset, (containerDimension.height - height) / 2);
 
-			// On first layout, clamp sidebar width if it would leave the editor too narrow
-			if (isFirstLayout) {
-				isFirstLayout = false;
-				sidebarResult?.clampWidth(width);
+			// Shrink a visible sidebar that would leave the editor too narrow
+			if (sidebarResult?.isVisible()) {
+				sidebarResult.clampWidth(width);
 			}
 
 			frameElement.style.left = `${left}px`;
@@ -649,8 +647,11 @@ export class ModalEditorPart {
 			getWidth: () => visible ? sidebarWidth : 0,
 			hasCustomWidth: () => customWidth,
 			clampWidth: (modalWidth: number) => {
-				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth) {
-					sidebarWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
+				// Only ever shrink, and stop at the minimum: resizing fires
+				// `onDidResize`, which lays the modal out and clamps again
+				const clampedWidth = Math.min(MODAL_SIDEBAR_DEFAULT_WIDTH, Math.max(MODAL_SIDEBAR_MIN_WIDTH, modalWidth - MODAL_MIN_WIDTH));
+				if (sidebarWidth + MODAL_MIN_WIDTH > modalWidth && clampedWidth < sidebarWidth) {
+					sidebarWidth = clampedWidth;
 					customWidth = false;
 					sidebarContainer.style.width = `${sidebarWidth}px`;
 					sash.layout();
