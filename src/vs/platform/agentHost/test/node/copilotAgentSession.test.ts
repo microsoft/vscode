@@ -10115,6 +10115,42 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('a bare skill name restores as the sent text instead of the qualified plugin skill name', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		mockSession.commandListResult = {
+			commands: [{ name: 'VS Code Synced Data:act-on-feedback', kind: 'skill', description: 'Act on feedback', allowDuringAgentExecution: true }],
+		};
+		mockSession.commandInvokeResult = {
+			kind: 'agent-prompt',
+			prompt: 'Loaded act-on-feedback instructions.',
+			displayPrompt: '/VS Code Synced Data:act-on-feedback for #1',
+		};
+
+		await session.send('/act-on-feedback for #1', [{
+			type: MessageAttachmentKind.Annotations,
+			label: '1 comment',
+			displayKind: AgentFeedbackAttachmentDisplayKind,
+			resource: 'ahp-session:/s/annotations',
+			annotationIds: ['feedback-1'],
+		}], 'turn-act-on-feedback');
+
+		// The runtime persists `displayPrompt` as the message content and the model prompt as `transformedContent`.
+		const request = mockSession.sendRequests[0] as MessageOptions;
+		const data = { interactionId: 'message-1', content: request.displayPrompt ?? request.prompt, transformedContent: request.prompt, attachments: request.attachments } as SessionEventPayload<'user.message'>['data'];
+		mockSession.messages = [{ type: 'user.message', id: 'event-1', parentId: null, timestamp: '2026-07-29T10:00:00.000Z', data }];
+		const restored = (await session.getMessages())[0].message;
+
+		assert.deepStrictEqual({
+			commandInvokeCalls: mockSession.commandInvokeCalls,
+			sent: { prompt: request.prompt, displayPrompt: request.displayPrompt },
+			restored: { text: restored.text, attachments: restored.attachments?.map(attachment => attachment.label) },
+		}, {
+			commandInvokeCalls: [{ name: 'VS Code Synced Data:act-on-feedback', input: 'for #1' }],
+			sent: { prompt: 'Loaded act-on-feedback instructions.', displayPrompt: '/act-on-feedback for #1' },
+			restored: { text: '/act-on-feedback for #1', attachments: ['1 comment'] },
+		});
+	});
+
 	test('`/security-review` falls through to normal send when runtime command is unavailable', async () => {
 		const { session, mockSession, signals } = await createAgentSession(disposables);
 		mockSession.commandListResult = { commands: [] };
