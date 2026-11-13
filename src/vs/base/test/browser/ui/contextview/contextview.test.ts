@@ -373,6 +373,70 @@ suite('ContextView', () => {
 		});
 	});
 
+	test('aligns zoomed views in rendered space, including across a shadow root (#347796)', () => {
+		const dpr = getWindow(document.body).devicePixelRatio;
+		const precision = dpr / 64;
+		const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+		const innerHeight = mainWindow.innerHeight;
+		const zoom = 1.25;
+		const result: Record<string, unknown> = {};
+		for (const [name, domPosition] of [['absolute', ContextViewDOMPosition.ABSOLUTE], ['fixed', ContextViewDOMPosition.FIXED], ['shadow', ContextViewDOMPosition.FIXED_SHADOW]] as const) {
+			for (const placement of ['below', 'viewportEnd'] as const) {
+				const host = document.body.appendChild($('.host'));
+				// Pin the fixture to the page origin, so content left in the body cannot move it
+				host.style.position = 'absolute';
+				host.style.top = '0';
+				host.style.left = '0';
+				host.appendChild($('.spacer')).style.height = '10.3px';
+				const container = host.appendChild($('.container'));
+				container.style.position = 'relative';
+				container.style.zoom = `${zoom}`;
+				let anchor = { x: 100.3, y: 50.3, width: 1, height: 0.2 };
+				const contextView = new ContextView(container, domPosition);
+				contextView.show({
+					getAnchor: () => anchor,
+					render: view => {
+						view.style.minWidth = '10px';
+						view.style.height = '10px';
+						return null;
+					}
+				});
+				const view = contextView.getViewElement();
+				if (placement === 'viewportEnd') {
+					// Render the view half a device pixel off, ending a quarter device pixel above the viewport bottom, so rounding it away from the anchor would push it past the viewport
+					view.style.top = '0px';
+					const originTop = getDomNodePagePosition(view).top;
+					const renderedTop = (Math.floor(innerHeight * dpr / 2) + 0.5) / dpr;
+					anchor = { ...anchor, y: originTop + (renderedTop - originTop) / zoom - 0.2 };
+					view.style.height = `${(innerHeight - 0.25 / dpr - renderedTop) / zoom}px`;
+					contextView.layout();
+				}
+				const read = () => [view.style.left, view.style.top].join();
+				const first = read();
+				contextView.layout();
+				contextView.layout();
+				const rect = view.getBoundingClientRect();
+				result[`${name} ${placement}`] = {
+					zoomed: Math.abs(rect.width - 10 * zoom) < 0.05,
+					alignedHorizontally: misalignment(rect.left) <= precision,
+					alignedVertically: misalignment(rect.top) <= precision,
+					insideViewport: rect.top >= -0.01 && rect.bottom <= innerHeight + 0.01,
+					stableAcrossLayouts: read() === first
+				};
+				contextView.dispose();
+				host.remove();
+			}
+		}
+
+		const aligned = () => ({ zoomed: true, alignedHorizontally: true, alignedVertically: true, insideViewport: true, stableAcrossLayouts: true });
+		const atViewportEnd = () => ({ ...aligned(), alignedVertically: false });
+		assert.deepStrictEqual(result, {
+			'absolute below': aligned(), 'absolute viewportEnd': atViewportEnd(),
+			'fixed below': aligned(), 'fixed viewportEnd': atViewportEnd(),
+			'shadow below': aligned(), 'shadow viewportEnd': atViewportEnd()
+		});
+	});
+
 	test('device-pixel rounding never moves a view past the viewport (#347796)', () => {
 		// start, size, anchorStart, anchorSize in a 1002px viewport at DPR 1.32
 		const round = (start: number, size: number, anchorStart: number, anchorSize: number) => getDevicePixelRounding(start, size, anchorStart, anchorSize, start, 1002 - (start + size), 1.32);
