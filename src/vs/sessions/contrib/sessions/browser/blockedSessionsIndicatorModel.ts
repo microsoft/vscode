@@ -523,8 +523,14 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		}
 		for (const [sessionId, occurrence] of next) {
 			if (occurrence !== previous.get(sessionId)) {
-				stored.delete(sessionId);
-				stored.set(sessionId, occurrence);
+				const storedOccurrence = stored.get(sessionId);
+				const preserveStoredIgnore = occurrence.kind === AcknowledgementKind.Viewed
+					&& storedOccurrence?.kind === AcknowledgementKind.Ignored
+					&& storedOccurrence.occurrenceId === occurrence.occurrenceId;
+				if (!preserveStoredIgnore) {
+					stored.delete(sessionId);
+					stored.set(sessionId, occurrence);
+				}
 			}
 		}
 		const reconciled = new Map(next);

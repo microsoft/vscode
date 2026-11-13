@@ -8,6 +8,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IStorageChangeEvent } from '../../../../../base/parts/storage/common/storage.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -23,6 +24,30 @@ import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../..
 import { BlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from '../../browser/blockedSessionsIndicatorModel.js';
 import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+
+class PausedStorageEventsService extends InMemoryStorageService {
+	private paused = false;
+	private readonly pendingChanges: { readonly scope: StorageScope; readonly event: IStorageChangeEvent }[] = [];
+
+	pauseChangeEvents(): void {
+		this.paused = true;
+	}
+
+	flushChangeEvents(): void {
+		this.paused = false;
+		for (const change of this.pendingChanges.splice(0)) {
+			super.emitDidChangeValue(change.scope, change.event);
+		}
+	}
+
+	protected override emitDidChangeValue(scope: StorageScope, event: IStorageChangeEvent): void {
+		if (this.paused) {
+			this.pendingChanges.push({ scope, event });
+			return;
+		}
+		super.emitDidChangeValue(scope, event);
+	}
+}
 
 suite('BlockedSessionsIndicatorModel', () => {
 
@@ -653,6 +678,50 @@ suite('BlockedSessionsIndicatorModel', () => {
 				['c', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
 				['a', { occurrenceId: 'failingCI:new-sha', reason: BlockedSessionReason.FailingCI }],
 			],
+		});
+	});
+
+	test('preserves an external ignore when the same occurrence is viewed before its storage event arrives', () => {
+		const storageService = store.add(new PausedStorageEventsService());
+		const first = createModel({ storageService });
+		const second = createModel({ storageService });
+		const session = new TestSession('input');
+		first.blockedModel.setBlocked([needsInput(session)]);
+		second.blockedModel.setBlocked([needsInput(session)]);
+
+		storageService.pauseChangeEvents();
+		first.model.ignoreSession(session);
+		second.sessionsService.setVisible([session]);
+		second.sessionsService.setVisible([]);
+		const beforeStorageEvent = {
+			blocked: blockedIds(second.model),
+			unacknowledged: unacknowledgedBlockedIds(second.model),
+			reminders: reminderIds(second.model),
+			stored: storageService.getObject(storageKey, StorageScope.PROFILE),
+		};
+		storageService.flushChangeEvents();
+
+		assert.deepStrictEqual({
+			beforeStorageEvent,
+			afterStorageEvent: {
+				blocked: blockedIds(second.model),
+				unacknowledged: unacknowledgedBlockedIds(second.model),
+				reminders: reminderIds(second.model),
+				stored: storageService.getObject(storageKey, StorageScope.PROFILE),
+			},
+		}, {
+			beforeStorageEvent: {
+				blocked: [],
+				unacknowledged: [],
+				reminders: [],
+				stored: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+			},
+			afterStorageEvent: {
+				blocked: [],
+				unacknowledged: [],
+				reminders: [],
+				stored: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+			},
 		});
 	});
 

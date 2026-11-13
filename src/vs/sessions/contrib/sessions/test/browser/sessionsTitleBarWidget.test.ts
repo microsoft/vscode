@@ -21,7 +21,7 @@ import { SubmenuItemAction } from '../../../../../platform/actions/common/action
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { getIconRegistry } from '../../../../../platform/theme/common/iconRegistry.js';
-import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
@@ -43,6 +43,8 @@ import { TestContextViewService } from '../../../../test/browser/testContextView
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { BlockedSessionReason, IBlockedSession } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IApprovedSession } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SHOW_SESSIONS_PICKER_COMMAND_ID } from '../../browser/sessionsActions.js';
 
 suite('SessionsTitleBarWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -53,7 +55,8 @@ suite('SessionsTitleBarWidget', () => {
 
 	class TestCommandCenterList extends Disposable {
 		readonly onDidChangeContentHeight = Event.None;
-		readonly onDidApproveSession = Event.None;
+		private readonly _onDidApproveSession = this._register(new Emitter<IApprovedSession>());
+		readonly onDidApproveSession = this._onDidApproveSession.event;
 		readonly sessions: ISession[] = [];
 		readonly element: HTMLElement;
 		readonly activeSession: IObservable<ISession | undefined>;
@@ -92,15 +95,22 @@ suite('SessionsTitleBarWidget', () => {
 		setSessionHoverVisible(visible: boolean): void {
 			this.options.onDidChangeSessionHoverVisibility(visible);
 		}
+
+		approveSession(session: ISession): void {
+			this._onDidApproveSession.fire({ session, approvalId: 'approval' });
+		}
 	}
 
 	function createInteractionHarness(motionReduced = false, targetWindow: Window = mainWindow) {
+		const previewStatus = observableValue('previewStatus', SessionStatus.Completed);
+		const previewArchived = observableValue('previewArchived', false);
+		const previewRead = observableValue('previewRead', true);
 		const previewSession = upcastPartial<ISession>({
 			sessionId: 'preview',
 			resource: URI.parse('test:/preview'),
-			status: constObservable(SessionStatus.Completed),
-			isArchived: constObservable(false),
-			isRead: constObservable(true),
+			status: previewStatus,
+			isArchived: previewArchived,
+			isRead: previewRead,
 		});
 		const ordinarySession = upcastPartial<ISession>({
 			sessionId: 'ordinary',
@@ -121,6 +131,10 @@ suite('SessionsTitleBarWidget', () => {
 		const activeSession = observableValue<ISession | undefined>('activeSession', undefined);
 		const recentlyOpened = { recent: [previewSession, ordinarySession] as ISession[], other: [] as ISession[] };
 		const lists: TestCommandCenterList[] = [];
+		const commands: string[] = [];
+		const dismissedApprovals: IApprovedSession[] = [];
+		const sessionsChanged = disposables.add(new Emitter<ISessionsChangeEvent>());
+		const sessionActionFeedback = disposables.add(new SessionActionFeedback());
 		const instantiationService = upcastPartial<IInstantiationService>({});
 		Reflect.set(instantiationService, 'createInstance', (_ctor: object, container: HTMLElement, options: { readonly activeSession: IObservable<ISession | undefined>; readonly onDidChangeSessionHoverVisibility: (visible: boolean) => void }) => {
 			const list = new TestCommandCenterList(container, options);
@@ -146,7 +160,7 @@ suite('SessionsTitleBarWidget', () => {
 				title: 'Show Sessions',
 			}, undefined, []),
 			undefined,
-			disposables.add(new SessionActionFeedback()),
+			sessionActionFeedback,
 			upcastPartial<BlockedSessionsIndicatorModel>({
 				onDidRequestBlink: Event.None,
 				blockedSessions,
@@ -156,9 +170,10 @@ suite('SessionsTitleBarWidget', () => {
 				requiresInputKind: constObservable(undefined),
 				consumePendingBlink: () => false,
 				getRequiresInputLabel: count => `${count} session requires input`,
+				dismissApproval: approved => dismissedApprovals.push(approved),
 			}),
 			upcastPartial<ISessionsManagementService>({
-				onDidChangeSessions: Event.None,
+				onDidChangeSessions: sessionsChanged.event,
 				onDidChangeSessionTypes: Event.None,
 			}),
 			upcastPartial<ISessionsService>({
@@ -174,7 +189,9 @@ suite('SessionsTitleBarWidget', () => {
 			upcastPartial<ISessionsProvidersService>({
 				onDidChangeProviders: Event.None,
 			}),
-			upcastPartial<ICommandService>({}),
+			upcastPartial<ICommandService>({
+				executeCommand: async commandId => { commands.push(commandId); },
+			}),
 			contextViewService,
 			upcastPartial<IWorkbenchLayoutService>({
 				getContainer: () => layoutContainer,
@@ -200,7 +217,7 @@ suite('SessionsTitleBarWidget', () => {
 		targetWindow.document.body.append(container);
 		disposables.add(toDisposable(() => container.remove()));
 		widget.render(container);
-		return { activeSession, attentionSessionCount, blockedEntry, blockedSessions, container, contextViewService, hoverState, layoutContainer, lists, onDidHideContextMenu, onDidLayoutContainer, onDidShowContextMenu, ordinarySession, previewSession, recentlyOpened, reminderSessions, unacknowledgedBlockedSessions };
+		return { activeSession, attentionSessionCount, blockedEntry, blockedSessions, commands, container, contextViewService, dismissedApprovals, hoverState, layoutContainer, lists, onDidHideContextMenu, onDidLayoutContainer, onDidShowContextMenu, ordinarySession, previewArchived, previewRead, previewSession, previewStatus, recentlyOpened, reminderSessions, sessionActionFeedback, sessionsChanged, unacknowledgedBlockedSessions };
 	}
 
 	test('shows the initial attention notification, dismisses it in the blocked session, and reminds from another session', () => {
@@ -410,6 +427,35 @@ suite('SessionsTitleBarWidget', () => {
 		});
 	}));
 
+	test('opens the searchable picker only for explicit activation when the preview is empty', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const { commands, container, contextViewService, lists, recentlyOpened, sessionsChanged } = createInteractionHarness();
+		recentlyOpened.recent.splice(0);
+		sessionsChanged.fire({ added: [], removed: [], changed: [] });
+
+		container.dispatchEvent(new MouseEvent('mouseenter'));
+		await timeout(100);
+		const afterHover = { commands: [...commands], listCount: lists.length, contextViewOpen: !!contextViewService.container };
+		container.querySelector<HTMLElement>('.agent-sessions-titlebar-pill')!.click();
+		container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+		container.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+
+		assert.deepStrictEqual({
+			afterHover,
+			afterExplicitActivation: { commands, listCount: lists.length, contextViewOpen: !!contextViewService.container },
+		}, {
+			afterHover: { commands: [], listCount: 0, contextViewOpen: false },
+			afterExplicitActivation: {
+				commands: [
+					SHOW_SESSIONS_PICKER_COMMAND_ID,
+					SHOW_SESSIONS_PICKER_COMMAND_ID,
+					SHOW_SESSIONS_PICKER_COMMAND_ID,
+				],
+				listCount: 0,
+				contextViewOpen: false,
+			},
+		});
+	}));
+
 	test('hosts and relayouts the dropdown in the command center window container', () => {
 		const { container, contextViewService, layoutContainer, lists, onDidLayoutContainer } = createInteractionHarness();
 		const otherContainer = mainWindow.document.createElement('div');
@@ -465,6 +511,75 @@ suite('SessionsTitleBarWidget', () => {
 			'session-7',
 			'session-9',
 		]);
+	});
+
+	test('reactively reorders and filters an open command-center preview', () => {
+		const { container, lists, recentlyOpened, sessionsChanged } = createInteractionHarness();
+		const status = observableValue('reactiveStatus', SessionStatus.Completed);
+		const isRead = observableValue('reactiveRead', true);
+		const isArchived = observableValue('reactiveArchived', false);
+		const first = upcastPartial<ISession>({
+			sessionId: 'first',
+			resource: URI.parse('test:/first'),
+			status: constObservable(SessionStatus.Completed),
+			isArchived: constObservable(false),
+			isRead: constObservable(true),
+		});
+		const reactive = upcastPartial<ISession>({
+			sessionId: 'reactive',
+			resource: URI.parse('test:/reactive'),
+			status,
+			isArchived,
+			isRead,
+		});
+		recentlyOpened.recent.splice(0, recentlyOpened.recent.length, first, reactive);
+		sessionsChanged.fire({ added: [], removed: [], changed: [] });
+
+		container.querySelector<HTMLElement>('.agent-sessions-titlebar-pill')!.click();
+		const snapshot = () => lists[0].sessions.map(session => session.sessionId);
+		const initial = snapshot();
+		isRead.set(false, undefined);
+		const unread = snapshot();
+		isArchived.set(true, undefined);
+		const archived = snapshot();
+		transaction(tx => {
+			isArchived.set(false, tx);
+			isRead.set(true, tx);
+			status.set(SessionStatus.NeedsInput, tx);
+		});
+
+		assert.deepStrictEqual({
+			initial,
+			unread,
+			archived,
+			needsInput: snapshot(),
+			listCount: lists.length,
+		}, {
+			initial: ['first', 'reactive'],
+			unread: ['reactive', 'first'],
+			archived: ['first'],
+			needsInput: ['reactive', 'first'],
+			listCount: 1,
+		});
+	});
+
+	test('handles approvals from the ordinary command-center preview', () => {
+		const { blockedEntry, blockedSessions, container, dismissedApprovals, lists, previewSession, reminderSessions, sessionActionFeedback } = createInteractionHarness();
+		transaction(tx => {
+			blockedSessions.set([blockedEntry], tx);
+			reminderSessions.set([blockedEntry], tx);
+		});
+		container.querySelector<HTMLElement>('.agent-sessions-titlebar-pill')!.click();
+
+		lists[0].approveSession(previewSession);
+
+		assert.deepStrictEqual({
+			dismissed: dismissedApprovals.map(approved => ({ sessionId: approved.session.sessionId, approvalId: approved.approvalId })),
+			approvedCount: sessionActionFeedback.approvedCount.get(),
+		}, {
+			dismissed: [{ sessionId: 'preview', approvalId: 'approval' }],
+			approvedCount: 1,
+		});
 	});
 
 	test('hover previews sessions without moving focus and closes after the pointer leaves both surfaces', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

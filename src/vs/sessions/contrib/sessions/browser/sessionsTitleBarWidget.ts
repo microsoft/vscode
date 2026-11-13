@@ -21,7 +21,7 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { autorun, derived, IObservable } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -239,6 +239,8 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private readonly _windowHost: ISessionHost;
 	/** The session represented by the main window's active grid pane, or by this chat window. */
 	private readonly _activeSession: IObservable<ISession | undefined>;
+	/** Ordered sessions eligible for the ordinary command-center preview. */
+	private readonly _commandCenterSessions: IObservable<readonly ISession[]>;
 
 	constructor(
 		action: SubmenuItemAction,
@@ -272,6 +274,15 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const activePane = this.sessionsService.activePane.read(reader);
 			return activePane ? activePane.session.read(reader) : this._windowHost.session.read(reader);
 		});
+		const sessionsChangedEvent = EventUtils.any(
+			this.sessionsManagementService.onDidChangeSessions,
+			this.sessionsManagementService.onDidChangeSessionTypes,
+		);
+		const sessionsChanged = observableSignalFromEvent(this, sessionsChangedEvent);
+		this._commandCenterSessions = derived(this, reader => {
+			sessionsChanged.read(reader);
+			return this._getCommandCenterSessions(reader);
+		});
 
 		this._sessionTitle = environmentService.sessionTitle?.replace(/\s+/g, ' ').trim() || undefined;
 		this._commandCenterDropdownVisibleContext = SessionsCommandCenterDropdownVisibleContext.bindTo(contextKeyService);
@@ -298,7 +309,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._render();
 		}));
 		this._register(autorun(reader => {
-			this._activeSession.read(reader);
+			this._commandCenterSessions.read(reader);
 			this._refreshOpenCommandCenterDropdown();
 		}));
 
@@ -315,13 +326,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._refreshOpenCommandCenterDropdown();
 		}));
 
-		this._register(EventUtils.any(
-			this.sessionsManagementService.onDidChangeSessions,
-			this.sessionsManagementService.onDidChangeSessionTypes,
-		)(() => {
+		this._register(sessionsChangedEvent(() => {
 			this._lastRenderState = undefined;
 			this._render();
-			this._refreshOpenCommandCenterDropdown();
 		}));
 
 		// Re-render when providers change (affects provider picker visibility)
@@ -707,6 +714,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		const { kind, sessions } = this._getCommandCenterDropdownContent();
 		if (sessions.length === 0) {
+			if (pinned) {
+				this._showSessionsPicker();
+			}
 			return;
 		}
 
@@ -793,7 +803,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 				sessions: this._blockedIndicator.blockedSessions.get().map(entry => entry.session),
 			};
 		}
-		return { kind: 'sessions', sessions: this._getCommandCenterSessions() };
+		return { kind: 'sessions', sessions: this._commandCenterSessions.get() };
 	}
 
 	private _refreshOpenCommandCenterDropdown(): void {
@@ -854,12 +864,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			: store.add(this.instantiationService.createInstance(SessionsCommandCenterList, viewContainer, commonOptions));
 		list.setSessions(sessions);
 		store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
-		if (kind === 'blocked') {
-			store.add(list.onDidApproveSession(approved => {
-				this._blockedIndicator.dismissApproval(approved);
-				this._sessionActionFeedback.notifyApproved();
-			}));
-		}
+		store.add(list.onDidApproveSession(approved => {
+			this._blockedIndicator.dismissApproval(approved);
+			this._sessionActionFeedback.notifyApproved();
+		}));
 		this._commandCenterList = list;
 		this._openDropdownKind = kind;
 		if (restoreFocus) {
@@ -867,12 +875,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		}
 	}
 
-	private _getCommandCenterSessions(): readonly ISession[] {
+	private _getCommandCenterSessions(reader: IReader): readonly ISession[] {
 		const { recent, other } = this.sessionsService.getRecentlyOpenedSessions();
-		const groups = groupSessionsForPicker(recent, other);
+		const groups = groupSessionsForPicker(recent, other, reader);
 		const ordered = [...groups.needsInput, ...groups.unread, ...groups.recent, ...groups.other];
 		const preview = ordered.slice(0, COMMAND_CENTER_PREVIEW_MAX_SESSIONS);
-		const activeSessionId = this._activeSession.get()?.sessionId;
+		const activeSessionId = this._activeSession.read(reader)?.sessionId;
 		const activeSession = activeSessionId ? ordered.find(session => session.sessionId === activeSessionId) : undefined;
 		if (!activeSession || preview.some(session => session.sessionId === activeSessionId)) {
 			return preview;
