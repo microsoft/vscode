@@ -7,6 +7,7 @@ import { nativeImage, screen, WebContentsView, webContents } from 'electron';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { BrowserViewCaptureGate } from '../common/browserViewCaptureGate.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
 import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
@@ -70,6 +71,7 @@ export class BrowserView extends Disposable {
 
 	private _wantsVisibility = false;
 	private _hasBeenLaidOut = false;
+	private readonly _captureGate = this._register(new BrowserViewCaptureGate());
 
 	private static readonly MAX_CONSOLE_LOG_ENTRIES = 1000;
 	private readonly _consoleLogs: string[] = [];
@@ -740,6 +742,10 @@ export class BrowserView extends Disposable {
 	 * Update the layout bounds of this view
 	 */
 	layout(bounds: IBrowserViewBounds): void {
+		this._captureGate.applyChange(() => this._layout(bounds));
+	}
+
+	private _layout(bounds: IBrowserViewBounds): void {
 		if (this._currentWindow?.win?.id !== bounds.windowId) {
 			const newWindow = this._windowById(bounds.windowId);
 			if (newWindow) {
@@ -779,6 +785,11 @@ export class BrowserView extends Disposable {
 	 * Set the visibility of this view
 	 */
 	setVisible(visible: boolean): void {
+		// Hiding can't wait for a full-page screenshot: the page would cover what the workbench hides it for, like a menu.
+		this._captureGate.applyChange(() => this._setVisible(visible), visible);
+	}
+
+	private _setVisible(visible: boolean): void {
 		if (this._wantsVisibility === visible) {
 			return;
 		}
@@ -884,6 +895,11 @@ export class BrowserView extends Disposable {
 	 * Capture a screenshot of this view
 	 */
 	async captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer> {
+		const fullPage = !!options?.fullPage && !options.screenRect && !options.pageRect;
+		return this._captureGate.capture(fullPage, () => this._captureScreenshot(fullPage, options));
+	}
+
+	private async _captureScreenshot(fullPage: boolean, options: IBrowserViewCaptureScreenshotOptions | undefined): Promise<VSBuffer> {
 		if (!this._view.getVisible()) {
 			// This ensures the webContents rendering pipeline is ready so background tabs can be captured too.
 			this._view.setVisible(true);
@@ -893,7 +909,7 @@ export class BrowserView extends Disposable {
 		const quality = options?.quality ?? 80;
 		const format = options?.format ?? 'jpeg';
 
-		if (options?.fullPage && !options.screenRect && !options.pageRect) {
+		if (fullPage) {
 			return this._captureFullPageScreenshot(format, quality);
 		}
 
@@ -1013,8 +1029,6 @@ export class BrowserView extends Disposable {
 				// In theory, `clip` defaults to the full area when not explicitly passed, but in practice it doesn't work when
 				// the zoom level isn't 100, because it doesn't multiply the width and height by zoomFactor like we do here.
 				// Setting the clip explicitly, we can multiply by zoomFactor and thus work around this Chromium bug.
-				// Note that even with this workaround, we often see that the page isn't fully captured and might repeat
-				// visual content from the top at the bottom, instead of showing the bottom of the page.
 				// - Another sidenote: Currently the scrollbar width isn't accounted for. If a scrollbar exists, we should add the
 				//   vertical scrollbar's width and horizontal scrollbar's height to the clip dimensions, since the image is currently
 				//   clipped by that amount (this also happens when no clip parameter is provided; ideally it should be fixed upstream
