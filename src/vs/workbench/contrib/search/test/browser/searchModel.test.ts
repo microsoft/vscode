@@ -5,8 +5,9 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as arrays from '../../../../../base/common/arrays.js';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
@@ -675,6 +676,51 @@ suite('SearchModel', () => {
 
 		assert.ok(tokenSource.token.isCancellationRequested);
 	});
+
+	for (const hasSyncResults of [false, true]) {
+		test(`Search Model: a new search discards buffered results with ${hasSyncResults ? 'matching' : 'no matching'} open editors`, async () => {
+			const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+			try {
+				const previousCompletion = new DeferredPromise<ISearchComplete>();
+				const previousProgress = new DeferredPromise<void>();
+				const previousMatch = aRawMatch('/old.txt', new TextSearchMatch('old', new OneLineRange(0, 0, 3)));
+				const currentMatch = aRawMatch('/new.txt', new TextSearchMatch('new', new OneLineRange(0, 0, 3)));
+				instantiationService.stub(ISearchService, 'textSearchSplitSyncAsync', (query: ITextQuery, token: CancellationToken = CancellationToken.None, onProgress?: (result: ISearchProgressItem) => void) => {
+					if (query.contentPattern.pattern === 'old') {
+						queueMicrotask(() => {
+							onProgress?.(previousMatch);
+							previousProgress.complete();
+						});
+						return {
+							syncResults: { results: [], messages: [] },
+							asyncResults: raceCancellationError(previousCompletion.p, token)
+						};
+					}
+					return {
+						syncResults: { results: hasSyncResults ? [currentMatch] : [], messages: [] },
+						asyncResults: Promise.resolve({ results: [], messages: [] })
+					};
+				});
+				instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
+				const model = store.add(instantiationService.createInstance(SearchModelImpl));
+				const previousSearch = model.search({ contentPattern: { pattern: 'old' }, type: QueryType.Text, folderQueries });
+				await previousProgress.p;
+				const cancelled = previousSearch.asyncResults.then(() => false, isCancellationError);
+
+				await model.search({ contentPattern: { pattern: 'new' }, type: QueryType.Text, folderQueries }).asyncResults;
+				assert.ok(await cancelled, 'Expected the previous search to be cancelled');
+				previousCompletion.complete({ results: [], messages: [] });
+				await clock.runAllAsync();
+
+				assert.deepStrictEqual(
+					model.searchResult.matches().map(match => match.resource.toString()),
+					hasSyncResults ? [currentMatch.resource.toString()] : []
+				);
+			} finally {
+				clock.restore();
+			}
+		});
+	}
 
 	test('getReplaceString returns proper replace string for regExpressions', async () => {
 		const results = [
