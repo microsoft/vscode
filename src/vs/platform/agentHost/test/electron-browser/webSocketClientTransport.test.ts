@@ -7,8 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
-import { parseRemoteAgentHostInput } from '../../common/remoteAgentHostService.js';
-import { getProtocolMessageSize, NonReconnectableTransportError, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
+import { getProtocolMessageSize, type ITransportCloseDetails } from '../../common/state/sessionTransport.js';
 
 class TestWebSocket extends EventTarget implements WebSocket {
 	readonly CONNECTING = 0;
@@ -46,117 +45,24 @@ suite('WebSocketClientTransport', () => {
 		const connecting = transport.connect();
 		socket.readyState = socket.OPEN;
 		socket.dispatchEvent(new Event('open'));
-		const error = await connecting.then(() => undefined, error => {
-			if (!(error instanceof NonReconnectableTransportError)) {
-				throw error;
-			}
-			return error.message;
-		});
-		return { urls, error };
+		await connecting;
+		return urls;
 	}
 
-	test('requires TLS for direct non-loopback connections before opening a socket', async () => {
-		const blocked = [
-			'my-server.example:8081',
-			'ws://my-server.example:8081',
-			'ws://192.0.2.1:8081',
-			'ws://[2001:db8::1]:8081',
-			'ws://localhost.example:8081',
-			'ws://127.0.0.1.example:8081',
-			'ws://localhost@my-server.example:8081',
-			'ws://my-server.example:8081/?next=ws://127.0.0.1',
-			'ws://0.0.0.0:8081',
-			'ws://[::]:8081',
-		];
-		const allowed = [
+	test('connects to approved plaintext and secure endpoints using their parsed URLs', async () => {
+		const cases = [
+			{ address: 'host.example:8081', url: 'ws://host.example:8081/?tkn=test-token' },
+			{ address: 'ws://host.example:8081', url: 'ws://host.example:8081/?tkn=test-token' },
+			{ address: 'ws://192.0.2.1:8081', url: 'ws://192.0.2.1:8081/?tkn=test-token' },
 			{ address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/?tkn=test-token' },
-			{ address: 'ws://127.0.0.1:9981', url: 'ws://127.0.0.1:9981/?tkn=test-token' },
-			{ address: 'ws://localhost:8081/agent?mode=local', url: 'ws://localhost:8081/agent?mode=local&tkn=test-token' },
-			{ address: 'ws://127.0.0.2:8081', url: 'ws://127.0.0.2:8081/?tkn=test-token' },
-			{ address: 'ws://127.1:8081', url: 'ws://127.0.0.1:8081/?tkn=test-token' },
 			{ address: 'ws://[::1]:8081', url: 'ws://[::1]:8081/?tkn=test-token' },
-			{ address: 'ws://[0:0:0:0:0:0:0:1]:8081', url: 'ws://[::1]:8081/?tkn=test-token' },
-			{ address: 'wss://my-server.example:8081/agent?mode=remote', url: 'wss://my-server.example:8081/agent?mode=remote&tkn=test-token' },
-		];
-		const results = await Promise.all([...blocked, ...allowed.map(value => value.address)].map(async address => ({
-			address,
-			...await connect(address, 'test-token'),
-		})));
-
-		assert.deepStrictEqual(results, [
-			...blocked.map(address => ({
-				address,
-				urls: [],
-				error: 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
-			})),
-			...allowed.map(({ address, url }) => ({ address, urls: [url], error: undefined })),
-		]);
-	});
-
-	test('enforces transport security after parsing remote host input', async () => {
-		const cases = [
-			{ input: 'my-server.example:8081', address: 'my-server.example:8081', url: undefined },
-			{ input: 'ws://my-server.example:8081', address: 'my-server.example:8081', url: undefined },
-			{ input: 'http://my-server.example:8081', address: 'my-server.example:8081', url: undefined },
-			{ input: '127.0.0.1:9981', address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/' },
-			{ input: 'ws://127.0.0.1:9981', address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/' },
-			{ input: 'http://127.0.0.1:9981', address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/' },
-			{ input: 'https://my-server.example:8081/agent?tkn=test%2Btoken&mode=remote', address: 'wss://my-server.example:8081/agent?mode=remote', url: 'wss://my-server.example:8081/agent?mode=remote&tkn=test%2Btoken' },
-		];
-		const results = await Promise.all(cases.map(async ({ input }) => {
-			const { parsed } = parseRemoteAgentHostInput(input);
-			assert.ok(parsed);
-			return { input, address: parsed.address, ...await connect(parsed.address, parsed.connectionToken) };
-		}));
-
-		assert.deepStrictEqual(results, cases.map(({ input, address, url }) => ({
-			input,
-			address,
-			urls: url ? [url] : [],
-			error: url ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
-		})));
-	});
-
-	test('allows localhost subdomains and root dots without allowing lookalike hosts', async () => {
-		const cases = [
-			{ address: 'api.localhost:8080', url: 'ws://api.localhost:8080/?tkn=test-token' },
 			{ address: 'ws://api.localhost:8080', url: 'ws://api.localhost:8080/?tkn=test-token' },
 			{ address: 'ws://localhost.:8080', url: 'ws://localhost.:8080/?tkn=test-token' },
-			{ address: 'ws://api.localhost.:8080', url: 'ws://api.localhost.:8080/?tkn=test-token' },
-			{ address: 'ws://api.dev.LOCALHOST.:8080/agent?mode=local', url: 'ws://api.dev.localhost.:8080/agent?mode=local&tkn=test-token' },
-			{ address: 'ws://localhost.example:8080', url: undefined },
-			{ address: 'ws://localhost.example.:8080', url: undefined },
-			{ address: 'ws://api.localhost.example:8080', url: undefined },
-			{ address: 'ws://notlocalhost:8080', url: undefined },
-			{ address: 'ws://localhost..:8080', url: undefined },
-			{ address: 'ws://api.localhost..:8080', url: undefined },
+			{ address: 'ws://[::ffff:127.0.0.1]:8080', url: 'ws://[::ffff:7f00:1]:8080/?tkn=test-token' },
+			{ address: 'wss://host.example:8081/agent?mode=a%20b&flag', url: 'wss://host.example:8081/agent?mode=a%20b&flag&tkn=test-token' },
 		];
-		const results = await Promise.all(cases.map(async ({ address }) => ({ address, ...await connect(address, 'test-token') })));
-		assert.deepStrictEqual(results, cases.map(({ address, url }) => ({
-			address,
-			urls: url ? [url] : [],
-			error: url ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
-		})));
-	});
-
-	test('allows IPv4-mapped IPv6 loopback without allowing mapped remote addresses', async () => {
-		const cases = [
-			{ address: 'ws://[::ffff:127.0.0.1]:8080', url: 'ws://[::ffff:7f00:1]:8080/' },
-			{ address: '[::ffff:127.0.0.2]:8080', url: 'ws://[::ffff:7f00:2]:8080/' },
-			{ address: 'ws://[0:0:0:0:0:ffff:7f00:1]:8080', url: 'ws://[::ffff:7f00:1]:8080/' },
-			{ address: 'ws://[::ffff:127.255.255.255]:8080', url: 'ws://[::ffff:7fff:ffff]:8080/' },
-			{ address: 'ws://[::ffff:126.255.255.255]:8080', url: undefined },
-			{ address: 'ws://[::ffff:128.0.0.0]:8080', url: undefined },
-			{ address: 'ws://[::ffff:192.0.2.1]:8080', url: undefined },
-			{ address: 'ws://[::7f00:1]:8080', url: undefined },
-			{ address: 'wss://[::ffff:192.0.2.1]:8080', url: 'wss://[::ffff:c000:201]:8080/' },
-		];
-		const results = await Promise.all(cases.map(async ({ address }) => ({ address, ...await connect(address, undefined) })));
-		assert.deepStrictEqual(results, cases.map(({ address, url }) => ({
-			address,
-			urls: url ? [url] : [],
-			error: url ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
-		})));
+		const results = await Promise.all(cases.map(async ({ address }) => ({ address, urls: await connect(address, 'test-token') })));
+		assert.deepStrictEqual(results, cases.map(({ address, url }) => ({ address, urls: [url] })));
 	});
 
 	test('sends only AHP messages without Web PubSub capability controls', async () => {

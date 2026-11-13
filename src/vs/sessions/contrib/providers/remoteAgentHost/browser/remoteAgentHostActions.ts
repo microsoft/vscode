@@ -26,7 +26,8 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { getRemoteAgentHostWebSocketUrl, InsecureRemoteAgentHostError } from '../../../../../platform/agentHost/common/remoteAgentHostWebSocket.js';
+import { confirmRemoteAgentHostConnection } from '../../../../../platform/agentHost/common/remoteAgentHostWebSocket.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -72,11 +73,13 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
 
 		// Prompt for address
 		const address = await quickInputService.input({
 			title: localize('addRemoteTitle', "Add Remote Agent Host"),
-			prompt: localize('addRemotePrompt', "Paste a secure WebSocket URL, or a loopback host or host:port. Example: {0}", 'wss://host.example:8089'),
+			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Use wss:// for an encrypted connection. Example: {0}", 'wss://host.example:8089'),
 			placeHolder: 'wss://host.example:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
@@ -87,14 +90,6 @@ registerAction2(class extends Action2 {
 				if (!result.parsed) {
 					return localize('addRemoteValidationInvalid', "Enter a valid host, host:port, or WebSocket URL.");
 				}
-				try {
-					getRemoteAgentHostWebSocketUrl(result.parsed.address);
-				} catch (error) {
-					if (error instanceof InsecureRemoteAgentHostError) {
-						return error.message;
-					}
-					throw error;
-				}
 				return undefined;
 			},
 		});
@@ -103,6 +98,9 @@ registerAction2(class extends Action2 {
 		}
 		const parsed = parseRemoteAgentHostInput(address);
 		if (!parsed.parsed) {
+			return;
+		}
+		if (!await confirmRemoteAgentHostConnection(parsed.parsed.address, dialogService, storageService)) {
 			return;
 		}
 

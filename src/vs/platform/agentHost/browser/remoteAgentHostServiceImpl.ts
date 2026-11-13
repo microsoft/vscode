@@ -18,7 +18,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
-import { INotificationService } from '../../notification/common/notification.js';
+import { IDialogService } from '../../dialogs/common/dialogs.js';
 import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -55,7 +55,7 @@ import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type Connect
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
-import { InsecureRemoteAgentHostError } from '../common/remoteAgentHostWebSocket.js';
+import { confirmRemoteAgentHostConnection } from '../common/remoteAgentHostWebSocket.js';
 import { PathStyle } from '../common/state/protocol/common/commands.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
@@ -123,18 +123,23 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IAgentHostAdvertisedAuthenticationResolver private readonly _authenticationResolver: IAgentHostAdvertisedAuthenticationResolver,
+		@IDialogService private readonly _dialogService: IDialogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		super();
 		const rawEntries = observableConfigValue<unknown>(settingId, [], this._configurationService);
 		this.entries = derived(this, reader => parseWebSocketRemoteAgentHostEntries(rawEntries.read(reader)));
 	}
 
-	createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+	async createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.WebSocket) {
 			throw new Error(`WebSocket factory cannot create a ${entry.connection.type} connection.`);
 		}
 
 		const address = entry.connection.address;
+		if (!await confirmRemoteAgentHostConnection(address, this._dialogService, this._storageService) || this._store.isDisposed) {
+			throw new CancellationError();
+		}
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
 		// The protocol client creates a transport for every soft-reconnect attempt.
 		const transportFactory = () => this._instantiationService.createInstance(
@@ -152,7 +157,7 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 				resolveAdvertisedAuthentication: agents => authentication.resolve(agents),
 				onDispose: () => authentication.dispose(),
 			});
-			return Promise.resolve({ connection });
+			return { connection };
 		} catch (error) {
 			authentication.dispose();
 			throw error;
@@ -250,7 +255,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -1025,7 +1029,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			}
 			entry.status = RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason);
 			if (!isAuthenticationFailureReason(disconnectReason)) {
-				entry.lastConnectionError = (attempt.showError || err instanceof InsecureRemoteAgentHostError) && !isCancellationError(err) ? toErrorMessage(err) : undefined;
+				entry.lastConnectionError = attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined;
 			}
 			entry.client = undefined;
 			// Clean up the failed client while retaining its entry and status.
@@ -1034,9 +1038,6 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (terminalConnectError && this._pendingConnects.get(address) === attempt) {
 				this._pendingConnects.delete(address);
 				this._onDidChangePendingConnections.fire();
-			}
-			if (err instanceof InsecureRemoteAgentHostError && !attempt.info.userInitiated) {
-				this._notificationService.error(localize('remoteAgentHost.insecureHost', "Cannot connect to remote agent host '{0}': {1}", entryToCreate.name, err.message));
 			}
 			this._onDidChangeConnections.fire();
 			// Schedule reconnect if the address is still configured
@@ -1276,8 +1277,7 @@ export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
 		@ILogService logService: ILogService,
 		@ILabelService labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
-		@INotificationService notificationService: INotificationService,
 	) {
-		super(configurationService, instantiationService, logService, labelService, storageService, notificationService);
+		super(configurationService, instantiationService, logService, labelService, storageService);
 	}
 }

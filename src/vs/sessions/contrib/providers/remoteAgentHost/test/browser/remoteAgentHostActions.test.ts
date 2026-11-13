@@ -28,7 +28,9 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
 import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
-import { InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IDialogService, type IConfirmation, type IConfirmationResult } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
 import { NotificationChangeType } from '../../../../../../workbench/common/notifications.js';
 import { ICommandService, CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -58,26 +60,38 @@ import { ITestSessionsService, ITestSessionWithChat } from '../../../../../../wo
 suite('Remote Agent Host actions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('Add Remote Agent Host validates transport security before saving an entry', async () => {
+	test('Add Remote Agent Host confirms plaintext before saving and remembers approval', async () => {
 		const inputs = [
-			{ value: 'host.example:8080', allowed: false },
-			{ value: 'ws://host.example:8080', allowed: false },
-			{ value: 'http://host.example:8080', allowed: false },
-			{ value: 'ws://[::ffff:192.0.2.1]:8080', allowed: false },
-			{ value: 'ws://127.0.0.1:8080', allowed: true },
-			{ value: 'ws://[::ffff:127.0.0.1]:8080', allowed: true },
-			{ value: 'ws://api.localhost:8080', allowed: true },
-			{ value: 'ws://localhost.:8080', allowed: true },
-			{ value: 'http://api.localhost.:8080', allowed: true },
-			{ value: 'ws://localhost.example.:8080', allowed: false },
-			{ value: 'ws://api.localhost.example:8080', allowed: false },
-			{ value: 'https://host.example:8080?tkn=test-token', allowed: true },
+			{ value: 'host.example:8080', confirmed: false, warned: true, saved: false },
+			{ value: 'ws://host.example:8080', confirmed: true, warned: true, saved: true },
+			{ value: 'http://host.example:8080?tkn=test-token', confirmed: false, warned: false, saved: true },
+			{ value: 'ws://host.example:8081', confirmed: false, warned: true, saved: false },
+			{ value: 'ws://other.example:8080', confirmed: false, warned: true, saved: false },
+			{ value: 'ws://localhost.example:8080', confirmed: false, warned: true, saved: false },
+			{ value: 'ws://[::ffff:192.0.2.1]:8080', confirmed: false, warned: true, saved: false },
+			{ value: 'ws://127.0.0.1:8080', confirmed: false, warned: false, saved: true },
+			{ value: 'ws://[::ffff:127.0.0.1]:8080', confirmed: false, warned: false, saved: true },
+			{ value: 'ws://api.localhost:8080', confirmed: false, warned: false, saved: true },
+			{ value: 'ws://localhost.:8080', confirmed: false, warned: false, saved: true },
+			{ value: 'http://api.localhost.:8080', confirmed: false, warned: false, saved: true },
+			{ value: 'https://host.example:8080?tkn=test-token', confirmed: false, warned: false, saved: true },
 		];
 		const outcomes: object[] = [];
-		for (const { value } of inputs) {
+		const storage = store.add(new InMemoryStorageService());
+		for (const { value, confirmed } of inputs) {
 			const instantiation = store.add(new TestInstantiationService());
 			const writes: { key: string; value: unknown }[] = [];
 			const connections: string[] = [];
+			const warnings: IConfirmation[] = [];
+			const beforeConfirmation: object[] = [];
+			instantiation.stub(IStorageService, storage);
+			instantiation.stub(IDialogService, new class extends TestDialogService {
+				override async confirm(options: IConfirmation): Promise<IConfirmationResult> {
+					warnings.push(options);
+					beforeConfirmation.push({ writes: writes.length, connections: connections.length });
+					return { confirmed };
+				}
+			}());
 			const configuration = new class extends TestConfigurationService {
 				override async updateValue(key: string, value: unknown): Promise<void> {
 					writes.push({ key, value });
@@ -106,14 +120,16 @@ suite('Remote Agent Host actions', () => {
 				}
 			}());
 			await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.addRemoteAgentHost)!.handler(accessor));
-			outcomes.push({ input: value, validation, prompts, writes: writes.length, connections: connections.length });
+			outcomes.push({ input: value, validation, prompts, writes: writes.length, connections: connections.length, beforeConfirmation, warnings: warnings.map(warning => warning.primaryButton) });
 		}
-		assert.deepStrictEqual(outcomes, inputs.map(({ value, allowed }) => ({
+		assert.deepStrictEqual(outcomes, inputs.map(({ value, saved, warned }) => ({
 			input: value,
-			validation: allowed ? undefined : 'Remote agent hosts require a secure WebSocket connection (wss://). Use TLS or connect through an SSH or Dev Tunnel. Unencrypted connections are only allowed on loopback.',
-			prompts: allowed ? 2 : 1,
-			writes: allowed ? 1 : 0,
-			connections: allowed ? 1 : 0,
+			validation: undefined,
+			prompts: saved ? 2 : 1,
+			writes: saved ? 1 : 0,
+			connections: saved ? 1 : 0,
+			beforeConfirmation: warned ? [{ writes: 0, connections: 0 }] : [],
+			warnings: warned ? ['&&Connect Anyway'] : [],
 		})));
 	});
 

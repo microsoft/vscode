@@ -32,9 +32,8 @@ import { AgentHostTransportFailureReason, NonReconnectableTransportError } from 
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../../common/agentHostAdvertisedAuthentication.js';
 import type { AgentInfo } from '../../common/state/sessionState.js';
 import type { AuthenticateParams } from '../../common/agent.js';
-import { WebSocketClientTransport } from '../../browser/webSocketClientTransport.js';
-import { INotificationService } from '../../../notification/common/notification.js';
-import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
+import { IDialogService, type IConfirmation, type IConfirmationResult } from '../../../dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../dialogs/test/common/testDialogService.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -326,7 +325,6 @@ suite('RemoteAgentHostService', () => {
 	let storageService: TestStorageService;
 	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
-	let notifications: string[];
 
 	setup(() => {
 		configService = new TestConfigurationService();
@@ -336,16 +334,10 @@ suite('RemoteAgentHostService', () => {
 		createdClientInfos = [];
 		createdClientOptions = [];
 		resolveAuthentication = async () => [];
-		notifications = [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(INotificationService, new class extends TestNotificationService {
-			override error(message: Parameters<TestNotificationService['error']>[0]) {
-				notifications.push(String(message));
-				return super.error(message);
-			}
-		}());
+		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
 		instantiationService.stub(IAgentHostAdvertisedAuthenticationResolver, {
@@ -743,42 +735,145 @@ suite('RemoteAgentHostService', () => {
 	}
 
 	for (const window of ['agents', 'editor'] as const) {
-		test(`automatic TLS rejections retain their reason and notify the ${window} window`, async () => {
-			service.dispose();
-			service = disposables.add(instantiationService.createInstance(window === 'agents' ? AgentsWindowRemoteAgentHostService : EditorWindowRemoteAgentHostService));
-			const address = 'ws://host.example:8080';
-			const transport = disposables.add(new class extends WebSocketClientTransport {
-				protected override createWebSocket(): WebSocket {
-					throw new Error('The insecure transport must not create a socket');
+		for (const confirmed of [false, true]) {
+			test(`plaintext ${window} connections wait for confirmation (${confirmed}) before creating a client`, () => runWithFakedTimers({}, async () => {
+				const confirmation = new DeferredPromise<IConfirmationResult>();
+				const prompts: IConfirmation[] = [];
+				instantiationService.stub(IDialogService, new class extends TestDialogService {
+					override confirm(options: IConfirmation): Promise<IConfirmationResult> {
+						prompts.push(options);
+						return confirmation.p;
+					}
+				}());
+				service.dispose();
+				service = disposables.add(instantiationService.createInstance(window === 'agents' ? AgentsWindowRemoteAgentHostService : EditorWindowRemoteAgentHostService));
+				const address = 'host.example:8080';
+				if (window === 'agents') {
+					configService.setRawEntries([{ address, name: 'Configured host' }]);
+				} else {
+					configService.setWorkspaceEntries([{ address, name: 'Configured host' }]);
 				}
-			}(address, undefined, undefined, instantiationService));
-			const error = await transport.connect().then(() => assert.fail('Expected a transport rejection'), err => {
-				assert.ok(err instanceof NonReconnectableTransportError);
-				return err;
-			});
-			const entry = { address, name: 'Configured host' };
-			if (window === 'agents') {
-				configService.setRawEntries([entry]);
-			} else {
-				configService.setWorkspaceEntries([entry]);
-			}
-			await waitForCreatedClients(1);
-			createdClients[0].fireClose();
-			await createdClients[0].connectDeferred.error(error);
-			while (service.pendingConnections.length) {
-				await Event.toPromise(service.onDidChangePendingConnections);
-			}
-			assert.deepStrictEqual({
-				status: service.connections[0]?.status,
-				error: service.connections[0]?.lastConnectionError,
-				notifications,
-			}, {
-				status: RemoteAgentHostConnectionStatus.disconnected,
-				error: error.message,
-				notifications: [`Cannot connect to remote agent host 'Configured host': ${error.message}`],
-			});
-		});
+				await timeout(0);
+				const beforeConfirmation = { clients: createdClients.length, prompts: prompts.length };
+				await confirmation.complete({ confirmed });
+				await timeout(0);
+				let outcome = 'pending';
+				void service.waitForConnection(address).then(
+					() => { outcome = 'connected'; },
+					error => { outcome = isCancellationError(error) ? 'cancelled' : String(error); },
+				);
+				if (confirmed) {
+					await createdClients[0].connectDeferred.complete();
+				}
+				await timeout(60_000);
+				assert.deepStrictEqual({
+					beforeConfirmation,
+					clients: createdClients.length,
+					outcome,
+					button: prompts[0]?.primaryButton,
+				}, {
+					beforeConfirmation: { clients: 0, prompts: 1 },
+					clients: confirmed ? 1 : 0,
+					outcome: confirmed ? 'connected' : 'cancelled',
+					button: '&&Connect Anyway',
+				});
+			}));
+		}
 	}
+
+	test('plaintext approval survives service recreation and is scoped to the endpoint, not credentials', async () => {
+		const prompts: IConfirmation[] = [];
+		instantiationService.stub(IDialogService, new class extends TestDialogService {
+			override async confirm(options: IConfirmation): Promise<IConfirmationResult> {
+				prompts.push(options);
+				return { confirmed: true };
+			}
+		}());
+		for (const address of [
+			'host.example:8080/agent?tkn=first-secret',
+			'ws://HOST.example:8080/other?tkn=second-secret',
+			'host.example:8081',
+			'other.example:8080',
+		]) {
+			service.dispose();
+			configService.setRawEntries([{ address, name: 'Host' }]);
+			service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+			await timeout(0);
+		}
+		const saved = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).map(key => [key, storageService.get(key, StorageScope.APPLICATION)]);
+		assert.deepStrictEqual({
+			prompts: prompts.map(prompt => prompt.message),
+			clients: createdClients.length,
+			containsCredentials: JSON.stringify({ prompts, saved }).includes('secret'),
+		}, {
+			prompts: [
+				'Connect to \'ws://host.example:8080\' without encryption?',
+				'Connect to \'ws://host.example:8081\' without encryption?',
+				'Connect to \'ws://other.example:8080\' without encryption?',
+			],
+			clients: 4,
+			containsCredentials: false,
+		});
+	});
+
+	test('plaintext confirmation is shared by concurrent connections and cancellation is not remembered', async () => {
+		const confirmation = new DeferredPromise<IConfirmationResult>();
+		let prompts = 0;
+		instantiationService.stub(IDialogService, new class extends TestDialogService {
+			override confirm(): Promise<IConfirmationResult> {
+				prompts++;
+				return prompts === 1 ? confirmation.p : Promise.resolve({ confirmed: true });
+			}
+		}());
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+		configService.setRawEntries([
+			{ address: 'host.example:8080/one', name: 'One' },
+			{ address: 'host.example:8080/two', name: 'Two' },
+		]);
+		await timeout(0);
+		const pending = { clients: createdClients.length, prompts };
+		await confirmation.complete({ confirmed: false });
+		await timeout(0);
+		const cancelled = { clients: createdClients.length, prompts };
+		service.reconnect('host.example:8080/one');
+		await timeout(0);
+		assert.deepStrictEqual({ pending, cancelled, retried: { clients: createdClients.length, prompts } }, {
+			pending: { clients: 0, prompts: 1 },
+			cancelled: { clients: 0, prompts: 1 },
+			retried: { clients: 1, prompts: 2 },
+		});
+	});
+
+	test('only non-loopback plaintext endpoints require confirmation', async () => {
+		const prompts: IConfirmation[] = [];
+		instantiationService.stub(IDialogService, new class extends TestDialogService {
+			override async confirm(options: IConfirmation): Promise<IConfirmationResult> {
+				prompts.push(options);
+				return { confirmed: true };
+			}
+		}());
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+		const addresses = [
+			'127.0.0.2:8080', 'ws://127.1:8080', 'ws://[::1]:8080', 'ws://[::ffff:127.255.255.255]:8080',
+			'localhost:8080', 'ws://api.localhost:8080', 'ws://localhost.:8080', 'ws://api.localhost.:8080',
+			'wss://host.example:8080', 'ws://host.example:8080', 'ws://localhost.example:8080',
+			'ws://[::ffff:192.0.2.1]:8080',
+		];
+		for (const address of addresses) {
+			configService.setRawEntries([{ address, name: 'Host' }]);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({ prompts: prompts.map(prompt => prompt.message), clients: createdClients.length }, {
+			prompts: [
+				'Connect to \'ws://host.example:8080\' without encryption?',
+				'Connect to \'ws://localhost.example:8080\' without encryption?',
+				'Connect to \'ws://[::ffff:c000:201]:8080\' without encryption?',
+			],
+			clients: addresses.length,
+		});
+	});
 
 	test('manages multiple connections independently', async () => {
 		configService.setEntries([
