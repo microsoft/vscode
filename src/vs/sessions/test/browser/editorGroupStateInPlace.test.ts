@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { equals } from '../../../base/common/arrays.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -71,7 +72,12 @@ suite('Sessions - Apply editor group state in place', () => {
 		const tabRows: string[][] = [];
 		const store = new DisposableStore();
 		store.add(group.onDidModelChange(() => editorCounts.push(group.count)));
-		const observer = new MutationObserver(() => tabRows.push(group.editors.map(editor => basename(editor.resource!))));
+		const observer = new MutationObserver(() => {
+			const row = group.editors.map(editor => basename(editor.resource!));
+			if (!equals(tabRows.at(-1), row)) {
+				tabRows.push(row);
+			}
+		});
 		observer.observe(part.element, { subtree: true, childList: true, attributes: true });
 		store.add(toDisposable(() => observer.disconnect()));
 		return {
