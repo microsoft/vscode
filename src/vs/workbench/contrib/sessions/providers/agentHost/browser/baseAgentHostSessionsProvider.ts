@@ -5032,6 +5032,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			for (const newSession of this._newSessions.values()) {
 				this._refreshSettingsDerivedNewSessionConfig(newSession);
 			}
+			this._sensitiveEditLocationsBySession.clear();
 			for (const cached of this._sessionCache.values()) {
 				this._syncSensitiveEditLocations(cached);
 			}
@@ -6239,6 +6240,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return config;
 	}
 
+	/** The sensitive-edit locations computed for each session, with the folders they were computed for. See {@link _syncSensitiveEditLocations}. */
+	private readonly _sensitiveEditLocationsBySession = new Map<string, { readonly folders: string; readonly locations: readonly IChatSensitiveEditLocation[] }>();
+
 	private _getSensitiveEditLocations(workspace: ISessionWorkspace | undefined): readonly IChatSensitiveEditLocation[] {
 		return mergeChatSensitiveEditLocations(...(workspace?.folders ?? []).map(folder => {
 			const overrides = { resource: folder.root };
@@ -6255,7 +6259,16 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			return;
 		}
 
-		const desired = this._getSensitiveEditLocations(session.workspace.get());
+		// Its locations follow only the folders of its workspace and their settings, which clear these on change: not the
+		// state updates that call this, such as for every turn of the session.
+		const workspace = session.workspace.get();
+		const folders = (workspace?.folders ?? []).map(folder => folder.root.toString()).join('\n');
+		let computed = this._sensitiveEditLocationsBySession.get(session.sessionId);
+		if (computed?.folders !== folders) {
+			computed = { folders, locations: this._getSensitiveEditLocations(workspace) };
+			this._sensitiveEditLocationsBySession.set(session.sessionId, computed);
+		}
+		const desired = computed.locations;
 		const current = config.values[SessionConfigKey.SensitiveEditLocations];
 		if (equals(current, desired) || (current === undefined && desired.length === 0)) {
 			return;
@@ -6482,6 +6495,9 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 * an explicit write) released after {@link SESSION_STATE_SUBSCRIPTION_IDLE_MS}.
 	 */
 	private _keepChatConfigAlive(sessionId: string, backendChat: string): IChatConfigSubscription | undefined {
+		if (this._store.isDisposed) {
+			return undefined;
+		}
 		let entry = this._chatConfigSubscriptions.get(backendChat);
 		if (!entry && this._failedChatConfigs.has(backendChat)) {
 			if (this._failedChatConfigs.get(backendChat) === this._lastSessionStates.get(sessionId)?.chats) {
@@ -9358,7 +9374,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	private static readonly CHAT_MODEL_RETENTION_MS = 10_000;
 
 	private _keepAgentMergeSessionStateAlive(sessionId: string): void {
-		if (this._isSessionDisabledByPolicy(sessionId)) {
+		if (this._store.isDisposed || this._isSessionDisabledByPolicy(sessionId)) {
 			return;
 		}
 		this._agentMergeSessionStateIdleTimers.deleteAndDispose(sessionId);
@@ -9546,7 +9562,8 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 
 	private _openSessionStateSubscription(sessionId: string): void {
 		const connection = this.connection;
-		if (!connection) {
+		// A disposed provider, such as one released while nothing shows its sessions, holds none: its sessions can still be read
+		if (!connection || this._store.isDisposed) {
 			return;
 		}
 		const rawId = this._sessionKeyFromChatId(sessionId);
@@ -10371,6 +10388,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 					this._unpublishedDraftSessions.delete(cached.resource);
 					this._backendSessionsChanged.trigger(undefined);
 					this._runningSessionConfigs.delete(cached.sessionId);
+					this._sensitiveEditLocationsBySession.delete(cached.sessionId);
 					this._runningSessionConfigResolveSeq.delete(cached.sessionId);
 					this._runningModelConfigurations.deleteAndDispose(cached.sessionId);
 					removed.push(cached);
@@ -10633,6 +10651,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		}
 		this._sessionKeysByResource.delete(stateOwner.resource.with({ fragment: '' }));
 		this._runningSessionConfigs.delete(stateOwner.sessionId);
+		this._sensitiveEditLocationsBySession.delete(stateOwner.sessionId);
 		this._runningSessionConfigResolveSeq.delete(stateOwner.sessionId);
 		this._runningModelConfigurations.deleteAndDispose(stateOwner.sessionId);
 		this._sessionStateErrorRetries.delete(stateOwner.sessionId);
