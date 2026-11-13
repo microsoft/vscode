@@ -83,6 +83,12 @@ suite('FolderLocationsMainService', () => {
 		assert.strictEqual(service.getFolderLocation(workspace), undefined);
 	});
 
+	test('a malformed remembered uri is ignored', async () => {
+		const { service } = await create({ initial: { [extUriBiasedIgnorePathCase.getComparisonKey(workspace)]: { ...location, uri: 'file:////work/alt' } } });
+
+		assert.strictEqual(service.getFolderLocation(workspace), undefined);
+	});
+
 	test('the oldest entries age out', async () => {
 		const { service } = await create();
 		for (let i = 0; i < 105; i++) {
@@ -116,12 +122,31 @@ suite('FolderLocationsMainService', () => {
 			assert.deepStrictEqual(await validate(undefined, { ...location, uri: 'vscode-remote://host/work/repo.wt/feature' }), { result: { folderLocationMissing: { label: 'feature' } }, remembered: undefined, warnings: 0 });
 		});
 
+		test('a malformed location is a missing location', async () => {
+			assert.deepStrictEqual(await validate(undefined, { ...location, uri: 'file:////work/alt' }), { result: { folderLocationMissing: { label: 'feature' } }, remembered: undefined, warnings: 0 });
+		});
+
 		test('without a candidate nothing is validated or forgotten', async () => {
 			assert.deepStrictEqual(await validate(undefined, undefined), { result: {}, remembered: location, warnings: 0 });
 		});
 
 		test('a location that cannot be determined is kept, remembered and logged', async () => {
 			assert.deepStrictEqual(await validate({ provider: new PermissionDeniedFileSystemProvider() }, location), { result: { folderLocation: location }, remembered: location, warnings: 1 });
+		});
+
+		test('open, reload and restore resolve the same remembered location, until it is gone', async () => {
+			const { service } = await create();
+			service.updateFolderLocation(workspace, location);
+			const resolve = () => service.validateFolderLocation(workspace, service.getFolderLocation(workspace));
+
+			const starts = [await resolve(), await resolve()];
+			service.updateFolderLocation(workspace, { ...location, uri: 'file:///work/repo.wt/gone' });
+			const afterDeletion = [await resolve(), await resolve()];
+
+			assert.deepStrictEqual({ starts, afterDeletion }, {
+				starts: [{ folderLocation: location }, { folderLocation: location }],
+				afterDeletion: [{ folderLocationMissing: { label: 'feature' } }, {}]
+			});
 		});
 	});
 });

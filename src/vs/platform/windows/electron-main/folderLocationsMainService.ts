@@ -95,8 +95,8 @@ export class FolderLocationsMainService implements IFolderLocationsMainService {
 			return {};
 		}
 
-		const location = URI.parse(candidate.uri);
-		if (location.scheme === Schemas.file && await this.exists(location) !== 'missing') {
+		const location = parseUri(candidate.uri);
+		if (location?.scheme === Schemas.file && await this.exists(location) !== 'missing') {
 			return { folderLocation: candidate };
 		}
 
@@ -129,5 +129,13 @@ export class FolderLocationsMainService implements IFolderLocationsMainService {
 }
 
 function isWindowFolderLocation(candidate: Partial<IWindowFolderLocation> | undefined): candidate is IWindowFolderLocation {
-	return !!candidate && typeof candidate.uri === 'string' && typeof candidate.label === 'string' && typeof candidate.providerId === 'string';
+	return !!candidate && typeof candidate.uri === 'string' && !!parseUri(candidate.uri) && typeof candidate.label === 'string' && typeof candidate.providerId === 'string';
+}
+
+function parseUri(value: string): URI | undefined {
+	try {
+		return URI.parse(value);
+	} catch {
+		return undefined; // malformed remembered state is ignored
+	}
 }

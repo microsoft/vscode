@@ -291,6 +291,14 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ persisted: [{ uri: other.uri.toString(), label: 'Other', providerId: 'test' }], notifications: [], returns: [] });
 	});
 
+	test('a location confirmed before instantiation without a startup location is persisted', async () => {
+		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', providerId: 'test', builtIn: true };
+		const fixture = createFixture({ folderUri: other.uri, confirmed: other });
+		await settle();
+
+		assert.deepStrictEqual(fixture.persistedCalls, [{ uri: other.uri.toString(), label: 'Other', providerId: 'test' }]);
+	});
+
 	test('a stale location in a multi-root window is cleaned up without a warning', async () => {
 		const fixture = createFixture({ persisted, multiRoot: true });
 		await settle();

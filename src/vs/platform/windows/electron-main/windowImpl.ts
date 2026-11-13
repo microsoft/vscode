@@ -1478,8 +1478,9 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// An alternate location that is gone is not reloaded, and a notice is only shown once
 		delete configuration.folderLocationMissing;
-		if (configuration.folderLocation && isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority) {
-			const validated = await this.folderLocationsMainService.validateFolderLocation(configuration.workspace.uri, configuration.folderLocation);
+		delete configuration.folderLocation;
+		if (isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority && configuration.workspace.uri.scheme === Schemas.file) {
+			const validated = await this.folderLocationsMainService.validateFolderLocation(configuration.workspace.uri, this.folderLocationsMainService.getFolderLocation(configuration.workspace.uri));
 			configuration.folderLocation = validated.folderLocation;
 			configuration.folderLocationMissing = validated.folderLocationMissing;
 		}
