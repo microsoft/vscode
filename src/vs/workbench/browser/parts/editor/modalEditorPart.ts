@@ -43,7 +43,7 @@ import { canMoveModalEditorToEditorArea, IModalEditorNavigation, IModalEditorPar
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
-const MODAL_SIZE_RATIO = 0.85; // fraction of the window (width) and of the area below the title bar (height)
+const MODAL_SIZE_RATIO = 0.9; // fraction of the window (width) and of the area below the title bar (height)
 const MODAL_BORDER_WIDTH = 1; // 1px border on each side
 const MODAL_BORDER_SIZE = MODAL_BORDER_WIDTH * 2;
 const MODAL_HEADER_HEIGHT = 33; // Fallback only — actual height is measured from the rendered header element to account for the compact-header variant.

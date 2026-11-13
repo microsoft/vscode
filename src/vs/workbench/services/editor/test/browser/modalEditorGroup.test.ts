@@ -1043,8 +1043,8 @@ suite('Modal Editor Group', () => {
 		}
 
 		assert.deepStrictEqual(frames, [
-			// 85% of the window width and of the height below the title bar, centered
-			{ className: 'modal-editor-frame', left: '75px', top: '74.875px', width: '850px', height: '650.25px', sashes: 0 },
+			// 90% of the window width and of the height below the title bar, centered
+			{ className: 'modal-editor-frame', left: '50px', top: '55.75px', width: '900px', height: '688.5px', sashes: 0 },
 			// Window smaller than the minimum size: fills the window below the title bar
 			{ className: 'modal-editor-frame', left: '0px', top: '35px', width: '300px', height: '215px', sashes: 0 },
 		]);
@@ -1089,14 +1089,14 @@ suite('Modal Editor Group', () => {
 			const header = (modalPart.modalElement as HTMLElement).getElementsByClassName('modal-editor-header')[0] as HTMLElement;
 			const { left, width: frameWidth, sashes } = getModalFrame(modalPart);
 			const sidebarLayout = layouts.at(-1)!;
-			results.push({ left, frameWidth, sashes, sidebarLayoutWidth: sidebarLayout.width, sidebarFillsHeight: sidebarLayout.height === 650.25 - 2 - header.offsetHeight - 16 });
+			results.push({ left, frameWidth, sashes, sidebarLayoutWidth: sidebarLayout.width, sidebarFillsHeight: sidebarLayout.height === 688.5 - 2 - header.offsetHeight - 16 });
 			await modalPart.close();
 		}
 
 		assert.deepStrictEqual(results, [
-			{ left: '75px', frameWidth: '850px', sashes: 1, sidebarLayoutWidth: 283, sidebarFillsHeight: true },
+			{ left: '50px', frameWidth: '900px', sashes: 1, sidebarLayoutWidth: 283, sidebarFillsHeight: true },
 			// The sidebar width is remembered across modal instances
-			{ left: '75px', frameWidth: '850px', sashes: 1, sidebarLayoutWidth: 283, sidebarFillsHeight: true },
+			{ left: '50px', frameWidth: '900px', sashes: 1, sidebarLayoutWidth: 283, sidebarFillsHeight: true },
 			// Too narrow: the frame keeps the minimum width with a sidebar, and the sidebar shrinks to fit the editor
 			{ left: '20px', frameWidth: '560px', sashes: 1, sidebarLayoutWidth: 143, sidebarFillsHeight: true },
 		]);
@@ -1136,7 +1136,7 @@ suite('Modal Editor Group', () => {
 		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 		const stored = JSON.parse(storageService.get('memento/workbench.editorParts', StorageScope.PROFILE)!);
 
-		const centered = { className: 'modal-editor-frame', left: '75px', top: '74.875px', width: '850px', height: '650.25px', sashes: 0 };
+		const centered = { className: 'modal-editor-frame', left: '50px', top: '55.75px', width: '900px', height: '688.5px', sashes: 0 };
 		assert.deepStrictEqual({ frames, modalState: stored['editorparts.modalState'] }, {
 			frames: [centered, centered],
 			modalState: { sidebarWidth: 300 }
