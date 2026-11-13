@@ -864,6 +864,31 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('offers Worktree grouping, and Show while grouping by worktree, only outside the Agents window', () => {
+		const { snapshot, contextKeyService, grouping } = createMenu();
+		const state = () => ({
+			grouping: snapshot(Menus.SessionsViewGrouping).map(item => item.title),
+			show: snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Show'),
+			showEntries: snapshot(Menus.SessionsViewShow).map(item => item.title),
+		});
+		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		grouping.set(SessionsGrouping.Worktree);
+		// The Agents window offers no Worktree grouping, also if a grouping of worktree were set
+		sessionsWindow.set(true);
+		const agentsWindow = state();
+		sessionsWindow.set(false);
+		grouping.set(SessionsGrouping.Workspace);
+		const editorWindow = snapshot(Menus.SessionsViewGrouping).map(item => item.title);
+		grouping.set(SessionsGrouping.Worktree);
+		const byWorktree = state();
+
+		assert.deepStrictEqual({ agentsWindow, editorWindow, byWorktree }, {
+			agentsWindow: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'], show: false, showEntries: [] },
+			editorWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'],
+			byWorktree: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'], show: true, showEntries: ['Recent', 'All'] },
+		});
+	});
+
 	test('keeps submenu titles unchanged while checked items track the selected choices', () => {
 		const { snapshot, sorting, grouping, capped } = createMenu();
 		sorting.set(SessionsSorting.Updated);
@@ -899,6 +924,8 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: true },
+				// Outside the Agents window, which this menu is not marked as
+				{ title: 'Worktree', group: '1_group', checked: false, enabled: true },
 				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			environmentShow: [
@@ -915,6 +942,7 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: false },
+				{ title: 'Worktree', group: '1_group', checked: false, enabled: true },
 				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			show: [
