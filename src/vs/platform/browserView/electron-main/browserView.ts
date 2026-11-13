@@ -8,7 +8,8 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { BrowserViewDevToolsDockSide, composeDevToolsScreenshot } from '../common/browserViewCompositor.js';
-import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { IBrowserViewAudience, IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IBrowserViewOwner, IBrowserViewEditorOpenOptions, IBrowserViewPermissionRequestEvent, IBrowserViewPromptRequestEvent, equalsBrowserViewAudience, isBrowserViewAssociatedResourceNavigation, matchesBrowserViewAudience, IBrowserViewHost, BrowserViewPresentation, getBrowserViewPopupAction } from '../common/browserView.js';
+import { BrowserViewPrompts } from './browserViewPrompts.js';
 import { BrowserViewEmulator } from './browserViewEmulator.js';
 import { BrowserViewInspector } from './browserViewInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
@@ -119,6 +120,13 @@ export class BrowserView extends Disposable {
 	private readonly _onDidRequestPermission = this._register(new Emitter<IBrowserViewPermissionRequestEvent>());
 	readonly onDidRequestPermission: Event<IBrowserViewPermissionRequestEvent> = this._onDidRequestPermission.event;
 
+	private readonly _prompts = this._register(new BrowserViewPrompts(() => ({
+		workbench: this._wantsVisibility && !this._isDisposed,
+		agent: !this._isDisposed && this.debugger.hasPageSessions,
+	})));
+	readonly onDidRequestPrompt: Event<IBrowserViewPromptRequestEvent> = this._prompts.onDidRequestPrompt;
+	readonly onDidSettlePrompt: Event<string> = Event.map(this._prompts.onDidSettlePrompt, e => e.requestId);
+
 	private readonly _onDidChangePermissions = this._register(new Emitter<ISerializedBrowserPermissionsSnapshot>());
 	readonly onDidChangePermissions: Event<ISerializedBrowserPermissionsSnapshot> = this._onDidChangePermissions.event;
 
@@ -192,6 +200,7 @@ export class BrowserView extends Disposable {
 			if (e.reason === LoadReason.LOAD) {
 				this.dispose(); // Dispose when switching workspaces.
 			} else if (e.reason === LoadReason.RELOAD) {
+				this._prompts.settleAll(); // The reloaded workbench can't show a dialog for a pending prompt.
 				this.setVisible(false); // Hide when reloading.
 			}
 		}));
@@ -264,6 +273,7 @@ export class BrowserView extends Disposable {
 		this.debugger = new BrowserViewDebugger(this);
 		this.emulator = this._register(new BrowserViewEmulator(this, this.logService));
 		this.inspector = this._register(new BrowserViewInspector(this));
+		this._registerPromptCDPBridge();
 
 		this._register(this.session.permissions.onDidRequestPermission(e => {
 			if (e.webContents === this.webContents && !this._isDisposed) {
@@ -461,6 +471,7 @@ export class BrowserView extends Disposable {
 		});
 
 		webContents.on('render-process-gone', (_event, details) => {
+			this._prompts.settleAll();
 			this._lastError = {
 				url: webContents.getURL(),
 				errorCode: details.exitCode,
@@ -468,6 +479,42 @@ export class BrowserView extends Disposable {
 			};
 
 			fireLoadingEvent(false);
+		});
+
+		// A blocked `prompt()` can't outlive the document that called it.
+		webContents.on('did-start-navigation', (details) => {
+			if (details.isSameDocument) {
+				return;
+			}
+			if (details.isMainFrame) {
+				this._prompts.settleAll();
+			} else if (details.frame) {
+				this._prompts.settleOwnedBy(details.frame);
+			}
+		});
+
+		// `window.prompt()` is replaced in the preload and blocks the page on this synchronous message.
+		webContents.ipc.on('vscode:browserView:prompt', (event, message: string, defaultValue: string) => {
+			const respond = (value: string | null) => {
+				event.returnValue = value;
+			};
+			if (typeof message !== 'string' || typeof defaultValue !== 'string') {
+				respond(null);
+				return;
+			}
+			const frame = event.senderFrame ?? undefined;
+			this._prompts.request(frame?.origin ?? webContents.getURL(), message, defaultValue, respond, frame);
+			if (frame) {
+				// Electron has no frame-removed event, so poll until the prompt is settled.
+				const timer = setInterval(() => {
+					if (frame.detached) {
+						this._prompts.settleOwnedBy(frame);
+					}
+					if (!this._prompts.hasPendingFor(frame)) {
+						clearInterval(timer);
+					}
+				}, 500);
+			}
 		});
 
 		// Navigation events (when URL actually changes)
@@ -1110,6 +1157,38 @@ export class BrowserView extends Disposable {
 	 * Answer an in-progress hardware-device chooser. Pass the chosen device id,
 	 * or `null` to cancel the chooser.
 	 */
+	/**
+	 * Chromium never sees our `prompt()`, so present it to CDP clients as the dialog it replaces. This lets
+	 * Playwright raise its usual `dialog` event and answer it with `Page.handleJavaScriptDialog`.
+	 */
+	private _registerPromptCDPBridge(): void {
+		this._register(this._prompts.onDidOpenPrompt(request => {
+			this.debugger.emitPageEvent('Page.javascriptDialogOpening', {
+				url: request.origin,
+				message: request.message,
+				type: 'prompt',
+				hasBrowserHandler: false,
+				defaultPrompt: request.defaultValue,
+			});
+		}));
+		this._register(this._prompts.onDidSettlePrompt(({ value }) => {
+			this.debugger.emitPageEvent('Page.javascriptDialogClosed', { result: value !== null, userInput: value ?? '' });
+		}));
+		this._register(this.debugger.registerCommandInterceptor((method, params, session) => {
+			if (method !== 'Page.handleJavaScriptDialog' || session?.targetId !== this.debugger.targetId) {
+				return undefined;
+			}
+			const { accept, promptText } = params as { accept?: boolean; promptText?: string };
+			// Only claim the command when it answers our prompt. Otherwise it is for a native dialog.
+			const answered = this._prompts.respondToOldest(request => accept ? (promptText ?? request.defaultValue) : null);
+			return answered ? Promise.resolve({}) : undefined;
+		}));
+	}
+
+	respondToPrompt(requestId: string, value: string | null): void {
+		this._prompts.respond(requestId, value);
+	}
+
 	selectDevice(requestId: string, deviceId: string | null): void {
 		this.session.permissions.resolveDevice(requestId, deviceId);
 	}
@@ -1159,6 +1238,9 @@ export class BrowserView extends Disposable {
 			return;
 		}
 		this._isDisposed = true;
+
+		// Unblock any page waiting on a prompt before its webContents is closed.
+		this._prompts.settleAll();
 
 		// Dispose debugger. This detaches debug sessions first.
 		this.debugger.dispose();

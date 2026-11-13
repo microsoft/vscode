@@ -172,7 +172,7 @@ export class BrowserViewInspector extends Disposable {
 		this._register(this.browser.debugger.onTargetDiscovered(async ({ targetId, type }) => {
 			if (type === 'iframe') {
 				try {
-					const session = await this.browser.debugger.attachToTarget(targetId);
+					const session = await this.browser.debugger.attachToTarget(targetId, true);
 					this._watchSession(session);
 				} catch {
 					return;
@@ -181,7 +181,7 @@ export class BrowserViewInspector extends Disposable {
 		}));
 
 		// Attach the main debugger session and watch it for contexts
-		this.browser.debugger.attach().then(conn => this._watchSession(conn)).catch(() => { });
+		this.browser.debugger.attach(true).then(conn => this._watchSession(conn)).catch(() => { });
 	}
 
 	/**

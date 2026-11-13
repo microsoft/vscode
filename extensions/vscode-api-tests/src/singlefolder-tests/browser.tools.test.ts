@@ -284,6 +284,93 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		}
 	});
 
+	test('window.prompt() can be answered with handle_dialog', async function () {
+		this.timeout(60000);
+
+		for (let i = 0; i < 50 && !vscode.lm.tools.some(t => t.name === 'handle_dialog'); i++) {
+			await new Promise(r => setTimeout(r, 200));
+		}
+
+		const server = http.createServer((_request, response) => {
+			response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+			response.end(`<!DOCTYPE html><title>start</title><button id="b" onclick="document.title = 'got:' + JSON.stringify(prompt('Name?', 'Ada'))">go</button>`);
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(0, '127.0.0.1', resolve);
+			});
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+			const url = `http://127.0.0.1:${address.port}/`;
+
+			const openOutput = await invokeTool('open_browser_page', { url, forceNew: true });
+			const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+			assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+			const answers: { accept: boolean; promptText?: string; expected: string }[] = [
+				{ accept: true, promptText: 'Grace', expected: 'got:"Grace"' },
+				{ accept: true, expected: 'got:"Ada"' },
+				{ accept: false, expected: 'got:null' },
+			];
+			for (const { accept, promptText, expected } of answers) {
+				await invokeTool('run_playwright_code', { pageId, code: `await page.evaluate(() => { document.title = 'start'; }); return 'reset';` });
+
+				// The click is interrupted by the open prompt, which the tool reports as an error.
+				let clickOutput: string;
+				try {
+					clickOutput = await invokeTool('click_element', { pageId, selector: '#b', element: 'go button' });
+				} catch (e) {
+					clickOutput = String(e);
+				}
+				assert.match(clickOutput, /dialog/i, `Expected the click to be interrupted by the prompt, got: ${clickOutput}`);
+
+				const handleOutput = await invokeTool('handle_dialog', { pageId, acceptModal: accept, ...(promptText !== undefined ? { promptText } : {}) });
+				assert.ok(handleOutput.includes(`Page Title: ${expected}`), `Expected title ${expected}, got: ${handleOutput}`);
+			}
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
+		}
+	});
+
+	test('window.prompt() in a sandboxed iframe with an opaque origin can be answered', async function () {
+		this.timeout(60000);
+
+		for (let i = 0; i < 50 && !vscode.lm.tools.some(t => t.name === 'handle_dialog'); i++) {
+			await new Promise(r => setTimeout(r, 200));
+		}
+
+		const frameSource = `<script>setTimeout(() => parent.postMessage('got:' + JSON.stringify(prompt('Name?', 'Ada')), '*'), 1500)</script>`;
+		const server = http.createServer((_request, response) => {
+			response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+			response.end(`<!DOCTYPE html><title>start</title><script>addEventListener('message', e => document.title = e.data)</script><iframe sandbox="allow-scripts allow-modals" srcdoc="${frameSource.replace(/"/g, '&quot;')}"></iframe>`);
+		});
+		try {
+			await new Promise<void>((resolve, reject) => {
+				server.once('error', reject);
+				server.listen(0, '127.0.0.1', resolve);
+			});
+			const address = server.address();
+			assert.ok(address && typeof address !== 'string');
+
+			const openOutput = await invokeTool('open_browser_page', { url: `http://127.0.0.1:${address.port}/`, forceNew: true });
+			const pageId = openOutput.match(/Page ID:\s*(\S+)/)?.[1];
+			assert.ok(pageId, `Could not extract Page ID from: ${openOutput}`);
+
+			await new Promise(r => setTimeout(r, 3000));
+			const handleOutput = await invokeTool('handle_dialog', { pageId, acceptModal: true, promptText: 'Grace' });
+			assert.ok(handleOutput.includes('Page Title: got:"Grace"'), `Expected the sandboxed frame to receive the answer, got: ${handleOutput}`);
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				server.close(error => error ? reject(error) : resolve());
+				server.closeAllConnections();
+			});
+		}
+	});
+
 	// Loads `file:///<workspaceFolder>/index.html`. Skipped in remote
 	// workspaces: the workspace folder is a `vscode-remote://` URI so it
 	// isn't added to the local `file://` trust allowlist.

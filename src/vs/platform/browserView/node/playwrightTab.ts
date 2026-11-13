@@ -65,6 +65,22 @@ export class PlaywrightTab {
 			.on('download', download => this._handleDownload(download));
 
 		this._initialized = this._initialize();
+		this._watchDialogClosed().catch(() => { });
+	}
+
+	/**
+	 * Playwright has no event for a closed dialog, so listen to CDP directly. Probing with a script would
+	 * not work for a dialog raised by an out-of-process frame, which doesn't block the main frame.
+	 */
+	private async _watchDialogClosed() {
+		const session = await this.page.context().newCDPSession(this.page);
+		session.on('Page.javascriptDialogClosed', () => {
+			if (this._dialog) {
+				this._dialog = undefined;
+				this._onDialogStateChanged.fire();
+			}
+		});
+		await session.send('Page.enable');
 	}
 
 	private async _initialize() {
@@ -76,13 +92,6 @@ export class PlaywrightTab {
 
 	private _handleDialog(dialog: playwright.Dialog) {
 		this._dialog = dialog;
-		// Playwright doesn't give us an event for when a dialog is closed, so we run a no-op script to know when it closes.
-		this.page.waitForFunction(() => true, undefined, { timeout: 0 }).then(() => {
-			if (this._dialog === dialog) {
-				this._dialog = undefined;
-				this._onDialogStateChanged.fire();
-			}
-		});
 		this._onDialogStateChanged.fire();
 	}
 

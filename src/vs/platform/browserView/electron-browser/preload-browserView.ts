@@ -274,6 +274,21 @@ function init() {
 		// Expose helpers on `window.__vscode_helpers` in the page's main world
 		// for CDP `Runtime.evaluate` (which runs against the main world) to use.
 		contextBridge.exposeInMainWorld('__vscode_helpers', mainWorldHelpers);
+		// Electron hardcodes `window.prompt` to throw, so it can't be defined with `exposeInMainWorld`.
+		// Replace it in the main world with a function that forwards to the workbench and blocks until answered.
+		contextBridge.executeInMainWorld({
+			func: (requestPrompt: (message: string, defaultValue: string) => string | null) => {
+				Object.defineProperty(window, 'prompt', {
+					configurable: true,
+					enumerable: true,
+					writable: true,
+					value: function prompt(message?: unknown, defaultValue?: unknown): string | null {
+						return requestPrompt(message === undefined ? '' : String(message), defaultValue === undefined ? '' : String(defaultValue));
+					}
+				});
+			},
+			args: [(message: string, defaultValue: string): string | null => ipcRenderer.sendSync('vscode:browserView:prompt', message, defaultValue)]
+		});
 	} catch (error) {
 		console.error(error);
 	}
