@@ -1968,7 +1968,6 @@ export class ChatPetWidget extends Disposable {
 				this._setScale(scale);
 			}
 			const enabled = isChatPetVisible(serviceEnabled, isWindowActive);
-			this._subagentPetLayer.classList.toggle('hidden', !enabled);
 			const color = this.chatPetService.color.read(reader);
 			const colorChanged = color !== this._color;
 			this._color = color;

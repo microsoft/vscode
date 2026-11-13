@@ -176,10 +176,6 @@
 	pointer-events: none;
 }
 
-.chat-subagent-pet-layer.hidden {
-	display: none;
-}
-
 .chat-subagent-pet,
 .chat-subagent-pet-despawning {
 	position: absolute;
