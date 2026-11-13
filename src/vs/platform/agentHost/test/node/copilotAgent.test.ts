@@ -15236,6 +15236,21 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('lets the Copilot runtime resolve its proxies itself when http.proxySupport is off', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.resolvedProxyInfo = { url: 'https://secure-proxy.example', type: 'HTTPS', source: 'setting', result: 'HTTPS secure-proxy.example:443' };
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const resolveProxy = getCreatedClientOptions(agent).at(-1)?.network?.resolveProxy;
+			const signal = new AbortController().signal;
+			const on = await resolveProxy?.({ url: 'https://api.example/' }, signal);
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxySupport]: 'off' });
+			const off = await resolveProxy?.({ url: 'https://api.example/' }, signal);
+
+			assert.deepStrictEqual({ on, off }, { on: 'HTTPS secure-proxy.example:443', off: undefined });
+		});
+
 		test('authenticates the Copilot runtime with this machine\'s ticket for the principal it requests, or a client\'s', async () => {
 			const proxyResolver = new TestProxyResolver();
 			const { agent } = createTestAgentContext(disposables, {

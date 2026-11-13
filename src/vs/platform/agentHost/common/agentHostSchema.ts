@@ -615,6 +615,9 @@ export const AgentHostProxyConfigKey = {
 	Proxy: 'http.proxy',
 	ProxyKerberosServicePrincipal: 'http.proxyKerberosServicePrincipal',
 	NoProxy: 'http.noProxy',
+	ProxySupport: 'http.proxySupport',
+	SystemCertificates: 'http.systemCertificates',
+	SystemCertificatesNode: 'http.systemCertificatesNode',
 } as const;
 
 const agentHostProxyConfigDefinition = {
@@ -634,6 +637,30 @@ const agentHostProxyConfigDefinition = {
 		description: localize('agentHost.config.httpNoProxy.description', "Domain names that bypass the configured HTTP proxy."),
 		items: { type: 'string', title: localize('agentHost.config.httpNoProxy.item.title', "Domain") },
 		default: [],
+	}),
+	[AgentHostProxyConfigKey.ProxySupport]: schemaProperty<'off' | 'on' | 'fallback' | 'override'>({
+		type: 'string',
+		title: localize('agentHost.config.httpProxySupport.title', "HTTP Proxy Support"),
+		description: localize('agentHost.config.httpProxySupport.description', "Controls whether network requests from the Agent Host use the resolved proxy."),
+		enum: ['off', 'on', 'fallback', 'override'],
+		enumDescriptions: [
+			localize('agentHost.config.httpProxySupport.off', "Disable proxy support."),
+			localize('agentHost.config.httpProxySupport.on', "Enable proxy support."),
+			localize('agentHost.config.httpProxySupport.fallback', "Enable proxy support, falling back to request options when no proxy is found."),
+			localize('agentHost.config.httpProxySupport.override', "Enable proxy support, overriding request options."),
+		],
+		default: 'override',
+	}),
+	[AgentHostProxyConfigKey.SystemCertificates]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificates.title', "HTTP System Certificates"),
+		description: localize('agentHost.config.httpSystemCertificates.description', "Whether network requests from the Agent Host trust CA certificates loaded from the OS."),
+		default: true,
+	}),
+	[AgentHostProxyConfigKey.SystemCertificatesNode]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.httpSystemCertificatesNode.title', "HTTP System Certificates Node"),
+		description: localize('agentHost.config.httpSystemCertificatesNode.description', "Whether the Agent Host loads system certificates using Node.js built-in support."),
 	}),
 };
 export const agentHostProxyConfigSchema = createSchema(agentHostProxyConfigDefinition);
