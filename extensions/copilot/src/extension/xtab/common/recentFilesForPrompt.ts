@@ -6,6 +6,7 @@ import { DocumentId } from '../../../platform/inlineEdits/common/dataTypes/docum
 import { LanguageContextResponse } from '../../../platform/inlineEdits/common/dataTypes/languageContext';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { PromptOptions, RecentFileClippingStrategy } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { isSensitiveFile } from '../../../platform/inlineEdits/common/sensitiveFiles';
 import { StatelessNextEditDocument } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { IXtabHistoryEditEntry, IXtabHistoryEntry } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ContextKind } from '../../../platform/languageServer/common/languageContextService';
@@ -429,7 +430,7 @@ export function appendNeighborFileSnippets(
 	for (let i = neighborSnippets.length - 1; i >= 0; i--) {
 		const neighborSnippet = neighborSnippets[i];
 		const documentId = DocumentId.create(neighborSnippet.uri);
-		if (docsInPrompt.has(documentId)) {
+		if (docsInPrompt.has(documentId) || isSensitiveFile(documentId)) {
 			continue;
 		}
 		const potentialBudget = tokenBudget - computeTokens(neighborSnippet.snippet);

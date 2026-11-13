@@ -14,10 +14,11 @@ import { InlineEditRequestLogContext, type MarkdownLoggable } from '../../../pla
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { resolveModelConfigValue } from '../../../platform/inlineEdits/common/modelConfigurationResolution';
 import { IObservableDocument, ObservableWorkspace } from '../../../platform/inlineEdits/common/observableWorkspace';
+import { canUseAsContext } from '../../../platform/inlineEdits/common/sensitiveFiles';
 import { IStatelessNextEditModelTelemetry, IStatelessNextEditProvider, IStatelessNextEditTelemetry, NoNextEditReason, StatelessNextEditDocument, StatelessNextEditRequest, StatelessNextEditResult, StatelessNextEditTelemetryBuilder, StreamedEdit } from '../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { autorunWithChanges } from '../../../platform/inlineEdits/common/utils/observable';
 import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../../platform/inlineEdits/common/workspaceEditTracker/historyContextProvider';
-import { IXtabHistoryEditEntry, IXtabHistoryEntry, NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
+import { IXtabHistoryEditEntry, IXtabHistoryEntry, IXtabHistoryRejectedEditEntry, NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogTarget } from '../../../platform/log/common/logService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../platform/requestLogger/common/requestLogger';
@@ -608,6 +609,30 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		return nesConfigs;
 	}
 
+	/**
+	 * History for a request in `docId`. Leaves out other documents that commonly hold secrets,
+	 * see {@link canUseAsContext}.
+	 */
+	private _getHistoryContext(docId: DocumentId): HistoryContext | undefined {
+		const historyContext = this._historyContextProvider.getHistoryContext(docId);
+		if (!historyContext) {
+			return undefined;
+		}
+		const documents = historyContext.documents.filter(d => canUseAsContext(d.docId, docId));
+		return documents.length === historyContext.documents.length ? historyContext : new HistoryContext(documents);
+	}
+
+	/**
+	 * Edit and rejected-edit history for a request in `docId`. Leaves out other documents that
+	 * commonly hold secrets, see {@link canUseAsContext}.
+	 */
+	private _getXtabHistory(docId: DocumentId): { xtabEditHistory: IXtabHistoryEntry[]; rejectedEditHistory: IXtabHistoryRejectedEditEntry[] } {
+		return {
+			xtabEditHistory: this._xtabHistoryTracker.getHistory().filter(e => canUseAsContext(e.docId, docId)),
+			rejectedEditHistory: this._xtabHistoryTracker.getRejectedEditHistory().filter(e => canUseAsContext(e.docId, docId)),
+		};
+	}
+
 	private _processDoc(doc: DocumentHistory): ProcessedDoc {
 		const documentLinesBeforeEdit = doc.lastEdit.base.getLines();
 
@@ -642,7 +667,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 	private async fetchNextEdit(req: NextEditFetchRequest, doc: IObservableDocument, nesConfigs: INesConfigs, shouldExpandEditWindow: boolean, parentLogger: ILogger, telemetryBuilder: LlmNESTelemetryBuilder, cancellationToken: CancellationToken): Promise<Result<CachedOrRebasedEdit, NoNextEditReason>> {
 		const curDocId = doc.id;
 		const logger = parentLogger.createSubLogger('fetchNextEdit');
-		const historyContext = this._historyContextProvider.getHistoryContext(curDocId);
+		const historyContext = this._getHistoryContext(curDocId);
 
 		if (!historyContext) {
 			return Result.error(new NoNextEditReason.Unexpected(new Error('DocumentMissingInHistoryContext')));
@@ -868,8 +893,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		const projectedDocuments = historyContext.documents.map(doc => this._processDoc(doc));
 
-		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
-		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
+		const { xtabEditHistory, rejectedEditHistory } = this._getXtabHistory(curDocId);
 
 		const firstEdit = new DeferredPromise<Result<CachedOrRebasedEdit, NoNextEditReason>>();
 
@@ -1276,7 +1300,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		// not cancel earlier so the prior speculative stays available for reuse
 		// while the new one is being constructed.
 
-		const historyContext = this._historyContextProvider.getHistoryContext(docId);
+		const historyContext = this._getHistoryContext(docId);
 		if (!historyContext) {
 			logger.trace('no history context for speculative request');
 			return;
@@ -1390,8 +1414,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			}
 		});
 
-		const xtabEditHistory = this._xtabHistoryTracker.getHistory();
-		const rejectedEditHistory = this._xtabHistoryTracker.getRejectedEditHistory();
+		const { xtabEditHistory, rejectedEditHistory } = this._getXtabHistory(curDocId);
 		// Keep the request-local suggestion last without advancing the tracker's ordinal.
 		const suggestedEditOrdinal = Math.max(
 			xtabEditHistory.at(-1)?.ordinal ?? -1,

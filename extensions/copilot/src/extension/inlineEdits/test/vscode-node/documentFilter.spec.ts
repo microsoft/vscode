@@ -16,9 +16,9 @@ describe('DocumentFilter', () => {
 
 	const js = 'javascript';
 
-	function createDoc(languageId: string): vscode.TextDocument {
+	function createDoc(languageId: string, uri = 'file:///foo/bar'): vscode.TextDocument {
 		return {
-			uri: URI.parse('file:///foo/bar'),
+			uri: URI.parse(uri),
 			languageId,
 		} as vscode.TextDocument;
 	}
@@ -35,6 +35,41 @@ describe('DocumentFilter', () => {
 		const doc = createDoc(js);
 		const isEnabled = await documentFilter.isTrackingEnabled(doc);
 		expect(isEnabled).toBe(true);
+	});
+
+	it('tracks documents of every scheme except ignored ones (issue #337933)', async () => {
+		const documentFilter = new DocumentFilter(ignoreService, new DefaultsOnlyConfigurationService());
+		const uris = [
+			'file:///a.ts',
+			'untitled:Untitled-1',
+			'vscode-notebook-cell:/a.ipynb#W0sZmlsZQ%3D%3D',
+			'memfs:/a.ts',
+			'zowe-ds:/profile/USER.COBOL(MEMBER)',
+			'vscode-remote://ssh-remote%2Bhost/a.ts',
+			'vscode-userdata:/Users/u/Library/Application%20Support/Code/User/settings.json',
+			'output:extension-output-1',
+			'git:/a.ts?%7B%7D',
+			'vscode-chat-code-block:/1',
+			'chatSessionInput:/1',
+			'vscode-chat-terminal-output:/terminal/1/out.txt',
+		];
+
+		const tracked = Object.fromEntries(await Promise.all(uris.map(async uri => [uri, await documentFilter.isTrackingEnabled(createDoc(js, uri))])));
+
+		expect(tracked).toEqual({
+			'file:///a.ts': true,
+			'untitled:Untitled-1': true,
+			'vscode-notebook-cell:/a.ipynb#W0sZmlsZQ%3D%3D': true,
+			'memfs:/a.ts': true,
+			'zowe-ds:/profile/USER.COBOL(MEMBER)': true,
+			'vscode-remote://ssh-remote%2Bhost/a.ts': true,
+			'vscode-userdata:/Users/u/Library/Application%20Support/Code/User/settings.json': true,
+			'output:extension-output-1': false,
+			'git:/a.ts?%7B%7D': false,
+			'vscode-chat-code-block:/1': false,
+			'chatSessionInput:/1': false,
+			'vscode-chat-terminal-output:/terminal/1/out.txt': false,
+		});
 	});
 
 	it('can react to copilot.enable config changes for off-by-default language id', async () => {
