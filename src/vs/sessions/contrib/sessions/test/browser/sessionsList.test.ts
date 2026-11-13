@@ -2339,6 +2339,8 @@ suite('Sessions - SessionsList', () => {
 					.find(label => label.textContent === (customGroup ? group.name : 'Workspace'))!;
 				const appearance = () => ({
 					color: label().style.getPropertyValue('--session-group-foreground'),
+					interactionColors: ['focus', 'selection', 'inactive-focus', 'inactive-selection']
+						.map(state => label().style.getPropertyValue(`--session-group-${state}-foreground`)),
 				});
 				const initial = appearance();
 				const groupsService = harness.instantiationService.get(ISessionGroupsService);
@@ -2402,13 +2404,89 @@ suite('Sessions - SessionsList', () => {
 				}));
 				setColor(undefined);
 				assert.deepStrictEqual({ initial, contrasts, interactionColors, highContrast, translucentBackgrounds, reset: appearance() }, {
-					initial: { color: '' },
+					initial: { color: '', interactionColors: ['', '', '', ''] },
 					contrasts: Array(40).fill(true),
 					interactionColors: Array(12).fill({ label: 'rgb(229, 229, 16)', icon: 'rgb(229, 229, 16)' }),
-					highContrast: [{ color: '' }, { color: '' }],
-					translucentBackgrounds: [{ color: '' }, { color: '' }, { color: '' }],
-					reset: { color: '' },
+					highContrast: Array(2).fill({ color: '', interactionColors: ['', '', '', ''] }),
+					translucentBackgrounds: Array(3).fill({ color: '', interactionColors: ['', '', '', ''] }),
+					reset: { color: '', interactionColors: ['', '', '', ''] },
 				});
+			});
+
+			test(`group label contrast follows rendered focus and selection surfaces (${compact ? 'compact' : 'default'}, ${customGroup ? 'custom group' : 'workspace'})`, () => {
+				const session = createTestSession('Session').session;
+				const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+				const harness = createListHarness(disposables, [session], customGroup ? {
+					groups: [group],
+					memberships: new Map([[session.sessionId, group.id]]),
+				} : {});
+				const themeService = new TestThemeService();
+				harness.instantiationService.stub(IThemeService, themeService);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					compact: () => compact,
+					onSessionOpen: () => { },
+				}));
+				list.layout(700, 400);
+				const groupsService = harness.instantiationService.get(ISessionGroupsService);
+				if (customGroup) {
+					groupsService.setGroupColor(group.id, 'terminal.ansiBlue');
+				} else {
+					groupsService.setSectionColor('workspace:Workspace', 'terminal.ansiBlue');
+				}
+				const label = [...container.querySelectorAll<HTMLElement>('.session-section-label')]
+					.find(label => label.textContent === (customGroup ? group.name : 'Workspace'))!;
+				const row = label.closest<HTMLElement>('.monaco-list-row')!;
+				const listElement = row.closest<HTMLElement>('.monaco-list')!;
+				const results = [];
+				const expected = [];
+				for (const background of ['#ffffff', '#181818']) {
+					const colors: Record<string, string> = {
+						'agents.background': background,
+						'terminal.ansiBlue': '#0060c0',
+						'list.hoverBackground': '#88888822',
+						'list.focusBackground': '#e5e510',
+						'list.activeSelectionBackground': '#0060c0',
+						'list.inactiveFocusBackground': '#ffffff80',
+						'list.inactiveSelectionBackground': '#101010cc',
+					};
+					themeService.setTheme(new TestColorTheme(colors));
+					for (const [id, value] of Object.entries(colors)) {
+						container.style.setProperty(`--vscode-${id.replaceAll('.', '-')}`, value);
+					}
+					for (const active of [false, true]) {
+						if (active) {
+							listElement.focus();
+						} else {
+							listElement.blur();
+						}
+						for (const classes of [[], ['hovered'], ['focused'], ['selected'], ['focused', 'hovered'], ['selected', 'hovered'], ['focused', 'selected'], ['focused', 'selected', 'hovered']]) {
+							row.classList.remove('focused', 'selected', 'hovered');
+							row.classList.add(...classes);
+							const stateBackground = classes.includes('selected')
+								? active ? 'list.activeSelectionBackground' : 'list.inactiveSelectionBackground'
+								: classes.includes('focused')
+									? active ? 'list.focusBackground' : 'list.inactiveFocusBackground'
+									: classes.includes('hovered') ? 'list.hoverBackground' : 'agents.background';
+							const base = Color.fromHex(background);
+							const surface = Color.Format.CSS.parse(mainWindow.getComputedStyle(row).backgroundColor)!.flatten(base);
+							const foreground = Color.Format.CSS.parse(mainWindow.getComputedStyle(label).color)!;
+							results.push({
+								active: mainWindow.document.activeElement === listElement,
+								surface: surface.toString(),
+								readable: surface.getContrastRatio(foreground) >= 4.5,
+							});
+							expected.push({
+								active,
+								surface: Color.fromHex(colors[stateBackground]).flatten(base).toString(),
+								readable: true,
+							});
+						}
+					}
+				}
+				assert.deepStrictEqual(results, expected);
 			});
 		}
 

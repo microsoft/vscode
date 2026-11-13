@@ -55,7 +55,7 @@ import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list
 import { IStyleOverride, defaultButtonStyles, defaultFindWidgetStyles, defaultInputBoxStyles, defaultKeybindingLabelStyles, getButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { chartsOrange } from '../../../../../platform/theme/common/colors/chartsColors.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import { listHoverBackground } from '../../../../../platform/theme/common/colors/listColors.js';
+import { listActiveSelectionBackground, listFocusBackground, listHoverBackground, listInactiveFocusBackground, listInactiveSelectionBackground } from '../../../../../platform/theme/common/colors/listColors.js';
 import { isHighContrast } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService, Themable } from '../../../../../platform/theme/common/themeService.js';
 import { agentsBackground } from '../../common/theme.js';
@@ -2679,6 +2679,15 @@ interface ISessionHeaderTemplate {
 	readonly elementDisposables: DisposableStore;
 }
 
+const sessionHeaderLabelBackgrounds = [
+	['--session-group-foreground', agentsBackground],
+	['--session-group-hover-foreground', listHoverBackground],
+	['--session-group-focus-foreground', listFocusBackground],
+	['--session-group-selection-foreground', listActiveSelectionBackground],
+	['--session-group-inactive-focus-foreground', listInactiveFocusBackground],
+	['--session-group-inactive-selection-foreground', listInactiveSelectionBackground],
+] as const;
+
 class SessionHeaderLabelColor extends Themable {
 	constructor(
 		private readonly template: ISessionHeaderTemplate,
@@ -2692,20 +2701,20 @@ class SessionHeaderLabelColor extends Themable {
 	override updateStyles(): void {
 		const color = this.theme.getColor(this.colorId);
 		const background = this.theme.getColor(agentsBackground);
-		const hover = this.theme.getColor(listHoverBackground);
-		const hoverBackground = background && hover ? hover.flatten(background) : background;
 		// A translucent shell has no single opaque surface against which to correct contrast.
 		const preserveForeground = isHighContrast(this.theme.type) || background?.isOpaque() === false;
-		const foreground = preserveForeground ? '' : color && background ? background.ensureConstrast(color.flatten(background), 4.5).toString() : asCssVariable(this.colorId);
-		const hoverForeground = preserveForeground ? '' : color && hoverBackground ? hoverBackground.ensureConstrast(color.flatten(hoverBackground), 4.5).toString() : foreground;
-		this.template.label.style.setProperty('--session-group-foreground', foreground);
-		this.template.label.style.setProperty('--session-group-hover-foreground', hoverForeground);
+		for (const [property, backgroundId] of sessionHeaderLabelBackgrounds) {
+			const surface = background && (this.theme.getColor(backgroundId)?.flatten(background) ?? background);
+			const foreground = preserveForeground ? '' : color && surface ? surface.ensureConstrast(color.flatten(surface), 4.5).toString() : asCssVariable(this.colorId);
+			this.template.label.style.setProperty(property, foreground);
+		}
 	}
 
 	override dispose(): void {
 		super.dispose();
-		this.template.label.style.removeProperty('--session-group-foreground');
-		this.template.label.style.removeProperty('--session-group-hover-foreground');
+		for (const [property] of sessionHeaderLabelBackgrounds) {
+			this.template.label.style.removeProperty(property);
+		}
 	}
 }
 
