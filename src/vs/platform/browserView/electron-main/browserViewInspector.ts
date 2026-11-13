@@ -7,7 +7,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
-import { ICDPConnection } from '../common/cdp/types.js';
+import { CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
 import { localize } from '../../../nls.js';
@@ -114,13 +114,16 @@ export class BrowserViewInspector extends Disposable {
 		// Wire up inspector adoption from the registry
 		this._register(this._registry.onDidAdopt(inspector => this._onInspectorAdopted(inspector)));
 
+		const onNavigatedPrune = () => this._registry.pruneRetiredFrames();
+
 		// Navigation destroys preload overlays and CDP state
 		const onNavigated = () => {
 			this._activeSelection.clear();
 			this._activeAreaSelection.clear();
 		};
 		webContents.on('did-navigate', onNavigated);
-		this._register({ dispose: () => webContents.removeListener('did-navigate', onNavigated) });
+		webContents.on('did-navigate', onNavigatedPrune);
+		this._register({ dispose: () => { webContents.removeListener('did-navigate', onNavigated); webContents.removeListener('did-navigate', onNavigatedPrune); } });
 
 		// Preload ready — the key correlation point between WebFrameMain and CDP target
 		const onIpcMessage = (_event: Electron.Event, channel: string, ...args: unknown[]) => {
@@ -178,22 +181,32 @@ export class BrowserViewInspector extends Disposable {
 	 * so this is deferred until a feature needs frame inspectors, and stays attached afterwards.
 	 */
 	private _ensureAttached(): Promise<void> {
+		if (this._store.isDisposed) {
+			return Promise.resolve();
+		}
 		this._attachPromise ??= this._attach();
 		return this._attachPromise;
 	}
 
 	private async _attach(): Promise<void> {
-		// Cross-origin (OOPIF) targets get their own session — watch it for contexts
-		this._register(this.browser.debugger.onTargetDiscovered(async ({ targetId, type }) => {
-			if (type === 'iframe') {
-				try {
-					const session = await this.browser.debugger.attachToTarget(targetId);
-					this._watchSession(session);
-				} catch {
-					return;
-				}
+		// Cross-origin (OOPIF) targets get their own session — watch it for contexts.
+		// Targets discovered before this point never fire again, so replay the known ones.
+		const attachedTargets = new Set<string>();
+		const watchTarget = async ({ targetId, type }: CDPTargetInfo) => {
+			if (type !== 'iframe' || attachedTargets.has(targetId) || this._store.isDisposed) {
+				return;
 			}
-		}));
+			attachedTargets.add(targetId);
+			try {
+				this._watchSession(await this.browser.debugger.attachToTarget(targetId));
+			} catch {
+				return;
+			}
+		};
+		this._register(this.browser.debugger.onTargetDiscovered(watchTarget));
+		for (const targetInfo of this.browser.debugger.knownTargets.values()) {
+			void watchTarget(targetInfo);
+		}
 
 		try {
 			this._watchSession(await this.browser.debugger.attach());
@@ -355,7 +368,6 @@ export class BrowserViewInspector extends Disposable {
 		// Element and area selection are mutually exclusive — enabling one
 		// cancels the other so both pickers never overlay the page at once.
 		this._activeAreaSelection.clear();
-		await this._ensureAttached();
 
 		const activeSelection = this._activeSelection.value;
 		const updatedOptions = activeSelection ? { ...activeSelection.options, ...options } : { mode: BrowserElementSelectionMode.Select, ...options };
@@ -403,6 +415,8 @@ export class BrowserViewInspector extends Disposable {
 	}
 
 	private async _startInspection(selection: IActiveSelection, options: IBrowserElementSelectionOptions): Promise<boolean> {
+		// The selection is already registered, so cancellation during attach is caught by the identity check below.
+		await this._ensureAttached();
 		await this._queueInspectionOperation(async () => {
 			if (this._activeSelection.value !== selection || selection.options !== options) {
 				return;
@@ -645,6 +659,13 @@ class FrameInspectorRegistry extends Disposable {
 	 * If a matching CDP context was already discovered, adopts immediately.
 	 */
 	notifyFrameReady(frame: Electron.WebFrameMain, token: string): void {
+		this.pruneRetiredFrames();
+		// A frame only has one live preload; a newer token supersedes its older ones.
+		for (const [oldToken, oldFrame] of this._pendingFrames) {
+			if (oldFrame === frame && oldToken !== token) {
+				this._pendingFrames.delete(oldToken);
+			}
+		}
 		const pending = this._pendingSessions.get(token);
 		if (pending) {
 			this._pendingSessions.delete(token);
@@ -665,6 +686,15 @@ class FrameInspectorRegistry extends Disposable {
 			this._adopt(session, uniqueContextId, frameId, frame);
 		} else {
 			this._pendingSessions.set(token, { session, uniqueContextId, frameId });
+		}
+	}
+
+	/** Drops pending preload entries for frames that were removed or destroyed, which nothing else consumes while CDP is unattached. */
+	pruneRetiredFrames(): void {
+		for (const [token, frame] of this._pendingFrames) {
+			if (frame.detached || frame.isDestroyed()) {
+				this._pendingFrames.delete(token);
+			}
 		}
 	}
 

@@ -66,16 +66,17 @@ class TestSession extends Disposable implements ICDPConnection {
 suite('BrowserViewInspector', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createInspector(mainReady?: Promise<ICDPConnection>) {
+	function createInspector(mainReady?: Promise<ICDPConnection>, knownTargets: CDPTargetInfo[] = []) {
 		const main = disposables.add(new TestSession('main'));
 		const child = disposables.add(new TestSession('child'));
 		const targets = disposables.add(new Emitter<CDPTargetInfo>());
 		const webContents = new EventEmitter();
-		const attachCalls = { count: 0 };
+		const attachCalls = { count: 0, targets: 0 };
 		const debuggerInstance = new class extends mock<BrowserViewDebugger>() {
 			override readonly onTargetDiscovered = targets.event;
+			override get knownTargets(): ReadonlyMap<string, CDPTargetInfo> { return new Map(knownTargets.map(t => [t.targetId, t])); }
+			override async attachToTarget(): Promise<ICDPConnection> { attachCalls.targets++; return child; }
 			override async attach(): Promise<ICDPConnection> { attachCalls.count++; return mainReady ?? main; }
-			override async attachToTarget(): Promise<ICDPConnection> { return child; }
 		};
 		const browser = new class extends mock<BrowserView>() {
 			override readonly debugger = debuggerInstance;
@@ -178,5 +179,122 @@ suite('BrowserViewInspector', () => {
 
 		await inspector.toggleElementSelection(true);
 		assert.strictEqual(attachCalls.count, 1);
+	});
+
+	const iframeTarget: CDPTargetInfo = { targetId: 'child', type: 'iframe', title: '', url: '', attached: true, canAccessOpener: false };
+
+	function createFrame(state = { detached: false }) {
+		return new class extends mock<Electron.WebFrameMain>() {
+			override get detached() { return state.detached; }
+			override readonly url = 'https://example.com';
+			override readonly ipc = new EventEmitter() as Electron.IpcMain;
+			override isDestroyed() { return false; }
+			override postMessage() { }
+		};
+	}
+
+	function contextCreated(uniqueId: string, frameId: string): CDPEvent {
+		return { method: 'Runtime.executionContextCreated', params: { context: { uniqueId, auxData: { isDefault: true, frameId } } } };
+	}
+
+	test('adopts an iframe target discovered by another consumer before first use', async () => {
+		const { inspector, child, webContents, attachCalls } = createInspector(undefined, [iframeTarget]);
+		const iframe = createFrame();
+		child.tokens.set('iframe-context', 'iframe-token');
+		webContents.emit('ipc-message', { senderFrame: iframe }, 'vscode:browserView:preloadReady', 'iframe-token');
+
+		await inspector.toggleElementSelection(true);
+		await Promise.resolve();
+		child.fireEvent(contextCreated('iframe-context', 'iframe-frame'));
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect adopted frames without exposing test-only API.
+		assert.deepStrictEqual({ targets: attachCalls.targets, adopted: !!inspector['_registry'].getByFrame(iframe) }, { targets: 1, adopted: true });
+	});
+
+	suite('pending selection while attaching', () => {
+		async function startPending() {
+			const ready = new DeferredPromise<ICDPConnection>();
+			const ctx = createInspector(ready.p);
+			void ctx.inspector.toggleElementSelection(true);
+			await Promise.resolve();
+			return { ...ctx, ready };
+		}
+
+		async function settle(ready: DeferredPromise<ICDPConnection>, main: ICDPConnection) {
+			await ready.complete(main);
+			await new Promise<void>(resolve => setImmediate(resolve));
+		}
+
+		test('does not start after being disabled', async () => {
+			const { inspector, main, ready } = await startPending();
+			await inspector.toggleElementSelection(false);
+			await settle(ready, main);
+			assert.strictEqual(inspector.isElementSelectionActive, false);
+		});
+
+		test('does not start after navigation', async () => {
+			const { inspector, main, webContents, ready } = await startPending();
+			webContents.emit('did-navigate');
+			await settle(ready, main);
+			assert.strictEqual(inspector.isElementSelectionActive, false);
+		});
+
+		test('does not start after area selection takes over', async () => {
+			const { inspector, main, webContents, ready } = await startPending();
+			(webContents as EventEmitter & { mainFrame?: Electron.WebFrameMain }).mainFrame = createFrame();
+			await inspector.toggleAreaSelection(true);
+			await settle(ready, main);
+			assert.deepStrictEqual([inspector.isElementSelectionActive, inspector.isAreaSelectionActive], [false, true]);
+		});
+
+		test('does not start after disposal', async () => {
+			const { inspector, main, ready } = await startPending();
+			inspector.dispose();
+			await settle(ready, main);
+			assert.strictEqual(inspector.isElementSelectionActive, false);
+		});
+
+		test('starts when not cancelled', async () => {
+			const { inspector, main, ready } = await startPending();
+			await settle(ready, main);
+			assert.strictEqual(inspector.isElementSelectionActive, true);
+		});
+	});
+
+	test('retires pending preloads of removed frames and superseded tokens before attachment', async () => {
+		const { inspector, main, child, targets, webContents } = createInspector();
+		const mainState = { detached: false };
+		const iframeState = { detached: false };
+		const mainFrame = createFrame(mainState);
+		const iframe = createFrame(iframeState);
+		const liveIframe = createFrame();
+		main.tokens.set('main-context', 'main-token-2');
+		child.tokens.set('iframe-context', 'live-token');
+
+		webContents.emit('ipc-message', { senderFrame: mainFrame }, 'vscode:browserView:preloadReady', 'main-token-1');
+		webContents.emit('ipc-message', { senderFrame: mainFrame }, 'vscode:browserView:preloadReady', 'main-token-2');
+		webContents.emit('ipc-message', { senderFrame: iframe }, 'vscode:browserView:preloadReady', 'removed-token');
+		webContents.emit('ipc-message', { senderFrame: liveIframe }, 'vscode:browserView:preloadReady', 'live-token');
+		iframeState.detached = true;
+		webContents.emit('did-navigate');
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained state without exposing test-only API.
+		const registry = inspector['_registry'];
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained state without exposing test-only API.
+		const pendingTokens = [...registry['_pendingFrames'].keys()];
+
+		await inspector.toggleElementSelection(true);
+		targets.fire(iframeTarget);
+		await Promise.resolve();
+		main.fireEvent(contextCreated('main-context', 'main-frame'));
+		child.fireEvent(contextCreated('iframe-context', 'iframe-frame'));
+		await new Promise<void>(resolve => setImmediate(resolve));
+
+		assert.deepStrictEqual({
+			pendingTokens,
+			mainAdopted: !!registry.getByFrame(mainFrame),
+			liveIframeAdopted: !!registry.getByFrame(liveIframe),
+		}, { pendingTokens: ['main-token-2', 'live-token'], mainAdopted: true, liveIframeAdopted: true });
 	});
 });
