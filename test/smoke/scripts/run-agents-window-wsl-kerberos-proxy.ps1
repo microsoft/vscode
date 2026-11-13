@@ -5,23 +5,42 @@
 
 <#
 .SYNOPSIS
-	Runs the smoke tests with an Agent Host in WSL that reaches the HTTPS mock model server only through a
-	Kerberos-authenticated proxy, using the Windows client's proxy configuration, Kerberos ticket and certificates.
+	Runs the smoke tests with an Agent Host in WSL that reaches the HTTPS mock model server only through an
+	authenticated proxy, using the Windows client's proxy configuration, credentials and certificates.
 
 .DESCRIPTION
-	One suite starts the Agent Host from the Agents Window, the other opens an editor window on a VS Code server in WSL,
-	which spawns the Agent Host. In the WSL distribution, this starts an MIT Kerberos KDC and a Squid proxy that requires
-	Kerberos, with a throwaway test CA for the mock server and, with -ProxyScheme Https, the proxy. On Windows, it
-	registers the realm's KDC, trusts the test CA, allows Squid to reach the mock server through the firewall, and points
-	the user's proxy settings at a PAC. Changing the machine configuration needs administrator rights: the script prompts
-	once for setup and once for cleanup, unless it already runs elevated, as on CI agents. The smoke tests then run with
-	network-only credentials for the realm, like `runas /netonly`, so only Windows can obtain Kerberos tickets. Every
-	change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-kerberos-proxy.
+	With -ProxyAuth Kerberos, one suite starts the Agent Host from the Agents Window, the other opens an editor window on
+	a VS Code server in WSL, which spawns the Agent Host. In the WSL distribution, this starts an MIT Kerberos KDC and a
+	Squid proxy that requires Kerberos, with a throwaway test CA for the mock server and, with -ProxyScheme Https, the
+	proxy. On Windows, it registers the realm's KDC, trusts the test CA, allows Squid to reach the mock server through the
+	firewall, and points the user's proxy settings at a PAC. Changing the machine configuration needs administrator
+	rights: the script prompts once for setup and once for cleanup, unless it already runs elevated, as on CI agents. The
+	smoke tests then run with network-only credentials for the realm, like `runas /netonly`, so only Windows can obtain
+	Kerberos tickets.
 
-	The distribution needs krb5-kdc, krb5-admin-server, squid-openssl, openssl and curl, and NAT networking.
+	With -ProxyAuth Basic, only the editor window suite runs, Squid requires Basic authentication instead, and the
+	smoke tests set the proxy with its credentials in the http.proxy setting instead of the system proxy settings, with no
+	KDC, PAC or network-only credentials.
+
+	With -ProxyAuth BasicPac, the Agents Window suites run with a local Agent Host and with one in WSL. Squid requires
+	Basic authentication, the PAC selects it, and the smoke tests type its credentials into the proxy login dialog, with
+	no http.proxy setting, KDC or network-only credentials. Each suite then changes the proxy's password, and types the
+	new one when the proxy rejects the remembered credentials. Another local Agent Host suite sets the proxy with a stale
+	password in the http.proxy setting, and types the credentials when the proxy rejects it.
+
+	Every change is reverted afterwards, and logs are kept in .build/logs/agents-window-wsl-<auth>-proxy.
+
+	The distribution needs squid-openssl, openssl and curl, krb5-kdc and krb5-admin-server for Kerberos, and NAT
+	networking.
 
 .EXAMPLE
 	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+
+.EXAMPLE
+	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth Basic -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
+
+.EXAMPLE
+	.\test\smoke\scripts\run-agents-window-wsl-kerberos-proxy.ps1 -ProxyAuth BasicPac -WslServerPath ~/devel/vscode -WslNodePath ~/.local/node/bin/node
 #>
 [CmdletBinding(PositionalBinding = $false)]
 param(
@@ -32,9 +51,13 @@ param(
 	[string]$WslNodePath,
 	# A Linux `copilot-runtime`, next to its `runtime.node`, for the Agent Host to use instead of its bundled one.
 	[string]$WslCopilotRuntimePath,
+	# How the proxy authenticates clients: Kerberos, with the system proxy settings, Basic, with the http.proxy setting, or
+	# BasicPac, with the system proxy settings and the proxy login dialog.
+	[ValidateSet('Kerberos', 'Basic', 'BasicPac')][string]$ProxyAuth = 'Kerberos',
 	# Whether clients use TLS to the proxy. The Copilot runtime authenticates with Kerberos only to `http://` proxies.
 	[ValidateSet('Http', 'Https')][string]$ProxyScheme = 'Http',
 	# The editor window suite connects to the server in WSL. A packaged server only accepts a packaged client of its commit.
+	# With Basic authentication, only the editor window suite runs, and with BasicPac only the Agents Window suites.
 	[ValidateSet('All', 'AgentsWindow', 'EditorWindow')][string]$Suites = 'All',
 	# Further smoke test arguments, such as `--build <path>`.
 	[Parameter(ValueFromRemainingArguments)][string[]]$SmokeTestArguments = @()
@@ -44,19 +67,33 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version 3
 
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+$Kerberos = $ProxyAuth -eq 'Kerberos'
+$BasicPac = $ProxyAuth -eq 'BasicPac'
+$Pac = $Kerberos -or $BasicPac
 $Realm = 'VSCODE.PROXY.TEST'
-$KerberosUser = 'smoketest'
+$ProxyUser = 'smoketest'
 $ServicePrincipal = 'HTTP/localhost'
 $MockHost = 'vscode-smoke.test'
 $ProxyPort = 3129
 $PacPort = 44444
 $CaSubject = 'VS Code Smoke Test WSL Kerberos Proxy CA'
 $FirewallRuleName = 'VSCodeSmokeTestWslKerberosProxy'
-$SmokeTestGrep = switch ($Suites) {
-	'AgentsWindow' { 'WSL AgentHost, Kerberos proxy' }
-	'EditorWindow' { 'WSL remote AgentHost, Kerberos proxy' }
-	default { 'AgentHost, Kerberos proxy' }
+if ($ProxyAuth -eq 'Basic' -and $Suites -eq 'AgentsWindow') {
+	throw 'With Basic authentication, only the editor window suite runs.'
 }
+if ($BasicPac -and $Suites -eq 'EditorWindow') {
+	throw 'With BasicPac authentication, only the Agents Window suites run.'
+}
+$SmokeTestGrep = if ($BasicPac) {
+	'AgentHost, Basic PAC proxy'
+} else {
+	switch ($Suites) {
+		'AgentsWindow' { 'WSL AgentHost, Kerberos proxy' }
+		'EditorWindow' { "WSL remote AgentHost, $ProxyAuth proxy" }
+		default { if ($Kerberos) { 'AgentHost, Kerberos proxy' } else { 'WSL remote AgentHost, Basic proxy' } }
+	}
+}
+$RunName = "wsl-$($ProxyAuth.ToLowerInvariant())-proxy"
 $ProxyUrl = "$($ProxyScheme.ToLowerInvariant())://localhost:$ProxyPort"
 $SquidPort = if ($ProxyScheme -eq 'Https') {
 	'https_port 127.0.0.1:{0} tls-cert=$WSL_ROOT/server.pem tls-key=$WSL_ROOT/server.key' -f $ProxyPort
@@ -64,15 +101,15 @@ $SquidPort = if ($ProxyScheme -eq 'Https') {
 	"http_port 127.0.0.1:$ProxyPort"
 }
 $PacProxy = "$(if ($ProxyScheme -eq 'Https') { 'HTTPS' } else { 'PROXY' }) localhost:$ProxyPort"
-$LogDirectory = Join-Path $RepositoryRoot '.build\logs\agents-window-wsl-kerberos-proxy'
+$LogDirectory = Join-Path $RepositoryRoot ".build\logs\agents-window-$RunName"
 $SmokeLogs = Join-Path $RepositoryRoot '.build\logs\smoke-tests-electron'
-$EarlierSmokeLogs = Join-Path $RepositoryRoot '.build\logs\smoke-tests-electron-before-wsl-kerberos-proxy'
+$EarlierSmokeLogs = Join-Path $RepositoryRoot ".build\logs\smoke-tests-electron-before-$RunName"
 # Where test/smoke/test/index.js writes its JUnit report.
 $SmokeTestResults = Join-Path (@($env:BUILD_ARTIFACTSTAGINGDIRECTORY, $env:GITHUB_WORKSPACE, (Join-Path $RepositoryRoot 'test\smoke\test')) | Where-Object { $_ } | Select-Object -First 1) 'test-results'
 $SmokeTestResultsFilter = '*-desktop-smoke-tests-results.xml'
-$EarlierSmokeTestResultsSuffix = '.before-wsl-kerberos-proxy'
-$TempRoot = Join-Path ([IO.Path]::GetTempPath()) "vscode-agents-window-wsl-kerberos-proxy-$PID"
-$WslRoot = "/tmp/vscode-agents-window-wsl-kerberos-proxy-$PID"
+$EarlierSmokeTestResultsSuffix = ".before-$RunName"
+$TempRoot = Join-Path ([IO.Path]::GetTempPath()) "vscode-agents-window-$RunName-$PID"
+$WslRoot = "/tmp/vscode-agents-window-$RunName-$PID"
 $Wsl = Join-Path $env:SystemRoot 'System32\wsl.exe'
 $PowerShell = (Get-Process -Id $PID).Path
 $env:WSL_UTF8 = '1'
@@ -405,13 +442,15 @@ try {
 	Get-ChildItem Cert:\LocalMachine\Root | Where-Object Subject -EQ "CN=$CaSubject" | Remove-Item
 	Get-NetFirewallRule -Name $RuleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 	if ($Mode -eq 'Setup') {
-		ksetup /addkdc $Realm $Kdc
-		if ($LASTEXITCODE -ne 0) {
-			throw "ksetup /addkdc failed with exit code $LASTEXITCODE"
-		}
-		ksetup /addhosttorealmmap localhost $Realm
-		if ($LASTEXITCODE -ne 0) {
-			throw "ksetup /addhosttorealmmap failed with exit code $LASTEXITCODE"
+		if ($Kdc) {
+			ksetup /addkdc $Realm $Kdc
+			if ($LASTEXITCODE -ne 0) {
+				throw "ksetup /addkdc failed with exit code $LASTEXITCODE"
+			}
+			ksetup /addhosttorealmmap localhost $Realm
+			if ($LASTEXITCODE -ne 0) {
+				throw "ksetup /addhosttorealmmap failed with exit code $LASTEXITCODE"
+			}
 		}
 		certutil -f -addstore Root $CaPath | Out-Null
 		if ($LASTEXITCODE -ne 0) {
@@ -430,7 +469,8 @@ try {
 	if ($script:WslAddress) {
 		$parameters += @('-WslAddress', $script:WslAddress)
 	}
-	$action = if ($Mode -eq 'Setup') { 'register the test Kerberos realm, CA and firewall rule' } else { 'remove the test Kerberos realm, CA and firewall rule' }
+	$configuration = if ($script:KdcAddress) { 'test Kerberos realm, CA and firewall rule' } else { 'test CA and firewall rule' }
+	$action = if ($Mode -eq 'Setup') { "register the $configuration" } else { "remove the $configuration" }
 	if ($IsElevated) {
 		Write-Host "Running elevated, so going to $action without a prompt..."
 		& $PowerShell -NoProfile -ExecutionPolicy Bypass -File $elevatedScript @parameters | Out-Null
@@ -466,7 +506,7 @@ if ([Environment]::OSVersion.Platform -ne 'Win32NT') {
 }
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $IsElevated = [Security.Principal.WindowsPrincipal]::new($identity).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if ($identity.IsSystem) {
+if ($Kerberos -and $identity.IsSystem) {
 	throw 'Network-only logons cannot start from LocalSystem; run this script as a user.'
 }
 if (-not $IsElevated -and ($env:CI -or $env:TF_BUILD)) {
@@ -476,15 +516,17 @@ $distributions = (& $Wsl --list --quiet) -replace "`0", '' | ForEach-Object { $_
 if ($distributions -notcontains $Distribution) {
 	throw "WSL distribution '$Distribution' not found; available: $($distributions -join ', ')"
 }
-if ((Get-Service seclogon).StartType -eq 'Disabled') {
+$pacServer = Join-Path $RepositoryRoot 'test\smoke\out\networkProxy\pacServer.js'
+if ($Kerberos -and (Get-Service seclogon).StartType -eq 'Disabled') {
 	throw 'The Secondary Logon (seclogon) service is disabled; network-only logons need it.'
 }
-$pacServer = Join-Path $RepositoryRoot 'test\smoke\out\networkProxy\pacServer.js'
-if (-not (Test-Path $pacServer)) {
-	throw "Missing $pacServer; compile the smoke tests first (cd test\smoke; pnpm run compile)."
-}
-if (Test-TcpPort '127.0.0.1' $PacPort) {
-	throw "Port $PacPort must be available for the PAC server."
+if ($Pac) {
+	if (-not (Test-Path $pacServer)) {
+		throw "Missing $pacServer; compile the smoke tests first (cd test\smoke; pnpm run compile)."
+	}
+	if (Test-TcpPort '127.0.0.1' $PacPort) {
+		throw "Port $PacPort must be available for the PAC server."
+	}
 }
 
 New-Item -ItemType Directory -Force $TempRoot, $LogDirectory | Out-Null
@@ -510,6 +552,8 @@ if ($WslCopilotRuntimePath) {
 }
 
 $password = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
+# The proxy's password after the BasicPac smoke tests change it.
+$newPassword = -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
 $savedProxySettings = $null
 $script:WindowsConfigured = $false
 $kdcProcess = $null
@@ -522,13 +566,17 @@ $script:WslAddress = $null
 $succeeded = $false
 
 try {
+	$wslTools = if ($Kerberos) { 'krb5kdc kdb5_util kadmin.local squid openssl curl ip ss' } else { 'squid openssl curl ip ss' }
+	$wslPackages = if ($Kerberos) { 'krb5-kdc krb5-admin-server squid-openssl openssl curl iproute2' } else { 'squid-openssl openssl curl iproute2' }
+	$authHelper = if ($Kerberos) { '/usr/lib/squid/negotiate_kerberos_auth' } else { '/usr/lib/squid/basic_ncsa_auth' }
+	$wslPorts = if ($Kerberos) { "88 $ProxyPort" } else { "$ProxyPort" }
 	$network = Invoke-WslScript @"
-for tool in krb5kdc kdb5_util kadmin.local squid openssl curl ip ss; do
-	command -v "`$tool" >/dev/null || { echo "Missing `$tool; install krb5-kdc krb5-admin-server squid-openssl openssl curl iproute2"; exit 1; }
+for tool in $wslTools; do
+	command -v "`$tool" >/dev/null || { echo "Missing `$tool; install $wslPackages"; exit 1; }
 done
-test -x /usr/lib/squid/negotiate_kerberos_auth || { echo 'Missing the Squid negotiate_kerberos_auth helper'; exit 1; }
+test -x $authHelper || { echo 'Missing the Squid $authHelper helper'; exit 1; }
 if command -v wslinfo >/dev/null && [ "`$(wslinfo --networking-mode)" != nat ]; then echo 'WSL must use NAT networking'; exit 1; fi
-for port in 88 $ProxyPort; do
+for port in $wslPorts; do
 	if [ -n "`$(ss -Hltnu "sport = :`$port")" ]; then echo "Port `$port must be available in WSL"; exit 1; fi
 done
 echo "wsl=`$(hostname -I | awk '{ print `$1 }')"
@@ -539,14 +587,9 @@ echo "host=`$(ip route show default | awk '{ print `$3; exit }')"
 	if ($script:WslAddress -notmatch '^\d+\.\d+\.\d+\.\d+$' -or $hostAddress -notmatch '^\d+\.\d+\.\d+\.\d+$') {
 		throw "Unexpected WSL ($script:WslAddress) or Windows host ($hostAddress) address"
 	}
-	$script:KdcAddress = $script:WslAddress
-
-	Write-Host "Creating the $Realm realm, test CA and Squid configuration in $Distribution..."
-	Invoke-WslScript -AsRoot @"
-WSL_USER=$(ConvertTo-ShellLiteral $wslUser)
-PASSWORD=$(ConvertTo-ShellLiteral $password)
-WIN_ROOT=$(ConvertTo-ShellLiteral $script:WslTempRoot)
-rm -rf "`$WSL_ROOT"
+	if ($Kerberos) {
+		$script:KdcAddress = $script:WslAddress
+		$authSetup = @"
 mkdir -p "`$WSL_ROOT/kdc"
 chmod 700 "`$WSL_ROOT/kdc"
 cd "`$WSL_ROOT"
@@ -583,9 +626,37 @@ EOF
 touch kdc/kadm5.acl
 export KRB5_CONFIG="`$WSL_ROOT/krb5.conf" KRB5_KDC_PROFILE="`$WSL_ROOT/kdc/kdc.conf"
 kdb5_util create -s -r "`$REALM" -P "`$(head -c 32 /dev/urandom | base64)" >/dev/null
-kadmin.local -q "addprinc -pw `$PASSWORD $KerberosUser" >/dev/null
+kadmin.local -q "addprinc -pw `$PASSWORD $ProxyUser" >/dev/null
 kadmin.local -q "addprinc -randkey $ServicePrincipal" >/dev/null
 kadmin.local -q "ktadd -k `$WSL_ROOT/proxy.keytab $ServicePrincipal" >/dev/null
+"@
+		$squidAuth = @"
+auth_param negotiate program /usr/lib/squid/negotiate_kerberos_auth -k `$WSL_ROOT/proxy.keytab -s $ServicePrincipal@`$REALM -i
+auth_param negotiate children 5
+auth_param negotiate keep_alive on
+"@
+	} else {
+		$authSetup = @"
+mkdir -p "`$WSL_ROOT"
+cd "`$WSL_ROOT"
+echo "${ProxyUser}:`$(openssl passwd -1 "`$PASSWORD")" > proxy.htpasswd
+"@
+		$squidAuth = @"
+auth_param basic program /usr/lib/squid/basic_ncsa_auth `$WSL_ROOT/proxy.htpasswd
+auth_param basic children 5
+auth_param basic realm vscode-smoke
+# Checks the credentials again after a second, so a changed password applies.
+auth_param basic credentialsttl 1 second
+"@
+	}
+
+	Write-Host "Creating the $(if ($Kerberos) { "$Realm realm, " })test CA and Squid configuration in $Distribution..."
+	Invoke-WslScript -AsRoot @"
+WSL_USER=$(ConvertTo-ShellLiteral $wslUser)
+PASSWORD=$(ConvertTo-ShellLiteral $password)
+WIN_ROOT=$(ConvertTo-ShellLiteral $script:WslTempRoot)
+rm -rf "`$WSL_ROOT"
+$authSetup
 
 cat > tls.cnf <<EOF
 [req]
@@ -623,25 +694,33 @@ cache_log `$WSL_ROOT/squid.log
 pid_filename `$WSL_ROOT/squid.pid
 coredump_dir `$WSL_ROOT
 shutdown_lifetime 1 seconds
-auth_param negotiate program /usr/lib/squid/negotiate_kerberos_auth -k `$WSL_ROOT/proxy.keytab -s $ServicePrincipal@`$REALM -i
-auth_param negotiate children 5
-auth_param negotiate keep_alive on
+$squidAuth
 acl authenticated proxy_auth REQUIRED
 http_access allow authenticated
 http_access deny all
 EOF
-chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/proxy.keytab"
+chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts"
 "@ | Out-Null
 
-	$kdcProcess = Start-WslProcess -AsRoot 'kdc' "echo `$`$ > $WslRoot/kdc/wrapper.pid; KRB5_CONFIG=$WslRoot/krb5.conf KRB5_KDC_PROFILE=$WslRoot/kdc/kdc.conf exec krb5kdc -n"
-	Wait-WslPort 88 'The Kerberos KDC'
-	$squidProcess = Start-WslProcess 'squid' "echo `$`$ > $WslRoot/wrapper.pid; KRB5_CONFIG=$WslRoot/krb5.conf KRB5_KTNAME=FILE:$WslRoot/proxy.keytab exec squid -N -f $WslRoot/squid.conf"
+	if ($Kerberos) {
+		$kdcProcess = Start-WslProcess -AsRoot 'kdc' "echo `$`$ > $WslRoot/kdc/wrapper.pid; KRB5_CONFIG=$WslRoot/krb5.conf KRB5_KDC_PROFILE=$WslRoot/kdc/kdc.conf exec krb5kdc -n"
+		Wait-WslPort 88 'The Kerberos KDC'
+	}
+	$squidEnvironment = if ($Kerberos) { "KRB5_CONFIG=$WslRoot/krb5.conf KRB5_KTNAME=FILE:$WslRoot/proxy.keytab " } else { '' }
+	$squidProcess = Start-WslProcess 'squid' "echo `$`$ > $WslRoot/wrapper.pid; ${squidEnvironment}exec squid -N -f $WslRoot/squid.conf"
 	Wait-WslPort $ProxyPort 'Squid'
 	$unauthenticated = Invoke-WslScript "curl --silent --output /dev/null --max-time 10 --proxy $ProxyUrl --proxy-cacert `$WSL_ROOT/ca.pem --proxytunnel --write-out '%{http_connect}' https://localhost:$ProxyPort/ || true"
 	if (($unauthenticated -join '') -ne '407') {
 		throw "Expected Squid to require proxy authentication (HTTP 407), got '$($unauthenticated -join '')'"
 	}
-	if (-not (Test-TcpPort $script:KdcAddress 88)) {
+	if (-not $Kerberos) {
+		# By IP address, because only the mock host resolves through Squid. Squid authenticates before it connects.
+		$authenticated = (Invoke-WslScript "curl --silent --output /dev/null --max-time 10 --proxy $ProxyUrl --proxy-cacert `$WSL_ROOT/ca.pem --proxy-user $(ConvertTo-ShellLiteral "${ProxyUser}:$password") --proxytunnel --write-out '%{http_connect}' https://127.0.0.1:$ProxyPort/ || true") -join ''
+		if ($authenticated -notmatch '^[1-5]\d\d$' -or $authenticated -eq '407') {
+			throw "Expected Squid to accept the Basic credentials, got '$authenticated'"
+		}
+	}
+	if ($Kerberos -and -not (Test-TcpPort $script:KdcAddress 88)) {
 		throw "Windows cannot reach the KDC at $($script:KdcAddress):88"
 	}
 	if (-not (Test-TcpPort '127.0.0.1' $ProxyPort)) {
@@ -650,26 +729,28 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/
 
 	Invoke-ElevatedConfiguration 'Setup'
 
-	# The PAC applies to the whole user session, so only the mock model server uses the authenticated proxy.
-	$pacFile = Join-Path $TempRoot 'proxy.pac'
-	[IO.File]::WriteAllText($pacFile, "function FindProxyForURL(url, host) {`n`treturn host === '$MockHost' ? '$PacProxy' : 'DIRECT';`n}`n")
-	$pacProcess = Start-Process -FilePath node -ArgumentList "`"$pacServer`" `"$pacFile`"" `
-		-WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $TempRoot 'pac-server.log') -RedirectStandardError (Join-Path $TempRoot 'pac-server.err.log')
-	for ($i = 0; -not (Test-TcpPort '127.0.0.1' $PacPort); $i++) {
-		if ($i -ge 50) {
-			throw 'The PAC server did not start'
+	if ($Pac) {
+		# The PAC applies to the whole user session, so only the mock model server uses the authenticated proxy.
+		$pacFile = Join-Path $TempRoot 'proxy.pac'
+		[IO.File]::WriteAllText($pacFile, "function FindProxyForURL(url, host) {`n`treturn host === '$MockHost' ? '$PacProxy' : 'DIRECT';`n}`n")
+		$pacProcess = Start-Process -FilePath node -ArgumentList "`"$pacServer`" `"$pacFile`"" `
+			-WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $TempRoot 'pac-server.log') -RedirectStandardError (Join-Path $TempRoot 'pac-server.err.log')
+		for ($i = 0; -not (Test-TcpPort '127.0.0.1' $PacPort); $i++) {
+			if ($i -ge 50) {
+				throw 'The PAC server did not start'
+			}
+			Start-Sleep -Milliseconds 100
 		}
-		Start-Sleep -Milliseconds 100
-	}
-	$pacUrl = "http://127.0.0.1:$PacPort/proxy.pac"
-	$savedProxySettings = [VSCodeSmokeProxySettings]::Query()
-	[VSCodeSmokeProxySettings]::UseAutoConfigUrl($pacUrl)
-	$effectivePacUrl = [VSCodeSmokeProxySettings]::GetEffectiveAutoConfigUrl()
-	if ($effectivePacUrl -ne $pacUrl) {
-		throw "Windows did not apply the PAC URL, possibly because of a proxy policy; WinHTTP reports '$effectivePacUrl'"
+		$pacUrl = "http://127.0.0.1:$PacPort/proxy.pac"
+		$savedProxySettings = [VSCodeSmokeProxySettings]::Query()
+		[VSCodeSmokeProxySettings]::UseAutoConfigUrl($pacUrl)
+		$effectivePacUrl = [VSCodeSmokeProxySettings]::GetEffectiveAutoConfigUrl()
+		if ($effectivePacUrl -ne $pacUrl) {
+			throw "Windows did not apply the PAC URL, possibly because of a proxy policy; WinHTTP reports '$effectivePacUrl'"
+		}
 	}
 
-	$proxyHeader = "vscode-smoke-wsl-kerberos-proxy-$PID"
+	$proxyHeader = "vscode-smoke-$RunName-$PID"
 	$excluded = '^(?i:(http|https|all|no)_proxy|NODE_EXTRA_CA_CERTS|SSL_CERT_(FILE|DIR)|KRB5CCNAME|ELECTRON_RUN_AS_NODE|VSCODE_SMOKE_TEST_.*)$'
 	$environment = @{}
 	foreach ($variable in Get-ChildItem Env:) {
@@ -677,7 +758,23 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/
 			$environment[$variable.Name] = $variable.Value
 		}
 	}
-	$environment['VSCODE_SMOKE_TEST_WSL_KERBEROS_PROXY'] = $ProxyScheme.ToLowerInvariant()
+	if ($Kerberos) {
+		$environment['VSCODE_SMOKE_TEST_WSL_KERBEROS_PROXY'] = $ProxyScheme.ToLowerInvariant()
+	} elseif ($BasicPac) {
+		$environment['VSCODE_SMOKE_TEST_BASIC_PAC_PROXY'] = $ProxyScheme.ToLowerInvariant()
+		# The smoke tests type these into the proxy login dialog.
+		$environment['VSCODE_SMOKE_TEST_PROXY_USER'] = $ProxyUser
+		$environment['VSCODE_SMOKE_TEST_PROXY_PASSWORD'] = $password
+		# The smoke tests change the proxy's password to this one in Squid's password file.
+		$environment['VSCODE_SMOKE_TEST_PROXY_NEW_PASSWORD'] = $newPassword
+		$environment['VSCODE_SMOKE_TEST_PROXY_HTPASSWD'] = "$WslRoot/proxy.htpasswd"
+		# The smoke tests set this with a stale password as the http.proxy setting.
+		$environment['VSCODE_SMOKE_TEST_PROXY_URL'] = $ProxyUrl
+	} else {
+		$environment['VSCODE_SMOKE_TEST_WSL_BASIC_PROXY'] = '1'
+		# The smoke tests set this as the http.proxy setting.
+		$environment['VSCODE_SMOKE_TEST_HTTP_PROXY'] = "$($ProxyScheme.ToLowerInvariant())://${ProxyUser}:$password@localhost:$ProxyPort"
+	}
 	$environment['VSCODE_SMOKE_TEST_WSL_DISTRO'] = $Distribution
 	$environment['VSCODE_SMOKE_TEST_WSL_SERVER_PATH'] = $WslServerPath
 	if ($WslNodePath) {
@@ -693,18 +790,21 @@ chown "`$WSL_USER" "`$WSL_ROOT" "`$WSL_ROOT"/*.* "`$WSL_ROOT/hosts" "`$WSL_ROOT/
 	$environmentBlock = [string[]]($environment.Keys | Sort-Object { $_.ToUpperInvariant() } | ForEach-Object { "$_=$($environment[$_])" })
 
 	$smokeArguments = @('run', 'smoketest-no-compile', '--tracing', '-g', $SmokeTestGrep, '--fail-zero') + $SmokeTestArguments
-	$netOnlyScript = Join-Path $TempRoot 'netonly.ps1'
+	$smokeScript = Join-Path $TempRoot 'smoke-test.ps1'
 	# A JDK on the PATH, as on CI agents, has its own klist.
 	$klist = Join-Path $env:SystemRoot 'System32\klist.exe'
-	[IO.File]::WriteAllText($netOnlyScript, @"
-`$ErrorActionPreference = 'Continue'
-Set-Location $(ConvertTo-PowerShellLiteral $RepositoryRoot)
+	$ticketCheck = if ($Kerberos) { @"
 Write-Output 'Kerberos ticket for $ServicePrincipal from the $Realm KDC:'
 & $(ConvertTo-PowerShellLiteral $klist) get $ServicePrincipal
 if (`$LASTEXITCODE -ne 0) {
 	Write-Output 'Windows could not obtain a Kerberos ticket for $ServicePrincipal with the $Realm credentials.'
 	exit 1
 }
+"@ } else { '' }
+	[IO.File]::WriteAllText($smokeScript, @"
+`$ErrorActionPreference = 'Continue'
+Set-Location $(ConvertTo-PowerShellLiteral $RepositoryRoot)
+$ticketCheck
 & pnpm.cmd $(($smokeArguments | ForEach-Object { ConvertTo-PowerShellLiteral $_ }) -join ' ')
 exit `$LASTEXITCODE
 "@, [Text.UTF8Encoding]::new($true))
@@ -720,10 +820,22 @@ exit `$LASTEXITCODE
 		Move-Item -Force $_.FullName "$($_.FullName)$EarlierSmokeTestResultsSuffix"
 	}
 	$smokeStarted = $true
-	Write-Host "Running the smoke tests with network-only credentials for $KerberosUser@$Realm..."
-	$smokeProcess = [VSCodeSmokeNetOnlyProcess]::Start($KerberosUser, $Realm, $password,
-		"`"$env:ComSpec`" /d /s /c `"`"$PowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$netOnlyScript`" > `"$smokeLog`" 2>&1`"",
-		$RepositoryRoot, $environmentBlock)
+	$shellArguments = "/d /s /c `"`"$PowerShell`" -NoProfile -ExecutionPolicy Bypass -File `"$smokeScript`" > `"$smokeLog`" 2>&1`""
+	if ($Kerberos) {
+		Write-Host "Running the smoke tests with network-only credentials for $ProxyUser@$Realm..."
+		$smokeProcess = [VSCodeSmokeNetOnlyProcess]::Start($ProxyUser, $Realm, $password, "`"$env:ComSpec`" $shellArguments", $RepositoryRoot, $environmentBlock)
+	} else {
+		Write-Host $(if ($BasicPac) { 'Running the smoke tests with the PAC proxy and its credentials for the proxy login dialog...' } else { 'Running the smoke tests with the proxy and its credentials in the http.proxy setting...' })
+		$startInfo = [Diagnostics.ProcessStartInfo]::new($env:ComSpec, $shellArguments)
+		$startInfo.UseShellExecute = $false
+		$startInfo.CreateNoWindow = $true
+		$startInfo.WorkingDirectory = $RepositoryRoot
+		$startInfo.Environment.Clear()
+		foreach ($name in $environment.Keys) {
+			$startInfo.Environment[$name] = $environment[$name]
+		}
+		$smokeProcess = [Diagnostics.Process]::Start($startInfo)
+	}
 	$reader = [IO.StreamReader]::new([IO.FileStream]::new($smokeLog, 'Open', 'Read', 'ReadWrite, Delete'))
 	try {
 		while (-not $smokeProcess.WaitForExit(500)) {
@@ -743,21 +855,27 @@ exit `$LASTEXITCODE
 	# Stopping Squid flushes its access log.
 	Stop-WslProcess $squidProcess "$WslRoot/wrapper.pid"
 	$squidProcess = $null
-	Invoke-WslScript -AsRoot "cp `"`$WSL_ROOT/squid-access.log`" `"`$WSL_ROOT/kdc/kdc.log`" $(ConvertTo-ShellLiteral $script:WslTempRoot)/" | Out-Null
-	$pacLog = Get-Content (Join-Path $TempRoot 'pac-server.log') -Raw
-	if ($pacLog -notmatch 'GET /') {
-		throw 'Windows did not fetch the PAC script.'
-	}
+	$collectedLogs = if ($Kerberos) { '"$WSL_ROOT/squid-access.log" "$WSL_ROOT/kdc/kdc.log"' } else { '"$WSL_ROOT/squid-access.log"' }
+	Invoke-WslScript -AsRoot "cp $collectedLogs $(ConvertTo-ShellLiteral $script:WslTempRoot)/" | Out-Null
 	$accessLog = Get-Content (Join-Path $TempRoot 'squid-access.log')
-	if (-not ($accessLog | Where-Object { $_.Contains('TCP_TUNNEL/200') -and $_.Contains("CONNECT ${MockHost}:") -and $_.Contains(" $KerberosUser@$Realm ") })) {
-		throw "Squid has no Kerberos-authenticated tunnel to $MockHost."
+	$authenticatedUser = if ($Kerberos) { "$ProxyUser@$Realm" } else { $ProxyUser }
+	if (-not ($accessLog | Where-Object { $_.Contains('TCP_TUNNEL/200') -and $_.Contains("CONNECT ${MockHost}:") -and $_.Contains(" $authenticatedUser ") })) {
+		throw "Squid has no $(if ($Kerberos) { 'Kerberos' } else { 'Basic' })-authenticated tunnel to $MockHost."
 	}
-	$kdcLog = Get-Content (Join-Path $TempRoot 'kdc.log')
-	if (-not ($kdcLog | Where-Object { $_ -match "TGS_REQ .* $([regex]::Escape($hostAddress)): ISSUE: .* $KerberosUser@$Realm for $([regex]::Escape("$ServicePrincipal@$Realm"))" })) {
-		throw "The KDC did not issue a $ServicePrincipal ticket to Windows ($hostAddress)."
+	if ($Pac) {
+		$pacLog = Get-Content (Join-Path $TempRoot 'pac-server.log') -Raw
+		if ($pacLog -notmatch 'GET /') {
+			throw 'Windows did not fetch the PAC script.'
+		}
+	}
+	if ($Kerberos) {
+		$kdcLog = Get-Content (Join-Path $TempRoot 'kdc.log')
+		if (-not ($kdcLog | Where-Object { $_ -match "TGS_REQ .* $([regex]::Escape($hostAddress)): ISSUE: .* $ProxyUser@$Realm for $([regex]::Escape("$ServicePrincipal@$Realm"))" })) {
+			throw "The KDC did not issue a $ServicePrincipal ticket to Windows ($hostAddress)."
+		}
 	}
 	$succeeded = $true
-	Write-Host 'Verified the PAC, Kerberos-authenticated tunnels through Squid and KDC tickets issued to Windows.'
+	Write-Host $(if ($Kerberos) { 'Verified the PAC, Kerberos-authenticated tunnels through Squid and KDC tickets issued to Windows.' } elseif ($BasicPac) { 'Verified the PAC and Basic-authenticated tunnels through Squid.' } else { 'Verified Basic-authenticated tunnels through Squid.' })
 } finally {
 	if ($smokeProcess) {
 		& taskkill.exe /PID $smokeProcess.Id /T /F | Out-Null
@@ -776,7 +894,7 @@ exit `$LASTEXITCODE
 		}
 		try {
 			Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like $SmokeTestResultsFilter | ForEach-Object {
-				Move-Item -Force $_.FullName (Join-Path $_.DirectoryName ($_.Name -replace '-results\.xml$', '-wsl-kerberos-proxy-results.xml'))
+				Move-Item -Force $_.FullName (Join-Path $_.DirectoryName ($_.Name -replace '-results\.xml$', "-$RunName-results.xml"))
 			}
 			Get-ChildItem $SmokeTestResults -File -ErrorAction SilentlyContinue | Where-Object Name -Like "$SmokeTestResultsFilter$EarlierSmokeTestResultsSuffix" | ForEach-Object {
 				Move-Item -Force $_.FullName $_.FullName.Substring(0, $_.FullName.Length - $EarlierSmokeTestResultsSuffix.Length)
@@ -801,7 +919,8 @@ exit `$LASTEXITCODE
 		try {
 			Invoke-ElevatedConfiguration 'Cleanup'
 		} catch {
-			Write-Warning "Could not remove the Windows test configuration: $_. Remove it with 'ksetup /delkdc $Realm $($script:KdcAddress)', 'ksetup /delhosttorealmmap localhost $Realm', the '$CaSubject' certificate from the machine root store and the '$FirewallRuleName' firewall rule."
+			$ksetupCleanup = if ($script:KdcAddress) { "'ksetup /delkdc $Realm $($script:KdcAddress)', 'ksetup /delhosttorealmmap localhost $Realm', " } else { '' }
+			Write-Warning "Could not remove the Windows test configuration: $_. Remove it with ${ksetupCleanup}the '$CaSubject' certificate from the machine root store and the '$FirewallRuleName' firewall rule."
 		}
 	}
 	try {

@@ -35,7 +35,7 @@ import { joinPath } from '../../../util/vs/base/common/resources';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { SingleSlotTtlCache, TtlCache } from '../common/ttlCache';
 import { isUntitledSessionId } from '../common/utils';
-import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
+import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { CONTINUE_TRUNCATION, extractTitle, getRepoId, isActiveTaskState, SessionIdForTask, truncatePrompt } from '../vscode/copilotCodingAgentUtils';
 import { CloudAgentBackend, CloudDelegationResult, CloudSessionData, TaskContent } from '../vscode/cloudAgentBackend';
 import { CopilotCloudGitOperationsManager } from './copilotCloudGitOperationsManager';

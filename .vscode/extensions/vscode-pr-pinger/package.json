@@ -38,5 +38,8 @@
   "license": "MIT",
   "dependencies": {
     "@octokit/graphql": "^5.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.x"
   }
 }

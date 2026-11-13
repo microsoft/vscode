@@ -104,7 +104,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			{ type: CustomizationType.Agent, path: agent },
 			{ type: CustomizationType.Rule, path: instruction },
 			{ type: CustomizationType.Skill, path: skill },
-			...(config.provider === 'copilotcli' ? [] : [{ type: CustomizationType.Hook, path: hook }]),
+			{ type: CustomizationType.Hook, path: hook },
 		];
 	}
 
@@ -137,7 +137,7 @@ export function defineCustomizationDiscoveryTests(context: IAgentHostE2ETestCont
 			const hooks = customizations.flatMap(item => item.type === CustomizationType.Directory ? item.children ?? [] : [])
 				.filter(child => child.type === CustomizationType.Hook);
 			assert.deepStrictEqual(hooks.map(hook => ({ name: hook.name, enabled: hook.enabled, scheme: URI.parse(hook.uri).scheme })), [
-				{ name: 'preToolUse', enabled: true, scheme: 'agent-discovery' },
+				{ name: 'preToolUse', enabled: true, scheme: 'file' },
 			], JSON.stringify(customizations.filter(item => item.type === CustomizationType.Directory && item.contents === CustomizationType.Hook)));
 		}
 	});

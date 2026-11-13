@@ -20,6 +20,7 @@ import { SnapshotSearchService } from '../../../test/node/simulationWorkspaceSer
 import { TestWorkspaceService } from '../../../test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../workspace/common/workspaceService';
 import { INativeEnvService } from '../../../env/common/envService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { AgentInstructionsLocator } from '../../vscode-node/agentInstructionsLocator';
 import { mockFiles } from './mockFiles';
 import { AgentInstructionFileType, PromptConfig } from '../../common/promptsService';

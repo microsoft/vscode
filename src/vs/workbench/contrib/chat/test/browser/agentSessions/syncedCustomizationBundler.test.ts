@@ -253,7 +253,7 @@ suite('SyncedCustomizationBundler', () => {
 			const root = URI.parse(result.ref.uri);
 			const parsed = await parsePlugin(root, fileService, undefined, URI.from({ scheme: Schemas.inMemory, path: '/home' }), root, { deduplicateAgentsByName: false });
 			const expanded = await new AgentCustomizationContentExpander(fileService, new NullLogService())
-				.expandPluginContents(root, 'test', true, AICustomizationSources.extension, undefined, CancellationToken.None);
+				.expandPluginContents(root, 'syncedFromClient', true, AICustomizationSources.extension, undefined, CancellationToken.None);
 			const agents = await Promise.all(parsed.agents.map(async agent => ({
 				name: agent.name,
 				source: serializeOrigin(bundler.getOrigin(agent.uri)),
@@ -271,7 +271,7 @@ suite('SyncedCustomizationBundler', () => {
 			}, {
 				agents: files.map(file => ({
 					name: hasName ? 'Reviewer' : 'reviewer',
-					source: { uri: file.uri.toString(), source: 'extension', extensionId: file.extensionId, pluginUri: undefined },
+					source: { uri: file.uri.toString(), source: 'extension', extensionId: file.extensionId, extensionLabel: undefined, pluginUri: undefined },
 					content: `${hasName ? '---\nname: Reviewer\n---\n' : ''}${file.extensionId}`,
 				})),
 				expanded: files.map(file => ({ name: hasName ? 'Reviewer' : 'reviewer', source: file.uri.toString() })),
@@ -882,7 +882,7 @@ suite('SyncedCustomizationBundler', () => {
 			deletes: del.callCount,
 		}, {
 			reused: true,
-			origin: { uri: second.toString(), source: 'plugin', extensionId: undefined, pluginUri: undefined },
+			origin: { uri: second.toString(), source: 'plugin', extensionId: undefined, extensionLabel: undefined, pluginUri: undefined },
 			writes: 0,
 			deletes: 0,
 		});
@@ -1229,7 +1229,7 @@ suite('SyncedCustomizationBundler', () => {
 		const pluginUri = URI.from({ scheme: Schemas.inMemory, path: '/plugins/my-skill' });
 
 		await bundler.bundle([
-			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext' },
+			{ uri: extUri, type: PromptsType.instructions, source: 'extension', extensionId: 'pub.ext', extensionLabel: 'Pub Extension' },
 			{ uri: skillMd, type: PromptsType.skill, source: 'plugin', pluginUri },
 		]);
 
@@ -1238,6 +1238,7 @@ suite('SyncedCustomizationBundler', () => {
 			uri: extUri.toString(),
 			source: 'extension',
 			extensionId: 'pub.ext',
+			extensionLabel: 'Pub Extension',
 			pluginUri: undefined,
 		});
 
@@ -1247,6 +1248,7 @@ suite('SyncedCustomizationBundler', () => {
 			uri: skillMd.toString(),
 			source: 'plugin',
 			extensionId: undefined,
+			extensionLabel: undefined,
 			pluginUri: pluginUri.toString(),
 		});
 
@@ -1255,6 +1257,7 @@ suite('SyncedCustomizationBundler', () => {
 			uri: skillReference.toString(),
 			source: 'plugin',
 			extensionId: undefined,
+			extensionLabel: undefined,
 			pluginUri: pluginUri.toString(),
 		});
 

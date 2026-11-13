@@ -9,8 +9,14 @@ import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { remoteAgentHostSessionTypeId } from '../../../platform/agentHost/common/agentHostSessionType.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { ISSHAgentHostConnection, ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
@@ -19,14 +25,13 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import { ContextKeyService } from '../../../platform/contextkey/browser/contextKeyService.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../workbench/common/contextkeys.js';
 import { OpenInVSCodeAction } from '../../browser/actions/vscodeActions.js';
-import { Menus } from '../../browser/menus.js';
-import { IAgentHostSessionsProvider } from '../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../services/sessions/common/sessionsProvider.js';
-import { IChat, ISessionWorkspace } from '../../services/sessions/common/session.js';
-import { ITestSessionsService, stubSessionHostsFromSessionsService } from '../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
+import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { IChat, ISessionWorkspace } from '../../../workbench/services/sessions/common/session.js';
+import { ITestSessionsService, ITestSessionWithChat, stubSessionHostsFromSessionsService } from '../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Web Open in Editor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,7 +51,7 @@ suite('Web Open in Editor', () => {
 			const calls: { authority: string; path: string; query: string; openExternal: boolean | undefined }[] = [];
 			const folder = toAgentHostUri(URI.from({ scheme: 'file', path: '/c:/Users/test/project' }), agentHostAuthority(connection.address));
 			const workspace = upcastPartial<ISessionWorkspace>({ folders: [{ workingDirectory: folder, root: folder, name: 'project', description: undefined }] });
-			const session = upcastPartial<IActiveSession>({
+			const session = upcastPartial<ITestSessionWithChat>({
 				resource: URI.from({ scheme: 'test', path: '/session' }),
 				providerId: 'test',
 				activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace) })),
@@ -60,6 +65,10 @@ suite('Web Open in Editor', () => {
 			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({
 				getEntryByAddress: () => ({ name: 'Remote host', connection }),
 			}));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ resolveSessionResourceIdentity: () => undefined }));
+			instantiationService.stub(IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined }));
+			instantiationService.stub(ISSHRemoteAgentHostService, upcastPartial<ISSHRemoteAgentHostService>({ connections: [] }));
+			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'vscode-test' }));
 			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
@@ -88,6 +97,59 @@ suite('Web Open in Editor', () => {
 			}]);
 		});
 	}
+
+	for (const [connection, serverType, preference] of [
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'standalone', undefined],
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'editor', undefined],
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'editor', 'editor'],
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'editor', 'dedicated'],
+		[{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' }, undefined, undefined],
+		[{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' }, undefined, undefined],
+	] satisfies [IRemoteAgentHostEntry['connection'], ISSHAgentHostConnection['serverType'], RemoteAgentHostLocationPreference | undefined][]) {
+		test(`hands off ${connection.type} sessions when the editor follows the selected host (${serverType ?? 'standalone'}, ${preference ?? 'no preference'})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const entry = { name: 'Remote host', connection };
+			const address = getEntryAddress(entry);
+			const authority = agentHostAuthority(address);
+			const folder = toAgentHostUri(URI.file('/project'), authority);
+			const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(authority, 'copilotcli'), path: '/session', fragment: 'chat' });
+			const chat = upcastPartial<IChat>({
+				resource,
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ workingDirectory: folder, root: folder, name: 'project', description: undefined }] })),
+			});
+			const session = upcastPartial<ITestSessionWithChat>({ resource, providerId: 'test', activeChat: constObservable(chat) });
+			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: address });
+			const sessions: (string | null)[] = [];
+			const notifications: string[] = [];
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as T }));
+			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ getEntryByAddress: () => entry }));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				resolveSessionResourceIdentity: () => ({ connectionAuthority: authority, backendSession: URI.parse('copilotcli:/session') }),
+			}));
+			instantiationService.stub(IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: key => key === address ? preference : undefined }));
+			instantiationService.stub(ISSHRemoteAgentHostService, upcastPartial<ISSHRemoteAgentHostService>({
+				connections: [upcastPartial<ISSHAgentHostConnection>({ localAddress: address, serverType })],
+			}));
+			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: message => { notifications.push(String(message)); } }));
+			instantiationService.stub(ITelemetryService, NullTelemetryService);
+			instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'vscode-test' }));
+			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+				open: async resource => {
+					sessions.push(new URLSearchParams((typeof resource === 'string' ? URI.parse(resource) : resource).query).get('session'));
+					return true;
+				},
+			}));
+
+			await instantiationService.invokeFunction(accessor => new OpenInVSCodeAction().run(accessor, { session, chat }));
+
+			const sharesAgentHost = serverType !== 'editor' || preference === 'editor';
+			assert.deepStrictEqual({ sessions, notifications }, {
+				sessions: [sharesAgentHost ? 'agent-host-copilotcli:/session#chat' : null],
+				notifications: !sharesAgentHost ? ['The session\'s folder was opened in a new editor window, but the session can\'t be opened there. This window is connected to a different agent host on the remote machine than the one its editor windows use.'] : [],
+			});
+		});
+	}
 });
 
 suite('Open in Editor in Agents windows', () => {
@@ -95,7 +157,7 @@ suite('Open in Editor in Agents windows', () => {
 
 	test('shows in the main window and in chat windows, as the main window always showed it, and not in editor windows', () => {
 		const menus = new OpenInVSCodeAction().desc.menu;
-		const when = (Array.isArray(menus) ? menus : [menus]).find(menu => menu?.id === Menus.TitleBarCenterRight)?.when;
+		const when = (Array.isArray(menus) ? menus : [menus]).find(menu => menu?.id === AgentsWindowMenus.TitleBarCenterRight)?.when;
 		const contextKeyService = store.add(new ContextKeyService(new TestConfigurationService()));
 		const shows = (auxiliary: boolean, layoutMode: string | undefined) => {
 			const scoped = store.add(contextKeyService.createScoped(document.createElement('div')));

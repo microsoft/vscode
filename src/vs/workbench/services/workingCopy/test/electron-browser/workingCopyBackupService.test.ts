@@ -16,12 +16,12 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { LogLevel, NullLogService } from '../../../../../platform/log/common/log.js';
 import { NativeWorkbenchEnvironmentService } from '../../../environment/electron-browser/environmentService.js';
-import { toBufferOrReadable } from '../../../textfile/common/textfiles.js';
+import { ITextFileService, toBufferOrReadable } from '../../../textfile/common/textfiles.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { NativeWorkingCopyBackupService } from '../../electron-browser/workingCopyBackupService.js';
 import { FileUserDataProvider } from '../../../../../platform/userData/common/fileUserDataProvider.js';
 import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferReadable, VSBufferReadableStream } from '../../../../../base/common/buffer.js';
-import { TestLifecycleService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from '../../../../test/browser/workbenchTestServices.js';
+import { TestLifecycleService, TestServiceAccessor, toTypedWorkingCopyId, toUntypedWorkingCopyId, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from '../../common/workingCopy.js';
 import { consumeStream } from '../../../../../base/common/stream.js';
@@ -34,6 +34,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { UserDataProfilesService } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { NativeTextFileService } from '../../../textfile/electron-browser/nativeTextFileService.js';
 
 const homeDir = URI.file('home').with({ scheme: Schemas.inMemory });
 const tmpDir = URI.file('tmp').with({ scheme: Schemas.inMemory });
@@ -1321,4 +1322,174 @@ suite('WorkingCopyBackupService', () => {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+});
+
+suite('WorkingCopyBackupService (in memory)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const resource = URI.file('/working-copy-backups/file.txt');
+	const fileIdentifier = toUntypedWorkingCopyId(resource);
+	const untitledIdentifier = toUntypedWorkingCopyId(resource.with({ scheme: Schemas.untitled }));
+
+	let service: NativeWorkingCopyBackupService;
+	let fileService: FileService;
+	let textFileService: ITextFileService;
+
+	setup(() => {
+		const environmentService = new NativeWorkbenchEnvironmentService({
+			...TestNativeWindowConfiguration,
+			extensionDevelopmentPath: [joinPath(tmpDir, 'extension').fsPath]
+		}, TestProductService);
+		const logService = new NullLogService();
+		fileService = disposables.add(new FileService(logService));
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		service = disposables.add(new NativeWorkingCopyBackupService(environmentService, fileService, logService, disposables.add(new TestLifecycleService())));
+		const instantiationService = workbenchInstantiationService({
+			environmentService: () => environmentService,
+			fileService: () => fileService,
+			workingCopyBackupService: () => service,
+			textFileService: instantiationService => disposables.add(instantiationService.createInstance(NativeTextFileService))
+		}, disposables);
+		textFileService = instantiationService.createInstance(TestServiceAccessor).textFileService;
+	});
+
+	test('file model restores its own backup', async () => {
+		await fileService.writeFile(resource, VSBuffer.fromString('saved file'));
+		const file = disposables.add(await textFileService.files.resolve(resource));
+		file.textEditorModel?.setValue('unsaved file');
+		const backup = await file.backup(CancellationToken.None);
+		await service.backup(file, backup.content, undefined, backup.meta);
+		file.dispose();
+
+		const restored = disposables.add(await textFileService.files.resolve(resource));
+
+		assert.deepStrictEqual({
+			content: restored.textEditorModel?.getValue(),
+			dirty: restored.isDirty(),
+			stored: (await fileService.readFile(resource)).value.toString()
+		}, { content: 'unsaved file', dirty: true, stored: 'saved file' });
+	});
+
+	for (const [upperScheme, lowerScheme] of [['P', 'p'], ['PX', 'px']]) {
+		test(`file models keep ${upperScheme}: and ${lowerScheme}: backups separate`, async () => {
+			for (const scheme of [upperScheme, lowerScheme]) {
+				disposables.add(fileService.registerProvider(scheme, disposables.add(new InMemoryFileSystemProvider())));
+			}
+			const identityService = disposables.add(new UriIdentityService(fileService));
+			const upper = identityService.asCanonicalUri(URI.from({ scheme: upperScheme, path: resource.path }));
+			const lower = identityService.asCanonicalUri(URI.from({ scheme: lowerScheme, path: resource.path }));
+			await fileService.writeFile(upper, VSBuffer.fromString('upper saved'));
+			await fileService.writeFile(lower, VSBuffer.fromString('lower saved'));
+
+			const source = disposables.add(await textFileService.files.resolve(upper));
+			source.textEditorModel?.setValue('upper unsaved');
+			const backup = await source.backup(CancellationToken.None);
+			await service.backup(source, backup.content, undefined, backup.meta);
+			const target = disposables.add(await textFileService.files.resolve(lower));
+
+			assert.deepStrictEqual({
+				sameCanonicalUri: identityService.extUri.isEqual(upper, lower),
+				source: source.textEditorModel?.getValue(),
+				target: target.textEditorModel?.getValue(),
+				targetDirty: target.isDirty(),
+				sourceStored: (await fileService.readFile(upper)).value.toString(),
+				targetStored: (await fileService.readFile(lower)).value.toString()
+			}, {
+				sameCanonicalUri: false,
+				source: 'upper unsaved',
+				target: 'lower saved',
+				targetDirty: false,
+				sourceStored: 'upper saved',
+				targetStored: 'lower saved'
+			});
+		});
+	}
+
+	test('file model does not restore the associated untitled backup', async () => {
+		const untitled = disposables.add(await textFileService.untitled.resolve({ associatedResource: resource, initialValue: 'unsaved untitled' }));
+		const backup = await untitled.backup(CancellationToken.None);
+		await service.backup(untitled, backup.content, undefined, backup.meta);
+
+		await fileService.writeFile(resource, VSBuffer.fromString('saved file'));
+		const file = disposables.add(await textFileService.files.resolve(resource));
+
+		assert.deepStrictEqual({
+			file: file.textEditorModel?.getValue(),
+			dirty: file.isDirty(),
+			untitled: untitled.textEditorModel?.getValue(),
+			stored: (await fileService.readFile(resource)).value.toString()
+		}, { file: 'saved file', dirty: false, untitled: 'unsaved untitled', stored: 'saved file' });
+	});
+
+	test('untitled model does not restore the associated file backup', async () => {
+		await fileService.writeFile(resource, VSBuffer.fromString('saved file'));
+		const file = disposables.add(await textFileService.files.resolve(resource));
+		file.textEditorModel?.setValue('unsaved file');
+		const backup = await file.backup(CancellationToken.None);
+		await service.backup(file, backup.content, undefined, backup.meta);
+
+		const untitled = disposables.add(await textFileService.untitled.resolve({ associatedResource: resource, initialValue: 'unsaved untitled' }));
+
+		assert.deepStrictEqual({
+			file: file.textEditorModel?.getValue(),
+			untitled: untitled.textEditorModel?.getValue(),
+			stored: (await fileService.readFile(resource)).value.toString()
+		}, { file: 'unsaved file', untitled: 'unsaved untitled', stored: 'saved file' });
+	});
+
+	test('preserves resource and type identities when resolving and listing backups', async () => {
+		const identifiers = [
+			fileIdentifier,
+			untitledIdentifier,
+			toTypedWorkingCopyId(resource),
+			toUntypedWorkingCopyId(resource.with({ query: 'query' })),
+			toUntypedWorkingCopyId(resource.with({ fragment: 'fragment' }))
+		];
+		for (const [index, identifier] of identifiers.entries()) {
+			await service.backup(identifier, bufferToReadable(VSBuffer.fromString(`backup ${index}`)), undefined, { index });
+		}
+
+		const backups = [];
+		for (const identifier of identifiers) {
+			const backup = await service.resolve(identifier);
+			backups.push({
+				exists: service.hasBackupSync(identifier),
+				content: backup && (await streamToBuffer(backup.value)).toString(),
+				meta: backup?.meta
+			});
+		}
+
+		assert.deepStrictEqual({ identifiers: await service.getBackups(), backups }, {
+			identifiers,
+			backups: identifiers.map((_, index) => ({ exists: true, content: `backup ${index}`, meta: { index } }))
+		});
+	});
+
+	test('discarding an untitled backup preserves its associated file backup', async () => {
+		await service.backup(fileIdentifier, bufferToReadable(VSBuffer.fromString('file backup')));
+		await service.backup(untitledIdentifier, bufferToReadable(VSBuffer.fromString('untitled backup')));
+
+		await service.discardBackup(untitledIdentifier);
+
+		const backup = await service.resolve(fileIdentifier);
+		assert.deepStrictEqual({
+			file: backup && (await streamToBuffer(backup.value)).toString(),
+			untitled: await service.resolve(untitledIdentifier)
+		}, { file: 'file backup', untitled: undefined });
+	});
+
+	test('filtered discard retains only the original excluded identifier', async () => {
+		await service.backup(fileIdentifier);
+		await service.backup(untitledIdentifier, bufferToReadable(VSBuffer.fromString('untitled backup')));
+		await service.backup(toTypedWorkingCopyId(resource));
+
+		await service.discardBackups({ except: [untitledIdentifier] });
+
+		const backup = await service.resolve(untitledIdentifier);
+		assert.deepStrictEqual({
+			identifiers: await service.getBackups(),
+			content: backup && (await streamToBuffer(backup.value)).toString(),
+			file: service.hasBackupSync(fileIdentifier),
+			typedFile: service.hasBackupSync(toTypedWorkingCopyId(resource))
+		}, { identifiers: [untitledIdentifier], content: 'untitled backup', file: false, typedFile: false });
+	});
 });

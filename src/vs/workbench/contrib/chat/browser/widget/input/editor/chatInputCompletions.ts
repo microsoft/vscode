@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { coalesce } from '../../../../../../../base/common/arrays.js';
 import { decodeBase64 } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
@@ -52,7 +53,7 @@ import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQuali
 import { getAttachableImageExtension } from '../../../../common/model/chatModel.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
-import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { ChatSessionReferenceVariableId, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
@@ -414,7 +415,7 @@ export class AgentCompletions extends Disposable {
 				}
 
 				const agentHostSession = isAgentHostBackedWidget(widget);
-				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService) || ChatContextKeys.inSessionsChat.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 
@@ -456,7 +457,7 @@ export class AgentCompletions extends Disposable {
 				}
 
 				const agentHostSession = isAgentHostBackedWidget(widget);
-				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService))) {
+				if (agentHostSession && (widget.location !== ChatAgentLocation.Chat || IsSessionsWindowContext.getValue(widget.scopedContextKeyService) || ChatContextKeys.inSessionsChat.getValue(widget.scopedContextKeyService))) {
 					return;
 				}
 				if (widget.lockedAgentId && !agentHostSession) {
@@ -1125,9 +1126,10 @@ export class BuiltinDynamicCompletions extends Disposable {
 						sortText: `z${String(Number.MAX_SAFE_INTEGER - session.lastMessageDate).padStart(20, '0')}`,
 						command: {
 							id: BuiltinDynamicCompletions.addReferenceCommand, title: '', arguments: [new ReferenceArgument(widget, {
-								id: session.sessionResource.toString(),
+								id: ChatSessionReferenceVariableId,
 								icon: session.icon,
 								range: { startLineNumber: range.replace.startLineNumber, startColumn: range.replace.startColumn, endLineNumber: range.replace.endLineNumber, endColumn: range.replace.startColumn + text.length },
+								fullName: session.title,
 								data: session.sessionResource
 							})]
 						}

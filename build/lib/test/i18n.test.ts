@@ -44,6 +44,10 @@ suite('XLF Parser Tests', () => {
 			workbenchServices = { name: 'vs/workbench/services/textfile', project: workbenchProject },
 			workbench = { name: 'vs/workbench', project: workbenchProject },
 			sessionsContrib = { name: 'vs/sessions/contrib/chat', project: sessionsProject },
+			sharedSessions = { name: 'vs/workbench/contrib/sessions', project: sessionsProject },
+			sessionChanges = { name: 'vs/workbench/contrib/sessionChanges', project: sessionsProject },
+			sessionsServices = { name: 'vs/workbench/services/sessions', project: sessionsProject },
+			sessionsPart = { name: 'vs/workbench/browser/parts/sessions', project: sessionsProject },
 			sessions = { name: 'vs/sessions', project: sessionsProject };
 
 		assert.deepStrictEqual(i18n.getResource('vs/platform/actions/browser/menusExtensionPoint'), platform);
@@ -56,5 +60,10 @@ suite('XLF Parser Tests', () => {
 		assert.deepStrictEqual(i18n.getResource('vs/workbench/browser/parts/panel/panelActions'), workbench);
 		assert.deepStrictEqual(i18n.getResource('vs/sessions/contrib/chat/browser/chatWidget'), sessionsContrib);
 		assert.deepStrictEqual(i18n.getResource('vs/sessions/browser/layoutActions'), sessions);
+		assert.deepStrictEqual(i18n.getResource('vs/workbench/contrib/sessions/browser/sessionsService'), sharedSessions);
+		assert.deepStrictEqual(i18n.getResource('vs/workbench/contrib/sessionChanges/browser/changesView'), sessionChanges);
+		assert.deepStrictEqual(i18n.getResource('vs/workbench/services/sessions/common/session'), sessionsServices);
+		assert.deepStrictEqual(i18n.getResource('vs/workbench/browser/parts/sessions/sessionsPart'), sessionsPart);
+		assert.deepStrictEqual(i18n.getResource('vs/workbench/contrib/sessionsWelcome/browser/x'), { name: 'vs/workbench/contrib/sessionsWelcome', project: workbenchProject });
 	});
 });

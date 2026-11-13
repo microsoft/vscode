@@ -34,6 +34,7 @@ import { TestExperimentTriggerTelemetryService } from '../../../../../platform/t
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
 import { IWorkspaceContextService, WorkbenchState, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../services/assignment/test/common/nullAssignmentService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
@@ -51,6 +52,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chat
 import { CopilotHarnessIntroductionContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 import { agentsWindowHandoffConfigurationProperties } from '../../browser/agentSessionsConfiguration.js';
 import { IAgentHostEditorActivityService } from '../../electron-browser/agentSessions/agentHostEditorActivity.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('Agents Window draft handoff and Copilot introduction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -185,11 +187,12 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			refresh: () => { },
 		}));
 		instantiation.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-			getWorkspace: () => ({ id: 'source', folders: [new WorkspaceFolder({ uri: URI.file('/source'), name: 'source', index: 0 })] }),
+			getWorkspace: () => (testIWorkspace({ id: 'source', folders: [new WorkspaceFolder({ uri: URI.file('/source'), name: 'source', index: 0 })] })),
 			getWorkbenchState: () => workbenchState,
 			onDidChangeWorkbenchState: workbenchStateChanged.event,
 		}));
 		instantiation.stub(IEditorService, upcastPartial<IEditorService>({ activeEditor: undefined }));
+		instantiation.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: undefined }));
 		instantiation.stub(INativeHostService, upcastPartial<INativeHostService>({ openAgentsWindow: async value => { calls.push(value ?? {}); await openReady; } }));
 		instantiation.stub(IAgentHostEditorActivityService, upcastPartial<IAgentHostEditorActivityService>({
 			recordCopilotHarnessIntroductionShown: async () => { introductionImpressions++; },

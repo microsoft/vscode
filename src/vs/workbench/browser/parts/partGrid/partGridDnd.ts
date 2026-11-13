@@ -535,18 +535,17 @@ const NONE_KEY = 'none';
 
 /**
  * The title of an editor group in a cell, if a target is its empty space,
- * which drags the group (the space beside its tabs, or its title itself),
- * and the group is one whose title drags the part, as `canDragPart` says.
+ * which drags the group (the space beside its tabs, or its title itself).
  * A pointer down there drags the part instead (see `PartGrid.startPartDrag`).
  */
-export function getPartTitleDragSource(target: EventTarget | null, cell: HTMLElement, canDragPart: (group: HTMLElement) => boolean): HTMLElement | undefined {
+export function getPartTitleDragSource(target: EventTarget | null, cell: HTMLElement): HTMLElement | undefined {
 	if (!isHTMLElement(target)) {
 		return undefined;
 	}
 
 	const title = target.classList.contains('tabs-container') ? target.closest<HTMLElement>('.title') : target.classList.contains('title') ? target : null;
 	const group = title?.parentElement;
-	if (!title || !group?.classList.contains('editor-group-container') || !cell.contains(group) || !canDragPart(group)) {
+	if (!title || !group?.classList.contains('editor-group-container') || !cell.contains(group)) {
 		return undefined;
 	}
 

@@ -1126,6 +1126,7 @@ suite('ChatModelConfigurationStore', () => {
 				_currentSessionTypeObservable: observableValue<string | undefined>('test.sessionType', undefined),
 				_modelSessionTypeOverride: observableValue('test.modelSessionTypeOverride', undefined),
 				_currentLanguageModel: observableValue('test.selectedModel', selectedModel),
+				chatSessionsService: { getChatSessionContribution: () => undefined },
 				chatModeService: { createModes: () => modes },
 				selectedToolsModel: { resetSessionEnablementState() { } },
 				sessionTypeHasOwnModelPool: () => false,

@@ -11,10 +11,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../browser/pinnedCanvases.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { PinnedCanvasPageContribution } from '../../electron-browser/pinnedCanvasPage.js';
 
 suite('PinnedCanvasPageContribution', () => {
@@ -44,7 +43,7 @@ suite('PinnedCanvasPageContribution', () => {
 			acceptsState: ['plan', 'removed'].map(pinId => descriptor.acceptsState?.(pinId)),
 		})), [{
 			id: PINNED_CANVAS_PAGE_ID,
-			actions: { style: 'toolbar', menuId: Menus.CustomViewCanvas },
+			actions: { style: 'toolbar', menuId: AgentsWindowMenus.CustomViewCanvas },
 			restore: false,
 			acceptsState: [true, false],
 		}]);

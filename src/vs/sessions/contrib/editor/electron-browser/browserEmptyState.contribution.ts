@@ -15,9 +15,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { BrowserEditorInput } from '../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { IBrowserViewModel } from '../../../../workbench/contrib/browserView/common/browserView.js';
 import { BrowserEditor, BrowserEditorContribution, BrowserWidgetLocation, IBrowserEditorWidget } from '../../../../workbench/contrib/browserView/electron-browser/browserEditor.js';
-import { Menus } from '../../../browser/menus.js';
-import { SessionsEmptyStateActions } from '../../../browser/parts/sessionsEmptyStateActions.js';
-import { SessionsEmptyStateLayout } from '../../../browser/parts/sessionsEmptyStateLayout.js';
+import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
+import { SessionsEmptyStateActions } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateActions.js';
+import { SessionsEmptyStateLayout } from '../../../../workbench/browser/parts/sessions/sessionsEmptyStateLayout.js';
 
 export class SessionsBrowserEmptyState extends BrowserEditorContribution {
 	private readonly element = $('.sessions-browser-empty-state');
@@ -31,7 +31,7 @@ export class SessionsBrowserEmptyState extends BrowserEditorContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(editor);
-		this.actions = this._register(instantiationService.createInstance(SessionsEmptyStateActions, this.element, Menus.EmptyBrowserEditorActions, {
+		this.actions = this._register(instantiationService.createInstance(SessionsEmptyStateActions, this.element, AgentsWindowMenus.EmptyBrowserEditorActions, {
 			ariaLabel: localize('browser.emptyActions', "Browser actions"),
 			telemetrySource: 'browser.emptyState',
 			menuOptions: { arg: editor },
@@ -99,7 +99,7 @@ export class SessionsBrowserEmptyState extends BrowserEditorContribution {
 BrowserEditor.registerContribution(SessionsBrowserEmptyState);
 MenuRegistry.appendMenuItems([
 	{
-		id: Menus.EmptyBrowserEditorActions,
+		id: AgentsWindowMenus.EmptyBrowserEditorActions,
 		item: {
 			command: {
 				id: BrowserViewCommandId.FocusUrlInput,
@@ -111,7 +111,7 @@ MenuRegistry.appendMenuItems([
 		},
 	},
 	{
-		id: Menus.EmptyBrowserEditorActions,
+		id: AgentsWindowMenus.EmptyBrowserEditorActions,
 		item: {
 			command: {
 				id: BrowserViewCommandId.ShowHistory,

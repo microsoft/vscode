@@ -12,7 +12,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { mockObject, upcastDeepPartial, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SubmenuItemAction } from '../../../../../platform/actions/common/actions.js';
-import { IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -20,16 +20,18 @@ import { MockContextKeyService } from '../../../../../platform/keybinding/test/c
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/browser/environmentService.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { Menus } from '../../../../browser/menus.js';
-import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IChat, ISessionWorkspace } from '../../../../services/sessions/common/session.js';
-import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { IAgentHostSessionsProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IChat, ISessionWorkspace } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { BlockedSessionsIndicatorModel } from '../../browser/blockedSessionsIndicatorModel.js';
 import { SessionActionFeedback } from '../../browser/sessionActionFeedback.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
-import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { ITestSessionsService } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 
 suite('SessionsTitleBarWidget - Remote Host', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -43,8 +45,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		label: 'Local',
 	});
 
-	function createSession(providerId: string, workspace?: ISessionWorkspace): IActiveSession {
-		return upcastPartial<IActiveSession>({
+	function createSession(providerId: string, workspace?: ISessionWorkspace): ITestSessionWithChat {
+		return upcastPartial<ITestSessionWithChat>({
 			providerId,
 			workspace: constObservable(workspace),
 			activeChat: constObservable(upcastPartial<IChat>({ workspace: constObservable(workspace) })),
@@ -52,8 +54,8 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		});
 	}
 
-	function createHarness(session: IActiveSession | undefined, sessionTitle?: string, remoteHost = remoteProvider) {
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', session);
+	function createHarness(session: ITestSessionWithChat | undefined, sessionTitle?: string, remoteHost = remoteProvider) {
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', session);
 		const providers = new Map([remoteHost, localProvider].map(provider => [provider.id, provider]));
 		const onDidChangeProviders = store.add(new Emitter<ISessionsProvidersChangeEvent>());
 		const onDidChangeSessionTypes = store.add(new Emitter<void>());
@@ -67,7 +69,7 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 		hoverService.setupManagedHover.returns({ ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } });
 		const feedback = store.add(new SessionActionFeedback());
 		const action = new SubmenuItemAction({
-			submenu: Menus.TitleBarSessionTitle,
+			submenu: AgentsWindowMenus.TitleBarSessionTitle,
 			title: 'Show Sessions',
 		}, undefined, []);
 		const widget = store.add(new SessionsTitleBarWidget(
@@ -77,13 +79,19 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			upcastPartial<BlockedSessionsIndicatorModel>({
 				onDidRequestBlink: Event.None,
 				blockedSessions: constObservable([]),
+				unacknowledgedBlockedSessions: constObservable([]),
+				reminderSessions: constObservable([]),
+				attentionSessionCount: constObservable(0),
 				requiresInputKind: constObservable(undefined),
 			}),
 			upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidChangeSessionTypes: onDidChangeSessionTypes.event,
 			}),
-			upcastPartial<ITestSessionsService>({ activeSession }),
+			upcastPartial<ITestSessionsService>({
+				activeSession,
+				getRecentlyOpenedSessions: () => ({ recent: [], other: [] }),
+			}),
 			upcastPartial<ISessionHost>({ session: activeSession, chat: derived(reader => activeSession.read(reader)?.activeChat.read(reader)) }),
 			providersService,
 			upcastPartial<ICommandService>({}),
@@ -94,6 +102,12 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			upcastPartial<IQuickInputService>({}),
 			hoverService,
 			upcastPartial<IBrowserWorkbenchEnvironmentService>({ sessionTitle }),
+			upcastPartial<IChatWindowService>({}),
+			upcastPartial<IAccessibilityService>({ isMotionReduced: () => false }),
+			upcastPartial<IContextMenuService>({
+				onDidShowContextMenu: Event.None,
+				onDidHideContextMenu: Event.None,
+			}),
 		));
 		const container = $('div');
 		widget.render(container);
@@ -103,22 +117,38 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			providers,
 			onDidChangeProviders,
 			onDidChangeSessionTypes,
-			presentation: () => ({
-				text: container.textContent,
-				ariaLabel: container.getAttribute('aria-label'),
-				hover: container.contains(hoverService.setupManagedHover.lastCall?.args[1])
-					? hoverService.setupManagedHover.lastCall?.args[2]
-					: undefined,
-			}),
+			presentation: (truncated = true) => {
+				const hover = hoverService.setupManagedHover.lastCall;
+				const target = hover?.args[1];
+				if (target && container.contains(target)) {
+					Object.defineProperties(target, {
+						clientWidth: { configurable: true, value: 100 },
+						scrollWidth: { configurable: true, value: truncated ? 150 : 100 },
+					});
+				}
+				const hoverContent = target && container.contains(target) ? hover.args[2] : undefined;
+				return {
+					text: container.textContent,
+					ariaLabel: container.getAttribute('aria-label'),
+					hover: typeof hoverContent === 'function' ? hoverContent() : hoverContent,
+				};
+			},
 		};
 	}
 
 	test('shows the remote host name for a workspace-less chat', () => {
 		const harness = createHarness(createSession(remoteProvider.id));
-		assert.deepStrictEqual(harness.presentation(), {
-			text: 'No workspace [Remote machine]',
-			ariaLabel: 'Show Sessions: No workspace [Remote machine]',
-			hover: 'No workspace [Remote machine]',
+		assert.deepStrictEqual({ truncated: harness.presentation(), visible: harness.presentation(false) }, {
+			truncated: {
+				text: 'No workspace [Remote machine]',
+				ariaLabel: 'Show Sessions: No workspace [Remote machine]',
+				hover: 'No workspace [Remote machine]',
+			},
+			visible: {
+				text: 'No workspace [Remote machine]',
+				ariaLabel: 'Show Sessions: No workspace [Remote machine]',
+				hover: undefined,
+			},
 		});
 	});
 

@@ -83,6 +83,7 @@ class EditorAccessibilityHelpProvider extends Disposable implements IAccessibleV
 		} else {
 			content.push(AccessibilityHelpNLS.defaultWindowTitleExcludingEditorState);
 		}
+		content.push(localize('editor.simpleFileDialogSelectInitialPath', "In the simple file dialog, the pre-filled path is selected when a screen reader is detected, so typing replaces it. Change this with the files.simpleDialog.selectInitialPath setting."));
 		content.push(AccessibilityHelpNLS.toolbar);
 		content.push(localize('editorType.openToSideHelp', "In the Reopen Editor With menu, hold Alt to show alternatives labelled with (Open to the Side) after the editor name. On Windows and Linux, Shift also works. Native menus select the alternative when the menu opens; custom menus update while open. Click an entry or press Enter to run the displayed action. Editors that cannot be split do not offer this alternative for their current type. Switching editor types preserves the selection when supported by the editor."));
 

@@ -22,14 +22,14 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IPreferencesService } from '../../../../../workbench/services/preferences/common/preferences.js';
-import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, DesktopChangesEditorTransitionContext } from '../../../../common/contextkeys.js';
-import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../changes/browser/changesView.js';
-import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../changes/browser/sessionActionContextKeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
-import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../browser/sessionAgentMerge.js';
+import { ANY_AGENT_HOST_PROVIDER_RE, isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { SessionIsArchivedContext, SessionAgentMergeEnabledContext, SessionHasOpenPullRequestContext, SessionPrimaryPullRequestOperationContext, SessionProviderIdContext, DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { CHANGES_OPERATIONS_DROPDOWN_PRIMARY_GROUP } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { ISessionActionContextKeysSource, registerSessionActionContextKeyBinder } from '../../../../../workbench/contrib/sessionChanges/browser/sessionActionContextKeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { getGlobalAgentMergeConfiguration, getSessionAgentMergeConfigurationObservable } from '../../../../../workbench/contrib/sessions/browser/sessionAgentMerge.js';
 
 const agentMergeCommandPrecondition = ContextKeyExpr.and(
 	IsSessionsWindowContext,
@@ -183,7 +183,7 @@ abstract class AgentMergeActionBase extends Action2 {
 		}
 		const target = resolveSessionCommandTarget(accessor, [sessionArg]);
 		const session = target?.session;
-		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId);
+		const provider = session && accessor.get(ISessionsProvidersService).getProvider(session.providerId, session.sessionId);
 		return session && provider && isAgentHostProvider(provider) ? { session, provider, chat: (target.chat ?? session.mainChat.get()).resource } : undefined;
 	}
 

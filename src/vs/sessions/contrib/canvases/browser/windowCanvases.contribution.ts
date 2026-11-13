@@ -18,9 +18,11 @@ import { IsAuxiliaryWindowContext, IsSessionsWindowContext, IsTopRightEditorGrou
 import { EditorExtensions } from '../../../../workbench/common/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Menus, SessionActivityBarGroup, SessionCanvasMenuGroup } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { IWindowCanvasService, WindowCanvasInput, WindowCanvasService } from '../../../services/canvas/browser/windowCanvasService.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus, SessionCanvasMenuGroup } from '../../../browser/agentsWindowMenus.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { WindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvasService.js';
+import { WindowCanvasInput, IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 import { WindowCanvasesAvailableContext } from '../common/sessionCanvas.js';
 import { CanvasActivityBarToggledContext } from './canvasActivityBar.js';
@@ -34,7 +36,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 );
 
 // Registered here, on every platform, because the window's canvases share the Available group with the active chat's canvases
-for (const menu of [Menus.SessionsEditorTabsBarAddTabCanvas, Menus.SessionActivityBarCanvas]) {
+for (const menu of [AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas, AgentsWindowMenus.SessionActivityBarCanvas]) {
 	MenuRegistry.appendMenuGroup(menu, { group: SessionCanvasMenuGroup.Running, title: localize('canvasMenu.running', "Running") });
 	MenuRegistry.appendMenuGroup(menu, { group: SessionCanvasMenuGroup.Available, title: localize('canvasMenu.available', "Available") });
 	MenuRegistry.appendMenuGroup(menu, { group: SessionCanvasMenuGroup.Discover, title: localize('canvasMenu.discover', "Discover More") });
@@ -46,7 +48,7 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 	constructor(
 		@IWindowCanvasService canvasService: IWindowCanvasService,
 		@ISessionEditorWorkingSetService workingSetService: ISessionEditorWorkingSetService,
-		@IAgentWorkbenchLayoutService layoutService: IAgentWorkbenchLayoutService,
+		@ISessionsHostLayoutService layoutService: ISessionsHostLayoutService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -64,16 +66,16 @@ class WindowCanvasesContribution extends Disposable implements IWorkbenchContrib
 			for (const canvas of canvases) {
 				const command = { id: `sessions.windowCanvas.open.${canvas.id}`, title: canvas.title, icon: canvas.icon };
 				registrations.add(CommandsRegistry.registerCommand(command.id, () => canvasService.openCanvas(canvas.id)));
-				for (const menu of [Menus.SessionsEditorTabsBarAddTabCanvas, Menus.SessionActivityBarCanvas]) {
+				for (const menu of [AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas, AgentsWindowMenus.SessionActivityBarCanvas]) {
 					registrations.add(MenuRegistry.appendMenuItem(menu, { command, group: SessionCanvasMenuGroup.Available, when: ChatContextKeys.enabled }));
 				}
 			}
 		}));
 		const when = ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext, IsAuxiliaryWindowContext.toNegated(), WindowCanvasesAvailableContext);
-		for (const menu of [Menus.SessionsEditorTabsBarAddTab, Menus.SessionsEmptyEditorGroupAddTab, Menus.SessionActivityBar]) {
+		for (const menu of [AgentsWindowMenus.SessionsEditorTabsBarAddTab, AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, Menus.SessionActivityBar]) {
 			const activityBar = menu === Menus.SessionActivityBar;
 			this._register(MenuRegistry.appendMenuItem(menu, {
-				submenu: activityBar ? Menus.SessionActivityBarCanvas : Menus.SessionsEditorTabsBarAddTabCanvas,
+				submenu: activityBar ? AgentsWindowMenus.SessionActivityBarCanvas : AgentsWindowMenus.SessionsEditorTabsBarAddTabCanvas,
 				title: localize('windowCanvas.submenu', "Canvas"),
 				icon: Codicon.preview,
 				group: activityBar ? SessionActivityBarGroup.SidePanel : 'navigation',

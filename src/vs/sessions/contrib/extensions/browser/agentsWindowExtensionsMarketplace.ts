@@ -282,7 +282,7 @@ export class MarketplaceExtensionRowRenderer implements IListRenderer<IAgentsWin
 
 		// Installs the preferred version that the extension has, and offers the other version in a menu.
 		const installAction = templateDisposables.add(this.instantiationService.createInstance(InstallDropdownAction));
-		// The Agents window has no Extensions editor, so the extension stays in the Extensions section of Agent Customizations.
+		// Installing from a row keeps users in the list, rather than opening the extension's page like the Extensions view.
 		installAction.opensExtensionEditor = false;
 		// Users install extensions here to use them here, and extensions that don't support the Agents window are disabled
 		// there by default. The extensions service enables them as it installs them, even if the section closes meanwhile.

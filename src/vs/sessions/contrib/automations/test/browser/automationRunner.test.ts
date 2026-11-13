@@ -14,8 +14,8 @@ import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationCatalogueState, AutomationMutationUncertainError, IAutomationService, IAutomationRunRequestResult } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../services/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider, ISessionsProviderAutomations } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AutomationRunner } from '../../browser/automationRunner.js';
 
 suite('AutomationRunner', () => {
@@ -89,6 +89,19 @@ suite('AutomationRunner', () => {
 		assert.deepStrictEqual(await operation.whenDispatched, { kind: 'alreadyRunning', activeRun: run });
 		await operation.whenCompleted;
 		assert.deepStrictEqual(calls, ['automation']);
+	});
+
+	test('queue admission succeeds without owning the existing conversation, even if cancellation arrives', async () => {
+		const token = disposables.add(new CancellationTokenSource());
+		const queued = { ...run, status: 'completed', sessionResource: undefined } as const;
+		const { runner, calls, errors } = setup(async () => {
+			token.cancel();
+			return { kind: 'dispatched', run: queued, whenCompleted: Promise.resolve() };
+		});
+		const operation = runner.runOnce({ ...automation, conversation: { sessionResource: run.sessionResource!, chatResource: URI.parse('agent-host-copilotcli:/peer') } }, token.token);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'queued', run: queued }, calls: ['automation'], errors: [] });
 	});
 
 	test('acknowledges cloud dispatch without inventing a run, session or completion outcome', async () => {

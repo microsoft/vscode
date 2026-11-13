@@ -21,11 +21,11 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ACCOUNTS_AVATAR_SETTING, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
-import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionFileChange } from '../../../services/sessions/common/session.js';
-import { IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionFileChange } from '../../../../workbench/services/sessions/common/session.js';
+import { IsNewChatSessionContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SideBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { Menus } from '../../menus.js';
+import { AgentsWindowMenus } from '../../agentsWindowMenus.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { getAccountTitleBarState, getAccountProfileImageUrl, getAccountTitleBarBadgeKey, resolveAccountInfo } from '../../accountTitleBarState.js';
 import { IChatDashboardService } from '../../chatDashboardService.js';
@@ -49,7 +49,7 @@ import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
  *  - **Welcome hidden** → shows the active session title (live, from
  *    the session the main window's host shows).
  *  - **Welcome visible** → shows whatever is contributed to the
- *    {@link Menus.MobileTitleBarCenter} menu. On web, the host filter
+ *    {@link AgentsWindowMenus.MobileTitleBarCenter} menu. On web, the host filter
  *    contribution appends its host dropdown + connection button there.
  *
  * The switch is driven entirely by the menu: when the toolbar has no
@@ -256,7 +256,7 @@ export class MobileTitlebarPart extends Disposable {
 		}));
 
 		// Mount the center toolbar (host filter widget on web welcome, etc.)
-		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, Menus.MobileTitleBarCenter, {
+		const toolbar = this._register(instantiationService.createInstance(MenuWorkbenchToolBar, this.actionsContainer, AgentsWindowMenus.MobileTitleBarCenter, {
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'mobileTitlebar.center',
 			toolbarOptions: { primaryGroup: () => true },
@@ -572,7 +572,7 @@ export class MobileTitlebarPart extends Disposable {
 	}
 
 	private getSheetActions(): IAction[] {
-		const menu = this.menuService.createMenu(Menus.AccountMenu, this.contextKeyService);
+		const menu = this.menuService.createMenu(AgentsWindowMenus.AccountMenu, this.contextKeyService);
 		const rawActions: IAction[] = [];
 		fillInActionBarActions(menu.getActions(), rawActions);
 		menu.dispose();

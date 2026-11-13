@@ -16,6 +16,7 @@ import { autorun, constObservable, observableValue } from '../../../../../../bas
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { AutomationDisableConditionKind } from '../../../../../../platform/agentHost/common/state/protocol/channels-automation/state.js';
 import { ChatAIDisabledSettingId } from '../../../../../../platform/chat/common/chatSettings.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
@@ -30,7 +31,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
-import { IGitHubService } from '../../../../github/browser/githubService.js';
+import { IGitHubService } from '../../../../../../workbench/contrib/sessions/browser/github/githubService.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAutomationSchedule, IAutomationSessionTemplate } from '../../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { AutomationMutationUncertainError, AutomationUnavailableError } from '../../../../../../workbench/contrib/chat/common/automations/automationService.js';
@@ -38,16 +39,17 @@ import { CHAT_AUTOMATIONS_ENABLED_SETTING, CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTIN
 import { IToolImpl } from '../../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
 import { IChatEntitlementService, IChatSentiment } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
-import { ISessionsRecentWorkspacesService } from '../../../../../services/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
+import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IScheduledChatsService } from '../../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
+import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
 import { AutomationSessionDraftSynchronizer } from '../../../../automations/browser/automationDialog.js';
 import { ConfigureAutomationTool, DeleteAutomationTool, ListAutomationsTool, RunAutomationTool } from '../../../../automations/browser/automationTools.js';
 import { AutomationRunner } from '../../../../automations/browser/automationRunner.js';
 import { ProviderAutomationService } from '../../../../automations/browser/providerAutomationService.js';
-import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../browser/cloudAutomationStore.js';
+import { CloudAutomationStore, cloudAutomationSchedule, cloudAutomationTriggers } from '../../../../../../workbench/contrib/sessions/providers/copilotChatSessions/browser/cloudAutomationStore.js';
 import { IRepositoryPickResult, RepositoryPicker } from '../../../../../../workbench/contrib/chat/browser/agentSessions/repositoryPicker.js';
 import { RepositoryRef } from '../../../../../../platform/github/common/client/types.js';
 import { PaginatedResponse } from '../../../../../../platform/github/common/missionControl/missionControl.js';
@@ -267,9 +269,10 @@ suite('CloudAutomationStore', () => {
 		const warnings: string[] = [];
 		const notifications = upcastPartial<INotificationService>({ warn: message => warnings.push(String(message)), error: message => assert.fail(String(message)) });
 		const runner = new AutomationRunner(service, providers, new NullLogService(), notifications);
+		const scheduledChats = upcastPartial<IScheduledChatsService>({ enabled: constObservable(false), getPendingRequests: () => [] });
 		const tools = {
-			list: new ListAutomationsTool(service, context.configuration, providers),
-			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService),
+			list: new ListAutomationsTool(service, context.configuration, providers, scheduledChats),
+			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService, scheduledChats),
 			run: new RunAutomationTool(service, runner, context.configuration),
 			delete: new DeleteAutomationTool(service, context.configuration),
 		};
@@ -1657,6 +1660,22 @@ suite('CloudAutomationStore', () => {
 			dispatchedBeforeValid, creates: api.calls.filter(call => call === 'create').length,
 			model: api.created?.model, tools: api.created?.tools, reasoning: api.created?.reasoning_effort,
 		}, { dispatchedBeforeValid: 0, creates: 1, model: 'claude-opus-5.5', tools: ['read', 'future-tool'], reasoning: 'high' });
+	});
+
+	test('rejects end dates on create and update before dispatch', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const existing = provider.automations.get()[0];
+		const disableConditions = [{ kind: AutomationDisableConditionKind.AfterDate as const, date: '2099-01-01T00:00:00Z' }];
+		const errors = await Promise.all([
+			provider.createAutomation({ name: 'Hello', prompt: 'Say hello world', schedule: manual, target: existing.target, disableConditions }),
+			provider.updateAutomation(existing.id, { disableConditions }),
+		].map(promise => promise.then(() => undefined, (error: Error) => error.message)));
+		assert.deepStrictEqual({ errors, mutations: api.calls.filter(call => call === 'create' || call === 'update') }, {
+			errors: ['Cloud automations do not support end dates.', 'Cloud automations do not support end dates.'],
+			mutations: [],
+		});
 	});
 	test('roundtrips UTC schedules and keeps unknown triggers read-only', () => {
 		const daily = { ...manual, interval: 'daily' as const, timeZone: 'UTC' as const, scheduleHour: 7, scheduleMinute: 15 };

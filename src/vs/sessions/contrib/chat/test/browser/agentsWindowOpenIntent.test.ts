@@ -10,8 +10,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { RemoteAgentHostConnection, RemoteAgentHostEntryType } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { resolveRemoteAgentHostEntryAuthority } from '../../../../browser/openInVSCodeUtils.js';
-import { DevContainerAgentHostEnabledSettingId } from '../../../../common/devContainerAgentHostService.js';
+import { resolveRemoteAgentHostEntryAuthority } from '../../../../../workbench/contrib/sessions/browser/openInVSCodeUtils.js';
+import { DevContainerAgentHostEnabledSettingId } from '../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { getAgentsWindowWorkspaceArgumentKind, getAgentsWindowWorkspaceArgumentRemoteKind, resolveAgentsWindowFolderIntent } from '../../browser/agentsWindowOpenIntent.js';
 
 suite('Agents Window open intent', () => {

@@ -12,11 +12,11 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { isEditorOpenError } from '../../../../../workbench/common/editor.js';
 import { MultiDiffSourceResolverService } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IGitHubService } from '../../browser/githubService.js';
-import { GitHubPullRequestModel } from '../../browser/models/githubPullRequestModel.js';
+import { IGitHubService } from '../../../../../workbench/contrib/sessions/browser/github/githubService.js';
+import { GitHubPullRequestModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestModel.js';
 import { createPullRequestChangesEditorInput, PullRequestChangesMultiDiffSourceResolver } from '../../browser/pullRequestChangesMultiDiffSourceResolver.js';
-import { GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestChanges } from '../../common/types.js';
-import { parsePRContentUri } from '../../common/utils.js';
+import { GitHubPullRequestState, IGitHubPullRequest, IGitHubPullRequestChanges } from '../../../../../workbench/contrib/sessions/common/github/types.js';
+import { parsePRContentUri } from '../../../../../workbench/contrib/sessions/common/github/utils.js';
 
 suite('PullRequestChangesMultiDiffSourceResolver', () => {
 

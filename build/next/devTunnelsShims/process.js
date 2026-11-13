@@ -7,6 +7,8 @@
  * Minimal browser process shim for the Dev Tunnels dependency graph.
  */
 export const process = {
+	// Packages that check `process.browser` take their browser code path instead of reading Node-only properties.
+	browser: true,
 	env: Object.create(null),
 	nextTick(callback, ...args) {
 		queueMicrotask(() => callback(...args));

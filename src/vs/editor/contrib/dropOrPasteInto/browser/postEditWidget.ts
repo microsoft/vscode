@@ -175,15 +175,15 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		)(() => this.clear()));
 	}
 
-	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken, editSessionOwner?: PasteEditSession) {
+	public async applyEditAndShowIfNeeded(ranges: readonly Range[], edits: EditSet<T>, canShowWidget: boolean, resolve: (edit: T, token: CancellationToken) => Promise<T>, token: CancellationToken, editSessionOwner?: PasteEditSession): Promise<boolean> {
 		if (!ranges.length || !this._editor.hasModel()) {
-			return;
+			return false;
 		}
 
 		const model = this._editor.getModel();
 		const edit = edits.allEdits.at(edits.activeEditIndex);
 		if (!edit) {
-			return;
+			return false;
 		}
 
 		const onDidSelectEdit = async (newEditIndex: number, editSession: PasteEditSession | undefined) => {
@@ -203,13 +203,14 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 
 		const handleError = (e: Error, message: string) => {
 			if (isCancellationError(e)) {
-				return;
+				return false;
 			}
 
 			this._notificationService.error(message);
 			if (canShowWidget) {
 				this.show(ranges[0], edits, onDidSelectEdit, editSessionOwner);
 			}
+			return false;
 		};
 
 		const editorStateCts = new EditorStateCancellationTokenSource(this._editor, CodeEditorStateFlag.Value | CodeEditorStateFlag.Selection, undefined, token);
@@ -223,7 +224,7 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		}
 
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 
 		const combinedWorkspaceEdit = createCombinedWorkspaceEdit(model.uri, ranges, resolvedEdit);
@@ -248,12 +249,13 @@ export class PostEditWidgetManager<T extends DocumentPasteEdit | DocumentDropEdi
 		}
 
 		if (token.isCancellationRequested) {
-			return;
+			return false;
 		}
 
 		if (canShowWidget && editResult.isApplied && edits.allEdits.length > 1) {
 			this.show(editRange ?? primaryRange, edits, onDidSelectEdit, editSessionOwner);
 		}
+		return editResult.isApplied;
 	}
 
 	public show(range: Range, edits: EditSet<T>, onDidSelectEdit: (newIndex: number, editSession: PasteEditSession | undefined) => void, editSessionOwner?: PasteEditSession) {

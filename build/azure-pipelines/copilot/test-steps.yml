@@ -1,8 +1,3 @@
-parameters:
-  - name: runIntegrationTests
-    type: boolean
-    default: true
-
 steps:
   - task: AzureCLI@2
     inputs:
@@ -40,20 +35,18 @@ steps:
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run simulation tests
 
-  - ${{ if eq(parameters.runIntegrationTests, true) }}:
-    - script: xvfb-run -a pnpm run test:extension
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Run extension tests
+  - script: xvfb-run -a pnpm run test:extension
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run extension tests
 
   - script: pnpm run test:prompt
     workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
     displayName: Run prompt tests
 
-  - ${{ if eq(parameters.runIntegrationTests, true) }}:
-    - script: xvfb-run -a pnpm run test:completions-core
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Run completions core tests
+  - script: xvfb-run -a pnpm run test:completions-core
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run completions core tests
 
-    - script: xvfb-run -a pnpm run test:sanity
-      workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
-      displayName: Run sanity tests
+  - script: xvfb-run -a pnpm run test:sanity
+    workingDirectory: $(Build.SourcesDirectory)/extensions/copilot
+    displayName: Run sanity tests

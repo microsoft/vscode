@@ -15,8 +15,8 @@ Portable clients share contracts and execution policies, but engine state belong
 
 | Consumer | Execution |
 | --- | --- |
-| Desktop workbench and proposed extension API | The [workbench binding](../../workbench/services/github/electron-browser/githubService.ts) routes portable clients to the [shared-process service](electron-utility/githubService.ts). |
-| Web workbench and proposed extension API | The [browser binding](../../workbench/services/github/browser/githubService.ts) executes locally with browser fetch. |
+| Desktop workbench and internal extension module | The [workbench binding](../../workbench/services/github/electron-browser/githubService.ts) routes portable clients to the [shared-process service](electron-utility/githubService.ts). |
+| Web workbench and internal extension module | The [browser binding](../../workbench/services/github/browser/githubService.ts) executes locally with browser fetch. |
 | Standalone Agent Host | The [Agent Host binding](../agentHost/node/agentHostGitHubService.ts) uses host-owned credentials and networking, without requiring an attached workbench. |
 
 Legacy renderer clients can still execute locally. Independent engines and browser tabs do not share application-wide request state. Within the shared process, connections share admission and verified-account cooldowns, but private caches and credential callbacks remain connection- and grant-scoped.
@@ -26,7 +26,7 @@ The main implementation layers are:
 - [GitHubService](common/githubService.ts): client pooling and ownership of shared queue, cooldown, and telemetry state.
 - [Account](common/account/account.ts) and [anonymous](common/anonymous/anonymous.ts) facades: disposable, typed domain clients.
 - [Request providers](common/client/request.ts): serialization, response parsing, and cancellation shared by local and remote execution.
-- [IPC client](common/remote/ipcClient.ts) and [server](common/remote/ipcServer.ts): connection-scoped leases and credential callbacks.
+- [IPC client](common/remote/ipcClient.ts), [server](common/remote/ipcServer.ts), and [credential provider](common/remote/credentialProvider.ts): connection-scoped leases and credential callbacks.
 
 ## Authorization clients
 
@@ -84,6 +84,7 @@ Repository operations use `RepositoryRef` (`{ owner, repo }`). Typed request met
 - **Connectors:** the [workbench consumer](../../workbench/contrib/chat/browser/aiCustomization/copilotConnectorsService.ts) owns account selection, consent, and polling. Catalog status does not grant runtime MCP access. The [provider](common/client/localConnectorsRequestProvider.ts) enforces its response-size bound, no redirects, and no automatic replay.
 - **Raw repository content:** reads are anonymous and confined to the configured raw origin and pinned repository/commit path. The text-download limit is 1 MiB; mutable refs must first be resolved to a full SHA-1 or SHA-256 commit. Raw files are not fetched through arbitrary response-provided URLs. See the [content client](common/content/contentClient.ts).
 - **Legacy resources and guarded mutations:** existing [subscriptions](common/githubQueryService.ts) and [compound mutations](common/githubPullRequestMutationService.ts) retain their own polling, reconciliation, and authorization rules. A raw endpoint call is not a replacement for guarded merging or reply-and-resolve behavior; an unpublished review reply must not be treated as a published comment.
+- **Issue reporter:** classic web and desktop issue creation uses the existing selected GitHub session through the [form-service bridge](../../workbench/contrib/issue/browser/issueFormService.ts), without selecting the default account or requesting additional scopes. The reporter captures the selected session ID, account, scopes, and issuer alongside its credential, so token renewal retains the same authorization. Unavailable or changed grants fail rather than substituting credentials. Similar-issue search uses the anonymous client. Browser previews and the separate attachment-upload pipeline retain their existing behavior and authentication.
 
 The workbench's [session feed](../../workbench/contrib/chat/browser/remoteAgentHost/cloudSandboxSessionFeed.ts) uses exponential reconnect backoff with jitter (one-second base, 60-second cap), resetting only after a connection stays healthy for 60 seconds. A failed HTTP negotiation still stops feed retries for that lifetime; discovery polling remains available.
 
@@ -118,18 +119,20 @@ Certificate verification remains enabled by default. The shared-process helper d
 
 Operations needing redirect status and headers, such as Actions log-URL retrieval, are unsupported through the local browser provider because browser fetch exposes opaque redirects.
 
-## Proposed extension API
+## Internal extension module
 
-The [`github` proposal](../../../vscode-dts/vscode.proposed.github.d.ts) exposes only the Gist operations needed by [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts):
+The extension-host-provided `@vscode/internal-github` module ([typings](../../../typings/internal-github.d.ts)) is not part of the `vscode` API. It is resolved through the extension host's `require` interception, only for the allowlisted built-in extensions in [extHostGitHub.ts](../../workbench/api/common/extHostGitHub.ts), and binds the importing extension's identity. Node ESM consumers use `createRequire(import.meta.url)`; native ESM imports are not supported. The consumers are [Configuration Editing](../../../../extensions/configuration-editing/src/importExportProfiles.ts) and [GitHub](../../../../extensions/github/src/auth.ts).
 
-- `vscode.github.getClient(sessionId, token?)`: a disposable GitHub.com client with `gists.get` and `gists.create`.
-- `vscode.github.getAnonymousClient(token?)`: a disposable client with `gists.get` only.
+- `getClient(sessionId, token?)`: a disposable GitHub.com client with typed Gist, repository, user, repository-search and pull-request operations. Repository queries also cover viewer permissions, inherited rulesets, assignable users and commit authors.
+- `getAnonymousClient(token?)`: a disposable client with `gists.get` only.
 
-The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The initial proposal does not accept GitHub Enterprise sessions, raw credentials, or arbitrary HTTP requests. Additional domains can be exposed later as typed client properties.
+Ruleset reads support shared page collection through `maxPages`. The GitHub extension collects at most 1,000 pages; exceeding the limit fails rather than returning partial branch-protection rules.
+
+The extension chooses its session through `vscode.authentication.getSession('github', ...)`. Client acquisition never prompts, substitutes another account, or grants access to an extension. The module does not accept GitHub Enterprise sessions, raw credentials, arbitrary HTTP requests or caller-provided GraphQL. A retained authenticated client reports an unusable authorization or lease through `onDidInvalidate` when a request fails; callers release it and acquire a fresh client rather than automatically replaying mutations.
 
 The [main-thread bridge](../../workbench/api/browser/mainThreadGitHub.ts) enforces extension account access, rechecks it after acquisition and before requests, and invalidates pending/active authenticated clients when the provider is removed. The [extension-host facade](../../workbench/api/common/extHostGitHub.ts) provides cancellation and disposable handles. Desktop calls reach the shared-process service; web calls use the local service, and remote extension hosts reach the same main-thread bridge through RPC. Caller attribution is `extension.<extensionId>`.
 
-Gist results contain only the ID, browser URL, and inline file content with binary/truncation flags. Configuration Editing rejects a truncated or binary first file; raw Gist downloads are not part of this proposal. Creation accepts visibility and named text files; secret gists are unlisted, not private to their creator. Errors use `GitHubError` and cancellation uses `CancellationError`; the proposal defines their public shape.
+Gist results contain only the ID, browser URL, and inline file content with binary/truncation flags. Configuration Editing rejects a truncated or binary first file; raw Gist downloads are not part of this module. Creation accepts visibility and named text files; secret gists are unlisted, not private to their creator. Errors use `GitHubError` and cancellation uses `CancellationError`; the internal typings define their shape.
 
 ## Extending the service
 
@@ -160,6 +163,6 @@ pnpm run build-fast --client-only
 .\scripts\test.bat --run src\vs\platform\github\test\common\githubChannel.test.ts
 ```
 
-On macOS/Linux, use `./scripts/test.sh` with forward-slash paths. Select tests nearest the change: [schemas](test/common/schema.test.ts), [API compatibility](test/common/apiCompatibility.test.ts), [IPC](test/common/githubChannel.test.ts), or [transport](test/node/githubTransport.test.ts). Proposal changes also have [main-thread](../../workbench/api/test/browser/mainThreadGitHub.test.ts), [extension-host](../../workbench/api/test/common/extHostGitHub.test.ts), and [profile integration](../../../../extensions/configuration-editing/src/test/importExportProfiles.test.ts) tests.
+On macOS/Linux, use `./scripts/test.sh` with forward-slash paths. Select tests nearest the change: [schemas](test/common/schema.test.ts), [API compatibility](test/common/apiCompatibility.test.ts), [IPC](test/common/githubChannel.test.ts), or [transport](test/node/githubTransport.test.ts). Changes to the internal module also have [main-thread](../../workbench/api/test/browser/mainThreadGitHub.test.ts), [extension-host](../../workbench/api/test/common/extHostGitHub.test.ts), and [profile integration](../../../../extensions/configuration-editing/src/test/importExportProfiles.test.ts) tests.
 
 Use targeted lint/type checks appropriate to the change; see the [contributor instructions](../../../../.github/copilot-instructions.md) for the repository's validation workflow.

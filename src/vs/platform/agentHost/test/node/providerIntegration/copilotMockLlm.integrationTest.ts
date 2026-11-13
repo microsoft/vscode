@@ -44,6 +44,10 @@ const STEERING_OWNER_SCENARIO_ID = 'steering-client-tool-owner';
 const STEERING_RESPONSE_DELAY_MS = 10_000;
 const CANVAS_SCENARIO_ID = 'model-opened-canvas';
 const CANVAS_EXTENSION_TURN_SCENARIO_ID = 'canvas-extension-turn';
+const ENV_CANVAS_SCENARIO_ID = 'model-opened-env-canvas';
+// The runtime withholds its secret environment names from extensions until the user consents.
+const SENSITIVE_VARIABLE = 'BLACKBIRD_AUTH_METIS_API_KEY';
+const SENSITIVE_VALUE = 'mock-llm-canvas-sentinel';
 const PLUGIN_SIBLING_SCENARIO_ID = 'plugin-sibling-delegation';
 const PLUGIN_RESTRICTED_SIBLING_SCENARIO_ID = 'plugin-restricted-sibling-delegation';
 
@@ -92,6 +96,7 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 			mockLlm: true,
 			homeDir: suiteHome,
 			userDataDir: join(suiteHome, 'user-data'),
+			env: { [SENSITIVE_VARIABLE]: SENSITIVE_VALUE },
 			mockScenarios: [{
 				id: STEERING_OWNER_SCENARIO_ID,
 				definition: {
@@ -131,6 +136,18 @@ suite('Agent Host Provider Integration — Copilot with Mock LLM', function () {
 							}],
 						},
 						{ kind: 'content', chunks: [{ content: 'Canvas opened.', delayMs: 0 }] },
+					],
+				},
+			}, {
+				id: ENV_CANVAS_SCENARIO_ID,
+				definition: {
+					type: 'multi-turn',
+					turns: [
+						{
+							kind: 'tool-calls',
+							toolCalls: [{ toolNamePattern: /^open_canvas$/, arguments: { canvasId: 'env-canvas', instanceId: 'env-instance' } }],
+						},
+						{ kind: 'content', chunks: [{ content: 'Env canvas opened.', delayMs: 0 }] },
 					],
 				},
 			}, {
@@ -509,7 +526,7 @@ session = await joinSession({
 
 			assert.deepStrictEqual({
 				openCanvasSucceeded: openCanvasComplete.result.success,
-				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				canvas: { instanceId: canvas.instanceId, uri: canvas.uri },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
 				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
@@ -518,7 +535,7 @@ session = await joinSession({
 				},
 			}, {
 				openCanvasSucceeded: true,
-				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				canvas: { instanceId: 'proof-instance', uri: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
 				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {
@@ -532,6 +549,94 @@ session = await joinSession({
 		} finally {
 			if (previousCanvasesEnabled !== undefined) {
 				await setCanvasesEnabled(previousCanvasesEnabled, 3);
+			}
+		}
+	});
+
+	test('asks in the turn before a lazy extension the model opens reads a sensitive environment variable', async function () {
+		this.timeout(180_000);
+		const workspaceDir = await mkdtemp(`${tmpdir()}/test-mock-env-canvas`);
+		tempDirs.push(workspaceDir);
+		const extensionDir = join(workspaceDir, '.github', 'extensions', 'env-canvas');
+		await mkdir(extensionDir, { recursive: true });
+		await writeFile(join(extensionDir, 'extension.json'), JSON.stringify({
+			version: 1,
+			initialization: 'module',
+			canvases: [{ id: 'env-canvas', displayName: 'Env canvas', description: 'Reads a sensitive environment variable.' }],
+		}), 'utf8');
+		await writeFile(join(extensionDir, 'extension.mjs'), `
+import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import declaration from './extension.json' with { type: 'json' };
+await joinSession({
+	requestedEnvironmentVariables: [${JSON.stringify(SENSITIVE_VARIABLE)}],
+	canvases: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		open: ({ instanceId }) => ({ url: \`http://127.0.0.1:43119/\${instanceId}?env=\${process.env[${JSON.stringify(SENSITIVE_VARIABLE)}] === ${JSON.stringify(SENSITIVE_VALUE)} ? 'visible' : 'hidden'}\` }),
+	})),
+});
+`, 'utf8');
+		let clientSeq = 1;
+		const setCanvasesEnabled = async (enabled: boolean) => {
+			const seq = clientSeq++;
+			client.dispatch({ channel: ROOT_STATE_URI, clientSeq: seq, action: { type: ActionType.RootConfigChanged, config: { [AgentHostCanvasesEnabledConfigKey]: enabled } } });
+			await client.waitForNotification(n => isActionNotification(n, ActionType.RootConfigChanged) && getActionEnvelope(n).origin?.clientSeq === seq);
+		};
+		const confirm = (chat: string, ready: ChatToolCallReadyAction, selectedOptionId?: string) => client.dispatch({
+			channel: chat,
+			clientSeq: clientSeq++,
+			action: { type: ActionType.ChatToolCallConfirmed, turnId: ready.turnId, toolCallId: ready.toolCallId, approved: true, confirmed: ToolCallConfirmationReason.UserAction, ...(selectedOptionId ? { selectedOptionId } : {}) },
+		});
+		/** Waits for the tool call's confirmation request. */
+		const waitForConfirmation = async (toolName: string) => {
+			const start = getActionEnvelope(await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallStart) && (getActionEnvelope(n).action as ChatToolCallStartAction).toolName === toolName, 90_000)).action as ChatToolCallStartAction;
+			return getActionEnvelope(await client.waitForNotification(n => {
+				const action = getActionEnvelope(n).action as ChatToolCallReadyAction;
+				return isActionNotification(n, ActionType.ChatToolCallReady) && action.toolCallId === start.toolCallId && !action.confirmed;
+			}, 90_000)).action as ChatToolCallReadyAction;
+		};
+		let previousCanvasesEnabled: boolean | undefined;
+		try {
+			const sessionUri = await createProviderSession(client, COPILOT_CONFIG, 'real-sdk-mock-env-canvas', createdSessions, URI.file(workspaceDir), async () => {
+				const result = await client.call<SubscribeResult>('subscribe', { channel: ROOT_STATE_URI });
+				previousCanvasesEnabled = (result.snapshot!.state as RootState).config?.values[AgentHostCanvasesEnabledConfigKey] === true;
+				await setCanvasesEnabled(true);
+			});
+			const chat = defaultChatChannel(sessionUri);
+			dispatchTurn(client, sessionUri, 'turn-env-canvas', `[scenario:${ENV_CANVAS_SCENARIO_ID}] Open the env canvas.`, clientSeq++);
+			const openCanvasReady = await waitForConfirmation('open_canvas');
+			confirm(chat, openCanvasReady);
+			const consentReady = await waitForConfirmation('extension_env_consent');
+			confirm(chat, consentReady, 'allow-once');
+			const openCanvasComplete = getActionEnvelope(await client.waitForNotification(n =>
+				isActionNotification(n, ActionType.ChatToolCallComplete) && (getActionEnvelope(n).action as ChatToolCallCompleteAction).toolCallId === openCanvasReady.toolCallId, 90_000)).action as ChatToolCallCompleteAction;
+			const canvasAction = getActionEnvelope(await client.waitForNotification(n => {
+				if (!isActionNotification(n, ActionType.ChatCanvasesChanged)) {
+					return false;
+				}
+				const { channel, action } = getActionEnvelope(n);
+				return channel === chat && action.type === ActionType.ChatCanvasesChanged && (action.canvases?.length ?? 0) > 0;
+			}, 90_000)).action;
+			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged && canvasAction.canvases?.[0]);
+			const state = (await client.call<SubscribeResult>('subscribe', { channel: canvasAction.canvases[0].resource })).snapshot?.state;
+			assert.ok(state && hasKey(state, { uri: true }));
+			await client.waitForNotification(n => isActionNotification(n, ActionType.ChatTurnComplete) && (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-env-canvas', 90_000);
+			assert.deepStrictEqual({
+				consent: { title: consentReady.confirmationTitle, message: consentReady.invocationMessage, options: consentReady.options?.map(option => option.id) },
+				openCanvasSucceeded: openCanvasComplete.result.success,
+				uri: (state as CanvasState).uri,
+			}, {
+				consent: {
+					title: 'Allow env-canvas to Read Sensitive Environment Variables?',
+					message: `Extension 'env-canvas' (project:env-canvas) wants to read these sensitive environment variables: ${SENSITIVE_VARIABLE}. Their values may be credentials, which the extension could send anywhere or pass to processes it starts.`,
+					options: ['allow-once', 'not-now'],
+				},
+				openCanvasSucceeded: true,
+				uri: 'http://127.0.0.1:43119/env-instance?env=visible',
+			});
+		} finally {
+			if (previousCanvasesEnabled !== undefined) {
+				await setCanvasesEnabled(previousCanvasesEnabled);
 			}
 		}
 	});

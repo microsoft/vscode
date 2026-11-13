@@ -14,14 +14,14 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IAgentHostPolicyContinuationPresenter } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostPolicyContinuation.js';
 import { IChatWidget } from '../../../../../../workbench/contrib/chat/browser/chat.js';
 import { ChatViewModel } from '../../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../../../services/sessions/browser/sessionsService.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../../services/sessions/common/sessionsManagement.js';
-import { SessionsAgentHostPolicyContinuationPresenter } from '../../browser/agentHostPolicyContinuationPresenter.js';
-import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
-import { ITestSessionsService, stubFocusedSessionHostFromSessionsService } from '../../../../../services/sessions/test/browser/sessionHostTestUtils.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISession } from '../../../../../../workbench/services/sessions/common/session.js';
+import { SessionsAgentHostPolicyContinuationPresenter } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostPolicyContinuationPresenter.js';
+import '../../browser/agentHostPolicyContinuationPresenter.contribution.js';
+import { LocalAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProvider.js';
+import { ITestSessionsService, ITestSessionWithChat, stubFocusedSessionHostFromSessionsService } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions Agent Host policy continuation presenter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,7 +57,7 @@ suite('Sessions Agent Host policy continuation presenter', () => {
 		});
 		services.stub(ISessionsProvidersService, { getProvider: providers.getProvider });
 		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({
-			activeSession: constObservable(upcastPartial<IActiveSession>({ activeChat })),
+			activeSession: constObservable(upcastPartial<ITestSessionWithChat>({ activeChat })),
 			canOpenSession: async session => {
 				assert.strictEqual(session, destination);
 				if (state.switchDuringTrust) { activeChat.set(upcastPartial<IChat>({ resource: other }), undefined); }

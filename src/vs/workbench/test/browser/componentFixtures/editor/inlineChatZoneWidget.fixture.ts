@@ -34,6 +34,7 @@ import { IChatInputNoticeHubService } from '../../../../contrib/chat/browser/wid
 import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IChatWidgetService, IChatAccessibilityService } from '../../../../contrib/chat/browser/chat.js';
 import { IChatContextPickService } from '../../../../contrib/chat/browser/attachments/chatContextPickService.js';
+import { IChatUserImageAttachmentService } from '../../../../contrib/chat/browser/attachments/chatUserImageAttachments.js';
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
@@ -98,6 +99,7 @@ import '../../../../contrib/chat/browser/widget/media/chat.css';
 import '../../../../../editor/contrib/zoneWidget/browser/zoneWidget.css';
 import '../../../../../base/browser/ui/codicons/codiconStyles.js';
 import { MockChatModeService } from '../../../../contrib/chat/test/common/mockChatModeService.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const SAMPLE_CODE = `import { useState, useEffect } from 'react';
 
@@ -375,6 +377,10 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override registerHost() { return Disposable.None; }
 				override toggleNoticeFocus() { return false; }
 			}());
+			reg.defineInstance(IChatUserImageAttachmentService, new class extends mock<IChatUserImageAttachmentService>() {
+				override readonly onDidAttachImages = Event.None;
+				override didAttachImages() { }
+			}());
 			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
 				override readonly onDidChangeSlashCommands = Event.None;
 				override readonly onDidChangeCustomAgents = Event.None;
@@ -406,7 +412,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 				override isVisible() { return true; }
 			}());
 			reg.defineInstance(IViewDescriptorService, new class extends mock<IViewDescriptorService>() { override readonly onDidChangeLocation = Event.None; }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override readonly onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { override readonly onDidChangeExtensions = Event.None; }());
 			reg.defineInstance(IPathService, new TestPathService());
 			reg.defineInstance(IListService, new ListService());

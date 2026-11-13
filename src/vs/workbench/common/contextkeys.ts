@@ -218,6 +218,13 @@ export const TerminalsPositionContext = new RawContextKey<string | undefined>('t
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
 export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
 
+/**
+ * The context key that enables the command that opens a view container, and
+ * scopes its default keybinding, and so the keybindings that users assign it
+ * in the Keyboard Shortcuts editor.
+ */
+export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
+
 //#endregion
 
 

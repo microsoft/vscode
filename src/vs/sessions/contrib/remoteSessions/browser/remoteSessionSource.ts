@@ -18,8 +18,8 @@ import { AGENT_HOST_SESSION_LINK_SCHEME, parseOpenSessionLinkChatId, parseOpenSe
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { DEFAULT_CHAT_ID, getSessionChatResource, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { isAgentHostSessionResource } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { IChat, ISession } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export interface IRemoteSessionChat {
 	readonly session: ISession;

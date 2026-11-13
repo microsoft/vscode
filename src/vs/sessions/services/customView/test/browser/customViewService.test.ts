@@ -10,7 +10,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { AbstractCustomView, ICustomViewDescriptor } from '../../browser/customView.js';
+import { AbstractCustomView, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../browser/customViewService.js';
 
 class TestCustomView extends AbstractCustomView {

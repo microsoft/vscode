@@ -29,6 +29,7 @@ export class LocalCommandContribution extends Disposable implements IAgentHostCh
 		const handled = this._localCommands.tryHandle({
 			turnChannel: request.turnChannel,
 			turnId: request.turnId,
+			origin: request.message.origin,
 			text: request.message.text,
 		});
 		if (!handled) {

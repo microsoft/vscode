@@ -1,0 +1,204 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/*
+ * `MenuActivityBar`: sized and colored like the workbench activity bar of the Modern UI (`floatingPanels.css`,
+ * `modernUI/browser/media/activityBar.css`). 36px entries with 24px icons in a card whose lane, the space beside them,
+ * is 8px at the default layout density and 4px at the compact one, which also tightens the gap between entries. Keep
+ * the sizes in sync with `MenuActivityBar.ITEM_SIZE`, `LANE` and `COMPACT_DENSITY_LANE`. Hosts that need another size or look,
+ * such as a slimmer bar, set these custom properties.
+ */
+.monaco-workbench .menu-activity-bar {
+	--menu-activity-bar-item-size: 36px;
+	--menu-activity-bar-icon-size: 24px;
+	--menu-activity-bar-lane: var(--vscode-spacing-size80);
+	--menu-activity-bar-gap: var(--vscode-spacing-size80);
+	/* The inset of the background of a hovered or checked entry from the entry's sides. */
+	--menu-activity-bar-highlight-inset: var(--vscode-spacing-size20);
+	--menu-activity-bar-foreground: var(--vscode-activityBar-inactiveForeground);
+	--menu-activity-bar-hover-foreground: var(--vscode-modernActivityBarItem-hoverForeground);
+	--menu-activity-bar-hover-background: var(--vscode-modernActivityBarItem-hoverBackground);
+	--menu-activity-bar-hover-outline: transparent;
+	--menu-activity-bar-active-foreground: var(--vscode-modernActivityBarItem-activeForeground);
+	/* Like the workbench activity bar, a theme's activity bar active background takes precedence. */
+	--menu-activity-bar-active-background: var(--vscode-activityBar-activeBackground, var(--vscode-modernActivityBarItem-activeBackground));
+	--menu-activity-bar-separator-color: var(--vscode-disabledForeground);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	box-sizing: border-box;
+	width: calc(var(--menu-activity-bar-item-size) + var(--menu-activity-bar-lane));
+	/* Inset the first entry from the top by half the lane, as the sides are; the border is part of it. */
+	padding: calc(var(--menu-activity-bar-lane) / 2 - var(--vscode-strokeThickness)) 0;
+	border: var(--vscode-strokeThickness) solid var(--vscode-modernActivityBar-border, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-modernActivityBar-background);
+}
+
+.monaco-workbench.modern-ui-compact .menu-activity-bar {
+	--menu-activity-bar-lane: var(--vscode-spacing-size40);
+	--menu-activity-bar-gap: var(--vscode-spacing-size40);
+	border-radius: 0;
+}
+
+/* Compact size: the minimum target size (WCAG 2.5.8) around base-size icons, whatever the layout density. Keep the sizes in sync
+ * with `MenuActivityBar.COMPACT_ITEM_SIZE` and `COMPACT_SIZE_LANE`. */
+.monaco-workbench .menu-activity-bar.size-compact {
+	--menu-activity-bar-item-size: var(--vscode-spacing-size240);
+	--menu-activity-bar-icon-size: var(--vscode-codiconFontSize);
+	--menu-activity-bar-lane: var(--vscode-spacing-size60);
+	--menu-activity-bar-gap: 0px;
+	--menu-activity-bar-highlight-inset: 0px;
+}
+
+/* Without a gap between entries, the separator takes room of its own. */
+.monaco-workbench .menu-activity-bar.size-compact .monaco-action-bar.vertical .action-item:has(> .action-label.separator) {
+	height: auto;
+}
+
+.monaco-workbench .menu-activity-bar.size-compact .monaco-action-bar.vertical .action-label.separator {
+	width: var(--vscode-spacing-size160);
+	margin: var(--vscode-spacing-size20) auto !important;
+}
+
+.monaco-workbench .menu-activity-bar.size-compact .menu-activity-bar-badge {
+	top: var(--vscode-spacing-size120);
+	right: var(--vscode-spacing-size20);
+}
+
+.monaco-workbench .menu-activity-bar.size-compact .menu-activity-bar-badge.count {
+	top: var(--vscode-spacing-size100);
+	right: 0;
+	min-width: var(--vscode-spacing-size120);
+	height: var(--vscode-spacing-size120);
+	padding: 0 var(--vscode-spacing-size20);
+	line-height: calc(var(--vscode-spacing-size120) - 2 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .menu-activity-bar.hidden {
+	display: none;
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .actions-container {
+	/* A vertical action bar lays its items out as a block, which has no gap between them. */
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: var(--menu-activity-bar-gap);
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-item {
+	/* For the badges, which overlap the entry's icon. */
+	position: relative;
+	margin: 0;
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label:not(.separator) {
+	/* Above the background of a hovered or checked entry, which is behind its icon. */
+	position: relative;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: var(--menu-activity-bar-item-size);
+	height: var(--menu-activity-bar-item-size);
+	padding: 0;
+	font-size: var(--menu-activity-bar-icon-size);
+	color: var(--menu-activity-bar-foreground);
+}
+
+/* The background of a hovered or checked entry: a rounded box behind its icon, as the workbench activity bar draws it. */
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label:not(.separator)::after {
+	content: '';
+	position: absolute;
+	z-index: -1;
+	top: var(--menu-activity-bar-highlight-inset);
+	left: var(--menu-activity-bar-highlight-inset);
+	width: calc(var(--menu-activity-bar-item-size) - 2 * var(--menu-activity-bar-highlight-inset));
+	height: calc(var(--menu-activity-bar-item-size) - 2 * var(--menu-activity-bar-highlight-inset));
+	border-radius: var(--vscode-cornerRadius-small);
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label:not(.disabled, .separator, .checked, .submenu-open):hover {
+	color: var(--menu-activity-bar-hover-foreground);
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label:not(.disabled, .separator, .checked, .submenu-open):hover::after {
+	background-color: var(--menu-activity-bar-hover-background);
+	outline: var(--vscode-strokeThickness) dashed var(--menu-activity-bar-hover-outline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label:is(.checked, .submenu-open):not(.disabled) {
+	color: var(--menu-activity-bar-active-foreground);
+}
+
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label:is(.checked, .submenu-open):not(.disabled)::after {
+	background-color: var(--menu-activity-bar-active-background);
+}
+
+/* High contrast themes outline the box instead of filling it: solid for a checked entry, dashed for a hovered one. */
+.monaco-workbench:is(.hc-black, .hc-light) .menu-activity-bar .monaco-action-bar.vertical .action-label:is(.checked, .submenu-open):not(.disabled)::after {
+	background-color: transparent;
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench:is(.hc-black, .hc-light) .menu-activity-bar .monaco-action-bar.vertical .action-label:not(.disabled, .separator, .checked, .submenu-open):hover::after {
+	background-color: transparent;
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+/* Sets the groups of the menu apart, drawn in the middle of the gap between two entries so that every entry is as far
+ * from the next: the separator takes no room of its own, cancelling the gap on either side of it by half. */
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-item:has(> .action-label.separator) {
+	height: 0;
+	margin-block: calc(var(--menu-activity-bar-gap) / -2);
+	overflow: visible;
+}
+
+/* The margin overrides `!important` toolbar separator margins, which only suit horizontal toolbars. */
+.monaco-workbench .menu-activity-bar .monaco-action-bar.vertical .action-label.separator {
+	width: var(--vscode-spacing-size200);
+	height: 0;
+	margin: 0 auto !important;
+	padding: 0;
+	border-bottom: var(--vscode-strokeThickness) solid var(--menu-activity-bar-separator-color);
+}
+
+/* Like the workbench activity bar's, activity badges overlap the bottom-right corner of the entry's icon. */
+.monaco-workbench .menu-activity-bar .menu-activity-bar-badge {
+	display: none;
+	position: absolute;
+	z-index: 2;
+	top: var(--vscode-spacing-size200);
+	right: var(--vscode-spacing-size60);
+	box-sizing: border-box;
+	width: var(--vscode-spacing-size80);
+	height: var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	pointer-events: none;
+}
+
+.monaco-workbench .menu-activity-bar .menu-activity-bar-badge.visible {
+	display: block;
+}
+
+.monaco-workbench .menu-activity-bar .menu-activity-bar-badge.count {
+	top: var(--vscode-spacing-size160);
+	right: var(--vscode-spacing-size20);
+	width: auto;
+	min-width: var(--vscode-spacing-size160);
+	height: var(--vscode-spacing-size160);
+	padding: 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label3);
+	line-height: calc(var(--vscode-spacing-size160) - 2 * var(--vscode-strokeThickness));
+	text-align: center;
+}

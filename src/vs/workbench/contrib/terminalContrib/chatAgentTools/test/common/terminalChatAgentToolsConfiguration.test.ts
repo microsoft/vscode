@@ -80,6 +80,7 @@ suite('Terminal chat agent tools configuration', () => {
 			[AgentSandboxSettingId.AgentSandboxLspServers, 50],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGit, 51],
 			[AgentSandboxSettingId.AgentSandboxAuthenticateGh, 52],
+			[AgentSandboxSettingId.AgentSandboxCredentialEnvVars, 53],
 			[AgentSandboxSettingId.AgentSandboxAllowDevToolAccess, 60],
 			[AgentSandboxSettingId.AgentSandboxUserConfiguredPaths, 65],
 			[AgentSandboxSettingId.AgentSandboxLinuxFileSystem, 70],

@@ -14,7 +14,7 @@ import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { getChatPillLocationHover, type IChatPillEntry, type IChatPillSection } from '../../../browser/chatPills.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from './aiCustomization/aiCustomizationManagement.js';
-import { ISessionChatCustomization, SessionCustomizationKind } from '../common/sessionChatCustomizations.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
 
 interface ICustomizationFolder {
 	readonly name: string;

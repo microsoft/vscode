@@ -479,12 +479,12 @@
 			}
 		},
 		{
-			"label": "eslint",
+			"label": "oxlint",
 			"type": "shell",
-			"command": "pnpm run eslint",
+			"command": "pnpm run oxlint",
 			"problemMatcher": {
-				"source": "eslint",
-				"base": "$eslint-stylish"
+				"source": "oxlint",
+				"base": "$eslint-compact"
 			}
 		},
 		{
@@ -508,7 +508,7 @@
 			],
 			"group": "build",
 			"label": "tsec-compile-check",
-			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+			"detail": "Runs the tsec security rules over src/tsconfig.tsec.json"
 		},
 		{
 			"label": "Launch Monaco Editor Vite",

@@ -62,6 +62,25 @@ suite('EditorWebWorker', () => {
 		});
 	}
 
+	for (const hitTimeout of [false, true]) {
+		test(`raw string diffs preserve unchanged inline text and timeout status (${hitTimeout})`, async () => {
+			const original = 'beforezafter';
+			const modified = 'BEFOREzAFTER';
+			const options = { ignoreTrimWhitespace: false, maxComputationTimeMs: 500, computeMoves: false };
+			const raw = new DefaultLinesDiffComputer().computeDiffWithRawChanges([original], [modified], options);
+			const stub = sinon.stub(DefaultLinesDiffComputer.prototype, 'computeDiffWithRawChanges').returns({ ...raw, diff: { ...raw.diff, hitTimeout } });
+			store.add(toDisposable(() => stub.restore()));
+
+			const result = await worker.$computeStringDiff(original, modified, { maxComputationTimeMs: 500, computeRawChanges: true }, 'advanced');
+
+			assert.deepStrictEqual({ ...result, after: StringEdit.fromJson(result.edit).apply(original) }, {
+				edit: [{ pos: 0, len: 6, txt: 'BEFORE' }, { pos: 7, len: 5, txt: 'AFTER' }],
+				isCoarse: hitTimeout,
+				after: modified,
+			});
+		});
+	}
+
 	suite('diff fallback to the built-in algorithm', () => {
 		const original = ['a', 'b', 'c'];
 		const modified = ['a', 'B', 'c'];

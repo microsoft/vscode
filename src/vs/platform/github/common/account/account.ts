@@ -20,6 +20,7 @@ import { IGistsClient } from '../gists/gists.js';
 import { GitHubAuthorizationContext } from '../githubTypes.js';
 import { IAutomationsClient } from '../missionControl/automations.js';
 import { IEnvironmentsClient } from '../missionControl/environments.js';
+import { IModelsClient } from '../missionControl/models.js';
 import { ITasksClient } from '../missionControl/tasks.js';
 
 /** A disposable GitHub client bound to a fixed authorization grant. */
@@ -34,8 +35,10 @@ export interface IGitHubAccountClient extends IGitHubAnonymousClient {
 	readonly connectors: IConnectorsClient;
 	/** Mission Control automation management and run requests. */
 	readonly automations: IAutomationsClient;
-	/** Mission Control environment discovery and connection credentials. */
+	/** Mission Control environment discovery, lifecycle, and credentials. */
 	readonly environments: IEnvironmentsClient;
+	/** Copilot cloud agent model catalog, including capability, policy, and billing metadata. */
+	readonly missionControlModels: IModelsClient;
 	/** Mission Control task management, steering, and history. */
 	readonly tasks: ITasksClient;
 	/** Gist retrieval and creation. */

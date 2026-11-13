@@ -81,7 +81,7 @@ export function answerStrings(answer: ChatInputAnswer | undefined, response: Cha
 		case ChatInputAnswerValueKind.Boolean:
 			return [String(value.value)];
 		case ChatInputAnswerValueKind.Selected:
-			return [value.value, ...(value.freeformValues ?? [])];
+			return [...(value.value ? [value.value] : []), ...(value.freeformValues ?? [])];
 		case ChatInputAnswerValueKind.SelectedMany:
 			return [...value.value, ...(value.freeformValues ?? [])];
 	}

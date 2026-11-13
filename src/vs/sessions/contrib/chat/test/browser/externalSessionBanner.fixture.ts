@@ -15,9 +15,9 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../common/sessionConfig.js';
-import { ExternalSessionBanner, getExternalSessionVisibilityConfirmation } from '../../browser/externalSessionBanner.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionBanner, getExternalSessionVisibilityConfirmation } from '../../../../../workbench/contrib/sessions/browser/chat/externalSessionBanner.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/externalSessionBanner/' }, {
 	Codex: defineComponentFixture({

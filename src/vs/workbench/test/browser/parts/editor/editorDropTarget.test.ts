@@ -6,53 +6,69 @@
 import assert from 'assert';
 import { $, addDisposableListener, append, DragAndDropObserver } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { isMacintosh } from '../../../../../base/common/platform.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ITreeViewsDnDService } from '../../../../../editor/common/services/treeViewsDndService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { DraggedEditorIdentifier, registerContentDropTarget, registerInputDropTarget } from '../../../../browser/dnd.js';
-import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_PART_OPTIONS, IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, registerContentDropTarget, registerInputDropTarget } from '../../../../browser/dnd.js';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_PART_OPTIONS, GroupTransferKind, IEditorGroupsView, IEditorGroupView } from '../../../../browser/parts/editor/editor.js';
 import { EditorDropTarget } from '../../../../browser/parts/editor/editorDropTarget.js';
-import { EditorInputWithOptions } from '../../../../common/editor.js';
+import { EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart } from '../../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, IEditorGroup, IEditorGroupsService, IEditorPart, IMergeGroupOptions, MergeGroupMode } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 suite('EditorDropTarget', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+	const groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
 	interface ITestSetup {
 		readonly groupElement: HTMLElement;
 		readonly content: HTMLElement;
 		readonly input: HTMLElement;
 		readonly operations: string[];
+		/** How the drop transfers editors, as it asks the part of the target group where they land. */
+		readonly transferKinds: GroupTransferKind[];
 	}
 
-	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number }): ITestSetup {
+	function setup(options?: { readonly contentCoversGroup?: boolean; readonly inputAtBottomEdge?: boolean; readonly dragEditor?: boolean; readonly groupWidth?: number; readonly groupMinimumWidth?: number; readonly fromOtherPart?: boolean; readonly moveVeto?: string; readonly closeEmptyGroups?: boolean; readonly sourceCount?: number; readonly dragGroup?: boolean; readonly addsGroupsToSourcePart?: boolean; readonly inputAccepts?: boolean; readonly dropIntoEditor?: boolean; readonly inputArea?: boolean }): ITestSetup {
 		const operations: string[] = [];
+		const transferKinds: GroupTransferKind[] = [];
 
 		// A 300x300 group at the viewport origin with a registered input drop target in its lower center
-		// (or at its bottom edge), optionally inside registered content that covers the group, like a chat view
+		// (or at its bottom edge), optionally inside registered content that covers the group, like a chat view,
+		// and optionally taking the drags let through to the lower half of the group, as a chat input does over its chat
 		const groupElement = $('div');
 		groupElement.style.cssText = 'position: fixed; left: 0; top: 0; width: 300px; height: 300px;';
 		const content = append(groupElement, $('div'));
 		content.style.cssText = 'position: absolute; left: 0; top: 0; width: 300px; height: 300px;';
+		let area: HTMLElement | undefined;
+		if (options?.inputArea) {
+			area = append(content, $('div'));
+			area.style.cssText = 'position: absolute; left: 0; top: 150px; width: 300px; height: 150px;';
+		}
 		const input = append(content, $('div'));
 		input.style.cssText = options?.inputAtBottomEdge
 			? 'position: absolute; left: 0; top: 270px; width: 300px; height: 30px;'
 			: 'position: absolute; left: 100px; top: 200px; width: 100px; height: 50px;';
 		mainWindow.document.body.appendChild(groupElement);
 		store.add(toDisposable(() => groupElement.remove()));
-		store.add(registerInputDropTarget(input));
+		store.add(registerInputDropTarget(input, {
+			accepts: () => options?.inputAccepts ?? true,
+			area,
+			getHint: modifier => modifier ? `Drag here or hold __${modifier}__ to attach` : 'Drag here to attach',
+		}));
 		if (options?.contentCoversGroup) {
 			store.add(registerContentDropTarget(content));
 		}
@@ -61,9 +77,20 @@ suite('EditorDropTarget', () => {
 			override readonly typeId = 'testEditorInput';
 			override readonly resource = undefined;
 			override hasCapability(): boolean { return false; }
+			override isDirty(): boolean { return false; }
+			override canMove(): true | string { return options?.moveVeto ?? true; }
+			override getName(): string { return 'editor'; }
+		}();
+		// A group of the part of the source group, where a compact auxiliary window adds its groups instead
+		const addGroupsHere = new class extends mock<IEditorGroupView>() {
+			override readonly id = 3;
 		}();
 		const groupsView = new class extends mock<IEditorGroupsView>() {
-			override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, allowDropIntoGroup: true, splitOnDragAndDrop: true, openSideBySideDirection: 'right' as const, closeEmptyGroups: false };
+			override readonly partOptions = { ...DEFAULT_EDITOR_PART_OPTIONS, allowDropIntoGroup: true, splitOnDragAndDrop: true, openSideBySideDirection: 'right' as const, closeEmptyGroups: options?.closeEmptyGroups ?? false };
+			override getTransferTarget(kind: GroupTransferKind, _source: IEditorGroupView | GroupIdentifier, location: IEditorGroupView): IEditorGroupView {
+				transferKinds.push(kind);
+				return options?.addsGroupsToSourcePart && kind !== GroupTransferKind.Merge ? addGroupsHere : location;
+			}
 		}();
 		const groupView = new class extends mock<IEditorGroupView>() {
 			override readonly element = groupElement;
@@ -71,12 +98,20 @@ suite('EditorDropTarget', () => {
 			override readonly groupsView = groupsView;
 			override readonly minimumWidth = options?.groupMinimumWidth ?? 0;
 			override readonly minimumHeight = 0;
+			// An editor that takes drops into it while the key is held, such as a chat editor
+			override readonly activeEditor = options?.dropIntoEditor ? new class extends mock<EditorInput>() {
+				override readonly typeId = 'droppableEditorInput';
+				override readonly resource = undefined;
+				override hasCapability(capability: EditorInputCapabilities): boolean { return capability === EditorInputCapabilities.CanDropIntoEditor; }
+			}() : null;
 			override isActive(): boolean { return true; }
 			override isSticky(): boolean { return false; }
 			override focus(): void { }
 		}();
 		const sourceGroup = new class extends mock<IEditorGroup>() {
-			override readonly count = 2;
+			override readonly id = 1;
+			override readonly count = options?.sourceCount ?? 2;
+			override readonly editors = [editor];
 			override moveEditors(editors: EditorInputWithOptions[], target: IEditorGroup): boolean {
 				operations.push(`move ${editors.length} editor(s) to ${target === groupView ? 'target group' : 'new group'}`);
 				return true;
@@ -88,15 +123,36 @@ suite('EditorDropTarget', () => {
 
 		const part = new class extends mock<IEditorPart>() {
 			override readonly windowId = mainWindow.vscodeWindowId;
+			override readonly groups = [];
+		}();
+		const otherPart = new class extends mock<IEditorPart>() {
+			override readonly windowId = mainWindow.vscodeWindowId;
+			override readonly groups = [];
 		}();
 
 		const instantiation = store.add(new TestInstantiationService());
 		instantiation.stub(IThemeService, new TestThemeService());
-		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.dropIntoEditor.enabled': false }));
+		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.dropIntoEditor.enabled': !!options?.dropIntoEditor }));
 		instantiation.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
 			override readonly groups = [groupView];
 			override getGroup(): IEditorGroup { return sourceGroup; }
-			override getPart(): IEditorPart { return part; }
+			override getPart(group: IEditorGroup): IEditorPart { return options?.fromOtherPart && (group === sourceGroup || group === addGroupsHere) ? otherPart : part; }
+			override moveGroup(group: IEditorGroup, location: IEditorGroup, direction: GroupDirection): IEditorGroup {
+				operations.push(`move group ${direction}`);
+				return newGroup;
+			}
+			override copyGroup(group: IEditorGroup, location: IEditorGroup, direction: GroupDirection): IEditorGroup {
+				operations.push(`copy group ${direction}`);
+				return newGroup;
+			}
+			override mergeGroup(group: IEditorGroup, target: IEditorGroup, options?: IMergeGroupOptions): boolean {
+				operations.push(`merge group${options?.mode === MergeGroupMode.COPY_EDITORS ? ' as copy' : ''}`);
+				return true;
+			}
+			override activateGroup(group: IEditorGroup): IEditorGroup {
+				operations.push('activate');
+				return group;
+			}
 			override addGroup(location: IEditorGroup, direction: GroupDirection): IEditorGroup {
 				operations.push(`split ${direction}`);
 				return newGroup;
@@ -107,41 +163,98 @@ suite('EditorDropTarget', () => {
 		instantiation.stub(IEditorService, {});
 		instantiation.stub(ITreeViewsDnDService, {});
 		instantiation.stub(IWorkspaceContextService, {});
+		instantiation.stub(IDialogService, new class extends mock<IDialogService>() {
+			override async error(message: string): Promise<void> { operations.push(`veto: ${message}`); }
+		}());
 		store.add(instantiation.createInstance(EditorDropTarget, groupsView, groupElement, {}));
 
-		if (options?.dragEditor !== false) {
+		if (options?.dragGroup) {
+			groupTransfer.setData([new DraggedEditorGroupIdentifier(1)], DraggedEditorGroupIdentifier.prototype);
+			store.add(toDisposable(() => groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype)));
+		} else if (options?.dragEditor !== false) {
 			editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: 1 })], DraggedEditorIdentifier.prototype);
 			store.add(toDisposable(() => editorTransfer.clearData(DraggedEditorIdentifier.prototype)));
 		}
 
-		return { groupElement, content, input, operations };
+		return { groupElement, content, input, operations, transferKinds };
 	}
 
-	function dispatch(target: Element, type: string, clientX: number, clientY: number, dataTransfer = new DataTransfer()): void {
-		target.dispatchEvent(new DragEvent(type, { dataTransfer, clientX, clientY, bubbles: true, cancelable: true }));
+	function dispatch(target: Element, type: string, clientX: number, clientY: number, dataTransfer = new DataTransfer(), copy = false): void {
+		target.dispatchEvent(new DragEvent(type, { dataTransfer, clientX, clientY, bubbles: true, cancelable: true, altKey: copy && isMacintosh, ctrlKey: copy && !isMacintosh }));
 	}
 
 	function getOverlay(groupElement: HTMLElement): HTMLElement | null {
 		return groupElement.querySelector<HTMLElement>('#monaco-workbench-editor-drop-overlay');
 	}
 
-	test('does not show the overlay over an input drop target, and leaves the input out of the overlay', () => {
+	function getInputHints(overlay: HTMLElement | null) {
+		return [...overlay?.querySelectorAll<HTMLElement>('.input-drop-target-hint') ?? []].map(hint => ({
+			text: hint.textContent, top: hint.style.top, left: hint.style.left, width: hint.style.width, height: hint.style.height,
+		}));
+	}
+
+	test('does not show the overlay over an input drop target, and the overlay over the group shows where the input is until the drag moves over it', () => {
 		const { groupElement, input } = setup();
 
 		// Entering the input directly does not create the overlay
 		dispatch(input, 'dragenter', 150, 225);
 		const overlayOnInputEnter = !!getOverlay(groupElement);
 
-		// An overlay created over the group leaves the input out of its hit region, so the input takes the drop
+		// An overlay created over the group covers the input, and shows where it is
 		dispatch(groupElement, 'dragenter', 150, 100);
 		const overlay = getOverlay(groupElement);
-		const clipped = !!overlay && overlay.style.clipPath.includes('100px 200px');
-		dispatch(groupElement, 'dragend', 150, 100);
+		const coversInput = { clipPath: overlay?.style.clipPath, hints: getInputHints(overlay) };
 
-		assert.deepStrictEqual({ overlayOnInputEnter, overlayOnGroupEnter: !!overlay, clipped }, {
+		// The drag that moves over the input leaves the overlay for the input
+		dispatch(overlay!, 'dragover', 150, 225);
+		const overlayOverInput = !!getOverlay(groupElement);
+		dispatch(groupElement, 'dragend', 150, 225);
+
+		assert.deepStrictEqual({ overlayOnInputEnter, overlayOnGroupEnter: !!overlay, coversInput, overlayOverInput }, {
 			overlayOnInputEnter: false,
 			overlayOnGroupEnter: true,
-			clipped: true
+			coversInput: { clipPath: '', hints: [{ text: 'Drag here to attach', top: '200px', left: '100px', width: '100px', height: '50px' }] },
+			overlayOverInput: false
+		});
+	});
+
+	test('an input drop target that does not take the drag leaves it to the overlay, which covers the input and takes its drop', () => {
+		const { groupElement, input, operations } = setup({ inputAccepts: false, inputAtBottomEdge: true });
+
+		dispatch(input, 'dragenter', 150, 285);
+		const overlay = getOverlay(groupElement);
+		const hints = getInputHints(overlay);
+		dispatch(overlay!, 'dragover', 150, 285);
+		dispatch(overlay!, 'drop', 150, 285);
+		dispatch(groupElement, 'dragend', 150, 285);
+
+		assert.deepStrictEqual({ overlayOnInputEnter: !!overlay, hints, operations }, {
+			overlayOnInputEnter: true,
+			hints: [],
+			operations: [`split ${GroupDirection.DOWN}`, 'move 1 editor(s) to new group']
+		});
+	});
+
+	test('where the input takes what drops into the editor, as a chat input in a chat editor does, its hint says to hold the key, in place of the drop into editor prompt', () => {
+		const { groupElement } = setup({ dropIntoEditor: true, inputArea: true });
+
+		const dragOver = (x: number, y: number) => {
+			dispatch(getOverlay(groupElement)!, 'dragover', x, y);
+			const overlay = getOverlay(groupElement);
+			return {
+				hints: getInputHints(overlay).map(hint => hint.text),
+				prompt: overlay?.querySelector<HTMLElement>('.editor-group-overlay-drop-into-prompt')?.style.opacity,
+			};
+		};
+
+		dispatch(groupElement, 'dragenter', 150, 100);
+		const outsideArea = dragOver(150, 100);
+		const insideArea = dragOver(150, 170);
+		dispatch(groupElement, 'dragend', 150, 170);
+
+		assert.deepStrictEqual({ outsideArea, insideArea }, {
+			outsideArea: { hints: ['Drag here to attach'], prompt: '1' },
+			insideArea: { hints: [`Drag here or hold ${isMacintosh ? '⇧' : 'Shift'} to attach`], prompt: '0' },
 		});
 	});
 
@@ -163,6 +276,106 @@ suite('EditorDropTarget', () => {
 		});
 	});
 
+	test('an editor dropped on an edge of a group of another part, which it cannot go to, adds no group and moves nothing', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave' });
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual(operations, ['veto: Cannot leave']);
+	});
+
+	test('the only editor of a group dropped on an edge of another part, which it cannot go to, does not move its group', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave', closeEmptyGroups: true, sourceCount: 1 });
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual(operations, ['veto: Cannot leave']);
+	});
+
+	test('the only editor of a group dropped on an edge of another part, which it can go to, still moves its group', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, closeEmptyGroups: true, sourceCount: 1 });
+
+		dispatch(groupElement, 'dragenter', 5, 150);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150);
+		dispatch(overlay!, 'drop', 5, 150);
+		dispatch(groupElement, 'dragend', 5, 150);
+
+		assert.deepStrictEqual(operations.filter(operation => !operation.startsWith('size')), [`move group ${GroupDirection.LEFT}`]);
+	});
+
+	test('a group copied by a drop on an edge of another part, whose editor cannot go there, adds no group: the copy shares its editors', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave', dragGroup: true });
+
+		dispatch(groupElement, 'dragenter', 5, 150, undefined, true);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150, undefined, true);
+		dispatch(overlay!, 'drop', 5, 150, undefined, true);
+		dispatch(groupElement, 'dragend', 5, 150, undefined, true);
+
+		assert.deepStrictEqual(operations, ['veto: Cannot leave']);
+	});
+
+	test('a group copied by a drop on an edge of a compact auxiliary window, which adds its groups to the window of the group, is copied without asking its editors', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave', dragGroup: true, addsGroupsToSourcePart: true });
+
+		dispatch(groupElement, 'dragenter', 5, 150, undefined, true);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 5, 150, undefined, true);
+		dispatch(overlay!, 'drop', 5, 150, undefined, true);
+		dispatch(groupElement, 'dragend', 5, 150, undefined, true);
+
+		assert.deepStrictEqual(operations.filter(operation => !operation.startsWith('size')), [`copy group ${GroupDirection.LEFT}`, 'activate']);
+	});
+
+	test('a drop asks the part of the group where the editors land as the operation it runs puts them', () => {
+		const drop = (options: Parameters<typeof setup>[0], x: number, y: number, copy: boolean) => {
+			const { groupElement, transferKinds } = setup({ fromOtherPart: true, ...options });
+			dispatch(groupElement, 'dragenter', x, y, undefined, copy);
+			const overlay = getOverlay(groupElement);
+			dispatch(overlay!, 'dragover', x, y, undefined, copy);
+			dispatch(overlay!, 'drop', x, y, undefined, copy);
+			dispatch(groupElement, 'dragend', x, y, undefined, copy);
+			return transferKinds;
+		};
+
+		assert.deepStrictEqual({
+			groupCopiedOnEdge: drop({ dragGroup: true }, 5, 150, true),
+			groupMovedOnEdge: drop({ dragGroup: true }, 5, 150, false),
+			groupMergedIntoGroup: drop({ dragGroup: true }, 150, 100, false),
+			editorOnEdge: drop({}, 5, 150, false),
+			lastEditorOnEdge: drop({ closeEmptyGroups: true, sourceCount: 1 }, 5, 150, false),
+			editorIntoGroup: drop({}, 150, 100, false),
+		}, {
+			groupCopiedOnEdge: [GroupTransferKind.CopyGroup],
+			groupMovedOnEdge: [GroupTransferKind.MoveGroup],
+			groupMergedIntoGroup: [GroupTransferKind.Merge],
+			editorOnEdge: [GroupTransferKind.AddGroup],
+			lastEditorOnEdge: [GroupTransferKind.MoveGroup],
+			editorIntoGroup: [GroupTransferKind.Merge],
+		});
+	});
+
+	test('a group copied by a drop into a group of another part copies each editor, so an editor that is not a singleton is not asked', () => {
+		const { groupElement, operations } = setup({ fromOtherPart: true, moveVeto: 'Cannot leave', dragGroup: true });
+
+		dispatch(groupElement, 'dragenter', 150, 100, undefined, true);
+		const overlay = getOverlay(groupElement);
+		dispatch(overlay!, 'dragover', 150, 100, undefined, true);
+		dispatch(overlay!, 'drop', 150, 100, undefined, true);
+		dispatch(groupElement, 'dragend', 150, 100, undefined, true);
+
+		assert.deepStrictEqual(operations, ['merge group as copy']);
+	});
+
 	test('an input drop target outside the group, such as one under a modal over it, does not take the drop', () => {
 		const { groupElement, operations } = setup();
 
@@ -173,7 +386,7 @@ suite('EditorDropTarget', () => {
 		otherInput.style.cssText = 'position: absolute; left: 0; top: 100px; width: 300px; height: 100px;';
 		mainWindow.document.body.appendChild(otherPart);
 		store.add(toDisposable(() => otherPart.remove()));
-		store.add(registerInputDropTarget(otherInput));
+		store.add(registerInputDropTarget(otherInput, { accepts: () => true, getHint: () => 'Drag here to attach' }));
 
 		dispatch(groupElement, 'dragenter', 5, 150);
 		const overlay = getOverlay(groupElement);
@@ -199,16 +412,16 @@ suite('EditorDropTarget', () => {
 		const indicator = overlay?.querySelector<HTMLElement>('.editor-group-overlay-indicator');
 		const onCenter = { overlay: !!overlay, width: indicator?.style.width, left: indicator?.style.left };
 
-		// Over the input, the input takes it: the overlay has a hole there
-		const inputClipped = !!overlay && overlay.style.clipPath.includes('100px 200px');
+		// Over the input, the input takes it: the overlay shows where it is
+		const inputHints = getInputHints(overlay).map(hint => hint.text);
 
 		dispatch(getOverlay(groupElement)!, 'dragover', 150, 150);
 		dispatch(getOverlay(groupElement)!, 'drop', 150, 150);
 		dispatch(groupElement, 'dragend', 150, 150);
 
-		assert.deepStrictEqual({ onCenter, inputClipped, operations }, {
+		assert.deepStrictEqual({ onCenter, inputHints, operations }, {
 			onCenter: { overlay: true, width: '100%', left: '0px' },
-			inputClipped: true,
+			inputHints: ['Drag here to attach'],
 			operations: ['move 1 editor(s) to target group']
 		});
 	});

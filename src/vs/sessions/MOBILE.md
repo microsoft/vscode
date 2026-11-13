@@ -14,15 +14,27 @@ Mobile components are presentation adapters over shared Sessions services. They 
 
 Alternative web entry points supply a workbench factory and select concrete presentations at startup. Shared contracts do not import their default implementations or choose a mobile fallback. Concrete replacements and their styles belong to the entry that selects them.
 
-For starting browser sessions, each entry registers its `ISessionRepositoryPicker` implementation. Providers call that required service without selecting or importing a picker implementation; authentication, cancellation, and repository validation remain provider-owned. The regular entry registers the existing quick picker. Alternative entries can supply a sheet without changing the provider.
+Shared session implementations live in `vs/workbench` and do not register themselves. Entries load the common session-service registrations and their own presentation registrations separately. Importing an implementation is not sufficient to activate its service or contribution.
 
-`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry.
+For starting browser sessions, each entry registers its `ISessionRepositoryPicker` implementation. Providers call that required service without selecting or importing a picker implementation; authentication, cancellation, and repository validation remain provider-owned. The regular entry registers the existing quick picker, while the experimental mobile entry registers its repository sheet.
+
+`IChatViewFactory` supplies composer options, including editor metrics and new-session chrome. These options are forwarded to new-session, nested-chat, running-chat, and edited-request inputs; mode/model presentation does not control font sizing or clipboard access. Clipboard attachments are registered through the existing chat context-item mechanism by each entry. The experimental mobile entry reads the clipboard only after selection.
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
-`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; an alternative implementation can prompt before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.
+The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, and media. Both entries share built-in skill definitions and discovery; packaging a skill does not register the tools it uses.
 
-`IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
+View factories receive the owning host's instantiation service for each view. Mobile headers use that same scope; they must not capture a global service or reuse another view's scope.
+
+`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options. Its optional `pinnedCanvases` model is supplied by the entry that selects pinning; shared views do not require the pinned-canvas service.
+
+`IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation; the experimental entry selects edit rows and mobile overlays. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
+
+## Isolated web composition
+
+The experimental `agents.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. Ordinary production build targets do not include this entry; its opt-in [isolated package](../../../build/next/MOBILE.md) has separate assets and localization.
+
+After transpiling the checkout, `node scripts/code-sessions-web.js --mobile --no-open` serves this entry locally. Add `--mock` for the mock-services entry. This source launcher does not publish an artifact.
 
 ## Viewport classification
 
@@ -42,7 +54,7 @@ Mobile navigation and transient overlays
 
 Desktop side parts do not remain as permanently visible columns. Their content is presented through mobile navigation, drawers, sheets, or full-screen overlays as appropriate.
 
-The active session and chat remain owned by `ISessionsService`. Mobile navigation must not create a second active-session store.
+The main window's session host identifies the session and chat shown on the phone. Mobile controls use that host or the explicit chat supplied by their input, while `ISessionsService` owns the shared grid and navigation operations. Mobile navigation must not create a second active-session store.
 
 The Sessions Part projects only the active session onto the phone surface while retaining the desktop split topology, sash allocations, and live views. Crossing the breakpoint in either direction adapts the existing part, regardless of which subclass was selected at startup. Phone dimensions do not overwrite desktop geometry; returning to a non-phone viewport restores that arrangement at the available size. Structural session changes made on phone still update the canonical grid.
 

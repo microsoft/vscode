@@ -387,10 +387,9 @@ export class ChatService extends Disposable implements IChatService {
 						logChangesToStateModel(model.inputModel, `disposing session ${model.sessionResource} (${localSessionId}) with title, storing to storage`, undefined, undefined, this.logService);
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model))) {
-					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests or draft input, storing metadata to storage`, undefined, undefined, this.logService);
-					// External sessions: persist metadata when there are requests, OR when the
-					// user has typed/attached unsent input we need to restore on next open.
+				} else if (!localSessionId && this.shouldStoreExternalSession(model) && (model.getRequests().length > 0 || hasDraftInput(model) || this._chatSessionStore.getMetadataForSessionSync(model.sessionResource)?.inputState)) {
+					logChangesToStateModel(model.inputModel, `disposing external session ${model.sessionResource} with requests, draft input or persisted input state, storing metadata to storage`, undefined, undefined, this.logService);
+					// Persist cleared drafts too, so background sends cannot restore stale input on reload.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
 				}
 			}
@@ -1677,7 +1676,7 @@ export class ChatService extends Disposable implements IChatService {
 		const notifyAccepted = () => {
 			if (isSubmission && !options?.isSystemInitiated && !options?.hideFromTranscript) {
 				this._modelsWithAcceptedRequests.add(model);
-				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession });
+				this._onDidAcceptRequest.fire({ chatSessionResource: sessionResource, isNewSession, agentHostMessageOrigin: options?.agentHostMessageOrigin });
 				const provider = this.chatSessionService.getChatSessionContribution(getChatSessionType(sessionResource))?.agentHostProviderId;
 				if (isCopilotAgentHostProvider(provider)) {
 					// Copilot harness submissions bypass the extension's legacy usage signal, including queued sends in either window.

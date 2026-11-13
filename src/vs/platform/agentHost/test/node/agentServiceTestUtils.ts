@@ -213,8 +213,11 @@ export function createTestAgentHostProxyResolver(fetchFn: typeof globalThis.fetc
 		registerSharedNetworkClient: () => Disposable.None,
 		notifySharedNetworkClientChanged: () => { },
 		lookupClientKerberosAuthorization: async () => undefined,
+		lookupKerberosAuthorization: async () => undefined,
+		lookupBasicAuthorization: async () => undefined,
 		getConfigurationValue: () => undefined,
 		resolveProxy: async () => undefined,
+		resolveProxyByURL: async () => ({ url: undefined, type: 'DIRECT', source: 'remote', result: 'DIRECT' }),
 		fetch: fetchFn,
 		createWebSocket: (url, protocol) => new globalThis.WebSocket(url, protocol),
 	};

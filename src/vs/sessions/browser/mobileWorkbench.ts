@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AgentWorkbenchLayout, Workbench } from './workbench.js';
+import { Workbench } from './workbench.js';
+import { AgentWorkbenchLayout } from '../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 
 export class MobileWorkbench extends Workbench {
 	override get agentWorkbenchLayout(): AgentWorkbenchLayout {

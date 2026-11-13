@@ -43,6 +43,7 @@ import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.
 import { MarkdownString, IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { AgentSessionHoverWidget } from './agentSessionHoverWidget.js';
 import { AgentSessionChatToolbar, AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderIcon } from './agentSessions.js';
+import { agentSessionNeedsInputForeground } from '../../../../common/agentsColors.js';
 import { AgentSessionsGrouping, AgentSessionsSorting } from './agentSessionsFilter.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -196,7 +197,7 @@ export function getAgentSessionStatusIcon(session: IAgentSession): ThemeIcon {
 	}
 
 	if (session.status === AgentSessionStatus.NeedsInput) {
-		return { ...Codicon.reportQuestion, color: themeColorFromId('list.warningForeground') };
+		return { ...Codicon.reportQuestion, color: themeColorFromId(agentSessionNeedsInputForeground) };
 	}
 
 	if (session.status === AgentSessionStatus.Failed) {
@@ -280,6 +281,7 @@ export class AgentSessionRenderer extends Disposable implements ICompressibleTre
 		const elements = h(
 			'div.agent-session-item@item',
 			[
+				h('span.agent-session-attention-indicator', { 'aria-hidden': 'true' }),
 				h('div.agent-session-icon-col', [
 					h('div.agent-session-icon@icon')
 				]),
@@ -815,6 +817,7 @@ export class AgentSessionChatRenderer implements ICompressibleTreeRenderer<IAgen
 		const elements = h(
 			'div.agent-session-chat-item@item',
 			[
+				h('span.agent-session-attention-indicator', { 'aria-hidden': 'true' }),
 				h('div.agent-session-chat-title-row', [
 					h('div.agent-session-chat-icon@icon', { 'aria-hidden': 'true' }),
 					h('div.agent-session-chat-title@title'),
@@ -1205,9 +1208,9 @@ export class AgentSessionsAccessibilityProvider implements IListAccessibilityPro
 export interface IAgentSessionsFilterExcludes {
 	readonly providers: readonly string[];
 	readonly states: readonly AgentSessionStatus[];
-
 	readonly archived: boolean;
 	readonly read: boolean;
+	readonly automation: boolean;
 	readonly repositoryGroupCapped: boolean;
 }
 
@@ -1332,10 +1335,11 @@ export class AgentSessionsDataSource extends Disposable implements IAsyncDataSou
 
 		// Sessions model
 		if (isAgentSessionsModel(element)) {
+			const sessions = element.sessionsIncludingAutomationRuns ?? element.sessions;
 
 			// Apply filter if configured
-			const revealed = element.sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
-			const filteredSessions = element.sessions.filter(session => session === revealed || !this.filter?.exclude(session));
+			const revealed = sessions.find(session => session.resource.toString() === this.revealedSession?.toString());
+			const filteredSessions = sessions.filter(session => session === revealed || !this.filter?.exclude(session));
 
 			// Apply sorter unless we group into sections
 			if (!this.filter?.groupResults?.()) {

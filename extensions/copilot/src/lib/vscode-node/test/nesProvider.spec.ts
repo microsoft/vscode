@@ -27,7 +27,7 @@ import { StringEdit, StringReplacement } from '../../../util/vs/editor/common/co
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { ensureDependenciesAreSet } from '../../../util/vs/editor/common/core/text/positionToOffset';
 import { DiagnosticSeverity, Range } from '../../../vscodeTypes';
-import { createNESProvider, type INESProviderCapabilities, ILogTarget, ITelemetrySender, LogLevel } from '../../node/chatLibMain';
+import { createNESProvider, type INESProviderCapabilities, type INESResult, ILogTarget, ITelemetrySender, LogLevel } from '../../node/chatLibMain';
 
 
 class TestFetcher implements IFetcher {
@@ -399,8 +399,9 @@ describe('NESProvider Facade', () => {
 
 		assert(result.result);
 
-		const { range, newText, targetDocumentUri } = result.result;
+		const { range, newText, targetDocumentUri, isInlineCompletion } = result.result;
 		assert.strictEqual(targetDocumentUri, doc.id.toString(), 'targetDocumentUri should reference the requested document');
+		assert.strictEqual(isInlineCompletion, false, 'an edit away from the cursor is not an inline completion');
 		const offsetRange = OffsetRange.fromTo(range.start, range.endExclusive);
 		const replace = StringReplacement.replace(offsetRange, newText);
 		doc.applyEdit(replace.toEdit());
@@ -431,6 +432,123 @@ describe('NESProvider Facade', () => {
 		expect(logTarget.logs.length).toBeGreaterThan(0);
 		const errorLogs = logTarget.logs.filter(l => l.level === LogLevel.Error);
 		assert.strictEqual(errorLogs.length, 0, `Unexpected error logs: ${JSON.stringify(errorLogs, null, 2)}`);
+	});
+
+	describe('inline completion classification', () => {
+
+		// Typing `{` leaves the cursor at the end of the first line; the model then inserts a line below it.
+		const cursorAtEndOfFirstLine = 36;
+		const documentEnd = 38;
+		const modelReply = '```\nfunction add(a: number, b: number) {\n\treturn a + b;\n}\n```';
+
+		function toSseReply(content: string): string {
+			const chunk = (delta: object, finishReason: string | null) => `data: ${JSON.stringify({
+				choices: [{ index: 0, delta, finish_reason: finishReason, content_filter_results: {} }],
+				created: 0,
+				id: 'chatcmpl-test',
+				model: 'xtab-test',
+				object: 'chat.completion.chunk',
+			})}\n\n`;
+			return chunk({ role: 'assistant', content }, null) + chunk({}, 'stop') + 'data: [DONE]\n\n';
+		}
+
+		function createProviderWithDocument(options: { configOverrides?: Map<string, unknown>; mimicGhostTextBehavior?: boolean } = {}) {
+			const workspace = new MutableObservableWorkspace();
+			const doc = workspace.addDocument({
+				id: DocumentId.create(URI.file('/test/add.ts').toString()),
+				initialValue: 'function add(a: number, b: number) \n}',
+			});
+
+			const provider = createNESProvider({
+				workspace,
+				fetcher: new TestFetcher({
+					'/models': JSON.stringify({ models: [] }),
+					'/chat/completions': toSseReply(modelReply),
+				}),
+				copilotTokenManager: new TestCopilotTokenManager(),
+				telemetrySender: new TestTelemetrySender(),
+				terminalService: new NullTerminalService(),
+				logTarget: new TestLogTarget(),
+				editorInfo: { name: 'my-editor', version: '1.2.3' },
+				editorPluginInfo: { name: 'my-plugin', version: '4.5.6' },
+				configOverrides: options.configOverrides,
+			});
+			provider.updateTreatmentVariables({
+				'config.github.copilot.chat.advanced.inlineEdits.xtabProvider.defaultModelConfigurationString': JSON.stringify({
+					modelName: 'xtab-test',
+					promptingStrategy: 'copilotNesXtab',
+					includeTagsInCurrentFile: false,
+					extraDebounceEndOfLine: 0,
+					nesMimicGhostTextBehavior: options.mimicGhostTextBehavior,
+				}),
+			});
+			// The provider only learns about edits made after it starts tracking the workspace.
+			doc.applyEdit(StringEdit.insert(35, '{'));
+			doc.setSelection([OffsetRange.emptyAt(cursorAtEndOfFirstLine)], undefined);
+			return { doc, provider };
+		}
+
+		function summarize(result: INESResult) {
+			return result.result && {
+				isInlineCompletion: result.result.isInlineCompletion,
+				range: { start: result.result.range.start, endExclusive: result.result.range.endExclusive },
+				newText: result.result.newText,
+			};
+		}
+
+		it('returns an edit at the cursor as an inline completion anchored to the cursor', async () => {
+			const { doc, provider } = createProviderWithDocument();
+			try {
+				const result = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual(summarize(result), {
+					isInlineCompletion: true,
+					range: { start: cursorAtEndOfFirstLine, endExclusive: cursorAtEndOfFirstLine },
+					newText: '\n\treturn a + b;',
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
+
+		it('returns the original edit as an inline edit when inline completions are disabled', async () => {
+			const { doc, provider } = createProviderWithDocument({
+				configOverrides: new Map([['chat.advanced.inlineEdits.inlineCompletions.enabled', false]]),
+			});
+			try {
+				const result = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual(summarize(result), {
+					isInlineCompletion: false,
+					range: { start: cursorAtEndOfFirstLine + 1, endExclusive: cursorAtEndOfFirstLine + 1 },
+					newText: '\treturn a + b;\n',
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
+
+		it('does not resurface a suggestion shown as an inline completion as an inline edit', async () => {
+			const { doc, provider } = createProviderWithDocument({ mimicGhostTextBehavior: true });
+			try {
+				const shown = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+				provider.handleShown(shown);
+
+				// After `}` the same cached suggestion can only be rendered as an inline edit.
+				doc.setSelection([OffsetRange.emptyAt(documentEnd)], undefined);
+				const reshown = await provider.getNextEdit(doc.id.toUri(), CancellationToken.None);
+
+				assert.deepStrictEqual({
+					shown: summarize(shown)?.isInlineCompletion,
+					reshown: summarize(reshown),
+				}, {
+					shown: true,
+					reshown: undefined,
+				});
+			} finally {
+				provider.dispose();
+			}
+		});
 	});
 
 	describe('languageDiagnosticsService injection', () => {

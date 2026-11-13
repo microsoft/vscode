@@ -8,10 +8,13 @@ import { captureCredentialSource, isAuthRequiredError, type IAgentHostCredential
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
-import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
-import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
+import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmChatResult, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
+import { isModelRouterModelId } from '../common/modelRouter.js';
 import { isAhpChatChannel, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from './agentChatContext.js';
@@ -22,6 +25,8 @@ import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IByokLmBridgeRegistry } from './byokLmBridgeRegistry.js';
 import { ICopilotApiService, ICopilotApiServiceRequestOptions, ICopilotUtilityChatCompletionRequest, UTILITY_DEFAULT_TEMPERATURE, UTILITY_DEFAULT_TOP_P } from './shared/copilotApiService.js';
+import { getUtilityModelCallFailureOutcome, reportUtilityModelCall, toUtilityModelCallGitHubTelemetry, type IAgentHostUtilityModelCallReport } from './shared/utilityModelCallTelemetry.js';
+import type { IAgentHostGitHubTelemetryContext } from './agentHostRestrictedTelemetry.js';
 import { IAgentHostChatOwnershipService } from './agentHostChatOwnershipService.js';
 
 /** LM API vendor of Copilot models; an override naming it is not a BYOK model. */
@@ -114,14 +119,17 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		@ILogService private readonly _logService: ILogService,
 		@IAgentHostChatOwnershipService private readonly _chatOwnership: IAgentHostChatOwnershipService,
 		@IAgentHostSessionStateStore private readonly _sessionStateStore: IAgentHostSessionStateStore,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) { }
 
 	async chatCompletion(context: IAgentHostUtilityModelContext, request: ICopilotUtilityChatCompletionRequest, options?: ICopilotApiServiceRequestOptions): Promise<string> {
 		const route = this._resolveRoute(context);
+		const attributedRequest: ICopilotUtilityChatCompletionRequest = { ...request, telemetry: { ...request.telemetry, agentSessionId: AgentSession.id(context.session) } };
 		if (route.kind === 'copilot') {
-			return this._copilotApiService.utilityChatCompletion(route.githubToken, request, options);
+			// The Copilot API service reports Copilot calls.
+			return this._copilotApiService.utilityChatCompletion(route.githubToken, attributedRequest, options);
 		}
-		return this._byokChatCompletion(route.vendor, route.modelId, request, options?.signal);
+		return this._byokChatCompletion(context, route.vendor, route.modelId, attributedRequest, options?.signal);
 	}
 
 	private _resolveRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
@@ -180,7 +188,7 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		throw error;
 	}
 
-	private _captureCopilotRoute(context: IAgentHostUtilityModelContext): UtilityModelRoute {
+	private _captureCopilotRoute(context: IAgentHostUtilityModelContext): Extract<UtilityModelRoute, { readonly kind: 'copilot' }> {
 		const resource = this._gitHubEndpointService.getCopilotResource();
 		const source = context.credentialSource ?? this._authenticationService.getSessionCredentialSource(context.chat ?? context.session);
 		const captured = source ? captureCredentialSource({
@@ -247,10 +255,14 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		const state = this._stateManager.getChatState(chat) ?? (this._chatOwnership.isDefaultChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
 		// Prefer the model of the turn being served: the provider applies a turn's
 		// model after admission, and a chat that is not resident has no selection.
-		const selection = context.model
-			?? state?.activeTurn?.message.model
+		// A model router is not a model; use its pick, or else the chat's applied model.
+		const concrete = (candidate: ModelSelection | undefined) => candidate && !isModelRouterModelId(candidate.id) ? candidate : undefined;
+		const routedModel = readUsageInfoMeta(state?.activeTurn?.usage).modelRouted?.chosenModel;
+		const selection = concrete(context.model)
+			?? (routedModel !== undefined ? { id: routedModel } : undefined)
+			?? concrete(state?.activeTurn?.message.model)
 			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, this._authenticationService, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat), this._sessionStateStore.peek(URI.parse(context.session))))
-			?? state?.turns.at(-1)?.message.model;
+			?? concrete(state?.turns.at(-1)?.message.model);
 		if (!selection) {
 			return undefined;
 		}
@@ -267,7 +279,8 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostByokUtilityModelDefaultConfigKey) ?? 'copilot';
 	}
 
-	private async _byokChatCompletion(vendor: string, modelId: string, request: ICopilotUtilityChatCompletionRequest, signal: AbortSignal | undefined): Promise<string> {
+	private async _byokChatCompletion(context: IAgentHostUtilityModelContext, vendor: string, modelId: string, request: ICopilotUtilityChatCompletionRequest, signal: AbortSignal | undefined): Promise<string> {
+		const startTime = Date.now();
 		// Same keys as the Responses translation, and the same defaults as the Copilot route.
 		const modelOptions: Record<string, unknown> = {
 			temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
@@ -278,6 +291,20 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 		if (!connection) {
 			throw new AgentHostUtilityModelUnavailableError(AgentHostUtilityModelUnavailableReason.ByokModelUnavailable);
 		}
+		const gitHubTelemetry = this._resolveByokGitHubTelemetry(context);
+		const report = (outcome: IAgentHostUtilityModelCallReport['outcome'], usage?: IByokLmChatResult['usage']) => {
+			const callReport: IAgentHostUtilityModelCallReport = {
+				context: request.telemetry,
+				outcome,
+				isBYOK: true,
+				promptTokenCount: usage?.inputTokens,
+				completionTokens: usage?.outputTokens,
+				tokenCount: usage?.inputTokens !== undefined && usage.outputTokens !== undefined ? usage.inputTokens + usage.outputTokens : undefined,
+				reasoningTokens: usage?.reasoningTokens,
+				timeToComplete: Date.now() - startTime,
+			};
+			void gitHubTelemetry.then(account => reportUtilityModelCall(this._telemetryService, { ...callReport, gitHubTelemetry: account }));
+		};
 		const bridgeRequest: IByokLmChatRequest = {
 			vendor,
 			modelId,
@@ -289,15 +316,46 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 			modelOptions,
 		};
 		this._logService.debug(`[AgentHostUtilityModelService] BYOK utility request: ${vendor}/${modelId}`);
-		const result = await raceAbort(connection.chat(bridgeRequest), signal);
+		let result: IByokLmChatResult;
+		try {
+			result = await raceAbort(connection.chat(bridgeRequest), signal);
+		} catch (error) {
+			report(getUtilityModelCallFailureOutcome(error, signal));
+			throw error;
+		}
+		const text = result.error ? '' : result.output.flatMap(item => item.type === 'message' ? item.content.map(part => part.text) : []).join('');
+		report(text ? 'success' : 'error', result.usage);
 		if (result.error) {
 			throw new Error(`BYOK utility request failed for ${vendor}/${modelId}: ${result.error}`);
 		}
-		const text = result.output.flatMap(item => item.type === 'message' ? item.content.map(part => part.text) : []).join('');
 		if (!text) {
 			throw new Error(`BYOK utility request for ${vendor}/${modelId} returned no text content`);
 		}
 		return text;
+	}
+
+	/**
+	 * The account a BYOK call's GitHub telemetry event is attributed to: the
+	 * session's Copilot account, as in the Copilot Chat extension, which reports
+	 * BYOK responses under the signed-in Copilot account. The credential is
+	 * captured before the BYOK request starts and is used only to look up the
+	 * account; no request content reaches Copilot. Resolves `undefined`,
+	 * reporting the call on the Microsoft telemetry stream only, when the
+	 * session has no Copilot credential or its account cannot be resolved.
+	 */
+	private async _resolveByokGitHubTelemetry(context: IAgentHostUtilityModelContext): Promise<IAgentHostGitHubTelemetryContext | undefined> {
+		let githubToken: string;
+		try {
+			githubToken = this._captureCopilotRoute(context).githubToken;
+		} catch {
+			return undefined;
+		}
+		try {
+			return toUtilityModelCallGitHubTelemetry(await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken));
+		} catch (error) {
+			this._logService.trace(`[AgentHostUtilityModelService] Copilot account unavailable for BYOK utility telemetry: ${error instanceof Error ? error.message : String(error)}`);
+			return undefined;
+		}
 	}
 }
 

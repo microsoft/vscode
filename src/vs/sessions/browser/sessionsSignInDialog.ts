@@ -15,7 +15,7 @@ import { IKeybindingService } from '../../platform/keybinding/common/keybinding.
 import { createWorkbenchDialogOptions } from '../../workbench/browser/parts/dialogs/dialog.js';
 import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../workbench/services/layout/browser/layoutService.js';
-import { RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
+import { RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../workbench/contrib/sessions/common/sessionCommands.js';
 
 export function createSessionsSignInDialogOptions(
 	commandService: ICommandService,

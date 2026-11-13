@@ -28,7 +28,20 @@ import {
 	type Turn,
 } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
-import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
+import { readCustomizationDiscoveryMeta } from '../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { AICustomizationSource, AICustomizationSources } from './aiCustomizationWorkspaceService.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
+
+/** Maps host-reported discovery provenance to the shared customization source. */
+export function getAgentHostCustomizationSource(customization: Customization | ChildCustomization): AICustomizationSource | undefined {
+	switch (readCustomizationDiscoveryMeta(customization)?.source) {
+		case 'repository': return AICustomizationSources.local;
+		case 'user': return AICustomizationSources.user;
+		case 'plugin': return AICustomizationSources.plugin;
+		case 'builtin': return AICustomizationSources.builtin;
+		default: return undefined;
+	}
+}
 
 /**
  * A reference to a customization extracted from a chat's output stream.

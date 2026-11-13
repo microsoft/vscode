@@ -25,8 +25,8 @@ import { IKeybindingService } from '../../platform/keybinding/common/keybinding.
 import { IHostService } from '../../workbench/services/host/browser/host.js';
 import { IMarkdownRendererService } from '../../platform/markdown/browser/markdownRenderer.js';
 import { WELCOME_COMPLETE_KEY } from '../common/welcome.js';
-import { SessionsWelcomeVisibleContext } from '../common/contextkeys.js';
-import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, SignedOutWindowGate } from './sessionsAuthGate.js';
+import { SessionsWelcomeVisibleContext } from '../../workbench/contrib/sessions/common/contextkeys.js';
+import { ConditionalAuthState, conditionalAuthState, resolveSignedOutWindowGate, SignedOutWindowGate } from '../../workbench/services/sessions/browser/sessionsAuthGate.js';
 
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../base/common/codicons.js';
@@ -36,8 +36,8 @@ import { createWorkbenchDialogOptions } from '../../workbench/browser/parts/dial
 import { MarkdownString } from '../../base/common/htmlContent.js';
 import { localize } from '../../nls.js';
 import { createSessionsSignInDialogOptions, SessionsSigningInDialog } from './sessionsSignInDialog.js';
-import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../common/sessionCommands.js';
-import { ISessionsManagementService } from '../services/sessions/common/sessionsManagement.js';
+import { SHOULD_SHOW_RETURN_TO_VSCODE_EDITOR_COMMAND_ID } from '../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ISessionsManagementService } from '../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 const AIDisabledConfig = 'chat.disableAIFeatures';
 

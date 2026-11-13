@@ -214,34 +214,97 @@ function killProcessTree(child: cp.ChildProcess): void {
 	}
 }
 
+/** Matches the stdin authentication handshake used by EsrpCodeSigning 6.1.3 and ESRP CLI 6.0.26. */
+function startEsrpProcess(command: string, args: string[], systemAccessToken?: string) {
+	const env = { ...process.env };
+	if (systemAccessToken !== undefined) {
+		for (const name of Object.keys(env)) {
+			if (['SYSTEM_ACCESSTOKEN', 'ENDPOINT_AUTH_SYSTEMVSSCONNECTION', 'ENDPOINT_AUTH_PARAMETER_SYSTEMVSSCONNECTION_ACCESSTOKEN'].includes(name.toUpperCase())) {
+				delete env[name];
+			}
+		}
+	}
+
+	const child = cp.spawn(command, args, { env, stdio: [systemAccessToken === undefined ? 'inherit' : 'pipe', 'pipe', 'inherit'] });
+	let inputReady = systemAccessToken === undefined;
+	let startupOutput = '\n';
+	let inputFailure: Error | undefined;
+	let startupDeadline: ReturnType<typeof setTimeout> | undefined;
+	let resolveExit!: (exitCode: number | null) => void;
+	const terminate = () => {
+		killProcessTree(child);
+		// Don't wait on a process that survived the kill.
+		setTimeout(() => resolveExit(null), 30_000).unref();
+	};
+	const exited = new Promise<number | null>((resolve, reject) => {
+		resolveExit = resolve;
+		child.once('error', (error: NodeJS.ErrnoException) => {
+			clearTimeout(startupDeadline);
+			const code = ['ENOENT', 'EACCES', 'EPERM', 'ENOEXEC'].includes(error.code ?? '') ? error.code : 'UNKNOWN';
+			reject(new Error(`Failed to start the ESRP CLI (${code}). Check the CLI and .NET installation and permissions.`));
+		});
+		child.once('close', code => {
+			clearTimeout(startupDeadline);
+			if (inputFailure) {
+				reject(inputFailure);
+			} else if (code === 0 && !inputReady) {
+				reject(new Error('ESRP CLI exited without confirming authentication input. Update the task and CLI together.'));
+			} else {
+				resolve(code);
+			}
+		});
+	});
+
+	child.stdout!.on('data', (data: Buffer) => {
+		process.stdout.write(data);
+		if (!inputReady) {
+			const output = startupOutput + data.toString('utf8');
+			const marker = '\nESRP_AUTH_INPUT_READY';
+			if (output.includes(`${marker}\n`) || output.includes(`${marker}\r\n`)) {
+				inputReady = true;
+				startupOutput = '';
+				clearTimeout(startupDeadline);
+			} else {
+				startupOutput = output.slice(-(marker.length + 1));
+			}
+		}
+	});
+
+	if (systemAccessToken !== undefined) {
+		startupDeadline = setTimeout(() => {
+			inputFailure = new Error('Timed out after 60 seconds waiting for the ESRP CLI to read authentication input.');
+			terminate();
+		}, 60_000);
+		child.stdin!.on('error', () => {
+			clearTimeout(startupDeadline);
+			inputFailure ??= new Error('Failed to deliver authentication input to the ESRP CLI.');
+			terminate();
+		});
+		child.stdin!.end(`${systemAccessToken}\n`, 'utf8');
+	}
+
+	return { child, exited, terminate };
+}
+
 /**
  * Runs an ESRP session and stops it once it stops making progress, so a stuck
  * operation fails the sign step in minutes instead of holding the job until its
  * time limit. The signed files are replaced in place as they complete, so the
  * session isn't resubmitted here. A stage retry signs fresh, unsigned artifacts.
  */
-export async function runWithEsrpStallGuard(command: string, args: string[], stallTimeoutMs: number, pollIntervalMs = 15_000): Promise<{ exitCode: number | null; stalled?: EsrpProgress }> {
+export async function runWithEsrpStallGuard(command: string, args: string[], stallTimeoutMs: number, pollIntervalMs = 15_000, systemAccessToken?: string): Promise<{ exitCode: number | null; stalled?: EsrpProgress }> {
 	const progress = new EsrpProgress();
-	const child = cp.spawn(command, args, { stdio: ['inherit', 'pipe', 'inherit'] });
+	const { child, exited, terminate } = startEsrpProcess(command, args, systemAccessToken);
 	child.stdout!.on('data', (data: Buffer) => {
-		process.stdout.write(data);
 		progress.write(data.toString());
 	});
 
 	let stalled: EsrpProgress | undefined;
-	let resolveExit!: (exitCode: number | null) => void;
-	const exited = new Promise<number | null>((resolve, reject) => {
-		resolveExit = resolve;
-		child.once('error', reject);
-		child.once('close', resolve);
-	});
 	const timer = setInterval(() => {
 		if (progress.stalledForMs() >= stallTimeoutMs) {
 			clearInterval(timer);
 			stalled = progress;
-			killProcessTree(child);
-			// Don't wait on a process that survived the kill.
-			setTimeout(() => resolveExit(null), 30_000).unref();
+			terminate();
 		}
 	}, pollIntervalMs);
 
@@ -362,24 +425,16 @@ export function getEsrpDownloadTempFiles(folder: string, pattern: string): Map<s
  * replaces it only after a complete, verified download), so the caller can submit
  * the file again, which downloads it on a new connection.
  */
-export async function runWithEsrpDownloadStallGuard(command: string, args: string[], getTempFiles: () => ReadonlyMap<string, number>, options: EsrpDownloadStallOptions, pollIntervalMs = 15_000): Promise<{ exitCode: number | null; stalled?: EsrpDownloadStall }> {
+export async function runWithEsrpDownloadStallGuard(command: string, args: string[], getTempFiles: () => ReadonlyMap<string, number>, options: EsrpDownloadStallOptions, pollIntervalMs = 15_000, systemAccessToken?: string): Promise<{ exitCode: number | null; stalled?: EsrpDownloadStall }> {
 	const monitor = new EsrpDownloadMonitor(options);
-	const child = cp.spawn(command, args, { stdio: 'inherit' });
+	const { exited, terminate } = startEsrpProcess(command, args, systemAccessToken);
 
 	let stalled: EsrpDownloadStall | undefined;
-	let resolveExit!: (exitCode: number | null) => void;
-	const exited = new Promise<number | null>((resolve, reject) => {
-		resolveExit = resolve;
-		child.once('error', reject);
-		child.once('close', resolve);
-	});
 	const timer = setInterval(() => {
 		stalled = monitor.sample(getTempFiles());
 		if (stalled) {
 			clearInterval(timer);
-			killProcessTree(child);
-			// Don't wait on a process that survived the kill.
-			setTimeout(() => resolveExit(null), 30_000).unref();
+			terminate();
 		}
 	}, pollIntervalMs);
 
@@ -403,12 +458,12 @@ function removeEsrpDownloadTempFiles(folder: string, pattern: string): void {
  * MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS times. Returns the exit code of the
  * last session.
  */
-export async function runWithEsrpDownloadResubmission(command: string, createArgs: () => string[], folderPath: string, pattern: string, options: EsrpDownloadStallOptions, onStall: (stall: EsrpDownloadStall, attempt: number) => void, pollIntervalMs = 15_000): Promise<number | null> {
+export async function runWithEsrpDownloadResubmission(command: string, createArgs: () => string[], folderPath: string, pattern: string, options: EsrpDownloadStallOptions, onStall: (stall: EsrpDownloadStall, attempt: number) => void, pollIntervalMs = 15_000, systemAccessToken?: string): Promise<number | null> {
 	for (let attempt = 1; ; attempt++) {
 		removeEsrpDownloadTempFiles(folderPath, pattern);
 		// The last session isn't stopped, so the files get signed even if every download stalls.
 		const guard = attempt <= MAX_ESRP_DOWNLOAD_STALL_RESUBMISSIONS;
-		const { exitCode, stalled } = await runWithEsrpDownloadStallGuard(command, createArgs(), () => guard ? getEsrpDownloadTempFiles(folderPath, pattern) : new Map(), options, pollIntervalMs);
+		const { exitCode, stalled } = await runWithEsrpDownloadStallGuard(command, createArgs(), () => guard ? getEsrpDownloadTempFiles(folderPath, pattern) : new Map(), options, pollIntervalMs, systemAccessToken);
 		if (!stalled) {
 			return exitCode;
 		}
@@ -416,14 +471,14 @@ export async function runWithEsrpDownloadResubmission(command: string, createArg
 	}
 }
 
-async function runDarwinSession(type: string, folderPath: string, pattern: string, createArgs: () => string[]): Promise<void> {
+async function runDarwinSession(type: string, folderPath: string, pattern: string, createArgs: () => string[], systemAccessToken: string): Promise<void> {
 	const options = getEsrpDownloadStallOptions();
 	const exitCode = await runWithEsrpDownloadResubmission('dotnet', createArgs, folderPath, pattern, options, (stalled, attempt) => {
 		const rate = (stalled.bytesPerSecond / 1024 / 1024).toFixed(2);
 		const file = path.basename(stalled.file, '.tmp');
 		console.log(`[esrp-stall] type=${type} file=${file} rate=${rate}MB/s window=${options.windowMs / 1000}s attempt=${attempt} action=resubmit`);
 		console.log(`##vso[task.logissue type=warning]ESRP download of ${file} stalled at ${rate} MB/s; submitting it again (attempt ${attempt + 1}).`);
-	});
+	}, undefined, systemAccessToken);
 	if (exitCode !== 0) {
 		console.error('ESRP failed');
 		console.error(`dotnet exited with code ${exitCode}`);
@@ -432,6 +487,11 @@ async function runDarwinSession(type: string, folderPath: string, pattern: strin
 }
 
 export function main([esrpCliPath, type, folderPath, pattern]: string[]): void | Promise<void> {
+	const token = process.env['SYSTEM_ACCESSTOKEN'];
+	if (!token?.trim() || /[\r\n]/.test(token) || token.trim().length > 32767) {
+		throw new Error('Missing or invalid SYSTEM_ACCESSTOKEN for ESRP signing.');
+	}
+	const systemAccessToken = token.trim();
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
 
@@ -444,20 +504,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]): void |
 	const dotnetVersion = cp.execSync('dotnet --version', { encoding: 'utf8' }).trim();
 	const adoTaskVersion = path.basename(path.dirname(path.dirname(esrpCliPath)));
 
-	// esrpcli deletes the encryption key file once it has read it, so every session
-	// needs a newly encrypted token.
 	const createArgs = (): string[] => {
-		const key = crypto.randomBytes(32);
-		const iv = crypto.randomBytes(16);
-		const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-		const encryptedToken = cipher.update(process.env['SYSTEM_ACCESSTOKEN']!.trim(), 'utf8', 'hex') + cipher.final('hex');
-
-		const encryptionDetailsPath = tmp.tmpNameSync();
-		fs.writeFileSync(encryptionDetailsPath, JSON.stringify({ key: key.toString('hex'), iv: iv.toString('hex') }));
-
-		const encryptedTokenPath = tmp.tmpNameSync();
-		fs.writeFileSync(encryptedTokenPath, encryptedToken);
-
 		const federatedTokenData = {
 			jobId: process.env['SYSTEM_JOBID'],
 			planId: process.env['SYSTEM_PLANID'],
@@ -467,9 +514,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]): void |
 			managedIdentityId: process.env['VSCODE_ESRP_CLIENT_ID'],
 			managedIdentityTenantId: process.env['VSCODE_ESRP_TENANT_ID'],
 			serviceConnectionId: process.env['VSCODE_ESRP_SERVICE_CONNECTION_ID'],
-			tempDirectory: os.tmpdir(),
-			systemAccessToken: encryptedTokenPath,
-			encryptionKey: encryptionDetailsPath
+			systemAccessTokenSource: 'stdin'
 		};
 
 		return [
@@ -510,7 +555,7 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]): void |
 
 	if (isWindowsSignType(type)) {
 		const stallTimeoutMs = getEsrpStallTimeoutMs();
-		return runWithEsrpStallGuard('dotnet', createArgs(), stallTimeoutMs).then(({ exitCode, stalled }) => {
+		return runWithEsrpStallGuard('dotnet', createArgs(), stallTimeoutMs, undefined, systemAccessToken).then(({ exitCode, stalled }) => {
 			if (stalled) {
 				console.log(`##vso[task.logissue type=error]ESRP signing stalled: ${stalled.remaining} file(s) still pending after ${stallTimeoutMs / 60_000} minutes without progress (FileIds: ${stalled.fileIds}). Retry the stage, not this step: files signed so far were replaced in place.`);
 				process.exit(1);
@@ -528,20 +573,24 @@ export function main([esrpCliPath, type, folderPath, pattern]: string[]): void |
 	}
 
 	if (isDarwinSignType(type)) {
-		return runDarwinSession(type, folderPath, pattern, createArgs).catch(err => {
+		return runDarwinSession(type, folderPath, pattern, createArgs, systemAccessToken).catch(err => {
 			console.error('ESRP failed');
 			console.error(err);
 			process.exit(1);
 		});
 	}
 
-	try {
-		cp.execFileSync('dotnet', createArgs(), { stdio: 'inherit' });
-	} catch (err) {
+	return startEsrpProcess('dotnet', createArgs(), systemAccessToken).exited.then(exitCode => {
+		if (exitCode !== 0) {
+			console.error('ESRP failed');
+			console.error(`dotnet exited with code ${exitCode}`);
+			process.exit(1);
+		}
+	}, err => {
 		console.error('ESRP failed');
 		console.error(err);
 		process.exit(1);
-	}
+	});
 }
 
 if (import.meta.main) {

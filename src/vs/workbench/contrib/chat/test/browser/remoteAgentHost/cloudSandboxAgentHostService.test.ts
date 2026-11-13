@@ -82,11 +82,12 @@ class TestCloudSandboxAgentHostService extends CloudSandboxAgentHostService {
 type ScriptedConnectResult = CloudSandboxConnectResult | Error | (() => Promise<CloudSandboxConnectResult>);
 
 const connectionDetails = {
+	suspendCount: 0, suspendedMs: 0,
 	environmentOperation: 'resume', provisioningMs: 0, readinessMs: 0,
 	taskCreationPath: 'unknown', reservationWaitMs: 0,
 	preparationMs: 0, connectionMs: 0,
 	environmentKind: 'cloud',
-	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: 0, wakingResponses: 0, transportAttempts: 0,
+	surface: isWeb ? 'editorWeb' : 'editorDesktop', source: 'existing', credentialRequests: undefined, credentialOperations: 0, wakingResponses: 0, transportAttempts: 0,
 	credentialsMs: 0, relayMs: 0, protocolMs: 0, authenticationMs: 0, restorationMs: 0,
 	firstFailurePhase: undefined, firstFailureCode: undefined,
 	credentialFailures: 0, relayFailures: 0, protocolFailures: 0, authenticationFailures: 0, restorationFailures: 0,
@@ -345,6 +346,12 @@ suite('CloudSandboxAgentHostService', () => {
 		assert.ok(options.resolveInitialAuthentication && options.sealAuthenticationToken);
 		const identity = await options.resolveInitialAuthentication();
 		assert.ok(identity);
+		const unavailable = new Error('network unavailable');
+		fixture.setIdentityResult(async () => { throw unavailable; });
+		await assert.rejects(options.resolveInitialAuthentication(), error => error === unavailable);
+		fixture.setIdentityResult(async () => { throw new CloudSandboxRequestError(401, 'sign in required'); });
+		await assert.rejects(options.resolveInitialAuthentication(), InitialAuthenticationError);
+		fixture.setIdentityResult(async () => ({ token: 'identity-only-token' }));
 		const token = await options.sealAuthenticationToken({ ...identity, key, challenge: 'a'.repeat(32) });
 		fixture.setEnvironmentKeys([key]);
 		await assert.rejects(options.sealAuthenticationToken({ ...identity, key: { ...key, public_key: 'substituted' } }), /does not match/);
@@ -355,7 +362,10 @@ suite('CloudSandboxAgentHostService', () => {
 		}, {
 			identity: { resource: 'https://api.github.com', token: 'identity-only-token' },
 			renewed: { resource: 'https://api.github.com', token: 'identity-only-token' },
-			sealed: true, identityRequests: [{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: true }],
+			sealed: true, identityRequests: [
+				{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: false },
+				{ account: 'account-a', forceRefresh: false }, { account: 'account-a', forceRefresh: true },
+			],
 			controlPlaneRequests: 1, environmentReads: 1,
 		});
 	});
@@ -618,7 +628,7 @@ suite('CloudSandboxAgentHostService', () => {
 						reservationWaitMs: undefined,
 						connectionMs: 50,
 						surface: isSessionsWindow ? (isWeb ? 'agentsWeb' : 'agentsDesktop') : connectionDetails.surface, source: 'created',
-						credentialRequests: 1, transportAttempts: 1, relayMs: 20, authenticationMs: 30,
+						credentialOperations: 1, transportAttempts: 1, relayMs: 20, authenticationMs: 30,
 					},
 				}],
 				listening: false,
@@ -653,7 +663,7 @@ suite('CloudSandboxAgentHostService', () => {
 				outcomes: fixture.events.filter(event => event.eventName === 'cloudSandboxConnectionOutcome').map(event => event.data),
 			}, {
 				entries: [], sealed: undefined,
-				outcomes: [{ ...connectionDetails, operation: 'connect', outcome: 'failure', stage, durationMs: 600_000, readinessMs: 600_000, preparationMs: stage === 'credentials' ? 600_000 : 0, connectionMs: stage === 'connection' ? 600_000 : 0, credentialRequests: 1, credentialsMs: stage === 'credentials' ? 600_000 : 0 }],
+				outcomes: [{ ...connectionDetails, operation: 'connect', outcome: 'failure', stage, durationMs: 600_000, readinessMs: 600_000, preparationMs: stage === 'credentials' ? 600_000 : 0, connectionMs: stage === 'connection' ? 600_000 : 0, credentialOperations: 1, credentialsMs: stage === 'credentials' ? 600_000 : 0 }],
 			});
 		}));
 	}
@@ -1575,7 +1585,7 @@ suite('CloudSandboxAgentHostService', () => {
 						...connectionDetails, operation: 'connect', source: 'created', outcome: 'success', stage: 'connection',
 						environmentOperation: 'provision', provisioningMs: 1000, readinessMs: 1100,
 						taskCreationPath: taskCreationPath ?? 'unknown', reservationWaitMs,
-						durationMs: 100, connectionMs: 100, credentialRequests: 1,
+						durationMs: 100, connectionMs: 100, credentialOperations: 1,
 					},
 					{
 						...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection',
@@ -1601,7 +1611,7 @@ suite('CloudSandboxAgentHostService', () => {
 				eventName: 'cloudSandboxConnectionOutcome', data: {
 					...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 7000,
 					readinessMs: 7000,
-					preparationMs: 2000, connectionMs: 5000, credentialRequests: 1, credentialsMs: 2000,
+					preparationMs: 2000, connectionMs: 5000, credentialOperations: 1, credentialsMs: 2000,
 				},
 			}]);
 		}));
@@ -1630,7 +1640,7 @@ suite('CloudSandboxAgentHostService', () => {
 			fixture.service.dispose();
 			assert.deepStrictEqual({ calls: fixture.requestCalls(), events: fixture.events, withinExpectedWindow: durationMs >= 9_000 && durationMs < 9_400 }, {
 				calls: 3,
-				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs, readinessMs: durationMs, preparationMs: durationMs - 5000, connectionMs: 5000, credentialRequests: 3, wakingResponses: 1, credentialsMs: durationMs - 5000 } }],
+				events: [{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs, readinessMs: durationMs, preparationMs: durationMs - 5000, connectionMs: 5000, credentialOperations: 3, wakingResponses: 1, credentialsMs: durationMs - 5000 } }],
 				withinExpectedWindow: true,
 			});
 		}));
@@ -1646,7 +1656,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await Promise.all([first, second]);
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 3000, readinessMs: 3000, connectionMs: 3000, credentialRequests: 2 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 3000, readinessMs: 3000, connectionMs: 3000, credentialOperations: 2 } },
 			]);
 		}));
 
@@ -1666,8 +1676,8 @@ suite('CloudSandboxAgentHostService', () => {
 			await timeout(1000);
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, readinessMs: 3000, preparationMs: 2000, connectionMs: 1000, credentialRequests: 1, firstFailurePhase: 'credentials', firstFailureCategory: 'unknown', credentialFailures: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialOperations: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'success', stage: 'credentials', durationMs: 3000, readinessMs: 3000, preparationMs: 2000, connectionMs: 1000, credentialOperations: 1, firstFailurePhase: 'credentials', firstFailureCategory: 'unknown', credentialFailures: 1 } },
 				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 2000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
@@ -1688,8 +1698,8 @@ suite('CloudSandboxAgentHostService', () => {
 			await redial;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialRequests: 1 } },
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 2000, readinessMs: 2000, connectionMs: 2000, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'success', stage: 'connection', durationMs: 0, credentialOperations: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'recover', environmentOperation: 'recover', outcome: 'failure', stage: 'connection', durationMs: 2000, readinessMs: 2000, connectionMs: 2000, credentialOperations: 1 } },
 				{ eventName: 'cloudSandboxConnectionHealth', data: { environmentKind: 'cloud', connectedMs: 1000, unexpectedDisconnects: 1, receivedFrames: 0 } },
 			]);
 		}));
@@ -1702,7 +1712,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await assert.rejects(fixture.service.connect(options, CancellationToken.None));
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, readinessMs: 1700, preparationMs: 1700, credentialRequests: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', firstFailureCategory: 'unknown', credentialFailures: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'credentials', durationMs: 1700, readinessMs: 1700, preparationMs: 1700, credentialOperations: 1, credentialsMs: 1700, firstFailurePhase: 'credentials', firstFailureCategory: 'unknown', credentialFailures: 1 } },
 			]);
 		}));
 
@@ -1716,7 +1726,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'connection', durationMs: 2400, readinessMs: 2400, connectionMs: 2400, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'failure', stage: 'connection', durationMs: 2400, readinessMs: 2400, connectionMs: 2400, credentialOperations: 1 } },
 			]);
 		}));
 
@@ -1733,7 +1743,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 1100, readinessMs: 1100, preparationMs: 1100, credentialRequests: 1, credentialsMs: 1100 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'credentials', durationMs: 1100, readinessMs: 1100, preparationMs: 1100, credentialOperations: 1, credentialsMs: 1100 } },
 			]);
 		}));
 
@@ -1749,7 +1759,7 @@ suite('CloudSandboxAgentHostService', () => {
 			await connecting;
 			fixture.service.dispose();
 			assert.deepStrictEqual(fixture.events, [
-				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'connection', durationMs: 1200, readinessMs: 1200, connectionMs: 1200, credentialRequests: 1 } },
+				{ eventName: 'cloudSandboxConnectionOutcome', data: { ...connectionDetails, operation: 'connect', outcome: 'cancelled', stage: 'connection', durationMs: 1200, readinessMs: 1200, connectionMs: 1200, credentialOperations: 1 } },
 			]);
 		}));
 	});

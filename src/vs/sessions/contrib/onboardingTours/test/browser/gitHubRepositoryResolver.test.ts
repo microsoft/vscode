@@ -10,7 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { createInMemoryFileService } from '../../../../../platform/files/test/common/inMemoryFileService.js';
 import { getGitHubRepositoryFromRemoteUrl } from '../../../../../workbench/contrib/git/common/utils.js';
-import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig, resolveGitRepositoryFromGitConfig } from '../../../../services/sessions/browser/gitHubRepositoryResolver.js';
+import { parseGitHubRepositoryFromGitConfig, resolveGitHubRepositoryFromGitConfig, resolveGitRepositoryFromGitConfig } from '../../../../../workbench/contrib/sessions/browser/gitHubRepositoryResolver.js';
 
 const ROOT = URI.from({ scheme: 'vscode-tests', path: '/workspace' });
 

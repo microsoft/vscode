@@ -32,7 +32,7 @@ However, within this extension, you can run a development version of `vscode-css
 - Clone [microsoft/vscode-css-languageservice](https://github.com/microsoft/vscode-css-languageservice)
 - Run `npm i` in `vscode-css-languageservice`
 - Run `npm link` in `vscode-css-languageservice`. This will compile and link `vscode-css-languageservice`
-- In `css-language-features/server/`, run `pnpm link <path to your vscode-css-languageservice checkout>`. This adds a `link:` override to `extensions/pnpm-workspace.yaml` and updates `extensions/pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-css-languageservice` to undo the link
+- In `css-language-features/server/`, run `pnpm link <path to your vscode-css-languageservice checkout>`. This adds a `link:` override to the root `pnpm-workspace.yaml` and updates `pnpm-lock.yaml`; don't commit those changes, and run `pnpm unlink vscode-css-languageservice` to undo the link
 
 #### Testing the development version of `vscode-css-languageservice`
 

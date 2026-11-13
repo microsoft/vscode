@@ -14,9 +14,11 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
+import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentChatInputResponseMeta } from './meta/agentChatInputResponseMeta.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -24,9 +26,11 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type AnnotationsSummary, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
-import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState } from './state/sessionState.js';
+import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
+import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
+import type { IModelRouterSituation } from './modelRouterSituation.js';
 
 /** Permission response provenance and its originating client. */
 export interface IAgentPermissionResponseContext {
@@ -207,6 +211,12 @@ export interface IAgentImportChatOptions {
 	 * otherwise block the chat for good.
 	 */
 	readonly takeOver?: boolean;
+	/**
+	 * The host already had the chat loaded, so the provider's copy may predate
+	 * turns another client ran since. Reload the chat from storage when that
+	 * may be the case.
+	 */
+	readonly reloadIfStale?: boolean;
 }
 
 /** The selection an imported chat continues with, as its provider's runtime restored it. */
@@ -214,6 +224,8 @@ export interface IAgentImportedChat {
 	readonly model: ModelSelection | undefined;
 	/** `undefined` when the chat runs without a custom agent, or with one this host does not offer. */
 	readonly agent: AgentSelection | undefined;
+	/** The provider reloaded the chat from storage, so the turns the host has for it may be out of date. */
+	readonly reloaded?: boolean;
 }
 
 /** A fresh provider transcript for a chat being observed without running a host turn. */
@@ -224,12 +236,6 @@ export interface IAgentChatHistoryChange {
 
 /** Returns the candidate session URI keys already present in the host registry. */
 export type IAgentKnownSessionsFilter = (sessions: readonly URI[]) => Promise<ReadonlySet<string>>;
-
-/** Options for {@link IAgent.startChatDiscovery}. */
-export interface IAgentChatDiscoveryOptions {
-	/** The host's startup-frozen gate for publishing adoptable legacy chats. */
-	readonly migrateLegacyChats: boolean;
-}
 
 /** Lightweight ordered chat metadata for session-list presentation. */
 export interface IAgentSessionChatMetadata {
@@ -258,6 +264,7 @@ export interface IAgentSessionChatMetadata {
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly annotations?: AnnotationsSummary;
 	/** Host-advertised agent identity; older cached metadata may omit it. */
 	readonly provider?: string;
 	readonly origin?: SessionOrigin;
@@ -332,6 +339,17 @@ export interface IAgentPluginUninstallRequest {
 
 /** Provider-owned persisted installation, not a session-effective or client-provided plugin. */
 export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
+	/** Persisted user/global activation reported by the owning runtime. */
+	readonly enabled?: boolean;
+	/** Effective activation in the exact live chat; absent before that chat is initialized. */
+	readonly effectiveEnabled?: boolean;
+	/** Explicit repository override; null inherits global state, absent means unavailable. */
+	readonly repositoryEnabled?: boolean | null;
+	readonly managedDesiredEnabled?: boolean;
+	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
+	readonly resource?: URI;
+	/** Host-owned installed-content revision; activation-only changes preserve it. */
+	readonly contentRevision?: string;
 	readonly version?: string;
 	readonly description?: string;
 	readonly verifiedSource?: { readonly repository: string; readonly revision: string };
@@ -340,7 +358,16 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 
 export type AgentExtensionMode = 'disabled' | 'load_only' | 'load_and_augment' | 'unknown';
 export type AgentExtensionSource = 'user' | 'project' | 'plugin';
-export type AgentExtensionStatus = 'running' | 'disabled' | 'failed' | 'starting' | 'unknown';
+/**
+ * `dormant` is enabled and settled like `running`: the runtime advertises the
+ * extension's declared tools and canvases and starts the extension on first use.
+ */
+export type AgentExtensionStatus = 'running' | 'dormant' | 'disabled' | 'failed' | 'starting' | 'unknown';
+
+/** Whether an extension is enabled and settled, so its advertised tools and canvases are authoritative even before it starts. */
+export function isAgentExtensionEnabledAndSettled(status: AgentExtensionStatus): boolean {
+	return status === 'running' || status === 'dormant';
+}
 
 /** One executable extension discovered from the provider's persisted or session-effective inventory. */
 export interface IAgentExtensionInfo {
@@ -348,7 +375,7 @@ export interface IAgentExtensionInfo {
 	readonly name: string;
 	readonly resource?: URI;
 	readonly source: AgentExtensionSource;
-	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `failed`, or `starting`. */
+	/** Persisted enabled entries use `unknown`; only a live session can report `running`, `dormant`, `failed`, or `starting`. */
 	readonly status: AgentExtensionStatus;
 	readonly pluginName?: string;
 }
@@ -382,6 +409,47 @@ export interface IAgentCanvasOpenRequest {
 	readonly extensionId?: string;
 	readonly instanceId: string;
 }
+
+/** The choices a user can make about a Copilot extension that needs consent before it loads. */
+export const enum AgentExtensionConsentOption {
+	/** Allows the extension for the rest of the chat's runtime sessions. */
+	Allow = 'allow-once',
+	AlwaysAllow = 'allow-extension-always',
+	NotNow = 'not-now',
+	Never = 'deny-extension-always',
+}
+
+/**
+ * A Copilot extension that waits for the user's consent before it loads: to read sensitive
+ * environment variables, or to load with privileged capabilities. Carries names only, never values.
+ */
+export interface IAgentExtensionConsentRequest {
+	/** Identifies this request until it is answered. */
+	readonly id: string;
+	readonly kind: 'environment' | 'capabilities';
+	/** Source-qualified extension identifier, such as `user:my-canvas`. */
+	readonly extensionName: string;
+	/** Short extension name for display. */
+	readonly displayName: string;
+	/** The requested environment variable names, or the requested capabilities. */
+	readonly items: readonly string[];
+	/** Whether the decision can be remembered for all sessions ({@link AgentExtensionConsentOption.AlwaysAllow} and {@link AgentExtensionConsentOption.Never}). */
+	readonly persistable: boolean;
+}
+
+/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired`, or retries one that was denied. */
+export type AgentCanvasOpenAnswer =
+	| { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption }
+	| { readonly kind: 'retry' };
+
+/**
+ * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
+ * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ */
+export type AgentCanvasOpenResult =
+	| { readonly kind: 'opened' }
+	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
@@ -1009,10 +1077,17 @@ export interface IAgentChatContext {
 	readonly customizations?: readonly Customization[];
 	/** Per-operation host instructions that providers add to model context without persisting as user content. */
 	readonly hostInstructions?: readonly string[];
+	/** Original user-facing message text before outgoing contributions, supplied only for its send. */
+	readonly originalMessageText?: string;
 	/** Records provider timing for the current send or resumed execution. */
 	readonly sendStageRecorder?: IAgentProviderSendStageRecorder;
 	/** Whether the current turn is an automated Agent Merge repair turn. */
 	readonly agentMergeTurn?: boolean;
+	/**
+	 * Who authored the message of the current send, resolved by the host and supplied only for that send.
+	 * Providers pass it to their runtime instead of presenting every message as the user's.
+	 */
+	readonly messageProvenance?: AgentMessageProvenance;
 	/**
 	 * The VS Code chat surface the owning session was created for, from its surface
 	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
@@ -1228,6 +1303,8 @@ export interface IAgentCreateChatSideChatSource {
 	readonly turnId: string;
 	/** Optional selected-text snapshot captured from the source chat transcript. */
 	readonly selection?: IAgentCreateChatSideChatSelection;
+	/** Defaults to true; false retains provenance without forking or injecting source conversation context. */
+	readonly includeSourceContext?: boolean;
 }
 
 /** Result of {@link IAgentChats.createChat}: the opaque blob to persist for restore. */
@@ -1390,6 +1467,12 @@ export interface IAgentChats {
 	prepareChat?(chat: URI, context: AgentChatOperationContext): Promise<IAgentPrepareChatResult>;
 
 	/**
+	 * Returns the input restriction recorded when `getMessages` recovered history read-only after a resume failure.
+	 * Providers implementing this are only prepared when they report a restriction or the host already tracks an input state for the chat.
+	 */
+	getInputRestriction?(chat: URI): ErrorInfo | undefined;
+
+	/**
 	 * Optionally starts the runtime of a chat that was created with a deferred
 	 * backing ({@link IAgentCreateChatResult.provisional}) before its first send,
 	 * so its MCP servers and plugins load while the user composes. The warm
@@ -1423,6 +1506,12 @@ export interface IAgentChats {
 
 	/** Return whether the addressed chat can currently release its in-memory backing. */
 	canReleaseChat?(chat: URI, context: AgentChatOperationContext): Promise<boolean>;
+
+	/**
+	 * Whether the provider's runtime marks the chat as in use while this host has it loaded, so another client asks
+	 * before continuing it. The host releases a session with such a chat shortly after no client observes it.
+	 */
+	isChatHeldInUse?(chat: URI): boolean;
 
 	/** Release the addressed chat's in-memory backing without deleting durable data. */
 	releaseChat(chat: URI, context: AgentChatOperationContext, options?: IAgentChatReleaseOptions): Promise<void>;
@@ -1641,6 +1730,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
+	/** Host-only raw MCP server name as configured, for MCP permission requests. */
+	readonly mcpServerName?: string;
+	/** Host-only raw MCP tool name, for MCP permission requests. */
+	readonly mcpToolName?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
 	readonly shellCommand?: string;
 	/**
@@ -1648,6 +1741,8 @@ export interface IAgentToolPendingConfirmationSignal {
 	 * The runtime currently sets it for managed Shell, Read, Edit, and Domain selector asks.
 	 */
 	readonly managedApprovalRequired?: boolean;
+	/** Host-only requirement for an explicit user decision instead of host auto-approval. */
+	readonly requiresUserConfirmation?: true;
 	/**
 	 * Host-only flag indicating that the runtime requested sandbox escalation.
 	 */
@@ -1890,6 +1985,8 @@ export interface IAgentChatAdoptionResult {
 	};
 	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
 	readonly worktree?: IAgentAdoptedWorktree;
+	/** The adopted chat's own creation and last-modified times, so registration does not stamp it with the adoption time. */
+	readonly timestamps?: { readonly startTime: number; readonly modifiedTime: number };
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
 	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */
@@ -1941,6 +2038,27 @@ export interface IAgentChatCanvasWatchHost {
  * The {@link IAgentService} dispatches to the appropriate agent based on
  * the agent id.
  */
+export interface IAgentTurnModelRequest {
+	readonly turnId: string;
+	/** The turn's selection, such as `model-router:<name>`. */
+	readonly selection: ModelSelection;
+	readonly text: string;
+	readonly previousTurns: readonly Turn[];
+	/** The turn's custom agent, whose own model can take the place of a router's pick. */
+	readonly agent?: AgentSelection;
+	/** Facts about the turn besides its message, such as what is attached. Never content. */
+	readonly situation?: IModelRouterSituation;
+}
+
+export interface IAgentTurnModelResolution {
+	/** The concrete model for this turn, or `undefined` to keep the chat's current model. */
+	readonly selection: ModelSelection | undefined;
+	/** What was chosen and why, recorded on the turn's usage. */
+	readonly routed?: IModelRoutedInfo;
+	/** Short notices shown in the turn. */
+	readonly notices: readonly string[];
+}
+
 export interface IAgent {
 	/** Host-internal opt-in to client-backed, non-file working directories. */
 	readonly supportsVirtualWorkspaces?: true;
@@ -1965,6 +2083,20 @@ export interface IAgent {
 	/** Discovers models using only the requesting connection's credentials, without changing the shared catalog. */
 	getModelsForCredentials?(credentials: IAgentHostCredentialSource, token?: CancellationToken): Promise<readonly IAgentModelInfo[]>;
 
+	/**
+	 * Chooses the model for a main-agent turn that selected a model router
+	 * (`model-router:<name>`). The host never passes a router id to `changeModel`, and removes
+	 * it from turns of agents without this method.
+	 */
+	resolveTurnModel?(chat: URI, request: IAgentTurnModelRequest, context: IAgentChatContext, token: CancellationToken): Promise<IAgentTurnModelResolution>;
+
+	/**
+	 * Asks a decision model one-off yes/no, choice or score questions, as the given account (the
+	 * host's own when omitted). Calls are deduplicated and paused after failures, per account.
+	 * Rejects with typed error data (`agentDecisionErrorData`) when decisions are unavailable.
+	 */
+	askDecisions?(request: IAgentDecisionsRequest, credentials: IAgentHostCredentialSource | undefined, token: CancellationToken): Promise<IAgentDecisionsResult>;
+
 	/** Refresh live Connector state, optionally reinitializing only the named Connector. */
 	refreshConnectorSessions?(forceConnectorName?: string): Promise<void>;
 
@@ -1972,14 +2104,14 @@ export interface IAgent {
 	listPluginInstallations?(session?: URI, chat?: URI): Promise<readonly IAgentPluginInstallation[]>;
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
-	/** Persists enablement for an installed plugin identified by its marketplace spec or direct source ID. */
-	setPluginEnabled?(plugin: string, enabled: boolean): Promise<void>;
+	/** Persists enablement at the requested scope, deriving the repository from the target chat. */
+	setPluginEnabled?(plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
-	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+	/** Open or focus one canvas instance in an initialized provider chat, or continue one that waits for the user's consent. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -2000,13 +2132,13 @@ export interface IAgent {
 	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
-	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	listPluginMarketplaces?(session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
 
 	/** Add a plugin marketplace through the provider that owns marketplace state. */
-	addPluginMarketplace?(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	addPluginMarketplace?(session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
 
 	/** Browse one plugin marketplace through the provider that owns marketplace state. */
-	browsePluginMarketplace?(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	browsePluginMarketplace?(session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 
 	/** Remove a plugin marketplace through the provider that owns marketplace state. */
 	removePluginMarketplace?(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
@@ -2095,8 +2227,9 @@ export interface IAgent {
 	 * Hands off one independent submission without replacing the legacy slot; false defers until ready.
 	 * A promise that resolves false hands the message back unsent, for example because the turn it was
 	 * meant to steer ended first. The host then keeps it pending and runs it as the next turn.
+	 * `provenance` is who authored the message, as the host resolved it.
 	 */
-	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean>;
+	sendSteeringMessage?(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, provenance?: AgentMessageProvenance): boolean | void | Promise<boolean>;
 
 	/**
 	 * Withdraws a steering message, previously handed off through {@link sendSteeringMessage}, that a
@@ -2116,6 +2249,11 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Answers a pending shell authentication prompt of the chat; `undefined`
+	 * cancels it. Resolves false when the prompt is no longer pending.
+	 */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
 	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
@@ -2164,8 +2302,11 @@ export interface IAgent {
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void;
 
-	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
+	/**
+	 * Respond to a pending user input request from the SDK's ask_user tool. `context` attributes the response to a
+	 * person only when a client reported their own interaction; omit it for any response the host produces itself.
+	 */
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>, context?: IAgentChatInputResponseMeta): void;
 
 	// ---- Configuration and customizations ----------------------------------
 
@@ -2225,7 +2366,7 @@ export interface IAgent {
 	 * The host passes its own startup-frozen legacy-migration gate so discovery
 	 * and listing always agree on whether legacy chats are adoptable.
 	 */
-	startChatDiscovery?(options?: IAgentChatDiscoveryOptions): Promise<void>;
+	startChatDiscovery?(): Promise<void>;
 
 	/** Lets discovery drop registered candidates before per-session I/O. */
 	setKnownSessionsFilter?(filter: IAgentKnownSessionsFilter): void;
@@ -2247,7 +2388,10 @@ export interface IAgent {
 	 * chat off may still be exiting. A provider may also align
 	 * the chat's configuration with the state its runtime persisted for the chat,
 	 * and returns the model and agent the chat continues with so the host can
-	 * offer them for the next turn.
+	 * offer them for the next turn. With {@link IAgentImportChatOptions.reloadIfStale},
+	 * a provider whose loaded copy of the chat may be out of date reloads it from
+	 * storage and reports {@link IAgentImportedChat.reloaded}, so the host rebuilds
+	 * the chat's turns.
 	 */
 	importChat?(chat: URI, context: IAgentChatContext, options?: IAgentImportChatOptions): Promise<IAgentImportedChat | void>;
 
@@ -2285,13 +2429,25 @@ export interface IAgent {
 
 	// ---- Authentication and diagnostics ------------------------------------
 
-	getProtectedResources(): ProtectedResourceMetadata[];
+	/** Advertised authentication resources; optional credentials are marked `required: false`. */
+	getProtectedResources(reader?: IReader): ProtectedResourceMetadata[];
+
+	/** Reject unauthorized delivery before providers or the canonical credential store are mutated. */
+	validateAuthentication?(params: AuthenticateParams): void;
 
 	/** An empty token revokes the credential previously forwarded for this resource. Optional metadata carries client hints, not authorization. */
 	authenticate(resource: string, token: string, expiresIn?: number, _meta?: Record<string, unknown>): Promise<boolean>;
 
 	/** Optional token consumer for provider-owned resources such as MCP servers. */
 	handleAuthenticationToken?(params: AuthenticateParams): Promise<boolean>;
+
+	/**
+	 * Completes provider setup after an accepted credential is available in the canonical store.
+	 *
+	 * TODO@TylerLeonhardt: Combine this with {@link IAgent.authenticate} and {@link IAgent.handleAuthenticationToken}
+	 * into a single hook that runs once the credential is stored.
+	 */
+	completeAuthentication?(params: AuthenticateParams): Promise<void>;
 
 	/** Optional current authentication requirement for providers that can require re-authentication after startup. */
 	readonly authenticationRequired?: IObservable<Omit<AuthRequiredParams, 'channel'> | undefined>;

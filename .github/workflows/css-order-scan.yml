@@ -35,17 +35,15 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
+      - name: Restore pnpm store cache
+        id: pnpm-store
+        uses: ./.github/actions/restore-pnpm-store
         with:
-          key-prefix: node_modules-css-order-scan
-          key-args: "compile $(node -p process.arch)"
+          key-prefix: pnpm-store-css-order-scan
 
       # Only the dependencies of the root project, without the root install scripts that install
       # every other install root.
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -54,13 +52,12 @@ jobs:
 
       # Also installs build/rspack, a member of the build workspace.
       - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
         working-directory: build
 
-      - name: Save node_modules cache
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        uses: ./.github/actions/save-node-modules
+      - name: Save pnpm store cache
+        if: steps.pnpm-store.outputs.cache-hit != 'true'
+        uses: ./.github/actions/save-pnpm-store
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf

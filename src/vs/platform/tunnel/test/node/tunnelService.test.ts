@@ -4,14 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { fork } from 'child_process';
 import { once } from 'events';
 import * as net from 'net';
+import { raceTimeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketCloseEventType } from '../../../../base/parts/ipc/common/ipc.net.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NodeRemoteTunnel } from '../../node/tunnelService.js';
+
+suite('TunnelService connections', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function closeTunnelWithClients(count: number, disconnectFirst = false) {
+		// Isolate the real handshake's process-scoped timeout cancellation sources.
+		const child = fork(new URL('./fixtures/tunnelServiceConnection.js', import.meta.url), [String(count), String(disconnectFirst)], {
+			env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+			execArgv: [],
+			silent: true
+		});
+		store.add(toDisposable(() => { child.kill(); }));
+		const exited = once(child, 'exit');
+		let stderr = '';
+		child.stderr?.on('data', data => stderr += data.toString());
+		try {
+			const result: boolean[][] | undefined = await raceTimeout(Promise.race([
+				once(child, 'message'),
+				exited.then(([code]) => { throw new Error(`Tunnel fixture exited with code ${code}: ${stderr}`); })
+			]), 5000);
+			assert.ok(result, 'The loopback tunnel fixture must finish');
+			return result[0];
+		} finally {
+			child.kill();
+			await exited;
+		}
+	}
+
+	for (const count of [1, 2]) {
+		test(`closing a tunnel closes all ${count} active connections`, async () => {
+			assert.deepStrictEqual(await closeTunnelWithClients(count), Array(count).fill(true));
+		});
+	}
+
+	test('closing one connection does not lose track of another connection', async () => {
+		assert.deepStrictEqual(await closeTunnelWithClients(2, true), [true]);
+	});
+});
 
 suite('NodeRemoteTunnel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

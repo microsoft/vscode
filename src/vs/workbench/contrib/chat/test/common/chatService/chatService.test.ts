@@ -59,7 +59,7 @@ import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, IChatReq
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatRequestAcceptedEvent, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
@@ -662,6 +662,20 @@ suite('ChatService', () => {
 		service.processPendingRequests(model.sessionResource);
 		await timeout(10);
 		assert.deepStrictEqual(accepted, [true, false, false]);
+	});
+
+	test('acceptance exposes the Agent Host origin of delegated submissions', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: IChatRequestAcceptedEvent['agentHostMessageOrigin'][] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.agentHostMessageOrigin)));
+		for (const agentHostMessageOrigin of [undefined, { kind: MessageKind.Agent }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'hello', { agentHostMessageOrigin });
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true, agentHostMessageOrigin: { kind: MessageKind.Tool } });
+		assert.deepStrictEqual(accepted, [undefined, { kind: MessageKind.Agent }, { kind: MessageKind.Tool }]);
 	});
 
 	async function createSurveySession(sessionType: string, provider?: string) {
@@ -7218,6 +7232,36 @@ suite('ChatService', () => {
 			const model2 = ref2.object as ChatModel;
 			const restored = model2.inputModel.state.get();
 			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
+		});
+
+		test('cleared draft input stays cleared when a remote session is released before its first request', async () => {
+			const { resource } = setupRemoteProvider({ history: [] });
+			const testService = createChatService();
+			const acquire = async () => {
+				const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+				assert.ok(ref);
+				return testDisposables.add(ref);
+			};
+			const saved = await acquire();
+			saved.object.inputModel.setState({
+				inputText: 'Start this task',
+				attachments: [{ kind: 'file', id: 'context', name: 'context.ts', value: URI.file('/workspace/context.ts') }],
+			});
+			saved.dispose();
+			await testService.waitForModelDisposals();
+
+			const composing = await acquire();
+			composing.object.inputModel.setState({ inputText: '', attachments: [], selections: [] });
+			composing.dispose();
+			await testService.waitForModelDisposals();
+
+			const reopened = await acquire();
+			const state = reopened.object.inputModel.state.get();
+			assert.deepStrictEqual({
+				inputText: state?.inputText,
+				attachments: state?.attachments,
+				requests: reopened.object.getRequests().length,
+			}, { inputText: '', attachments: [], requests: 0 });
 		});
 
 		test('restored draft uses the session history model, not the persisted (stale) one', async () => {

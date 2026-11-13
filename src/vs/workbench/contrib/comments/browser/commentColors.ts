@@ -18,6 +18,7 @@ const resolvedCommentBorder = registerColor('editorCommentsWidget.resolvedBorder
 const unresolvedCommentBorder = registerColor('editorCommentsWidget.unresolvedBorder', { dark: unresolvedCommentViewIcon, light: unresolvedCommentViewIcon, hcDark: contrastBorder, hcLight: contrastBorder }, nls.localize('unresolvedCommentBorder', 'Color of borders and arrow for unresolved comments.'));
 export const commentThreadRangeBackground = registerColor('editorCommentsWidget.rangeBackground', transparent(unresolvedCommentBorder, .1), nls.localize('commentThreadRangeBackground', 'Color of background for comment ranges.'));
 export const commentThreadRangeActiveBackground = registerColor('editorCommentsWidget.rangeActiveBackground', transparent(unresolvedCommentBorder, .1), nls.localize('commentThreadActiveRangeBackground', 'Color of background for currently selected or hovered comment range.'));
+const commentThreadRangeBorder = registerColor('editorCommentsWidget.rangeBorder', unresolvedCommentBorder, nls.localize('commentThreadRangeBorder', 'Color of the outline around the code that a floating comment thread is about, and of the line connecting the thread to that code, when the thread is neither resolved nor unresolved.'));
 
 const commentThreadStateBorderColors = new Map([
 	[languages.CommentThreadState.Unresolved, unresolvedCommentBorder],
@@ -40,6 +41,13 @@ function getCommentThreadStateColor(state: languages.CommentThreadState | undefi
 
 export function getCommentThreadStateBorderColor(state: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
 	return getCommentThreadStateColor(state, theme, commentThreadStateBorderColors);
+}
+
+/**
+ * The color of the outline around commented code and of the line connecting a floating comment thread to it.
+ */
+export function getCommentThreadRangeBorderColor(state: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
+	return getCommentThreadStateBorderColor(state, theme) ?? theme.getColor(commentThreadRangeBorder);
 }
 
 export function getCommentThreadStateIconColor(state: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {

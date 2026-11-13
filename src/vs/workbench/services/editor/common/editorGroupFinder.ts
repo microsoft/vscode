@@ -120,20 +120,37 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		group = preferredGroup;
 	}
 
-	// Group: Specific Group
+	// Group: Specific Group, such as of a column. A group that holds an
+	// editor that renders its own title hands the editor off, as the
+	// active group does.
 	else if (typeof preferredGroup === 'number' && preferredGroup >= 0) {
-		group = editorGroupService.getGroup(preferredGroup);
+		const specificGroup = editorGroupService.getGroup(preferredGroup);
+		group = specificGroup && handOffFromSelfTitledEditorFor(editor, specificGroup, editorGroupService);
+
+		// A handoff target that is locked for the editor is replaced by an
+		// unlocked group of its part, or a new one, as the caller did not
+		// select the locked group.
+		if (group && group !== specificGroup && isGroupLockedForEditor(group, editor)) {
+			const destinationPart = editorGroupService.getPart(group);
+			group = destinationPart.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(candidate => !isGroupLockedForEditor(candidate, editor))
+				?? destinationPart.addGroup(group, preferredSideBySideGroupDirection(configurationService));
+		}
 	}
 
-	// Group: Side by Side
+	// Group: Side by Side, of the active group or of the group it hands
+	// the editor off to
 	else if (preferredGroup === SIDE_GROUP) {
 		const direction = preferredSideBySideGroupDirection(configurationService);
+		const activeGroup = groupsContainer.activeGroup;
+		const sourceGroup = handOffFromSelfTitledEditorFor(editor, activeGroup, editorGroupService);
+		const sourceContainer = sourceGroup === activeGroup ? groupsContainer : editorGroupService.getPart(sourceGroup);
 
-		let candidateGroup = groupsContainer.findGroup({ direction });
-		if (!candidateGroup || isGroupLockedForEditor(candidateGroup, editor)) {
+		let candidateGroup = sourceContainer.findGroup({ direction }, sourceGroup);
+		if (!candidateGroup || isGroupLockedForEditor(candidateGroup, editor) || handOffFromSelfTitledEditorFor(editor, candidateGroup, editorGroupService) !== candidateGroup) {
 			// Create new group either when the candidate group
-			// is locked or was not found in the direction
-			candidateGroup = groupsContainer.addGroup(groupsContainer.activeGroup, direction);
+			// is locked, hands the editor off or was not found
+			// in the direction
+			candidateGroup = sourceContainer.addGroup(sourceGroup, direction);
 		}
 
 		group = candidateGroup;
@@ -259,6 +276,21 @@ export function handOffFromSelfTitledEditor(group: IEditorGroup, editorGroupServ
 	}
 
 	return windowMainPart.activeGroup;
+}
+
+/**
+ * The group `editor` opens in when it is opened in `group`, such as by its id
+ * or to the side of it: the group {@link handOffFromSelfTitledEditor} hands
+ * it off to, unless the editor renders its own title, such as a chat, which
+ * opens beside other such editors, or it is open in the group already, which
+ * reveals it there.
+ */
+function handOffFromSelfTitledEditorFor(editor: EditorInput | IUntypedEditorInput, group: IEditorGroup, editorGroupService: Pick<IEditorGroupsService, 'parts' | 'mainPart'>): IEditorGroup {
+	if ((isEditorInput(editor) && editor.hasCapability(EditorInputCapabilities.ProvidesTitle)) || isOpened(group, editor)) {
+		return group;
+	}
+
+	return handOffFromSelfTitledEditor(group, editorGroupService);
 }
 
 function isGroupLockedForEditor(group: IEditorGroup, editor: EditorInput | IUntypedEditorInput): boolean {

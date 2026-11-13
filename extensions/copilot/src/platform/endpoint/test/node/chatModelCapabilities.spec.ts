@@ -8,7 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../configuration/common/
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
 import type { IChatEndpoint } from '../../../networking/common/networking';
-import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
+import { getModelCapabilityOverride, getVerbosityForModelSync, isGpt51Family, isGpt53Codex, isGpt54, isGpt55, isGpt56, isGpt6Family, isKimiFamily, isKimiK3PlusFamily, isOpenAIModel, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelPrefersJsonNotebookRepresentation, modelSupportCacheBreakPoints, modelSupportsApplyPatch, modelSupportsContextEditing, modelSupportsMultiReplaceString, modelSupportsPDFDocuments, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions, modelSupportsThinkingContentInHistory, modelSupportsToolSearch } from '../../common/chatModelCapabilities';
 
 function fakeModel(family: string, model: string = family) {
 	return { family, model, name: model } as unknown as IChatEndpoint;
@@ -219,6 +219,30 @@ describe('Kimi edit tool capabilities', () => {
 	});
 });
 
+describe('Kimi version matching', () => {
+	test('matches K2.6 and newer as Kimi models, and K3 and newer as the K3 generation', () => {
+		const ids = ['kimi-k2', 'kimi-k2.5', 'kimi-k2-thinking', 'kimi-k2.6', 'kimi-k2.7-code', 'kimi-k3-copilot-picker', 'kimi-k3.5', 'moonshotai/Kimi-K3.5-Turbo', 'kimi-k4', 'accounts/fireworks/models/kimi-k2p5', 'accounts/fireworks/models/kimi-k2p7-code', 'accounts/fireworks/models/kimi-k3p5', 'kimi-k3x', 'kimi-k2pro', 'kimi-latest'];
+
+		expect(Object.fromEntries(ids.map(id => [id, { kimi: isKimiFamily(id), k3Plus: isKimiK3PlusFamily(id) }]))).toEqual({
+			'kimi-k2': { kimi: false, k3Plus: false },
+			'kimi-k2.5': { kimi: false, k3Plus: false },
+			'kimi-k2-thinking': { kimi: false, k3Plus: false },
+			'kimi-k2.6': { kimi: true, k3Plus: false },
+			'kimi-k2.7-code': { kimi: true, k3Plus: false },
+			'kimi-k3-copilot-picker': { kimi: true, k3Plus: true },
+			'kimi-k3.5': { kimi: true, k3Plus: true },
+			'moonshotai/Kimi-K3.5-Turbo': { kimi: true, k3Plus: true },
+			'kimi-k4': { kimi: true, k3Plus: true },
+			'accounts/fireworks/models/kimi-k2p5': { kimi: false, k3Plus: false },
+			'accounts/fireworks/models/kimi-k2p7-code': { kimi: true, k3Plus: false },
+			'accounts/fireworks/models/kimi-k3p5': { kimi: true, k3Plus: true },
+			'kimi-k3x': { kimi: false, k3Plus: false },
+			'kimi-k2pro': { kimi: false, k3Plus: false },
+			'kimi-latest': { kimi: false, k3Plus: false },
+		});
+	});
+});
+
 describe('modelSupportsThinkingContentInHistory', () => {
 	test.each([
 		{ family: 'kimi-k3', id: 'deployment', expected: true },
@@ -228,9 +252,13 @@ describe('modelSupportsThinkingContentInHistory', () => {
 		{ family: 'k3', id: 'deployment', expected: true },
 		{ family: 'unknown', id: 'k3-256k', expected: true },
 		{ family: 'unknown', id: 'moonshotai/k3', expected: true },
+		{ family: 'kimi-k3.5', id: 'deployment', expected: true },
+		{ family: 'unknown', id: 'moonshotai/Kimi-K3.5:latest', expected: true },
+		{ family: 'unknown', id: 'k3.5', expected: true },
+		{ family: 'kimi-k4', id: 'deployment', expected: true },
 		{ family: 'kimi-k2.6', id: 'deployment', expected: false },
 		{ family: 'kimi-k2.7-code', id: 'deployment', expected: false },
-		{ family: 'kimi-k30', id: 'deployment', expected: false },
+		{ family: 'kimi-k3x', id: 'deployment', expected: false },
 		{ family: 'k30', id: 'deployment', expected: false },
 		{ family: 'not-k3', id: 'deployment', expected: false },
 		{ family: 'claude-haiku-4-5', id: 'deployment', expected: false },

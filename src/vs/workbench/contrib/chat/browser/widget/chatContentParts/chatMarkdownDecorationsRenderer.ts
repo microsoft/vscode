@@ -7,11 +7,12 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { getDefaultHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { toErrorMessage } from '../../../../../../base/common/errorMessage.js';
-import { escapeMarkdownSyntaxTokens } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { escape } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isUUID } from '../../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ILinkPresentationService } from '../../../../../../platform/dataChannel/common/dataChannel.js';
@@ -35,6 +36,7 @@ import { ChatAgentHover, getChatAgentHoverOptions } from '../chatAgentHover.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
 import { InlineAnchorWidget, renderFileAnchor } from './chatInlineAnchorWidget.js';
 import { ChatRichLinkDecorator } from './chatRichLink.js';
+import { AgentHostCompletionReferenceKind, getAgentHostCompletionReferenceKindFromValue } from '../../../common/attachments/chatVariableEntries.js';
 
 /** For rendering slash commands, variables */
 const decorationRefUrl = `http://_vscodedecoration_`;
@@ -119,7 +121,8 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 	 * @param inlineAttachmentParts The indices of the parts whose attachments are
 	 * shown as pills inline with the text, by a {@link ChatInlineAttachmentRenderer}.
 	 */
-	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): string {
+	convertParsedRequestToMarkdown(sessionResource: URI, parsedRequest: IParsedChatRequest, inlineAttachmentParts?: ReadonlySet<number>): MarkdownString {
+		const markdown = new MarkdownString();
 		let result = '';
 		parsedRequest.parts.forEach((part, index) => {
 			if (part instanceof ChatRequestTextPart) {
@@ -127,14 +130,24 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 			} else if (part instanceof ChatRequestAgentPart) {
 				result += this.instantiationService.invokeFunction(accessor => agentToMarkdown(part.agent, sessionResource, false, accessor));
 			} else {
-				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined);
+				result += this.genericDecorationToMarkdown(part, inlineAttachmentParts?.has(index) ? index : undefined, markdown);
 			}
 		});
 
-		return result;
+		markdown.value = result;
+		return markdown;
 	}
 
-	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined): string {
+	private genericDecorationToMarkdown(part: IParsedChatRequestPart, inlineAttachment: number | undefined, markdown: MarkdownString): string {
+		const text = escapeMarkdownSyntaxTokens(escape(part.text));
+		if (part instanceof ChatRequestDynamicVariablePart && getAgentHostCompletionReferenceKindFromValue(part.data) === AgentHostCompletionReferenceKind.Skill && !isUUID(part.id)) {
+			const uri = URI.parse(part.id, true);
+			const query = `vscodeLinkType=skill${uri.query ? `&${uri.query}` : ''}`;
+			const href = `${contentRefUrl}/skill-${encodeURIComponent(uri.toString()).replace(/\(/g, '%28').replace(/\)/g, '%29')}`;
+			// Use markdown's resource map so custom schemes retain the normal sanitization path.
+			(markdown.uris ??= {})[href] = uri.with({ query });
+			return `[${text}](${href})`;
+		}
 		const uri = part instanceof ChatRequestDynamicVariablePart && part.data instanceof URI ?
 			part.data :
 			undefined;
@@ -146,7 +159,6 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 							'';
 
 		const args: IDecorationWidgetArgs = inlineAttachment === undefined ? { title } : { title, inlineAttachment };
-		const text = escapeMarkdownSyntaxTokens(escape(part.text));
 		const encodedArgs = encodeURIComponent(JSON.stringify(args)).replace(/\(/g, '%28').replace(/\)/g, '%29');
 		return `[${text}](${decorationRefUrl}?${encodedArgs})`;
 	}
@@ -158,13 +170,17 @@ export class ChatMarkdownDecorationsRenderer extends Disposable {
 	walkTreeAndAnnotateReferenceLinks(content: IChatMarkdownContent, element: HTMLElement, renderInlineAttachment?: ChatInlineAttachmentRenderer): IDisposable {
 		const store = new DisposableStore();
 		const fileWidgetOptions = { linkTypes: ['markdown-preview'] };
+		const skillWidgetOptions = { linkTypes: ['skill'] };
+		const skillLinks = new Set(Object.entries(content.content.uris ?? {})
+			.filter(([key]) => key.startsWith(`${contentRefUrl}/skill-`))
+			.map(([, uri]) => URI.revive(uri).toString()));
 		const richLinksEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.RichLinks);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		element.querySelectorAll('a').forEach(a => {
-			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, fileWidgetOptions)) {
+			const href = a.getAttribute('data-href');
+			if (renderFileAnchor(a, this.instantiationService, this.chatMarkdownAnchorService, store, href && skillLinks.has(href) ? skillWidgetOptions : fileWidgetOptions)) {
 				return;
 			}
-			const href = a.getAttribute('data-href');
 			if (href) {
 				if (href.startsWith(agentRefUrl)) {
 					let args: IAgentWidgetArgs | undefined;

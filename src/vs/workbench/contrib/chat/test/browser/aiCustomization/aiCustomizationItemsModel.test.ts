@@ -25,9 +25,9 @@ import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemPro
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { createCustomizationMarketplaceInstallationSnapshot, CustomizationMarketplaceInstallState, emptyCustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallationSnapshot, ICustomizationMarketplaceInstallService, RecordedCustomizationMarketplaceInstallState } from '../../../common/customizationMarketplaceInstallService.js';
 import { IAgentPluginService, type IAgentPlugin } from '../../../common/plugins/agentPluginService.js';
-import { PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
+import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { IAgentSource, ICustomAgent, IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
-import { getChatSessionType } from '../../../common/model/chatUri.js';
+import { getChatSessionType, LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { basename } from '../../../../../../base/common/resources.js';
 
 suite('AICustomizationItemsModel', () => {
@@ -51,6 +51,7 @@ suite('AICustomizationItemsModel', () => {
 		let descriptorA: IHarnessDescriptor;
 		let descriptorB: IHarnessDescriptor;
 		let providerA_didChange: Emitter<void>;
+		let hooksDidChange: Emitter<void>;
 		let providerA_callCount: number;
 		let providerA_items: ICustomizationItem[];
 		let plugins: ISettableObservable<readonly IAgentPlugin[]>;
@@ -73,6 +74,7 @@ suite('AICustomizationItemsModel', () => {
 		setup(() => {
 			disposables = new DisposableStore();
 			providerA_didChange = disposables.add(new Emitter<void>());
+			hooksDidChange = disposables.add(new Emitter<void>());
 			providerA_callCount = 0;
 			providerA_items = [];
 			listPromptFilesResult = [];
@@ -128,7 +130,7 @@ suite('AICustomizationItemsModel', () => {
 				onDidChangeCustomAgents: Event.None,
 				onDidChangeSlashCommands: Event.None,
 				onDidChangeSkills: Event.None,
-				onDidChangeHooks: Event.None,
+				onDidChangeHooks: hooksDidChange.event,
 				onDidChangeInstructions: Event.None,
 				onDidChangeAgentInstructions: Event.None,
 				listPromptFiles: async (type: PromptsType) => listPromptFilesResult.filter(f => f.type === type),
@@ -279,6 +281,24 @@ suite('AICustomizationItemsModel', () => {
 			assert.strictEqual(providerA_callCount, 2);
 			model.getItems(AICustomizationManagementSection.Agents);
 			assert.strictEqual(providerA_callCount, 2);
+		});
+
+		test('session-scoped models keep discovery and counts separate from the active harness', async () => {
+			providerA_items = [{
+				uri: URI.file('/active/SKILL.md'), type: PromptsType.skill, name: 'Active Skill',
+				source: AICustomizationSources.plugin, extensionId: undefined, pluginUri: undefined, userInvocable: true,
+			}];
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			await model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			const resource = URI.parse('B:///other-session');
+			const scope = disposables.add(model.createSessionModel(resource));
+			await scope.model.whenSectionLoaded(AICustomizationManagementSection.Skills);
+			assert.deepStrictEqual({
+				activeSession: activeSessionResource.get().toString(),
+				activeCount: model.getCount(AICustomizationManagementSection.Skills).get(),
+				scopedSession: scope.model.getActiveItemSource().sessionResource.toString(),
+				scopedCount: scope.model.getCount(AICustomizationManagementSection.Skills).get(),
+			}, { activeSession: 'A:/session', activeCount: 1, scopedSession: resource.toString(), scopedCount: 0 });
 		});
 
 		test('source.onDidChange refetches only previously-observed sections', async () => {
@@ -460,6 +480,38 @@ suite('AICustomizationItemsModel', () => {
 				syncable: undefined,
 				synced: undefined,
 			}]);
+		});
+
+		test('refreshes Local hook inventory without another plugin contribution changing', async () => {
+			availableHarnesses.set([createDescriptor('local', undefined)], undefined);
+			activeSessionResource.set(LocalChatSessionUri.forSession('hooks-only'), undefined);
+			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
+			const section = AICustomizationManagementSection.Hooks;
+			const items = model.getItems(section);
+			const count = model.getCount(section);
+			await timeout(0);
+			await model.whenSectionLoaded(section);
+			const snapshots = [items.get().map(item => item.name)];
+
+			const plugin = createLocalPlugin('hooks-only');
+			plugins.set([plugin], undefined);
+			listPromptFilesResult = ['sessionStart', 'userPromptSubmitted'].map(name => ({
+				uri: URI.parse('file:///plugins/hooks-only/hooks.json'),
+				name,
+				type: PromptsType.hook,
+				storage: PromptsStorage.plugin,
+				pluginUri: plugin.uri,
+				source: PromptFileSource.Plugin,
+			}));
+			hooksDidChange.fire();
+			await timeout(0);
+			await model.whenSectionLoaded(section);
+			snapshots.push(items.get().map(item => item.name));
+
+			assert.deepStrictEqual({ snapshots, count: count.get() }, {
+				snapshots: [[], ['sessionStart', 'userPromptSubmitted']],
+				count: 2,
+			});
 		});
 
 		test('plugin count includes provider-supplied plugin items', async () => {
@@ -908,7 +960,7 @@ suite('AICustomizationItemsModel', () => {
 
 			const model = disposables.add(instaService.createInstance(AICustomizationItemsModel));
 			const count = model.getPluginCount();
-			await timeout(0);
+			await model.whenSectionLoaded(AICustomizationManagementSection.Plugins);
 
 			assert.strictEqual(count.get(), 2, 'remote-client harness rows are excluded; both internal "plugin" and API "plugins" types are recognised');
 		});

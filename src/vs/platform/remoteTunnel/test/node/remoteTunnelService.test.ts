@@ -16,7 +16,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { InMemoryStorageService } from '../../../storage/common/storage.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
-import { ActiveTunnelMode, TunnelMode, TunnelStatus } from '../../common/remoteTunnel.js';
+import { ActiveTunnelMode, CONFIGURATION_KEY_HOST_NAME, TunnelMode, TunnelStatus } from '../../common/remoteTunnel.js';
 import { TunnelMachineStatus } from '../../common/tunnelMachineStatus.js';
 import { ITunnelServiceCorrelation } from '../../common/tunnelServiceHeaders.js';
 import { RemoteTunnelService } from '../../node/remoteTunnelService.js';
@@ -34,6 +34,8 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	readonly onDidMachineStatus = this._onDidMachineStatus.event;
 	private _status: ITunnelProcessStatus = { mode: 'remoteAccess', tunnelName: 'test_host', connectionState: 'connecting', serviceInstallFailed: false };
 
+	constructor(private readonly _intendedTunnelName: () => string = () => 'test_host') { }
+
 	/** Models the coordinator having no tunnel running, where `getStatus().tunnelName` is undefined. */
 	setIdle(): void {
 		this._status = { mode: 'none', tunnelName: undefined, connectionState: 'disconnected', serviceInstallFailed: false };
@@ -44,7 +46,7 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 	}
 
 	getIntendedTunnelName(): string {
-		return 'test_host';
+		return this._intendedTunnelName();
 	}
 
 	setRemoteAccess(_mode: TunnelMode, _logLevel: LogLevel): Promise<void> {
@@ -72,6 +74,18 @@ class TestTunnelProcessCoordinator implements ITunnelProcessCoordinator {
 		this._onDidChangeStatus.dispose();
 		this._onDidOutput.dispose();
 		this._onDidMachineStatus.dispose();
+	}
+}
+
+/** Models a settings file that other processes write before this process reloads it. */
+class FileBackedConfigurationService extends TestConfigurationService {
+	readonly fileContents: Record<string, unknown> = {};
+
+	override async reloadConfiguration<T>(): Promise<T> {
+		for (const [key, value] of Object.entries(this.fileContents)) {
+			await this.setUserConfiguration(key, value);
+		}
+		return this.getValue() as T;
 	}
 }
 
@@ -253,5 +267,36 @@ suite('Remote tunnel', () => {
 		// would use against a previously used one, and asks while no tunnel
 		// is running.
 		assert.strictEqual(await service.getTunnelName(), 'test_host');
+	});
+
+	test('reports a host name that a window just wrote', async () => {
+		const configurationService = new FileBackedConfigurationService();
+		await configurationService.setUserConfiguration(CONFIGURATION_KEY_HOST_NAME, 'old-name');
+		const coordinator = new TestTunnelProcessCoordinator(() => configurationService.getValue<string>(CONFIGURATION_KEY_HOST_NAME) ?? 'test_host');
+		const loggerService = new NullLoggerService();
+		const storageService = new InMemoryStorageService();
+		const service = new RemoteTunnelService(
+			NullTelemetryService,
+			{ tunnelApplicationName: 'code-tunnel' } as IProductService,
+			{ appRoot: 'installation', isBuilt: true, logsHome: URI.file('logs'), userDataPath: 'custom-user-data' } as INativeEnvironmentService,
+			loggerService,
+			{ _serviceBrand: undefined, onWillShutdown: Event.None } as ISharedProcessLifecycleService,
+			configurationService,
+			storageService,
+			coordinator,
+		);
+		store.add(toDisposable(() => {
+			service.dispose();
+			coordinator.dispose();
+			loggerService.dispose();
+			storageService.dispose();
+		}));
+		coordinator.setIdle();
+
+		// A window renames the tunnel and immediately asks for the name, before
+		// this process's file watcher has reloaded the settings.
+		configurationService.fileContents[CONFIGURATION_KEY_HOST_NAME] = 'new-name';
+
+		assert.strictEqual(await service.getTunnelName(), 'new-name');
 	});
 });

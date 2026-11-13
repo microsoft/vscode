@@ -69,7 +69,7 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 		super(undefined, action);
 
 		this._primaryAction = this._register(instantiationService.createInstance(ToggleRemoteConnectionsActionViewItem, action));
-		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => { await this.action.run(this._context); }));
+		this._sharing = this._register(instantiationService.createInstance(RemoteConnectionsSharing, this._primaryAction, async () => this.action.run(this._context), this._isChatInput ? 'chatInput' : 'titleBar'));
 		const dropdownAction = this._register(new Action('remoteConnections.selectMethod', localize('remoteConnections.label', "Remote Connections")));
 		this._dropdown = this._register(instantiationService.createInstance(RemoteConnectionsDropdownActionViewItem,
 			dropdownAction,
@@ -232,7 +232,8 @@ export class RemoteConnectionsActionViewItem extends BaseActionViewItem {
 
 	private _getConnectionMethods(): IActionWidgetDropdownAction[] {
 		const environments = this._sharing.gitHubEnvironmentsAvailability;
-		const active = this._sharing.activeMethod;
+		// Checks the method chosen last, also in another surface, while choices are being applied.
+		const active = this._sharing.pendingMethod ?? this._sharing.activeMethod;
 		const methods: IActionWidgetDropdownAction[] = [
 			{
 				...toAction({

@@ -14,41 +14,17 @@ import * as languages from '../../../../editor/common/languages.js';
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { CommentGlyphWidget } from './commentGlyphWidget.js';
 import { ICommentService } from './commentService.js';
-import { ICommentThreadWidget } from '../common/commentThreadWidget.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { CommentThreadWidget } from './commentThreadWidget.js';
-import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar, getCommentThreadStateBorderColor } from './commentColors.js';
-import { peekViewBorder } from '../../../../editor/contrib/peekView/browser/peekView.js';
+import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { StableEditorScrollState } from '../../../../editor/browser/stableEditorScroll.js';
-import Severity from '../../../../base/common/severity.js';
-import * as nls from '../../../../nls.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-
-function getCommentThreadWidgetStateColor(thread: languages.CommentThreadState | undefined, theme: IColorTheme): Color | undefined {
-	return getCommentThreadStateBorderColor(thread, theme) ?? theme.getColor(peekViewBorder);
-}
-
-/**
- * Check if a comment thread has any draft comments
- */
-function commentThreadHasDraft(commentThread: languages.CommentThread): boolean {
-	const comments = commentThread.comments;
-	if (!comments) {
-		return false;
-	}
-	return comments.some(comment => comment.state === languages.CommentState.Draft);
-}
-
-export enum CommentWidgetFocus {
-	None = 0,
-	Widget = 1,
-	Editor = 2
-}
+import { commentThreadHasDraft, CommentWidgetFocus, confirmCommentThreadCollapse, createCommentThreadGlyph, getCommentThreadWidgetStateColor, ICommentThreadEditorWidget, updateCommentThreadTemplateRange } from './commentThreadEditorWidget.js';
 
 export function parseMouseDownInfoFromEvent(e: IEditorMouseEvent) {
 	const range = e.target.range;
@@ -112,7 +88,7 @@ export function isMouseUpEventMatchMouseDown(mouseDownInfo: { lineNumber: number
 	return lineNumber;
 }
 
-export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget {
+export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadEditorWidget {
 	private _commentThreadWidget!: CommentThreadWidget;
 	private readonly _onDidClose = new Emitter<ReviewZoneWidget | undefined>();
 	private readonly _onDidCreateThread = new Emitter<ReviewZoneWidget>();
@@ -291,32 +267,13 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions,
 			{
 				actionRunner: async () => {
-					if (!this._commentThread.comments || !this._commentThread.comments.length) {
-						const newPosition = this.getPosition();
-
-						if (newPosition) {
-							const originalRange = this._commentThread.range;
-							if (!originalRange) {
-								return;
-							}
-							let range: Range;
-
-							if (newPosition.lineNumber !== originalRange.endLineNumber) {
-								// The widget could have moved as a result of editor changes.
-								// We need to try to calculate the new, more correct, range for the comment.
-								const distance = newPosition.lineNumber - originalRange.endLineNumber;
-								range = new Range(originalRange.startLineNumber + distance, originalRange.startColumn, originalRange.endLineNumber + distance, originalRange.endColumn);
-							} else {
-								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
-							}
-							await this.commentService.updateCommentThreadTemplate(this.uniqueOwner, this._commentThread.commentThreadHandle, range);
-						}
-					}
+					await updateCommentThreadTemplateRange(this.commentService, this.uniqueOwner, this._commentThread, this.getPosition());
 				},
 				collapse: () => {
 					return this.collapse(true);
 				}
-			}
+			},
+			undefined
 		);
 
 		this._disposables.add(this._commentThreadWidget);
@@ -340,30 +297,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	public async collapse(confirm: boolean = false): Promise<boolean> {
-		if (!confirm || (await this.confirmCollapse())) {
+		if (!confirm || (await confirmCommentThreadCollapse(this._commentThreadWidget.hasUnsubmittedComments, this.configurationService, this.dialogService))) {
 			this.doCollapse();
 			return true;
 		} else {
 			return false;
 		}
-	}
-
-	private async confirmCollapse(): Promise<boolean> {
-		const confirmSetting = this.configurationService.getValue<'whenHasUnsubmittedComments' | 'never'>('comments.thread.confirmOnCollapse');
-
-		if (confirmSetting === 'whenHasUnsubmittedComments' && this._commentThreadWidget.hasUnsubmittedComments) {
-			const result = await this.dialogService.confirm({
-				message: nls.localize('confirmCollapse', "Collapsing this comment thread will discard unsubmitted comments. Are you sure you want to discard these comments?"),
-				primaryButton: nls.localize('discard', "Discard"),
-				type: Severity.Warning,
-				checkbox: { label: nls.localize('neverAskAgain', "Never ask me again"), checked: false }
-			});
-			if (result.checkboxChecked) {
-				await this.configurationService.updateValue('comments.thread.confirmOnCollapse', 'never');
-			}
-			return result.confirmed;
-		}
-		return true;
 	}
 
 	public expand(setActive?: boolean) {
@@ -419,17 +358,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 
 	async display(range: IRange | undefined, shouldReveal: boolean) {
 		if (range) {
-			this._commentGlyph = new CommentGlyphWidget(this.editor, range?.endLineNumber ?? -1);
-			const hasDraft = commentThreadHasDraft(this._commentThread);
-			this._commentGlyph.setThreadState(this._commentThread.state, hasDraft);
-			this._globalToDispose.add(this._commentGlyph.onDidChangeLineNumber(async e => {
-				if (!this._commentThread.range) {
-					return;
-				}
-				const shift = e - (this._commentThread.range.endLineNumber);
-				const newRange = new Range(this._commentThread.range.startLineNumber + shift, this._commentThread.range.startColumn, this._commentThread.range.endLineNumber + shift, this._commentThread.range.endColumn);
-				this._commentThread.range = newRange;
-			}));
+			this._commentGlyph = createCommentThreadGlyph(this.editor, range, () => this._commentThread, this._globalToDispose);
 		}
 
 		await this._commentThreadWidget.display(this.editor.getOption(EditorOption.lineHeight), shouldReveal);

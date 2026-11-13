@@ -6,9 +6,9 @@
 import { localize } from '../../../../nls.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { getSessionComparisonChat, getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getSessionComparisonChat, getSessionComparisonParticipantsInDisplayOrder, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export const ISessionComparisonViewService = createDecorator<ISessionComparisonViewService>('sessionComparisonViewService');
 

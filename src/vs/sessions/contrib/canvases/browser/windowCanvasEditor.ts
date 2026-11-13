@@ -12,7 +12,7 @@ import { IStorageService } from '../../../../platform/storage/common/storage.js'
 import { EditorPane } from '../../../../workbench/browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../workbench/common/editor.js';
 import { IEditorGroup } from '../../../../workbench/services/editor/common/editorGroupsService.js';
-import { IWindowCanvasPresentation, IWindowCanvasService, WindowCanvasInput } from '../../../services/canvas/browser/windowCanvasService.js';
+import { WindowCanvasInput, IWindowCanvasPresentation, IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 export class WindowCanvasEditor extends EditorPane {
 	private container: HTMLElement | undefined;

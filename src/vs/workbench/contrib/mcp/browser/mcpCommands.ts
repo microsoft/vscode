@@ -21,7 +21,7 @@ import { autorun, derived, derivedObservableWithCache, observableValue } from '.
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { basename } from '../../../../base/common/resources.js';
 import { hasKey, isDefined } from '../../../../base/common/types.js';
-import { URI } from '../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { ILocalizedString, localize, localize2 } from '../../../../nls.js';
@@ -55,6 +55,7 @@ import { IRemoteUserDataProfilesService } from '../../../services/userDataProfil
 import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidgetService } from '../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../chat/browser/chatViewHost.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { setAgentHostPluginEnablement } from '../../chat/browser/agentPluginActions.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../chat/common/aiCustomizationWorkspaceService.js';
@@ -469,6 +470,21 @@ export function findLocalMcpServer(mcpService: IMcpService, server: IAgentHostMc
 	}
 	const nameMatches = servers.filter(candidate => candidate.definition.label === server.name);
 	return nameMatches.length === 1 ? nameMatches[0] : undefined;
+}
+
+export class McpAuthenticateAgentHostServerCommand extends Action2 {
+	constructor() {
+		super({
+			id: McpCommandIds.AuthenticateAgentHostServer,
+			title: localize2('mcp.authenticateAgentHostServer', "Sign In to MCP Server"),
+			category,
+			f1: false,
+		});
+	}
+
+	override run(accessor: ServicesAccessor, agentHostSession: UriComponents, customizationId: string): Promise<boolean> {
+		return accessor.get(IAgentHostCustomizationService).authenticateMcpServer(URI.revive(agentHostSession), customizationId);
+	}
 }
 
 export class McpAgentHostServerOptionsCommand extends Action2 {
@@ -1810,7 +1826,7 @@ export class McpStartPromptingServerCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
-		const widget = await openPanelChatAndGetWidget(accessor.get(IViewsService), accessor.get(IChatWidgetService));
+		const widget = await openPanelChatAndGetWidget(accessor.get(IChatViewHostService));
 		if (!widget) {
 			return;
 		}

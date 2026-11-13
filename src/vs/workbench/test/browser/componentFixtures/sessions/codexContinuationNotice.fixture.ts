@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns
-import { SessionsListNotice } from '../../../../../sessions/contrib/sessions/browser/views/sessionsListNotice.js';
-// eslint-disable-next-line local/code-import-patterns
+import { SessionsListNotice } from '../../../../contrib/sessions/browser/views/sessionsListNotice.js';
 import { renderSessionsListFixture } from '../../../../../sessions/contrib/sessions/test/browser/sessionsListFixtureUtils.js';
 import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTINUATION_MESSAGE } from '../../../../contrib/chat/browser/agentSessions/agentHost/codexContinuationGuide.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';

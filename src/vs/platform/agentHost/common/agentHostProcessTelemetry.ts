@@ -31,6 +31,31 @@ type AgentHostProcessErrorEvent = Omit<AgentHostProcessErrorData, 'exitDiagnosti
 	workingSetMb?: number;
 	peakWorkingSetMb?: number;
 	memorySampleAgeMs?: number;
+	lastStartupPhase?: string;
+	startupPhaseAgeMs?: number;
+	heartbeatAgeMs?: number;
+	heapUsedMb?: number;
+	heapLimitMb?: number;
+	externalMb?: number;
+	arrayBuffersMb?: number;
+	rssMb?: number;
+	peakHeapUsedMb?: number;
+	oomHeapMb?: number;
+	activeTurns?: number;
+	runningToolCalls?: number;
+	loadedSessions?: number;
+	connectedClients?: number;
+	activity?: string;
+	lastAction?: string;
+	msSinceSuspend?: number;
+	msSinceResume?: number;
+	systemSuspended?: boolean;
+	quitRequested?: boolean;
+	lifecyclePhase?: number;
+	windowCount?: number;
+	agentsWindowConnected?: boolean;
+	osSessionEnd?: string;
+	msSinceOsSessionEnd?: number;
 };
 
 type AgentHostProcessErrorClassification = {
@@ -52,6 +77,31 @@ type AgentHostProcessErrorClassification = {
 	workingSetMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Agent host working set in megabytes at the most recent periodic memory sample before exit.' };
 	peakWorkingSetMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Largest agent host working set in megabytes observed by periodic memory samples before exit.' };
 	memorySampleAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the most recent agent host memory sample and the exit.' };
+	lastStartupPhase?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The last bounded startup phase the agent host reported before exit, such as database or ready, or none when it reported no phase.' };
+	startupPhaseAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the last startup phase report and the exit.' };
+	heartbeatAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the last agent host heartbeat and the exit. The heartbeat fields below describe that heartbeat.' };
+	heapUsedMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'V8 heap used by the agent host in megabytes at the last heartbeat.' };
+	heapLimitMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'V8 heap size limit of the agent host in megabytes.' };
+	externalMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Memory used by C++ objects bound to JavaScript objects in the agent host, in megabytes at the last heartbeat.' };
+	arrayBuffersMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Memory used by ArrayBuffers and Buffers in the agent host, in megabytes at the last heartbeat.' };
+	rssMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Resident set size of the agent host in megabytes at the last heartbeat.' };
+	peakHeapUsedMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Largest V8 heap used by the agent host in megabytes across its heartbeats.' };
+	oomHeapMb?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'V8 heap size in megabytes after the final garbage collection that V8 reported on stderr before a heap out-of-memory error.' };
+	activeTurns?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of chats with an active turn at the last heartbeat.' };
+	runningToolCalls?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of tool calls that had started and not completed at the last heartbeat.' };
+	loadedSessions?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of sessions loaded in agent host memory at the last heartbeat.' };
+	connectedClients?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of clients connected to the agent host protocol at the last heartbeat.' };
+	activity?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded agent host activity at the last heartbeat: idle, turn, or tool with the kind of contributor of the most recently started running tool (host, client, or mcp).' };
+	lastAction?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The protocol action type, such as chat:toolCallStart, most recently emitted before the last heartbeat.' };
+	msSinceSuspend?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the most recent system suspend observed by the main process and the exit.' };
+	msSinceResume?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the most recent system resume observed by the main process and the exit.' };
+	systemSuspended?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the system was suspended or going to sleep when the agent host exited.' };
+	quitRequested?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether VS Code was quitting when the agent host exited.' };
+	lifecyclePhase?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The main process lifecycle phase when the agent host exited.' };
+	windowCount?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Number of open windows when the agent host exited.' };
+	agentsWindowConnected?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether an Agents window that requested a connection to the agent host was still open when the agent host exited, to attribute agent host exits to the Agents window.' };
+	osSessionEnd?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Why the most recently observed operating system session end was happening (shutdown, logoff, closeApp, or critical), or none. The session end may have been cancelled; see msSinceOsSessionEnd.' };
+	msSinceOsSessionEnd?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds between the most recently observed operating system session end and the exit.' };
 	owner: 'bryanchen-d';
 	comment: 'Tracks agent host process failures that cannot be reported reliably from inside the agent host process.';
 };
@@ -82,6 +132,13 @@ function toExitDiagnosticsTelemetry(diagnostics: IAgentHostProcessExitDiagnostic
 		workingSetMb: diagnostics.workingSetMb,
 		peakWorkingSetMb: diagnostics.peakWorkingSetMb,
 		memorySampleAgeMs: diagnostics.memorySampleAgeMs,
+		lastStartupPhase: diagnostics.lastStartupPhase ?? 'none',
+		startupPhaseAgeMs: diagnostics.startupPhaseAgeMs,
+		heartbeatAgeMs: diagnostics.heartbeatAgeMs,
+		...diagnostics.heartbeat,
+		peakHeapUsedMb: diagnostics.peakHeapUsedMb,
+		oomHeapMb: diagnostics.oomHeapMb,
+		...diagnostics.context,
 	};
 	return Object.fromEntries(Object.entries(telemetry).filter(([, value]) => value !== undefined));
 }

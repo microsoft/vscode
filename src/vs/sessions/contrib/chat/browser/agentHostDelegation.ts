@@ -7,11 +7,12 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID, IAgentHostDelegationRequest } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 // Agent host delegation ("Continue in…") for the Agents window.
 //
@@ -34,8 +35,8 @@ CommandsRegistry.registerCommand(CHAT_DELEGATE_TO_AGENT_HOST_SESSION_COMMAND_ID,
 	// The session the user delegates from: the focused host's.
 	const sourceSession = resolveSessionCommandTarget(accessor, [])?.session;
 	// The new session opens beside it when the grid shows it, else beside the grid's active pane.
-	const gridSessions = sessionsService.visibleSessions.get();
-	const anchorSessionId = sourceSession && gridSessions.some(visible => visible?.sessionId === sourceSession.sessionId)
+	const gridSessions = readPaneSessions(sessionsService.slotPanes, undefined);
+	const anchorSessionId = sourceSession && gridSessions.some(visible => visible.sessionId === sourceSession.sessionId)
 		? sourceSession.sessionId
 		: accessor.get(ISessionsPartService).getActiveSessionView()?.getSession()?.sessionId;
 	if (!sourceSession) {

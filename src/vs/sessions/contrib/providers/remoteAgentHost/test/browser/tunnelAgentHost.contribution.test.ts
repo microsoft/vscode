@@ -34,11 +34,11 @@ import { ActiveTunnelMode, INACTIVE_TUNNEL_MODE, IRemoteTunnelService, TunnelMod
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../../../../workbench/services/authentication/common/authentication.js';
 import { IHostService } from '../../../../../../workbench/services/host/browser/host.js';
-import { ISessionsProvider } from '../../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../services/sessions/browser/sessionsProvidersService.js';
-import { IAgentHostFilterService } from '../../../../../services/agentHostFilter/common/agentHostFilter.js';
-import { IConnectionDiagnosticsService } from '../../browser/connectionDiagnostics.js';
-import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostFilterService } from '../../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IConnectionDiagnosticsService } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/connectionDiagnostics.js';
+import { IRemoteAgentHostSessionsProviderConfig, RemoteAgentHostSessionsProvider } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostSessionsProvider.js';
 import { TunnelAgentHostContribution } from '../../browser/tunnelAgentHost.contribution.js';
 
 class StubProvider extends mock<RemoteAgentHostSessionsProvider>() {
@@ -132,6 +132,8 @@ class StubTunnelService extends Disposable implements ITunnelAgentHostService {
 	suppressAutoConnect(id: string): void { this._suppressed.add(id); }
 	clearAutoConnectSuppression(id: string): void { this._suppressed.delete(id); }
 	async getAuthProvider(_options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined> { return undefined; }
+
+	getSelectedServerType(_address: string): undefined { return undefined; }
 
 	async connect(tunnel: ITunnelInfo, authProvider?: 'github' | 'microsoft', options?: { readonly userInitiated?: boolean }): Promise<void> {
 		this.connectCalls.push({ tunnel, authProvider, options });
@@ -251,7 +253,7 @@ class StubSessionsProvidersService extends Disposable {
 
 class StubFilterService {
 	declare readonly _serviceBrand: undefined;
-	registerDiscoveryHandler(_handler: () => Promise<void>): IDisposable { return toDisposable(() => { }); }
+	registerDiscoveryHandler(_handler: Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]): IDisposable { return toDisposable(() => { }); }
 	async rediscover(): Promise<boolean> { return true; }
 }
 
@@ -297,7 +299,7 @@ suite('TunnelAgentHostContribution', () => {
 			instantiationService.stub(ITelemetryService, { publicLog2: () => { } });
 			instantiationService.stub(IHostService, new StubHostService());
 			instantiationService.stub(IRemoteTunnelService, store.add(new StubRemoteTunnelService()));
-			let discover: (() => Promise<void>) | undefined;
+			let discover: Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0] | undefined;
 			instantiationService.stub(IAgentHostFilterService, {
 				registerDiscoveryHandler: handler => {
 					discover = handler;
@@ -312,7 +314,7 @@ suite('TunnelAgentHostContribution', () => {
 			tunnelService.setCached([tunnel]);
 			tunnelService.setListed([tunnel]);
 			assert.ok(discover);
-			await discover();
+			await discover('manual');
 			const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
 			remoteService.addConnection({
 				address, name: tunnel.name, clientId: undefined,
@@ -327,9 +329,9 @@ suite('TunnelAgentHostContribution', () => {
 			}));
 			remoteService.pendingConnections.push({ address, startedAt: Date.now(), userInitiated: false });
 			remoteService.firePendingChange();
-			await discover();
+			await discover('manual');
 			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.connecting, 'First failure');
-			await discover();
+			await discover('manual');
 			listener.dispose();
 			remoteService.pendingConnections.length = 0;
 			remoteService.setConnectionStatus(address, RemoteAgentHostConnectionStatus.disconnected, 'Retry failed');

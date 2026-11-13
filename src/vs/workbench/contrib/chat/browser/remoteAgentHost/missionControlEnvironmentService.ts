@@ -54,6 +54,7 @@ function isHost(value: unknown): value is IMissionControlHost {
 export class MissionControlEnvironmentService extends Disposable implements IMissionControlEnvironmentService {
 	declare readonly _serviceBrand: undefined;
 	readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+	readonly discoveredOnlineHostIds = observableValue<ReadonlySet<string>>(this, new Set());
 	readonly ownEnvironmentId = observableValue<string | undefined>(this, undefined);
 	private _accountKey: string | undefined;
 	private _generation = 0;
@@ -247,6 +248,8 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 		}
 		this._replaceHosts([...next.values()]);
 		this._persist();
+		// Publish last so automatic attachment cannot observe fresh admission with cached availability.
+		this.discoveredOnlineHostIds.set(new Set([...next.values()].filter(host => host.status === 'online').map(host => host.id)), undefined);
 	}
 
 	async connect(id: string, token: CancellationToken): Promise<void> {
@@ -475,6 +478,7 @@ export class MissionControlEnvironmentService extends Disposable implements IMis
 
 	private _withdraw(): void {
 		this._generation++;
+		this.discoveredOnlineHostIds.set(new Set(), undefined);
 		this._discoveryCancellation.value?.cancel();
 		this._discoveryCancellation.clear();
 		this._initializing = undefined;

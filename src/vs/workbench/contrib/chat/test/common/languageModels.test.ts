@@ -15,7 +15,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -2994,5 +2994,21 @@ suite('LanguageModels - pin telemetry', function () {
 			{ model: 'unknown', pinned: true, pickerSessionId: undefined },
 			{ model: 'unknown', pinned: false, pickerSessionId: undefined },
 		]);
+	});
+});
+
+suite('LanguageModels - telemetry identifiers', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('model routers report as modelRouter, matched on the model id rather than the vendor-prefixed identifier', function () {
+		const service = { getVendors: () => [] } as unknown as ILanguageModelsService;
+		const model = (id: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier: `copilotcli:${id}`,
+			metadata: { id, name: id, vendor: 'copilotcli' } as ILanguageModelChatMetadata,
+		});
+		assert.deepStrictEqual([
+			getTelemetryModelIdentifier(model('model-router:secret'), service),
+			getTelemetryModelIdentifier(model('claude-opus-5'), service),
+		], [new TelemetryTrustedValue('modelRouter'), new TelemetryTrustedValue('copilotcli:claude-opus-5')]);
 	});
 });

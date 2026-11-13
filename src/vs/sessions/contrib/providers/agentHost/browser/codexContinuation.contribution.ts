@@ -13,9 +13,9 @@ import { CODEX_CONTINUATION_DISABLE_LABEL, CODEX_CONTINUATION_LABEL, CODEX_CONTI
 import { CodexContinuationPresenter } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/codexContinuationPresenter.js';
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { ICodexContinuationService } from '../../../../../workbench/services/agentHost/browser/codexContinuationService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { ISessionsListNoticeHost, registerSessionsListNotice, SessionsListNotice } from '../../../sessions/browser/views/sessionsListNotice.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsListNoticeHost, registerSessionsListNotice, SessionsListNotice } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotice.js';
 
 class CodexContinuationNotice extends Disposable {
 	constructor(

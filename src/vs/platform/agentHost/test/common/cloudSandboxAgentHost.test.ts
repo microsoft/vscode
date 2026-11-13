@@ -13,6 +13,7 @@ import {
 	CloudSandboxRequestError,
 	ICloudSandboxClientToken,
 	isRetryableCloudSandboxError,
+	isStaleQueuedCloudSandboxTask,
 } from '../../common/cloudSandboxAgentHost.js';
 
 suite('cloudSandbox url/address helpers', () => {
@@ -52,6 +53,25 @@ suite('cloudSandbox url/address helpers', () => {
 			buildWpsUrl(token({ wps_endpoint: 'ws://wps.example/hubs/h', access_token: 't', client_id: 'c' })),
 			'wss://wps.example/hubs/h?access_token=t&clientId=c',
 		);
+	});
+});
+
+suite('isStaleQueuedCloudSandboxTask', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('hides only default-titled queued tasks at the exact 24-hour modification cutoff', () => {
+		const now = Date.parse('2026-11-06T04:00:00Z');
+		const task = { taskId: 'task', name: 'New remote session', isQueued: true, updatedAt: new Date(now - 24 * 60 * 60_000).toISOString() };
+		assert.deepStrictEqual([
+			task,
+			{ ...task, updatedAt: new Date(Date.parse(task.updatedAt) + 1).toISOString() },
+			{ ...task, name: 'A real task' },
+			{ ...task, isQueued: false },
+			{ ...task, isQueued: undefined },
+			{ ...task, updatedAt: undefined },
+			{ ...task, updatedAt: 'invalid' },
+			{ ...task, updatedAt: new Date(now + 1).toISOString() },
+		].map(value => isStaleQueuedCloudSandboxTask(value, now)), [true, false, false, false, false, false, false, false]);
 	});
 });
 

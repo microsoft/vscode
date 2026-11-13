@@ -14,8 +14,8 @@ import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { EditSources, TextModelEditSource } from '../../../../../editor/common/textModelEditSource.js';
 import { createTextModel } from '../../../../../editor/test/common/testTextModel.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ITypedCharactersEntry, MAX_TYPED_CHARACTERS_RETRIES, SessionsTypedCharactersTracker } from '../../browser/sessionsTypedCharactersTracker.js';
+import { ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const FILE = URI.file('/repo/worktree/file.ts');
 
@@ -30,8 +30,8 @@ function toReported(entries: readonly ITypedCharactersEntry[]): IReported[] {
 	return entries.map(entry => ({ sessionId: entry.session.sessionId, resource: entry.resource, characters: entry.characters }));
 }
 
-function createSession(sessionId: string): IActiveSession {
-	return upcastPartial<IActiveSession>({ sessionId });
+function createSession(sessionId: string): ITestSessionWithChat {
+	return upcastPartial<ITestSessionWithChat>({ sessionId });
 }
 
 suite('SessionsTypedCharactersTracker', () => {
@@ -42,7 +42,7 @@ suite('SessionsTypedCharactersTracker', () => {
 	let onModelRemoved: Emitter<ITextModel>;
 	let initialModels: ITextModel[];
 	let reported: IReported[][];
-	let activeSession: IActiveSession | undefined;
+	let activeSession: ITestSessionWithChat | undefined;
 	/** Entries the consumer reports as not-yet-attributable, by resource path. */
 	let deferPaths: Set<string>;
 

@@ -36,10 +36,10 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
 import { getChatMarkdownRenderOptions } from '../../../../workbench/contrib/chat/browser/widget/chatContentMarkdownRenderer.js';
-import { ICodeReviewService } from '../../codeReview/browser/codeReviewService.js';
+import { ICodeReviewService } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
-import { IAgentFeedbackReply } from './agentFeedbackModel.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedbackReply } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { ISessionEditorComment, SessionEditorCommentSource, toSessionEditorCommentId } from './sessionEditorComments.js';
 
 interface ICommentItemActions {

@@ -17,7 +17,7 @@ import { toAgentMergeMessageMeta } from '../../common/meta/agentMergeMessageMeta
 import type { Message, ToolDefinition } from '../../common/state/protocol/state.js';
 import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, buildSubagentSessionUri, MessageKind } from '../../common/state/sessionState.js';
 import { IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContext, TelemetryMeasurements, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
-import { AgentHostTelemetryReporter, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
+import { AgentHostTelemetryReporter, toTelemetryModel, type IAgentHostTurnCompletedReport, type IAgentHostTurnHungReport } from '../../node/agentHostTelemetryReporter.js';
 import { getCodexAccountTelemetryContext } from '../../node/codex/codexAccountTelemetry.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { ActionType } from '../../common/state/sessionActions.js';
@@ -57,6 +57,7 @@ class TestRestrictedTelemetryService implements ITelemetryService, IAgentHostRes
 	sendGHTelemetryEvent(eventName: string, properties?: TelemetryProps): void {
 		this.githubStandardEvents.push({ eventName, properties });
 	}
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.enhancedEvents.push({ eventName, properties });
 		this.enhancedMeasurements.push(measurements);
@@ -1163,5 +1164,13 @@ suite('AgentHostTelemetryReporter', () => {
 			{ eventName: 'agentHost.skillInvoked', data: { copilotSku: 'sku-a', provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e1', trigger: 'agent-invoked', isSubagentInvocation: false } },
 			{ eventName: 'agentHost.skillInvoked', data: { provider: 'copilotcli', agentSessionId: 'abc', chatSessionId, turnId: 'turn-1', sdkEventId: 'e2', trigger: 'unknown', isSubagentInvocation: true } },
 		]);
+	});
+
+	test('reports a trusted model router as modelRouter, never its name', () => {
+		assert.deepStrictEqual([
+			toTelemetryModel('model-router:secret', 'trusted'),
+			toTelemetryModel('claude-opus-5', 'trusted'),
+			toTelemetryModel('model-router:secret', 'unknown'),
+		], [new TelemetryTrustedValue('modelRouter'), new TelemetryTrustedValue('claude-opus-5'), 'unknown']);
 	});
 });

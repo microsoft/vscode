@@ -10,8 +10,8 @@ import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from '../../browser/sessionsPolicyBlocked.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 
 const supportUrl = 'https://example.com/copilot-help';
 
@@ -29,7 +29,7 @@ function createOverlay(ctx: ComponentFixtureContext, options: ISessionsBlockedOv
 				override readonly urlProtocol = 'vscode-insiders';
 			}());
 			reg.definePartialInstance(IWorkbenchLayoutService, { mainContainer: ctx.container, onDidLayoutMainContainer: Event.None });
-			reg.definePartialInstance(ISessionsPartService, { focusSession: () => { } });
+			reg.definePartialInstance(ISessionsPartService, { focusNewSessionSlot: () => { } });
 			reg.definePartialInstance(ISessionsService, { focusActiveSession: () => { } });
 		},
 	});

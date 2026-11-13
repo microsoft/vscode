@@ -1,7 +1,15 @@
 {
+  "name": "vscode-eslint-plugin-local",
   "private": true,
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@oxlint/plugins": "1.90.0",
+    "@types/minimatch": "^3.0.3",
+    "@types/node": "24.x",
+    "minimatch": "^3.1.5",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

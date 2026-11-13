@@ -6,7 +6,7 @@
 /*
  * The sashes in the gaps between the cells of a grid show the three-dot
  * gripper of the workbench: the center dot is the pseudo-element and box
- * shadows draw the outer dots, `--part-grid-gap` apart. All three hide while
+ * shadows draw the outer dots at fixed spacing. All three hide while
  * the hover/drag highlight shows the active resize target.
  */
 .monaco-sash.part-grid-gap-sash::after {
@@ -29,11 +29,11 @@
 }
 
 .monaco-sash.part-grid-gap-sash.vertical::after {
-	box-shadow: 0 calc(-1 * var(--part-grid-gap, 0px)) currentColor, 0 var(--part-grid-gap, 0px) currentColor;
+	box-shadow: 0 calc(-1 * var(--vscode-spacing-size40)) currentColor, 0 var(--vscode-spacing-size40) currentColor;
 }
 
 .monaco-sash.part-grid-gap-sash.horizontal::after {
-	box-shadow: calc(-1 * var(--part-grid-gap, 0px)) 0 currentColor, var(--part-grid-gap, 0px) 0 currentColor;
+	box-shadow: calc(-1 * var(--vscode-spacing-size40)) 0 currentColor, var(--vscode-spacing-size40) 0 currentColor;
 }
 
 .monaco-sash.part-grid-gap-sash:is(.hover, .active)::after {

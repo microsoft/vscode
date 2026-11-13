@@ -11,9 +11,11 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, observableValue } from '../../../../../../base/common/observable.js';
 import { setARIAContainer } from '../../../../../../base/browser/ui/aria/aria.js';
+import { IContextMenuDelegate } from '../../../../../../base/browser/contextmenu.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IListService, ListService } from '../../../../../../platform/list/browser/listService.js';
 import { ColorScheme } from '../../../../../../platform/theme/common/theme.js';
@@ -26,8 +28,8 @@ import { AICustomizationListWidget, getAlwaysVisibleCustomizationGroupKeys, getC
 import { AICustomizationItemNormalizer, IAICustomizationListItem, ICustomizationSkillItem } from '../../../browser/aiCustomization/aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel } from '../../../browser/aiCustomization/aiCustomizationItemsModel.js';
 import { extractExtensionIdFromPath, getCustomizationSecondaryText, splitPathLabel, truncateToFirstLine } from '../../../browser/aiCustomization/aiCustomizationListWidgetUtils.js';
-import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
-import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { AICustomizationManagementSection, AICustomizationScopes, AICustomizationSources, IAICustomizationWorkspaceService } from '../../../common/aiCustomizationWorkspaceService.js';
+import { ICustomizationHarnessService, ICustomizationItem, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
@@ -39,6 +41,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
 import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -105,6 +108,29 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
+	test('moves focus that is kept inside a collapsed group to the first visible item', () => {
+		type Entry = { type: 'group-header'; id: string } | { type: 'item'; id: string };
+		const collapsedGroup: Entry = { type: 'group-header', id: 'user' };
+		const hiddenItem: Entry = { type: 'item', id: 'hidden' };
+		const expandedGroup: Entry = { type: 'group-header', id: 'workspace' };
+		const visibleItem: Entry = { type: 'item', id: 'visible' };
+		let focus: Entry[] = [hiddenItem];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+		const isVisible = (entry: Entry) => entry !== hiddenItem;
+
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+
+		assert.deepStrictEqual(focusChanges, [[visibleItem]]);
+	});
+
 	test('keeps editable source sections visible until search filtering starts', () => {
 		assert.deepStrictEqual({
 			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
@@ -134,8 +160,8 @@ suite('aiCustomizationListWidget', () => {
 			},
 		] as unknown as IAICustomizationListItem[];
 		const filter = (searchQuery: string) => (AICustomizationListWidget.prototype as unknown as {
-			applySearchFilter(this: { searchQuery: string }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
-		}).applySearchFilter.call({ searchQuery }, items).map(item => [item.name, item.nameMatches]);
+			applySearchFilter(this: { searchQuery: string; getContributionSource(): undefined }, items: readonly IAICustomizationListItem[]): IAICustomizationListItem[];
+		}).applySearchFilter.call({ searchQuery, getContributionSource: () => undefined }, items).map(item => [item.name, item.nameMatches]);
 
 		assert.deepStrictEqual({
 			spaced: filter('typescript setup'),
@@ -157,7 +183,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -188,7 +214,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -324,6 +350,25 @@ suite('aiCustomizationListWidget', () => {
 		}, {
 			agents: 'agents:local',
 			skills: 'skills:local',
+		});
+	});
+
+	test('a source label replaces the secondary text in accessible labels', () => {
+		const item: IAICustomizationListItem = {
+			id: 'azure-deploy',
+			uri: URI.file('/home/.copilot/plugins/azure/skills/azure-deploy/SKILL.md'),
+			name: 'azure-deploy',
+			filename: '~/.copilot/plugins/azure/skills/azure-deploy/SKILL.md',
+			source: PromptsStorage.plugin,
+			promptType: PromptsType.skill,
+			disabled: false,
+		};
+		assert.deepStrictEqual({
+			withSource: getCustomizationItemAriaLabel(item, 'Plugin: azure'),
+			withoutSource: getCustomizationItemAriaLabel(item),
+		}, {
+			withSource: 'azure-deploy. Plugin: azure',
+			withoutSource: 'azure-deploy. ~/.copilot/plugins/azure/skills/azure-deploy/SKILL.md',
 		});
 	});
 
@@ -708,6 +753,42 @@ suite('aiCustomizationListWidget', () => {
 		assert.strictEqual(item.filename, 'relative:/workspace/.github/prompts/review.prompt.md');
 	});
 
+	test('normalizes scope, origin, and delivery independently of storage', () => {
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string { return resource.path; }
+		}();
+		const productService = new class extends mock<IProductService>() {
+			override readonly defaultChatAgent = { chatExtensionId: 'GitHub.copilot-chat' } as IProductService['defaultChatAgent'];
+		}();
+		const normalizer = new AICustomizationItemNormalizer(labelService, productService);
+		const normalize = (item: Partial<ICustomizationItem> & Pick<ICustomizationItem, 'uri' | 'source'>) => {
+			const normalized = normalizer.normalizeItem({ type: PromptsType.agent, name: 'Agent', extensionId: undefined, pluginUri: undefined, ...item }, PromptsType.agent);
+			return { scope: normalized.scope, origin: normalized.origin, groupKey: normalized.groupKey };
+		};
+
+		assert.deepStrictEqual([
+			normalize({ uri: URI.file('/workspace/.github/agents/a.agent.md'), source: PromptsStorage.local }),
+			normalize({ uri: URI.file('/home/.copilot/agents/a.agent.md'), source: PromptsStorage.user, groupKey: 'remote-client' }),
+			normalize({ uri: URI.file('/home/.copilot/plugins/azure/agents/a.agent.md'), source: PromptsStorage.plugin, pluginUri: URI.file('/home/.copilot/plugins/azure'), pluginLabel: 'azure', groupKey: 'remote-host' }),
+			normalize({ uri: URI.file('/ext/acme/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'acme.tools', extensionLabel: 'Acme Tools' }),
+			normalize({ uri: URI.file('/ext/copilot/agents/Plan.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.file('/home/dev/github/vscode/extensions/copilot-chat/agents/Plan.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.file('/home/dev/.config/Code/User/globalStorage/github.copilot-chat/github/contoso/agents/a.agent.md'), source: PromptsStorage.extension, extensionId: 'GitHub.copilot-chat' }),
+			normalize({ uri: URI.parse('copilot-builtin:/agents/ask.agent.md'), source: AICustomizationSources.builtin, origin: { kind: 'harness' } }),
+			normalize({ uri: URI.file('/host/agents/a.agent.md'), source: PromptsStorage.user, scope: AICustomizationScopes.application }),
+		], [
+			{ scope: 'workspace', origin: undefined, groupKey: undefined },
+			{ scope: 'user', origin: undefined, groupKey: undefined },
+			{ scope: 'user', origin: { kind: 'plugin', id: 'plugin:file:///home/.copilot/plugins/azure', label: 'azure' }, groupKey: undefined },
+			{ scope: 'user', origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, groupKey: undefined },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: 'builtin' },
+			{ scope: 'user', origin: { kind: 'account', id: 'account:contoso', label: 'contoso' }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'harness', id: 'harness:', label: undefined }, groupKey: 'builtin' },
+			{ scope: 'application', origin: { kind: 'vscode', id: 'vscode:' }, groupKey: undefined },
+		]);
+	});
+
 	suite('extractExtensionIdFromPath', () => {
 		test('extracts extension ID from copilot-chat extension path', () => {
 			assert.strictEqual(
@@ -1041,6 +1122,96 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
+		test('keeps the overflow action visible while its context menu is open without moving tree focus', async () => {
+			const item: IAICustomizationListItem = {
+				id: 'skill',
+				uri: URI.file('/workspace/.github/skills/review/SKILL.md'),
+				name: 'Review',
+				filename: '.github/skills/review/SKILL.md',
+				description: 'Review changes',
+				source: PromptsStorage.local,
+				promptType: PromptsType.skill,
+				disabled: false,
+			};
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [item]);
+			let contextMenuDelegate: IContextMenuDelegate | undefined;
+			instaService.stub(IContextMenuService, {
+				onDidShowContextMenu: Event.None,
+				onDidHideContextMenu: Event.None,
+				showContextMenu: delegate => contextMenuDelegate = delegate as IContextMenuDelegate,
+			});
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			const selections: string[] = [];
+			disposables.add(widget.onDidSelectItem(selected => selections.push(selected.id)));
+			setLayoutHeights(widget, 500);
+
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(800, 500);
+			const getRow = () => widget.element.querySelector<HTMLElement>('.ai-customization-list-item')!;
+			const initialAction = getRow().querySelector<HTMLElement>('.item-right .action-label')!;
+			const initialFocusedRows = widget.element.querySelectorAll('.monaco-list-row.focused').length;
+			initialAction.click();
+			assert.ok(contextMenuDelegate);
+			const openRow = getRow();
+			const openAction = openRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			const openState = {
+				menuOpen: openRow.classList.contains('menu-open'),
+				hasPopup: openAction.getAttribute('aria-haspopup'),
+				expanded: openAction.getAttribute('aria-expanded'),
+				autoSelectItem: contextMenuDelegate.autoSelectItem,
+				focusedRows: widget.element.querySelectorAll('.monaco-list-row.focused').length,
+			};
+
+			items.set([{ ...item, description: 'Updated review instructions' }], undefined);
+			const refreshedRow = getRow();
+			const refreshedAction = refreshedRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			const refreshedState = {
+				menuOpen: refreshedRow.classList.contains('menu-open'),
+				expanded: refreshedAction.getAttribute('aria-expanded'),
+			};
+
+			contextMenuDelegate.onHide?.(false);
+			const closedRow = getRow();
+			const closedAction = closedRow.querySelector<HTMLElement>('.item-right .action-label')!;
+			assert.deepStrictEqual({
+				initialFocusedRows,
+				openState,
+				refreshedState,
+				closedState: {
+					menuOpen: closedRow.classList.contains('menu-open'),
+					expanded: closedAction.getAttribute('aria-expanded'),
+				},
+				selections,
+			}, {
+				initialFocusedRows: 0,
+				openState: {
+					menuOpen: true,
+					hasPopup: 'menu',
+					expanded: 'true',
+					autoSelectItem: true,
+					focusedRows: 0,
+				},
+				refreshedState: {
+					menuOpen: true,
+					expanded: 'true',
+				},
+				closedState: {
+					menuOpen: false,
+					expanded: 'false',
+				},
+				selections: [],
+			});
+		});
+
 		test('shows one aligned icon per item when a marketplace skill has an icon', async () => {
 			const marketplaceUri = URI.file('/workspace/.github/skills/marketplace/SKILL.md');
 			const plainUri = URI.file('/workspace/.github/skills/plain/SKILL.md');
@@ -1300,6 +1471,186 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
+		test('toggles scope groups with a single click on the header', async () => {
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [{
+				id: 'agent-one',
+				uri: URI.file('/workspace/.github/agents/agent-one.agent.md'),
+				name: 'Agent One',
+				filename: 'agent-one.agent.md',
+				source: PromptsStorage.local,
+				promptType: PromptsType.agent,
+				disabled: false,
+			}]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', 1),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const clickWorkspaceHeader = () => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'Workspace')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+
+			const initial = labels();
+			clickWorkspaceHeader();
+			const afterCollapse = labels();
+			clickWorkspaceHeader();
+
+			assert.deepStrictEqual({ initial, afterCollapse, afterExpand: labels() }, {
+				initial: ['Agent One'],
+				afterCollapse: [],
+				afterExpand: ['Agent One'],
+			});
+		});
+
+		test('keeps collapsed groups and focus when the items refresh', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant')!)?.querySelector('.item-name')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.focusList();
+			const collapsed = { labels: labels(), focused: focused() };
+
+			agents.set([...agents.get(), createAgent('local-two', PromptsStorage.local), createAgent('user-two', PromptsStorage.user)], undefined);
+			const afterItemsChange = { labels: labels(), focused: focused() };
+			widget.setSearchQuery('one');
+			const whileSearching = labels();
+			widget.clearSearch();
+
+			assert.deepStrictEqual({ collapsed, afterItemsChange, whileSearching, afterClearingSearch: labels() }, {
+				collapsed: { labels: ['local-one'], focused: 'local-one' },
+				afterItemsChange: { labels: ['local-one', 'local-two'], focused: 'local-one' },
+				whileSearching: ['local-one', 'user-one'],
+				afterClearingSearch: ['local-one', 'local-two'],
+			});
+		});
+
+		test('focuses a visible item when entering a tree whose first group is collapsed', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			const clickGroup = (label: string) => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === label)!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			clickGroup('Workspace');
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const onTab = focused();
+			widget.focusList();
+			const onFocusList = focused();
+			clickGroup('User');
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.focusList();
+			const allCollapsed = focused();
+
+			assert.deepStrictEqual({ onTab, onFocusList, allCollapsed }, {
+				onTab: 'user-one',
+				onFocusList: 'user-one',
+				allCollapsed: 'Workspace',
+			});
+		});
+
+		test('moves focus to the group header when clearing the search hides the focused item', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.setSearchQuery('user-one');
+			widget.focusList();
+			const whileSearching = focused();
+			widget.clearSearch();
+			const afterClearingSearch = focused();
+			list.dispatchEvent(new FocusEvent('focus'));
+
+			assert.deepStrictEqual({ whileSearching, afterClearingSearch, onTab: focused() }, {
+				whileSearching: 'user-one',
+				afterClearingSearch: 'User',
+				onTab: 'User',
+			});
+		});
+
 		test('announces updated item count when the model changes after section load', async () => {
 			const ariaHost = document.createElement('div');
 			document.body.appendChild(ariaHost);
@@ -1446,9 +1797,95 @@ suite('aiCustomizationListWidget', () => {
 				groups,
 				rowCount,
 			}, {
-				groups: ['User', 'Workspace'],
+				groups: ['Workspace', 'User'],
 				rowCount: 6,
 			});
+		});
+
+		test('renders contributed customizations as flat rows with source descriptions', async () => {
+			const listItem = (id: string, source: IAICustomizationListItem['source'], extra: Partial<IAICustomizationListItem> = {}): IAICustomizationListItem => ({
+				id,
+				uri: URI.file(`/${id}/SKILL.md`),
+				name: id,
+				filename: 'SKILL.md',
+				source,
+				promptType: PromptsType.skill,
+				disabled: false,
+				...extra,
+			});
+			const items = observableValue<readonly IAICustomizationListItem[]>('test', [
+				listItem('triage', PromptsStorage.user),
+				listItem('review', PromptsStorage.user),
+				listItem('azure-deploy', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
+				listItem('azure-review', PromptsStorage.plugin, { origin: { kind: 'plugin', id: 'plugin:azure', label: 'azure' } }),
+				listItem('workspace-review', PromptsStorage.local),
+				listItem('release', AICustomizationSources.extension, { scope: AICustomizationScopes.user, origin: { kind: 'account', id: 'account:contoso', label: 'contoso' } }),
+				listItem('acme-lint', AICustomizationSources.extension, { origin: { kind: 'extension', id: 'extension:acme.tools', label: 'Acme Tools' }, extensionId: 'acme.tools' }),
+				listItem('init', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'vscode', id: 'vscode:' } }),
+				listItem('ask', AICustomizationSources.builtin, { scope: AICustomizationScopes.application, origin: { kind: 'harness', id: 'harness:' } }),
+			]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => items,
+				getCount: () => observableValue('test', 0),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: () => Promise.resolve(),
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 1000);
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			widget.layout(1000, 800);
+
+			const rows = Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row'), row => {
+				const group = row.querySelector('.group-label')?.textContent;
+				if (group) {
+					return `# ${group}`;
+				}
+				const sourceDescription = row.querySelector('.item-description')?.textContent?.trim();
+				return [
+					row.querySelector('.item-name')?.textContent,
+					...(sourceDescription?.includes(':') ? [`— ${sourceDescription}`] : []),
+				].join(' ');
+			});
+			const ariaLabelFor = (name: string) => Array.from(widget.element.querySelectorAll<HTMLElement>('.list-container .monaco-list-row'))
+				.find(row => row.querySelector('.item-name')?.textContent === name)?.getAttribute('aria-label');
+			assert.deepStrictEqual({
+				rows,
+				contributionAriaLabels: [ariaLabelFor('acme-lint'), ariaLabelFor('azure-deploy')],
+				sourceLinks: Array.from(widget.element.querySelectorAll<HTMLAnchorElement>('.item-source'))
+					.filter(link => !!link.textContent)
+					.map(link => ({ text: link.textContent, linked: link.classList.contains('source-link') })),
+			}, {
+				rows: [
+					'# Workspace',
+					'workspace-review',
+					'# User',
+					'review',
+					'triage',
+					'acme-lint — Extension: Acme Tools',
+					'azure-deploy — Plugin: azure',
+					'azure-review — Plugin: azure',
+					'release — Organization: contoso',
+					'# Built-in',
+					'init',
+					'ask',
+				],
+				contributionAriaLabels: ['acme-lint. Extension: Acme Tools', 'azure-deploy. Plugin: azure'],
+				sourceLinks: [
+					{ text: 'Extension: Acme Tools', linked: true },
+					{ text: 'Plugin: azure', linked: false },
+					{ text: 'Plugin: azure', linked: false },
+					{ text: 'Organization: contoso', linked: false },
+				],
+			});
+
+			widget.setSearchQuery('Acme Tools');
+			assert.deepStrictEqual(
+				Array.from(widget.element.querySelectorAll('.item-name'), item => item.textContent),
+				['acme-lint'],
+			);
 		});
 	});
 });

@@ -13,9 +13,9 @@ import { ServicesAccessor } from '../../../../../platform/instantiation/common/i
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
-import { resolveSessionCommandTarget } from '../../../../services/sessions/browser/sessionCommandTarget.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 export class ExportAgentHostDebugLogsAction extends Action2 {
 
@@ -43,7 +43,7 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 			return;
 		}
 		const activeSession = target?.session;
-		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId) : undefined;
+		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId) : undefined;
 		const activeProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
 		const activeChat = target?.chat;
 		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeSession && activeProvider

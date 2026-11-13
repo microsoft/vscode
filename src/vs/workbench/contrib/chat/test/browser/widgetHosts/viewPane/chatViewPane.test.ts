@@ -5,7 +5,8 @@
 
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../../base/common/cancellation.js';
-import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
+import { CancellationError } from '../../../../../../../base/common/errors.js';
+import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { constObservable } from '../../../../../../../base/common/observable.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
@@ -19,6 +20,8 @@ import { NullLogService } from '../../../../../../../platform/log/common/log.js'
 import { AccountPolicyGateState } from '../../../../../../services/policies/common/accountPolicyService.js';
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
+import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
+import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
 import { MockChatSessionsService } from '../../../common/mockChatSessionsService.js';
 import { IChatModelReference } from '../../../../common/chatService/chatService.js';
@@ -31,6 +34,8 @@ import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSess
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
+import { Position } from '../../../../../../services/layout/browser/layoutService.js';
+import { ViewContainerLocation } from '../../../../../../common/views.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -67,6 +72,50 @@ suite('ChatViewPane sessions refresh', () => {
 		update.call(host);
 		assert.deepStrictEqual(visibility, [false, true, false, true, false, false]);
 	});
+
+	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const events: unknown[] = [];
+		const host = {
+			sessionsContainer: document.createElement('div'),
+			lastDimensions: { width: 1000, height: 600 },
+			bodyVisible: false,
+			isBodyVisible: () => host.bodyVisible,
+			restoringSession: Promise.resolve() as Promise<void> | undefined,
+			_loadingSessionCount: 0,
+			_sessionsListSuppressionCount: 0,
+			getViewPositionAndLocation: () => ({ position: Position.RIGHT, location: ViewContainerLocation.AuxiliaryBar }),
+			sessionsViewerOrientationConfiguration: 'sideBySide',
+			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
+			sessionsViewerVisible: true,
+			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: true }),
+			layoutService: { isAuxiliaryBarMaximized: () => false },
+			telemetryService: { publicLog2: (eventName: string, data: object) => events.push({ eventName, ...data }) },
+			lastReportedSessionsLayout: undefined,
+		};
+		const report = Reflect.get(ChatViewPane.prototype, 'reportSessionsLayout') as (this: typeof host) => void;
+		const scheduler = store.add(new RunOnceScheduler(() => report.call(host), 1000));
+		const settle = async (change: () => void = () => { }) => { change(); scheduler.schedule(); await timeout(1000); };
+		const setOrientation = (orientation: AgentSessionsViewerOrientation) => () => host.sessionsViewerOrientation = orientation;
+
+		await settle();												// hidden view: nothing
+		await settle(() => host.bodyVisible = true);					// shown but still restoring: nothing
+		await settle(() => host.restoringSession = undefined);		// restored: initial
+
+		setOrientation(AgentSessionsViewerOrientation.Stacked)();	// resize flips and returns before settling: nothing
+		scheduler.schedule();
+		await settle(setOrientation(AgentSessionsViewerOrientation.SideBySide));
+
+		await settle(() => { host._loadingSessionCount = 1; host.sessionsViewerVisible = false; });	// transient state while loading: nothing
+		await settle(() => host._sessionsListSuppressionCount = 1);									// transient state while transitioning: nothing
+		await settle(() => { host._loadingSessionCount = 0; host._sessionsListSuppressionCount = 0; host.sessionsViewerVisible = true; });	// settled unchanged: nothing
+		await settle(setOrientation(AgentSessionsViewerOrientation.Stacked));							// settled change: orientationChanged
+
+		const layout = { configuredOrientation: 'sideBySide', sessionsVisible: true, sessionsEnabled: true, position: 'right', chatViewLocation: 'auxiliaryBar', chatViewMaximized: false };
+		assert.deepStrictEqual(events, [
+			{ eventName: 'chatViewSessionsLayout', ...layout, effectiveOrientation: 'sideBySide', reason: 'initial' },
+			{ eventName: 'chatViewSessionsLayout', ...layout, effectiveOrientation: 'stacked', reason: 'orientationChanged' },
+		]);
+	}));
 
 	test('window focus refreshes automatically while the toolbar retains explicit refresh intent', async () => {
 		const focusChanged = store.add(new Emitter<boolean>());
@@ -298,6 +347,27 @@ suite('ChatViewPane session transitions', () => {
 	}
 });
 
+suite('ChatViewPane persisted session restore', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createPane(error: Error): { acquireTransferredOrPersistedSession(token: CancellationToken, debugOwner: string): Promise<{ modelRef?: IChatModelReference }> } {
+		return Object.assign(Object.create(ChatViewPane.prototype), {
+			viewState: { sessionResource: URI.parse('agent-host-copilotcli:/missing') },
+			logService: new NullLogService(),
+			chatService: { acquireOrLoadSession: async () => { throw error; } },
+		});
+	}
+
+	test('starts a new session when the persisted session fails to load', async () => {
+		const restored = await createPane(new Error('Session identity was not advertised by its agent host')).acquireTransferredOrPersistedSession(CancellationToken.None, 'test');
+		assert.strictEqual(restored.modelRef, undefined);
+	});
+
+	test('still propagates cancellation', async () => {
+		await assert.rejects(createPane(new CancellationError()).acquireTransferredOrPersistedSession(CancellationToken.None, 'test'), CancellationError);
+	});
+});
+
 suite('ChatViewPane managed permission rules', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -487,5 +557,46 @@ suite('ChatViewPane restored chat with a harness disabled by policy', () => {
 			savedChat: { restored: true, disposed: false },
 			allowedDraft: { restored: true, disposed: false },
 		});
+	});
+});
+
+suite('ChatViewPane widget readiness', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('whenWidget resolves to the widget the body creates, once it is rendered, as the body creates its controls', async () => {
+		const steps: string[] = [];
+		const store = disposables.add(new DisposableStore());
+		const widget = upcastPartial<ChatWidget>({
+			render: () => { steps.push('render'); },
+			setVisible: () => { },
+			dispose: () => { },
+		});
+		const instantiationService = {
+			createInstance: () => ({ onDidChangeHeight: Event.None, dispose: () => { } }),
+			createChild: () => ({ createInstance: (ctor: unknown) => ctor === ChatWidget ? widget : { dispose: () => { } }, dispose: () => { } }),
+		};
+		// The order of the real Chat view: its title control, then its widget, which it renders
+		const pane = Object.assign(Object.create(ChatViewPane.prototype), {
+			_store: store,
+			_widgetCreated: new DeferredPromise<ChatWidget>(),
+			id: 'workbench.panel.chat.view.copilot',
+			instantiationService,
+			layoutService: { getContainer: () => mainWindow.document.createElement('div') },
+			scopedContextKeyService: {},
+			aiCustomizationWorkspaceService: { activeProjectRoot: constObservable(undefined) },
+			customizationMigrationsAvailable: { set: () => { } },
+			getLocationBasedColors: () => ({ background: '', overlayBackground: '', listOverrideStyles: {} }),
+			onDidChangeBodyVisibility: Event.None,
+			isBodyVisible: () => true,
+			welcomeController: undefined,
+			relayout: () => { },
+		}) as ChatViewPane;
+		pane.whenWidget.then(created => steps.push(created === widget ? 'resolved to the widget' : `resolved to ${created}`));
+
+		(Reflect.get(ChatViewPane.prototype, 'createChatControl') as (this: ChatViewPane, parent: HTMLElement) => ChatWidget).call(pane, mainWindow.document.createElement('div'));
+		await timeout(0);
+
+		assert.deepStrictEqual(steps, ['render', 'resolved to the widget']);
 	});
 });

@@ -14,7 +14,7 @@ import { GroupDirection, ICreateEditorPartOptions, IContentPart } from '../../..
 import { GroupIdentifier } from '../../../common/editor.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from './editor.js';
+import { GroupTransferKind, IEditorGroupView, IEditorGroupViewOptions, IEditorPartsView } from './editor.js';
 import { EditorPart, IEditorPartUIState } from './editorPart.js';
 
 /**
@@ -89,6 +89,10 @@ export class ContentPart extends EditorPart implements IContentPart {
 		const sourceView = this.assertGroupView(group);
 		const targetView = typeof location === 'number' ? this.editorPartsView.getGroup(location) : location;
 		if (targetView && targetView.groupsView !== sourceView.groupsView) {
+			// Before the move is announced: a group that cannot go stays, and nothing hears of it
+			if (this.vetoGroupTransfer([sourceView], this.getTransferTarget(GroupTransferKind.MoveGroup, sourceView, targetView), false)) {
+				return sourceView;
+			}
 			this._onWillMoveGroupOut.fire(sourceView);
 		}
 

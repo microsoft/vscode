@@ -1,0 +1,53 @@
+parameters:
+  # use: a test job, which mounts the newest image of its native build inputs over its checkout, or
+  # installs everything without one, as before. build: the image job of the stage, which
+  # builds an image when the cache has none of the current inputs and day.
+  - name: mode
+    type: string
+    values:
+      - use
+      - build
+  # The platform and architecture of the images, such as linux-x64
+  - name: name
+    type: string
+
+# Workspace images (see workspaceImage.ts). Include it right after the checkout and the Node.js setup:
+# the image is mounted over the sources directory, so it hides what the steps before it wrote there.
+#
+# The cache has no restore-only mode, so the test jobs make sure that only the image job
+# saves images: a test job that doesn't restore the key exactly changes its key files to a key that no
+# image has before the end of the job, when the cache saves (see `restore` in workspaceImage.ts).
+steps:
+  - script: node build/azure-pipelines/common/workspaceImage.ts key
+    displayName: Prepare workspace image cache key
+
+  - task: Cache@2
+    inputs:
+      key: '"workspace-image" | "v1" | "${{ parameters.name }}" | $(Agent.TempDirectory)/workspace-image-key/base | $(Agent.TempDirectory)/workspace-image-key/image'
+      ${{ if eq(parameters.mode, 'use') }}:
+        # The newest image of the same native build inputs, whatever its lockfiles and day
+        restoreKeys: '"workspace-image" | "v1" | "${{ parameters.name }}" | $(Agent.TempDirectory)/workspace-image-key/base'
+      path: $(Agent.TempDirectory)/workspace-image
+      cacheHitVar: WORKSPACE_IMAGE_RESTORED
+    ${{ if eq(parameters.mode, 'use') }}:
+      displayName: Restore workspace image cache
+    ${{ else }}:
+      displayName: Look up the current workspace image
+    retryCountOnTaskFailure: 2
+    continueOnError: true
+
+  # Out of the sources directory, which a volume is mounted over
+  - ${{ if eq(parameters.mode, 'use') }}:
+    - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/workspaceImage.ts" restore
+      displayName: Mount workspace image
+      workingDirectory: $(Agent.TempDirectory)
+      timeoutInMinutes: 10
+      continueOnError: true
+
+  - ${{ if eq(parameters.mode, 'build') }}:
+    - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/workspaceImage.ts" create
+      displayName: Create workspace image volume
+      workingDirectory: $(Agent.TempDirectory)
+      condition: and(succeeded(), ne(variables['WORKSPACE_IMAGE_RESTORED'], 'true'))
+      timeoutInMinutes: 10
+      continueOnError: true

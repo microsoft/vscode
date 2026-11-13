@@ -6,6 +6,7 @@
 import type { SessionEvent } from '@github/copilot-sdk';
 import { LRUCache } from '../../../../base/common/map.js';
 import type { CopilotFusionEvent } from './copilotFusionProgress.js';
+import { isHostSentUserMessage } from './copilotMessageSource.js';
 
 /** Follows early Fusion routing through the durable event chain to its genuine user-message echo. */
 export class CopilotFusionRequestCorrelation {
@@ -54,8 +55,9 @@ export function getFusionEventSdkTurnId(event: CopilotFusionEvent): string | und
 	return event.type === 'session.fusion_resolved' || event.type === 'session.fusion_completed' ? event.data.turnId : undefined;
 }
 
+/** Whether the runtime injected this message itself. A message the host sent is never synthetic, whoever authored it. */
 export function isSyntheticUserMessage(event: SessionEvent): boolean {
-	return event.type === 'user.message' && !!event.data.source && event.data.source.toLowerCase() !== 'user' && !isInterAgentUserMessage(event);
+	return event.type === 'user.message' && !!event.data.source && event.data.source.toLowerCase() !== 'user' && !isInterAgentUserMessage(event) && !isHostSentUserMessage(event);
 }
 
 export function isInterAgentUserMessage(event: SessionEvent): boolean {

@@ -20,7 +20,8 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actio
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
-import { ActiveEditorContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
+import { ContextKeyValue, IContext } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ActiveEditorContext, IsAuxiliaryWindowContext, MainEditorAreaVisibleContext } from '../../../../../workbench/common/contextkeys.js';
 import { StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ViewContainerLocation } from '../../../../../workbench/common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -28,31 +29,33 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { DesktopChangesEditorTransitionContext, DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/contextkeys.js';
+import { ISessionFileChange, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { DesktopChangesEditorTransitionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { DesktopChangesTabAvailableContext, DesktopChangesTabMissingContext, HasDockedDetailsContext, DesktopFilesTabAvailableContext, DesktopFilesTabMissingContext } from '../../../../common/agentsWindowContextKeys.js';
 import { BrowserEditorInput } from '../../../../../workbench/contrib/browserView/common/browserEditorInput.js';
 import { CustomEditorInput } from '../../../../../workbench/contrib/customEditor/browser/customEditorInput.js';
 import { FileEditorInput } from '../../../../../workbench/contrib/files/browser/editors/fileEditorInput.js';
 import { WebviewInput } from '../../../../../workbench/contrib/webviewPanel/browser/webviewEditorInput.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { multiDiffEditorExperimentalFileListSetting, MultiDiffEditorFileListAvailableContext, observableMultiDiffEditorFileListVisible } from '../../../../../workbench/contrib/multiDiffEditor/common/multiDiffEditor.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { EditorInput } from '../../../../../workbench/common/editor/editorInput.js';
 import { DiffEditorInput } from '../../../../../workbench/common/editor/diffEditorInput.js';
 import { IEditorWillOpenEvent, isResourceEditorInput } from '../../../../../workbench/common/editor.js';
 import { DesktopLayoutController, TOGGLE_DETAILS_COMMAND_ID } from '../../browser/desktopLayoutController.js';
-import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../changes/common/changes.js';
-import { ChangesViewPane } from '../../../changes/browser/changesView.js';
-import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../changes/browser/checksActions.js';
-import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../github/common/types.js';
+import { CHANGES_VIEW_CONTAINER_ID, CHANGES_VIEW_ID } from '../../../../../workbench/contrib/sessions/common/changes.js';
+import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import { REVEAL_CI_CHECKS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
+import { GitHubCheckConclusion, GitHubCheckStatus } from '../../../../../workbench/contrib/sessions/common/github/types.js';
 import '../../../changes/browser/changesActions.js';
+import '../../../changes/browser/changesView.contribution.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../../files/browser/files.contribution.js';
 import { NewChangesTabAction, NewFileTabAction } from '../../../editor/browser/addTabActions.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IFocusedSessionHostService, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
-import { focusedSessionHostServiceOf, sessionHostServiceOf } from '../../../../services/sessions/test/browser/sessionHostTestUtils.js';
-import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { focusedSessionHostServiceOf, ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { addPeerChat, createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeQuickChatWithWorkspaceChild, makeSession, setActiveChat, TestStubEditorInput } from './layoutControllerTestUtils.js';
 import '../../../editor/browser/editor.contribution.js';
 
 /** The editor parts of a Files tab of the main window: no part other than the main part. */
@@ -75,7 +78,7 @@ suite('DesktopLayoutController', () => {
 			const shown = this._shownByMainWindow();
 			return shown && { session: shown.session.resource.toString(), chat: shown.chat.resource.toString() };
 		}
-		getComposition(session: IActiveSession) {
+		getComposition(session: ITestSessionWithChat) {
 			const key = this._ownerKeyFor({ session, chat: session.activeChat.get() });
 			return key && this._compositionStore?.get(key);
 		}
@@ -117,10 +120,11 @@ suite('DesktopLayoutController', () => {
 		// sessions service's active session would see B.
 		harness.instaService.stub(ISessionsService, new class extends mock<ISessionsService>() {
 			readonly activeSession = constObservable(sessionB);
-			override readonly visibleSessions = harness.visibleSessionsObs;
+			readonly gridShown = harness.visibleSessionsObs;
+			override readonly slotPanes = testGridPanes(harness.visibleSessionsObs);
 			readonly windowSessions = constObservable([]);
 		});
-		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, visibleSessions: constObservable([]), windowSessions: constObservable([sessionB]) }));
+		harness.instaService.stub(ISessionHostService, sessionHostServiceOf(store, { mainWindowActiveSession: harness.activeSessionObs, gridShown: constObservable([]), windowSessions: constObservable([sessionB]) }));
 		harness.instaService.stub(IFocusedSessionHostService, focusedSessionHostServiceOf(constObservable(sessionB)));
 		const controller = store.add(harness.instaService.createInstance(TestDesktopController));
 		harness.activeSessionObs.set(sessionA, undefined);
@@ -135,9 +139,10 @@ suite('DesktopLayoutController', () => {
 		return editor;
 	}
 
-	function makeCustomEditor(resource: URI = URI.file('/repo/custom.editor')): CustomEditorInput {
+	function makeCustomEditor(resource: URI = URI.file('/repo/custom.editor'), viewType?: string): CustomEditorInput {
 		const editor = Object.create(CustomEditorInput.prototype) as CustomEditorInput;
 		Object.defineProperty(editor, 'resource', { value: resource });
+		Object.defineProperty(editor, 'viewType', { value: viewType });
 		return editor;
 	}
 
@@ -226,7 +231,7 @@ suite('DesktopLayoutController', () => {
 					const hiddenBeforeSubmit = !harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
 					const committed = replaceResource ? makeSession(URI.parse('session:submitted-empty')) : draft;
 					transaction(tx => {
-						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 						harness.activeSessionObs.set(committed, tx);
 						harness.visibleSessionsObs.set([committed], tx);
 					});
@@ -852,6 +857,79 @@ suite('DesktopLayoutController', () => {
 		assert.deepStrictEqual(detailsVisibility, [false, false, false]);
 	});
 
+	for (const isCreated of [false, true]) {
+		for (const viewType of ['vscode.markdown.editor', 'vscode.markdown.preview.editor', 'mainThreadWebview-markdown.preview']) {
+			test(`[desktop] floating Files stays available for ${viewType} in a ${isCreated ? 'created' : 'draft'} session`, async () => {
+				createDesktopController({ activateAux: true, floatingDetails: true });
+				await timeout(0);
+				const session = makeSession(URI.parse('session:markdown'), { isCreated, status: isCreated ? SessionStatus.Completed : SessionStatus.Untitled });
+				harness.activeSessionObs.set(session, undefined);
+				harness.visibleSessionsObs.set([session], undefined);
+				await timeout(0);
+				harness.activeEditorInput = makeFileEditor('/repo/README.md');
+				harness.onDidActiveEditorChange.fire();
+				harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				await timeout(0);
+
+				harness.setPartHiddenCalls = [];
+				harness.openedViewContainers = [];
+				harness.activeEditorInput = viewType === 'mainThreadWebview-markdown.preview'
+					? makeWebviewEditor(viewType, 'markdown.preview')
+					: makeCustomEditor(URI.file('/repo/README.md'), viewType);
+				harness.onDidActiveEditorChange.fire();
+				await timeout(0);
+				const floating = {
+					visible: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+					available: harness.contextKeyService.getContextKeyValue(HasDockedDetailsContext.key),
+					files: harness.openedViewContainers.includes(SESSIONS_FILES_CONTAINER_ID),
+					hidden: harness.setPartHiddenCalls.some(call => call.part === Parts.AUXILIARYBAR_PART && call.hidden),
+				};
+				harness.layoutService.setAuxiliaryBarFloating(false);
+				await timeout(0);
+				const docked = harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.layoutService.setAuxiliaryBarFloating(true);
+				await timeout(0);
+				const restored = harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART);
+				harness.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
+				harness.activeEditorInput = makeFileEditor('/repo/package.json');
+				harness.onDidActiveEditorChange.fire();
+				harness.activeEditorInput = makeWebviewEditor(viewType, viewType === 'mainThreadWebview-markdown.preview' ? 'markdown.preview' : undefined);
+				harness.onDidActiveEditorChange.fire();
+				await timeout(0);
+				assert.deepStrictEqual({
+					floating, docked, restored, explicitlyHidden: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+				}, {
+					floating: { visible: true, available: true, files: true, hidden: false },
+					docked: false, restored: true, explicitlyHidden: false,
+				});
+			});
+		}
+
+		test(`[desktop] floating Markdown support does not expose Files for unrelated or external editors in a ${isCreated ? 'created' : 'draft'} session`, async () => {
+			createDesktopController({ activateAux: true, floatingDetails: true });
+			await timeout(0);
+			const session = makeSession(URI.parse('session:unrelated'), { isCreated, status: isCreated ? SessionStatus.Completed : SessionStatus.Untitled });
+			harness.activeSessionObs.set(session, undefined);
+			harness.visibleSessionsObs.set([session], undefined);
+			await timeout(0);
+			const states: boolean[] = [];
+			for (const editor of [
+				makeCustomEditor(URI.file('/repo/custom.editor'), 'example.custom'),
+				makeCustomEditor(URI.file('/outside/README.md'), 'vscode.markdown.editor'),
+				makeWebviewEditor('example.preview'),
+			]) {
+				harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+				harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+				harness.activeEditorInput = editor;
+				harness.onDidActiveEditorChange.fire();
+				await timeout(0);
+				states.push(harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+			}
+			assert.deepStrictEqual(states, [false, false, false]);
+		});
+	}
+
 	test('[desktop] does not force-reveal the detail on editor activation, during or after a restore', async () => {
 		const controller = createDesktopController({ activateAux: true });
 		await timeout(0);
@@ -1171,7 +1249,7 @@ suite('DesktopLayoutController', () => {
 				harness.onDidChangePartVisibility.fire({ partId: Parts.AUXILIARYBAR_PART, visible: false });
 			}
 
-			(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 			await settle();
 			harness.activeSessionObs.set(existing, undefined);
 			await settle();
@@ -1335,7 +1413,7 @@ suite('DesktopLayoutController', () => {
 
 		harness.setPartHiddenCalls = [];
 		transaction(tx => {
-			(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+			(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			harness.activeSessionObs.set(created, tx);
 		});
 		harness.onDidReplaceSession.fire({ from: draft, to: created });
@@ -1355,7 +1433,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] does not reveal the editor part for a created quick chat on switch', async () => {
+	test('[desktop] does not reveal the editor part for a created editorless quick chat on switch', async () => {
 		createDesktopController({ desktopLayout: true });
 		const untitled = makeSession(URI.parse('session:new'), { status: SessionStatus.Untitled, isCreated: false });
 		const quickChat = makeSession(URI.parse('session:qc'), { isQuickChat: true });
@@ -1363,9 +1441,10 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(untitled, undefined);
 		await timeout(0);
 		harness.partVisibility.set(Parts.EDITOR_PART, false);
+		harness.editorGroupsHaveContent = false;
 		harness.setPartHiddenCalls = [];
 
-		// A quick chat has no side pane, so switching to it must never auto-reveal
+		// An editorless quick chat has no side pane, so switching to it must never auto-reveal
 		// the editor part even though the session is created.
 		harness.activeSessionObs.set(quickChat, undefined);
 		await timeout(0);
@@ -1633,8 +1712,8 @@ suite('DesktopLayoutController', () => {
 			});
 			const existing = makeSession(URI.parse('session:existing'));
 			const isQuickChat = observableValue('isQuickChat', true);
-			const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
-			const session = { ...makeSession(URI.parse('session:quick')), isQuickChat, workspace };
+			const session = { ...makeSession(URI.parse('session:quick'), { isQuickChat: true }), isQuickChat };
+			const workspace = session.workspace as ISettableObservable<ISessionWorkspace | undefined>;
 			transaction(tx => {
 				harness.activeSessionObs.set(session, tx);
 				harness.visibleSessionsObs.set(scenario.multiple ? [existing, session] : [session], tx);
@@ -1694,8 +1773,8 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(existing, undefined);
 		await timeout(0);
 		const isQuickChat = observableValue('isQuickChat', true);
-		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', undefined);
-		const session = { ...makeSession(URI.parse('session:quick')), isQuickChat, workspace };
+		const session = { ...makeSession(URI.parse('session:quick'), { isQuickChat: true }), isQuickChat };
+		const workspace = session.workspace as ISettableObservable<ISessionWorkspace | undefined>;
 		harness.activeSessionObs.set(session, undefined);
 		await timeout(0);
 		harness.activeGroupEditors.length = 0;
@@ -1789,7 +1868,7 @@ suite('DesktopLayoutController', () => {
 		await timeout(0);
 		harness.activeSessionObs.set(quickChat, undefined);
 		await timeout(0);
-		(draft.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		harness.activeSessionObs.set(committed, undefined);
 		await timeout(0);
 
@@ -1847,7 +1926,7 @@ suite('DesktopLayoutController', () => {
 		});
 	});
 
-	test('[desktop] Toggle Details toggles the file list of a multi diff editor instead of the details', () => {
+	test('[desktop] Toggle Details targets the multi diff file list while docked and the widget while floating', () => {
 		createDesktopController();
 		harness.partVisibility.set(Parts.AUXILIARYBAR_PART, false);
 		const configurationService = new TestConfigurationService({ [multiDiffEditorExperimentalFileListSetting]: true });
@@ -1884,6 +1963,14 @@ suite('DesktopLayoutController', () => {
 			textEditorActive: { fileListVisible: false, detailsVisible: true },
 			multiDiffEditorGroupToolbar: { fileListVisible: true, detailsVisible: true },
 		});
+		harness.layoutService.setAuxiliaryBarFloating(true);
+		assert.deepStrictEqual({
+			hideWidget: toggle(multiDiffEditorGroup),
+			showWidget: toggle(multiDiffEditorGroup),
+		}, {
+			hideWidget: { fileListVisible: true, detailsVisible: false },
+			showWidget: { fileListVisible: true, detailsVisible: true },
+		});
 	});
 
 	test('[D7 desktop] contributes Toggle Details after Maximize with the editor title layout actions', () => {
@@ -1899,6 +1986,15 @@ suite('DesktopLayoutController', () => {
 		assert.strictEqual(items.length, 1, 'exactly one Toggle Details item on the editor header');
 		assert.ok(maximizeItem, 'Maximize item should be registered');
 		const when = items[0].when?.serialize() ?? '';
+		const expression = items[0].when;
+		assert.ok(expression);
+		const values: Record<string, ContextKeyValue> = Object.fromEntries(expression.keys().map(key => [key, true]));
+		values[IsAuxiliaryWindowContext.key] = false;
+		const context: IContext = { getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined };
+		const visibleByMode = [false, true].map(floating => {
+			values[`config.${SESSIONS_FLOATING_DETAILS_SETTING}`] = floating;
+			return expression.evaluate(context);
+		});
 		assert.deepStrictEqual({
 			group: items[0].group,
 			icon: ThemeIcon.isThemeIcon(items[0].command.icon) ? items[0].command.icon.id : undefined,
@@ -1908,6 +2004,8 @@ suite('DesktopLayoutController', () => {
 			gatedOnEditorArea: when.includes(MainEditorAreaVisibleContext.key),
 			gatedOnDockedDetails: when.includes(HasDockedDetailsContext.key),
 			gatedOnMultiDiffEditorFileList: when.includes(MultiDiffEditorFileListAvailableContext.key),
+			visibleByMode,
+			commandAvailable: !!CommandsRegistry.getCommand(TOGGLE_DETAILS_COMMAND_ID),
 		}, {
 			group: 'navigation',
 			icon: Codicon.listSelection.id,
@@ -1917,6 +2015,8 @@ suite('DesktopLayoutController', () => {
 			gatedOnEditorArea: true,
 			gatedOnDockedDetails: true,
 			gatedOnMultiDiffEditorFileList: true,
+			visibleByMode: [true, false],
+			commandAvailable: true,
 		});
 	});
 
@@ -2148,6 +2248,76 @@ suite('DesktopLayoutController', () => {
 		});
 	}
 
+	test('[managed tabs] a workspace child of a quick chat keeps the Changes and Files tabs it opens', async () => {
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+		const { session, child } = makeQuickChatWithWorkspaceChild();
+		setActiveChat(session, child);
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+
+		await openManagedTabs();
+		harness.onDidActiveEditorChange.fire();
+		await settle();
+
+		assert.deepStrictEqual({
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			filesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopFilesTabAvailableContext.key),
+			changesTab: hasChangesTab(),
+			filesTab: hasFilesTab(),
+		}, { changesTabAvailable: true, filesTabAvailable: true, changesTab: true, filesTab: true });
+	});
+
+	test('[managed tabs] switching from a workspace child of a quick chat to the quick chat leaves only the chat, and switching back offers its tabs again', async () => {
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+		const { session, parent, child } = makeQuickChatWithWorkspaceChild();
+		setActiveChat(session, child);
+		harness.activeSessionObs.set(session, undefined);
+		await settle();
+		await openManagedTabs();
+		harness.layoutService.setPartHidden(false, Parts.EDITOR_PART);
+		harness.layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
+		await settle();
+		const describe = () => ({
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			changesTab: hasChangesTab(),
+			filesTab: hasFilesTab(),
+			editor: harness.layoutService.isVisible(Parts.EDITOR_PART, mainWindow),
+			details: harness.layoutService.isVisible(Parts.AUXILIARYBAR_PART),
+		});
+
+		setActiveChat(session, parent);
+		await settle();
+		const parentShown = describe();
+		setActiveChat(session, child);
+		await settle();
+		const childShownAgain = describe();
+		await openManagedTabs();
+		const childChangesOpened = { changesTabAvailable: describe().changesTabAvailable, changesTab: hasChangesTab(), filesTab: hasFilesTab() };
+
+		assert.deepStrictEqual({ parentShown, childShownAgain, childChangesOpened }, {
+			parentShown: { changesTabAvailable: false, changesTab: false, filesTab: false, editor: false, details: false },
+			childShownAgain: { changesTabAvailable: true, changesTab: false, filesTab: false, editor: false, details: false },
+			childChangesOpened: { changesTabAvailable: true, changesTab: true, filesTab: true },
+		});
+	});
+
+	test('[managed tabs] a plain quick chat still offers no Changes or Files tabs', async () => {
+		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
+		await settle();
+
+		harness.activeSessionObs.set(makeSession(URI.parse('session:quick'), { isQuickChat: true }), undefined);
+		await settle();
+		await openManagedTabs();
+
+		assert.deepStrictEqual({
+			changesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopChangesTabAvailableContext.key),
+			filesTabAvailable: harness.contextKeyService.getContextKeyValue(DesktopFilesTabAvailableContext.key),
+			changesTab: hasChangesTab(),
+		}, { changesTabAvailable: false, filesTabAvailable: false, changesTab: false });
+	});
+
 	test('[managed tabs / session switch] does not retain the Changes header for a quick chat', async () => {
 		createDesktopController({ activateAux: true, workspaceFolders: [{ uri: URI.file('/repo') }] });
 		await settle();
@@ -2257,7 +2427,7 @@ suite('DesktopLayoutController', () => {
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
 
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		(session.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/plan.md')], undefined);
 		await settle();
 		assert.strictEqual(harness.activeGroupEditors.length, 0);
@@ -2413,7 +2583,7 @@ suite('DesktopLayoutController', () => {
 
 			// Submit from the Files tab: visibility and the active tab stay unchanged.
 			harness.activeEditorInput = harness.activeGroupEditors.find(e => e instanceof EmptyFileEditorInput);
-			(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+			(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 			await settle();
 
 			const changesResource = harness.sessionChangesService.getChangesEditorResource(session.resource);
@@ -2436,7 +2606,7 @@ suite('DesktopLayoutController', () => {
 		const session = makeSession(URI.parse('session:pending-submit'), { status: SessionStatus.Untitled, isCreated: false });
 		harness.activeSessionObs.set(session, undefined);
 		await settle();
-		(session.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(session.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		await settle();
 		const peer = addPeerChat(session, URI.parse('chat:pending-submit-peer'));
 		setActiveChat(session, peer);
@@ -2466,7 +2636,7 @@ suite('DesktopLayoutController', () => {
 		const committedResource = URI.parse('session:committed');
 		const committed = makeSession(committedResource, { isCreated: true });
 		transaction(tx => {
-			(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+			(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 			harness.activeSessionObs.set(committed, tx);
 		});
 		await settle();
@@ -2510,7 +2680,7 @@ suite('DesktopLayoutController', () => {
 				const committed = makeSession(URI.parse('session:committed'), { status: SessionStatus.InProgress });
 				const switchToCommitted = () => {
 					transaction(tx => {
-						(draft.isCreated as ISettableObservable<boolean>).set(true, tx);
+						(draft.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, tx);
 						harness.activeSessionObs.set(committed, tx);
 					});
 					harness.visibleSessionsObs.set([committed], undefined);
@@ -2557,7 +2727,7 @@ suite('DesktopLayoutController', () => {
 
 		// Submit A: this queues a reconcile that opens the Changes tab *active*; it
 		// stalls awaiting the gated open.
-		(sessionA.isCreated as ISettableObservable<boolean>).set(true, undefined);
+		(sessionA.status as ISettableObservable<SessionStatus>).set(SessionStatus.Completed, undefined);
 		(sessionA.mainChat.get().changes as ISettableObservable<readonly ISessionFileChange[]>).set([makeChange('/file.ts')], undefined);
 		await settle();
 		const aActiveCalls = harness.openChangesEditorCalls.filter(c => isEqual(c.sessionResource, sessionA.resource) && c.active);

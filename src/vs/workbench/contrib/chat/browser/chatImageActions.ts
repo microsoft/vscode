@@ -32,7 +32,7 @@ export function createChatImageCopyActions(accessor: ServicesAccessor, widget: H
 	const labelService = accessor.get(ILabelService);
 	const webContentExtractorService = accessor.get(ISharedWebContentExtractorService);
 	return () => {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const image = widget instanceof HTMLImageElement || widget instanceof getWindow(widget).HTMLImageElement ? widget : widget.querySelector('img');
 		const canCopy = !!readData || !!image?.complete && image.naturalWidth > 0;
 

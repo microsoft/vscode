@@ -7,7 +7,7 @@ import * as nls from '../../../nls.js';
 import { IPolicyData } from '../../../base/common/defaultAccount.js';
 import { PolicyCategory } from '../../../base/common/policy.js';
 import { AgentHostConfigurationSyncScope, ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationPropertySchema, IConfigurationRegistry } from '../../configuration/common/configurationRegistry.js';
-import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_FILE_PATH_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
+import { COPILOT_OTEL_CAPTURE_CONTENT_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_OTEL_ENABLED_KEY, COPILOT_OTEL_ENDPOINT_KEY, COPILOT_OTEL_FILE_PATH_KEY, COPILOT_OTEL_HEADERS_KEY, COPILOT_OTEL_LOCK_CAPTURE_CONTENT_KEY, COPILOT_OTEL_PROTOCOL_KEY, COPILOT_OTEL_RESOURCE_ATTRIBUTES_KEY, COPILOT_OTEL_SERVICE_NAME_KEY, COPILOT_ALLOWED_HARNESSES_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, managedSettingValue, thirdPartyAgentEnabledValue } from '../../policy/common/copilotManagedSettings.js';
 import product from '../../product/common/product.js';
 import { Registry } from '../../registry/common/platform.js';
 import {
@@ -17,6 +17,7 @@ import {
 	AgentHostByokModelsEnabledSettingId,
 	CanvasesEnabledSettingId,
 	AgentHostGitHubMcpServerEnabledSettingId,
+	AgentHostBrowserUseEnabledSettingId,
 	AgentHostComputerUseEnabledSettingId,
 	AgentHostMcpToolRoutingEnabledSettingId,
 	AgentHostClaudeAgentEnabledSettingId,
@@ -54,6 +55,7 @@ import {
 	AgentHostAcpEnabledConfigKey,
 	AgentHostCodexEnabledConfigKey,
 	AgentHostGitHubMcpServerEnabledConfigKey,
+	AgentHostBrowserUseEnabledConfigKey,
 	AgentHostComputerUseEnabledConfigKey,
 	AgentHostMcpToolRoutingEnabledConfigKey,
 	AgentHostMarkdownPlanRichLinksEnabledConfigKey,
@@ -69,6 +71,7 @@ import { artifactToolsConfigurationProperties } from './artifactToolsConfigurati
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
+import { ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
 
 // Settings consumed by the agent host starter (`electronAgentHostStarter.ts`
 // and `nodeAgentHostStarter.ts`) to populate the spawned agent host process's
@@ -230,6 +233,7 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			agentHost: { key: ChatProvidersConfigKey.Enabled },
 		},
 		...chatMoveConfigurationProperties,
@@ -238,7 +242,7 @@ configurationRegistry.registerConfiguration({
 		[CanvasesEnabledSettingId]: {
 			type: 'boolean',
 			markdownDescription: nls.localize('chat.canvases.enabled', "Controls whether Agent Host Copilot sessions can open Canvases with interactive content in the Agents Window and the Editor Window. Sessions on remote agent hosts also require `#{0}#`, so canvas pages load through the agent host's network. Newly created sessions pick up changes to this setting.", 'workbench.browser.enableRemoteProxy'),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['preview'],
 			experiment: { mode: 'auto' },
@@ -274,6 +278,15 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMarkdownPlanRichLinksEnabledConfigKey },
 		},
+		[ModelRouterEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.copilot.modelRouter.enabled', "When enabled, Copilot in Agent Host sessions offers each model router in `~/.agents/model-routers/` as a model. A router picks a model for each turn from the routes you write. The built-in `model-router` skill can write and check routers."),
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['preview', 'advanced', 'experimental'],
+			included: false,
+			agentHost: { key: ModelRouterEnabledConfigKey },
+		},
 		[AgentHostOverlapProviderPreparationSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.overlapProviderPreparation', "When enabled, agents prepare their session for a new turn, such as starting the runtime session, while the turn-start checkpoint is captured instead of after it. This can shorten the time to the first response, especially on the first turn of a session."),
@@ -295,9 +308,8 @@ configurationRegistry.registerConfiguration({
 		[AgentHostMcpSkillsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.mcpSkills.enabled', "When enabled, Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
-			default: false,
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			tags: ['experimental'],
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostMcpSkillsEnabledConfigKey },
 		},
@@ -347,6 +359,14 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			agentHost: { key: AgentHostComputerUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
 		},
+		[AgentHostBrowserUseEnabledSettingId]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('chat.agentHost.browserUse.enabled', "When enabled, local Copilot agent sessions offer GitHub's Browser Use plugin, which can operate pages in Google Chrome or Microsoft Edge through the [GitHub Copilot browser extension](https://chromewebstore.google.com/detail/github-copilot/hblomdgalaelcilcdepgohfcogjiijhe). Turn it on with `/plugin enable browser-use` in a Copilot chat, then run `/browser-use:doctor` to check your setup. Requires Node.js 22 or later on your `PATH`. Changes take effect after a restart."),
+			default: false,
+			tags: ['experimental', 'advanced'],
+			experiment: { mode: 'startup' },
+			agentHost: { key: AgentHostBrowserUseEnabledConfigKey, scope: AgentHostConfigurationSyncScope.Local },
+		},
 		[AgentHostMcpToolRoutingEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.experimental.mcpToolRouting', "When enabled and tool search is available, agent-host sessions offer routing tools for configured MCP servers and Connectors, using server names and cached MCP tool metadata to discover relevant servers. Selecting a routing tool can request authentication and waits for the server's current tools. Connector-owned servers do not show proactive sign-in hints when this setting is enabled. Other servers without routing tools retain proactive sign-in hints. Newly created sessions pick up changes to this setting."),
@@ -365,9 +385,10 @@ configurationRegistry.registerConfiguration({
 				name: 'Claude3PIntegration',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.113',
-				value: thirdPartyAgentEnabledValue,
+				value: thirdPartyAgentEnabledValue('claude'),
 				managedSettings: {
 					[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' },
+					[COPILOT_ALLOWED_HARNESSES_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {
@@ -401,9 +422,10 @@ configurationRegistry.registerConfiguration({
 				name: 'Codex3PIntegration',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.126',
-				value: thirdPartyAgentEnabledValue,
+				value: thirdPartyAgentEnabledValue('codex'),
 				managedSettings: {
 					[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' },
+					[COPILOT_ALLOWED_HARNESSES_KEY]: { type: 'string' },
 				},
 				localization: {
 					description: {

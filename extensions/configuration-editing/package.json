@@ -16,8 +16,7 @@
     "onLanguage:jsonc"
   ],
   "enabledApiProposals": [
-    "profileContentHandlers",
-    "github"
+    "profileContentHandlers"
   ],
   "main": "./out/configurationEditingMain",
   "browser": "./dist/browser/configurationEditingMain",

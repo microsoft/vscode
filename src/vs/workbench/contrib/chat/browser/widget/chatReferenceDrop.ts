@@ -5,6 +5,7 @@
 
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { ChatReferenceTransferData } from '../../../../../platform/dnd/browser/dnd.js';
 import { createChatReferenceVariableEntry, IChatRequestChatReferenceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 
@@ -56,11 +57,8 @@ export function isSelfChatReferenceDrop(droppedClientResource: string, ownClient
  * back to its opaque backend chat URI on send, so a cross-host reference could
  * never be resolved.
  *
- * Host identity is derived from the client resource's **scheme and authority
- * only** (e.g. local `agent-host-copilotcli` vs remote
- * `remote-<authority>-copilotcli`); paths and fragments — which identify the
- * session and chat within a host — are never parsed. A cross-host drag is a
- * no-op, so the caller suppresses the drop overlay entirely.
+ * Host identity comes from the resource's registered owning connection, including
+ * catalog resources whose scheme does not identify a host.
  *
  * Fails closed: a resource that cannot be parsed is reported as cross-host, so a
  * malformed payload is never droppable.
@@ -68,13 +66,15 @@ export function isSelfChatReferenceDrop(droppedClientResource: string, ownClient
  * @param droppedClientResource The dragged chat's client resource (`IChat.resource`).
  * @param ownClientResource The drop-target chat's client resource (its session resource).
  */
-export function isCrossAgentHostChatReferenceDrop(droppedClientResource: string, ownClientResource: string): boolean {
+export function isCrossAgentHostChatReferenceDrop(droppedClientResource: string, ownClientResource: string, connectionsService: IAgentHostConnectionsService): boolean {
 	const dropped = tryParseUri(droppedClientResource);
 	const own = tryParseUri(ownClientResource);
 	if (!dropped || !own) {
 		return true;
 	}
-	return dropped.scheme !== own.scheme || dropped.authority !== own.authority;
+	const droppedHost = connectionsService.resolveSessionResourceIdentity(dropped);
+	const ownHost = connectionsService.resolveSessionResourceIdentity(own);
+	return !droppedHost || !ownHost || droppedHost.connectionAuthority !== ownHost.connectionAuthority;
 }
 
 /**
@@ -94,12 +94,12 @@ export function isCrossAgentHostChatReferenceDrop(droppedClientResource: string,
  * @param data The dragged chat-reference payload (opaque `chatResource`, client `clientResource`, and `title`).
  * @param ownClientResource The drop-target chat's client resource, or `undefined` when the target is not an agent-host chat.
  */
-export function resolveChatReferenceDropEntry(data: ChatReferenceTransferData, ownClientResource: string | undefined): IChatRequestChatReferenceVariableEntry | undefined {
+export function resolveChatReferenceDropEntry(data: ChatReferenceTransferData, ownClientResource: string | undefined, connectionsService: IAgentHostConnectionsService): IChatRequestChatReferenceVariableEntry | undefined {
 	if (ownClientResource === undefined) {
 		return undefined;
 	}
 	if (isSelfChatReferenceDrop(data.clientResource, ownClientResource)
-		|| isCrossAgentHostChatReferenceDrop(data.clientResource, ownClientResource)) {
+		|| isCrossAgentHostChatReferenceDrop(data.clientResource, ownClientResource, connectionsService)) {
 		return undefined;
 	}
 	const chatResource = tryParseUri(data.chatResource);

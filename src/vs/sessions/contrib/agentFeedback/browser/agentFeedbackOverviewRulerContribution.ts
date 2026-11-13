@@ -13,7 +13,8 @@ import { themeColorFromId } from '../../../../platform/theme/common/themeService
 import { registerColor } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { isEqual } from '../../../../base/common/resources.js';
 
 const overviewRulerAgentFeedbackForeground = registerColor(

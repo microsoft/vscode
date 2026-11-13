@@ -136,6 +136,45 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('session-free marketplace additions notify source consumers without resolving a session or chat', async () => {
+		const calls: unknown[] = [];
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async addPluginMarketplace(provider: string, session: URI | undefined, source: string, chat?: URI) {
+					calls.push([provider, session, source, chat]);
+					if (source === 'invalid') {
+						throw new Error('SDK rejected source');
+					}
+					return { name: 'catalog', source, isDefault: false, managed: false, available: true };
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+		));
+		const changes: string[] = [];
+		store.add(provider.onDidChangeMarketplaces(() => changes.push('marketplaces')));
+		store.add(provider.onDidChange(() => changes.push('customizations')));
+
+		await provider.add(undefined, 'owner/repo#feature/beta');
+		await assert.rejects(provider.add(undefined, 'invalid'), /SDK rejected source/);
+		assert.deepStrictEqual({ calls, changes }, {
+			calls: [
+				['copilotcli', undefined, 'owner/repo#feature/beta', undefined],
+				['copilotcli', undefined, 'invalid', undefined],
+			],
+			changes: ['marketplaces', 'customizations'],
+		});
+	});
+
 	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
 		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];
 		const provider = store.add(createTestProvider(
@@ -427,6 +466,50 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				},
 			}],
 		});
+	});
+
+	test('matches marketplace plugin separators consistently', async () => {
+		const frontendSession = URI.parse('agent-host-copilotcli:/frontend-session');
+		const backendSession = URI.parse('agent-host-copilotcli:/backend-session');
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async browsePluginMarketplace() {
+					return [
+						{ name: 'handy-commands', description: 'Useful commands' },
+						{ name: 'other-plugin', description: 'Something else' },
+					];
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() {
+				override resolveSessionResourceIdentity() {
+					return { connectionAuthority: AMBIENT_AGENT_HOST_AUTHORITY, backendSession };
+				}
+			}(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+		));
+		const marketplace = {
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: false,
+			available: true,
+		};
+		const queries = ['handy-commands', 'handy commands', 'handy_commands', 'handy.commands', 'handy/commands'];
+		const results = await Promise.all(queries.map(async query => {
+			const page = await provider.queryMarketplace(frontendSession, marketplace, { query }, CancellationToken.None);
+			return page.items.map(item => item.displayName);
+		}));
+
+		assert.deepStrictEqual(results, queries.map(() => ['handy-commands']));
 	});
 
 	test('projects SDK catalog searches and featured plugin browse results', async () => {
@@ -788,12 +871,12 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		const applied: string[] = [];
 		const confirmations: { message: string; detail?: string; primaryButton?: string }[] = [];
 		const activations: boolean[] = [];
+		const directSourceId = '5d5cce3c6590ade92bceb09d245a45035e2141d4c2e0882eac887c596b35fb5f';
 		const installedPlugin = new class extends mock<IAgentPlugin>() {
 			override readonly uri = URI.file('/plugins/demo');
 			override readonly label = 'demo-plugin';
 			override readonly copilotCliInstallation = {
-				name: 'demo-plugin', marketplace: '', directSourceId: 'demo-plugin-source',
-				source: { kind: 'github' as const, repository: 'github/demo-plugin', sha: '0123456789abcdef', path: 'plugins/demo' },
+				name: 'demo-plugin', marketplace: '', directSourceId,
 			};
 			override async setEnabled(enabled: boolean) { activations.push(enabled); }
 		}();
@@ -875,7 +958,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		}, {
 			name: 'demo-plugin',
 			marketplace: '',
-			directSourceId: 'demo-plugin-source',
+			directSourceId,
 			verifiedSource: { repository: 'github/demo-plugin', revision: '0123456789abcdef' },
 		}];
 		const uniquePlugins = plugins;
@@ -911,7 +994,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}],
 			applied: ['plugin-operation'],
 			activations: [true],
-			enablement: ContributionEnablementState.EnabledProfile,
+			enablement: ContributionEnablementState.DisabledProfile,
 			confirmations: [{
 				message: 'Install and enable \'Demo Plugin\'?',
 				primaryButton: 'Install and Enable',
@@ -923,7 +1006,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 				installation: undefined,
 				target: { kind: 'plugin', name: 'unrelated-plugin' },
 			}, {
-				installationId: '["plugin","direct","demo-plugin-source"]',
+				installationId: JSON.stringify(['plugin', 'direct', directSourceId]),
 				identifier: 'demo-plugin',
 				installation: { kind: 'providerCatalog', resourceKind: 'plugin', selectionId: 'plugin-selection', catalogIdentity: 'github/demo-plugin' },
 				target: { kind: 'plugin', name: 'demo-plugin', uri: installedPlugin.uri },
@@ -1030,7 +1113,7 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 			}, {
 				calls: scenario === 'cancelled' ? [] : succeeds || scenario === 'reload failed' ? ['install', 'enable:true', 'reload'] : scenario === 'enable refused' ? ['install', 'enable:true'] : ['install'],
 				changes: applied ? 2 : scenario === 'install refused' ? 1 : 0,
-				state: succeeds ? ContributionEnablementState.EnabledProfile : ContributionEnablementState.DisabledProfile,
+				state: ContributionEnablementState.DisabledProfile,
 			});
 		}));
 	}

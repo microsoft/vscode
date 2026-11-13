@@ -32,10 +32,11 @@ import { ChatWindowLayoutMode, ChatWindowSplitLayout, ChatWindowTerminalPosition
 import { terminalEditorId } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { MoveTerminalEditorToPanelWhen } from '../../../../../workbench/contrib/terminal/browser/terminalMenus.js';
 import { DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../../../../workbench/contrib/terminal/common/terminal.js';
-import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { TOGGLE_SIDE_PANEL_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { IContentPart, IEditorGroup, IEditorPart } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ADD_CHAT_WINDOW_TERMINAL_COMMAND_ID, ChatWindowTerminalPositionMenu, TOGGLE_CHAT_WINDOW_TERMINAL_COMMAND_ID } from '../../browser/chatWindowTerminalActions.js';
 import { IChatWindowTerminalsService } from '../../browser/chatWindowTerminals.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('Chat window terminal actions', () => {
 
@@ -108,6 +109,7 @@ suite('Chat window terminal actions', () => {
 		const iframe = mainWindow.document.createElement('iframe');
 		mainWindow.document.body.appendChild(iframe);
 		disposables.add({ dispose: () => iframe.remove() });
+		disposables.add(registerTestIframe(iframe));
 		const body = iframe.contentDocument!.body;
 		const focused = append(append(body, $('div.container')), $('div.focused'));
 		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));

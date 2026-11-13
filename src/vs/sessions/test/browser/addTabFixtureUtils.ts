@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey
 import { IContextViewDelegate, IContextViewService, IOpenContextView } from '../../../platform/contextview/browser/contextView.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
-import { SessionActivityBarGroup } from '../../browser/menus.js';
+import { SessionActivityBarGroup } from '../../../workbench/contrib/sessions/browser/menus.js';
 
 // Shared fixture data and services for the Add Tab surfaces (empty editor group list, session activity bar).
 

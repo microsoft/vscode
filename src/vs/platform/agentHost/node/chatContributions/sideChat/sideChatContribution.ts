@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { createChatMementoKey, type IAgentHostChatContribution, type IAgentHostChatContributionContext, type IHydrationContext, type IOutgoingTurn, type ISendContribution, type ITurnEnd } from '../../../common/agentHostChatContributionsService.js';
 import { resolveLastNonLocalTurnId } from '../../../common/agentHostConversationContext.js';
 import { ChatOriginKind } from '../../../common/state/protocol/state.js';
+import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { TurnState, type Turn } from '../../../common/state/sessionState.js';
 import { IAgentHostStateManager, AgentHostStateManager } from '../../agentHostStateManager.js';
 import { IAgentHostLocalTurns } from '../../agentHostLocalTurns.js';
-import { buildBoundedSideChatSourceContext, getSideChatPartialResponse, injectSideChatContext, resolveSideChatBoundary, sliceSideChatTurns } from './sideChatContext.js';
+import { buildBoundedSideChatSourceContext, getSideChatPartialResponse, injectSideChatContext, readSideChatSourceContext, resolveSideChatBoundary, sliceSideChatTurns } from './sideChatContext.js';
 
 const sideChatSeededMemento = createChatMementoKey<boolean>('seeded', () => false);
 
@@ -27,16 +29,17 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 		protected readonly _context: IAgentHostChatContributionContext,
 		@IAgentHostStateManager private readonly _stateManager: AgentHostStateManager,
 		@IAgentHostLocalTurns private readonly _localTurns: IAgentHostLocalTurns,
+		@ISessionDataService private readonly _sessionDataService: ISessionDataService,
 	) {
 		super();
 	}
 
-	onOutgoingTurn(turn: IOutgoingTurn): ISendContribution | undefined {
+	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
 		const origin = this._stateManager.getChatOrigin(turn.chat);
 		if (origin?.kind !== ChatOriginKind.SideChat || this._context.memento(sideChatSeededMemento, turn.chat).get()) {
 			return undefined;
 		}
-
+		// Snapshot the source before metadata I/O can let its active turn complete.
 		const sourceState = this._stateManager.getChatState(origin.chat);
 		const activeTurn = sourceState?.activeTurn?.id === origin.turnId ? sourceState.activeTurn : undefined;
 		const sourceIsToolChat = this._stateManager.getChatOrigin(origin.chat)?.kind === ChatOriginKind.Tool;
@@ -47,8 +50,9 @@ export class SideChatContribution extends Disposable implements IAgentHostChatCo
 			? buildBoundedSideChatSourceContext(sourceState?.turns ?? [], origin.turnId, activeTurn, forkAnchorTurnId)
 			: undefined;
 		const partialResponse = getSideChatPartialResponse(activeTurn);
+		const includeSourceContext = await readSideChatSourceContext(this._sessionDataService, URI.parse(this._stateManager.resolveChatStorageResource(turn.session, turn.chat)));
 		return {
-			text: injectSideChatContext(turn.message.text, partialResponse, sourceContext, origin.selection?.text),
+			text: injectSideChatContext(turn.message.text, includeSourceContext ? partialResponse : undefined, includeSourceContext ? sourceContext : undefined, origin.selection?.text),
 		};
 	}
 

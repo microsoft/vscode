@@ -68,8 +68,7 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 
 	// #region MCP
 
-	// The workbench filters forwarded collections, but independent runtime discovery does not
-	// consult VS Code MCP access. #328241
+	// Workbench filtering covers MCP collections and MCP-policy-disabled extension tools, not independent runtime discovery. #328241
 	ChatMCP: { status: 'partial' },
 	// Workbench server starts apply these restrictions, but VS Code-only values are not reverse-
 	// forwarded to runtime discovery. Runtime-native managed-setting enforcement, including
@@ -101,10 +100,9 @@ export const agentHostPolicySupport: Readonly<Record<string, IAgentHostPolicySup
 	// not reach runtime-owned marketplace operations, whose enforcement needs separate verification.
 	// Extra marketplaces are additive.
 	ChatExtraMarketplaces: { status: 'partial' },
-	// The workbench filters synchronized customizations only for the boolean form, and the VS Code-only
-	// value does not govern independent runtime discovery. Forwarded user and workspace skills and agents,
-	// and all forwarded MCP servers, bypass plugin delivery so runtime-native lockdown can apply to them;
-	// that runtime enforcement, and lockdown of standalone instructions, still need execution verification.
+	// The workbench filters synchronized customizations only for the boolean form. Runtime managed settings
+	// govern independent discovery, including executable Copilot extensions, but VS Code-only policy values
+	// do not reach those paths and standalone instructions still lack equivalent runtime coverage.
 	ChatStrictPluginOnlyCustomization: { status: 'partial' },
 	// Documented as Local-only; Agent Host enables runtime file hooks regardless.
 	ChatHooks: { status: 'notEnforced' },

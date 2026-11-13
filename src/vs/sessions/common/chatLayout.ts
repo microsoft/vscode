@@ -8,7 +8,7 @@ import { autorun, IObservable, ISettableObservable, observableValue } from '../.
 import { isEqual } from '../../base/common/resources.js';
 import { URI } from '../../base/common/uri.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
-import { IChat, ISession } from '../services/sessions/common/session.js';
+import { IChat, ISession } from '../../workbench/services/sessions/common/session.js';
 
 export const SESSIONS_LAYOUT_SCOPE_SETTING = 'sessions.experimental.layoutScope';
 export type ChatLayoutMode = 'session-shared' | 'chat-shared' | 'chat';

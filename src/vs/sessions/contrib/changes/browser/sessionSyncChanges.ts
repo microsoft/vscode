@@ -20,18 +20,17 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { getNewSessionRepositoryConfigGroup, Menus } from '../../../browser/menus.js';
-import { SessionActiveChatResourceContext, SessionIdContext } from '../../../common/contextkeys.js';
-import { getWindowHost, ISessionHost, SessionHostKind } from '../../../services/sessions/browser/sessionHost.js';
+import { getNewSessionRepositoryConfigGroup, Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { SessionActiveChatResourceContext, SessionIdContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { getWindowHost, ISessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { ISessionsPartService } from '../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionInputPickerVisibility } from '../../../services/sessions/common/sessionPickerVisibility.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { getSessionWorkspaceKind, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionWorkspaceKind, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionInputPickerVisibility } from '../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../common/sessionCommands.js';
+import { FOCUS_SESSION_SYNC_ACTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
 
 function getSyncChangesOperation(chat: IChat | undefined, reader?: IReader): { changeset: ISessionChangeset; operation: ISessionChangesetOperation } | undefined {
 	const changeset = chat?.changesets.read(reader)?.find(candidate =>
@@ -87,11 +86,11 @@ class SessionSyncChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, context?: { session: IActiveSession | undefined }): Promise<void> {
-		// A pane's toolbar passes its session; otherwise, the focused host's.
+	override async run(accessor: ServicesAccessor, context?: { session: ISession | undefined; chat?: IChat }): Promise<void> {
+		// A composer's toolbar passes its session and the chat it shows; otherwise, the focused host's.
 		const target = context ? undefined : resolveSessionCommandTarget(accessor, []);
 		const session = context ? context.session : target?.session;
-		const chat = context ? context.session?.activeChat.get() : target?.chat;
+		const chat = context ? context.chat : target?.chat;
 
 		const sync = getSyncChangesOperation(chat);
 		if (!sync || !isFolderSession(session, chat) || !isSyncChangesEnabled(sync.operation)) {
@@ -179,9 +178,7 @@ export class SessionSyncChangesActionViewItem extends ActionViewItem {
 			// Back to the surface of the host it is in: a pane of the grid, else its own chat's input, such as a chat
 			// editor's, never the grid's pane of the same session in another window.
 			if (this.sessionHost.kind === SessionHostKind.Pane && getWindowHost(this.sessionHost).kind === SessionHostKind.MainWindow) {
-				if (session) {
-					this.sessionsPartService.focusSessionView(session);
-				}
+				this.sessionsPartService.focusViewOfHost(this.sessionHost);
 			} else if (chat) {
 				this.chatWidgetService.getWidgetBySessionResource(chat.resource)?.focusInput();
 			}
@@ -207,12 +204,13 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 		));
 
 		this._register(autorun(reader => {
-			for (const session of sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (!session) {
 					continue;
 				}
 				const syncEnabled = derived(reader => {
-					const chat = session.activeChat.read(reader);
+					const chat = pane.chat.read(reader);
 					const sync = getSyncChangesOperation(chat, reader);
 					return sync && shouldShowSyncChanges(session, chat, reader) ? isSyncChangesEnabled(sync.operation) : undefined;
 				});
@@ -229,7 +227,7 @@ export class SessionSyncChangesContribution extends Disposable implements IWorkb
 							group: getNewSessionRepositoryConfigGroup(Number.MAX_SAFE_INTEGER, SessionSyncChangesAction.ID),
 							order: Number.MAX_SAFE_INTEGER,
 							when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, SessionIdContext.isEqualTo(session.sessionId),
-								SessionActiveChatResourceContext.isEqualTo(session.activeChat.read(reader).resource.toString())),
+								SessionActiveChatResourceContext.isEqualTo(pane.chat.read(reader)?.resource.toString() ?? '')),
 						}));
 					}
 				}));

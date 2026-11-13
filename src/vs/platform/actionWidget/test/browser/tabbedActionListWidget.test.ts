@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import * as sinon from 'sinon';
+import { addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { ContextView, ContextViewDOMPosition } from '../../../../base/browser/ui/contextview/contextview.js';
 import { Radio } from '../../../../base/browser/ui/radio/radio.js';
@@ -712,6 +713,119 @@ suite('TabbedActionListWidget', () => {
 		});
 		const rows = contextView.getContextViewElement().querySelectorAll('.monaco-list-row .title');
 		assert.deepStrictEqual(Array.from(rows, row => row.textContent), ['first', 'second']);
+	});
+
+	test('Enter activates the focused tab-bar action before document keybindings', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let activations = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [{ id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', run: () => { activations++; } }],
+			createActionList: () => ({ items: [action('model')] }),
+			delegate: { onSelect: () => assert.fail('The button must not select a model'), onHide: () => { } },
+		});
+		const button = contextView.getContextViewElement().querySelector<HTMLButtonElement>('.tabbed-action-list-tabbar-action')!;
+		button.focus();
+		const enter = new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		const documentListener = sinon.spy();
+		disposables.add(addDisposableListener(getWindow(button).document, 'keydown', documentListener));
+		button.dispatchEvent(enter);
+		assert.deepStrictEqual({ activations, prevented: enter.defaultPrevented, bubbled: documentListener.called, visible: widget.isVisible }, {
+			activations: 1, prevented: true, bubbled: false, visible: true,
+		});
+	});
+
+	test('Space accepts the focused row without handling spaces in the search input', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const selected: string[] = [];
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({ items: [action('first'), action('second')], listOptions: { showFilter: true } }),
+			delegate: { onSelect: item => { selected.push(item.id); }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const list = popup.querySelector<HTMLElement>('.monaco-list')!;
+		list.focus();
+		const space = new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true });
+		list.dispatchEvent(space);
+		const input = popup.querySelector<HTMLInputElement>('input')!;
+		input.focus();
+		const inputSpace = new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true });
+		input.dispatchEvent(inputSpace);
+		assert.deepStrictEqual({ selected, prevented: space.defaultPrevented, inputPrevented: inputSpace.defaultPrevented, visible: widget.isVisible }, {
+			selected: ['first'], prevented: true, inputPrevented: false, visible: true,
+		});
+	});
+
+	test('rebuilding preserves toggle focus without preventing Search from focusing its input', () => {
+		const { widget, contextView } = createWidget(disposables);
+		let comparison = false;
+		let search = false;
+		const show = () => widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			tabBarActions: [
+				{ id: 'comparison', icon: Codicon.compare, tooltip: 'Compare Models', checked: comparison, preserveFocus: true, run: () => { comparison = !comparison; show(); } },
+				{ id: 'search', icon: Codicon.search, tooltip: 'Search Models', run: () => { search = true; show(); } },
+			],
+			createActionList: () => ({ items: [action('model')], listOptions: { showFilter: search, focusFilterOnOpen: search } }),
+			delegate: { onSelect: () => assert.fail('The toolbar must not select a model'), onHide: () => { } },
+		});
+		show();
+		const button = (id: string) => contextView.getContextViewElement().querySelector<HTMLButtonElement>(`[data-id="${id}"]`)!;
+		const enter = () => new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+		button('comparison').focus();
+		const states = [];
+		for (let i = 0; i < 2; i++) {
+			button('comparison').dispatchEvent(enter());
+			states.push({ comparison, focused: getWindow(button('comparison')).document.activeElement === button('comparison') });
+		}
+		button('search').focus();
+		button('search').dispatchEvent(enter());
+		const popup = contextView.getContextViewElement();
+		assert.deepStrictEqual({ states, searchFocused: getWindow(popup).document.activeElement === popup.querySelector('input') }, {
+			states: [{ comparison: true, focused: true }, { comparison: false, focused: true }],
+			searchFocused: true,
+		});
+	});
+
+	test('Space dismisses the header hint without accepting the focused row', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const selected: string[] = [];
+		let dismissals = 0;
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor: document.body,
+			tabs: [{ id: 'Models' }],
+			initialTab: 'Models',
+			createActionList: () => ({
+				items: [action('model')],
+				listOptions: {
+					headerText: 'Changing models resets the prompt cache.',
+					headerDismiss: () => { dismissals++; },
+				},
+			}),
+			delegate: { onSelect: item => { selected.push(item.id); }, onHide: () => { } },
+		});
+		const popup = contextView.getContextViewElement();
+		const dismiss = popup.querySelector<HTMLElement>('.action-list-header-dismiss')!;
+		dismiss.focus();
+		dismiss.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true, cancelable: true }));
+		assert.deepStrictEqual({
+			dismissals, selected, visible: widget.isVisible,
+			headerVisible: !!popup.querySelector('.action-list-header'),
+			listFocused: getWindow(popup).document.activeElement === popup.querySelector('.monaco-list'),
+		}, {
+			dismissals: 1, selected: [], visible: true, headerVisible: false, listFocused: true,
+		});
 	});
 
 	test('Enter on a row switch is left to the switch instead of selecting the row', () => {
@@ -1702,6 +1816,151 @@ suite('TabbedActionListWidget', () => {
 			before: [{ text: 'Local models', ...codiconTab }, { text: '', ...imageTab, opacity: '0.7' }],
 			after: [{ text: '', ...codiconTab }, { text: 'Provider models', ...imageTab, opacity: '1' }],
 		});
+		widget.hide();
+	});
+
+	test('tabs the bar has no room for move into a menu, and the active tab stays on the bar', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		const tabChanges: string[] = [];
+		disposables.add(widget.onDidChangeTab(tab => tabChanges.push(tab)));
+		const tabs = Array.from({ length: 12 }, (_, index) => ({ id: `provider${index}`, label: `Provider ${index}`, icon: Codicon.sparkle }));
+
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs,
+			initialTab: 'provider0',
+			tabLabels: 'active',
+			overflowLabel: 'More Providers',
+			width: 240,
+			tabBarActions: [{ id: 'search', icon: Codicon.search, tooltip: 'Search', alignEnd: true, run: () => { } }],
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const key = (key: string, keyCode: number) => document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true, cancelable: true }));
+		const describe = () => {
+			const popup = contextView.getContextViewElement();
+			const tabBar = popup.querySelector<HTMLElement>('.tabbed-action-list-tabbar')!;
+			const overflow = popup.querySelector<HTMLElement>('[data-id="overflow"]')!;
+			const visible = [...popup.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')]
+				.filter(tab => tab.style.display !== 'none')
+				.map(tab => tab.ariaLabel);
+			const fits = tabBar.scrollWidth <= tabBar.clientWidth;
+			// The widget's own styling keeps the button on the tab row rather than wrapping it below.
+			const radioRect = popup.querySelector<HTMLElement>('.monaco-custom-radio')!.getBoundingClientRect();
+			const overflowRect = overflow.getBoundingClientRect();
+			const overflowBesideTabs = overflowRect.left >= radioRect.right - 1 && overflowRect.top < radioRect.bottom;
+			// Opened from the keyboard, so the first hidden tab takes focus.
+			overflow.click();
+			const menu = [...popup.querySelectorAll<HTMLElement>('.tabbed-action-list-overflow-menu .action-label')].map(label => label.textContent);
+			const focusInMenu = !!document.activeElement?.closest('.tabbed-action-list-overflow-menu');
+			key('Escape', 27);
+			return { visible, menu, fits, overflowBesideTabs, focusInMenu, focusAfterEscape: document.activeElement === overflow, menuClosed: !popup.querySelector('.tabbed-action-list-overflow-menu') };
+		};
+		const { visible: barBefore, menu: menuBefore, ...stateBefore } = describe();
+
+		// Picks the last hidden tab, which takes the last place on the bar.
+		contextView.getContextViewElement().querySelector<HTMLElement>('[data-id="overflow"]')!.click();
+		key('End', 35);
+		key('Enter', 13);
+		const { visible: barAfter, menu: menuAfter, ...stateAfter } = describe();
+
+		const labels = tabs.map(tab => tab.label);
+		const keyboard = { fits: true, overflowBesideTabs: true, focusInMenu: true, focusAfterEscape: true, menuClosed: true };
+		assert.deepStrictEqual({
+			stateBefore,
+			stateAfter,
+			tabChanges,
+			// The bar keeps the leading tabs and the menu lists the rest, in order.
+			orderBefore: [...barBefore, ...menuBefore],
+			hidesSome: menuBefore.length > 0,
+			// The tabs the picked one displaced from the bar join the menu.
+			orderAfter: [...barAfter.slice(0, -1), ...menuAfter, ...barAfter.slice(-1)],
+			lastOnBar: barAfter.at(-1),
+		}, {
+			stateBefore: keyboard,
+			stateAfter: keyboard,
+			tabChanges: ['provider11'],
+			orderBefore: labels,
+			hidesSome: true,
+			orderAfter: labels,
+			lastOnBar: 'Provider 11',
+		});
+		widget.hide();
+	});
+
+	test('switching to a tab on the bar never brings another tab onto it', () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		// The first tab's label is long enough that collapsing it to its icon leaves room for more tabs.
+		const tabs = Array.from({ length: 12 }, (_, index) => ({ id: `provider${index}`, label: index === 0 ? 'Provider Zero' : `P${index}`, icon: Codicon.sparkle }));
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs,
+			initialTab: 'provider0',
+			tabLabels: 'active',
+			overflowLabel: 'More Providers',
+			width: 240,
+			tabBarActions: [{ id: 'search', icon: Codicon.search, tooltip: 'Search', alignEnd: true, run: () => { } }],
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+
+		const visible = () => [...contextView.getContextViewElement().querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')]
+			.filter(tab => tab.style.display !== 'none');
+		const before = visible().map(tab => tab.ariaLabel);
+		const last = visible().at(-1)!;
+		last.click();
+
+		assert.deepStrictEqual({ switched: last.ariaLabel !== 'Provider Zero', bar: visible().map(tab => tab.ariaLabel) }, { switched: true, bar: before });
+		widget.hide();
+	});
+
+	test('resizing the popup refits its tabs to the bar', async () => {
+		const { widget, contextView } = createWidget(disposables);
+		const anchor = document.createElement('div');
+		document.body.appendChild(anchor);
+		disposables.add({ dispose: () => anchor.remove() });
+		widget.show<ITestItem>({
+			user: 'test',
+			anchor,
+			tabs: Array.from({ length: 12 }, (_, index) => ({ id: `provider${index}`, label: `Provider ${index}`, icon: Codicon.sparkle })),
+			initialTab: 'provider0',
+			tabLabels: 'active',
+			overflowLabel: 'More Providers',
+			width: 240,
+			createActionList: () => ({ items: [action('a')] }),
+			delegate: { onSelect: () => { }, onHide: () => { } },
+		});
+		await settleLayout();
+
+		const popup = contextView.getContextViewElement().querySelector<HTMLElement>('.action-widget')!;
+		const tabBar = popup.querySelector<HTMLElement>('.tabbed-action-list-tabbar')!;
+		const describe = () => ({
+			bar: [...popup.querySelectorAll<HTMLElement>('.monaco-custom-radio > .monaco-button')].filter(tab => tab.style.display !== 'none').map(tab => tab.ariaLabel),
+			fits: tabBar.scrollWidth <= tabBar.clientWidth,
+		});
+		const initial = describe();
+		// The refit runs on the frame after the resize is observed.
+		const settleRefit = async () => {
+			await settleLayout();
+			await settleLayout();
+		};
+		// Narrowed by the window, as its maximum width does, rather than by the popup laying itself out.
+		popup.style.maxWidth = '140px';
+		await settleRefit();
+		const narrowed = describe();
+		popup.style.removeProperty('max-width');
+		await settleRefit();
+
+		assert.deepStrictEqual({ narrowedFits: narrowed.fits, narrowedHidesMore: narrowed.bar.length < initial.bar.length, widened: describe() }, { narrowedFits: true, narrowedHidesMore: true, widened: initial });
 		widget.hide();
 	});
 

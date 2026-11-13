@@ -11,13 +11,12 @@ import { IClipboardService } from '../../../../platform/clipboard/common/clipboa
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { Menus, SessionActivityBarGroup } from '../../../browser/menus.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../common/contextkeys.js';
-import { resolveSessionCommandTarget } from '../../../services/sessions/browser/sessionCommandTarget.js';
-import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../services/sessions/common/sessionsManagement.js';
-import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../common/types.js';
+import { Menus, SessionActivityBarGroup } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { sessionActivityBarChatActionContext, SessionHasPullRequestContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { resolveSessionCommandTarget } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { getGitHubPullRequestRefs, IGitHubPullRequestRef, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { OPEN_PULL_REQUEST_ACTION_ID, OPEN_PULL_REQUEST_CHANGES_ACTION_ID } from '../../../../workbench/contrib/sessions/common/github/types.js';
 import { createPullRequestChangesEditorInput } from './pullRequestChangesMultiDiffSourceResolver.js';
 
 class PullRequestActionContext {
@@ -60,7 +59,7 @@ class OpenPullRequestAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const openerService = accessor.get(IOpenerService);
 		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session];
 		for (const target of targets) {
@@ -90,9 +89,9 @@ class OpenPullRequestChangesAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | PullRequestActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: ISession | PullRequestActionContext): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const layoutService = accessor.get(ISessionsHostLayoutService);
 
 		const target = sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session;
 		const pullRequest = isPullRequestActionContext(target) ? target.pullRequest : getSessionPullRequest(target);
@@ -123,7 +122,7 @@ class CopyPullRequestUrlAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, sessionOrContext?: IActiveSession | ISession | ISession[] | PullRequestActionContext): Promise<void> {
+	override async run(accessor: ServicesAccessor, sessionOrContext?: ISession | ISession[] | PullRequestActionContext): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const targets = Array.isArray(sessionOrContext) ? sessionOrContext : [sessionOrContext ?? resolveSessionCommandTarget(accessor, [])?.session];
 		const pullRequestUrls = targets.flatMap(target => {

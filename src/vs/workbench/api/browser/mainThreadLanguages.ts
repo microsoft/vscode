@@ -6,7 +6,7 @@
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ILanguageService } from '../../../editor/common/languages/language.js';
 import { IModelService } from '../../../editor/common/services/model.js';
-import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguagesShape, ISyntaxHighlightingResultDto, ISyntaxHighlightingTokenDto } from '../common/extHost.protocol.js';
+import { MainThreadLanguagesShape, MainContext, ExtHostContext, ExtHostLanguagesShape, ILanguageStatusDto, ISyntaxHighlightingResultDto, ISyntaxHighlightingTokenDto } from '../common/extHost.protocol.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { IPosition } from '../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../editor/common/core/range.js';
@@ -14,7 +14,8 @@ import { StandardTokenType, TokenMetadata, FontStyle } from '../../../editor/com
 import { TokenizationRegistry } from '../../../editor/common/languages.js';
 import { Color } from '../../../base/common/color.js';
 import { ITextModelService } from '../../../editor/common/services/resolverService.js';
-import { ILanguageStatus, ILanguageStatusService } from '../../services/languageStatus/common/languageStatusService.js';
+import { ILanguageStatusService } from '../../services/languageStatus/common/languageStatusService.js';
+import { parseLinkedText } from '../../../base/common/linkedText.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { ITextMateTokenizationService } from '../../services/textMate/browser/textMateTokenizationFeature.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
@@ -120,8 +121,9 @@ export class MainThreadLanguages extends Disposable implements MainThreadLanguag
 
 	// --- language status
 
-	$setLanguageStatus(handle: number, status: ILanguageStatus): void {
-		this._status.set(handle, this._languageStatusService.addStatus(status));
+	$setLanguageStatus(handle: number, status: ILanguageStatusDto): void {
+		// Preserve legacy extension links at the API boundary, not in core status strings.
+		this._status.set(handle, this._languageStatusService.addStatus({ ...status, detail: parseLinkedText(status.detail) }));
 	}
 
 	$removeLanguageStatus(handle: number): void {

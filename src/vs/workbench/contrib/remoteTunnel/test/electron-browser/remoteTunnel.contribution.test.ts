@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITunnelApplicationConfig } from '../../../../../base/common/product.js';
@@ -28,6 +29,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
 import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -137,7 +139,7 @@ class TestDialogService extends mock<IDialogService>() {
 }
 class TestCommandService extends mock<ICommandService>() { }
 class TestWorkspaceContextService extends mock<IWorkspaceContextService>() {
-	override getWorkspace() { return { id: 'test', folders: [] }; }
+	override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 }
 class TestNotificationService extends mock<INotificationService>() { }
 
@@ -228,6 +230,26 @@ suite('RemoteTunnelWorkbenchContribution', () => {
 			});
 		});
 	}
+
+	test('turn off waits for the tunnel to stop', async () => {
+		const stopped = new DeferredPromise<void>();
+		const remoteTunnelService = new class extends TestRemoteTunnelService {
+			override stopTunnel(): Promise<void> {
+				return stopped.p;
+			}
+		};
+		createContribution(store, new TestAuthenticationService([githubSession]), new TestQuickInputService(), remoteTunnelService);
+		const instantiation = store.add(new TestInstantiationService());
+		let resolved = false;
+		const turnOff = Promise.resolve(instantiation.invokeFunction(CommandsRegistry.getCommand(RemoteTunnelCommandIds.turnOff)!.handler)).then(() => { resolved = true; });
+
+		await timeout(0);
+		const beforeStop = resolved;
+		stopped.complete();
+		await turnOff;
+
+		assert.deepStrictEqual({ beforeStop, afterStop: resolved }, { beforeStop: false, afterStop: true });
+	});
 
 	test('starts Agents remote access with an existing GitHub session without an authentication quick pick', async () => {
 		const authenticationService = new TestAuthenticationService([githubSession]);

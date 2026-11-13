@@ -284,18 +284,37 @@ suite('buildSandboxConfigForSdk', () => {
 			}
 		});
 
-		test('validates the credentials container and leaves map entries to the runtime', () => {
+		test('validates environment credential entries and leaves destination patterns to the runtime', () => {
 			assert.deepStrictEqual([
 				{},
 				{ envVars: {} },
-				{ envVars: { MY_API_TOKEN: { injectHosts: ['api.example.com'] } } },
+				{
+					envVars: {
+						env_name1: { injectHosts: ['google.com'] },
+						env_name2: { injectHosts: ['yahoo.com'] },
+					}
+				},
+				{ envVars: { MY_API_TOKEN: { injectHosts: [] } } },
+				{ envVars: { MY_API_TOKEN: { injectHosts: ['*'] } } },
 				null,
 				[],
 				{ envVars: null },
 				{ envVars: [] },
 				{ envVars: 'MY_API_TOKEN' },
+				{ envVars: { MY_API_TOKEN: null } },
+				{ envVars: { MY_API_TOKEN: [] } },
+				{ envVars: { MY_API_TOKEN: 'api.example.com' } },
+				{ envVars: { MY_API_TOKEN: {} } },
+				{ envVars: { MY_API_TOKEN: { injectHosts: 'api.example.com' } } },
+				{ envVars: { MY_API_TOKEN: { injectHosts: [123] } } },
+				{
+					envVars: {
+						env_name1: { injectHosts: ['google.com'] },
+						env_name2: { injectHosts: [null] },
+					}
+				},
 			].map(maskedCredentials => sandboxConfigSchema.validate(AgentHostSandboxConfigKey.Sandbox, { credentials: maskedCredentials })),
-				[true, true, true, false, false, false, false, false]);
+				[true, true, true, true, true, false, false, false, false, false, false, false, false, false, false, false, false]);
 		});
 
 	});
@@ -611,6 +630,7 @@ suite('getAttachedLocalPaths', () => {
 		const folder = URI.file('/home/u/notes');
 		const attachments: MessageAttachment[] = [
 			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'file' },
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/skills/review/SKILL.md').toString(), label: '/review', displayKind: 'skill' },
 			{ type: MessageAttachmentKind.Resource, uri: folder.toString(), label: 'notes', displayKind: 'directory' },
 			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'selection', selection: { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } } },
 			{ type: MessageAttachmentKind.Resource, uri: toAgentHostUri(URI.file('/home/u/wrapped.txt'), 'my-server').toString(), label: 'wrapped.txt' },

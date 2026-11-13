@@ -41,7 +41,7 @@ If the answer is "this must route every signal correctly before state changes" o
 
 ## Keep the hook surface small
 
-`IAgentHostChatContribution` has seven hooks in `common/agentHostChatContributionsService.ts`. Only add another method when no existing payload can express the behavior.
+`IAgentHostChatContribution` has a small set of hooks in `common/agentHostChatContributionsService.ts`. Only add another method when no existing payload can express the behavior.
 
 The set was once reduced from six to four:
 
@@ -50,11 +50,12 @@ The set was once reduced from six to four:
 
 Prefer adding a discriminant or payload to an existing type, such as a new `TurnEndReason` variant, over adding a hook. A proposed single-purpose hook with one caller and one implementer is the smell that produced both removals. Do not create an abstraction merely to move one direct call.
 
-The three hooks added since clear a specific bar: **no existing payload could express them because they fire at a different moment or from a different source, not merely with different data.**
+The hooks added since clear a specific bar: **no existing payload could express them because they fire at a different moment or from a different source, not merely with different data.**
 
 - `onHydrateChat` restores host-owned chat state *before* a chat enters the catalog. `onHydrateTurns` runs lazily, after a provider returns turns, so reusing it would leave a restored peer chat untitled until it was opened.
 - `onIncomingRequest` gates a turn before it reaches a provider, and can reject it. No observer hook can refuse.
 - `onDidDispatchAction` observes server-dispatched and rejected actions, which `onDidApplyClientAction` structurally cannot see.
+- `onWillShutdown` runs when the host begins a graceful shutdown, before providers stop. Telemetry logged there is delivered by a bounded telemetry flush that the host runs after providers stop, at the same time as its session data flush. Disposal cannot replace it: the desktop host terminates the agent host process after its graceful shutdown, so disposal never runs there.
 
 Adding a `{ kind: ... }` discriminant to an existing hook was considered and rejected for `onHydrateChat`: the discriminant guidance covers payload variants *within* one moment, the way `TurnEndReason` discriminates outcomes of a single turn ending.
 
@@ -91,7 +92,7 @@ export class MarkdownPlanRichLinksContribution extends Disposable implements IAg
 
 Add its constructor to the one built-in list with `contributions.registerContribution(MarkdownPlanRichLinksContribution)`. That list is activated by `activateAgentHostContributions` in `node/agentHostContributions.ts`; do not add a competing registration site. The dispatcher constructs each contribution through `IInstantiationService`, rejects duplicate ids, and disposes it on unregistration.
 
-## The seven hooks
+## The hooks
 
 | Hook | Fires when | Must not assume | Existing example |
 |---|---|---|---|
@@ -102,6 +103,7 @@ Add its constructor to the one built-in list with `contributions.registerContrib
 | `onOutgoingTurn` | Awaited after admission and provider lookup, before the turn is sent. | Rejected turns and `noAgent` failures never reach it. `IOutgoingTurn` carries the full `Message`; contributions can replace its text in order and add instructions, but cannot replace its already-committed attachments, model, agent, origin, or metadata. Prefer the message-text channel for context injection: changing instructions invalidates the provider prompt cache and increases user cost. Do not bypass the send path. | `markdownPlanRichLinks`, `chatSurface`, `sessionTitle`, `sideChat` |
 | `onHydrateTurns` | A provider has returned the complete restored turn list for a chat. | It is not limited to default chats and must return a list for the next stage. Do not assume its input is pristine provider output because earlier contributions may have transformed it. | `turnDelegation`, `persistedTurnUsage`, `worktreeAnnouncement`, `sideChat` |
 | `onHydrateChat` | A chat is being restored, eagerly, before it enters the session catalog. | It runs with no provider — it is a metadata-only read — and before the chat exists, so a chat memento taken here would outlive a failed registration. | `sessionTitle`, `chatDraft`, `chatConfig` |
+| `onWillShutdown` | The host begins a graceful shutdown, before providers stop. | It does not run on a crash or a forced kill. The process may exit soon after, so do not depend on async work completing; telemetry logged here is delivered by the host's bounded telemetry flush after providers stop. Do not throw. | `sessionSummaryTelemetry` logs its pending summaries. |
 
 The call sites are in `node/agentSideEffects.ts`, `node/agentHostTurnStarter.ts`, and `node/agentService.ts`.
 

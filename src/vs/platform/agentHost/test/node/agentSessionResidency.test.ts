@@ -8,6 +8,7 @@ import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/virtualScheduling/index.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -18,7 +19,7 @@ import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChang
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, PendingMessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
@@ -56,12 +57,13 @@ suite('AgentSessionResidency', () => {
 				stateManager.removeSession(session.toString());
 				onDidEvict.fire();
 			},
+			isHeldInUse: () => false,
 		};
 		residency = createResidency(10);
 	});
 
 
-	function createResidency(limit: number, releaseRetryMs = 30_000): AgentSessionResidency {
+	function createResidency(limit: number, releaseRetryMs = 30_000, idleReleaseMs = 10_000): AgentSessionResidency {
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection(
 			[ILogService, logService],
 			[IAgentHostSubscriptionService, subscriptions],
@@ -73,6 +75,7 @@ suite('AgentSessionResidency', () => {
 			{
 				limit,
 				releaseRetryMs,
+				idleReleaseMs,
 				holdsSession: () => false,
 				onDidReleaseHold: releaseHold.event,
 			},
@@ -259,6 +262,143 @@ suite('AgentSessionResidency', () => {
 			});
 		});
 	}
+
+	test('releases a session held in use soon after no client observes it, and keeps one that is not', async () => {
+		residency.dispose();
+		const held = new Set<string>();
+		delegate.isHeldInUse = session => held.has(session.toString());
+		residency = createResidency(10, 30_000, 0);
+		const heldSession = createUsedSession('held');
+		const freeSession = createUsedSession('free');
+		held.add(heldSession.toString());
+		const chat = URI.parse(buildDefaultChatUri(heldSession));
+		subscriptions.addSubscriber(chat, 'client');
+		subscriptions.setSubscriptionOwner(chat, heldSession.toString());
+		await residency.reconcile();
+		const residentWhileObserved = stateManager.getSessionState(heldSession.toString()) !== undefined;
+
+		subscriptions.removeSubscriber(chat, 'client');
+		await residency.reconcile();
+		await waitForEviction(heldSession);
+
+		assert.deepStrictEqual({
+			residentWhileObserved,
+			released,
+			freeResident: stateManager.getSessionState(freeSession.toString()) !== undefined,
+		}, {
+			residentWhileObserved: true,
+			released: [heldSession.toString()],
+			freeResident: true,
+		});
+	});
+
+	test('keeps a session held in use that a client observes again within the delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		residency.dispose();
+		delegate.isHeldInUse = () => true;
+		residency = createResidency(10, 30_000, 10_000);
+		const session = createUsedSession('reopened');
+		await residency.reconcile();
+		await timeout(5_000);
+		const chat = URI.parse(buildDefaultChatUri(session));
+		subscriptions.addSubscriber(chat, 'client');
+		subscriptions.setSubscriptionOwner(chat, session.toString());
+		residency.touch(session);
+		await residency.reconcile();
+		await timeout(20_000);
+		await residency.reconcile();
+
+		assert.deepStrictEqual({
+			resident: stateManager.getSessionState(session.toString()) !== undefined,
+			released,
+		}, {
+			resident: true,
+			released: [],
+		});
+	}));
+
+	for (const limit of [0, 10]) {
+		for (const target of ['default', 'peer', 'steering'] as const) {
+			test(`retains disconnected ${target} pending work across ${limit === 0 ? 'residency pressure' : 'idle release'} until it is removed`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				residency.dispose();
+				delegate.isHeldInUse = () => true;
+				residency = createResidency(limit);
+				const session = createUsedSession('waiting-for-sponsor', false);
+				const chat = target === 'peer' ? buildChatUri(session, 'peer') : buildDefaultChatUri(session);
+				if (target === 'peer') {
+					stateManager.addChat(session.toString(), chat, chat);
+				}
+				const kind = target === 'steering' ? PendingMessageKind.Steering : PendingMessageKind.Queued;
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatPendingMessageSet, id: 'pending', kind,
+					message: { text: 'unsent work', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('turn-waiting-for-sponsor', 1));
+				await residency.reconcile();
+				await timeout(60_000);
+				await residency.reconcile();
+				const waiting = {
+					resident: !!stateManager.getSessionState(session.toString()),
+					pending: stateManager.getChatState(chat)?.queuedMessages?.map(message => message.id),
+					released: [...released],
+				};
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatPendingMessageRemoved, id: 'pending', kind });
+				await timeout(10_001);
+				await residency.reconcile();
+				assert.deepStrictEqual({ waiting, evicted }, {
+					waiting: { resident: true, pending: ['pending'], released: [] },
+					evicted: [session.toString()],
+				});
+			}));
+		}
+	}
+
+	test('rechecks pending messages after an asynchronous release preflight', async () => {
+		residency.dispose();
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		delegate.createRelease = session => ({
+			canRelease: async () => { entered.complete(); await resume.p; return true; },
+			release: async () => { released.push(session.toString()); },
+		});
+		residency = createResidency(0);
+		const session = createUsedSession('pending-during-release');
+		await entered.p;
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatPendingMessageSet, id: 'pending', kind: PendingMessageKind.Queued,
+			message: { text: 'unsent work', origin: { kind: MessageKind.User } },
+		});
+		resume.complete();
+		await residency.reconcile();
+		assert.deepStrictEqual({ resident: !!stateManager.getSessionState(session.toString()), released, evicted }, {
+			resident: true, released: [], evicted: [],
+		});
+	});
+
+	test('retries a due release that failed after its provider let go of the session', async () => {
+		residency.dispose();
+		const held = new Set<string>();
+		delegate.isHeldInUse = session => held.has(session.toString());
+		let attempts = 0;
+		delegate.createRelease = session => ({
+			canRelease: async () => true,
+			release: async () => {
+				attempts++;
+				held.delete(session.toString());
+				if (attempts === 1) {
+					throw new Error('transient');
+				}
+				released.push(session.toString());
+			},
+		});
+		residency = createResidency(10, 10, 0);
+		const session = createUsedSession('let-go');
+		held.add(session.toString());
+
+		await residency.reconcile();
+		await waitForEviction(session);
+
+		assert.deepStrictEqual({ attempts, released }, { attempts: 2, released: [session.toString()] });
+	});
 
 	test('keeps state after a failed release and retries', async () => {
 		residency.dispose();

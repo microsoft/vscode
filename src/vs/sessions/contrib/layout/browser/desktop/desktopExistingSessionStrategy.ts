@@ -25,18 +25,20 @@ import { IEditorGroupsService } from '../../../../../workbench/services/editor/c
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService, ISidePaneState, ISidePaneToggleEvent } from '../../../../browser/workbench.js';
-import { HasDockedDetailsContext, DesktopLayoutContext } from '../../../../common/contextkeys.js';
-import { DockedEditorInput } from '../../../../browser/dockedEditorInput.js';
-import { IHostSession, IShownChat } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { ISessionChangesService } from '../../../changes/browser/sessionChangesService.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SESSIONS_FLOATING_DETAILS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { HasDockedDetailsContext } from '../../../../common/agentsWindowContextKeys.js';
+import { DockedEditorInput } from '../../../../../workbench/browser/parts/editor/dockedEditorInput.js';
+import { ISessionWorkspace, isSessionCreated, SessionStatus, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DetailPanelTarget, DesktopDetailPanelCoordinator } from './desktopDetailPanelCoordinator.js';
 import { DesktopDockedTabsCoordinator } from './desktopDockedTabsCoordinator.js';
-import { FilesDetailsState, getFilesDetailsState, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty } from './desktopSharedHelpers.js';
+import { FilesDetailsState, getFilesDetailsState, getFloatingMarkdownDetailsState, getLayoutWorkspace, isChangesEditorInput, isEditorWithoutDockedDetails, isMainPartEmpty, isQuickChatShown } from './desktopSharedHelpers.js';
 import { IDesktopLayoutContext, DesktopLayoutStrategy } from './desktopLayoutStrategy.js';
 import { ISidePaneVisibilityState, SessionVisibilityProfile, DesktopVisibilityProfileStore } from './desktopVisibilityProfileStore.js';
 import { ISessionEditorWorkingSetService } from '../../common/sessionEditorWorkingSet.js';
+import { IShownChat } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 
 /** Command that toggles the desktop detail panel (auxiliary bar) from the editor header. */
 export const TOGGLE_DETAILS_COMMAND_ID = 'workbench.action.agentSessions.toggleDetails';
@@ -46,7 +48,10 @@ const desktopHeaderToggleDetailsOrder = 10;
  * Whether Toggle Details toggles the changed files list of the multi diff editor shown in
  * the editor area instead of the detail panel. Evaluated against an editor group's context.
  */
-const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(MainEditorAreaVisibleContext, ActiveMultiDiffEditorHasFileListContext)!;
+const toggleMultiDiffEditorFileListContext = ContextKeyExpr.and(
+	ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
+	MainEditorAreaVisibleContext,
+	ActiveMultiDiffEditorHasFileListContext)!;
 
 /**
  * Behaviour for the **Existing Session** lifecycle stage — a created, workspace-backed
@@ -104,14 +109,14 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 
-			const session = this._ctx.mainWindowSession.get();
+			const shown = this._ctx.shownByMainWindow();
 			if (this._ctx.isRestoringSessionLayout
 				|| this._otherSessionShown()
 				|| this._layoutService.isEditorPartAutoVisibilitySuppressed()
-				|| !session
-				|| session.isQuickChat?.get()
-				|| !session.isCreated.get()
-				|| !session.workspace.get()
+				|| !shown
+				|| isQuickChatShown(shown)
+				|| !isSessionCreated(shown.session)
+				|| !getLayoutWorkspace(shown)
 				|| !isMainPartEmpty(this._editorGroupsService)) {
 				return;
 			}
@@ -145,7 +150,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		let wasExistingActive = false;
 		let previousQuickChatResource: URI | undefined;
 		let previousIsCreated: boolean | undefined;
-		let previousSession: IHostSession | undefined;
+		let previousSession: ISession | undefined;
 		let previousOwnerKey: URI | undefined;
 		let wasSuspended = false;
 		let togglingSidePane = false;
@@ -155,7 +160,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			const multipleLayoutOwnersVisible = this._multipleLayoutOwnersVisible(reader);
 			const shown = this._ctx.shownByMainWindow(reader);
 			const activeSession = shown?.session;
-			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
+			const isQuickChat = isQuickChatShown(shown, reader);
 			const perChatLayout = this._ctx.chatLayoutActive(reader) && !this._ctx.sharedChatLayout;
 			const restoringWorkingSet = perChatLayout && this._editorWorkingSetService.restoreState.read(reader).restoring;
 
@@ -168,8 +173,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			wasSuspended = false;
 
 			const wasQuickChatActive = previousQuickChatResource !== undefined;
-			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
-			previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
+			const isWorkspaceConversion = !isQuickChat && !!shown && isEqual(previousQuickChatResource, shown.chat.resource);
+			previousQuickChatResource = isQuickChat ? shown?.chat.resource : undefined;
 			if (isWorkspaceConversion && !this._ctx.sharedChatLayout) {
 				this._captureExistingProfile();
 			}
@@ -180,7 +185,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				pendingComposition = undefined;
 				if (!this._ctx.chatLayoutActive(reader) || this._ctx.sharedChatLayout) {
 					const workspace = shown?.chat.workspace.read(reader);
-					const isCreated = activeSession?.isCreated.read(reader);
+					const isCreated = isSessionCreated(activeSession, reader);
 					if ((!isWorkspaceConversion || this._ctx.sharedChatLayout) && shown && !isQuickChat && workspace && isCreated === true) {
 						const resolved = this._resolveComposition(shown, ownerKey);
 						this._ctx.withSessionLayoutRestore(() => this._apply(resolved, !ownerKey));
@@ -204,11 +209,11 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 
-			const isCreated = activeSession.isCreated.read(reader);
+			const isCreated = isSessionCreated(activeSession, reader);
 			const sessionChanged = previousSession !== undefined && !isEqual(previousSession.resource, activeSession.resource);
 			const ownerChanged = !sessionChanged && ownerKey !== undefined && (resuming || !isEqual(previousOwnerKey, ownerKey));
 			const isSubmit = !wasQuickChatActive && previousIsCreated === false && isCreated
-				&& (previousSession === activeSession || previousSession?.isCreated.read(undefined) === true);
+				&& (previousSession === activeSession || isSessionCreated(previousSession));
 			if (isSubmit && !this._ctx.sharedChatLayout && (this._ctx.chatLayoutActive(reader) || draftCompositionChosen)) {
 				this._captureExistingProfile();
 			}
@@ -283,8 +288,8 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	}
 
 	private _isDraftActive(): boolean {
-		const activeSession = this._ctx.mainWindowSession.get();
-		return !!activeSession && !activeSession.isQuickChat?.get() && !activeSession.isCreated.get();
+		const shown = this._ctx.shownByMainWindow();
+		return !!shown && !isQuickChatShown(shown) && !isSessionCreated(shown.session);
 	}
 
 	private _capturePreHideComposition(): void {
@@ -316,7 +321,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		}
 		const shown = this._ctx.shownByMainWindow();
 		if (this._ctx.chatLayoutActive() && !this._ctx.sharedChatLayout
-			&& shown?.session.isCreated.get()
+			&& shown && isSessionCreated(shown.session)
 			&& shown.chat.status.get() !== SessionStatus.Untitled
 			&& !composition.editor && composition.auxiliaryBar) {
 			composition = { editor: true, auxiliaryBar: true };
@@ -329,7 +334,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _getToggleReopenComposition(): ISidePaneState | undefined {
 		const shown = this._ctx.shownByMainWindow();
 		const activeSession = shown?.session;
-		if (!shown || !activeSession || activeSession.isQuickChat?.get()) {
+		if (!shown || !activeSession || isQuickChatShown(shown)) {
 			return undefined;
 		}
 		const ownerKey = this._ctx.chatLayoutActive() ? this._ctx.compositionKeyFor(shown) : undefined;
@@ -339,7 +344,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return saved;
 			}
 		}
-		if (!activeSession.isCreated.get()) {
+		if (!isSessionCreated(activeSession)) {
 			return undefined;
 		}
 		const state = this._visibilityStore.get(SessionVisibilityProfile.Existing);
@@ -348,7 +353,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 
 	private _activeOwnerKey(): URI | undefined {
 		const shown = this._ctx.shownByMainWindow();
-		return shown && !shown.session.isQuickChat?.get() ? this._ctx.compositionKeyFor(shown) : undefined;
+		return shown && !isQuickChatShown(shown) ? this._ctx.compositionKeyFor(shown) : undefined;
 	}
 
 	private _resolveComposition(shown: IShownChat, ownerKey: URI | undefined): { readonly editorVisible: boolean; readonly auxiliaryBarVisible: boolean } {
@@ -381,7 +386,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				return;
 			}
 		}
-		if (!shown || !activeSession || activeSession.isQuickChat?.get() || !activeSession.isCreated.get()
+		if (!shown || !activeSession || isQuickChatShown(shown) || !isSessionCreated(activeSession)
 			|| (this._ctx.sharedChatLayout && !shown.chat.workspace.get())
 			|| this._layoutService.isEditorMaximized() || this._layoutService.isVisible(Parts.CUSTOM_VIEW_GRID_PART)) {
 			return;
@@ -447,6 +452,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		const editorPartVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 		const editorMaximizedObs = observableFromEvent(this, this._layoutService.onDidChangeEditorMaximized, () => this._layoutService.isEditorMaximized());
 		const detailVisibleObs = observableFromEvent(this, this._layoutService.onDidChangePartVisibility, () => this._layoutService.isVisible(Parts.AUXILIARYBAR_PART));
+		const floatingDetailsObs = observableFromEvent(this, this._layoutService.onDidChangeAuxiliaryBarFloating, () => this._layoutService.isAuxiliaryBarFloating());
 		let initialized = false;
 		let wasExistingActive = false;
 		let activeSessionKey: string | undefined;
@@ -464,16 +470,16 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			}
 			const shown = this._ctx.shownByMainWindow(reader);
 			const activeSession = shown?.session;
-			const isQuickChat = activeSession?.isQuickChat?.read(reader) ?? false;
-			const isWorkspaceConversion = !isQuickChat && !!activeSession && isEqual(previousQuickChatResource, activeSession.resource);
+			const isQuickChat = isQuickChatShown(shown, reader);
+			const isWorkspaceConversion = !isQuickChat && !!shown && isEqual(previousQuickChatResource, shown.chat.resource);
 			if (!isWorkspaceConversion) {
-				previousQuickChatResource = isQuickChat ? activeSession?.resource : undefined;
+				previousQuickChatResource = isQuickChat ? shown?.chat.resource : undefined;
 			}
 			const workspace = shown?.chat.workspace.read(reader);
 			if (!shown || !activeSession
 				|| isQuickChat
 				|| !workspace
-				|| !activeSession.isCreated.read(reader)) {
+				|| !isSessionCreated(activeSession, reader)) {
 				wasExistingActive = false;
 				previousActiveEditor = undefined;
 				previousEditorPartVisible = false;
@@ -522,7 +528,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 			previousActiveEditor = activeEditor;
 			previousEditorPartVisible = editorPartVisible;
 			previousEditorSessionKey = sessionKey;
-			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace);
+			const target = this._computeTarget(reader, activeEditor, mainPartEmpty, editorMaximized, editorPartVisible, workspace, floatingDetailsObs.read(reader));
 			if (target === DetailPanelTarget.EditorHidden && activeEditor && isChangesEditorInput(activeEditor, this._sessionChangesService)) {
 				detailVisibleObs.read(reader);
 			}
@@ -569,9 +575,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 		this._detailPanel.setHiddenTransiently(false);
 	}
 
-	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace): DetailPanelTarget {
+	private _computeTarget(reader: IReader | undefined, activeEditor: EditorInput | undefined, mainPartEmpty: boolean, editorMaximized: boolean, editorPartVisible: boolean, workspace: ISessionWorkspace, floatingDetails: boolean): DetailPanelTarget {
 		if (mainPartEmpty) {
 			return this._ctx.isRestoringSessionLayout ? DetailPanelTarget.Preserve : DetailPanelTarget.Hidden;
+		}
+
+		if (activeEditor && floatingDetails) {
+			switch (getFloatingMarkdownDetailsState(activeEditor, workspace)) {
+				case FilesDetailsState.Active:
+					return DetailPanelTarget.FilesForced;
+				case FilesDetailsState.Available:
+					return editorPartVisible ? DetailPanelTarget.FilesHidden : DetailPanelTarget.Changes;
+			}
 		}
 
 		if (activeEditor && isEditorWithoutDockedDetails(activeEditor)) {
@@ -607,18 +622,18 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 	private _registerManagedTabsSupplement(): void {
 		let previousSessionKey: string | undefined;
 		let previousIsCreated: boolean | undefined;
-		let previousSession: IHostSession | undefined;
+		let previousSession: ISession | undefined;
 		let changesActivationPendingForSession: string | undefined;
 
 		this._register(autorun(reader => {
 			const shown = this._ctx.shownByMainWindow(reader);
 			const session = shown?.session;
-			const isQuickChat = session?.isQuickChat?.read(reader) ?? false;
-			const isCreated = session && !isQuickChat ? session.isCreated.read(reader) : false;
+			const isQuickChat = isQuickChatShown(shown, reader);
+			const isCreated = session && !isQuickChat ? isSessionCreated(session, reader) : false;
 			const sessionKey = shown && this._ctx.ownerKeyFor(shown, reader)?.toString();
 
 			const isSubmit = !isQuickChat && previousIsCreated === false && isCreated
-				&& (previousSession === session || previousSession?.isCreated.read(undefined) === true);
+				&& (previousSession === session || isSessionCreated(previousSession));
 			if (isSubmit) {
 				changesActivationPendingForSession = sessionKey;
 			} else if (sessionKey !== previousSessionKey) {
@@ -678,6 +693,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 							IsAuxiliaryWindowContext.toNegated(),
 							IsTopRightEditorGroupContext,
 							DesktopLayoutContext,
+							ContextKeyExpr.notEquals(`config.${SESSIONS_FLOATING_DETAILS_SETTING}`, true),
 							MainEditorAreaVisibleContext,
 							ContextKeyExpr.or(HasDockedDetailsContext, toggleMultiDiffEditorFileListContext))
 					}
@@ -690,7 +706,7 @@ export class DesktopExistingSessionStrategy extends DesktopLayoutStrategy {
 				const group = context
 					? accessor.get(IEditorGroupsService).getGroup(context.groupId)
 					: accessor.get(IEditorService).activeEditorPane?.group;
-				if (group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
+				if (!that._layoutService.isAuxiliaryBarFloating() && group?.scopedContextKeyService.contextMatchesRules(toggleMultiDiffEditorFileListContext)) {
 					toggleMultiDiffEditorFileList(accessor.get(IStorageService));
 					return;
 				}

@@ -11,12 +11,13 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { AgentsWindowOpenSource } from '../../../../platform/window/common/window.js';
 import { ILifecycleService, ShutdownReason } from '../../../../workbench/services/lifecycle/common/lifecycle.js';
-import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../common/workspaceSelection.js';
-import { IFocusedSessionHostService } from '../../../services/sessions/browser/sessionHost.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
-import { INewSessionComposerService } from '../../chat/browser/newSessionComposerService.js';
+import { IWorkspaceSelectionSnapshot, WorkspaceSelectionOrigin } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISendRequestOptions } from '../../../../workbench/contrib/sessions/common/sessionsProvider.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { FIRST_TIME_WINDOW_OPEN_DURATION_LIMIT_MS, ISessionsWindowOpenContext } from './sessionsWindowOpenTelemetry.js';
+import { isSessionCreated } from '../../../../workbench/services/sessions/common/session.js';
 
 type ObservationReason = 'firstRequest' | 'timer' | 'close' | 'quit' | 'reload' | 'otherShutdown';
 
@@ -94,7 +95,7 @@ export class SessionsWorkspaceSelectionTelemetry extends Disposable {
 			const version = composerService.userWorkspaceSelectionVersion.read(reader);
 			const selection = composerService.workspaceSelection.read(reader);
 			const session = focusedSessionHostService.focusedHost.read(reader).session.read(reader);
-			const created = session?.isCreated.read(reader);
+			const created = isSessionCreated(session, reader);
 			const loading = session?.loading.read(reader);
 			const folderUri = session?.workspace.read(reader)?.folders[0]?.root;
 			if (version !== this._initialSelectionVersion || created || selection?.state !== 'selected'

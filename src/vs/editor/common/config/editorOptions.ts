@@ -2826,14 +2826,15 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 	/**
 	 * Computes the minimap scale in device pixels from the configured `editor.minimap.scale`.
 	 * The configured scale is doubled on high DPI screens. Between a pixel ratio of 1 and 2,
-	 * the scale grows with the pixel ratio, so that changing the zoom level only slightly
-	 * doesn't change the minimap size abruptly.
+	 * the scale grows with the pixel ratio. The tolerance keeps a pixel ratio slightly below
+	 * a whole step (e.g. a slightly negative zoom level on a high DPI screen) at that step,
+	 * instead of shrinking the minimap abruptly.
 	 */
 	private static _computeMinimapScale(configuredScale: number, pixelRatio: number): number {
 		if (pixelRatio >= 2) {
 			return Math.round(configuredScale * 2);
 		}
-		return Math.max(configuredScale, Math.floor(configuredScale * pixelRatio));
+		return Math.max(configuredScale, Math.floor(configuredScale * pixelRatio + 0.125));
 	}
 
 	private static _computeMinimapLayout(input: IMinimapLayoutInput, memory: ComputeOptionsMemory): EditorMinimapLayoutInfo {
@@ -4791,6 +4792,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.fontFamily': {
 					type: 'string',
 					default: defaults.fontFamily,
+					restricted: true,
 					description: nls.localize('inlineSuggest.fontFamily', "Controls the font family of the inline suggestions.")
 				},
 				'editor.inlineSuggest.edits.allowCodeShifting': {

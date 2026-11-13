@@ -819,7 +819,7 @@ export interface ISettingLinkClickEvent {
 }
 
 function removeChildrenFromTabOrder(node: Element): void {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const focusableElements = node.querySelectorAll(`
 		[tabindex="0"],
 		input:not([tabindex="-1"]),
@@ -837,7 +837,7 @@ function removeChildrenFromTabOrder(node: Element): void {
 }
 
 function addChildrenToTabOrder(node: Element): void {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const focusableElements = node.querySelectorAll(
 		`[${AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR}="true"]`
 	);
@@ -1330,7 +1330,7 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 
 	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
@@ -1446,7 +1446,7 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.add(widget);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
@@ -1896,7 +1896,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		common.toDispose.add(selectBox);
 		selectBox.render(common.controlElement);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const selectElement = common.controlElement.querySelector('select');
 		if (selectElement) {
 			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -2312,7 +2312,7 @@ export class SettingTreeRenderers extends Disposable {
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
@@ -2333,7 +2333,7 @@ export class SettingTreeRenderers extends Disposable {
 	}
 
 	getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return treeContainer.querySelectorAll(`[${AbstractSettingRenderer.SETTING_KEY_ATTR}="${key}"]`);
 	}
 

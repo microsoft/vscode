@@ -5,11 +5,12 @@
 
 import assert from 'assert';
 import sinon from 'sinon';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { constObservable, autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
+import { ChannelClient, ChannelServer, IChannel, IChannelClient, IChannelServer, IServerChannel, ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { ConfigurationTarget, IConfigurationService, IConfigurationValue } from '../../../configuration/common/configuration.js';
@@ -34,6 +35,8 @@ import { ActionEnvelope, ActionType, INotification, NotificationType } from '../
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { MessageAttachmentKind, MessageKind, ROOT_STATE_URI } from '../../common/state/sessionState.js';
 import { LocalAgentHostManagementConnection, LocalAgentHostServiceClient, registerAgentHostClientChannels } from '../../electron-browser/localAgentHostService.js';
+import { getConnectionDiagnosticError } from '../../common/connectionDiagnostics.js';
+import { getConnectionTelemetryError } from '../../common/connectionTelemetry.js';
 
 class CapturingNotificationService extends TestNotificationService {
 	readonly errors: (string | Error)[] = [];
@@ -77,6 +80,7 @@ suite('LocalAgentHostServiceClient events', () => {
 		const onDidChangeConnectionState = disposables.add(new Emitter<AgentHostClientState>());
 		const connectionAvailable = observableValue('test connection availability', false);
 		const createdChats: { session: URI; chat: URI; options?: IAgentCreateChatRequestOptions }[] = [];
+		const prepareSessionWorktreeCleanup = sinon.stub<[URI], Promise<void>>().resolves();
 		let connectCount = 0;
 		const fire = () => {
 			onDidAction.fire(action);
@@ -99,6 +103,7 @@ suite('LocalAgentHostServiceClient events', () => {
 			createChat: async (session: URI, chat: URI, options?: IAgentCreateChatRequestOptions) => {
 				createdChats.push({ session, chat, options });
 			},
+			prepareSessionWorktreeCleanup,
 			dispose: () => { },
 		};
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -124,7 +129,7 @@ suite('LocalAgentHostServiceClient events', () => {
 			return listeners;
 		};
 		return {
-			service, received, listen, fire, onDidChangeConnectionState, createdChats,
+			service, received, listen, fire, onDidChangeConnectionState, createdChats, prepareSessionWorktreeCleanup,
 			setConnectionState: (state: AgentHostClientState) => {
 				connectionAvailable.set(state === AgentHostClientState.Connected, undefined);
 				onDidChangeConnectionState.fire(state);
@@ -150,6 +155,50 @@ suite('LocalAgentHostServiceClient events', () => {
 		}();
 		sinon.stub(Object.getPrototypeOf(service), '_getManagementService').returns(managementService);
 		assert.strictEqual(await service.getMissionControlEnvironmentName(), 'Host-owned name (VS Code Insiders)');
+	});
+
+	for (const failure of [
+		{ name: 'timeout', error: new Error('Socket error', { cause: Object.assign(new Error('Network timed out'), { code: 'ETIMEDOUT' }) }) },
+		{ name: 'authentication', error: Object.assign(new Error('Socket error'), { status: 401 }) },
+		{ name: 'authorization', error: Object.assign(new Error('Socket error'), { status: 403 }) },
+	]) {
+		test(`preserves ${failure.name} metadata through Management IPC`, async () => {
+			const { service } = createService();
+			const toClient = disposables.add(new Emitter<VSBuffer>());
+			const toServer = disposables.add(new Emitter<VSBuffer>());
+			const client = disposables.add(new ChannelClient({ onMessage: toClient.event, send: buffer => toServer.fire(buffer) }));
+			const server = disposables.add(new ChannelServer({ onMessage: toServer.event, send: buffer => toClient.fire(buffer) }, undefined));
+			server.registerChannel('agentHostManagement', ProxyChannel.fromService({
+				configureMissionControl: async () => ({ error: getConnectionDiagnosticError(failure.error) }),
+			}, disposables.add(new DisposableStore())));
+			sinon.stub(LocalAgentHostManagementConnection.prototype, 'client').resolves(client);
+			let received: ReturnType<typeof getConnectionDiagnosticError> | undefined;
+			try {
+				await service.configureMissionControl(undefined, 'owner');
+				assert.fail('Configuration must fail');
+			} catch (error) {
+				received = getConnectionDiagnosticError(error);
+			}
+			assert.deepStrictEqual({
+				error: received,
+				category: getConnectionTelemetryError(received).errorCategory,
+			}, {
+				error: getConnectionDiagnosticError(failure.error),
+				category: failure.name,
+			});
+		});
+	}
+
+	test('forwards worktree cleanup preparation to the protocol client and propagates failures', async () => {
+		const { service, prepareSessionWorktreeCleanup } = createService();
+		service.startAgentHost();
+		const session = URI.parse('opaque-session://tenant/exact-id');
+
+		await service.prepareSessionWorktreeCleanup(session);
+		prepareSessionWorktreeCleanup.rejects(new Error('Cannot prepare recovery'));
+		await assert.rejects(service.prepareSessionWorktreeCleanup(session), /Cannot prepare recovery/);
+
+		assert.deepStrictEqual(prepareSessionWorktreeCleanup.args, [[session], [session]]);
 	});
 
 	test('routes title-only and prompt-bearing creation through AHP, while retaining legacy model management routing', async () => {

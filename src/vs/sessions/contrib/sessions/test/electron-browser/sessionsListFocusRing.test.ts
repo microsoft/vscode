@@ -6,17 +6,20 @@
 import assert from 'assert';
 import * as dom from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
+import { Color } from '../../../../../base/common/color.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ipcRenderer } from '../../../../../base/parts/sandbox/electron-browser/globals.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ICustomViewDescriptor } from '../../../../services/customView/browser/customView.js';
-import { ICustomViewService } from '../../../../services/customView/browser/customViewService.js';
-import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../canvases/browser/pinnedCanvases.js';
-import { SessionsGrouping, SessionsList, SessionsSorting } from '../../browser/views/sessionsList.js';
-import { createListHarness } from '../browser/sessionsListTestUtils.js';
+import { ICustomViewDescriptor, ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { IPinnedCanvas, IPinnedCanvasService, PINNED_CANVAS_PAGE_ID, PinnedCanvasState } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
+import { ISessionGroup, ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { createListHarness, createTestSession } from '../browser/sessionsListTestUtils.js';
 
 /** Focus styles only match while the document has focus, so give the test's web contents real focus. */
 async function setWebContentsFocus(focused: boolean): Promise<void> {
@@ -27,10 +30,88 @@ async function setWebContentsFocus(focused: boolean): Promise<void> {
 	await changed;
 }
 
-suite('SessionsList - pinned canvas focus ring', () => {
+suite('SessionsList - focused row styles', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => setWebContentsFocus(true));
+
+	for (const { compact, customGroup } of [false, true].flatMap(compact => [false, true].map(customGroup => ({ compact, customGroup })))) {
+		test(`group label contrast follows rendered focus and selection surfaces (${compact ? 'compact' : 'default'}, ${customGroup ? 'custom group' : 'workspace'})`, () => {
+			const session = createTestSession('Session').session;
+			const group: ISessionGroup = { id: 'group', name: 'Custom Group', createdAt: 1 };
+			const harness = createListHarness(disposables, [session], customGroup ? {
+				groups: [group],
+				memberships: new Map([[session.sessionId, group.id]]),
+			} : {});
+			const themeService = new TestThemeService();
+			harness.instantiationService.stub(IThemeService, themeService);
+			const container = harness.createContainer();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				compact: () => compact,
+				onSessionOpen: () => { },
+			}));
+			list.layout(700, 400);
+			const groupsService = harness.instantiationService.get(ISessionGroupsService);
+			if (customGroup) {
+				groupsService.setGroupColor(group.id, 'terminal.ansiBlue');
+			} else {
+				groupsService.setSectionColor('workspace:Workspace', 'terminal.ansiBlue');
+			}
+			const label = [...container.querySelectorAll<HTMLElement>('.session-section-label')]
+				.find(label => label.textContent === (customGroup ? group.name : 'Workspace'))!;
+			const row = label.closest<HTMLElement>('.monaco-list-row')!;
+			const listElement = row.closest<HTMLElement>('.monaco-list')!;
+			const results = [];
+			const expected = [];
+			for (const background of ['#ffffff', '#181818']) {
+				const colors: Record<string, string> = {
+					'agents.background': background,
+					'terminal.ansiBlue': '#0060c0',
+					'list.hoverBackground': '#88888822',
+					'list.focusBackground': '#e5e510',
+					'list.activeSelectionBackground': '#0060c0',
+					'list.inactiveFocusBackground': '#ffffff80',
+					'list.inactiveSelectionBackground': '#101010cc',
+				};
+				themeService.setTheme(new TestColorTheme(colors));
+				for (const [id, value] of Object.entries(colors)) {
+					container.style.setProperty(`--vscode-${id.replaceAll('.', '-')}`, value);
+				}
+				for (const active of [false, true]) {
+					if (active) {
+						listElement.focus();
+					} else {
+						listElement.blur();
+					}
+					for (const classes of [[], ['hovered'], ['focused'], ['selected'], ['focused', 'hovered'], ['selected', 'hovered'], ['focused', 'selected'], ['focused', 'selected', 'hovered']]) {
+						row.classList.remove('focused', 'selected', 'hovered');
+						row.classList.add(...classes);
+						const stateBackground = classes.includes('selected')
+							? active ? 'list.activeSelectionBackground' : 'list.inactiveSelectionBackground'
+							: classes.includes('focused')
+								? active ? 'list.focusBackground' : 'list.inactiveFocusBackground'
+								: classes.includes('hovered') ? 'list.hoverBackground' : 'agents.background';
+						const base = Color.fromHex(background);
+						const surface = Color.Format.CSS.parse(mainWindow.getComputedStyle(row).backgroundColor)!.flatten(base);
+						const foreground = Color.Format.CSS.parse(mainWindow.getComputedStyle(label).color)!;
+						results.push({
+							active: listElement.matches(':focus'),
+							surface: surface.toString(),
+							readable: surface.getContrastRatio(foreground) >= 4.5,
+						});
+						expected.push({
+							active,
+							surface: Color.fromHex(colors[stateBackground]).flatten(base).toString(),
+							readable: true,
+						});
+					}
+				}
+			}
+			assert.deepStrictEqual(results, expected);
+		});
+	}
 
 	test('a press does not ring the pinned canvas row the page shows, while keyboard focus does, in both sidebar layouts', async () => {
 		const plan = upcastPartial<IPinnedCanvas>({

@@ -13,10 +13,45 @@
 .agents-window-extensions > .agents-window-extensions-header,
 .agents-window-extensions > .agents-window-extensions-search,
 .agents-window-extensions > .agents-window-extensions-tree,
-.agents-window-extensions > .agents-window-extensions-empty {
+.agents-window-extensions > .agents-window-extensions-empty,
+.agents-window-extensions > .agents-window-extension-page {
 	width: min(calc(100% - var(--vscode-spacing-size400) - var(--vscode-spacing-size400)), 840px);
 	margin-inline: auto;
 	box-sizing: border-box;
+}
+
+/* An extension's page shows in place of the section's description, search box, and list, with a Back button before its title. */
+.agents-window-extensions:not(.shows-extension-page) .agents-window-extensions-back-button,
+.agents-window-extensions:not(.shows-extension-page) > .agents-window-extension-page,
+.agents-window-extensions.shows-extension-page .agents-window-extensions-description,
+.agents-window-extensions.shows-extension-page > :is(.agents-window-extensions-search, .agents-window-extensions-tree, .agents-window-extensions-empty) {
+	display: none;
+}
+
+.agents-window-extensions > .agents-window-extension-page {
+	flex: 1;
+	min-height: 0;
+	overflow: hidden;
+}
+
+/*
+ * Sits in the margin before the title, so that showing it doesn't move the title, which stays aligned with the content below.
+ * The content leaves a margin of at least --vscode-spacing-size400 on each side, which fits the button.
+ */
+.agents-window-extensions .agents-window-extensions-title-row > .agents-window-extensions-back-button {
+	position: absolute;
+	top: 50%;
+	right: 100%;
+	/* Like the section's other icon buttons, and as tall as the title row, so the section doesn't clip its focus ring. */
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	margin-right: var(--vscode-spacing-size60);
+	translate: 0 -50%;
+}
+
+/* Like the Back buttons of the other pages of Agent Customizations, the focus ring only shows for keyboard navigation. */
+.ai-customization-management-editor.pointer-focus .agents-window-extensions-back-button:focus {
+	outline: none;
 }
 
 .agents-window-extensions-header {
@@ -24,6 +59,7 @@
 }
 
 .agents-window-extensions-title-row {
+	position: relative;
 	display: flex;
 	align-items: center;
 	gap: var(--vscode-spacing-size60);

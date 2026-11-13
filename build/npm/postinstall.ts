@@ -82,9 +82,6 @@ async function pnpmInstallAsync(dir: string, env: NodeJS.ProcessEnv): Promise<vo
 		const storeDir = '/root/vscode/.build/pnpm-store-container';
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
-		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0', '--reset', '-p', 'yes'], syncOpts);
-		}
 		run('sudo', [
 			'docker', 'run',
 			'-e', 'GITHUB_TOKEN',
@@ -217,7 +214,6 @@ async function main() {
 	}
 
 	const nativeTasks: (() => Promise<void>)[] = [];
-	const concurrentNativeTasks: (() => Promise<void>)[] = [];
 	const parallelTasks: (() => Promise<void>)[] = [];
 
 	for (const dir of [...separateRoots, ...distroRoots]) {
@@ -235,15 +231,6 @@ async function main() {
 		} else if (dir === 'remote') {
 			// remote/.pnpmfile.mjs sets the native module build variables of remote/package.json.
 			nativeTasks.push(install(getRemoteEnv()));
-		} else if (dir === 'extensions') {
-			// extensions/.pnpmfile.mjs sets the native module build variables of the root package.json (Electron).
-			// It runs next to the other native roots: the preinstall has already installed the Electron
-			// headers, so its native builds don't download them, and they take about 15 seconds
-			// (compiling @parcel/watcher) that would otherwise add to the install time.
-			concurrentNativeTasks.push(install({ ...process.env }));
-		} else if (dir === 'extensions/copilot') {
-			// No `nativeBuild` field or pnpmfile: builds native modules for Electron with the workspace's variables.
-			nativeTasks.push(install({ ...process.env }));
 		} else if (dir === '.build/distro/npm/remote') {
 			// Distro roots have no `nativeBuild` field or pnpmfile: build for the remote server like remote/.
 			nativeTasks.push(install(applyEnv(getRemoteEnv(), getNativeBuildEnv(path.join(root, 'remote')))));
@@ -252,19 +239,28 @@ async function main() {
 		}
 	}
 
-	// Native roots (build, remote, extensions/copilot) run sequentially to avoid node-gyp conflicts,
-	// extensions next to them. Wait for every install before reporting a failure.
-	const nativeResults = await Promise.allSettled([
-		(async () => {
-			for (const task of nativeTasks) {
-				await task();
-			}
-		})(),
-		...concurrentNativeTasks.map(task => task()),
-	]);
-	const nativeFailure = nativeResults.find(result => result.status === 'rejected');
-	if (nativeFailure) {
-		throw nativeFailure.reason;
+	// The native roots install in parallel: each has its own node_modules, and their native modules
+	// build with the headers that the preinstall installed before any of them, so their builds don't
+	// download headers into node-gyp's shared cache at the same time. Set
+	// VSCODE_SEQUENTIAL_NATIVE_INSTALLS to install them one at a time instead. Every install
+	// finishes before a failure is reported.
+	let nativeResults: PromiseSettledResult<void>[];
+	if (process.env['VSCODE_SEQUENTIAL_NATIVE_INSTALLS']) {
+		log('.', `Running ${nativeTasks.length} native pnpm installs one at a time (VSCODE_SEQUENTIAL_NATIVE_INSTALLS)...`);
+		nativeResults = [];
+		for (const task of nativeTasks) {
+			nativeResults.push(...await Promise.allSettled([task()]));
+		}
+	} else {
+		log('.', `Running ${nativeTasks.length} native pnpm installs in parallel...`);
+		nativeResults = await Promise.allSettled(nativeTasks.map(task => task()));
+	}
+	const nativeFailures = nativeResults.filter(result => result.status === 'rejected');
+	for (const failure of nativeFailures.slice(1)) {
+		console.error(failure.reason);
+	}
+	if (nativeFailures.length > 0) {
+		throw nativeFailures[0].reason;
 	}
 
 	// JS-only roots run in parallel

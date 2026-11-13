@@ -24,8 +24,8 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IChatInputCompletionsParams, IChatInputCompletionsResult, IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 
 class TestChatSessionsService extends mock<IChatSessionsService>() {

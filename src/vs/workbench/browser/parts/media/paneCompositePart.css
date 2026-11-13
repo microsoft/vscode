@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .monaco-action-bar .action-item > .tab-divider {
+	display: none;
+	position: absolute;
+	pointer-events: none;
+}
+
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .actions-container {
 	justify-content: flex-end;
 }
@@ -348,13 +354,13 @@
 	border-bottom-color: transparent !important; /* hides border on clicked state */
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
-.monaco-workbench .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before,
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer.header > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	border-top-color: var(--vscode-focusBorder) !important;
 	border-top-width: 2px;
 }
 
-.monaco-workbench .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.monaco-workbench:where(:not(.modern-ui.modern-ui-connected-editor-tabs:not(.agent-sessions-workbench))) .pane-composite-part > .header-or-footer.footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	border-bottom-color: var(--vscode-focusBorder) !important;
 	border-bottom-width: 2px;
 }

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
@@ -263,6 +264,45 @@ suite('ChatDynamicVariableModel', () => {
 		} as unknown as ILabelService));
 		return { editor, model };
 	}
+
+	test('replaces covered references only when requested and publishes once after disposing them', () => {
+		const { model } = createDynamicVariableModel('/mcp enable /mcp');
+		const disposed: string[] = [];
+		model.addReference(Object.assign(toDisposable(() => disposed.push('parent')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 1, 1, 5),
+		})));
+		model.addReference(Object.assign(toDisposable(() => disposed.push('other')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 13, 1, 17),
+		})));
+		model.addReference(Object.assign(toDisposable(() => disposed.push('partial')), createMockVariable({
+			id: 'partial',
+			range: new Range(1, 10, 1, 17),
+		})));
+		const changes: { disposed: string[]; ranges: IDynamicVariable['range'][] }[] = [];
+		store.add(model.onDidChangeReferences(() => changes.push({
+			disposed: [...disposed],
+			ranges: model.variables.map(reference => reference.range),
+		})));
+
+		model.addReference(Object.assign(toDisposable(() => disposed.push('previous')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 1, 1, 12),
+		})));
+		model.addReference(createMockVariable({ id: 'command', range: new Range(1, 1, 1, 12) }), true);
+
+		assert.deepStrictEqual(changes, [
+			{
+				disposed: [],
+				ranges: [new Range(1, 1, 1, 5), new Range(1, 13, 1, 17), new Range(1, 10, 1, 17), new Range(1, 1, 1, 12)],
+			},
+			{
+				disposed: ['parent', 'previous'],
+				ranges: [new Range(1, 13, 1, 17), new Range(1, 10, 1, 17), new Range(1, 1, 1, 12)],
+			},
+		]);
+	});
 
 	test('keeps an inline skill highlight when parsing updates attachments before reference tracking', () => {
 		const { editor, model } = createDynamicVariableModel('explain /skill now', true);
