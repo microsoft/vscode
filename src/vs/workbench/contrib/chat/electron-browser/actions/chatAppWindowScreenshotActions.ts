@@ -36,8 +36,8 @@ import { getScreenshotToolImageData, IScreenshotToolImage, IScreenshotToolServic
 import { AppWindowScreenshotPermission, AppWindowScreenshotResult, getAppWindowLabel, IAppWindowScreenshotService } from '../../../screenshotTool/electron-browser/appWindowScreenshot.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../browser/attachments/chatContextPickService.js';
-import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import { ChatWidget, IChatWidgetContrib } from '../../browser/widget/chatWidget.js';
+import { IChatWidget, IChatWidgetService, IQuickChatService } from '../../browser/chat.js';
+import { ChatWidget, IChatWidgetContrib, isQuickChat } from '../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
@@ -226,6 +226,7 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 	const instantiationService = accessor.get(IInstantiationService);
 	const contextKeyService = accessor.get(IContextKeyService);
 	const appWindowScreenshotService = accessor.get(IAppWindowScreenshotService);
+	const quickChatService = accessor.get(IQuickChatService);
 
 	// A system-wide keybinding runs the command without checking its precondition.
 	if (!contextKeyService.contextMatchesRules(AppWindowScreenshotsEnabled)) {
@@ -241,6 +242,11 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 
 	// Captures before VS Code comes to the front, which would change which window is in front.
 	const screenshot = await instantiationService.invokeFunction(captureAppWindowScreenshot, request);
+	// Quick Chat can't be revealed like other chats, and the list of windows to pick from takes its place, so it opens
+	// again, also when the user cancelled picking a window.
+	if (chatInUse && isQuickChat(chatInUse) && (screenshot || request.pick)) {
+		quickChatService.open();
+	}
 	if (!screenshot) {
 		return;
 	}
