@@ -11,6 +11,15 @@ import { IChatWidget } from './chat.js';
 
 export const IChatViewHostService = createDecorator<IChatViewHostService>('chatViewHostService');
 
+/** How {@link IChatViewHost.reveal} shows the host. */
+export interface IChatViewHostRevealOptions {
+	/**
+	 * Waits for the widget of the chat it shows while the host has none yet, such as the Chat view before its body first
+	 * renders, rather than resolving to `undefined`.
+	 */
+	readonly waitForWidget?: boolean;
+}
+
 /** How {@link IChatViewHost.openSession} shows a session. */
 export interface IChatViewHostOpenOptions {
 	readonly preserveFocus?: boolean;
@@ -49,7 +58,7 @@ export interface IChatViewHostSessionStart extends IDisposable {
  */
 export interface IChatViewHost {
 	/** Shows the host and resolves to the widget of the chat it shows. */
-	reveal(preserveFocus?: boolean): Promise<IChatWidget | undefined>;
+	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined>;
 	/** Shows the chat of `sessionResource` in the host and resolves to its widget; to `undefined` when it cannot show it. */
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 	/** Shows the host, or hides it while it shows. Resolves to whether it shows afterwards. */
@@ -64,9 +73,6 @@ export interface IChatViewHost {
  */
 export interface IChatViewHostService extends IChatViewHost {
 	readonly _serviceBrand: undefined;
-
-	/** Whether a registered host replaces the Chat view. */
-	readonly isReplaced: boolean;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in

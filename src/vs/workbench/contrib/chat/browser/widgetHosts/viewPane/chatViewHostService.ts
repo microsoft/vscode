@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -12,11 +12,14 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidget } from '../../chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions } from '../../chatViewHost.js';
+import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions } from '../../chatViewHost.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 /** The Chat view, as the host of its chats. */
 export class ChatViewPaneHost implements IChatViewHost {
+
+	/** How long {@link reveal} waits for the Chat view's widget, which it creates as its body first renders. */
+	private static readonly WIDGET_TIMEOUT = 10_000;
 
 	constructor(
 		@IViewsService private readonly viewsService: IViewsService,
@@ -25,8 +28,12 @@ export class ChatViewPaneHost implements IChatViewHost {
 		@IProgressService private readonly progressService: IProgressService,
 	) { }
 
-	async reveal(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
-		return (await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus))?.widget;
+	async reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
+		const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus);
+		if (view && !view.widget && options?.waitForWidget) {
+			return raceTimeout(view.whenWidget, ChatViewPaneHost.WIDGET_TIMEOUT);
+		}
+		return view?.widget;
 	}
 
 	async openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
@@ -108,8 +115,8 @@ export class ChatViewHostService implements IChatViewHostService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly chatViewHost: IChatViewHost;
-	/** The hosts that replace the Chat view, the one in use last. */
-	private readonly hosts: IChatViewHost[] = [];
+	/** The registrations of the hosts that replace the Chat view, the one in use last: one each, also of the same host. */
+	private readonly registrations: { readonly host: IChatViewHost }[] = [];
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -117,26 +124,23 @@ export class ChatViewHostService implements IChatViewHostService {
 		this.chatViewHost = instantiationService.createInstance(ChatViewPaneHost);
 	}
 
-	get isReplaced(): boolean {
-		return this.hosts.length > 0;
-	}
-
 	private get host(): IChatViewHost {
-		return this.hosts.at(-1) ?? this.chatViewHost;
+		return this.registrations.at(-1)?.host ?? this.chatViewHost;
 	}
 
 	registerHost(host: IChatViewHost): IDisposable {
-		this.hosts.push(host);
+		const registration = { host };
+		this.registrations.push(registration);
 		return toDisposable(() => {
-			const index = this.hosts.indexOf(host);
+			const index = this.registrations.indexOf(registration);
 			if (index >= 0) {
-				this.hosts.splice(index, 1);
+				this.registrations.splice(index, 1);
 			}
 		});
 	}
 
-	reveal(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
-		return this.host.reveal(preserveFocus);
+	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
+		return this.host.reveal(preserveFocus, options);
 	}
 
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {

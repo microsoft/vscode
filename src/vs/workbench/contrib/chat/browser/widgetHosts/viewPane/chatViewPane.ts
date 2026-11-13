@@ -72,7 +72,7 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
-import { disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
+import { DeferredPromise, disposableTimeout, raceCancellation } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
 import { IAgentSessionsService } from '../../agentSessions/agentSessionsService.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
@@ -1043,6 +1043,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _widget!: ChatWidget;
 	get widget(): ChatWidget { return this._widget; }
 
+	private readonly _widgetCreated = new DeferredPromise<ChatWidget>();
+	/** Resolves to {@link widget} once the view creates it, as its body first renders. */
+	get whenWidget(): Promise<ChatWidget> { return this._widgetCreated.p; }
+
 	private titleControl: ChatViewTitleControl | undefined;
 
 	private createChatControl(parent: HTMLElement): ChatWidget {
@@ -1121,6 +1125,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			},
 			undefined
 		));
+		this._widgetCreated.complete(this._widget);
 
 		this._register(this.titleControl.onDidChangeHeight(() => {
 			this.relayout();

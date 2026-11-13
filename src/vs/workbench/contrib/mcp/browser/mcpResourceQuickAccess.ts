@@ -515,7 +515,7 @@ export abstract class AbstractMcpResourceAccessPick {
 				if (attachment instanceof Promise) {
 					attachment.then(async a => {
 						if (a !== 'noop') {
-							const widget = await openPanelChatAndGetWidget(this._chatViewHostService, this._chatWidgetService);
+							const widget = await openPanelChatAndGetWidget(this._chatViewHostService);
 							widget?.attachmentModel.addContext(...asArray(a));
 						}
 						picker.hide();

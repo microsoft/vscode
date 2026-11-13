@@ -6,57 +6,48 @@
 import assert from 'assert';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { ChatViewId, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
+import { ChatViewId } from '../../../chat/browser/chat.js';
+import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
+import { IChatViewHost, IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
+import { ChatViewHostService } from '../../../chat/browser/widgetHosts/viewPane/chatViewHostService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IProgressService } from '../../../../../platform/progress/common/progress.js';
+import { ChatViewPane } from '../../../chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { openPanelChatAndGetWidget } from '../../browser/openPanelChatAndGetWidget.js';
 
 suite('openPanelChatAndGetWidget', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const chatViewWidget = () => upcastPartial<IChatWidget>({ viewContext: { viewId: ChatViewId } });
-	const chatEditorWidget = upcastPartial<IChatWidget>({ viewContext: {} });
-
-	/** Reveals with a host that replaces the Chat view or not, which the reveal shows `revealed`, while a chat editor exists already. */
-	function setup(options: { readonly replaced: boolean; readonly revealed: Promise<IChatWidget | undefined> }) {
+	/** The host service of a workbench whose Chat view shows `chatViewWidget`, where a chat editor opened before it exists. */
+	function createService(chatViewWidget: ChatWidget) {
 		const calls: string[] = [];
-		const added = disposables.add(new Emitter<IChatWidget>());
-		const host = { isReplaced: options.replaced };
-		const chatWidgetService = upcastPartial<IChatWidgetService>({
-			revealChatView: preserveFocus => { calls.push(`revealChatView preserveFocus=${preserveFocus}`); return options.revealed; },
-			getWidgetsByLocations: () => { calls.push('getWidgetsByLocations'); return [chatEditorWidget]; },
-			onDidAddWidget: added.event,
-		});
-		return { calls, added, host, open: () => openPanelChatAndGetWidget(upcastPartial<IChatViewHostService>(host), chatWidgetService) };
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async (id: string, focus?: boolean) => { calls.push(`openView ${id} focus=${focus}`); return upcastPartial<ChatViewPane>({ widget: chatViewWidget }); }) as IViewsService['openView'],
+		}));
+		instantiationService.stub(IViewDescriptorService, {});
+		instantiationService.stub(IWorkbenchLayoutService, {});
+		instantiationService.stub(IProgressService, {});
+		return { service: instantiationService.createInstance(ChatViewHostService) as IChatViewHostService, calls };
 	}
 
-	test('with the Chat view as the host, returns the Chat view\'s widget, not a chat editor opened before it', async () => {
-		const shown = chatViewWidget();
-		const { calls, open } = setup({ replaced: false, revealed: Promise.resolve(shown) });
-		assert.deepStrictEqual({ shown: await open() === shown, calls }, { shown: true, calls: ['revealChatView preserveFocus=false'] });
+	test('returns the Chat view\'s widget, not a chat editor opened before it', async () => {
+		const chatViewWidget = upcastPartial<ChatWidget>({ viewContext: { viewId: ChatViewId } });
+		const { service, calls } = createService(chatViewWidget);
+		assert.deepStrictEqual({ widget: await openPanelChatAndGetWidget(service) === chatViewWidget, calls }, { widget: true, calls: [`openView ${ChatViewId} focus=true`] });
 	});
 
-	test('with the Chat view as the host, waits for the Chat view\'s widget while it has none, not for a chat editor', async () => {
-		const { calls, added, open } = setup({ replaced: false, revealed: Promise.resolve(undefined) });
-		const pending = open();
-		await Promise.resolve();
-		await Promise.resolve();
-		added.fire(chatEditorWidget);
-		const shown = chatViewWidget();
-		added.fire(shown);
-		assert.deepStrictEqual({ shown: await pending === shown, calls }, { shown: true, calls: ['revealChatView preserveFocus=false'] });
-	});
-
-	test('with a host that replaces the Chat view, returns what it shows, also none, and waits for nothing, also when it is unregistered while it reveals', async () => {
-		const reveal = new DeferredPromise<IChatWidget | undefined>();
-		const { calls, added, host, open } = setup({ replaced: true, revealed: reveal.p });
-		const pending = open();
-		host.isReplaced = false;
-		reveal.complete(undefined);
-		const result = await pending;
-		added.fire(chatViewWidget());
-		assert.deepStrictEqual({ result, calls }, { result: undefined, calls: ['revealChatView preserveFocus=false'] });
+	test('returns what a host that replaces the Chat view shows, also none, asking it to wait for its widget', async () => {
+		const { service, calls } = createService(upcastPartial<ChatWidget>({}));
+		const registration = service.registerHost(upcastPartial<IChatViewHost>({
+			reveal: async (preserveFocus, options) => { calls.push(`reveal preserveFocus=${preserveFocus} waitForWidget=${options?.waitForWidget}`); return undefined; },
+		}));
+		const widget = await openPanelChatAndGetWidget(service);
+		registration.dispose();
+		assert.deepStrictEqual({ widget, calls }, { widget: undefined, calls: ['reveal preserveFocus=false waitForWidget=true'] });
 	});
 });

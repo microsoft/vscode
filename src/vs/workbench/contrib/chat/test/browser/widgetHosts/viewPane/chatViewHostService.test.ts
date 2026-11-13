@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../../base/common/async.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -25,11 +25,13 @@ suite('ChatViewHostService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** The service over a Chat view that records what is asked of it, of the views service and of the layout. */
-	function createService(options: { readonly chatVisible?: boolean } = {}) {
+	function createService(options: { readonly chatVisible?: boolean; readonly widgetCreatedLater?: boolean } = {}) {
 		const calls: string[] = [];
 		const widget = upcastPartial<ChatWidget>({});
+		const created = new DeferredPromise<ChatWidget>();
 		const view = upcastPartial<ChatViewPane>({
-			widget,
+			widget: options.widgetCreatedLater ? undefined : widget,
+			whenWidget: created.p,
 			loadSession: async (resource: URI, reason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}`); return undefined; },
 			startNewLocalSession: async () => { calls.push('startNewLocalSession'); return undefined; },
 			focus: () => { calls.push('focus'); },
@@ -46,7 +48,7 @@ suite('ChatViewHostService', () => {
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({
 			withProgress: (async (_options: unknown, task: () => Promise<void>) => { calls.push('progress'); await task(); calls.push('progress done'); }) as IProgressService['withProgress'],
 		}));
-		return { service: instantiationService.createInstance(ChatViewHostService), widget, calls };
+		return { service: instantiationService.createInstance(ChatViewHostService), widget, view, created, calls };
 	}
 
 	test('without a host that replaces it, the Chat view shows the chats as before', async () => {
@@ -86,24 +88,45 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual({ shows: await service.toggle(), calls }, { shows: false, calls: [`setPartHidden true ${Parts.AUXILIARYBAR_PART}`] });
 	});
 
-	test('the host registered last shows the chats; disposing an earlier one leaves it, and disposing it restores the Chat view', async () => {
+	test('the host registered last shows the chats, each registration on its own, also of the same host, until it is disposed, in any order', async () => {
 		const { service, calls } = createService();
-		const host = (name: string) => upcastPartial<IChatViewHost>({ reveal: async () => { calls.push(`reveal ${name}`); return undefined; } });
+		const reveals: string[] = [];
+		const host = (name: string) => upcastPartial<IChatViewHost>({ reveal: async () => { reveals.push(name); return undefined; } });
+		const active = async () => {
+			reveals.length = 0;
+			calls.length = 0;
+			await service.reveal();
+			return reveals[0] ?? (calls.length ? 'chat view' : 'none');
+		};
+		const a = host('A');
+		const b = host('B');
+		const steps: string[] = [];
 
-		const before = service.isReplaced;
-		const first = service.registerHost(host('first'));
-		await service.reveal();
-		const second = service.registerHost(host('second'));
-		await service.reveal();
-		first.dispose();
-		await service.reveal();
-		const replaced = service.isReplaced;
-		second.dispose();
-		await service.reveal();
+		const firstA = service.registerHost(a);
+		const registeredB = service.registerHost(b);
+		const lastA = service.registerHost(a);
+		steps.push(await active());
+		lastA.dispose();
+		steps.push(await active());
+		const c = service.registerHost(host('C'));
+		// An earlier registration disposed out of order leaves the one in use
+		registeredB.dispose();
+		steps.push(await active());
+		c.dispose();
+		steps.push(await active());
+		firstA.dispose();
+		steps.push(await active());
 
-		assert.deepStrictEqual({ before, replaced, after: service.isReplaced, calls }, {
-			before: false, replaced: true, after: false,
-			calls: ['reveal first', 'reveal second', 'reveal second', `openView ${ChatViewId} focus=true`],
-		});
+		assert.deepStrictEqual(steps, ['A', 'B', 'C', 'A', 'chat view']);
+	});
+
+	test('reveal waits for the Chat view\'s widget, which its body creates as it first renders, only when asked to', async () => {
+		const { service, view, created } = createService({ widgetCreatedLater: true });
+		const unchanged = await service.reveal(false);
+		const pending = service.reveal(false, { waitForWidget: true });
+		const widget = upcastPartial<ChatWidget>({});
+		Object.assign(view, { widget });
+		created.complete(widget);
+		assert.deepStrictEqual({ unchanged, waited: await pending === widget }, { unchanged: undefined, waited: true });
 	});
 });

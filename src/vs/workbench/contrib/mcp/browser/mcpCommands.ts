@@ -1826,7 +1826,7 @@ export class McpStartPromptingServerCommand extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, server: IMcpServer): Promise<void> {
-		const widget = await openPanelChatAndGetWidget(accessor.get(IChatViewHostService), accessor.get(IChatWidgetService));
+		const widget = await openPanelChatAndGetWidget(accessor.get(IChatViewHostService));
 		if (!widget) {
 			return;
 		}
