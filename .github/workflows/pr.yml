@@ -840,7 +840,7 @@ jobs:
           # user namespaces, which Ubuntu 24.04 restricts by default via AppArmor
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           sudo apt-get update
-          sudo apt-get install -y xvfb libgtk-3-0 libgbm1
+          sudo apt-get install -y xvfb libgtk-3-0 libgbm1 libkrb5-dev
 
       # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies
