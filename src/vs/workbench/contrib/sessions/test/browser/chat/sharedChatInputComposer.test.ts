@@ -453,7 +453,6 @@ suite('SharedChatInputComposer', () => {
 			const pillsChanged = store.add(new Emitter<void>());
 			const state = { text, attachments, references };
 			const widget = {
-				focusInput() { },
 				getInput: () => state.text,
 				setInput: (value: string) => { state.text = value; content.fire(); },
 				inputEditor: { onDidChangeModelContent: content.event, getModel: () => undefined },
@@ -491,25 +490,6 @@ suite('SharedChatInputComposer', () => {
 
 		const reference = (id: string): IDynamicVariable => ({ id, range: new Range(1, 1, 1, 2), data: URI.file(`/${id}`) });
 		const ids = (input: { readonly references?: readonly IDynamicVariable[] }) => input.references?.map(entry => entry.id);
-
-		for (const replaceDraft of [false, true]) {
-			test(`prefilling clears attachments and references only for explicit draft replacement (${replaceDraft})`, () => {
-				const snapshot = new ComposerInputSnapshot();
-				const { widget, state } = createEventfulWidget('Old draft', [context], [reference('a')]);
-				const composer = createSnapshotComposer(widget, snapshot);
-				const tracking = Reflect.get(SharedChatInputComposer.prototype, '_trackInputSnapshot').call(composer, widget) as IDisposable;
-				composer.prefillInput('/automate ', replaceDraft);
-				tracking.dispose();
-
-				assert.deepStrictEqual({
-					text: state.text, attachments: state.attachments.map(entry => entry.id), references: state.references.map(entry => entry.id),
-					savedAttachments: snapshot.get().input.attachments.map(entry => entry.id), savedReferences: ids(snapshot.get().input),
-				}, {
-					text: '/automate ', attachments: replaceDraft ? [] : ['context'], references: replaceDraft ? [] : ['a'],
-					savedAttachments: replaceDraft ? [] : ['context'], savedReferences: replaceDraft ? [] : ['a'],
-				});
-			});
-		}
 
 		test('writes the snapshot when only its inline references or pills change, without an edit, and stops when its tracking ends', () => {
 			const snapshot = new ComposerInputSnapshot();

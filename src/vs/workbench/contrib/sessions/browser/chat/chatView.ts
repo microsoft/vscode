@@ -291,9 +291,9 @@ export class NewChatView extends AbstractChatView {
 		return this._widget instanceof NewChatWidget ? this._widget.applyNoWorkspace(options) : 'notReady';
 	}
 
-	override prefillInput(text: string, replaceDraft?: boolean): void {
+	override prefillInput(text: string): void {
 		if (this._widget instanceof NewChatWidget) {
-			this._widget.prefillInput(text, replaceDraft);
+			this._widget.prefillInput(text);
 		}
 	}
 

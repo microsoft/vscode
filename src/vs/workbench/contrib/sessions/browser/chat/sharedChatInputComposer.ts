@@ -706,13 +706,8 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 	}
 
-	prefillInput(text: string, replaceDraft = false): void {
+	prefillInput(text: string): void {
 		this.setInputValue(text);
-		if (replaceDraft) {
-			this._widget?.attachmentModel.clearAndSetContext();
-			this._widget?.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.setInputState({ [ChatDynamicVariableModel.ID]: [] });
-			this.saveState();
-		}
 		this.focus();
 	}
 

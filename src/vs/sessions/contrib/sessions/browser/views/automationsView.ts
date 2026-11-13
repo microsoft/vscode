@@ -3180,7 +3180,7 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 		if (mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length)) {
 			const { confirmed } = await dialogService.confirm({
 				message: localize('replaceAutomationDraft', "Replace your existing draft?"),
-				detail: localize('replaceAutomationDraftDetail', "The draft's text and attachments will be removed and replaced with /automate."),
+				detail: localize('replaceAutomationDraftDetail', "The draft's text will be replaced with /automate. Existing attachments will be kept."),
 				primaryButton: localize('replaceAutomationDraftButton', "Replace Draft"),
 			});
 			if (!confirmed) {
@@ -3192,7 +3192,6 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 		const options: INewSessionInAgentsWindowOptions = {
 			prompt: '/automate ',
 			prefillPrompt: true,
-			replaceDraft: true,
 			...(useLocalCopilot ? { noWorkspace: true, agentHostProvider: SessionType.CopilotCLI } : {}),
 		};
 		await commandService.executeCommand(NEW_SESSION_ACTION_ID, options);

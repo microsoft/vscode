@@ -1323,7 +1323,7 @@ suite('AutomationsCardsWidget', () => {
 			dropdown: ['Create Manually'],
 			executed: [
 				['sessions.automations.createWithAgent'],
-				['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true, replaceDraft: true }],
+				['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }],
 				['sessionsView.newAutomation'],
 			],
 		});
@@ -1351,12 +1351,14 @@ suite('AutomationsCardsWidget', () => {
 
 				assert.deepStrictEqual({
 					confirmations: dialogService.confirmations.map(confirmation => confirmation.primaryButton),
+					details: dialogService.confirmations.map(confirmation => confirmation.detail),
 					commands: execute.args,
 					savedDraft: readNewChatDraftState(storageService),
 				}, {
 					confirmations: content === 'empty' ? [] : ['Replace Draft'],
+					details: content === 'empty' ? [] : ['The draft\'s text will be replaced with /automate. Existing attachments will be kept.'],
 					commands: content === 'empty' || confirmed
-						? [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true, replaceDraft: true }]]
+						? [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]]
 						: [],
 					savedDraft,
 				});
@@ -1390,7 +1392,7 @@ suite('AutomationsCardsWidget', () => {
 
 			assert.deepStrictEqual({ commands: execute.args, revealed, focused }, {
 				commands: [['workbench.action.sessions.newChat', {
-					prompt: '/automate ', prefillPrompt: true, replaceDraft: true,
+					prompt: '/automate ', prefillPrompt: true,
 					...(scenario.fallback ? { noWorkspace: true, agentHostProvider: SessionType.CopilotCLI } : {}),
 				}]],
 				revealed: scenario.fallback ? 1 : 0,
@@ -5677,7 +5679,7 @@ suite('AutomationsCardsWidget', () => {
 		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
 			'Create with Agent opens a new session with /automate prefilled and the input focused. This button is in the empty state, or in the view header once automations exist. Choose Create Manually from its adjacent More Actions dropdown to open the automation dialog. In the header, use Left Arrow and Right Arrow to move between the button and dropdown; in the empty state, use Tab and Shift+Tab. Press Enter or Space to activate either control. Create Manually remains available while chat is not ready.',
 		]);
-		assert.ok(provider.provideContent().includes('Choose Cancel to keep the draft, or Replace Draft to clear its text and attachments.'));
+		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose Cancel to keep the draft unchanged.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {

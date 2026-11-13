@@ -1211,8 +1211,8 @@ export class ChatGroupsView extends Themable {
 		return this._activeGroup?.view.selectNoWorkspace(options) ?? 'notReady';
 	}
 
-	prefillInput(text: string, replaceDraft?: boolean): void {
-		this._activeGroup?.view.prefillInput(text, replaceDraft);
+	prefillInput(text: string): void {
+		this._activeGroup?.view.prefillInput(text);
 	}
 
 	sendQuery(text: string): void {

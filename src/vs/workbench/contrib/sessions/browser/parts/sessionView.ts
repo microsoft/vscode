@@ -551,9 +551,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		this._groupsView.moveActiveChatToAdjacentGroup(direction);
 	}
 
-	prefillInput(text: string, replaceDraft?: boolean): void {
+	prefillInput(text: string): void {
 		const standaloneView = this._visibleStandaloneView;
-		standaloneView ? standaloneView.prefillInput(text, replaceDraft) : this._groupsView.prefillInput(text, replaceDraft);
+		standaloneView ? standaloneView.prefillInput(text) : this._groupsView.prefillInput(text);
 	}
 
 	sendQuery(text: string): void {

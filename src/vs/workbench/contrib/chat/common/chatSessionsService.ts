@@ -37,8 +37,6 @@ export interface INewSessionInAgentsWindowOptions {
 	toSide?: boolean;
 	prompt?: string;
 	prefillPrompt?: boolean;
-	/** Clear existing draft attachments and references when prefilling the prompt. */
-	replaceDraft?: boolean;
 	noWorkspace?: boolean;
 	/** Local Agent Host provider to use for a workspace-less session instead of inheriting the active target. */
 	agentHostProvider?: string;

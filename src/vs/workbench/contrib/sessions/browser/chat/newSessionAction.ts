@@ -120,7 +120,7 @@ export class NewChatInSessionsWindowAction extends Action2 {
 				throw new Error(localize('sessions.newSession.chatUnavailable', "The new session chat is unavailable."));
 			}
 			if (options.prefillPrompt) {
-				sessionView.prefillInput(options.prompt, options.replaceDraft);
+				sessionView.prefillInput(options.prompt);
 			} else {
 				sessionView.sendQuery(options.prompt);
 			}

@@ -40,7 +40,7 @@ suite('NewChatInSessionsWindowAction', () => {
 	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; selectionApplied?: boolean } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
-		const prefilled: { text: string; replaceDraft: boolean | undefined }[] = [];
+		const prefilled: string[] = [];
 		const selections: (ISelectNoWorkspaceOptions | undefined)[] = [];
 		const currentSession = observableValue<ITestSessionWithChat | undefined>('currentSession', options.active ? upcastPartial<ITestSessionWithChat>({
 			providerId: 'other-provider', sessionType: 'other-agent',
@@ -62,7 +62,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		stubMissingSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(ISessionsPartService, {
 			getSessionView: () => upcastPartial<ISessionView>({
-				prefillInput: (text: string, replaceDraft?: boolean) => { prefilled.push({ text, replaceDraft }); },
+				prefillInput: (text: string) => { prefilled.push(text); },
 				selectNoWorkspace: selection => {
 					selections.push(selection);
 					if (!options.selectionApplied) {
@@ -127,23 +127,15 @@ suite('NewChatInSessionsWindowAction', () => {
 
 	test('selects an explicit local target through the current composer so its environment and workspace agree', async () => {
 		const fixture = createCommand({ active: true, selectionApplied: true });
-		const result = await fixture.run({ noWorkspace: true, agentHostProvider: SessionType.CopilotCLI, prompt: '/automate ', prefillPrompt: true, replaceDraft: true });
+		const result = await fixture.run({ noWorkspace: true, agentHostProvider: SessionType.CopilotCLI, prompt: '/automate ', prefillPrompt: true });
 
 		assert.deepStrictEqual({ result, opened: fixture.opened, selections: fixture.selections, prefilled: fixture.prefilled }, {
 			result: resource,
 			opened: [],
 			selections: [{ providerId: LOCAL_AGENT_HOST_PROVIDER_ID, sessionTypeId: SessionType.CopilotCLI, userSelection: false, preserveNavigation: true }],
-			prefilled: [{ text: '/automate ', replaceDraft: true }],
+			prefilled: ['/automate '],
 		});
 	});
-
-	for (const replaceDraft of [undefined, true]) {
-		test(`forwards draft replacement only when requested (${replaceDraft})`, async () => {
-			const fixture = createCommand();
-			await fixture.run({ noWorkspace: true, prompt: '/automate ', prefillPrompt: true, replaceDraft });
-			assert.deepStrictEqual(fixture.prefilled, [{ text: '/automate ', replaceDraft }]);
-		});
-	}
 
 	test('keeps inheriting the active target for ordinary workspace-less sessions', async () => {
 		const fixture = createCommand({ active: true });

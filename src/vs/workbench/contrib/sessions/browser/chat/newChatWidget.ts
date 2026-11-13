@@ -2880,8 +2880,8 @@ export class NewChatWidget extends Disposable {
 		}
 	}
 
-	prefillInput(text: string, replaceDraft?: boolean): void {
-		this._newChatInput.prefillInput(text, replaceDraft);
+	prefillInput(text: string): void {
+		this._newChatInput.prefillInput(text);
 	}
 
 	setHostVisible(visible: boolean): void {
