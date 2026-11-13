@@ -1092,11 +1092,12 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			return this.options.inputVisible?.get() !== false && this.options.hostVisible?.get() !== false
 				&& (activeElement === targetWindow.document.body || activeElement === disabledInputFocus || widget.input.hasFocus());
 		};
+		// The request is captured before it waits for its session or the host's confirmation, during which the input is read-only.
+		// It can still be replaced programmatically, such as by Run Prompt, and sending would then clear the newer draft.
+		const draftBeforeWait = this.getDraft();
 		if (!this._canSendRequest.get()) {
 			// A request sent as the composer opens, such as by Run Prompt, can come before its session is set up to send.
 			// The request is already captured, so edits made while it waits would be lost.
-			// A read-only input can still be replaced programmatically, such as by another Run Prompt.
-			const draftBeforeWait = this.getDraft();
 			this._sending.set(true, undefined);
 			widget.input.setInputEnabled(false, this.options.preserveInputFocusOnSend);
 			disabledInputFocus = targetWindow.document.activeElement;
@@ -1117,13 +1118,6 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 					widget.input.focus();
 				}
 				this.notificationService.error(localize('sharedChatInputComposer.notReady', "The request could not be sent because the new session is not ready. Try sending it again."));
-				return false;
-			}
-			if (!equals(draftBeforeWait, this.getDraft())) {
-				// The input changed while waiting, and sending would clear it: keep the newer draft for the user to send instead.
-				if (hadFocus && canRestoreInputFocus()) {
-					widget.input.focus();
-				}
 				return false;
 			}
 		}
@@ -1153,6 +1147,14 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 			if (!confirmed || this._widget !== widget) {
 				return false;
 			}
+		}
+		if (!equals(draftBeforeWait, this.getDraft())) {
+			// Keep the newer draft for the user to send, and say why the request did not go out.
+			if (hadFocus && canRestoreInputFocus()) {
+				widget.input.focus();
+			}
+			this.notificationService.warn(localize('sharedChatInputComposer.inputReplaced', "The request was not sent because the input was replaced while it waited. The new input was kept."));
+			return false;
 		}
 
 		const userInteraction = background ? undefined : this.instantiationService.createInstance(NewChatUserInteraction, {

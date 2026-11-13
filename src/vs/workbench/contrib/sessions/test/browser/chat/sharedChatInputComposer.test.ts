@@ -59,6 +59,7 @@ suite('SharedChatInputComposer', () => {
 		let draftModelState: object | undefined;
 		const requests: { query: string; attachments: string[]; background: boolean }[] = [];
 		const errors: string[] = [];
+		const warnings: string[] = [];
 		const readinessWait = store.add(new MutableDisposable<DisposableStore>());
 		const attemptIds: (string | undefined)[] = [];
 		let storageWrites = 0;
@@ -146,11 +147,11 @@ suite('SharedChatInputComposer', () => {
 			},
 			storageService,
 			logService: new NullLogService(),
-			notificationService: { error: (message: string) => { errors.push(message); } },
+			notificationService: { error: (message: string) => { errors.push(message); }, warn: (message: string) => { warnings.push(message); } },
 			chatSlashCommandService: slashCommands,
 			instantiationService: { createInstance: (ctor: unknown) => ctor === ChatRequestParser ? parser : { cancel: () => { }, disposeSource: () => { } } },
 		});
-		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
+		return { composer, widget, executeToolbarElement, readinessWait, inputTransitions, attemptIds, storageWrites: () => storageWrites, state: () => ({ requests, errors, warnings, commands, restoredReferences, input: { text, attachments: attachments.map(entry => entry.id), enabled: inputEnabled }, draftModelState, focusRestored }) };
 	}
 
 	test('scheduling supplies the send controls as the picker anchor and keeps input on cancel', async () => {
@@ -655,24 +656,51 @@ suite('SharedChatInputComposer', () => {
 		});
 	}));
 
-	test('a send waiting for its session is not sent when another prompt, such as by Run Prompt, replaces the input meanwhile, which keeps the newer prompt', () => runWithFakedTimers({}, async () => {
-		const canSendRequest = observableValue('canSendRequest', false);
-		const { composer, widget, state } = createComposer({ canSendRequest });
-		const sending = composer.submit();
-		await timeout(1000);
+	const replacements: { name: string; replace: (widget: ReturnType<typeof createComposer>['widget'], references: IDynamicVariable[]) => void; input: { text: string; attachments: string[] } }[] = [
 		// Run Prompt sets the input programmatically, which a read-only input does not prevent.
+		{ name: 'its text changes', replace: widget => (widget.setInput as (value: string) => void)('/review'), input: { text: '/review', attachments: ['context'] } },
+		{ name: 'its attachments change', replace: widget => (widget.attachmentModel as { addContext(...entries: IChatRequestVariableEntry[]): void }).addContext({ kind: 'generic', id: 'other', name: 'other', value: 'other' }), input: { text: 'Build it', attachments: ['context', 'other'] } },
+		{ name: 'its references change', replace: (_widget, references) => references.push({ id: 'file', range: new Range(1, 1, 1, 6), data: 'a.ts' }), input: { text: 'Build it', attachments: ['context'] } },
+	];
+	for (const replacement of replacements) {
+		test(`a send waiting for its session is not sent, keeps the newer input and says so when ${replacement.name} meanwhile`, () => runWithFakedTimers({}, async () => {
+			const canSendRequest = observableValue('canSendRequest', false);
+			const references: IDynamicVariable[] = [];
+			const { composer, widget, state } = createComposer({ canSendRequest, references });
+			const sending = composer.submit();
+			await timeout(1000);
+			replacement.replace(widget, references);
+			const duplicate = await composer.submit();
+			canSendRequest.set(true, undefined);
+			const sent = await sending;
+			assert.deepStrictEqual({ duplicate, sent, requests: state().requests, errors: state().errors, warnings: state().warnings.length, input: state().input }, {
+				duplicate: false,
+				sent: false,
+				requests: [],
+				errors: [],
+				warnings: 1,
+				input: { ...replacement.input, enabled: true },
+			});
+		}));
+	}
+
+	test('a send waiting for the host to confirm is not sent, keeps the newer input and says so when the input is replaced meanwhile', async () => {
+		const confirmation = new DeferredPromise<boolean>();
+		const { composer, widget, state } = createComposer({ confirmSend: confirmation });
+		const sending = composer.submit();
+		await timeout(0);
 		(widget.setInput as (value: string) => void)('/review');
 		const duplicate = await composer.submit();
-		canSendRequest.set(true, undefined);
+		confirmation.complete(true);
 		const sent = await sending;
-		assert.deepStrictEqual({ duplicate, sent, requests: state().requests, errors: state().errors, input: state().input }, {
+		assert.deepStrictEqual({ duplicate, sent, requests: state().requests, warnings: state().warnings.length, input: state().input }, {
 			duplicate: false,
 			sent: false,
 			requests: [],
-			errors: [],
+			warnings: 1,
 			input: { text: '/review', attachments: ['context'], enabled: true },
 		});
-	}));
+	});
 
 	test('a send whose session does not get ready in time is not sent, gives its input back as it was and says so', () => runWithFakedTimers({}, async () => {
 		const { composer, inputTransitions, state } = createComposer({ canSendRequest: false, focused: true });
