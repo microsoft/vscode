@@ -283,17 +283,23 @@ export class ChatSetupController extends Disposable {
 			const targets = new Set(copilotEntraResources.values());
 			const failed = new DeferredPromise<never>();
 			const prompts = new Sequencer();
-			const credentials = new Map<string, { resource: ProtectedResourceMetadata; credential: DeferredPromise<AuthenticationSession> }>();
-			const identityCredential = new DeferredPromise<AuthenticationSession>();
+			const credentials = new Map<string, { resource: ProtectedResourceMetadata; credential: DeferredPromise<AuthenticationSession | undefined> }>();
+			const identityCredential = new DeferredPromise<AuthenticationSession | undefined>();
 			await identityCredential.complete(identity);
 			credentials.set(discovery.resource, { resource: discovery, credential: identityCredential });
-			const answerChallenge = async (resource: ProtectedResourceMetadata, reason: AuthRequiredReason | undefined, credential: DeferredPromise<AuthenticationSession>) => {
+			const answerChallenge = async (resource: ProtectedResourceMetadata, reason: AuthRequiredReason | undefined, credential: DeferredPromise<AuthenticationSession | undefined>) => {
 				try {
 					// The host announces a challenge before it advertises the challenged resource.
 					await waitForState(root,
 						state => !!state && !(state instanceof Error) && state.agents.some(candidate => candidate.provider === agent.provider && candidate.protectedResources?.some(advertised => equals(advertised, resource))),
 						state => state instanceof Error ? state : undefined, cancellation.token);
 					await prompts.queue(async () => {
+						if (!currentResources().some(advertised => equals(advertised, resource))) {
+							// Another path satisfied the requirement before anything was asked, so choosing this service acquires its credential the ordinary way.
+							credentials.delete(resource.resource);
+							await credential.complete(undefined);
+							return;
+						}
 						this.requireMicrosoftResource(resource, currentResources(), cancellation.token);
 						const session = await this.getMicrosoftCredential(resource, identity.account, cancellation.token, reason === AuthRequiredReason.Expired);
 						await credential.complete(session);
@@ -322,7 +328,7 @@ export class ChatSetupController extends Disposable {
 					}
 					return;
 				}
-				const credential = new DeferredPromise<AuthenticationSession>();
+				const credential = new DeferredPromise<AuthenticationSession | undefined>();
 				credential.p.catch(() => { });
 				credentials.set(resource.resource, { resource, credential });
 				void answerChallenge(resource, notification.reason, credential);
@@ -344,14 +350,15 @@ export class ChatSetupController extends Disposable {
 				}
 				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);
 				const challenged = credentials.get(choice.resource);
-				const credential = challenged ? await challenged.credential.p : await this.getMicrosoftCredential(choice, identity.account, cancellation.token);
-				if (challenged && (!equals(challenged.resource.authorization_servers, choice.authorization_servers) || !choice.scopes_supported?.every(scope => credential.scopes.includes(scope)))) {
+				const answered = await challenged?.credential.p;
+				const credential = answered ?? await this.getMicrosoftCredential(choice, identity.account, cancellation.token);
+				if (challenged && answered && (!equals(challenged.resource.authorization_servers, choice.authorization_servers) || !choice.scopes_supported?.every(scope => credential.scopes.includes(scope)))) {
 					throw new Error(localize('copilotConsentChanged', "The Microsoft authentication requirements changed during setup. Try setup again."));
 				}
-				if (!challenged) {
-					const answered = new DeferredPromise<AuthenticationSession>();
-					await answered.complete(credential);
-					credentials.set(choice.resource, { resource: choice, credential: answered });
+				if (!answered) {
+					const acquired = new DeferredPromise<AuthenticationSession | undefined>();
+					await acquired.complete(credential);
+					credentials.set(choice.resource, { resource: choice, credential: acquired });
 				}
 				await this.authenticateMicrosoftResource(choice, credential, currentResources(), cancellation.token);
 				this.requireMicrosoftResource(choice, currentResources(), cancellation.token);

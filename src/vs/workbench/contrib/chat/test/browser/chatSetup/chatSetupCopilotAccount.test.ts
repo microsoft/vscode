@@ -73,7 +73,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 			signIn: undefined as Promise<void> | undefined, publication: undefined as Promise<void> | undefined,
 			activation: undefined as Promise<void> | undefined, retry: false,
 			discovery: undefined as DeferredPromise<void> | undefined,
-			challenge: undefined as ProtectedResourceMetadata | undefined, challengeBeforePublication: false,
+			challenge: undefined as ProtectedResourceMetadata | undefined, challengeBeforePublication: false, challengeSatisfiedElsewhere: false,
 			refused: undefined as ProtectedResourceMetadata | undefined,
 			consentError: undefined as Error | undefined, finishDiscoveryOnCredential: false, progress: false,
 			cancelProgress: undefined as (() => void) | undefined,
@@ -114,6 +114,9 @@ suite('Microsoft Copilot resource setup UI', () => {
 						publish([discovery, state.challenge]);
 						if (!state.challengeBeforePublication) {
 							notifications.fire(challenge);
+						}
+						if (state.challengeSatisfiedElsewhere) {
+							publish([discovery]);
 						}
 					}
 					void discoveryDelivered.complete();
@@ -241,6 +244,64 @@ suite('Microsoft Copilot resource setup UI', () => {
 			}
 		});
 	}
+
+	test('a requirement satisfied elsewhere before its prompt starts does not fail choosing that service', async () => {
+		const f = fixture();
+		const pendingDiscovery = new DeferredPromise<void>();
+		f.state.discovery = pendingDiscovery;
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[0]];
+		f.state.challenge = services[0];
+		f.state.challengeSatisfiedElsewhere = true;
+		const cancellation = store.add(new CancellationTokenSource());
+		const pending = f.run(cancellation.token);
+		try {
+			await f.discoveryDelivered.p;
+			const returnedBeforeHostResult = await raceTimeout(pending, 50) !== undefined;
+			await pendingDiscovery.complete();
+			const result = await raceTimeout(pending, 500);
+			assert.deepStrictEqual({ returnedBeforeHostResult, success: result?.success, calls: f.calls, delivered: f.deliveries.map(request => request.resource) }, {
+				returnedBeforeHostResult: false, success: true, calls: ['install'], delivered: [discovery.resource, services[0].resource],
+			});
+		} finally {
+			cancellation.cancel();
+			await pendingDiscovery.complete();
+			await pending;
+		}
+	});
+
+	test('a queued requirement satisfied elsewhere does not fail the service already chosen', async () => {
+		const f = fixture();
+		const pendingDiscovery = new DeferredPromise<void>();
+		const prompt = new DeferredPromise<void>();
+		f.state.discovery = pendingDiscovery;
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[1]];
+		f.state.challenge = services[0];
+		f.state.refused = services[0];
+		f.state.consentError = new CancellationError();
+		f.state.signIn = prompt.p;
+		const cancellation = store.add(new CancellationTokenSource());
+		const pending = f.run(cancellation.token);
+		try {
+			await raceTimeout(f.signInStarted.p, 500);
+			const requirement: ProtectedResourceMetadata = { resource: services[1].resource, authorization_servers: services[1].authorization_servers, scopes_supported: services[1].scopes_supported, required: false };
+			f.publish([discovery, services[0], requirement]);
+			f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: requirement, reason: AuthRequiredReason.Required });
+			await pendingDiscovery.complete();
+			const returnedBehindOpenPrompt = await raceTimeout(pending, 50) !== undefined;
+			await prompt.complete();
+			const result = await raceTimeout(pending, 500);
+			assert.deepStrictEqual({ returnedBehindOpenPrompt, success: result?.success, calls: f.calls, delivered: f.deliveries.map(request => request.resource) }, {
+				returnedBehindOpenPrompt: false, success: true, calls: ['signIn', 'install'], delivered: [discovery.resource, services[1].resource],
+			});
+		} finally {
+			cancellation.cancel();
+			await prompt.complete();
+			await pendingDiscovery.complete();
+			await pending;
+		}
+	});
 
 	for (const [kind, consentError] of [['refused', new Error('access_denied')], ['declined', new CancellationError()]] as const) {
 		test(`a ${kind} permission for one service does not fail setup when the host offers another`, async () => {
