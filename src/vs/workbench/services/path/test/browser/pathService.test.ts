@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { Schemas } from '../../../../../base/common/network.js';
+import { posix, win32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -47,10 +48,10 @@ suite('PathService', () => {
 	test('resolves mixed registered authorities and falls back when semantics are unknown', async () => {
 		const pathService = createPathService(undefined);
 		const first = disposables.add(pathService.registerPathProvider('test-remote', {
-			getOperatingSystem: async resource => resource.authority === 'windows' ? OperatingSystem.Windows : undefined,
+			getPath: async resource => resource.authority === 'windows' ? win32 : undefined,
 		}));
 		const second = pathService.registerPathProvider('test-remote', {
-			getOperatingSystem: async resource => resource.authority === 'linux' ? OperatingSystem.Linux : undefined,
+			getPath: async resource => resource.authority === 'linux' ? posix : undefined,
 		});
 		const windows = URI.from({ scheme: 'test-remote', authority: 'windows', path: '/' });
 		const linux = URI.from({ scheme: 'test-remote', authority: 'linux', path: '/' });
@@ -68,11 +69,11 @@ suite('PathService', () => {
 			unknown: await pathService.getPath(unknown),
 		}, {
 			windows: {
-				operatingSystem: OperatingSystem.Windows,
+				operatingSystem: undefined,
 				separator: '\\',
 			},
 			linux: {
-				operatingSystem: OperatingSystem.Linux,
+				operatingSystem: undefined,
 				separator: '/',
 			},
 			unknown: undefined,

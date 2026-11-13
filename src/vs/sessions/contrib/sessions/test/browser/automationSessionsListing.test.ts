@@ -29,6 +29,7 @@ suite('AutomationSessionsListingContribution', () => {
 		test(`shows an automation session once the user sends a message in it only when the setting is afterReply (${mode})`, () => {
 			const automation: ISession = { ...createTestSession('Automation').session, isAutomation: constObservable(true) };
 			const regular = createTestSession('Regular').session;
+			const scheduled: ISession = { ...createTestSession('Scheduled').session, isAutomation: constObservable(true), isScheduledChat: constObservable(true) };
 			const accepted = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
 			const shown: string[] = [];
 			const telemetryService = new TestExperimentTriggerTelemetryService();
@@ -38,7 +39,7 @@ suite('AutomationSessionsListingContribution', () => {
 			});
 			instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override getSessionForChatResource(resource: URI) {
-					const session = [automation, regular].find(candidate => candidate.mainChat.get().resource.toString() === resource.toString());
+					const session = [automation, regular, scheduled].find(candidate => candidate.mainChat.get().resource.toString() === resource.toString());
 					return session && { session, chat: session.mainChat.get() };
 				}
 			});
@@ -53,6 +54,7 @@ suite('AutomationSessionsListingContribution', () => {
 			const accept = (chatSessionResource: URI) => accepted.fire({ chatSessionResource, isNewSession: false });
 
 			accept(regular.mainChat.get().resource);
+			accept(scheduled.mainChat.get().resource);
 			accept(URI.parse('test-session://unknown'));
 			const beforeAutomation = { shown: [...shown], triggers: [...telemetryService.triggers] };
 			accept(automation.mainChat.get().resource);

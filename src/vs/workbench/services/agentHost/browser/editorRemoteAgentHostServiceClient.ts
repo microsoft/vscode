@@ -11,7 +11,7 @@
 
 import type { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, IReference, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, ISettableObservable, observableValue, constObservable } from '../../../../base/common/observable.js';
 import { env } from '../../../../base/common/process.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -42,6 +42,7 @@ import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { agentsWindowAgentHostClientInfo, editorWindowAgentHostClientInfo } from '../../../../platform/agentHost/common/agentHostClientInfo.js';
 import { agentHostAuthority, agentHostLabelFormatter, createEditorRemoteAgentHostResourceUriMapper, identityAgentHostResourceUriMapper } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { getAgentHostPathStyle } from '../../../../platform/agentHost/common/agentHostPathStyle.js';
 import { IAgentHostFileSystemService } from '../common/agentHostFileSystemService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IRequestService } from '../../../../platform/request/common/request.js';
@@ -91,6 +92,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 	};
 	private _connectStarted = false;
 	private _useHostProxy = false;
+	private readonly _labelFormatter = this._register(new MutableDisposable());
 
 	constructor(
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -166,6 +168,7 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}));
 		this._register(this._protocolClient.onDidChangeConnectionState(state => {
 			if (state === AgentHostClientState.Connected) {
+				this._updateLabelFormatter();
 				this._logService.info(`${LOG_PREFIX} Connected; clientId=${this._protocolClient?.clientId}`);
 				this._onAgentHostStart.fire();
 			}
@@ -184,11 +187,15 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		}
 		this._connectStarted = true;
 		this._logService.info(`${LOG_PREFIX} Connecting to remote agent host...`);
-		const remoteEnvironment = await this._remoteAgentService.getRawEnvironment();
-		if (remoteEnvironment && this._connectionAuthority) {
-			this._register(this._labelService.registerFormatter(agentHostLabelFormatter(this._connectionAuthority, remoteEnvironment.os)));
-		}
+		await this._remoteAgentService.getRawEnvironment();
 		await this._protocolClient.connect();
+	}
+
+	private _updateLabelFormatter(): void {
+		const pathStyle = this._protocolClient ? getAgentHostPathStyle(this._protocolClient) : undefined;
+		this._labelFormatter.value = this._connectionAuthority && pathStyle
+			? this._labelService.registerFormatter(agentHostLabelFormatter(this._connectionAuthority, pathStyle))
+			: undefined;
 	}
 
 	private _requireClient(): AgentHostProtocolClient {

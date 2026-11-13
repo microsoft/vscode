@@ -498,7 +498,17 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	 * - they will not ask for a file path when saving but use the associated path
 	 */
 	readonly resource: URI | undefined;
+
+	/**
+	 * Where the untitled editor is created from. Only used for telemetry.
+	 */
+	readonly untitledOrigin?: UntitledTextEditorOrigin;
 }
+
+/**
+ * Where a new untitled text editor is created from. Only used for telemetry.
+ */
+export type UntitledTextEditorOrigin = 'newFileCommand' | 'tabBarDoubleClick' | 'emptyGroupDoubleClick' | 'newTabButton' | 'extensionApi' | 'chat';
 
 /**
  * A resource side by side editor input shows 2 editors side by side but

@@ -12,7 +12,7 @@ import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionStat
 import { buildSessionDbUri } from '../common/sessionDbUri.js';
 import { isFileEditAcceptRecord } from './fileEditAccept.js';
 import { getFileEditPathKey, getFileEditResourceKey, isSameFileEditPath, toFileEditResource } from './fileEditPath.js';
-import { computeWorkingSetFileContents } from './workingSetFileContents.js';
+import { computeWorkingSetSources, findWorkingSetEnds, getFileEditKey, getWorkingSetNonce } from './workingSetSources.js';
 
 /** The recorded changes among `records`, leaving out rows that record accepting changes. */
 function withoutAcceptRecords(records: readonly IFileEditRecord[]): IFileEditRecord[] {
@@ -61,7 +61,7 @@ function createSessionFileDiff(beforeSessionUri: string, afterSessionUri: string
 	return {
 		...(hasBefore ? {
 			before: {
-				uri: toFileEditResource(identity.acceptedPath ?? identity.firstFilePath).toString(),
+				uri: toFileEditResource(identity.firstFilePath).toString(),
 				content: { uri: buildSessionDbUri(beforeSessionUri, identity.firstToolCallId, identity.firstFilePath, 'before') },
 			},
 		} : {}),
@@ -88,8 +88,6 @@ interface IFileIdentity {
 	firstToolCallId: string;
 	/** File path used in the first edit's database record. */
 	firstFilePath: string;
-	/** For the Working Set, the path the file was shown at when its changes were accepted, which its accept row can spell differently. */
-	acceptedPath?: string;
 	/** The kind of the first edit (Create means no "before" content). */
 	firstKind: FileEditKind;
 	/** Index into the sources array of the DB that owns the first edit. */
@@ -102,17 +100,10 @@ interface IFileIdentity {
 	lastKind: FileEditKind;
 	/** Index into the sources array of the DB that owns the last edit. */
 	lastSourceIdx: number;
-	/**
-	 * For the Working Set, the identity's records since its baseline record,
-	 * its latest accept row or its first record, with the source of each.
-	 */
-	rowsSinceBaseline?: { readonly record: IFileEditRecord; readonly sourceIdx: number }[];
-	/**
-	 * For the Working Set, the keys of all of the identity's records. Records
-	 * are only ordered within a database, so walking them needs a database
-	 * that holds every one, as a forked chat's holds its parent's earlier ones.
-	 */
-	editKeys?: string[];
+	/** For the Working Set, the identity's records in each source, including those a forked chat's database copied from its parent. */
+	sourceRows?: IFileEditRecord[][];
+	/** For the Working Set, the path the file was shown at before each record, by {@link getFileEditKey}: a record can spell it differently. */
+	pathsBefore?: Map<string, string>;
 }
 
 /**
@@ -351,166 +342,17 @@ export async function computeUnionedDiffs(
 	diffService: IDiffComputeService,
 	folderScope?: readonly URI[],
 ): Promise<ISessionFileDiff[]> {
-	return (await computeUnionedFileDiffs(sources, diffService, folderScope, false)).map(file => file.diff);
-}
-
-/**
- * Computes the Working Set changeset across one or more {@link ISessionDiffSource}
- * databases: the recorded changes the user hasn't accepted yet. Like
- * {@link computeUnionedDiffs}, but a file's latest accept row (see
- * `fileEditAccept.ts`) restarts its diff, which then compares the accepted
- * content with the file's last snapshot. Changes made outside of the
- * recorded edits, like the user's, are moved into that baseline when one
- * database holds all of the file's records, which orders them. A file whose
- * changes were all accepted has no diff.
- */
-export async function computeWorkingSetDiffs(
-	sources: readonly ISessionDiffSource[],
-	diffService: IDiffComputeService,
-	folderScope?: readonly URI[],
-): Promise<ISessionFileDiff[]> {
-	return (await computeWorkingSetFiles(sources, diffService, folderScope)).map(file => file.diff);
-}
-
-/** A file of a Working Set changeset, with the nonce of its changes. */
-export interface IWorkingSetFileDiff {
-	readonly diff: ISessionFileDiff;
-	/** See {@link getWorkingSetFileNonce}. */
-	readonly nonce: string;
-}
-
-/** Like {@link computeWorkingSetDiffs}, with the nonce of each file's changes. */
-export async function computeWorkingSetFiles(
-	sources: readonly ISessionDiffSource[],
-	diffService: IDiffComputeService,
-	folderScope?: readonly URI[],
-): Promise<IWorkingSetFileDiff[]> {
-	return (await computeUnionedFileDiffs(sources, diffService, folderScope, true))
-		.map(({ diff, lastRecord }) => ({ diff, nonce: getWorkingSetFileNonce(lastRecord) }));
-}
-
-/**
- * Nonce of a Working Set change: the tool call ID of its last edit, accept, or discard record.
- * Clients can echo this opaque value when deciding on a displayed change.
- */
-export function getWorkingSetFileNonce(lastRecord: Pick<IFileEditRecord, 'toolCallId'>): string {
-	return lastRecord.toolCallId;
-}
-
-/**
- * Implements {@link computeUnionedDiffs}, and {@link computeWorkingSetDiffs}
- * when `fromAcceptedContent` is set. Otherwise accept rows are left out.
- * Each diff comes with the file's last record that it counted.
- */
-async function computeUnionedFileDiffs(
-	sources: readonly ISessionDiffSource[],
-	diffService: IDiffComputeService,
-	folderScope: readonly URI[] | undefined,
-	fromAcceptedContent: boolean,
-): Promise<{ readonly diff: ISessionFileDiff; readonly lastRecord: Pick<IFileEditRecord, 'toolCallId'> }[]> {
-	// Load every source's edits in parallel, then concatenate in source order so
-	// the identity graph sees a deterministic session-first ordering while each
-	// source keeps its own insertion order.
-	const perSourceEdits = await Promises.settled(sources.map(source => source.db.getAllFileEdits()));
-	const getEditKey = (edit: IFileEditRecord) => `${edit.toolCallId}\0${edit.filePath}`;
-	const sourceEditKeys = fromAcceptedContent ? perSourceEdits.map(edits => new Set(edits.map(getEditKey))) : [];
-
-	const resolveIdentityKey = createIdentityResolver();
-	const identities = new Map<string, IFileIdentity>();
-	// A forked chat's database starts as a copy of its parent's, so the parent's
-	// records can appear in more than one source. Counting a copy again would
-	// make it the file's last edit and hide edits the parent made after the fork.
-	const seenEdits = new Set<string>();
-	let totalEdits = 0;
-
-	for (let sourceIdx = 0; sourceIdx < perSourceEdits.length; sourceIdx++) {
-		for (const edit of perSourceEdits[sourceIdx]) {
-			const isAccept = isFileEditAcceptRecord(edit);
-			if (isAccept && !fromAcceptedContent) {
-				continue;
-			}
-			const editKey = getEditKey(edit);
-			if (seenEdits.has(editKey)) {
-				continue;
-			}
-			seenEdits.add(editKey);
-			totalEdits++;
-			const identityKey = resolveIdentityKey(edit);
-
-			const existing = identities.get(identityKey);
-			// An accepted file that doesn't exist makes recreating it a creation.
-			const acceptedKind = edit.kind === FileEditKind.Delete ? FileEditKind.Create : FileEditKind.Edit;
-			if (isAccept && existing) {
-				// The accepted content replaces the file's first snapshot. Its last
-				// snapshot stays the latest edit's, so an accept row that missed an
-				// edit shows that edit rather than hiding it.
-				existing.firstToolCallId = edit.toolCallId;
-				existing.firstFilePath = edit.filePath;
-				existing.acceptedPath = existing.terminalPath;
-				existing.firstKind = acceptedKind;
-				existing.firstSourceIdx = sourceIdx;
-				existing.rowsSinceBaseline = [{ record: edit, sourceIdx }];
-				existing.editKeys?.push(editKey);
-			} else if (!existing) {
-				identities.set(identityKey, {
-					terminalPath: edit.filePath,
-					firstToolCallId: edit.toolCallId,
-					firstFilePath: edit.kind === FileEditKind.Rename && edit.originalPath ? edit.originalPath : edit.filePath,
-					firstKind: isAccept ? acceptedKind : edit.kind,
-					firstSourceIdx: sourceIdx,
-					lastToolCallId: edit.toolCallId,
-					lastFilePath: edit.filePath,
-					lastKind: edit.kind,
-					lastSourceIdx: sourceIdx,
-					rowsSinceBaseline: fromAcceptedContent ? [{ record: edit, sourceIdx }] : undefined,
-					editKeys: fromAcceptedContent ? [editKey] : undefined,
-				});
-			} else {
-				existing.terminalPath = getTerminalPath(existing.terminalPath, edit);
-				existing.lastToolCallId = edit.toolCallId;
-				existing.lastFilePath = edit.filePath;
-				existing.lastKind = edit.kind;
-				existing.lastSourceIdx = sourceIdx;
-				existing.rowsSinceBaseline?.push({ record: edit, sourceIdx });
-				existing.editKeys?.push(editKey);
-			}
-		}
-	}
-
-	if (totalEdits === 0) {
-		return [];
-	}
-
-	const results: { readonly diff: ISessionFileDiff; readonly lastRecord: Pick<IFileEditRecord, 'toolCallId'> }[] = [];
+	const results: ISessionFileDiff[] = [];
 	const diffPromises: Promise<void>[] = [];
 
-	for (const identity of identities.values()) {
+	for (const identity of await collectFileIdentities(sources, false)) {
 		// Apply the folder scope by the identity's FINAL path, mirroring
 		// `computeTurnDiffs`: a rename that lands in scope is kept (with its
 		// full before/after chain) and one that leaves scope is dropped.
 		if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope)) {
 			continue;
 		}
-		// The Working Set also counts accept rows, which the identity's last edit leaves out.
-		const lastRecord = identity.rowsSinceBaseline?.at(-1)?.record ?? { toolCallId: identity.lastToolCallId };
 		diffPromises.push((async () => {
-			// Without a database that holds all of the file's records, their order
-			// is unknown: an accept row in a forked chat can follow, in source
-			// order, an edit its parent made after it. The file's first and last
-			// snapshots are compared instead, which shows such an edit.
-			const { rowsSinceBaseline, editKeys } = identity;
-			const holderIdx = rowsSinceBaseline && editKeys ? sourceEditKeys.findIndex(keys => editKeys.every(key => keys.has(key))) : -1;
-			if (rowsSinceBaseline && holderIdx >= 0) {
-				// The holder also holds the copies counted in earlier sources.
-				const workingSetDiff = await computeSingleSourceWorkingSetDiff(sources, rowsSinceBaseline.map(({ record }) => ({ record, sourceIdx: holderIdx })), identity.terminalPath, diffService);
-				if (workingSetDiff !== false) {
-					if (workingSetDiff) {
-						results.push({ diff: workingSetDiff, lastRecord });
-					}
-					return;
-				}
-			}
-
 			const firstSource = sources[identity.firstSourceIdx];
 			const lastSource = sources[identity.lastSourceIdx];
 
@@ -535,7 +377,7 @@ async function computeUnionedFileDiffs(
 			}
 
 			const counts = await diffService.computeDiffCounts(beforeText, afterText);
-			results.push({ diff: createSessionFileDiff(firstSource.sessionUri, lastSource.sessionUri, identity, counts.added, counts.removed), lastRecord });
+			results.push(createSessionFileDiff(firstSource.sessionUri, lastSource.sessionUri, identity, counts.added, counts.removed));
 		})());
 	}
 
@@ -545,55 +387,151 @@ async function computeUnionedFileDiffs(
 }
 
 /**
- * Computes the Working Set diff of a file whose records since its baseline,
- * `rows`, are all in one source and of one file, shown at `resourcePath`:
- * changes made outside of the records are moved into the baseline, so only
- * recorded changes show (see {@link computeWorkingSetFileContents}). Returns
- * `undefined` when the file has no changes, and `false` for other files, which
- * compare the baseline with the last snapshot instead.
+ * Computes the Working Set changeset across one or more {@link ISessionDiffSource}
+ * databases: the recorded changes the user hasn't accepted yet. A file's latest
+ * accept row (see `fileEditAccept.ts`) restarts its diff, which then compares
+ * the accepted content with the file's last snapshot. Changes made outside of
+ * the recorded edits, like the user's, are moved into that baseline. A file
+ * whose changes were all accepted has no diff.
+ *
+ * Records are only ordered within a database, so an accept row covers the
+ * records before it in its own database, and the copies of them that a forked
+ * chat's database holds (see {@link computeWorkingSetSources}). When several
+ * databases leave changes to a file, its diff spans them, from the record
+ * that starts them to the one that ends them (see {@link findWorkingSetEnds}).
+ * A file whose changes across the databases cancel out has no diff.
  */
-async function computeSingleSourceWorkingSetDiff(
+export async function computeWorkingSetDiffs(
 	sources: readonly ISessionDiffSource[],
-	rows: readonly { readonly record: IFileEditRecord; readonly sourceIdx: number }[],
-	resourcePath: string,
 	diffService: IDiffComputeService,
-): Promise<ISessionFileDiff | undefined | false> {
-	const { record: first, sourceIdx } = rows[0];
-	if (rows.some(row => row.sourceIdx !== sourceIdx || !isSameFileEditPath(row.record.filePath, first.filePath) || row.record.kind === FileEditKind.Rename)) {
-		return false;
-	}
-	const source = sources[sourceIdx];
-	const last = rows[rows.length - 1].record;
-	const { baseline, current, rebased } = await computeWorkingSetFileContents(source.db, rows.map(row => row.record), diffService);
-	const beforeText = baseline ? new TextDecoder().decode(baseline) : '';
-	const afterText = current ? new TextDecoder().decode(current) : '';
-	if (beforeText === afterText) {
-		return undefined;
-	}
-	const counts = await diffService.computeDiffCounts(beforeText, afterText);
-	const hasBefore = baseline !== undefined;
-	const hasAfter = current !== undefined;
-	const uri = toFileEditResource(resourcePath).toString();
-	return {
-		...(hasBefore ? {
-			before: {
-				uri,
-				// A rebased baseline is computed from the records when it is read.
-				content: {
-					uri: rebased
-						? buildSessionDbUri(source.sessionUri, last.toolCallId, last.filePath, 'workingSetBaseline')
-						: buildSessionDbUri(source.sessionUri, first.toolCallId, first.filePath, 'before'),
+	folderScope?: readonly URI[],
+): Promise<ISessionFileDiff[]> {
+	return (await computeWorkingSetFiles(sources, diffService, folderScope)).map(file => file.diff);
+}
+
+/** A file of a Working Set changeset, with the nonce of its changes. */
+export interface IWorkingSetFileDiff {
+	readonly diff: ISessionFileDiff;
+	/** See {@link getWorkingSetNonce}. */
+	readonly nonce: string;
+}
+
+/** Like {@link computeWorkingSetDiffs}, with the nonce of each file's changes. */
+export async function computeWorkingSetFiles(
+	sources: readonly ISessionDiffSource[],
+	diffService: IDiffComputeService,
+	folderScope?: readonly URI[],
+): Promise<IWorkingSetFileDiff[]> {
+	const databases = sources.map(source => source.db);
+	const results: IWorkingSetFileDiff[] = [];
+	const diffPromises: Promise<void>[] = [];
+
+	for (const identity of await collectFileIdentities(sources, true)) {
+		if (folderScope && !isPathWithinFolderScope(identity.terminalPath, folderScope)) {
+			continue;
+		}
+		diffPromises.push((async () => {
+			const workingSet = await computeWorkingSetSources(databases, identity.sourceRows ?? [], diffService);
+			const ends = await findWorkingSetEnds(databases, workingSet);
+			if (!ends) {
+				return;
+			}
+			const { first, last, baseline, current, rebased } = ends;
+			const counts = await diffService.computeDiffCounts(baseline ? new TextDecoder().decode(baseline) : '', current ? new TextDecoder().decode(current) : '');
+			const hasBefore = baseline !== undefined;
+			const hasAfter = current !== undefined;
+			const lastSessionUri = sources[last.sourceIdx].sessionUri;
+			results.push({
+				nonce: getWorkingSetNonce(workingSet.pending),
+				diff: {
+					...(hasBefore ? {
+						before: {
+							uri: toFileEditResource(identity.pathsBefore?.get(getFileEditKey(first.record)) ?? first.record.filePath).toString(),
+							// A rebased baseline is computed from the records when it is read.
+							content: {
+								uri: rebased
+									? buildSessionDbUri(lastSessionUri, last.record.toolCallId, last.record.filePath, 'workingSetBaseline')
+									: buildSessionDbUri(sources[first.sourceIdx].sessionUri, first.record.toolCallId, first.record.filePath, 'before'),
+							},
+						},
+					} : {}),
+					...(hasAfter ? {
+						after: {
+							uri: toFileEditResource(identity.terminalPath).toString(),
+							content: { uri: buildSessionDbUri(lastSessionUri, last.record.toolCallId, last.record.filePath, 'after') },
+						},
+					} : {}),
+					diff: { added: hasAfter ? counts.added : 0, removed: hasBefore ? counts.removed : 0 },
 				},
-			},
-		} : {}),
-		...(hasAfter ? {
-			after: {
-				uri,
-				content: { uri: buildSessionDbUri(source.sessionUri, last.toolCallId, last.filePath, 'after') },
-			},
-		} : {}),
-		diff: { added: hasAfter ? counts.added : 0, removed: hasBefore ? counts.removed : 0 },
-	};
+			});
+		})());
+	}
+
+	await Promises.settled(diffPromises);
+
+	return results;
+}
+
+/**
+ * Collects the file identities of the edits in `sources`, tracking renames across the chain. With
+ * `forWorkingSet`, accept rows count too, and each identity keeps its records in every source.
+ */
+async function collectFileIdentities(sources: readonly ISessionDiffSource[], forWorkingSet: boolean): Promise<IFileIdentity[]> {
+	// Load every source's edits in parallel, then concatenate in source order so
+	// the identity graph sees a deterministic session-first ordering while each
+	// source keeps its own insertion order.
+	const perSourceEdits = await Promises.settled(sources.map(source => source.db.getAllFileEdits()));
+
+	const resolveIdentityKey = createIdentityResolver();
+	const identities = new Map<string, IFileIdentity>();
+	// A forked chat's database starts as a copy of its parent's, so the parent's
+	// records can appear in more than one source. Counting a copy again would
+	// make it the file's last edit and hide edits the parent made after the fork.
+	const editIdentities = new Map<string, IFileIdentity>();
+
+	for (let sourceIdx = 0; sourceIdx < perSourceEdits.length; sourceIdx++) {
+		for (const edit of perSourceEdits[sourceIdx]) {
+			const isAccept = isFileEditAcceptRecord(edit);
+			if (isAccept && !forWorkingSet) {
+				continue;
+			}
+			const editKey = getFileEditKey(edit);
+			let identity = editIdentities.get(editKey);
+			if (!identity) {
+				const identityKey = resolveIdentityKey(edit);
+				identity = identities.get(identityKey);
+				if (!identity) {
+					identity = {
+						terminalPath: edit.filePath,
+						firstToolCallId: edit.toolCallId,
+						firstFilePath: edit.kind === FileEditKind.Rename && edit.originalPath ? edit.originalPath : edit.filePath,
+						firstKind: edit.kind,
+						firstSourceIdx: sourceIdx,
+						lastToolCallId: edit.toolCallId,
+						lastFilePath: edit.filePath,
+						lastKind: edit.kind,
+						lastSourceIdx: sourceIdx,
+						sourceRows: forWorkingSet ? sources.map(() => []) : undefined,
+						pathsBefore: forWorkingSet ? new Map([[editKey, edit.kind === FileEditKind.Rename && edit.originalPath ? edit.originalPath : edit.filePath]]) : undefined,
+					};
+					identities.set(identityKey, identity);
+				} else {
+					identity.pathsBefore?.set(editKey, identity.terminalPath);
+					if (!isAccept) {
+						identity.terminalPath = getTerminalPath(identity.terminalPath, edit);
+						identity.lastToolCallId = edit.toolCallId;
+						identity.lastFilePath = edit.filePath;
+						identity.lastKind = edit.kind;
+						identity.lastSourceIdx = sourceIdx;
+					}
+				}
+				editIdentities.set(editKey, identity);
+			}
+			identity.sourceRows?.[sourceIdx].push(edit);
+		}
+	}
+
+	return [...identities.values()];
 }
 
 /**
