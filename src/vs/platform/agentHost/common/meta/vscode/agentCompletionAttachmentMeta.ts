@@ -77,7 +77,10 @@ export function readCompletionAttachmentMeta(attachment: SimpleMessageAttachment
 	return undefined;
 }
 
-/** Decodes skill references persisted before resource skill attachments were introduced. */
+/**
+ * Decodes the legacy skill format, deprecated on 2026-11-12, at history and
+ * older VS Code host compatibility boundaries. New skills use Resource fields.
+ */
 export function restoreLegacySkillAttachment(attachment: SimpleMessageAttachment): MessageResourceAttachment | undefined {
 	if (attachment.displayKind !== 'skill' || typeof attachment._meta?.uri !== 'string') {
 		return undefined;

@@ -18,16 +18,23 @@ import { ICodeEditorService } from '../../../../../../../../editor/browser/servi
 import { Position } from '../../../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../../../../editor/common/core/ranges/offsetRange.js';
+import { Selection } from '../../../../../../../../editor/common/core/selection.js';
 import { IDecorationOptions } from '../../../../../../../../editor/common/editorCommon.js';
 import { withTestCodeEditor } from '../../../../../../../../editor/test/browser/testCodeEditor.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../../../platform/actions/common/actions.js';
 import { agentHostConnectionKinds } from '../../../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { CommandsRegistry } from '../../../../../../../../platform/commands/common/commands.js';
+import { TestConfigurationService } from '../../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { ContextKeyService } from '../../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IResourceEditorInput } from '../../../../../../../../platform/editor/common/editor.js';
+import { TestInstantiationService } from '../../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../../platform/label/common/label.js';
 import { TestThemeService } from '../../../../../../../../platform/theme/test/common/testThemeService.js';
 import { IEditorService } from '../../../../../../../services/editor/common/editorService.js';
-import { IChatWidget } from '../../../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../browser/chat.js';
 import { ChatWidget } from '../../../../../browser/widget/chatWidget.js';
 import '../../../../../browser/widget/input/editor/chatInputEditorContrib.js';
+import { ChatContextKeys } from '../../../../../common/actions/chatContextKeys.js';
 import { AgentHostCompletionReferenceKind, IChatRequestVariableEntry, toAgentHostCompletionVariableEntry } from '../../../../../common/attachments/chatVariableEntries.js';
 import { IChatMode } from '../../../../../common/chatModes.js';
 import { ICustomizationHarnessService } from '../../../../../common/customizationHarnessService.js';
@@ -167,13 +174,17 @@ suite('InputEditorDecorations', () => {
 			return undefined;
 		});
 		const resolvePromptSlashCommand = sinon.stub().resolves(prompt);
-		let parsedInput = { parts, text: parts.map(part => part.text).join('') };
 		let updated = new DeferredPromise<void>();
-		function createEditor() {
+		function createEditor(parts: readonly IParsedChatRequestPart[]) {
+			let parsedInput = { parts, text: parts.map(part => part.text).join('') };
+			let selection = new Selection(1, 1, 1, 1);
 			const mouseDown = store.add(new Emitter<IEditorMouseEvent>());
 			const mouseUp = store.add(new Emitter<IEditorMouseEvent>());
 			const inputEditor = upcastPartial<IChatWidget['inputEditor']>({
 				getValue: () => parsedInput.text,
+				getPosition: () => selection.getPosition(),
+				getSelection: () => selection,
+				hasTextFocus: () => false,
 				getModel: () => null,
 				getId: () => 'test-chat-input',
 				onDidChangeModelContent: Event.None,
@@ -190,6 +201,15 @@ suite('InputEditorDecorations', () => {
 			});
 			return {
 				inputEditor,
+				get parsedInput() { return parsedInput; },
+				setPosition: (column: number) => { selection = new Selection(1, column, 1, column); },
+				setSelection: (startColumn: number, endColumn: number) => { selection = new Selection(1, startColumn, 1, endColumn); },
+				setInput: (parts: readonly IParsedChatRequestPart[]) => {
+					updated = new DeferredPromise<void>();
+					parsedInput = { parts, text: parts.map(part => part.text).join('') };
+					parsedInputChanged.fire();
+					return updated.p;
+				},
 				click: (column: number) => {
 					mouseDown.fire(mouseEvent(column));
 					mouseUp.fire(mouseEvent(column));
@@ -206,11 +226,12 @@ suite('InputEditorDecorations', () => {
 				mouseUp: (column: number) => mouseUp.fire(mouseEvent(column)),
 			};
 		}
-		const mainEditor = createEditor();
+		const mainEditor = createEditor(parts);
 		let activeEditor = mainEditor;
 		const widget = upcastPartial<IChatWidget>({
 			get inputEditor() { return activeEditor.inputEditor; },
-			get parsedInput() { return parsedInput; },
+			get parsedInput() { return activeEditor.parsedInput; },
+			getContrib: () => undefined,
 			viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({
 				sessionResource: URI.parse('agent-host-copilot:/test'),
 				onDidChange: Event.None,
@@ -225,7 +246,7 @@ suite('InputEditorDecorations', () => {
 			onDidSubmitAgent: Event.None,
 			onDidChangeActiveInputEditor: activeEditorChanged.event,
 		});
-		store.add(new ctor(
+		const contribution = store.add(new ctor(
 			widget,
 			upcastPartial<ICodeEditorService>({ registerDecorationType: () => Disposable.None }),
 			new TestThemeService(),
@@ -234,6 +255,9 @@ suite('InputEditorDecorations', () => {
 			upcastPartial<ICustomizationHarnessService>({ onDidChangeSlashCommands: Event.None, resolvePromptSlashCommand }),
 			upcastPartial<IEditorService>({ openEditor }),
 		));
+		sinon.stub(widget, 'getContrib').withArgs(contribution.id).returns(contribution);
+		const instantiation = store.add(new TestInstantiationService());
+		instantiation.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ lastFocusedWidget: widget }));
 
 		function mouseEvent(column: number, leftButton = true): IEditorMouseEvent {
 			return {
@@ -254,10 +278,15 @@ suite('InputEditorDecorations', () => {
 			openedResources,
 			resolvePromptSlashCommand,
 			decorations,
+			openSkillAtCursor: async () => {
+				const command = CommandsRegistry.getCommand('workbench.action.chat.openSkillAtCursor');
+				assert.ok(command, 'Open Skill at Cursor should be registered');
+				await instantiation.invokeFunction(command.handler);
+			},
 			whenUpdated: () => updated.p,
-			editSentMessage: () => {
+			editSentMessage: (editParts: readonly IParsedChatRequestPart[] = parts) => {
 				updated = new DeferredPromise<void>();
-				activeEditor = createEditor();
+				activeEditor = createEditor(editParts);
 				activeEditorChanged.fire();
 				return { ...activeEditor, whenUpdated: () => updated.p };
 			},
@@ -267,14 +296,34 @@ suite('InputEditorDecorations', () => {
 				activeEditorChanged.fire();
 				return updated.p;
 			},
-			setInput: (parts: readonly IParsedChatRequestPart[]) => {
-				updated = new DeferredPromise<void>();
-				parsedInput = { parts, text: parts.map(part => part.text).join('') };
-				parsedInputChanged.fire();
-				return updated.p;
-			},
+			setInput: (parts: readonly IParsedChatRequestPart[]) => activeEditor.setInput(parts),
 		};
 	}
+
+	test('offers keyboard skill navigation in the Command Palette only for enabled chat inputs', () => {
+		const configuration = new TestConfigurationService();
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		const context = store.add(new ContextKeyService(configuration));
+		const enabled = ChatContextKeys.enabled.bindTo(context);
+		const inInput = ChatContextKeys.inChatInput.bindTo(context);
+		const item = MenuRegistry.getMenuItems(MenuId.CommandPalette).filter(isIMenuItem)
+			.find(item => item.command.id === 'workbench.action.chat.openSkillAtCursor');
+		assert.ok(item);
+
+		enabled.set(true);
+		inInput.set(true);
+		const inChatInput = context.contextMatchesRules(item.when);
+		inInput.set(false);
+		const outsideInput = context.contextMatchesRules(item.when);
+		inInput.set(true);
+		enabled.set(false);
+
+		assert.deepStrictEqual({
+			inChatInput,
+			outsideInput,
+			aiDisabled: context.contextMatchesRules(item.when),
+		}, { inChatInput: true, outsideInput: false, aiDisabled: false });
+	});
 
 	test('opens a restored sent-message skill from the active edit input and releases old editor listeners', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const text = '/review changes';
@@ -297,6 +346,8 @@ suite('InputEditorDecorations', () => {
 		fixture.mouseDown(2);
 		const editing = fixture.editSentMessage();
 		await editing.whenUpdated();
+		editing.setPosition(2);
+		await fixture.openSkillAtCursor();
 		editing.mouseUp(2);
 		fixture.click(2);
 		editing.drag(2, 3);
@@ -306,15 +357,70 @@ suite('InputEditorDecorations', () => {
 		await fixture.returnToMainInput();
 		editing.click(2);
 		fixture.click(2);
+		fixture.setPosition(2);
+		await fixture.openSkillAtCursor();
 		const secondEdit = fixture.editSentMessage();
 		await secondEdit.whenUpdated();
 		editing.click(2);
 		secondEdit.click(2);
-		assert.deepStrictEqual(fixture.openedResources, [uri.toString(), uri.toString(), uri.toString()]);
+		assert.deepStrictEqual(fixture.openedResources, Array(5).fill(uri.toString()));
+	}));
+
+	test('keyboard navigation uses only the active input and restores the composer after editing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const mainUri = URI.file('/workspace/main/SKILL.md');
+		const editUri = URI.file('/workspace/edit/SKILL.md');
+		const skill = (resource: URI) => referencePart(1, toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', resource, undefined));
+		const fixture = createDecorations([skill(mainUri), textPart(8, ' more')]);
+		fixture.setPosition(2);
+		await fixture.openSkillAtCursor();
+
+		const editing = fixture.editSentMessage([skill(editUri), textPart(8, ' changes')]);
+		editing.setPosition(10);
+		await fixture.openSkillAtCursor();
+		editing.setPosition(2);
+		await fixture.openSkillAtCursor();
+		fixture.setPosition(10);
+		await fixture.openSkillAtCursor();
+
+		const restored = fixture.returnToMainInput();
+		await fixture.openSkillAtCursor();
+		editing.setPosition(10);
+		fixture.setPosition(2);
+		await fixture.openSkillAtCursor();
+		await restored;
+
+		assert.deepStrictEqual(fixture.openedResources, [mainUri, editUri, editUri, mainUri].map(resource => resource.toString()));
+	}));
+
+	test('keyboard navigation requires a caret inside the current bound skill, without waiting for decorations', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const oldUri = URI.file('/workspace/old/SKILL.md');
+		const currentUri = URI.file('/workspace/current/SKILL.md');
+		const parts = (resource: URI) => [
+			textPart(1, 'changes '),
+			referencePart(9, toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', resource, undefined)),
+			textPart(16, ' more'),
+		];
+		const fixture = createDecorations(parts(oldUri));
+		await fixture.whenUpdated();
+		void fixture.setInput(parts(currentUri));
+		for (const column of [1, 8, 9, 15, 16, 20]) {
+			fixture.setPosition(column);
+			await fixture.openSkillAtCursor();
+		}
+		for (const [start, end] of [[9, 16], [10, 19], [19, 10]]) {
+			fixture.setSelection(start, end);
+			await fixture.openSkillAtCursor();
+		}
+		const removed = fixture.setInput([textPart(1, 'changes /review more')]);
+		fixture.setPosition(10);
+		await fixture.openSkillAtCursor();
+		await removed;
+
+		assert.deepStrictEqual(fixture.openedResources, [currentUri.toString(), currentUri.toString()]);
 	}));
 
 	for (const kind of agentHostConnectionKinds) {
-		test(`opens each same-name skill's bound resource without a name lookup (${kind.name})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test(`opens each same-name skill's bound resource by mouse and keyboard without a name lookup (${kind.name})`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const resources = [URI.file('/workspace/one/SKILL.md'), URI.file('/workspace/two/SKILL.md')].map(kind.toClient);
 			const entries = resources.map(resource => toAgentHostCompletionVariableEntry(
 				AgentHostCompletionReferenceKind.Skill, '/review', resource, { uri: 'file:///host/other/SKILL.md' },
@@ -322,6 +428,10 @@ suite('InputEditorDecorations', () => {
 			const fixture = createDecorations([
 				referencePart(1, entries[0]), textPart(8, ' '), referencePart(9, entries[1]), textPart(16, ' '),
 			], upcastPartial<IResolvedChatPromptSlashCommand>({ name: 'review', uri: URI.file('/wrong/review.prompt.md') }));
+			fixture.setPosition(2);
+			await fixture.openSkillAtCursor();
+			fixture.setPosition(10);
+			await fixture.openSkillAtCursor();
 			await fixture.whenUpdated();
 			fixture.click(2);
 			fixture.click(10);
@@ -331,7 +441,7 @@ suite('InputEditorDecorations', () => {
 				lookups: fixture.resolvePromptSlashCommand.callCount,
 				ranges: fixture.decorations.get('chat-session-clickable-text')?.map(decoration => decoration.range),
 			}, {
-				opens: resources.map(resource => resource.toString()),
+				opens: [...resources, ...resources].map(resource => resource.toString()),
 				lookups: 0,
 				ranges: [new Range(1, 1, 1, 8), new Range(1, 9, 1, 16)],
 			});
@@ -349,6 +459,8 @@ suite('InputEditorDecorations', () => {
 		await fixture.whenUpdated();
 		for (let column = 2; column < 24; column += 8) {
 			fixture.click(column);
+			fixture.setPosition(column);
+			await fixture.openSkillAtCursor();
 		}
 		assert.deepStrictEqual({
 			opens: fixture.openedResources,
@@ -366,6 +478,8 @@ suite('InputEditorDecorations', () => {
 		}));
 		await fixture.whenUpdated();
 		const argumentHint = fixture.decorations.get('chat-session-detail')?.[0].renderOptions?.after?.contentText;
+		fixture.setPosition(2);
+		await fixture.openSkillAtCursor();
 		fixture.click(2);
 		await fixture.setInput([
 			prompt, textPart(8, ' '),

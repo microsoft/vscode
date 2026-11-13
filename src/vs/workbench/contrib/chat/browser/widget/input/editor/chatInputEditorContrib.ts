@@ -15,16 +15,21 @@ import { EditorOption } from '../../../../../../../editor/common/config/editorOp
 import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange, Range } from '../../../../../../../editor/common/core/range.js';
 import { IDecorationOptions } from '../../../../../../../editor/common/editorCommon.js';
+import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
 import { getInputPlaceholderColor, getRangeForPlaceholder } from './chatInputPlaceholderDecoration.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../../../common/participants/chatAgents.js';
 import { INLINE_ATTACHMENT_ANCHOR } from '../../../../common/attachments/chatInlineAttachments.js';
-import { localize } from '../../../../../../../nls.js';
+import { localize, localize2 } from '../../../../../../../nls.js';
+import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../../../common/widget/chatColors.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader } from '../../../../common/requestParser/chatParserTypes.js';
 import { agentReg, slashReg, variableReg } from '../../../../common/requestParser/chatRequestParser.js';
-import { IChatWidget } from '../../../chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat.js';
+import { CHAT_CATEGORY } from '../../../actions/chatActions.js';
 import { ChatWidget } from '../../chatWidget.js';
 import { registerChatInputReferenceDecorationType } from './chatInputReferenceDecorations.js';
 import { NativeEditContextRegistry } from '../../../../../../../editor/browser/controller/editContext/native/nativeEditContextRegistry.js';
@@ -62,11 +67,19 @@ function exactlyOneSpaceAfterPart(parsedRequest: readonly IParsedChatRequestPart
 	return nextPart && nextPart instanceof ChatRequestTextPart && nextPart.text === ' ';
 }
 
+function getSkillResource(variable: ChatRequestDynamicVariablePart): URI | undefined {
+	if (getAgentHostCompletionReferenceKindFromValue(variable.data) !== AgentHostCompletionReferenceKind.Skill || isUUID(variable.id)) {
+		return undefined;
+	}
+	return URI.parse(variable.id, true);
+}
+
 class InputEditorDecorations extends Disposable {
 
 	private static readonly UPDATE_DELAY = 200;
 
-	public readonly id = 'inputEditorDecorations';
+	static readonly ID = 'inputEditorDecorations';
+	public readonly id = InputEditorDecorations.ID;
 
 	private readonly previouslyUsedAgents = new Set<string>();
 	private clickableReferences: { range: Range; uri: URI }[] = [];
@@ -123,6 +136,23 @@ class InputEditorDecorations extends Disposable {
 		}));
 
 		this.registerViewModelListeners();
+	}
+
+	async openSkillAtCursor(): Promise<void> {
+		const editor = this.widget.inputEditor;
+		const position = editor.getPosition();
+		if (!position || !editor.getSelection()?.isEmpty()) {
+			return;
+		}
+
+		const variable = this.widget.parsedInput.parts.find((part): part is ChatRequestDynamicVariablePart =>
+			part instanceof ChatRequestDynamicVariablePart
+			&& Range.containsPosition(part.editorRange, position)
+			&& !Position.equals(Range.getEndPosition(part.editorRange), position));
+		const resource = variable && getSkillResource(variable);
+		if (resource) {
+			await this.editorService.openEditor({ resource });
+		}
 	}
 
 	private registerInputEditorListeners(): void {
@@ -344,11 +374,10 @@ class InputEditorDecorations extends Disposable {
 		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
 		const clickableDecorations: IDecorationOptions[] = [];
 		for (const variable of dynamicVariableParts) {
-			if (getAgentHostCompletionReferenceKindFromValue(variable.data) !== AgentHostCompletionReferenceKind.Skill || isUUID(variable.id)) {
-				continue;
+			const uri = getSkillResource(variable);
+			if (uri) {
+				clickableDecorations.push(this.createClickableReferenceDecoration(variable.editorRange, uri, variable.modelDescription));
 			}
-			const uri = URI.parse(variable.id, true);
-			clickableDecorations.push(this.createClickableReferenceDecoration(variable.editorRange, uri, variable.modelDescription));
 		}
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, clickableSlashPromptTextDecorationType, clickableDecorations);
 
@@ -500,6 +529,23 @@ class InputEditorSlashCommandMode extends Disposable {
 }
 
 ChatWidget.CONTRIBS.push(InputEditorDecorations, InputEditorSlashCommandMode);
+
+registerAction2(class OpenSkillAtCursorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.openSkillAtCursor',
+			title: localize2('chat.openSkillAtCursor', "Open Skill at Cursor"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inChatInput),
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const widget = accessor.get(IChatWidgetService).lastFocusedWidget;
+		await widget?.getContrib<InputEditorDecorations>(InputEditorDecorations.ID)?.openSkillAtCursor();
+	}
+});
 
 class ChatTokenDeleter extends Disposable {
 
