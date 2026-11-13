@@ -244,6 +244,20 @@ suite('SessionChatInputToolbar', () => {
 		assert.deepStrictEqual({ counts, lookups: lookups - before }, { counts: Array(10).fill(1), lookups: 0 });
 	});
 
+	test('activity bar does not repeat opener checks when a state update recreates the same links', async () => {
+		let lookups = 0;
+		const { toolbar, artifacts } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID, async () => {
+			lookups++;
+			return upcastPartial<IExternalUriOpener>({ id: 'supported' });
+		});
+		const before = lookups;
+		for (let i = 0; i < 10; i++) {
+			artifacts.set(artifacts.get().map(entry => ({ ...entry, link: entry.link && URI.parse(entry.link.toString()) })), undefined);
+			await timeout(0);
+		}
+		assert.deepStrictEqual({ actions: toolbar.activityBarActions.get().length, lookups: lookups - before }, { actions: 1, lookups: 0 });
+	});
+
 	test('activity bar retains supported PRs while opener revalidation is pending', async () => {
 		const { toolbar, instantiationService, extensionsChanged } = await createGitHubActivityBar(SessionArtifactKind.PullRequest, LOCAL_AGENT_HOST_PROVIDER_ID);
 		let complete!: (value: IExternalUriOpener | undefined) => void;
