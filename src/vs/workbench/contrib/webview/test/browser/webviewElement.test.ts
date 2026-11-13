@@ -199,12 +199,10 @@ suite('WebviewElement', () => {
 			connectedWhenSourceAssigned,
 			parent: frame.parentElement === container,
 			sandbox: [...frame.sandbox],
-			colorScheme: frame.style.colorScheme,
 		}, {
 			connectedWhenSourceAssigned: [false, false],
 			parent: true,
 			sandbox: ['allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads'],
-			colorScheme: 'normal',
 		});
 	});
 

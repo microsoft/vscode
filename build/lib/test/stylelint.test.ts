@@ -85,7 +85,7 @@ suite('stylelint', () => {
 
 	test('requires native control color schemes on the workbench', async () => {
 		const globalStyles = await readFile(new URL('../../../src/vs/workbench/browser/media/style.css', import.meta.url), 'utf8');
-		const [themed, missing, commentedOut] = await Promise.all([
+		const [themed, missing, commentedOut, missingIframeReset] = await Promise.all([
 			hasNativeScrollbarThemingError(globalStyles),
 			hasNativeScrollbarThemingError(`
 				.monaco-workbench {
@@ -96,16 +96,47 @@ suite('stylelint', () => {
 				'color-scheme: dark;',
 				'/* color-scheme: dark; */'
 			)),
+			hasNativeScrollbarThemingError(globalStyles.replace(
+				'color-scheme: normal;',
+				'/* color-scheme: normal; */'
+			)),
 		]);
 
 		assert.deepStrictEqual({
 			themed,
 			missing,
 			commentedOut,
+			missingIframeReset,
 		}, {
 			themed: false,
 			missing: true,
 			commentedOut: true,
+			missingIframeReset: true,
+		});
+	});
+
+	test('rejects color-scheme declarations outside the workbench global styles', async () => {
+		const globalStyles = await readFile(new URL('../../../src/vs/workbench/browser/media/style.css', import.meta.url), 'utf8');
+		const [component, nestedComponent, globalStyle, extension, testCss] = await Promise.all([
+			hasColorSchemeDeclarationError('src/vs/workbench/browser/example.css', '.example { color-scheme: light dark; }'),
+			hasColorSchemeDeclarationError('src/vs/editor/browser/example.css', '.example { & .child { color-scheme: dark; } }'),
+			hasColorSchemeDeclarationError('src/vs/workbench/browser/media/style.css', globalStyles),
+			hasColorSchemeDeclarationError('extensions/example/media/example.css', 'body { color-scheme: dark; }'),
+			hasColorSchemeDeclarationError('src/vs/workbench/test/browser/example.css', '.example { color-scheme: dark; }'),
+		]);
+
+		assert.deepStrictEqual({
+			component,
+			nestedComponent,
+			globalStyle,
+			extension,
+			testCss,
+		}, {
+			component: true,
+			nestedComponent: true,
+			globalStyle: false,
+			extension: false,
+			testCss: false,
 		});
 	});
 
@@ -157,6 +188,11 @@ function hasClassAttributeSubstringError(relative: string): Promise<boolean> {
 function hasNativeScrollbarThemingError(contents: string): Promise<boolean> {
 	return getStylelintErrors('src/vs/workbench/browser/media/style.css', contents)
 		.then(errors => errors.some(message => message.includes('Workbench theme classes')));
+}
+
+function hasColorSchemeDeclarationError(relative: string, contents: string): Promise<boolean> {
+	return getStylelintErrors(relative, contents)
+		.then(errors => errors.some(message => message.includes('Do not declare color-scheme')));
 }
 
 function hasHardcodedNativeScrollbarColorError(relative: string, contents: string): Promise<boolean> {

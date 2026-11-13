@@ -8,7 +8,7 @@ import glob from 'glob';
 import vfs from 'vinyl-fs';
 import { stylelintFilter } from './filters.ts';
 import { findClassAttributeSubstringSelector, findRootAnchoredHas } from './lib/stylelint/validateHasSelectors.ts';
-import { findHardcodedNativeScrollbarColor, hasWorkbenchNativeScrollbarTheming } from './lib/stylelint/validateNativeScrollbars.ts';
+import { findColorSchemeDeclaration, findHardcodedNativeScrollbarColor, hasWorkbenchNativeScrollbarTheming } from './lib/stylelint/validateNativeScrollbars.ts';
 import { getVariableNameValidator } from './lib/stylelint/validateVariableNames.ts';
 import { validateCodiconFontSizes, validateFontSizeTokens, validateFontWeightTokens, validateCornerRadiusTokens, validateSpacingTokens, validateStrokeTokens, validateDeprecatedTokens } from './lib/stylelint/validateDesignTokens.ts';
 
@@ -36,6 +36,7 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 	const extensionCssPattern = /^extensions[\/\\]/;
 	const testCssPattern = /[\/\\](?:test|test-data|testData)[\/\\]/;
 	const designSystemPattern = /^src[\/\\]vs[\/\\]sessions[\/\\]/;
+	const sourceCssPattern = /^src[\/\\]vs[\/\\]/;
 	const workbenchGlobalStylePattern = /^src[\/\\]vs[\/\\]workbench[\/\\]browser[\/\\]media[\/\\]style\.css$/;
 	const layerCheckerDisablePattern = /\/\*\s*stylelint-disable\s+layer-checker\s*\*\//;
 	const hasAnchorCheckerDisablePattern = /^\s*\/\*\s*stylelint-disable\s+has-anchor-checker\s*\*\/\s*$/;
@@ -94,9 +95,17 @@ export default function gulpstylelint(reporter: Reporter, designTokensEverywhere
 			}
 		}
 
-		if (workbenchGlobalStylePattern.test(file.relative) && !hasWorkbenchNativeScrollbarTheming(contents)) {
-			reporter(file.relative + '(1,1): Workbench theme classes must set the corresponding light or dark color-scheme for browser-native controls', true);
-			errorCount++;
+		if (workbenchGlobalStylePattern.test(file.relative)) {
+			if (!hasWorkbenchNativeScrollbarTheming(contents)) {
+				reporter(file.relative + '(1,1): Workbench theme classes must set the corresponding light or dark color-scheme for browser-native controls, and workbench iframes must reset it to normal', true);
+				errorCount++;
+			}
+		} else if (sourceCssPattern.test(file.relative) && !testCssPattern.test(file.relative)) {
+			const colorSchemeOffset = findColorSchemeDeclaration(contents);
+			if (colorSchemeOffset !== undefined) {
+				reporter(file.relative + '(' + lineNumberAtOffset(contents, colorSchemeOffset) + ',1): Components inherit color-scheme from the workbench theme class. Do not declare color-scheme outside src/vs/workbench/browser/media/style.css', true);
+				errorCount++;
+			}
 		}
 
 		// Design-token checks that need block (selector + declaration) awareness.

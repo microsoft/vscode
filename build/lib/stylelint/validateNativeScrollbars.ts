@@ -19,6 +19,7 @@ const requiredWorkbenchColorSchemes = new Map<string, string>([
 	['.monaco-workbench.hc-black', 'dark'],
 	['.monaco-workbench.vs', 'light'],
 	['.monaco-workbench.hc-light', 'light'],
+	['.monaco-workbench iframe', 'normal'],
 ]);
 
 export function hasWorkbenchNativeScrollbarTheming(contents: string): boolean {
@@ -31,6 +32,16 @@ export function hasWorkbenchNativeScrollbarTheming(contents: string): boolean {
 		}
 	}
 	return true;
+}
+
+export function findColorSchemeDeclaration(contents: string): number | undefined {
+	for (const rule of parseCssRules(contents)) {
+		const declaration = rule.declarations.find(declaration => declaration.property === 'color-scheme');
+		if (declaration) {
+			return declaration.offset;
+		}
+	}
+	return undefined;
 }
 
 export function findHardcodedNativeScrollbarColor(contents: string): number | undefined {
