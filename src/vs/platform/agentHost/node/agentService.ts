@@ -13009,7 +13009,7 @@ export class AgentService extends Disposable implements IAgentService {
 				if (!changeset) {
 					throw new Error(`Invalid changeset URI: ${channel}`);
 				}
-				this._changesets.refreshBranchChangeset(changeset.ownerUri);
+				this._changesets.refreshBranchChangeset(changeset.ownerUri, { force: true });
 			}
 			this._dispatchActionNow(channel, sessionChannel, rewritten, clientId, clientSeq, clientContext, credentials, permissionFeedback);
 			if (adoptedForArchiveToggle && action.type === ActionType.SessionIsArchivedChanged) {
