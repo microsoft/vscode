@@ -306,7 +306,10 @@ abstract class BaseFocusAction extends Action2 {
 		} else {
 			switch (part) {
 				case Parts.EDITOR_PART:
-					neighbour = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
+					neighbour = next ? Parts.PANEL_PART : Parts.CHAT_PART;
+					break;
+				case Parts.CHAT_PART:
+					neighbour = next ? Parts.EDITOR_PART : Parts.SIDEBAR_PART;
 					break;
 				case Parts.PANEL_PART:
 					neighbour = next ? Parts.AUXILIARYBAR_PART : Parts.EDITOR_PART;
@@ -321,7 +324,7 @@ abstract class BaseFocusAction extends Action2 {
 					neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
 					break;
 				case Parts.SIDEBAR_PART:
-					neighbour = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
+					neighbour = next ? Parts.CHAT_PART : Parts.ACTIVITYBAR_PART;
 					break;
 				default:
 					neighbour = Parts.EDITOR_PART;
@@ -337,7 +340,10 @@ abstract class BaseFocusAction extends Action2 {
 
 	private focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
 		let currentlyFocusedPart: Parts | undefined;
-		if (editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART)) {
+		// The chat part shows editors too: focus in it is not focus in the editor area
+		if (layoutService.hasFocus(Parts.CHAT_PART)) {
+			currentlyFocusedPart = Parts.CHAT_PART;
+		} else if (editorService.activeEditorPane?.hasFocus() || layoutService.hasFocus(Parts.EDITOR_PART)) {
 			currentlyFocusedPart = Parts.EDITOR_PART;
 		} else if (layoutService.hasFocus(Parts.ACTIVITYBAR_PART)) {
 			currentlyFocusedPart = Parts.ACTIVITYBAR_PART;
