@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isWindows } from '../../../../../base/common/platform.js';
+
 export const credentialEnvironmentSentinels = {
 	GH_TOKEN: 'FAKE_SENTINEL_GH_TOKEN',
 	GITHUB_TOKEN: 'FAKE_SENTINEL_GITHUB_TOKEN',
@@ -36,6 +38,37 @@ export function labelTestCredential(value: string | undefined): string {
 		}
 	}
 	return 'UNEXPECTED';
+}
+
+/**
+ * Removes every credential, proxy, and provider variable from this process's environment and sets `sentinels` in their place,
+ * so provider processes the product starts cannot inherit the developer's credentials. Returns a function that restores them.
+ */
+export function replaceCredentialEnvironment(sentinels: Readonly<Record<string, string>>): () => void {
+	const originalEnvironment = new Map(Object.entries(process.env).filter(([key]) =>
+		/(?:AUTH|TOKEN|_KEY|SECRET|PASSWORD)|^(?:GIT_CONFIG_|COPILOT_|GITHUB_|GH_|ANTHROPIC_|OPENAI_|AZURE_OPENAI_|AWS_|AZURE_|VSCODE_AGENT_HOST_CAPI_)|^(?:HTTPS?_PROXY|ALL_PROXY|NO_PROXY)$/i.test(key)));
+	for (const key of new Set([...originalEnvironment.keys(), ...Object.keys(sentinels)])) {
+		const hasOriginal = isWindows
+			? [...originalEnvironment.keys()].some(original => original.toUpperCase() === key.toUpperCase())
+			: originalEnvironment.has(key);
+		if (!hasOriginal) {
+			originalEnvironment.set(key, undefined);
+		}
+		delete process.env[key];
+	}
+	Object.assign(process.env, sentinels);
+	return () => {
+		for (const key of Object.keys(sentinels)) {
+			delete process.env[key];
+		}
+		for (const [key, value] of originalEnvironment) {
+			if (value === undefined) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
+		}
+	};
 }
 
 export function fakeCapiCredentialForLabel(label: string): string | undefined {
