@@ -90,16 +90,21 @@ import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../../wor
 import { IRemoteAgentHostAuthenticationService, RemoteAgentHostAuthenticationService } from '../../../../../../workbench/contrib/chat/browser/remoteAgentHost/remoteAgentHostAuthentication.js';
 import { AgentHostSessionAdapter, CopilotCLISessionType } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/baseAgentHostSessionsProvider.js';
 import { IObservable, autorun, constObservable, observableValue } from '../../../../../../base/common/observable.js';
-import { WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsManagementService, WorkspaceNotTrustedError } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHostService } from '../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, sessionHostServiceOf, stubFocusedSessionHostFromSessionsService, testGridPanes } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { MockLabelService } from '../../../../../../workbench/services/label/test/common/mockLabelService.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { extUri, isEqual } from '../../../../../../base/common/resources.js';
+import { extUri, extUriIgnorePathCase, isEqual } from '../../../../../../base/common/resources.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { isIChatSessionFileChange2 } from '../../../../../../workbench/common/chatSessionFileChange.js';
+import { SessionsManagementService } from '../../../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
+import { IChatWidgetHistoryService } from '../../../../../../workbench/contrib/chat/common/widget/chatWidgetHistoryService.js';
+import { ICopilotHomeService } from '../../../../../../platform/environment/common/copilotHome.js';
+import { TestCopilotHomeService } from '../../../../../../platform/environment/test/common/testCopilotHomeService.js';
+import { TestPathService } from '../../../../../../workbench/test/browser/workbenchTestServices.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -560,6 +565,29 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	/** The sessions management service over `provider` alone, as a window registers it. */
+	function createManagementService(provider: ISessionsProvider): ISessionsManagementService {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override readonly onDidChangeProviders = Event.None;
+			override getProviders() { return [provider]; }
+			override getProvider<T extends ISessionsProvider>(id: string): T | undefined { return id === provider.id ? provider as T : undefined; }
+		}());
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IUriIdentityService, { extUri: extUriIgnorePathCase });
+		instantiationService.stub(IChatService, { onDidSubmitRequest: Event.None });
+		instantiationService.stub(IChatWidgetHistoryService, new class extends mock<IChatWidgetHistoryService>() {
+			override moveHistory(): void { }
+		}());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IPathService, new TestPathService(URI.file('/home/test')));
+		instantiationService.stub(ICopilotHomeService, new TestCopilotHomeService(URI.file('/home/test')));
+		instantiationService.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() { }());
+		instantiationService.stub(IWorkspaceTrustManagementService, { getUriTrustInfo: async uri => ({ uri, trusted: true }) });
+		instantiationService.stub(INotificationService, new class extends mock<INotificationService>() { }());
+		return disposables.add(instantiationService.createInstance(SessionsManagementService));
+	}
+
 	function createTaskCatalog(tasks: readonly ICloudSandboxTask[]) {
 		class Runtime extends CloudSandboxSessionsProvider {
 			createCatalog(): CloudSandboxTaskSessionsProvider {
@@ -602,9 +630,18 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		remote.unpublishCachedSessions();
 		const unpublished = listedAndFound(remote);
 
-		assert.deepStrictEqual({ catalogRows: catalogRows.found.length, catalog: catalogRows.found, withheld, unpublished }, {
+		// The sessions management service finds the logical Cloud task rows, before any environment is attached
+		const management = createManagementService(catalog);
+		const first = catalog.getSessions().find(row => row.title.get() === 'First')!;
+		const lookups = {
+			bySession: management.getSession(first.resource) === first,
+			byChat: management.getSessionForChatResource(first.mainChat.get().resource)?.session === first,
+		};
+
+		assert.deepStrictEqual({ catalogRows: catalogRows.found.length, catalog: catalogRows.found, lookups, withheld, unpublished }, {
 			catalogRows: 2,
 			catalog: catalogRows.listed,
+			lookups: { bySession: true, byChat: true },
 			withheld: { listed: [], found: [] },
 			unpublished: { listed: [], found: [] },
 		});

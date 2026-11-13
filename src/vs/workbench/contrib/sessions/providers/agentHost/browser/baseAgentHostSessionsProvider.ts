@@ -5543,10 +5543,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	 */
 	setListingScope(scope: ISessionsListingScope): void {
 		const previous = this.getSessions();
-		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
+		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions, this.onDidReplaceSession);
 		this._listingScope.value = filter;
 		this._listedSessionChanges.input = filter.onDidChangeSessions;
-		// Who listens already learns how the listing changed, also the first time
+		// Who listens already learns how the listing changed, also the first time. A window should still set its scope before
+		// its views subscribe, so that they never list sessions outside it.
 		filter.announceFrom(previous);
 	}
 

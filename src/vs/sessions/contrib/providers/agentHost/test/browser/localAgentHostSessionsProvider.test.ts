@@ -16516,6 +16516,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('a scoped listing lists the session a draft graduates into, not the draft, once the draft was listed', async () => {
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		});
+		// Every folder: the scope lists every session, through its own listing
+		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		const chat = await provider.createNewChat(session.sessionId);
+		const ownRawId = AgentSession.id(chat.resource);
+		const request = provider.sendRequest(session.sessionId, chat.resource, { query: 'hello' });
+		await timeout(0);
+		const draftListed = provider.getSessions().some(listed => listed.sessionId === session.sessionId);
+
+		fireSessionAdded(agentHost, ownRawId, { title: 'Own Session' });
+		const committed = await request;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			draftListed,
+			listed: provider.getSessions().map(listed => listed === committed ? 'committed' : listed.sessionId === session.sessionId ? 'draft' : listed.sessionId),
+			all: provider.getAllSessions().map(listed => listed === committed ? 'committed' : listed.sessionId),
+		}, { draftListed: true, listed: ['committed'], all: ['committed'] });
+	});
+
 	test('sendRequest ignores same-type session-added notifications until its own session appears', async () => {
 		const provider = createProvider(disposables, agentHost, undefined, {
 			openSession: true,
