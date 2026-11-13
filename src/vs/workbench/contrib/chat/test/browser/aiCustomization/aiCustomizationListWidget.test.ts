@@ -1511,6 +1511,146 @@ suite('aiCustomizationListWidget', () => {
 			});
 		});
 
+		test('keeps collapsed groups and focus when the items refresh', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const labels = () => Array.from(widget.element.querySelectorAll('.item-name'), element => element.textContent);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant')!)?.querySelector('.item-name')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.focusList();
+			const collapsed = { labels: labels(), focused: focused() };
+
+			agents.set([...agents.get(), createAgent('local-two', PromptsStorage.local), createAgent('user-two', PromptsStorage.user)], undefined);
+			const afterItemsChange = { labels: labels(), focused: focused() };
+			widget.setSearchQuery('one');
+			const whileSearching = labels();
+			widget.clearSearch();
+
+			assert.deepStrictEqual({ collapsed, afterItemsChange, whileSearching, afterClearingSearch: labels() }, {
+				collapsed: { labels: ['local-one'], focused: 'local-one' },
+				afterItemsChange: { labels: ['local-one', 'local-two'], focused: 'local-one' },
+				whileSearching: ['local-one', 'user-one'],
+				afterClearingSearch: ['local-one', 'local-two'],
+			});
+		});
+
+		test('focuses a visible item when entering a tree whose first group is collapsed', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			const clickGroup = (label: string) => [...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === label)!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			clickGroup('Workspace');
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			list.focus();
+			list.dispatchEvent(new FocusEvent('focus'));
+			const onTab = focused();
+			widget.focusList();
+			const onFocusList = focused();
+			clickGroup('User');
+			await widget.setSection(AICustomizationManagementSection.Skills);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.focusList();
+			const allCollapsed = focused();
+
+			assert.deepStrictEqual({ onTab, onFocusList, allCollapsed }, {
+				onTab: 'user-one',
+				onFocusList: 'user-one',
+				allCollapsed: 'Workspace',
+			});
+		});
+
+		test('moves focus to the group header when clearing the search hides the focused item', async () => {
+			const createAgent = (name: string, source: PromptsStorage): IAICustomizationListItem => ({
+				id: name,
+				uri: URI.file(`/${source}/.github/agents/${name}.agent.md`),
+				name,
+				filename: `${name}.agent.md`,
+				source,
+				promptType: PromptsType.agent,
+				disabled: false,
+			});
+			const agents = observableValue<readonly IAICustomizationListItem[]>('agents', [createAgent('local-one', PromptsStorage.local), createAgent('user-one', PromptsStorage.user)]);
+			instaService.stub(IAICustomizationItemsModel, {
+				getItems: () => agents,
+				getCount: () => observableValue('test', agents.get().length),
+				getPluginCount: () => observableValue('test', 0),
+				whenSectionLoaded: async () => { },
+				getActiveItemSource: () => ({ onDidAICustomizationItemsChange: Event.None, fetchProviderItems: async () => [], fetchAICustomizationItems: async () => [], fetchSourceFolders: async () => [], sessionResource: URI.parse('test:///session'), dispose() { } }),
+			});
+			const widget = disposables.add(instaService.createInstance(AICustomizationListWidget));
+			document.body.appendChild(widget.element);
+			disposables.add(toDisposable(() => widget.element.remove()));
+			setLayoutHeights(widget, 500);
+			await widget.setSection(AICustomizationManagementSection.Agents);
+			widget.layout(800, 500);
+			const list = widget.element.querySelector<HTMLElement>('.monaco-list')!;
+			const focused = () => document.getElementById(list.getAttribute('aria-activedescendant') ?? '')?.querySelector('.item-name, .group-label')?.textContent;
+			[...widget.element.querySelectorAll('.group-label')]
+				.find(element => element.textContent === 'User')!
+				.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+			widget.setSearchQuery('user-one');
+			widget.focusList();
+			const whileSearching = focused();
+			widget.clearSearch();
+			const afterClearingSearch = focused();
+			list.dispatchEvent(new FocusEvent('focus'));
+
+			assert.deepStrictEqual({ whileSearching, afterClearingSearch, onTab: focused() }, {
+				whileSearching: 'user-one',
+				afterClearingSearch: 'User',
+				onTab: 'User',
+			});
+		});
+
 		test('announces updated item count when the model changes after section load', async () => {
 			const ariaHost = document.createElement('div');
 			document.body.appendChild(ariaHost);
