@@ -531,6 +531,22 @@ suite('AutomationTools', () => {
 		}]);
 	});
 
+	test('listAutomations includes definition availability errors', async () => {
+		const automationService = new FakeAutomationService([createAutomation({ availabilityError: 'Repository offline' })]);
+		automationService.available = false;
+
+		const result = await invoke(createListAutomationsTool(automationService, createConfigurationService()), {});
+		const listed = JSON.parse(getText(result))[0].automations[0];
+
+		assert.deepStrictEqual({
+			availabilityError: listed.availabilityError,
+			availableOperations: listed.availableOperations,
+		}, {
+			availabilityError: 'Repository offline',
+			availableOperations: [],
+		});
+	});
+
 	test('listAutomations describes provider-scoped state and operations', () => {
 		const description = createListAutomationsTool(new FakeAutomationService(), createConfigurationService()).getToolData().modelDescription ?? '';
 

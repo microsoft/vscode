@@ -156,6 +156,8 @@ interface IAutomationCardEntry {
 	readonly isCloudContext: IContextKey<boolean>;
 	readonly hasEventTriggerContext: IContextKey<boolean>;
 	readonly nameText: HTMLElement;
+	readonly warningIcon: HTMLElement;
+	readonly warningHover: MutableDisposable<IDisposable>;
 	readonly startingIcon: HTMLElement;
 	readonly startingRuns: ISettableObservable<ReadonlySet<string> | undefined>;
 	readonly scheduleEl: HTMLElement;
@@ -374,6 +376,7 @@ class AutomationCardsSection extends Disposable {
 	private readonly templateDisposables = this._register(new DisposableStore());
 	private readonly stateDisposables = this._register(new DisposableStore());
 	private readonly templateAriaId = generateUuid();
+	private readonly cardHoverGroupId = generateUuid();
 	private emptyStateRendered = false;
 	private renderedTemplates: readonly IAutomationTemplate[] = [];
 	private builtInTemplatesSection: HTMLDetailsElement | undefined;
@@ -768,6 +771,8 @@ class AutomationCardsSection extends Disposable {
 
 		const nameRow = DOM.append(main, $('.automations-card-name'));
 		const nameTextEl = DOM.append(nameRow, $('span.automations-card-name-text'));
+		const warningIcon = DOM.append(nameRow, $('span.automations-card-warning' + ThemeIcon.asCSSSelector(Codicon.warning), { 'aria-hidden': 'true' }));
+		warningIcon.style.display = 'none';
 		const startingIcon = DOM.append(nameRow, $('span' + ThemeIcon.asCSSSelector(ThemeIcon.modify(Codicon.loading, 'spin')), { 'aria-hidden': 'true' }));
 		const startingRuns = observableValue<ReadonlySet<string> | undefined>(this, undefined);
 
@@ -854,6 +859,8 @@ class AutomationCardsSection extends Disposable {
 			isCloudContext,
 			hasEventTriggerContext,
 			nameText: nameTextEl,
+			warningIcon,
+			warningHover: disposables.add(new MutableDisposable<IDisposable>()),
 			startingIcon,
 			startingRuns,
 			scheduleEl,
@@ -881,6 +888,9 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private updateCard(card: IAutomationCardEntry, automation: IAutomationDescriptor, previous?: IAutomationDescriptor): void {
+		if (automation.availabilityError && card.startingRuns.get()) {
+			card.startingRuns.set(undefined, undefined);
+		}
 		card.main.disabled = !this.automationService.canUpdateAutomation(automation.id);
 		this.updateCardRunState(card, automation);
 		card.canDeleteContext.set(this.automationService.canDeleteAutomation(automation.id));
@@ -891,7 +901,11 @@ class AutomationCardsSection extends Disposable {
 		card.hasEventTriggerContext.set(hasAutomationEventTrigger(automation.cloudTrigger?.triggers ?? {}));
 		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 		const schedule = automation.enabled ? automationTriggerSummary(automation.cloudTrigger?.triggers ?? {}, true) ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
+		const availabilityMessage = automation.availabilityError
+			? localize('automationUnavailableError', "We can't reach this automation. {0}", automation.availabilityError)
+			: undefined;
 		const enabledChanged = !previous || previous.enabled !== automation.enabled;
+		const availabilityChanged = !previous || previous.availabilityError !== automation.availabilityError;
 		const scheduleChanged = !previous || enabledChanged || formatSchedule(previous.schedule) !== formatSchedule(automation.schedule)
 			|| automationTriggerSummary(previous.cloudTrigger?.triggers ?? {}) !== triggerSummary;
 		const nameChanged = !previous || previous.name !== automation.name;
@@ -904,6 +918,13 @@ class AutomationCardsSection extends Disposable {
 		}
 		if (enabledChanged) {
 			card.card.classList.toggle('automation-disabled', !automation.enabled);
+		}
+		if (availabilityChanged) {
+			card.card.classList.toggle('automation-unavailable', availabilityMessage !== undefined);
+			card.warningIcon.style.display = availabilityMessage ? '' : 'none';
+			card.warningHover.value = availabilityMessage
+				? this.hoverService.setupDelayedHover(card.card, { content: availabilityMessage, style: HoverStyle.Pointer }, { groupId: this.cardHoverGroupId })
+				: undefined;
 		}
 		if (scheduleChanged) {
 			const icon = !automation.enabled ? Codicon.circleSlash : automation.schedule.interval === 'manual' ? Codicon.person : Codicon.clockface;
@@ -948,7 +969,12 @@ class AutomationCardsSection extends Disposable {
 		card.runButton.setTitle(label);
 		const triggerSummary = automationTriggerSummary(automation.cloudTrigger?.triggers ?? {});
 		const schedule = automation.enabled ? triggerSummary ?? formatSchedule(automation.schedule) : localize('disabled', "Disabled");
-		card.card.setAttribute('aria-label', localize('automationCard', "{0} — {1}", automation.name, starting ? localize('running', "Running") : schedule));
+		const availabilityMessage = automation.availabilityError
+			? localize('automationUnavailableError', "We can't reach this automation. {0}", automation.availabilityError)
+			: undefined;
+		card.card.setAttribute('aria-label', availabilityMessage
+			? localize('unavailableAutomationCard', "{0} — {1} — {2}", automation.name, starting ? localize('running', "Running") : schedule, availabilityMessage)
+			: localize('automationCard', "{0} — {1}", automation.name, starting ? localize('running', "Running") : schedule));
 	}
 
 	setPresentedRunIds(runIds: Iterable<string>): void {

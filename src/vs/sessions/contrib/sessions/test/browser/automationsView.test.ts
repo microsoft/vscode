@@ -202,6 +202,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 
 	override supportsDeleteHistoryChoice(): boolean { return this.historyChoice; }
 	canUpdate = true;
+	canRun = true;
 	publishCreates = true;
 	createdAutomation: IAutomationDescriptor | undefined;
 	beforeCreate: (() => Promise<void>) | undefined;
@@ -329,7 +330,7 @@ class FakeAutomationService extends mock<IAutomationService>() {
 		return this.canUpdate;
 	}
 
-	override canRunAutomation(): boolean { return true; }
+	override canRunAutomation(): boolean { return this.canRun; }
 }
 
 class TestContextMenuService extends mock<IContextMenuService>() {
@@ -1709,6 +1710,7 @@ suite('AutomationsCardsWidget', () => {
 			targetDisplay: { label: 'owner/private', icon: Codicon.cloud },
 			schedule: { interval: 'daily', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0, timeZone: 'UTC' },
 		});
+
 		automationService.setAutomations([cloud]);
 		const folder = widget.element.querySelector<HTMLElement>('.automations-card-folder')!;
 		assert.deepStrictEqual({
@@ -1721,6 +1723,77 @@ suite('AutomationsCardsWidget', () => {
 		const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))
 			.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
 		assert.strictEqual(widget.element.querySelector('.automations-card-schedule')?.textContent, `Daily at ${time}`);
+	});
+
+	test('unreachable automation cards stay in place with disabled controls, warning hover, and accessible text', () => {
+		const tooltips: string[] = [];
+		const hoverService: IHoverService = {
+			...NullHoverService,
+			setupDelayedHover: (target, options) => {
+				if (target.classList.contains('automations-card')) {
+					const content = (typeof options === 'function' ? options() : options).content;
+					if (typeof content === 'string') {
+						tooltips.push(content);
+					}
+				}
+				return toDisposable(() => { });
+			},
+		};
+		const { widget, automationService } = setup('archive', hoverService);
+		const unreachable = automation({ availabilityError: 'Network failed' });
+		automationService.canUpdate = false;
+		automationService.canRun = false;
+		automationService.canDelete = false;
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([unreachable]);
+
+		const card = widget.element.querySelector<HTMLElement>('.automations-card')!;
+		assert.deepStrictEqual({
+			inMainGroup: !!widget.element.querySelector('.automations-cards-grid .automations-card-wrapper'),
+			inDisabledGroup: !!widget.element.querySelector('.automations-disabled-section .automations-card-wrapper'),
+			unavailableClass: card.classList.contains('automation-unavailable'),
+			warningIcon: !!card.querySelector('.automations-card-warning.codicon-warning'),
+			mainDisabled: widget.element.querySelector<HTMLButtonElement>('.automations-card-main')?.disabled,
+			runDisabled: widget.element.querySelector('.automations-card-run-button')?.classList.contains('disabled'),
+			ariaLabel: card.getAttribute('aria-label'),
+			tooltips,
+			accessible: buildAutomationsAccessibleContent([unreachable], [], 'ready').includes('Daily review, enabled\nWe can\'t reach this automation. Network failed'),
+		}, {
+			inMainGroup: true,
+			inDisabledGroup: false,
+			unavailableClass: true,
+			warningIcon: true,
+			mainDisabled: true,
+			runDisabled: true,
+			ariaLabel: 'Daily review — Hourly — We can\'t reach this automation. Network failed',
+			tooltips: ['We can\'t reach this automation. Network failed'],
+			accessible: true,
+		});
+	});
+
+	test('an availability error clears pending run feedback', async () => {
+		const { widget, automationService, runner } = setup();
+		const dispatched = new DeferredPromise<IAutomationRunDispatch>();
+		runner.whenDispatched = dispatched.p;
+		const item = automation();
+		automationService.setCatalogueState('ready');
+		automationService.setAutomations([item]);
+		widget.element.querySelector<HTMLButtonElement>('.automations-card-run-button')?.click();
+		assert.strictEqual(widget.element.querySelector('.automations-card-prompt')?.textContent, 'Starting run...');
+
+		automationService.canUpdate = false;
+		automationService.canRun = false;
+		automationService.canDelete = false;
+		automationService.setAutomations([{ ...item, availabilityError: 'Network failed' }]);
+
+		assert.deepStrictEqual({
+			prompt: widget.element.querySelector('.automations-card-prompt')?.textContent,
+			label: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+		}, {
+			prompt: 'Review the workspace',
+			label: 'Daily review — Hourly — We can\'t reach this automation. Network failed',
+		});
+		await dispatched.complete({ kind: 'notStarted', reason: 'targetUnavailable' });
 	});
 
 	test('uses sentence-case Cron for saved cards and accessible schedule text', () => {

@@ -273,8 +273,16 @@
 
 .automations-card.automation-disabled .automations-card-name-text,
 .automations-card.automation-disabled .automations-card-prompt,
-.automations-card.automation-disabled .automations-card-meta {
+.automations-card.automation-disabled .automations-card-meta,
+.automations-card.automation-unavailable .automations-card-name-text,
+.automations-card.automation-unavailable .automations-card-prompt,
+.automations-card.automation-unavailable .automations-card-meta {
 	color: var(--vscode-disabledForeground);
+}
+
+.automations-card-warning {
+	flex-shrink: 0;
+	color: var(--vscode-list-warningForeground);
 }
 
 /* Card Metadata */

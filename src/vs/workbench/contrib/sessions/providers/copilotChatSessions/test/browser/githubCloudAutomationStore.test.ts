@@ -233,7 +233,7 @@ suite('GitHubCloudAutomationStore', () => {
 				return client;
 			}
 		}();
-		const store = disposables.add(new GitHubCloudAutomationStore(resolveRepositoryUri, service, accounts, storage, new NullLogService(), recents));
+		const store = disposables.add(new GitHubCloudAutomationStore(resolveRepositoryUri, false, service, accounts, storage, new NullLogService(), recents));
 		const changeAccount = (value: IDefaultAccount | null) => {
 			accounts.currentDefaultAccount = value;
 			accountChanged.fire(value);
@@ -616,11 +616,35 @@ suite('GitHubCloudAutomationStore', () => {
 		});
 	});
 
+	test('client acquisition failures without cached definitions stay quiet and disable mutations', async () => {
+		const { store, delayAcquisition, acquisitionStarted } = setup();
+		const pending = new DeferredPromise<void>();
+		delayAcquisition(pending.p);
+		const refresh = store.refresh();
+		await acquisitionStarted.p;
+		await pending.error(new Error('Repository grant unavailable'));
+		await assert.rejects(refresh, /Repository grant unavailable/);
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+			canMutate: store.canMutate.get(),
+		}, {
+			entries: [],
+			state: 'ready',
+			canMutate: false,
+		});
+	});
+
 	test('uncertain mutations block retries until an explicit successful refresh', async () => {
 		const { store, api } = setup();
 		const cause = api.mutationResult = new MutationUncertainError('unknown');
 		await assert.rejects(store.create(workspace, createValue), error => error instanceof AutomationMutationUncertainError && error.cause === cause && error.message === reconciliationMessage);
 		await assert.rejects(store.create(workspace, createValue), AutomationMutationUncertainError);
+		api.definitions.set(repository.repo, new Error('Offline'));
+		await store.refresh();
+		await assert.rejects(store.create(workspace, createValue), AutomationMutationUncertainError);
+		api.definitions.delete(repository.repo);
 		await store.refresh();
 		api.mutationResult = definition;
 		await store.create(workspace, createValue);
@@ -811,7 +835,8 @@ suite('GitHubCloudAutomationStore', () => {
 			listCalls: api.calls.filter(call => call.method === 'list').length,
 			detailIds: api.detailCalls.map(call => call.id),
 		}, {
-			entries: [{ repository, definition }], state: 'error', leases: { acquired: 1, released: 0 },
+			entries: [{ repository, definition, availabilityError: 'GitHub pagination exceeded the limit of 10 pages' }],
+			state: 'error', leases: { acquired: 1, released: 0 },
 			listCalls: 2,
 			detailIds: [definition.id],
 		});
@@ -855,13 +880,15 @@ suite('GitHubCloudAutomationStore', () => {
 			}
 			return { ...definition, id };
 		};
-		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		await store.refresh();
 		assert.deepStrictEqual({
 			details: api.detailCalls.map(call => ({ id: call.id, cancelled: call.signal.aborted })),
 			entries: store.entries.get(),
+			state: store.catalogueState.get(),
 		}, {
 			details: Array.from({ length: 5 }, (_, index) => ({ id: `automation-${index}`, cancelled: true })),
 			entries: [],
+			state: 'ready',
 		});
 	});
 
@@ -978,7 +1005,7 @@ suite('GitHubCloudAutomationStore', () => {
 			}
 		}();
 		const storage = disposables.add(new InMemoryStorageService());
-		const store = disposables.add(new GitHubCloudAutomationStore(() => undefined, service,
+		const store = disposables.add(new GitHubCloudAutomationStore(() => undefined, false, service,
 			new class extends mock<IDefaultAccountService>() {
 				override currentDefaultAccount = account;
 				override readonly onDidChangeDefaultAccount = Event.None;
@@ -1104,18 +1131,65 @@ suite('GitHubCloudAutomationStore', () => {
 		const { store, api, recents } = setup();
 		const other = { owner: 'microsoft', repo: 'other' };
 		recents.workspaces = [recentWorkspace(workspace), recentWorkspace(workspace.with({ path: '/microsoft/other/HEAD' }))];
+		const otherDefinition = { ...definition, id: 'other-automation' };
+		api.definitions.set(other.repo, [otherDefinition]);
 		await store.refresh();
 		api.definitions.set(repository.repo, [{ ...definition, name: 'Updated' }]);
 		api.definitions.set(other.repo, new Error('Network failed'));
-		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
-			entries: [{ repository, definition: { ...definition, name: 'Updated' } }, { repository: other, definition }],
-			state: 'error',
+			entries: [
+				{ repository, definition: { ...definition, name: 'Updated' } },
+				{ repository: other, definition: otherDefinition, availabilityError: 'Network failed' },
+			],
+			state: 'ready',
 		});
+		api.historyErrors.set(otherDefinition.id, new Error('History unavailable'));
+		api.tasks = [{ id: 'run', state: 'completed', created_at: definition.created_at, remote_steerable: false }];
+		await store.refreshHistory();
+		assert.deepStrictEqual(store.history.get().map(row => row.entry.definition.id), [definition.id]);
 		api.definitions.set(other.repo, []);
 		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
 			entries: [{ repository, definition: { ...definition, name: 'Updated' } }], state: 'ready',
+		});
+	});
+
+	test('all cached definitions failing preserves them and reports a catalogue error', async () => {
+		const { store, api, recents } = setup();
+		const other = { owner: 'microsoft', repo: 'other' };
+		recents.workspaces = [recentWorkspace(workspace), recentWorkspace(workspace.with({ path: '/microsoft/other/HEAD' }))];
+		await store.refresh();
+		api.definitions.set(repository.repo, new Error('Primary failed'));
+		api.definitions.set(other.repo, new Error('Other failed'));
+
+		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+		}, {
+			entries: [
+				{ repository, definition, availabilityError: 'Primary failed' },
+				{ repository: other, definition, availabilityError: 'Other failed' },
+			],
+			state: 'error',
+		});
+	});
+
+	test('failed checks without cached definitions settle without an error', async () => {
+		const { store, api, storage } = setup();
+		storage.store(storageKey, JSON.stringify([storedRepository]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		api.definitions.set(repository.repo, new Error('Network failed'));
+
+		await store.refresh();
+
+		assert.deepStrictEqual({
+			entries: store.entries.get(),
+			state: store.catalogueState.get(),
+		}, {
+			entries: [],
+			state: 'ready',
 		});
 	});
 
@@ -1158,7 +1232,7 @@ suite('GitHubCloudAutomationStore', () => {
 			state: store.catalogueState.get(),
 			stored: JSON.parse(storage.get(storageKey, StorageScope.PROFILE)!),
 		}, {
-			entries: [{ repository, definition }],
+			entries: [{ repository, definition, availabilityError: 'API request failed (HTTP 404)' }],
 			state: 'error',
 			stored: [storedRepository],
 		});
@@ -1184,7 +1258,11 @@ suite('GitHubCloudAutomationStore', () => {
 			retriedConfigurations: api.calls.filter(call => call.method === 'capability').length,
 			state: store.catalogueState.get(),
 		}, {
-			failed: { entries: [{ repository, definition }], state: 'error', stored: [storedRepository] },
+			failed: {
+				entries: [{ repository, definition, availabilityError: 'API request failed (HTTP 503)' }],
+				state: 'error',
+				stored: [storedRepository],
+			},
 			retriedConfigurations: 3,
 			state: 'ready',
 		});
@@ -1195,17 +1273,17 @@ suite('GitHubCloudAutomationStore', () => {
 		await store.create(workspace, createValue);
 		recents.workspaces = [recentWorkspace(workspace.with({ path: '/microsoft/inaccessible/HEAD' }))];
 		api.manageability.set('inaccessible', new Error('Access denied'));
-		await assert.rejects(store.refresh(), /Some GitHub repositories/);
+		await store.refresh();
 		assert.deepStrictEqual({ entries: store.entries.get(), state: store.catalogueState.get() }, {
-			entries: [{ repository, definition }], state: 'error',
+			entries: [{ repository, definition }], state: 'ready',
 		});
 	});
 
-	test('repository resolution failures are errors, not an empty successful catalogue', async () => {
+	test('repository resolution failures without cached definitions settle ready', async () => {
 		const { store, recents } = setup(() => { throw new Error('Resolution failed'); });
 		recents.workspaces = [recentWorkspace(URI.file('C:\\workspace'))];
-		await assert.rejects(store.refresh(), /Some GitHub repositories/);
-		assert.strictEqual(store.catalogueState.get(), 'error');
+		await store.refresh();
+		assert.strictEqual(store.catalogueState.get(), 'ready');
 	});
 
 	for (const stored of ['{', '{}', '[null]', '[{"owner":"microsoft","name":""}]']) {

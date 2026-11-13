@@ -34,6 +34,7 @@ const MAX_REPOSITORY_CAPABILITY_FAILURES = 100;
 export interface ICloudAutomationEntry {
 	readonly repository: RepositoryRef;
 	readonly definition: AutomationDetail;
+	readonly availabilityError?: string;
 }
 
 /** The account's tool catalog; `undefined` until it is first requested. */
@@ -56,12 +57,14 @@ export class GitHubCloudAutomationStore extends Disposable {
 	private lifetime = new AbortController();
 	private readonly clientStore = this._register(new DisposableStore());
 	private clientPromise: Promise<IGitHubAccountClient> | undefined;
+	private clientAcquisitionFailed = false;
 	private refreshPromise: Promise<void> | undefined;
 	private operations = new Sequencer();
 	private readonly cachedHistory = observableValue<readonly ICloudAutomationHistoryEntry[]>(this, []);
 	readonly history: IObservable<readonly ICloudAutomationHistoryEntry[]> = this.cachedHistory;
 	private readonly uncertain = observableValue(this, false);
 	readonly mutationUncertain: IObservable<boolean> = this.uncertain;
+	readonly canMutate = observableValue(this, false);
 	private readonly targetEligibility = new Map<string, ReturnType<typeof observableValue<IAutomationWorkspaceTarget>>>();
 	private readonly targetRepositories = new Map<string, RepositoryRef>();
 	private readonly repositoryPrivacy = new Map<string, boolean>();
@@ -75,6 +78,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 
 	constructor(
 		private readonly resolveRepositoryUri: (workspace: URI) => URI | undefined | Promise<URI | undefined>,
+		initialMutationUncertain: boolean,
 		@IWorkbenchGitHubService private readonly gitHubService: IWorkbenchGitHubService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -82,9 +86,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 		@ISessionsRecentWorkspacesService private readonly recentWorkspacesService: ISessionsRecentWorkspacesService,
 	) {
 		super();
-		this._register(defaultAccountService.onDidChangeDefaultAccount(() => this.reset()));
-		this._register(gitHubService.onDidChangeDefaultClient(() => this.reset()));
-		this.reset();
+		this._register(defaultAccountService.onDidChangeDefaultAccount(() => this.reset(true)));
+		this._register(gitHubService.onDidChangeDefaultClient(() => this.reset(false)));
+		this.reset(true);
+		this.uncertain.set(initialMutationUncertain, undefined);
 	}
 
 	getWorkspaceTarget(workspace: URI | undefined): IObservable<IAutomationWorkspaceTarget> {
@@ -331,16 +336,22 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.state.set('loading', undefined);
 		}
 		const refresh = this.operations.queue(async () => {
-			await this.withClient(signal, (client, signal) => this.refreshRepositories(account, signal, client, options?.background ? { priority: 'background' } : undefined));
+			const complete = await this.withClient(signal, (client, signal) => this.refreshRepositories(account, signal, client, options?.background ? { priority: 'background' } : undefined));
 			signal.throwIfAborted();
-			this.uncertain.set(false, undefined);
+			if (complete) {
+				this.uncertain.set(false, undefined);
+			}
 		});
 		this.refreshPromise = refresh;
 		try {
 			await refresh;
 		} catch (error) {
 			if (!signal.aborted && !this._store.isDisposed) {
-				this.state.set('error', undefined);
+				const quietAcquisitionFailure = this.cachedEntries.get().length === 0 && this.clientAcquisitionFailed;
+				transaction(tx => {
+					this.state.set(quietAcquisitionFailure ? 'ready' : 'error', tx);
+					this.canMutate.set(false, tx);
+				});
 				this.logService.warn('[CloudAutomations] Failed to refresh repositories', error);
 			}
 			throw error;
@@ -352,13 +363,20 @@ export class GitHubCloudAutomationStore extends Disposable {
 	}
 
 	private async acquireClient(signal: AbortSignal): Promise<IGitHubAccountClient> {
-		const client = await this.gitHubService.acquireDefaultAccountApiClient(signal);
+		let client: IGitHubAccountClient;
+		try {
+			client = await this.gitHubService.acquireDefaultAccountApiClient(signal);
+			this.clientAcquisitionFailed = false;
+		} catch (error) {
+			this.clientAcquisitionFailed = true;
+			throw error;
+		}
 		if (signal.aborted) {
 			client.dispose();
 			throw signal.reason;
 		}
 		this.clientStore.add(client);
-		this.clientStore.add(client.onDidInvalidate(() => this.reset()));
+		this.clientStore.add(client.onDidInvalidate(() => this.reset(false)));
 		return client;
 	}
 
@@ -472,7 +490,10 @@ export class GitHubCloudAutomationStore extends Disposable {
 				const historySignal = AbortSignal.any([operationSignal, controller.signal]);
 				const limiter = resources.add(new Limiter<readonly ICloudAutomationHistoryEntry[]>(4));
 				try {
-					const history = await Promise.all(this.cachedEntries.get().map(entry => limiter.queue(async () => {
+					const entries = this.cachedEntries.get();
+					const unavailableEntries = entries.filter(entry => entry.availabilityError !== undefined);
+					const retainedHistory = this.cachedHistory.get().filter(row => unavailableEntries.some(entry => sameEntry(row.entry, entry)));
+					const history = await Promise.all(entries.filter(entry => entry.availabilityError === undefined).map(entry => limiter.queue(async () => {
 						try {
 							historySignal.throwIfAborted();
 							const tasks = await client.automations.listRuns(entry.definition.id, historySignal, { ...requestOptions, query: { per_page: 50, page: 1, sort: 'created_at', direction: 'desc', is_archived: false } }).catch(error => {
@@ -502,7 +523,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 						}
 					})));
 					operationSignal.throwIfAborted();
-					this.cachedHistory.set(history.flat(), undefined);
+					this.cachedHistory.set([...retainedHistory, ...history.flat()], undefined);
 				} finally {
 					controller.abort(new CancellationError());
 					resources.dispose();
@@ -562,7 +583,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		});
 	}
 
-	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubAccountClient, options?: ApiRequestOptions): Promise<void> {
+	private async refreshRepositories(account: IDefaultAccount, signal: AbortSignal, client: IGitHubAccountClient, options?: ApiRequestOptions): Promise<boolean> {
 		const repositories = this.readRepositories(account.accountName);
 		for (const repository of this.targetRepositories.values()) {
 			repositories.set(repositoryKey(repository), repository);
@@ -590,6 +611,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 		const eligible: RepositoryRef[] = [];
 		const missing: RepositoryRef[] = [];
+		let refreshedRepositories = 0;
 		for (const [key, repository] of repositories) {
 			let configuration: AutomationRepositoryConfiguration;
 			try {
@@ -609,6 +631,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 					continue;
 				}
 				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
+				this.markRepositoryUnavailable(snapshot, key, error);
 				errors.push(error);
 				continue;
 			}
@@ -621,23 +644,36 @@ export class GitHubCloudAutomationStore extends Disposable {
 			try {
 				const definitions = await this.listDefinitions(client.automations, repository, signal, options);
 				snapshot.set(key, definitions.map(definition => ({ repository, definition })));
+				refreshedRepositories++;
 			} catch (error) {
 				signal.throwIfAborted();
 				if (isCancellationError(error)) {
 					throw error;
 				}
 				this.logService.warn(`[CloudAutomations] Failed to refresh ${key}`, error);
+				this.markRepositoryUnavailable(snapshot, key, error);
 				errors.push(error);
 			}
 		}
 		this.rememberRepositories(account.accountName, eligible, signal, missing);
+		const entries = [...snapshot.values()].flat();
+		const allCachedDefinitionsFailed = entries.length > 0 && entries.every(entry => entry.availabilityError !== undefined);
 		transaction(tx => {
-			this.cachedEntries.set([...snapshot.values()].flat(), tx);
+			this.cachedEntries.set(entries, tx);
 			this.cachedHistory.set(this.cachedHistory.get().filter(row => this.cachedEntries.get().some(entry => sameEntry(row.entry, entry))), tx);
-			this.state.set(errors.length ? 'error' : 'ready', tx);
+			this.state.set(allCachedDefinitionsFailed ? 'error' : 'ready', tx);
+			this.canMutate.set(errors.length === 0 || refreshedRepositories > 0, tx);
 		});
-		if (errors.length) {
+		if (allCachedDefinitionsFailed) {
 			throw new AggregateError(errors, localize('cloudAutomations.partialRefreshFailed', "Some GitHub repositories could not be refreshed. Check the logs for details."));
+		}
+		return errors.length === 0;
+	}
+
+	private markRepositoryUnavailable(snapshot: Map<string, readonly ICloudAutomationEntry[]>, key: string, error: unknown): void {
+		const entries = snapshot.get(key);
+		if (entries?.length) {
+			snapshot.set(key, entries.map(entry => ({ ...entry, availabilityError: getErrorMessage(error) })));
 		}
 	}
 
@@ -662,7 +698,8 @@ export class GitHubCloudAutomationStore extends Disposable {
 		}
 	}
 
-	private reset(): void {
+	private reset(clearMutationUncertainty: boolean): void {
+		const mutationUncertain = clearMutationUncertainty ? false : this.uncertain.get();
 		this.lifetime.abort(new CancellationError());
 		this.clearTargetEligibility();
 		this.repositoryConfigurations.clear();
@@ -671,6 +708,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 		this.repositoryManageabilityFailures.clear();
 		this.lifetime = new AbortController();
 		this.clientPromise = undefined;
+		this.clientAcquisitionFailed = false;
 		this.clientStore.clear();
 		this.refreshPromise = undefined;
 		this.operations = new Sequencer();
@@ -678,7 +716,8 @@ export class GitHubCloudAutomationStore extends Disposable {
 		transaction(tx => {
 			this.cachedEntries.set([], tx);
 			this.cachedHistory.set([], tx);
-			this.uncertain.set(false, tx);
+			this.uncertain.set(mutationUncertain, tx);
+			this.canMutate.set(false, tx);
 			this.cachedTools.set(undefined, tx);
 			this.triggerCatalog.set(undefined, tx);
 			this.state.set(account && !account.enterprise ? 'loading' : 'unavailable', tx);
@@ -736,6 +775,7 @@ export class GitHubCloudAutomationStore extends Disposable {
 			this.cachedEntries.set([], tx);
 			this.cachedHistory.set([], tx);
 			this.state.set('unavailable', tx);
+			this.canMutate.set(false, tx);
 		});
 	}
 

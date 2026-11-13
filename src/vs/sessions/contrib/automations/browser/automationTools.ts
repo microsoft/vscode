@@ -75,6 +75,7 @@ interface IAutomationToolOutput {
 	readonly lastRunAt: string | null;
 	readonly nextRunAt: string | null;
 	readonly readOnlyReason?: string;
+	readonly availabilityError?: string;
 }
 
 interface IAutomationListToolOutput extends IAutomationToolOutput {
@@ -1216,6 +1217,7 @@ function toAutomationToolOutput(automation: IAutomationDescriptor): IAutomationT
 		lastRunAt: automation.lastRunAt ?? null,
 		nextRunAt: automation.nextRunAt ?? null,
 		...(automation.readOnlyReason ? { readOnlyReason: automation.readOnlyReason } : {}),
+		...(automation.availabilityError ? { availabilityError: automation.availabilityError } : {}),
 	};
 }
 
