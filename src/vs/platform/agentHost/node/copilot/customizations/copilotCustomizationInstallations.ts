@@ -1194,42 +1194,18 @@ export class CopilotCustomizationInstallations extends Disposable {
 	 * The gallery is one the user configured, which may be on a private network the runtime refuses.
 	 */
 	private async downloadMcpGalleryCard(source: { readonly mediaType: McpServerCardEmbedded['mediaType']; readonly url: string }): Promise<McpServerCardEmbedded> {
-		const unavailable = () => new Error(localize('copilot.customizationInstallation.mcpGalleryCardUnavailable', "Could not download this MCP server's details from the gallery. Check your network connection and gallery settings, then try again."));
-		if (!this.requestService) {
-			throw unavailable();
-		}
-		const { text } = await this.downloadMcpCard(this.requestService, source.url, maxEmbeddedMcpCardBytes, 'copilotCustomizationInstallations.downloadMcpGalleryCard', {
-			unavailable,
-			failed: statusCode => statusCode !== undefined && statusCode >= 300 && statusCode < 400
-				? new Error(localize('copilot.customizationInstallation.mcpGalleryCardRedirected', "Could not download this MCP server's details because the gallery redirected the request (HTTP {0}), and redirects are not followed.", statusCode))
-				: new Error(localize('copilot.customizationInstallation.mcpGalleryCardFetchFailed', "Could not download this MCP server's details from the gallery (HTTP {0}).", statusCode)),
-			tooLarge: () => new Error(localize('copilot.customizationInstallation.mcpGalleryCardTooLarge', "This MCP server's details from the gallery are larger than the 1 MiB installation limit.")),
-			invalid: () => new Error(localize('copilot.customizationInstallation.mcpGalleryCardInvalid', "The gallery returned MCP server details that are not valid JSON.")),
-		});
-		return { kind: 'embedded', mediaType: source.mediaType, data: text };
+		const data = await this.downloadMcpCard(source.url, maxEmbeddedMcpCardBytes, 'copilotCustomizationInstallations.downloadMcpGalleryCard');
+		// Refuses invalid JSON before planning.
+		parseMcpCard(data);
+		return { kind: 'embedded', mediaType: source.mediaType, data };
 	}
 
 	/** Reads the plan's card, downloading a URL card, and verifies it against the plan's digest. */
 	private async readMcpCardServer(card: McpServerCardReference, plan: McpInstallPlanned): Promise<ReturnType<typeof parseMcpGalleryServerConfiguration>> {
-		const invalid = () => new Error(localize('copilot.customizationInstallation.mcpCardInvalid', "The MCP server card contains invalid JSON."));
-		let data: unknown;
-		if (card.kind === 'embedded') {
-			// The bytes this plan was made from, so the card is not downloaded again.
-			try {
-				data = JSON.parse(card.data);
-			} catch {
-				throw invalid();
-			}
-		} else {
-			if (!this.requestService) {
-				throw new Error(localize('copilot.customizationInstallation.mcpCardUnavailable', "The MCP server card is unavailable for local configuration."));
-			}
-			({ data } = await this.downloadMcpCard(this.requestService, card.url, maxMcpCardBytes, 'copilotCustomizationInstallations.resolveMcpPackageConfiguration', {
-				failed: statusCode => new Error(localize('copilot.customizationInstallation.mcpCardFetchFailed', "Could not read the MCP server card (HTTP {0}).", statusCode)),
-				tooLarge: () => new Error(localize('copilot.customizationInstallation.mcpCardTooLarge', "The MCP server card is too large to install.")),
-				invalid,
-			}));
-		}
+		// An embedded card holds the bytes the plan was made from, so it is not downloaded again.
+		const data = parseMcpCard(card.kind === 'embedded'
+			? card.data
+			: await this.downloadMcpCard(card.url, maxMcpCardBytes, 'copilotCustomizationInstallations.resolveMcpPackageConfiguration'));
 		const digest = createHash('sha256').update(stableStringify(data)).digest('hex');
 		if (plan.provenance.cardDigest.algorithm !== 'sha256-rfc8785' || digest !== plan.provenance.cardDigest.value) {
 			throw new Error(localize('copilot.customizationInstallation.mcpCardChanged', "The MCP server card changed after installation review. Refresh Browse and try again."));
@@ -1237,21 +1213,18 @@ export class CopilotCustomizationInstallations extends Disposable {
 		return parseMcpGalleryServerConfiguration(data);
 	}
 
-	/**
-	 * Downloads an MCP server card without following redirects and with a bounded read, returning its exact text and
-	 * parsed JSON.
-	 * @param errors.unavailable Replaces request and transfer failures; when omitted they are surfaced as-is.
-	 */
-	private async downloadMcpCard(requestService: IRequestService, url: string, maxBytes: number, callSite: string, errors: {
-		readonly unavailable?: () => Error;
-		readonly failed: (statusCode: number | undefined) => Error;
-		readonly tooLarge: () => Error;
-		readonly invalid: () => Error;
-	}): Promise<{ readonly text: string; readonly data: unknown }> {
-		const toTransferError = (error: unknown) => !errors.unavailable || isCancellationError(error) ? error : errors.unavailable();
+	/** Downloads an MCP server card's text without following redirects and with a bounded read. */
+	private async downloadMcpCard(url: string, maxBytes: number, callSite: string): Promise<string> {
+		if (!this.requestService) {
+			throw new Error(localize('copilot.customizationInstallation.mcpCardUnavailable', "The MCP server card is unavailable for local configuration."));
+		}
+		// Request failures carry no message a user can act on, such as "fetch failed".
+		const toDownloadError = (error: unknown) => isCancellationError(error)
+			? error
+			: new Error(localize('copilot.customizationInstallation.mcpCardDownloadFailed', "Could not download the MCP server card. Check your network connection and try again."));
 		let context: IRequestContext;
 		try {
-			context = await requestService.request({
+			context = await this.requestService.request({
 				type: 'GET',
 				url,
 				followRedirects: 0,
@@ -1260,26 +1233,17 @@ export class CopilotCustomizationInstallations extends Disposable {
 				callSite,
 			}, this.lifetimeToken);
 		} catch (error) {
-			throw toTransferError(error);
+			throw toDownloadError(error);
 		}
 		try {
 			if (!isSuccess(context)) {
-				throw errors.failed(context.res.statusCode);
+				throw new Error(localize('copilot.customizationInstallation.mcpCardFetchFailed', "Could not read the MCP server card (HTTP {0}).", context.res.statusCode));
 			}
-			let exceeded = false;
-			let text: string;
+			const tooLarge = new Error(localize('copilot.customizationInstallation.mcpCardTooLarge', "The MCP server card is too large to install."));
 			try {
-				text = await raceCancellationError(readBoundedResponse(context, maxBytes, () => {
-					exceeded = true;
-					return errors.tooLarge();
-				}), this.lifetimeToken);
+				return await raceCancellationError(readBoundedResponse(context, maxBytes, () => tooLarge), this.lifetimeToken);
 			} catch (error) {
-				throw exceeded ? error : toTransferError(error);
-			}
-			try {
-				return { text, data: JSON.parse(text) };
-			} catch {
-				throw errors.invalid();
+				throw error === tooLarge ? error : toDownloadError(error);
 			}
 		} finally {
 			context.stream.destroy();
@@ -1833,6 +1797,15 @@ function isConfigurablePackageChoice(choice: McpTransportChoice): choice is Extr
 		&& choice.requiredValues.length <= maxConfiguredEntries
 		&& choice.requiredValues.every(value => value.category === 'environment-variable' ? !value.isRepeated : value.category === 'runtime-argument' || value.category === 'package-argument')
 		&& new Set(choice.requiredValues.map(value => `${value.category}\0${value.key}`)).size === choice.requiredValues.length;
+}
+
+/** Parses the JSON text of an MCP server card. */
+function parseMcpCard(text: string): unknown {
+	try {
+		return JSON.parse(text);
+	} catch {
+		throw new Error(localize('copilot.customizationInstallation.mcpCardInvalid', "The MCP server card contains invalid JSON."));
+	}
 }
 
 /** Finds the single stdio package in a verified card that the plan's package choice describes. */

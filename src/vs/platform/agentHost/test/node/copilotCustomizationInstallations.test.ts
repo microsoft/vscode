@@ -1836,11 +1836,11 @@ suite('CopilotCustomizationInstallations', () => {
 			assert.deepStrictEqual({ added, planSources }, { added: [], planSources: [] }, scenario);
 		}
 		assert.deepStrictEqual(results, {
-			unreachable: 'Could not download this MCP server\'s details from the gallery. Check your network connection and gallery settings, then try again.',
-			status: 'Could not download this MCP server\'s details from the gallery (HTTP 404).',
-			redirect: 'Could not download this MCP server\'s details because the gallery redirected the request (HTTP 302), and redirects are not followed.',
-			json: 'The gallery returned MCP server details that are not valid JSON.',
-			oversize: 'This MCP server\'s details from the gallery are larger than the 1 MiB installation limit.',
+			unreachable: 'Could not download the MCP server card. Check your network connection and try again.',
+			status: 'Could not read the MCP server card (HTTP 404).',
+			redirect: 'Could not read the MCP server card (HTTP 302).',
+			json: 'The MCP server card contains invalid JSON.',
+			oversize: 'The MCP server card is too large to install.',
 		});
 	});
 
@@ -2331,6 +2331,25 @@ suite('CopilotCustomizationInstallations', () => {
 			assert.deepStrictEqual({ review: review.kind === 'mcp' ? [review.command, review.args, review.env] : undefined, added }, {
 				review: ['npx', ['@example/local@1.2.3', '--headless'], { MODE: 'stdio' }],
 				added: [{ name: 'io.github.example/local', config: { type: 'stdio', command: 'npx', args: ['@example/local@1.2.3', '--headless'], env: { MODE: 'stdio' }, tools: ['*'] } }],
+			});
+		});
+
+		test('downloads a catalog package card within five mebibytes and refuses one that changed', async () => {
+			const results: Record<string, string> = {};
+			for (const scenario of ['limit', 'oversize', 'digest'] as const) {
+				const { service, request, added, response } = createPackageFixture();
+				switch (scenario) {
+					case 'limit': response.text = response.text.padEnd(5 * 1024 * 1024, ' '); break;
+					case 'oversize': response.text = response.text.padEnd(5 * 1024 * 1024 + 1, ' '); break;
+					case 'digest': response.text = response.text.replace('Local MCP', 'Changed MCP'); break;
+				}
+				results[scenario] = await service.prepare(request).then(prepared => prepared.kind, errorMessage);
+				assert.deepStrictEqual(added, [], scenario);
+			}
+			assert.deepStrictEqual(results, {
+				limit: 'review',
+				oversize: 'The MCP server card is too large to install.',
+				digest: 'The MCP server card changed after installation review. Refresh Browse and try again.',
 			});
 		});
 
