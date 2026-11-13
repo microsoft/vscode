@@ -17736,7 +17736,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
-	function perChatSession(rawId: string, chatMutable: boolean, options?: { readonly storageService?: IStorageService; readonly withoutChatState?: boolean }) {
+	function perChatSession(rawId: string, chatMutable: boolean, options?: { readonly storageService?: IStorageService; readonly withoutChatState?: boolean; readonly peerFromTool?: boolean }) {
 		agentHost.addSession(createSession(rawId, { summary: rawId }));
 		// A chat's own config is subscribed while the chat is active in a visible session.
 		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', []);
@@ -17745,7 +17745,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const chat = `ahp-chat:/${rawId}`;
 		const peer = `ahp-chat:/${rawId}-peer`;
 		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
-		const peerSummary: ChatSummary = { resource: peer, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const peerSummary: ChatSummary = { resource: peer, title: 'Peer', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString(), ...(options?.peerFromTool ? { origin: { kind: ProtocolChatOriginKind.Tool, chat, toolCallId: 'tool-call' } } : {}) };
 		const config: SessionConfigState = {
 			schema: {
 				type: 'object',
@@ -17870,6 +17870,29 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(60_000);
 
 		assert.strictEqual(chatSubscriptions() - before, 0);
+	}));
+
+	test('a configuration lease whose chat state arrives as the provider is disposed takes no further chat of its chain', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, chat, peer, peerSummary } = perChatSession('config-disposed-on-chat', true, { withoutChatState: true, peerFromTool: true });
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'config-disposed-on-chat')!;
+		await waitForSessionConfig(provider, session, config => !!config);
+		const peerResource = session.chats.get().find(candidate => !isEqual(candidate.resource, session.mainChat.get().resource))!.resource;
+		const subscriptions = (resource: string) => agentHost.wireOps.filter(op => op === `subscribe:${resource}`).length;
+
+		// A subagent's config chain is its own chat, then its parent's. The lease waits for the subagent's chat state, which
+		// arrives as the provider is disposed: in the same stack, before the lease's wait resumes
+		const parentBefore = subscriptions(chat);
+		const pending = provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None);
+		const rejected = assert.rejects(pending, /Cancel/);
+		await timeout(0);
+		const peerSubscribed = subscriptions(peer) > 0;
+		agentHost.setChatState(peer, { ...peerSummary, turns: [] });
+		provider.dispose();
+		await rejected;
+		await timeout(60_000);
+
+		assert.deepStrictEqual({ peerSubscribed, parentSubscriptions: subscriptions(chat) - parentBefore }, { peerSubscribed: true, parentSubscriptions: 0 });
 	}));
 
 	test('resolves creation isolation for the selected harness and workspace without creating a draft', async () => {

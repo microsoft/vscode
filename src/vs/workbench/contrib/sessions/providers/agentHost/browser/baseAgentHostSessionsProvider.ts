@@ -6580,23 +6580,26 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		const lease = this._sessionConfigLeases.add(new DisposableStore());
 		const cancellation = new CancellationTokenSource(token);
 		lease.add(toDisposable(() => cancellation.dispose(true)));
-		const readState = <T>(subscription: IAgentSubscription<T>) => waitForState(
-			observableFromEvent(this, Event.any(
-				Event.map(subscription.onDidChange, () => undefined),
-				Event.map(subscription.onDidError ?? Event.None, () => undefined),
-			), () => subscription.value),
-			(state): state is T => state !== undefined && !(state instanceof Error),
-			state => state instanceof Error ? state : undefined,
-			cancellation.token,
-		);
+		const readState = async <T>(subscription: IAgentSubscription<T>) => {
+			const state = await waitForState(
+				observableFromEvent(this, Event.any(
+					Event.map(subscription.onDidChange, () => undefined),
+					Event.map(subscription.onDidError ?? Event.None, () => undefined),
+				), () => subscription.value),
+				(state): state is T => state !== undefined && !(state instanceof Error),
+				state => state instanceof Error ? state : undefined,
+				cancellation.token,
+			);
+			// The lease ends with the provider: a state that arrives as the provider is disposed takes no further config
+			if (cancellation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			return state;
+		};
 		try {
 			lease.add(this._sessionChatDetailsReferences.acquire(sessionId));
 			const reference = lease.add(connection.getSubscription(StateComponents.Session, cached.backendUri, 'BaseAgentHostSessionsProvider.configLease'));
 			const state = await readState(reference.object);
-			// The lease ends with the provider: a state that arrives as the provider is disposed takes no chat's config
-			if (cancellation.token.isCancellationRequested) {
-				throw new CancellationError();
-			}
 			const backendChat = this.getBackendChatResource(chat)?.toString();
 			if (!state.config || !state.chats.some(summary => summary.resource === backendChat)) {
 				throw new Error(localize('agentHost.chatConfigUnavailable', "Could not resolve the originating chat's configuration. Please try again."));
