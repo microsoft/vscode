@@ -715,6 +715,34 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(localEntries, entries);
 	});
 
+	test('a contribution can leave a repository control out of the new session composer', () => {
+		class WithoutNewSessionIsolation extends AgentHostSessionConfigPickerContribution {
+			protected override showsRepositoryProperty(isIsolation: boolean, isNewSession: boolean): boolean {
+				return !(isIsolation && isNewSession);
+			}
+		}
+		const services = setupServices(store);
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly gridShown = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		}());
+		store.add(services.instantiationService.createInstance(WithoutNewSessionIsolation));
+
+		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+
+		assert.deepStrictEqual(entries, ['Base Branch']);
+	});
+
 	test('repository pickers keep their menu action so the composer can identify them', async () => {
 		const services = setupServices(store);
 		const providers = new Map<string, IActionViewItemFactory>();
