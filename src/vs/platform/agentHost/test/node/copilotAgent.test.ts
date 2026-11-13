@@ -3059,13 +3059,15 @@ suite('CopilotAgent', () => {
 			const registeredSource: Record<string, string> = source.source === 'github'
 				? { source: 'github', repo: source.repo, ref: source.ref }
 				: { source: 'git', url: source.url, ref: source.ref };
-			client.userSettings = { settings: {
-				extraKnownMarketplaces: {
-					value: Object.fromEntries(client.pluginMarketplaces.map(marketplace => [marketplace.name, { source: registeredSource }])),
-					default: {},
-					isDefault: false,
-				},
-			} };
+			client.userSettings = {
+				settings: {
+					extraKnownMarketplaces: {
+						value: Object.fromEntries(client.pluginMarketplaces.map(marketplace => [marketplace.name, { source: registeredSource }])),
+						default: {},
+						isDefault: false,
+					},
+				}
+			};
 			const agent = createTestAgent(disposables, { copilotClient: client });
 			afterTest(() => disposeAgent(agent));
 
