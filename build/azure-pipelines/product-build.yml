@@ -22,10 +22,10 @@ schedules:
       include:
         - main
 
-trigger:
-  batch: true
-  branches:
-    include: ["main", "release/*"]
+# The CI builds of main and release/* run in the CI build pipeline (product-build-ci.yml). This
+# pipeline runs the scheduled and manually queued builds; a CI build can still be queued manually
+# with VSCODE_BUILD_TYPE=CI.
+trigger: none
 
 parameters:
   - name: VSCODE_QUALITY
