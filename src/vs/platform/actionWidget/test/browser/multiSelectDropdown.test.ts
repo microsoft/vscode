@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as dom from '../../../../base/browser/dom.js';
 import { Event } from '../../../../base/common/event.js';
+import { AnchorPosition } from '../../../../base/common/layout.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -31,6 +32,10 @@ suite('MultiSelectDropdown', () => {
 		const container = dom.append(document.body, dom.$('div'));
 		store.add(toDisposable(() => container.remove()));
 		const anchor = dom.append(container, dom.$('button', { 'aria-expanded': 'false', 'aria-haspopup': 'menu' }, 'Choose'));
+		if (options.preferredAnchorPosition === AnchorPosition.ABOVE) {
+			anchor.style.position = 'fixed';
+			anchor.style.top = '400px';
+		}
 		const nextButton = dom.append(container, dom.$('button', undefined, 'Next'));
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.set(ILayoutService, new class extends mock<ILayoutService>() {
@@ -94,6 +99,19 @@ suite('MultiSelectDropdown', () => {
 		});
 	});
 
+	test('can hide visual section headers and prefer placement above', () => {
+		const { container, rows } = create({ hideSectionHeaders: true, preferredAnchorPosition: AnchorPosition.ABOVE });
+		assert.deepStrictEqual({
+			sections: [...container.querySelectorAll('.group-header')].map(row => row.textContent),
+			above: container.querySelector('.context-view')?.classList.contains('top'),
+			labels: rows().map(row => row.getAttribute('aria-label')),
+		}, {
+			sections: [],
+			above: true,
+			labels: ['Monday, Weekdays', 'Wednesday, Weekdays', 'Friday, Weekdays, disabled', 'Saturday, Weekend'],
+		});
+	});
+
 	for (const modifier of ['shiftKey', 'ctrlKey', 'metaKey'] as const) {
 		test(`${modifier} click toggles only the clicked item`, () => {
 			const { dropdown, changes, row } = create();
@@ -139,6 +157,23 @@ suite('MultiSelectDropdown', () => {
 		assert.deepStrictEqual({ changes, visible: dropdown.isVisible }, {
 			changes: [['mon', 'wed', 'fri'], ['mon', 'fri'], ['mon', 'fri', 'sat']], visible: true,
 		});
+	});
+
+	test('required selection keeps the last item selected', () => {
+		const { dropdown, changes, row } = create({
+			sections: [{ label: 'Weekdays', items: [{ id: 'mon', label: 'Monday' }, { id: 'wed', label: 'Wednesday' }] }],
+			selectedIds: ['mon'],
+			requireSelection: true,
+		});
+		row('Monday').click();
+		row('Wednesday').click();
+		row('Monday').click();
+		row('Wednesday').click();
+		assert.deepStrictEqual({
+			changes,
+			checks: [row('Monday'), row('Wednesday')].map(row => row.getAttribute('aria-checked')),
+			visible: dropdown.isVisible,
+		}, { changes: [['mon', 'wed'], ['wed']], checks: ['false', 'true'], visible: true });
 	});
 
 	test('double click toggles exactly twice', async () => {

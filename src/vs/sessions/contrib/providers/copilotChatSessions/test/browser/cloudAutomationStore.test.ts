@@ -1664,6 +1664,22 @@ suite('CloudAutomationStore', () => {
 			{ daily, custom: 'custom' });
 	});
 
+	test('keeps single-day cloud schedules unchanged and rejects multi-day mutations', async () => {
+		const { provider, api, set } = setup();
+		await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
+		await provider.refresh();
+		const automation = provider.automations.get()[0];
+		const single: IAutomationSchedule = { interval: 'weekly', timeZone: 'UTC', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 };
+		const schedule = { ...single, scheduleDays: [1, 3, 5] };
+		const error = /support only one day per weekly schedule/;
+		await assert.rejects(provider.createAutomation({ name: 'Weekly review', prompt: 'Review', target: automation.target, schedule }), error);
+		await assert.rejects(provider.updateAutomation(automation.id, { schedule }), error);
+		assert.deepStrictEqual({
+			single: cloudAutomationSchedule(cloudAutomationTriggers(single)),
+			mutations: api.calls.filter(call => call === 'create' || call === 'update'),
+		}, { single, mutations: [] });
+	});
+
 	for (const timeZone of [undefined, 'UTC'] as const) {
 		test(`rejects ${timeZone ?? 'local'} weekdays on create and update without mutating the cloud API`, async () => {
 			const { provider, api, set } = setup();

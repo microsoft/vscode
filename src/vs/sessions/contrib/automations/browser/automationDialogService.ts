@@ -146,6 +146,8 @@ export class AutomationDialogService implements IAutomationDialogService {
 			hour: initialSchedule?.scheduleHour ?? 9,
 			minute: initialSchedule?.scheduleMinute ?? 0,
 			day: initialSchedule?.scheduleDay ?? 1,
+			days: initialSchedule?.scheduleDays,
+			scheduleChanged: existing ? false : undefined,
 			isQuickChat: initialTarget === undefined || initialTarget.kind === 'quickChat',
 			folderUri: initialWorkspaceTarget?.folderUri,
 			providerId: initialTarget?.providerId,
@@ -258,6 +260,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				scheduleMinute: state.minute,
 				scheduleDay: state.day,
 				...(state.interval === 'cron' ? { cronExpression: state.cronExpression, cronTimeZone: state.cronTimeZone } : {}),
+				...(state.interval === 'weekly' && state.days && state.days.length > 1 ? { scheduleDays: state.days } : {}),
 			};
 			const schedule = state.timeZone === 'UTC' ? automationScheduleToUTC(localSchedule, timezoneOffset) : localSchedule;
 			const prompt = getPrompt();
@@ -272,8 +275,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
 					prompt,
-					...(!state.cloudTrigger && (existing.schedule.timeZone !== 'UTC' || state.interval !== initialSchedule?.interval || state.hour !== initialSchedule?.scheduleHour
-						|| state.minute !== initialSchedule?.scheduleMinute || state.day !== initialSchedule?.scheduleDay) ? { schedule } : {}),
+					...(!state.cloudTrigger && (state.scheduleChanged || state.interval === 'cron') ? { schedule } : {}),
 					...(state.cloudTrigger && !state.triggerReadOnly && !equals(state.cloudTrigger, existing.cloudTrigger) ? { cloudTrigger: state.cloudTrigger } : {}),
 					target,
 					...(sessionConfigurationCapture.kind === 'captured' ? {

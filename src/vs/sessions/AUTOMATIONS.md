@@ -87,6 +87,10 @@ An `AutomationTarget` separates concrete provider identity (`providerId`) from i
 
 Cloud definitions retain UTC schedule semantics and their raw event configuration separately from the schedule projection. Unsupported triggers project as a custom schedule rather than a manual schedule. Unrelated updates omit triggers, since the cloud API replaces a supplied trigger map as a whole. The editable-state conflict check includes raw triggers and actor-write permission. Portable local-time blueprints and AHP mutations reject cloud schedules they cannot preserve.
 
+Weekly Agent Host schedules may select multiple weekdays through `scheduleDays`; absent that field, `scheduleDay` retains the single-day contract. The dialog, tools, blueprints, cards, and accessible output preserve the complete selection. Cloud's interval contract supports only a single weekly day, so multi-day mutations are rejected rather than reduced to one day.
+
+An edit that does not change the schedule omits it from the mutation. Agent Host updates retain the stored triggers verbatim in that case, including trigger identities, time zones, misfire policies, and companion triggers; an editor projection is not authority to normalize them.
+
 Cloud schedule presentation uses local wall-clock values without changing canonical UTC definitions. The dialog captures the local UTC offset when opened and uses it for both load and save; provider changes do not convert the form fields again. Daily and weekly schedules remain fixed UTC recurrences on GitHub, so their displayed local time can shift across daylight-saving changes.
 
 Projected definition and run identifiers are opaque, concrete-provider-scoped identities containing the complete host resource URI. Equal resource URIs on different hosts, or equal final path segments within one host, do not share identity. Commands resolve the scoped identity to the original host resource; they never reconstruct a host resource from a displayed ID. Historical archive rows use the same definition identity and a distinct provider-scoped history identity.

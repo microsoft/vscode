@@ -6,6 +6,7 @@
 import { parseFrontMatter, YamlMapNode, YamlNode, YamlParseError } from '../../../../../base/common/yaml.js';
 import { validateAutomationCron } from '../../../../../platform/agentHost/common/automationCron.js';
 import { IAutomationDescriptor, IAutomationSchedule } from './automation.js';
+import { formatAutomationWeekdays, parseAutomationWeekdays } from './schedule.js';
 
 export const AUTOMATION_BLUEPRINT_FILE_SUFFIX = '.automation.md';
 export const AUTOMATION_BLUEPRINT_VERSION = 1;
@@ -214,7 +215,7 @@ function toCronExpression(schedule: IAutomationSchedule): string {
 		case 'weekdays':
 			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * 1-5`;
 		case 'weekly':
-			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${schedule.scheduleDay}`;
+			return `${schedule.scheduleMinute} ${schedule.scheduleHour} * * ${formatAutomationWeekdays(schedule)}`;
 		case 'cron':
 			if (!schedule.cronExpression) {
 				throw new AutomationBlueprintParseError('unsupportedSchedule');
@@ -248,11 +249,11 @@ function fromCronExpression(expression: string): IAutomationSchedule {
 	if (dayValue === '1-5') {
 		return { interval: 'weekdays', scheduleHour, scheduleMinute, scheduleDay: 0 };
 	}
-	const scheduleDay = parseCronValue(dayValue, 0, 7);
-	if (scheduleDay === undefined) {
+	const scheduleDays = parseAutomationWeekdays(dayValue);
+	if (scheduleDays === undefined) {
 		return cronSchedule;
 	}
-	return { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDay === 7 ? 0 : scheduleDay };
+	return { interval: 'weekly', scheduleHour, scheduleMinute, scheduleDay: scheduleDays[0], ...(scheduleDays.length > 1 ? { scheduleDays } : {}) };
 }
 
 function parseCronValue(value: string | undefined, minimum: number, maximum: number): number | undefined {

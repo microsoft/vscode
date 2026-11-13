@@ -1088,6 +1088,32 @@ suite('AutomationTools', () => {
 		});
 	});
 
+	test('configureAutomation preserves weekly days in partial edits and accepts an explicit replacement', async () => {
+		const schedule: IAutomationSchedule = { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, scheduleDays: [1, 3, 5] };
+		const existing = createAutomation({ schedule });
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		await invoke(tool, { automationId: existing.id, schedule: { scheduleMinute: 30 } });
+		await invoke(tool, { automationId: existing.id, schedule: { scheduleDays: [2, 4] } });
+		await invoke(tool, { automationId: existing.id, schedule: { scheduleDay: 6 } });
+		assert.deepStrictEqual(automationService.updated.map(update => update.patch.schedule), [
+			{ ...schedule, scheduleMinute: 30 },
+			{ ...schedule, scheduleDay: 2, scheduleDays: [2, 4] },
+			{ interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 6 },
+		]);
+	});
+
+	test('configureAutomation rejects empty and invalid weekly day lists', async () => {
+		const existing = createAutomation();
+		const automationService = new FakeAutomationService([existing]);
+		const tool = createConfigureAutomationTool(automationService, new FakeSessionsManagementService(undefined), createConfigurationService());
+		for (const scheduleDays of [[], [-1], [7], [1.5], ['Monday'], '1,3,5']) {
+			const result = await invoke(tool, { automationId: existing.id, schedule: { interval: 'weekly', scheduleDays } });
+			assert.strictEqual(typeof result.toolResultError, 'string');
+		}
+		assert.deepStrictEqual(automationService.updated, []);
+	});
+
 	test('configureAutomation rejects invalid weekday schedule inputs before writing', async () => {
 		const existing = createAutomation({ schedule: { interval: 'weekdays', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 0 } });
 		const automationService = new FakeAutomationService([existing]);

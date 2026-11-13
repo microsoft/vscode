@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../base/browser/dom.js';
+import { status } from '../../../base/browser/ui/aria/aria.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { BugIndicatingError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -37,6 +38,10 @@ export interface IMultiSelectDropdownOptions {
 	readonly width?: number;
 	/** Use a higher layer when opening inside another context view, such as a dialog. */
 	readonly contextViewLayer?: number;
+	readonly preferredAnchorPosition?: AnchorPosition;
+	readonly hideSectionHeaders?: boolean;
+	/** Prevents clearing the last selected item. */
+	readonly requireSelection?: boolean;
 }
 
 /** An anchored, sectioned checkbox menu. Selection is immediate; dismissal never rolls it back. */
@@ -72,7 +77,7 @@ export class MultiSelectDropdown extends Disposable {
 		const selected = new Set(options.selectedIds);
 		const buildItems = (): IActionListItem<IMultiSelectDropdownItem>[] => options.sections.filter(section => section.items.length).flatMap((section, index) => [
 			...(index > 0 ? [{ kind: ActionListItemKind.Separator }] : []),
-			{ kind: ActionListItemKind.Header, label: section.label },
+			...(options.hideSectionHeaders ? [] : [{ kind: ActionListItemKind.Header, label: section.label }]),
 			...section.items.map(item => ({
 				kind: ActionListItemKind.Action,
 				item,
@@ -90,6 +95,10 @@ export class MultiSelectDropdown extends Disposable {
 		options.anchor.setAttribute('aria-haspopup', options.searchable ? 'listbox' : 'menu');
 		this.actionWidgetService.show('multiSelectDropdown', false, buildItems(), {
 			onSelect: item => {
+				if (options.requireSelection && selected.size === 1 && selected.has(item.id)) {
+					status(localize('multiSelectDropdown.selectionRequired', "At least one item must remain selected."));
+					return;
+				}
 				if (selected.has(item.id)) {
 					selected.delete(item.id);
 				} else {
@@ -140,7 +149,7 @@ export class MultiSelectDropdown extends Disposable {
 			minWidth: options.width ?? 280,
 			maxWidth: options.width ?? 280,
 			hideDefaultKeybindingTooltip: true,
-			preferredAnchorPosition: AnchorPosition.BELOW,
+			preferredAnchorPosition: options.preferredAnchorPosition ?? AnchorPosition.BELOW,
 			widgetClassName: 'multi-select-dropdown',
 		}, options.contextViewLayer);
 		const popup = dom.getActiveElement()?.closest<HTMLElement>('.multi-select-dropdown');

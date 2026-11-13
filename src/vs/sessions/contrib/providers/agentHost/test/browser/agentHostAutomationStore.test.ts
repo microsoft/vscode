@@ -2304,6 +2304,66 @@ suite('AgentHostAutomationStore', () => {
 		);
 	});
 
+	for (const scheduleDays of [undefined, [1, 3, 5]]) {
+		test(`creates, parses and edits weekly ${scheduleDays ? 'multi-day' : 'single-day'} cron`, async () => {
+			const connection = disposables.add(new TestAutomationConnection());
+			const storage = disposables.add(new InMemoryStorageService());
+			const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+			const schedule = { interval: 'weekly' as const, scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, ...(scheduleDays ? { scheduleDays } : {}) };
+			const automation = await store.createAutomation({
+				name: 'Weekly review', prompt: 'Review changes.', schedule,
+				target: { kind: 'quickChat', providerId: 'local-agent-host', sessionTypeId: 'mock' },
+			});
+			const create = connection.dispatched[0].action;
+			const updated = await store.updateAutomation(automation.id, { schedule: { ...schedule, scheduleHour: 10 } });
+			const update = connection.dispatched.at(-1)?.action;
+			const createdTrigger = create.type === ActionType.AutomationCreateRequested ? create.definition.triggers[0] : undefined;
+			const updatedTrigger = update?.type === ActionType.AutomationUpdateRequested ? update.changes.triggers?.[0] : undefined;
+			assert.deepStrictEqual({
+				created: automation.schedule, updated: updated.schedule,
+				createdCron: createdTrigger?.kind === AutomationTriggerKind.Schedule ? createdTrigger.schedule.expression : undefined,
+				updatedCron: updatedTrigger?.kind === AutomationTriggerKind.Schedule ? updatedTrigger.schedule.expression : undefined,
+			}, {
+				created: schedule, updated: { ...schedule, scheduleHour: 10 },
+				createdCron: `0 9 * * ${scheduleDays?.join(',') ?? '1'}`,
+				updatedCron: `0 10 * * ${scheduleDays?.join(',') ?? '1'}`,
+			});
+		});
+	}
+
+	test('multi-day weekly schedules with foreign trigger semantics stay read-only and preserve raw triggers', async () => {
+		const connection = disposables.add(new TestAutomationConnection());
+		const storage = disposables.add(new InMemoryStorageService());
+		const store = disposables.add(new AgentHostAutomationStore('local-agent-host', connection, undefined, new NullLogService(), storage, activeClientService));
+		const triggers: AutomationEntry['definition']['triggers'] = [{
+			id: 'host-weekly', kind: AutomationTriggerKind.Schedule,
+			schedule: { expression: '00 09 * * 5,1,3', timeZone: 'Asia/Tokyo' },
+			misfirePolicy: AutomationMisfirePolicy.Skip,
+		}, { id: 'companion', kind: AutomationTriggerKind.Event, type: 'host.event', title: 'Host event', events: [] }];
+		connection.setAutomation({
+			resource: 'custom-automation://authority/weekly',
+			definition: {
+				title: 'Host weekly', message: { text: 'Review changes.', origin: { kind: MessageKind.Automation } },
+				session: { provider: 'mock' }, enabled: true, triggers,
+			},
+			runs: [], operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
+			createdAt: '', modifiedAt: '',
+		});
+		const id = 'local-agent-host:custom-automation://authority/weekly';
+		const automation = store.getAutomation(id)!;
+		await assert.rejects(store.updateAutomation(id, { name: 'Renamed' }), /cannot be edited in VS Code/);
+		const subscription = disposables.add(connection.getSubscription(StateComponents.AutomationCatalog, URI.parse(AUTOMATION_CATALOG_URI), 'test'));
+		assert.deepStrictEqual({
+			schedule: automation.schedule,
+			canUpdate: store.canUpdateAutomation(id),
+			storedTriggers: subscription.object.verifiedValue?.entries[0].definition.triggers,
+		}, {
+			schedule: { interval: 'custom', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+			canUpdate: false,
+			storedTriggers: triggers,
+		});
+	});
+
 	test('creates and edits Weekdays with one local Monday-Friday cron trigger', async () => {
 		const connection = disposables.add(new TestAutomationConnection());
 		const storage = disposables.add(new InMemoryStorageService());

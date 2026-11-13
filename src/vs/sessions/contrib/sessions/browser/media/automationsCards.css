@@ -709,8 +709,44 @@
 }
 
 .automations-template-card-schedule {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	min-width: 0;
 	margin-top: auto;
 	padding-top: var(--vscode-spacing-size80);
+}
+
+.automations-template-card-schedule-label {
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+/* Weekly day strip: all days remain readable; scheduled days receive a neutral outline. */
+.automations-weekday-glyphs {
+	display: inline-flex;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size20);
+}
+
+.automations-weekday-glyph {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	box-sizing: border-box;
+	width: 16px;
+	height: 16px;
+	border: var(--vscode-strokeThickness) solid transparent;
+	border-radius: var(--vscode-cornerRadius-xSmall);
+	font-size: var(--vscode-fontSize-label3);
+	font-weight: var(--vscode-fontWeight-regular);
+	line-height: 1;
+}
+
+.automations-weekday-glyph.active {
+	border-color: currentColor;
 }
 
 /* Run History */

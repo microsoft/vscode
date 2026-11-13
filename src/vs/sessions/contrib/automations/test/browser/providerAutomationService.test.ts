@@ -510,6 +510,19 @@ suite('ProviderAutomationService', () => {
 		assert.deepStrictEqual({ result, calls: local.calls }, { result: { kind: 'conflict', current }, calls: [] });
 	});
 
+	test('guarded updates detect changes to weekly days even when the first day is unchanged', async () => {
+		const local = new TestAuthority('local');
+		const current: IAutomationDescriptor = {
+			...automation('local'),
+			schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, scheduleDays: [1, 5] },
+		};
+		local.automations.set([current], undefined);
+		const { service } = setup([provider(local)]);
+		const expected = { ...current, schedule: { ...current.schedule, scheduleDays: [1, 3, 5] } };
+		const result = await service.updateAutomationIfUnchanged(current.id, { name: 'Renamed' }, expected);
+		assert.deepStrictEqual({ result, calls: local.calls }, { result: { kind: 'conflict', current }, calls: [] });
+	});
+
 	test('preserves same-host workspace and agent edits', async () => {
 		const local = new TestAuthority('local');
 		const { service } = setup([provider(local)]);

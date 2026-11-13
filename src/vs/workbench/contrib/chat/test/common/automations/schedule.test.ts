@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAutomationSchedule } from '../../../common/automations/automation.js';
-import { automationScheduleToLocal, automationScheduleToUTC, getAutomationCronValidationError } from '../../../common/automations/schedule.js';
+import { automationScheduleToLocal, automationScheduleToUTC, formatAutomationWeekdays, getAutomationCronValidationError, parseAutomationWeekdays } from '../../../common/automations/schedule.js';
 
 suite('Automation cron input validation', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -38,6 +38,37 @@ suite('Automation cron input validation', () => {
 
 suite('Automation schedule time zones', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('builds and parses weekly day lists while preserving single-day compatibility', () => {
+		const single: IAutomationSchedule = { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 };
+		assert.deepStrictEqual({
+			single: formatAutomationWeekdays(single),
+			multiple: formatAutomationWeekdays({ ...single, scheduleDays: [5, 1, 3, 1] }),
+			parsedSingle: parseAutomationWeekdays('01'),
+			parsedMultiple: parseAutomationWeekdays('5,1,3,1'),
+			sunday: parseAutomationWeekdays('7,0,6'),
+			invalid: ['1,,3', '1,8', 'MON,WED', '1-3', '', '1,2.5'].map(parseAutomationWeekdays),
+		}, {
+			single: '1', multiple: '1,3,5', parsedSingle: [1], parsedMultiple: [1, 3, 5],
+			sunday: [0, 6], invalid: Array(6).fill(undefined),
+		});
+	});
+
+	test('rejects empty or invalid weekly day selections', () => {
+		for (const scheduleDays of [[], [-1], [7], [1.5], [NaN]]) {
+			assert.throws(() => formatAutomationWeekdays({
+				interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, scheduleDays,
+			}), /Select at least one valid day/);
+		}
+	});
+
+	test('converts every selected weekday across the week boundary', () => {
+		const local: IAutomationSchedule = { interval: 'weekly', scheduleHour: 23, scheduleMinute: 0, scheduleDay: 1, scheduleDays: [1, 3, 6] };
+		const utc = automationScheduleToUTC(local, 420);
+		assert.deepStrictEqual({ utc, local: automationScheduleToLocal(utc, 420) }, {
+			utc: { ...local, timeZone: 'UTC', scheduleHour: 6, scheduleDay: 2, scheduleDays: [0, 2, 4] }, local,
+		});
+	});
 
 	for (const { offset, local, utc } of [
 		{ offset: 420, local: [9, 45, 1], utc: [16, 45, 1] },

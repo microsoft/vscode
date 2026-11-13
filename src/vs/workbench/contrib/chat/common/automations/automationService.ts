@@ -242,6 +242,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
+			scheduleDays: automation.schedule.scheduleDays,
 			timeZone: automation.schedule.timeZone,
 		},
 		target,

@@ -2023,6 +2023,54 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('renders weekly selected days consistently in visible, ARIA and accessible summaries', () => {
+		const { automationService, widget } = setup();
+		const item = automation({ schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1, scheduleDays: [1, 3, 5] } });
+		const time = new Date(Date.UTC(2000, 0, 1, 9, 0)).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+		const expected = `Monday, Wednesday, Friday at ${time}`;
+		automationService.setAutomations([item]);
+		const schedule = widget.element.querySelector('.automations-card-schedule');
+		assert.deepStrictEqual({
+			glyphs: [...schedule!.querySelectorAll('.automations-weekday-glyph')].map(glyph => ({
+				text: glyph.textContent,
+				active: glyph.classList.contains('active'),
+			})),
+			glyphLabel: schedule!.querySelector('.automations-weekday-glyphs')?.getAttribute('aria-label'),
+			time: schedule!.querySelector('.automations-card-meta-label')?.textContent,
+			aria: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			accessible: buildAutomationsAccessibleContent([item], [], 'ready').includes(`Schedule: ${expected}`),
+		}, {
+			glyphs: [
+				{ text: 'M', active: true },
+				{ text: 'T', active: false },
+				{ text: 'W', active: true },
+				{ text: 'Th', active: false },
+				{ text: 'F', active: true },
+				{ text: 'S', active: false },
+				{ text: 'S', active: false },
+			],
+			glyphLabel: 'Monday, Wednesday, Friday',
+			time: `at ${time}`,
+			aria: `${item.name} — ${expected}`,
+			accessible: true,
+		});
+	});
+
+	test('renders a single weekly day as a plural weekday label', () => {
+		const { automationService, widget } = setup();
+		const item = automation({ schedule: { interval: 'weekly', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 } });
+		const time = new Date(Date.UTC(2000, 0, 1, 9, 0)).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+		const expected = `Mondays at ${time}`;
+		automationService.setAutomations([item]);
+		const schedule = widget.element.querySelector('.automations-card-schedule');
+		assert.deepStrictEqual({
+			card: schedule?.textContent,
+			glyphs: schedule?.querySelectorAll('.automations-weekday-glyph').length,
+			aria: widget.element.querySelector('.automations-card')?.getAttribute('aria-label'),
+			accessible: buildAutomationsAccessibleContent([item], [], 'ready').includes(`Schedule: ${expected}`),
+		}, { card: expected, glyphs: 0, aria: `${item.name} — ${expected}`, accessible: true });
+	});
+
 	test('renders weekdays consistently in visible, ARIA and accessible summaries', () => {
 		const { automationService, widget } = setup();
 		const item = automation({ schedule: { interval: 'weekdays', scheduleHour: 13, scheduleMinute: 5, scheduleDay: 6 } });
@@ -2043,15 +2091,23 @@ suite('AutomationsCardsWidget', () => {
 			const local = automationScheduleToLocal(item.schedule);
 			const time = new Date(Date.UTC(2000, 0, 1, local.scheduleHour, local.scheduleMinute))
 				.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
-			const expected = `${interval === 'daily' ? 'Daily' : DAYS_OF_WEEK[local.scheduleDay]} at ${time}`;
+			const expected = `${interval === 'daily' ? 'Daily' : `${DAYS_OF_WEEK[local.scheduleDay]}s`} at ${time}`;
 			automationService.setAutomations([item]);
 			const accessible = buildAutomationsAccessibleContent([item], [], 'ready');
+			const schedule = widget.element.querySelector('.automations-card-schedule');
 			assert.deepStrictEqual({
-				card: widget.element.querySelector('.automations-card-schedule')?.textContent,
+				card: schedule?.textContent,
+				glyphLabel: schedule?.querySelector('.automations-weekday-glyphs')?.getAttribute('aria-label'),
 				accessible: accessible.includes(`Schedule: ${expected}`),
 				canonicalHour: item.schedule.scheduleHour,
 				canonicalZone: item.schedule.timeZone,
-			}, { card: expected, accessible: true, canonicalHour: 2, canonicalZone: 'UTC' });
+			}, {
+				card: expected,
+				glyphLabel: undefined,
+				accessible: true,
+				canonicalHour: 2,
+				canonicalZone: 'UTC',
+			});
 		});
 	}
 
@@ -5751,7 +5807,8 @@ suite('AutomationsCardsWidget', () => {
 			eventDuplication: content.includes('is unavailable for event-triggered automations'),
 			cloudExport: content.includes('Cloud automations do not currently offer Export'),
 			sharedOwnership: content.includes('Your automations and Shared automations sections'),
-		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true, cloudExport: true, sharedOwnership: true });
+			weeklyPickerName: content.includes('For Weekly schedules, open Day of week to choose days'),
+		}, { localWeekdays: true, cloudRestriction: true, unifiedTrigger: true, eventControls: true, preservation: true, eventColumn: true, advancedFilters: true, requiredFields: true, requiredHover: true, sharedFilters: true, eventDuplication: true, cloudExport: true, sharedOwnership: true, weeklyPickerName: true });
 	});
 
 	test('accessibility help describes the cloud switch whenever cloud automations are enabled', () => {
