@@ -2760,7 +2760,7 @@ export class NewChatWidget extends Disposable {
 				if (!this._backgroundSend && !this._draftHost) {
 					this.notificationService.prompt(Severity.Info, localize('newSession.messageSent', "Message sent"), [{
 						label: localize('newSession.openSentSession', "Open Session"),
-						run: () => this.sessionsService.openSession(event.session.resource, { source: 'link', forceMainChat: true }),
+						run: () => this.sessionsService.openSession(event.session.resource, { source: 'link', forceMainChat: true }).catch(onUnexpectedError),
 					}]);
 				} else if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
 					this._lastBackgroundSentSessionResource = event.session.resource;
