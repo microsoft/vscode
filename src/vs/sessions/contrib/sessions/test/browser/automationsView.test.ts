@@ -94,6 +94,7 @@ import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
 import { ITestSessionWithChat, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import '../../browser/views/sessionsViewActions.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -2527,6 +2528,23 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('uses the shared list interaction contract for custom controls', () => {
+		const { automationService, widget } = setup();
+		automationService.setAutomations([automation()]);
+
+		assert.deepStrictEqual({
+			ownershipSummary: widget.element.querySelector('.automations-ownership-summary')?.className,
+			card: widget.element.querySelector('.automations-card')?.className,
+			templateSummary: widget.element.querySelector('.automations-template-section-summary')?.className,
+			templateCard: widget.element.querySelector('.automations-template-card')?.className,
+		}, {
+			ownershipSummary: 'automations-ownership-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
+			card: 'automations-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
+			templateSummary: 'automations-template-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
+			templateCard: 'automations-template-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
+		});
+	});
+
 	test('empty state is rendered once across repeated empty updates', () => {
 		const { automationService, widget } = setup();
 
@@ -3530,25 +3548,39 @@ suite('AutomationsCardsWidget', () => {
 
 	test('card keyboard focus exposes the full current prompt without changing pointer hover targets', () => {
 		const shown: string[] = [];
-		let target: HTMLElement | undefined;
+		const focusTargets: string[] = [];
+		let pointerTarget: HTMLElement | undefined;
 		let hidden = 0;
-		let disposed = false;
+		let pointerDisposed = false;
+		let focusDisposed = 0;
 		const hoverService: IHoverService = {
 			...NullHoverService,
 			setupManagedHover: (delegate, element, content, options) => {
 				if (!element.classList.contains('automations-card-prompt')) {
 					return NullHoverService.setupManagedHover(delegate, element, content, options);
 				}
-				target = element;
+				pointerTarget = element;
 				return {
-					show: () => {
-						const value = typeof content === 'function' ? content() : content;
-						assert.ok(typeof value === 'string');
-						shown.push(value);
-					},
+					show: () => { },
 					hide: () => { hidden++; },
 					update: () => { },
-					dispose: () => { disposed = true; },
+					dispose: () => { pointerDisposed = true; },
+				};
+			},
+			showInstantHover: options => {
+				assert.ok(options.target instanceof HTMLElement);
+				assert.ok(typeof options.content === 'string');
+				focusTargets.push(options.target.className);
+				shown.push(options.content);
+				let isDisposed = false;
+				return {
+					get isDisposed() { return isDisposed; },
+					dispose: () => {
+						if (!isDisposed) {
+							isDisposed = true;
+							focusDisposed++;
+						}
+					},
 				};
 			},
 		};
@@ -3570,12 +3602,14 @@ suite('AutomationsCardsWidget', () => {
 		main.dispatchEvent(new FocusEvent('blur'));
 		widget.dispose();
 		assert.deepStrictEqual({
-			target: target?.className, shown, hidden, disposed,
+			pointerTarget: pointerTarget?.className, focusTargets, shown, hidden, pointerDisposed, focusDisposed,
 		}, {
-			target: 'automations-card-prompt',
+			pointerTarget: 'automations-card-prompt',
+			focusTargets: ['automations-card-prompt', 'automations-card-prompt'],
 			shown: [prompt, `${prompt}Updated.`],
 			hidden: 2,
-			disposed: true,
+			pointerDisposed: true,
+			focusDisposed: 2,
 		});
 	});
 

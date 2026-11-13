@@ -6,6 +6,7 @@
 import { SessionInlineActions } from './sessionInlineActions.js';
 import { getPendingSessionActions, getPendingSessionAriaLabel, IPendingSessionItem, IPendingSessionSection, isPendingSessionItem, matchesPendingSession, PendingSessionRenderer } from './pendingSessions.js';
 import '../media/sessionsList.css';
+import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import * as DOM from '../../../../../base/browser/dom.js';
@@ -69,7 +70,6 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
-import { ISessionScope } from '../sessionScope.js';
 import { getRepositoryRootFromWorktree } from '../../../../../platform/agentHost/common/worktreePaths.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchivedSectionLabel, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
@@ -1753,7 +1753,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; onDidChangeHoverVisibility?: (visible: boolean) => void; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			/** The chat the main window shows, whose row is the open one. */
@@ -1924,6 +1924,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (!isSessionItem(element)) {
 			return;
 		}
+		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', node.collapsible);
 		this.renderSession(element, template, node.filterData && createMatches(node.filterData));
 	}
 
@@ -2020,7 +2021,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				if (triage && DOM.isHTMLElement(hover.content)) {
 					DOM.append(hover.content, $('div', undefined, triage));
 				}
-				return withSessionsListHoverPresentation(hover);
+				const presentedHover = withSessionsListHoverPresentation(hover);
+				return {
+					...presentedHover,
+					onDidShow: () => {
+						presentedHover.onDidShow?.();
+						this.options.onDidChangeHoverVisibility?.(true);
+					},
+					onDidHide: () => {
+						presentedHover.onDidHide?.();
+						this.options.onDidChangeHoverVisibility?.(false);
+					},
+				};
 			}, { groupId: 'sessions-list' }));
 		}
 
@@ -3024,6 +3036,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
 		this.renderedSections.set(template, element);
+		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
 		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
@@ -3354,6 +3367,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		if (!isSessionGroupItem(element)) {
 			return;
 		}
+		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', node.collapsible);
 		template.elementDisposables.clear();
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.renderedGroups.set(template, element);
@@ -5962,7 +5976,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		// The providers list only the sessions of a host scope (the window's workspace folders), but a comparison can have
 		// sessions of other folders, which lookups still find
 		const scope = this.getHostScope();
-		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(scope.includes);
+		const isComparisonInScope = (comparison: ISessionComparison) => !scope || getComparisonSessions(comparison, this._sessionsManagementService).some(session => scope.has(session.sessionId));
 		filtered = filtered.filter(session => {
 			const comparison = this.sessionComparisonService.getComparisonForSession(session.resource);
 			return !comparison || !isComparisonLaunchPending(comparison);
@@ -8695,12 +8709,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
 			ids.add(getSessionGroupSectionId(group.id));
 		}
-		// A scoped list also keeps the order of the sections of the sessions its providers' listing scope hides, which the
-		// Agents window shares; an unscoped list reads the listed sessions only
-		const sessions = this.options.scoped?.get()
-			? [...this._sessionsManagementService.getSessions(), ...this._sessionsManagementService.getAllSessions()]
-			: this._sessionsManagementService.getSessions();
-		for (const session of sessions) {
+		// A scoped list keeps the saved order of every section other than a group's, as the order is shared with the Agents
+		// window and the sessions of other sections are outside its listing scope; an unscoped list prunes them
+		if (this.options.scoped?.get()) {
+			for (const id of this._sessionSectionOrderService.capturePositions([]).order) {
+				if (getSessionGroupIdOfSection(id) === undefined) {
+					ids.add(id);
+				}
+			}
+		}
+		for (const session of this._sessionsManagementService.getSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 			ids.add(`${ENVIRONMENT_SECTION_PREFIX}${session.environment}`);
 			ids.add(getSessionWorktreeSection(session).id);
@@ -9046,13 +9064,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		});
 	}
 
-	/** The sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
-	private getHostScope(): ISessionScope | undefined {
+	/** The IDs of the sessions the providers list in the host's scope, or `undefined` while the list is not scoped. See {@link ISessionsListControlOptions.scoped}. */
+	private getHostScope(): ReadonlySet<string> | undefined {
 		if (!this.options.scoped?.get()) {
 			return undefined;
 		}
-		const listed = new Set(this.sessions.map(session => session.sessionId));
-		return { includes: session => listed.has(session.sessionId) };
+		return new Set(this.sessions.map(session => session.sessionId));
 	}
 
 	private getMarkAllSessionsReadAction(getSessions: () => readonly ISession[]): IAction {
@@ -10685,6 +10702,10 @@ function partitionByDate<T>(entries: readonly T[], sorting: SessionsSorting, get
 export interface ISessionsFlatListOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly showSessionHover?: boolean;
+	/** Session shown as selected in this list, without moving DOM focus. */
+	readonly activeSession?: IObservable<ISession | undefined>;
+	/** Reports when a rich session hover is shown or hidden. */
+	readonly onDidChangeSessionHoverVisibility?: (visible: boolean) => void;
 	/** Called when a session row is opened (clicked / activated). */
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 	/**
@@ -10808,6 +10829,7 @@ export class SessionsFlatList extends Disposable {
 				slotPanes: this._sessionsNavigationService.slotPanes,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
+				onDidChangeHoverVisibility: this.options.onDidChangeSessionHoverVisibility,
 				useCompactQuickChatRows,
 				compact: () => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
@@ -10873,6 +10895,13 @@ export class SessionsFlatList extends Disposable {
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		));
+		if (this.options.activeSession) {
+			const activeSession = this.options.activeSession;
+			this._register(autorun(reader => {
+				activeSession.read(reader);
+				this._syncActiveSessionSelection();
+			}));
+		}
 
 		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;
@@ -10942,6 +10971,13 @@ export class SessionsFlatList extends Disposable {
 	setSessions(sessions: readonly ISession[]): void {
 		this._sessions = sessions;
 		this.tree.setChildren(null, sessions.map(session => ({ element: session })));
+		this._syncActiveSessionSelection();
+	}
+
+	private _syncActiveSessionSelection(): void {
+		const activeSessionId = this.options.activeSession?.get()?.sessionId;
+		const activeSession = activeSessionId ? this._sessions.find(session => session.sessionId === activeSessionId) : undefined;
+		this.tree.setSelection(activeSession && this.tree.hasElement(activeSession) ? [activeSession] : []);
 	}
 
 	/** The total pixel height required to render all current rows without scrolling. */
@@ -10958,6 +10994,10 @@ export class SessionsFlatList extends Disposable {
 	}
 
 	focus(): void {
+		const session = this.tree.getFocus()[0] ?? this.tree.getSelection()[0] ?? this._sessions[0];
+		if (session && this.tree.hasElement(session)) {
+			this.tree.setFocus([session]);
+		}
 		this.tree.domFocus();
 	}
 

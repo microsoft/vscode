@@ -86,6 +86,7 @@ import { toSlashCommandResourceMeta } from '../../../../../../platform/agentHost
 import { AgentFeedbackAttachmentDisplayKind, AgentFeedbackAttachmentMetadataKey } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAttachments.js';
 import { VSCODE_EPHEMERAL_SESSION_META_KEY } from '../../../../../../platform/agentHost/common/meta/agentEphemeralSessionMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { createShellAuthenticationRequest } from '../../../../../../platform/agentHost/common/meta/agentShellAuthenticationMeta.js';
 import { getComputerUseActivationAnswers, withComputerUseActivationCard, withComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
 import { getElementAttachmentCorrelationId, toElementAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentElementAttachments.js';
@@ -204,7 +205,7 @@ import { ModelSelectionReason } from '../../../common/modelSelection.js';
 import { convertBufferToScreenshotVariable } from '../../../browser/attachments/chatScreenshotContext.js';
 import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, createChatReferenceVariableEntry, isChatReferenceVariableEntry, toAgentHostCompletionVariableEntry, type IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { INLINE_ATTACHMENT_ANCHOR, projectInlineAttachments } from '../../../common/attachments/chatInlineAttachments.js';
-import { messageAttachmentsToVariableData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { messageAttachmentsToVariableData, SHELL_AUTHENTICATION_QUESTION_ID } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { AgentHostSessionReferenceAttachmentDisplayKind, AgentHostSessionReferenceAttachmentMetadataKey, AgentHostSessionReferenceTrajectoryAttachmentDisplayKind, toSessionReferenceModelRepresentation } from '../../../browser/agentSessions/agentHost/agentHostSessionReferenceAttachment.js';
 import { IAgentHostEnablementService } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { CellUri } from '../../../../notebook/common/notebookCommon.js';
@@ -9978,22 +9979,23 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText })), [{ outcome: 'cancelled', hasResponseText: false }]);
 		});
 
-		test('first response timing excludes reasoning and error messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('first response timing counts root reasoning only toward the combined timing and ignores error messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
-			const records: { outcome: string; hasResponseText: boolean }[] = [];
+			const records: { outcome: string; hasResponseText: boolean; firstResponseOrReasoningMs?: number }[] = [];
 			instantiationService.get(ILogService).info = message => {
 				if (message?.startsWith('[AgentHostFirstResponse] ')) {
 					records.push(JSON.parse(message.substring('[AgentHostFirstResponse] '.length)));
 				}
 			};
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			fire({ type: 'chat/responsePart', session, turnId, part: { kind: ResponsePartKind.Reasoning, id: 'thought', content: 'thinking' } } as ChatAction);
+			fire({ type: 'chat/responsePart', session, turnId, part: { kind: ResponsePartKind.Reasoning, id: 'thought', content: ' ' } } as ChatAction);
+			fire({ type: ActionType.ChatReasoning, turnId, partId: 'thought', content: 'thinking' } as ChatAction);
 			fire({
 				type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z', turnId,
 				part: { kind: ResponsePartKind.Error, error: { errorType: 'connection_error', message: 'connection lost' } },
 			} as ChatAction);
 			await turnPromise;
-			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText })), [{ outcome: 'error', hasResponseText: false }]);
+			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText, timedReasoning: typeof record.firstResponseOrReasoningMs === 'number' })), [{ outcome: 'error', hasResponseText: false, timedReasoning: true }]);
 		}));
 
 		test('delta events become markdownContent progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -12057,6 +12059,120 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
 			await turnPromise;
 		}));
+
+		function shellAuthenticationRequest(id: string, inputKind: 'secret' | 'text' | 'confirm') {
+			return createShellAuthenticationRequest(id, { program: 'sudo', prompt: '[sudo] password for dev:', inputKind, command: 'sudo -A true' });
+		}
+
+		test('asks for a shell password with a masked question and sends the answer outside chat state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const answered: { requestId: string; answer: string | undefined }[] = [];
+			agentHostService.answerShellAuthentication = async (_chat, requestId, answer) => {
+				answered.push({ requestId, answer });
+				return true;
+			};
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: ActionType.ChatInputRequested, request: shellAuthenticationRequest('shell-auth', 'secret') } as ChatAction);
+			await timeout(10);
+			const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+			assert.ok(carousel instanceof ChatQuestionCarouselData);
+			agentHostService.dispatchedActions.length = 0;
+			carousel.dismiss({ [SHELL_AUTHENTICATION_QUESTION_ID]: 'private-password' });
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				questions: carousel.questions.map(question => ({ type: question.type, password: question.password, required: question.required, title: question.title, context: question.context, description: question.description, note: question.note && { icon: question.note.icon?.id, text: question.note.text } })),
+				answered,
+				completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).length,
+				stored: JSON.stringify(carousel.toJSON()).includes('private-password'),
+			}, {
+				questions: [{ type: 'text', password: true, required: true, title: 'sudo needs a password', context: 'Command:\nsudo -A true', description: '[sudo] password for dev:', note: { icon: 'lock', text: 'Your answer goes only to sudo and isn\'t sent to the model.' } }],
+				answered: [{ requestId: 'shell-auth', answer: 'private-password' }],
+				completions: 0,
+				stored: false,
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		test('declining a shell confirmation cancels it in chat state, and a prompt the host ends closes the question', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const answered: string[] = [];
+			agentHostService.answerShellAuthentication = async (_chat, requestId) => {
+				answered.push(requestId);
+				return true;
+			};
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			fire({ type: ActionType.ChatInputRequested, request: shellAuthenticationRequest('confirm', 'confirm') } as ChatAction);
+			fire({ type: ActionType.ChatInputRequested, request: shellAuthenticationRequest('timed-out', 'secret') } as ChatAction);
+			await timeout(10);
+			const [confirm, timedOut] = collected.flat().filter(part => part.kind === 'questionCarousel');
+			assert.ok(confirm instanceof ChatQuestionCarouselData && timedOut instanceof ChatQuestionCarouselData);
+			agentHostService.dispatchedActions.length = 0;
+			confirm.dismiss({ [SHELL_AUTHENTICATION_QUESTION_ID]: { selectedValue: 'no' } });
+			fire({ type: ActionType.ChatInputCompleted, requestId: 'timed-out', response: ChatInputResponseKind.Cancel } as ChatAction);
+			await timeout(10);
+
+			assert.deepStrictEqual({
+				confirmOptions: confirm.questions[0].options?.map(option => option.id),
+				confirmFreeform: confirm.questions[0].allowFreeformInput,
+				completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action),
+				answered,
+				timedOut: { isUsed: timedOut.isUsed, answeredExternally: timedOut.answeredExternally },
+			}, {
+				confirmOptions: ['yes', 'no'],
+				confirmFreeform: false,
+				completions: [{ type: ActionType.ChatInputCompleted, requestId: 'confirm', response: ChatInputResponseKind.Cancel }],
+				answered: [],
+				timedOut: { isUsed: true, answeredExternally: false },
+			});
+
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
+		for (const [connection, connectionKind, hasAnswerRequest] of [
+			['a Web PubSub relay', AgentHostClientConnectionKind.WebPubSub, true],
+			['a Mission Control relay', AgentHostClientConnectionKind.MissionControl, true],
+			['a connection without the answer request', undefined, false],
+		] as const) {
+			test(`offers only to cancel a shell prompt over ${connection}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+				agentHostService.clientConnectionKind = connectionKind;
+				const answered: string[] = [];
+				if (hasAnswerRequest) {
+					agentHostService.answerShellAuthentication = async (_chat, requestId) => {
+						answered.push(requestId);
+						return true;
+					};
+				}
+				const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+				fire({ type: ActionType.ChatInputRequested, request: shellAuthenticationRequest('shell-auth', 'secret') } as ChatAction);
+				await timeout(10);
+				const carousel = collected.flat().find(part => part.kind === 'questionCarousel');
+				assert.ok(carousel instanceof ChatQuestionCarouselData);
+				agentHostService.dispatchedActions.length = 0;
+				carousel.dismiss({ [SHELL_AUTHENTICATION_QUESTION_ID]: { selectedValue: 'cancel' } });
+				await timeout(10);
+
+				assert.deepStrictEqual({
+					questions: carousel.questions.map(question => ({ type: question.type, password: question.password, options: question.options?.map(option => option.id), note: question.note && { icon: question.note.icon?.id, text: question.note.text } })),
+					answered,
+					completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action),
+				}, {
+					questions: [{ type: 'singleSelect', password: undefined, options: ['cancel'], note: { icon: 'info', text: 'This connection can\'t send your answer privately, so you can only cancel the prompt here.' } }],
+					answered: [],
+					completions: [{ type: ActionType.ChatInputCompleted, requestId: 'shell-auth', response: ChatInputResponseKind.Cancel }],
+				});
+
+				fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+				await turnPromise;
+			}));
+		}
 
 		test('url-style input request renders an elicitation part with the URL', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
@@ -24948,6 +25064,43 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.deepStrictEqual(records.map(record => record.rootToolCallsBeforeFirstText), [1]);
+		}));
+
+		test('first response timing ignores subagent reasoning and text', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			const records = captureFirstResponseTimings(instantiationService);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentToolCallId = 'tc-parent-task';
+			const parentSession = mintedTestChatOwner(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
+			const childState = makeChildState(childSessionUri, 'tc-child-1');
+			childState.activeTurn!.responseParts.unshift(
+				{ kind: ResponsePartKind.Reasoning, id: 'child-thought', content: 'Child reasoning' },
+				{ kind: ResponsePartKind.Markdown, id: 'child-answer', content: 'Child answer' },
+			);
+			agentHostService.sessionStates.set(childSessionUri, childState);
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'do some work', subagentAgentName: 'helper' },
+			} as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId, toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
+			} as ChatAction);
+			await timeout(50);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				childToolObserved: collected.flat().some(part => part.kind === 'toolInvocation' && part.subAgentInvocationId === parentToolCallId),
+				timings: records.map(record => ({ hasResponseText: record.hasResponseText, firstResponseOrReasoningMs: record.firstResponseOrReasoningMs })),
+			}, {
+				childToolObserved: true,
+				timings: [{ hasResponseText: false, firstResponseOrReasoningMs: undefined }],
+			});
 		}));
 
 		for (const alreadyFailed of [false, true]) {

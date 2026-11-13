@@ -2085,13 +2085,13 @@ export interface IAgent {
 	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
-	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	listPluginMarketplaces?(session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
 
 	/** Add a plugin marketplace through the provider that owns marketplace state. */
-	addPluginMarketplace?(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	addPluginMarketplace?(session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
 
 	/** Browse one plugin marketplace through the provider that owns marketplace state. */
-	browsePluginMarketplace?(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	browsePluginMarketplace?(session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 
 	/** Remove a plugin marketplace through the provider that owns marketplace state. */
 	removePluginMarketplace?(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
@@ -2202,6 +2202,11 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Answers a pending shell authentication prompt of the chat; `undefined`
+	 * cancels it. Resolves false when the prompt is no longer pending.
+	 */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
 	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */

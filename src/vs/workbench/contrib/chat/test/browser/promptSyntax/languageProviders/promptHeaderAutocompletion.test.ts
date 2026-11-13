@@ -455,7 +455,8 @@ suite('PromptHeaderAutocompletion', () => {
 		test('complete github-copilot tools from all matching harness inventories', async () => {
 			copilotToolInventory = [
 				{ name: 'publisher.extension/clientTool', description: 'Provided by the client', availability: 'available' },
-				{ name: 'github/*', availability: 'available' },
+				{ name: 'github/*', availability: 'disabled' },
+				{ name: 'playwright/*', availability: 'unavailable' },
 				{ name: 'disabled/*', availability: 'disabled' },
 			];
 			otherCopilotToolInventory = [{ name: 'other.extension/remoteClientTool', availability: 'available' }];
@@ -469,7 +470,7 @@ suite('PromptHeaderAutocompletion', () => {
 
 			const labels = (await getCompletions(content, PromptsType.agent)).map(item => item.label);
 
-			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'publisher.extension/clientTool', 'github/*', 'disabled/*', 'other.extension/remoteClientTool', 'playwright/*']);
+			assert.deepStrictEqual(labels, ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', '*', 'github/*', 'playwright/*', 'publisher.extension/clientTool', 'disabled/*', 'other.extension/remoteClientTool']);
 		});
 
 		test('complete github-copilot skills from all matching harness inventories', async () => {

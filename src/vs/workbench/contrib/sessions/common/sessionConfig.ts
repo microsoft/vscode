@@ -68,6 +68,13 @@ export const enum ExternalSessionApplicationBadgeMode {
 
 export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.separateNavigation';
 
+/**
+ * Whether Customizations keeps its own section below the Sessions list rather than joining the separate navigation
+ * list. Only applies when {@link SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING} is enabled. Not nested under it: a
+ * setting cannot also be the parent of another setting.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING = 'sessions.sidebar.customizationsAtBottom';
+
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 
 export const enum SessionsChatTabsMode {

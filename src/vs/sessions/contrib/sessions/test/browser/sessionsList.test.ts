@@ -131,6 +131,7 @@ import { GitHubPullRequestCIModel } from '../../../../../workbench/contrib/sessi
 import { GitHubPullRequestReviewThreadsModel } from '../../../../../workbench/contrib/sessions/browser/github/models/githubPullRequestReviewThreadsModel.js';
 import { IChatEntitlementService } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import '../../browser/views/sessionsViewActions.js';
 
 function clickRow(row: HTMLElement, modifiers: MouseEventInit = {}): void {
 	row.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, ...modifiers }));
@@ -199,11 +200,11 @@ suite('Sessions - SessionsList', () => {
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
-	test('an unscoped list orders and shows its sections by the listed sessions only, as before listing scopes; a scoped one also keeps the order of hidden sessions', () => {
+	test('an unscoped list orders and shows its sections by the listed sessions only, as before listing scopes; a scoped one also keeps the saved order of other sections', () => {
 		const run = (scoped: boolean) => {
 			const kept = createTestSession('Kept', { workspaceLabel: 'kept' }).session;
 			const removed = createTestSession('Removed', { workspaceLabel: 'removed' }).session;
-			// Found by lookups only, such as the hidden twin of a migrated legacy Copilot CLI session, here in its own workspace
+			// Outside the scope, such as the hidden twin of a migrated legacy Copilot CLI session, here in its own workspace
 			const hidden = createTestSession('Hidden twin', { workspaceLabel: 'hidden' }).session;
 			const changes = disposables.add(new Emitter<ISessionsChangeEvent>());
 			let managementService: TestSessionsManagementService | undefined;
@@ -211,14 +212,15 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [kept, removed], instantiationService => {
 				managementService = new class extends TestSessionsManagementService {
 					override readonly onDidChangeSessions = changes.event;
-					override getAllSessions(): ISession[] { return [...this.sessions, hidden]; }
 				}([kept, removed]);
 				instantiationService.stub(ISessionsManagementService, managementService);
 				instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
 					override readonly onDidChange = Event.None;
 					override resolveOrder(ids: readonly string[]) { return [...ids]; }
 					override isPromoted() { return false; }
-					override retain(ids: ReadonlySet<string>): void { retained.push([...ids].filter(id => id.startsWith('workspace:')).sort()); }
+					override retain(ids: ReadonlySet<string>): void { retained.push([...ids].filter(id => id.startsWith('workspace:') || id.startsWith('group:')).sort()); }
+					// The saved order, which the Agents window shares, has the section of a session outside the scope and of a deleted group
+					override capturePositions() { return { ids: [], order: ['workspace:hidden', 'group:deleted'], promoted: [] }; }
 				});
 			});
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
@@ -2323,11 +2325,13 @@ suite('Sessions - SessionsList', () => {
 				const collapsed = getHeader()?.querySelector('.session-section-chevron')?.className;
 				getHeader()?.click();
 				const expanded = getHeader()?.querySelector('.session-section-chevron')?.className;
+				const disclosureRow = getHeader()?.closest('.monaco-list-row')?.classList.contains('sessions-disclosure-row');
 
-				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded }, {
+				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded, disclosureRow }, {
 					stickyHeaders: [label],
 					collapsed: 'session-section-chevron collapsible codicon codicon-chevron-right',
 					expanded: 'session-section-chevron collapsible codicon codicon-chevron-down',
+					disclosureRow: true,
 				});
 			});
 		}
@@ -5592,30 +5596,68 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
-		test('inbox keeps a completed parent available while a child works, except when explicitly triaged', () => {
+		for (const workingChat of ['main', 'child'] as const) {
+			test(`inbox keeps sessions in Working while the ${workingChat} chat runs, except when explicitly triaged`, () => {
+				const sections = [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(otherStatus => {
+					const built = buildTestSession({
+						id: 'parent', title: 'Parent',
+						status: otherStatus === SessionStatus.NeedsInput ? SessionStatus.NeedsInput : SessionStatus.InProgress,
+						mainChatStatus: workingChat === 'main' ? SessionStatus.InProgress : otherStatus,
+						chats: [{ id: 'child', title: 'Child', status: workingChat === 'child' ? SessionStatus.InProgress : otherStatus }],
+					});
+					const working = [undefined, InboxTab.ReadyForYou, InboxTab.Working, InboxTab.ReadyToMerge].map(tab =>
+						getSessionInboxSection(built.session, undefined, undefined, tab === undefined ? undefined : {
+							tab, priority: InboxNotificationPriority.Now, notificationIds: ['notification'], isHistoricalCompletion: false,
+						}));
+					const held = getSessionInboxSection(built.session, { kind: 'hold' });
+					const done = getSessionInboxSection(built.session, { kind: 'done', activity: '' });
+					built.mainChat.status.set(SessionStatus.Completed, undefined);
+					built.chats.get('child')!.status.set(otherStatus, undefined);
+					built.status.set(otherStatus, undefined);
+					return { working, held, done, stopped: getSessionInboxSection(built.session) };
+				});
+				assert.deepStrictEqual(sections, [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(() => ({
+					working: Array(4).fill(SessionInboxSection.Working),
+					held: SessionInboxSection.OnHold,
+					done: SessionInboxSection.Done,
+					stopped: SessionInboxSection.ReadyForYou,
+				})));
+			});
+		}
+
+		test('inbox follows child activity while the parent remains waiting for input', async () => {
 			const built = buildTestSession({
-				id: 'parent', title: 'Parent', status: SessionStatus.InProgress, mainChatStatus: SessionStatus.Completed,
-				chats: [{ id: 'child', title: 'Child', status: SessionStatus.InProgress }],
+				id: 'parent', title: 'Parent', status: SessionStatus.NeedsInput,
+				chats: [{ id: 'child', title: 'Child', status: SessionStatus.Completed }],
 			});
-			const attention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false };
-			const completedParent = getSessionInboxSection(built.session, undefined, undefined, attention);
-			const held = getSessionInboxSection(built.session, { kind: 'hold' }, undefined, attention);
-			built.mainChat.status.set(SessionStatus.InProgress, undefined);
-			const bothWorking = getSessionInboxSection(built.session, undefined, undefined, attention);
-			built.mainChat.status.set(SessionStatus.Completed, undefined);
-			built.mainChat.isArchived.set(true, undefined);
-			assert.deepStrictEqual({ completedParent, held, bothWorking, archivedParent: getSessionInboxSection(built.session, undefined, undefined, attention) }, {
-				completedParent: SessionInboxSection.ReadyForYou, held: SessionInboxSection.OnHold,
-				bothWorking: SessionInboxSection.Working, archivedParent: SessionInboxSection.Working,
+			const harness = createListHarness(disposables, [built.session]);
+			harness.instantiationService.stub(ISessionAttentionService, {
+				sessionAttention: constObservable(new Map<string, IInboxSessionAttention>([[built.session.sessionId, {
+					tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['needsInput'], isHistoricalCompletion: false,
+				}]])),
+				acquireSessionAttention: () => toDisposable(() => { }),
 			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section'
+				? node.children.flatMap(child => child.type === 'session' ? [node.id] : []) : []);
+			assert.deepStrictEqual(sections(), [SessionInboxSection.ReadyForYou]);
+			built.chats.get('child')!.status.set(SessionStatus.InProgress, undefined);
+			await retry(async () => assert.deepStrictEqual(sections(), [SessionInboxSection.Working]), 10, 100);
+			built.chats.get('child')!.status.set(SessionStatus.Completed, undefined);
+			await retry(async () => assert.deepStrictEqual(sections(), [SessionInboxSection.ReadyForYou]), 10, 100);
 		});
 
 		for (const excludedChat of ['tool', 'hidden', 'archived'] as const) {
-			test(`inbox ignores ${excludedChat} chats when deciding whether a running session needs attention`, () => {
+			test(`inbox ignores ${excludedChat} chats when deciding whether a session is working`, () => {
 				const built = buildTestSession({
-					id: 'parent', title: 'Parent', status: SessionStatus.InProgress,
+					id: 'parent', title: 'Parent',
 					chats: [{
-						id: 'child', title: 'Child', status: SessionStatus.Completed,
+						id: 'child', title: 'Child', status: SessionStatus.InProgress,
 						interactivity: excludedChat === 'hidden' ? ChatInteractivity.Hidden : ChatInteractivity.Full,
 						isArchived: excludedChat === 'archived',
 					}],
@@ -5628,19 +5670,11 @@ suite('Sessions - SessionsList', () => {
 						origin: excludedChat === 'tool' ? { kind: ChatOriginKind.Tool } : undefined,
 					}]),
 				};
-				const attention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false };
-				const sections = [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(status => {
-					child.status.set(status, undefined);
-					return [
-						getSessionInboxSection(session),
-						getSessionInboxSection(session, undefined, undefined, attention),
-					];
-				});
-				assert.deepStrictEqual(sections, [
-					[SessionInboxSection.Working, SessionInboxSection.Working],
-					[SessionInboxSection.Working, SessionInboxSection.Working],
-					[SessionInboxSection.Working, SessionInboxSection.Working],
-				]);
+				const attention: IInboxSessionAttention = { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false };
+				assert.deepStrictEqual([
+					getSessionInboxSection(session),
+					getSessionInboxSection(session, undefined, undefined, attention),
+				], [SessionInboxSection.ReadyForYou, SessionInboxSection.ReadyForYou]);
 			});
 		}
 
@@ -11131,6 +11165,32 @@ suite('Sessions - SessionsList', () => {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
 
+		test('marks a collapsed parent session, but not a leaf session, as a disclosure row', () => {
+			const main = createChat('Main chat', ChatOriginKind.User);
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const parentBase = createTestSession('Parent').session;
+			const parent: ISession = {
+				...parentBase,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const parentContainer = renderSessionChatsList(parent, undefined, false, false).container;
+			const leafContainer = renderSessionChatsList(createTestSession('Leaf').session, undefined, false, false).container;
+			const parentRow = parentContainer.querySelector('.session-item')?.closest('.monaco-list-row');
+			const leafRow = leafContainer.querySelector('.session-item')?.closest('.monaco-list-row');
+
+			assert.deepStrictEqual({
+				parentCollapsed: parentRow?.getAttribute('aria-expanded'),
+				parentDisclosure: parentRow?.classList.contains('sessions-disclosure-row'),
+				leafDisclosure: leafRow?.classList.contains('sessions-disclosure-row'),
+			}, {
+				parentCollapsed: 'false',
+				parentDisclosure: true,
+				leafDisclosure: false,
+			});
+		});
+
 		/** Section, session and chat rows top to bottom, indented by nesting; done sessions and standalone chats are marked. */
 		function renderedTreeRows(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
@@ -15083,6 +15143,71 @@ suite('Sessions - SessionsList', () => {
 			// Base chat rows reserve 30px including spacing; an approval must reserve more.
 			assert.ok(parseInt(row.style.height) > 30, `expected reconciled height to reserve the approval row, got ${row.style.height}`);
 			assert.ok(row.querySelector('.session-approval-row.visible'), 'approval row should be visible on the re-rendered target');
+		});
+	});
+
+	suite('SessionsFlatList active session', () => {
+
+		test('selects the active session without moving DOM focus', () => {
+			const first = createTestSession('First').session;
+			const second = createTestSession('Second').session;
+			const activeSession = observableValue<ISession | undefined>('activeSession', first);
+			const harness = createListHarness(disposables, [first, second]);
+			const container = harness.createContainer();
+			const focusTarget = mainWindow.document.createElement('button');
+			mainWindow.document.body.append(focusTarget);
+			disposables.add({ dispose: () => focusTarget.remove() });
+			focusTarget.focus();
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+				activeSession,
+				showSessionHover: false,
+				onSessionOpen: () => { },
+			}));
+			list.setSessions([first, second]);
+			list.layout(200, 400);
+			const selectedTitle = () => container.querySelector('.monaco-list-row.selected .session-title')?.textContent;
+
+			const initial = { selected: selectedTitle(), preservedFocus: mainWindow.document.activeElement === focusTarget };
+			activeSession.set(second, undefined);
+			const updated = { selected: selectedTitle(), preservedFocus: mainWindow.document.activeElement === focusTarget };
+			activeSession.set(undefined, undefined);
+			const cleared = { selected: selectedTitle(), preservedFocus: mainWindow.document.activeElement === focusTarget };
+
+			assert.deepStrictEqual({ initial, updated, cleared }, {
+				initial: { selected: 'First', preservedFocus: true },
+				updated: { selected: 'Second', preservedFocus: true },
+				cleared: { selected: undefined, preservedFocus: true },
+			});
+		});
+
+		test('focuses the active or first session when the list receives DOM focus', () => {
+			const first = createTestSession('First').session;
+			const second = createTestSession('Second').session;
+
+			const createList = (activeSession: IObservable<ISession | undefined>) => {
+				const harness = createListHarness(disposables, [first, second]);
+				const container = harness.createContainer();
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsFlatList, container, {
+					activeSession,
+					showSessionHover: false,
+					onSessionOpen: () => { },
+				}));
+				list.setSessions([first, second]);
+				list.layout(200, 400);
+				list.focus();
+				return {
+					focused: container.querySelector('.monaco-list-row.focused .session-title')?.textContent,
+					selected: container.querySelector('.monaco-list-row.selected .session-title')?.textContent,
+				};
+			};
+
+			const active = createList(constObservable(second));
+			const fallback = createList(constObservable(undefined));
+
+			assert.deepStrictEqual({ active, fallback }, {
+				active: { focused: 'Second', selected: 'Second' },
+				fallback: { focused: 'First', selected: undefined },
+			});
 		});
 	});
 

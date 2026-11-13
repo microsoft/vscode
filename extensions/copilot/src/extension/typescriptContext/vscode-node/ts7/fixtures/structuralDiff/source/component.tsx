@@ -1,0 +1,1 @@
+export const Component = () => <div>old text</div>;

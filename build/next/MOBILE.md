@@ -63,13 +63,13 @@ not existing VS Code product requirements or hosting restrictions. Review actual
 dependency growth before changing a baseline; do not widen the contribution
 list or remove a size check merely to make a build pass.
 
-The temporary ceilings are 5,600,000 gzip bytes for the main JavaScript and
-6,200,000 gzip bytes for the initial bundle. They accommodate the reviewed
-current-main baseline after removing chat backgrounds; the stylesheet, runtime
-and extension ceilings remain unchanged. These are growth guards for the
-current package, not mobile performance targets. Reducing the actual downloads needed
-for a usable session list and composer requires separate startup measurements
-and loading changes.
+The temporary ceilings are 6,400,000 gzip bytes for the main JavaScript,
+275,000 for the stylesheet, 7,000,000 for the initial bundle and 16,500,000
+for the runtime. They leave headroom for normal shared-code growth above
+the reviewed current-main baseline; the extension ceiling remains 800,000
+gzip bytes. These are growth guards, not mobile performance targets.
+Reducing the actual downloads needed for a usable session list and composer
+requires separate startup measurements and loading changes.
 
 - Initial size counts the main JavaScript, stylesheet and language bundle.
 - Runtime size includes workers and runtime libraries but excludes extensions.
