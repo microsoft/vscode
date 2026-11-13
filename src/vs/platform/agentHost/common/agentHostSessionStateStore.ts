@@ -156,6 +156,8 @@ export interface ISessionStateChatMove {
 	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
 	/** The worktree lists the move changes, in its transaction. A session that ends by the move keeps none. */
 	readonly worktreeLists: ISessionStateWorktreeListChanges;
+	/** Other session-level values the move changes in its transaction (`null` deletes), such as the artifacts its chats recorded. A session that ends by the move keeps no old-format copy of those it gives the target. */
+	readonly values?: { readonly source: Readonly<Record<string, string | null>>; readonly target: Readonly<Record<string, string | null>> };
 }
 
 export type SessionStateChatMoveResult =
@@ -180,6 +182,8 @@ export interface ISessionStateChatPromotion {
 	readonly coOwnedWorktrees: readonly ISessionStateSharedWorktree[];
 	/** The worktree lists the promotion changes, in its transaction: the source's, and the new session's to start with. */
 	readonly worktreeLists: ISessionStateWorktreeListChanges;
+	/** Other session-level values the promotion changes in the source, in its transaction (`null` deletes), such as the artifacts the promoted chats recorded. */
+	readonly sourceValues?: Readonly<Record<string, string | null>>;
 }
 
 export type SessionStateChatPromotionResult =
@@ -500,8 +504,8 @@ export interface IAgentHostSessionStateStore {
 	 */
 	promoteChat(promotion: ISessionStateChatPromotion): Promise<SessionStateChatPromotionResult>;
 	/**
-	 * Writes pending mirrors of `session`. Without a session, first waits for every operation already queued (so no
-	 * write a caller started is still in flight), then writes every pending mirror: what shutdown waits for.
+	 * Waits for queued operations for `session`, then writes its pending mirrors. Without a session, drains all
+	 * sessions, as shutdown needs. Operation failures remain with their callers and do not prevent draining.
 	 */
 	whenIdle(session: URI | undefined): Promise<void>;
 	/** Writes pending mirrors and refuses further writes until disposed. */

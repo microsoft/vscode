@@ -121,11 +121,13 @@ suite('GitHub anonymous IPC clients', () => {
 	test('exposes a directly disposable, reduced facade and executes content, gist, and issue search', async () => {
 		const requests: { url: string; authorization: string | null; credentials: RequestCredentials | undefined; referrerPolicy: ReferrerPolicy | undefined }[] = [];
 		const sha = 'a'.repeat(40);
+		const file = { content: '{}', encoding: 'utf-8', truncated: false };
 		const gist = {
 			id: 'gist-id', node_id: 'G_1', url: 'https://api.github.com/gists/gist-id', html_url: 'https://gist.github.com/gist-id',
 			git_pull_url: 'https://gist.github.com/gist-id.git', git_push_url: 'https://gist.github.com/gist-id.git',
 			forks_url: 'https://api.github.com/gists/gist-id/forks', commits_url: 'https://api.github.com/gists/gist-id/commits',
-			comments_url: 'https://api.github.com/gists/gist-id/comments', public: true, description: null, files: {},
+			comments_url: 'https://api.github.com/gists/gist-id/comments', public: true, description: null,
+			files: { profile: { ...file, filename: 'profile', type: 'application/json', language: 'JSON', size: 2, raw_url: 'https://gist.githubusercontent.com/raw/gist-id/profile' } },
 			truncated: false, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z', comments: 0,
 		};
 		const { connect } = setup(async (input, init) => {
@@ -150,7 +152,7 @@ suite('GitHub anonymous IPC clients', () => {
 			content, gist: result, search, requests,
 		}, {
 			wrapped: false, gistMethods: ['get'], searchMethods: ['issues'],
-			content: sha, gist, search: { total_count: 0, incomplete_results: false, items: [] },
+			content: sha, gist: { id: gist.id, html_url: gist.html_url, files: { profile: file } }, search: { total_count: 0, incomplete_results: false, items: [] },
 			requests: [
 				{ url: 'https://api.github.com/repos/o/r/commits/main', authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer' },
 				{ url: 'https://api.github.com/gists/gist-id', authorization: null, credentials: 'omit', referrerPolicy: 'no-referrer' },
@@ -323,6 +325,42 @@ suite('GitHub anonymous IPC clients', () => {
 		assert.deepStrictEqual({
 			calls, errors: responses.map(([metadata]) => metadata.type === 'error' && metadata.error.type === 'request' ? metadata.error.kind : metadata),
 		}, { calls: 0, errors: cases.map(entry => entry.kind) });
+	});
+
+	test('extra raw wire options cannot override the URL, response limit, or timeout', async () => {
+		const requests: string[] = [];
+		let oversized = false;
+		const { connect } = setup(async input => {
+			requests.push(String(input));
+			return new Response(oversized ? 'x'.repeat(1024 * 1024 + 1) : 'contents');
+		});
+		const { connection } = connect();
+		await acquireProvider(connection);
+		const path = `/o/r/${commitSha}/file`;
+		const options = {
+			caller: 'test.raw',
+			url: `https://raw.githubusercontent.com/o/r/${commitSha}/other`,
+			maximumBytes: 2 * 1024 * 1024,
+			timeout: 0,
+		};
+		const request: ApiRequest = { method: 'GET', path, expectedStatus: 200, responseBody: 'text', options };
+		const read = () => connection.channel.call<ApiResponseMessage>('request', [
+			{ clientId: 'client', target: 'rawContent', request }, undefined,
+		]);
+		const contents = await read();
+		oversized = true;
+		const [failure] = await read();
+		assert.deepStrictEqual({
+			status: contents[0].type,
+			contents: contents[1],
+			error: failure.type === 'error' && failure.error.type === 'request' ? failure.error.kind : undefined,
+			requests,
+		}, {
+			status: 'success',
+			contents: 'contents',
+			error: 'responseTooLarge',
+			requests: [`https://raw.githubusercontent.com${path}`, `https://raw.githubusercontent.com${path}`],
+		});
 	});
 
 	for (const location of [`https://elsewhere.example/o/r/${commitSha}/file`, `/o/r/${'b'.repeat(40)}/file`]) {
@@ -1025,7 +1063,7 @@ suite('GitHub authenticated IPC clients', () => {
 		});
 		const { remote, connection, broker } = connect();
 		const client = store.add(await remote.acquireClient(authorization, signal()));
-		const rejected = assert.rejects(client.notifications.markRead('42', signal()), { kind: 'authentication' });
+		const rejected = assert.rejects(client.notifications.markRead('42', signal()), { kind: 'unknown', message: 'GitHub credential generation was superseded' });
 		const fetchSignal = await started.p;
 		broker.token = 'renewed-token';
 		broker.tokens.fire(grantChange);
@@ -2220,7 +2258,7 @@ suite('GitHub authenticated IPC clients', () => {
 			});
 			const { remote, connection, broker } = connect();
 			const client = store.add(await remote.acquireClient(authorization, signal()));
-			const rejected = assert.rejects(client.reviews.resolveThread('T_1', signal()), ending === 'renewal' ? { kind: 'authentication' } : isCancellationError);
+			const rejected = assert.rejects(client.reviews.resolveThread('T_1', signal()), ending === 'renewal' ? { kind: 'unknown', message: 'GitHub credential generation was superseded' } : isCancellationError);
 			const fetchSignal = await started.p;
 			if (ending === 'dispose') {
 				client.dispose();
@@ -2247,6 +2285,10 @@ suite('GitHub authenticated IPC clients', () => {
 		const date = '2026-01-01T00:00:00Z';
 		const definition = { id: 'automation-1', name: 'Test', description: '', prompt: 'Do work', created_by: { id: 101 }, created_at: date, updated_at: date };
 		const task = { id: 'task-1', automation_id: definition.id, state: 'queued', created_at: date, remote_steerable: true };
+		const configuration = {
+			automations_enabled: true, can_manage_automations: false,
+			allow_read_access_triggers: false, require_trigger_scoped_writes: true,
+		};
 		const options = {
 			endpoint: { apiBaseUri: 'https://api.githubcopilot.com/agents', integrationId: 'test-integration' },
 		};
@@ -2260,20 +2302,75 @@ suite('GitHub authenticated IPC clients', () => {
 			return { ...server, ...peer, client };
 		}
 
-		test('executes automation, task, and environment operations through the approved Mission Control IPC profile', async () => {
+		test('task feed connections omit unused credentials after parsing the IPC response', async () => {
+			const feed = {
+				url: 'wss://relay.example.test/?access_token=feed-secret',
+				subprotocol: 'json.webpubsub.azure.v1', group: 'opaque-group',
+				expires_at: date, reconnect_after: date, expires_in: 600_000, reconnect_in: 480_000, frame_schema_version: 1,
+			};
+			const { connect } = setup(async input => {
+				const path = new URL(String(input)).pathname;
+				if (path === '/user') {
+					return Response.json({ id: 101 });
+				}
+				assert.strictEqual(path, '/cmc_internal/api/agents/feed/connect');
+				return Response.json({ ...feed, access_token: 'unused-secret', hub: 'unused-hub', wps_endpoint: 'wss://unused.example.test/' });
+			});
+			const { broker, remote } = connect();
+			broker.options = {
+				...broker.options,
+				missionControl: {
+					endpoint: { ...options.endpoint, feedApiBaseUri: 'https://api.github.com/cmc_internal/api/agents' },
+				},
+			};
+			const client = store.add(await remote.acquireClient(authorization, signal()));
+			assert.deepStrictEqual(await client.tasks.connectFeed(signal()), feed);
+		});
+
+		test('bounded task lists retain full tasks and conservative metadata through IPC', async () => {
+			const requests: { host: string; path: string; cursor: string | null; repository: string | null }[] = [];
+			const { client } = await acquire(async input => {
+				const url = new URL(String(input));
+				requests.push({ host: url.host, path: url.pathname, cursor: url.searchParams.get('cursor'), repository: url.searchParams.get('with_repo') });
+				return Response.json({
+					tasks: [{ ...task, id: `task-${requests.length}`, compute: { provider: 'sandboxes' }, current_environment: { id: 'env', kind: 'managed-sandbox' }, prompt: 'retained' }],
+				}, {
+					headers: {
+						date: requests.length === 1 ? 'Thu, 01 Jan 2026 00:00:00 GMT' : 'Thu, 01 Jan 2026 00:01:00 GMT',
+						'retry-after': requests.length === 1 ? '120' : '30',
+						...(requests.length === 1 ? { link: '<https://api.github.com/agents/tasks?cursor=next&with_repo=false>; rel="next"' } : {}),
+					},
+				});
+			});
+			const result = await client.tasks.list(signal(), { maxPages: 2, query: { with_repo: false } });
+			assert.deepStrictEqual({
+				tasks: result.data.tasks,
+				serverDate: result.serverDate, retryAfterSeconds: result.retryAfterSeconds, requests,
+			}, {
+				tasks: [1, 2].map(number => ({ ...task, id: `task-${number}`, compute: { provider: 'sandboxes' }, current_environment: { id: 'env', kind: 'managed-sandbox' }, prompt: 'retained' })),
+				serverDate: 'Thu, 01 Jan 2026 00:00:00 GMT', retryAfterSeconds: 120,
+				requests: [null, 'next'].map(cursor => ({ host: 'api.githubcopilot.com', path: '/agents/tasks', cursor, repository: 'false' })),
+			});
+		});
+
+		test('executes automation, task, environment, and model operations through the approved Mission Control IPC profile', async () => {
 			const paths: string[] = [];
 			const headers: { integration: string | null; apiVersion: string | null; credentials: RequestCredentials | undefined }[] = [];
+			const requestId = 'ABCD:1234:5678:90AB:CDEF';
+			const catalog = { data: [{ id: 'future-model', name: 'Future', model_picker_enabled: false, billing: { multiplier: 2 } }] };
 			const responses = [
 				Response.json({ automations: [definition], total_count: 1 }, { headers: { link: '<https://api.githubcopilot.com/agents/repos/o/r/automations/v2?page=2>; rel="next"', date: 'Thu, 01 Jan 2026 00:00:00 GMT' } }),
+				Response.json(configuration),
 				Response.json(definition), Response.json(definition, { status: 201 }), Response.json(definition),
 				new Response(null, { status: 204 }), Response.json({ automation_id: definition.id }, { status: 202 }),
 				Response.json({ tasks: [task] }), Response.json([]), Response.json([]),
-				Response.json({ tasks: [task] }), Response.json(task), Response.json(task, { status: 201 }), Response.json(task),
+				Response.json({ tasks: [task] }), Response.json(task), Response.json(task, { status: 201, headers: { 'x-github-request-id': requestId } }), Response.json(task),
 				Response.json(task), Response.json(task), new Response(null, { status: 204 }),
 				new Response(null, { status: 202 }), Response.json({ events: [], total: 0 }), Response.json({ events: [], total: 0 }),
 				Response.json([]), Response.json({ id: 'env', name: 'Environment', kind: 'managed-sandbox', status: 'online' }),
-				Response.json({ environment_status: 'waking' }, { status: 202, headers: { 'Retry-After': '2' } }),
+				Response.json({ environment_status: 'waking' }, { status: 202, headers: { 'Retry-After': '2', 'x-github-request-id': requestId } }),
 				Response.json({ environment_status: 'waking' }, { status: 202 }),
+				new Response(null, { status: 204 }), Response.json(catalog),
 			];
 			const { client } = await acquire(async (input, init) => {
 				paths.push(`${init?.method} ${new URL(String(input)).pathname}`);
@@ -2284,6 +2381,7 @@ suite('GitHub authenticated IPC clients', () => {
 				return response;
 			});
 			const page = await client.automations.list(repository, signal());
+			const repositoryConfiguration = await client.automations.getConfiguration(repository, signal());
 			await client.automations.get(repository, definition.id, signal());
 			await client.automations.create(repository, definition, signal());
 			await client.automations.update(repository, definition.id, { disabled: true }, signal());
@@ -2294,10 +2392,10 @@ suite('GitHub authenticated IPC clients', () => {
 			await client.automations.listTriggers(signal());
 			await client.tasks.list(signal());
 			await client.tasks.get(task.id, signal());
-			await client.tasks.create({ prompt: 'Work' }, signal());
+			const created = await client.tasks.create({ prompt: 'Work' }, signal());
 			await client.tasks.update(task.id, { name: 'Renamed' }, signal());
-			await client.tasks.archive(task.id, signal());
-			await client.tasks.unarchive(task.id, signal());
+			await client.tasks.setArchived(task.id, true, signal());
+			await client.tasks.setArchived(task.id, false, signal());
 			await client.tasks.delete(task.id, signal());
 			await client.tasks.abort(task.id, signal());
 			await client.tasks.getEvents(task.id, signal());
@@ -2306,21 +2404,87 @@ suite('GitHub authenticated IPC clients', () => {
 			await client.environments.get('env', signal());
 			const waking = await client.environments.connect('env', signal());
 			await client.environments.reconnect('env', 'client', signal());
-			assert.deepStrictEqual({ paths, metadata: { nextLink: page.nextLink, serverDate: page.serverDate }, waking, headers, remaining: responses.length }, {
+			await client.environments.delete('env', signal());
+			const models = await client.missionControlModels.list(signal());
+			assert.deepStrictEqual({
+				paths, repositoryConfiguration, metadata: { nextLink: page.nextLink, serverDate: page.serverDate },
+				created: { status: created.status, data: created.data, requestId: created.metadata?.requestId },
+				waking, models, headers, remaining: responses.length,
+			}, {
 				paths: [
-					'GET /agents/repos/o/r/automations/v2', 'GET /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations',
+					'GET /agents/repos/o/r/automations/v2', 'GET /agents/repos/o/r/automations/configuration',
+					'GET /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations',
 					'PATCH /agents/repos/o/r/automations/automation-1', 'DELETE /agents/repos/o/r/automations/automation-1', 'POST /agents/repos/o/r/automations/automation-1/tasks',
 					'GET /agents/automations/automation-1/tasks', 'GET /agents/automations/tools', 'GET /agents/automations/triggers',
 					'GET /agents/tasks', 'GET /agents/tasks/task-1', 'POST /agents/tasks', 'PATCH /agents/tasks/task-1',
 					'POST /agents/tasks/task-1/archive', 'POST /agents/tasks/task-1/unarchive', 'DELETE /agents/tasks/task-1', 'POST /agents/tasks/task-1/steer',
 					'GET /agents/tasks/task-1/events', 'GET /agents/tasks/task-1/events', 'GET /agents/environments', 'GET /agents/environments/env',
 					'GET /agents/environments/env/connect', 'GET /agents/environments/env/reconnect',
+					'DELETE /agents/environments/env', 'GET /agents/swe/models',
 				],
+				repositoryConfiguration: configuration,
 				metadata: { nextLink: 'https://api.githubcopilot.com/agents/repos/o/r/automations/v2?page=2', serverDate: 'Thu, 01 Jan 2026 00:00:00 GMT' },
-				waking: { status: 202, data: { environment_status: 'waking' }, retryAfterSeconds: 2 },
-				headers: Array.from({ length: 23 }, () => ({ integration: 'test-integration', apiVersion: null, credentials: 'omit' })),
+				created: { status: 201, data: task, requestId },
+				waking: { status: 202, data: { environment_status: 'waking' }, retryAfterSeconds: 2, requestId },
+				models: catalog,
+				headers: [
+					...Array.from({ length: 25 }, () => ({ integration: 'test-integration', apiVersion: null, credentials: 'omit' })),
+					{ integration: 'test-integration', apiVersion: '2026-06-01', credentials: 'omit' },
+				],
 				remaining: 0,
 			});
+		});
+
+		test('failed task creation preserves only usable cleanup identities and safe diagnostics across IPC', async () => {
+			for (const id of ['created-task', '..', 'private\nidentity']) {
+				const requestId = 'ABCD:1234:5678:90AB:CDEF';
+				let calls = 0;
+				const { client } = await acquire(async () => {
+					calls++;
+					return Response.json({ id, error_code: 'backend_error', message: 'private response body' }, {
+						status: 500, headers: { 'x-github-request-id': requestId },
+					});
+				});
+				await assert.rejects(client.tasks.create({ prompt: 'Work' }, signal()), {
+					name: 'ApiRequestError', statusCode: 500, code: 'backend_error', requestId,
+					outcome: 'indeterminate', createdTaskId: id === 'created-task' ? id : undefined, responseBody: undefined,
+				});
+				assert.strictEqual(calls, 1);
+			}
+		});
+
+		test('configuration reads stay uncached and preserve disabled flags through IPC', async () => {
+			const validators: (string | null)[] = [];
+			const disabled = {
+				automations_enabled: false, can_manage_automations: false,
+				allow_read_access_triggers: true, require_trigger_scoped_writes: false,
+			};
+			const { client } = await acquire(async (_input, init) => {
+				validators.push(new Headers(init?.headers).get('If-None-Match'));
+				return Response.json(validators.length === 1 ? configuration : disabled, { headers: { etag: '"configuration"', 'cache-control': 'private, no-store' } });
+			});
+			const values = [
+				await client.automations.getConfiguration(repository, signal()),
+				await client.automations.getConfiguration(repository, signal(), { noCache: false }),
+			];
+			assert.deepStrictEqual({ values, validators }, { values: [configuration, disabled], validators: [null, null] });
+		});
+
+		test('configuration parsing and service failures remain errors through IPC', async () => {
+			const responses = [
+				Response.json({ ...configuration, can_manage_automations: 'false' }),
+				Response.json(configuration, { status: 202 }),
+				Response.json({ message: 'Configuration unavailable', documentation_url: 'https://docs.github.com' }, { status: 503, headers: { 'Retry-After': '30' } }),
+			];
+			const { client } = await acquire(async () => {
+				const response = responses.shift();
+				assert.ok(response);
+				return response;
+			});
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), SchemaError);
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), { kind: 'malformedResponse', statusCode: 202 });
+			await assert.rejects(client.automations.getConfiguration(repository, signal()), error =>
+				error instanceof ApiRequestError && error.statusCode === 503 && error.outcome === undefined);
 		});
 
 		test('serializes mutation bodies once before IPC and parses responses at the caller', async () => {

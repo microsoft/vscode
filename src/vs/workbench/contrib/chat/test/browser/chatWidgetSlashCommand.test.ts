@@ -44,7 +44,7 @@ suite('ChatWidget Slash Commands', () => {
 			{ resource: URI.parse('local:/source'), query: undefined, options: undefined },
 		];
 		const privateMethods = ChatWidget.prototype as unknown as {
-			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined;
+			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): { clear(): void; dispose(): void } | undefined;
 		};
 		for (const { resource, query, options } of scenarios) {
 			const widget = upcastDeepPartial<ChatWidget>({
@@ -77,6 +77,7 @@ suite('ChatWidget Slash Commands', () => {
 		};
 		const widget = {
 			viewModel: widgetModel,
+			chatService: { acquireExistingSession: () => ({ dispose: () => { } }) },
 			getInput: () => input,
 			input: { attachmentModel: { getAttachmentIDs: () => attachmentIds, get attachments() { return sourceState.get().attachments; } } },
 			parsedInput: upcastPartial<IParsedChatRequest>({
@@ -84,12 +85,12 @@ suite('ChatWidget Slash Commands', () => {
 			}),
 		} as unknown as ChatWidget;
 		const privateMethods = ChatWidget.prototype as unknown as {
-			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined;
+			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): { clear(): void; dispose(): void } | undefined;
 		};
 
 		const cleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined);
 		assert.ok(cleanup);
-		cleanup();
+		cleanup.clear();
 		assert.deepStrictEqual(sourceState.get(), { inputText: '', attachments: [] });
 		assert.deepStrictEqual(targetState.get(), { inputText: 'new target typing', attachments: [{ id: 'target-attachment' }] });
 
@@ -98,7 +99,7 @@ suite('ChatWidget Slash Commands', () => {
 		attachmentIds = new Set(['source-attachment']);
 		const editedCleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined)!;
 		sourceState.set({ ...sourceState.get(), inputText: 'new source typing' }, undefined);
-		editedCleanup();
+		editedCleanup.clear();
 		assert.strictEqual(sourceState.get().inputText, 'new source typing');
 
 		sourceState.set({ inputText: '/fork prompt preserve this', attachments: [{ id: 'source-attachment' }] }, undefined);
@@ -106,7 +107,7 @@ suite('ChatWidget Slash Commands', () => {
 		const attachmentCleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined)!;
 		sourceState.set({ ...sourceState.get(), attachments: [{ id: 'new-attachment' }] }, undefined);
 		attachmentIds = new Set(['new-attachment']);
-		attachmentCleanup();
+		attachmentCleanup.clear();
 		assert.deepStrictEqual(sourceState.get().attachments, [{ id: 'new-attachment' }]);
 
 		widgetModel.sessionResource = URI.parse('local:/source');
@@ -142,6 +143,7 @@ suite('ChatWidget Slash Commands', () => {
 				sessionResource: URI.parse('agent-host-copilot:/source'),
 				model: { inputModel },
 			},
+			chatService: { acquireExistingSession: () => ({ dispose: () => { } }) },
 			getInput: () => state.get().inputText,
 			input: { attachmentModel: { getAttachmentIDs: () => new Set(state.get().attachments.map(attachment => attachment.id)), get attachments() { return state.get().attachments; } } },
 			parsedInput: upcastPartial<IParsedChatRequest>({
@@ -149,13 +151,13 @@ suite('ChatWidget Slash Commands', () => {
 			}),
 		} as unknown as ChatWidget;
 		const privateMethods = ChatWidget.prototype as unknown as {
-			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): (() => void) | undefined;
+			_createForkPromptInputCleanup(query: string | undefined, options: IChatAcceptInputOptions | undefined): { clear(): void; dispose(): void } | undefined;
 		};
 		const cleanup = privateMethods._createForkPromptInputCleanup.call(widget, undefined, undefined);
 		assert.ok(cleanup);
 		state.set({ inputText, attachments: [] }, undefined);
 		state.set({ inputText, attachments: [updated] }, undefined);
-		cleanup();
+		cleanup.clear();
 		assert.deepStrictEqual(state.get(), { inputText, attachments: [updated] });
 	});
 

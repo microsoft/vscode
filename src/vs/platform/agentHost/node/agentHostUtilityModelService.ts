@@ -12,6 +12,8 @@ import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../common/agent.js';
 import { getByokLmAgentModelId, getByokLmSelectionModelId, IByokLmChatRequest, IByokLmModelInfo, isByokLmAgentModelId, resolveByokLmEnablement } from '../common/agentHostByokLm.js';
 import { AgentHostByokModelsEnabledConfigKey, AgentHostByokUtilityModelDefault, AgentHostByokUtilityModelDefaultConfigKey, AgentHostUtilitySmallModelConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { readAgentModelByokIdentifier } from '../common/agentModelByokMeta.js';
+import { readUsageInfoMeta } from '../common/meta/agentUsageMeta.js';
+import { isModelRouterModelId } from '../common/modelRouter.js';
 import { isAhpChatChannel, type ModelSelection, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { createAgentChatContext } from './agentChatContext.js';
@@ -236,21 +238,25 @@ export class AgentHostUtilityModelService implements IAgentHostUtilityModelServi
 
 	/** The agent model id of the chat's selected main agent model when it is a BYOK model. */
 	private _resolveByokMainAgentModel(context: IAgentHostUtilityModelContext): string | undefined {
-		const agent = this._providerService.getProviderForSession(context.session);
-		if (!agent) {
-			return undefined;
-		}
 		const chat = context.chat && isAhpChatChannel(context.chat) ? context.chat : this._chatOwnership.getDefaultChat(context.session);
 		if (chat === undefined) {
+			return undefined;
+		}
+		const agent = this._providerService.getProviderForChat(context.session, chat);
+		if (!agent) {
 			return undefined;
 		}
 		const state = this._stateManager.getChatState(chat) ?? (this._chatOwnership.isDefaultChat(context.session, chat) ? this._stateManager.getSessionState(context.session) : undefined);
 		// Prefer the model of the turn being served: the provider applies a turn's
 		// model after admission, and a chat that is not resident has no selection.
-		const selection = context.model
-			?? state?.activeTurn?.message.model
+		// A model router is not a model; use its pick, or else the chat's applied model.
+		const concrete = (candidate: ModelSelection | undefined) => candidate && !isModelRouterModelId(candidate.id) ? candidate : undefined;
+		const routedModel = readUsageInfoMeta(state?.activeTurn?.usage).modelRouted?.chosenModel;
+		const selection = concrete(context.model)
+			?? (routedModel !== undefined ? { id: routedModel } : undefined)
+			?? concrete(state?.activeTurn?.message.model)
 			?? agent.chats.getModel?.(URI.parse(chat), createAgentChatContext(this._stateManager, this._authenticationService, context.session, chat, this._chatOwnership.resolveChatStorageResource(context.session, chat), this._sessionStateStore.peek(URI.parse(context.session))))
-			?? state?.turns.at(-1)?.message.model;
+			?? concrete(state?.turns.at(-1)?.message.model);
 		if (!selection) {
 			return undefined;
 		}

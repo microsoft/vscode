@@ -40,7 +40,7 @@ import { ensureRemoteAgentHostCliInstalled } from '../../node/remoteAgentHostCli
 
 suite('SSH Remote Agent Host Helpers', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function makeEndpoint(overrides: Partial<IAgentHostEndpointMetadata> & Pick<IAgentHostEndpointMetadata, 'type' | 'pid' | 'instanceId'>): IAgentHostEndpointMetadata {
 		return {
@@ -779,7 +779,7 @@ suite('SSH Remote Agent Host Helpers', () => {
 
 		test('cancels promptly while waiting for registration', async () => {
 			const before = [makeEndpoint({ type: 'standalone', pid: 1, instanceId: 'old' })];
-			const cancellationSource = new CancellationTokenSource();
+			const cancellationSource = store.add(new CancellationTokenSource());
 			let polls = 0;
 			const exec: ISshExec = async () => {
 				polls++;
@@ -787,15 +787,11 @@ suite('SSH Remote Agent Host Helpers', () => {
 				return { stdout: JSON.stringify({ userDataPath: '/x', endpoints: before }), stderr: '', code: 0 };
 			};
 
-			try {
-				await assert.rejects(
-					() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { timeoutMs: 60_000, token: cancellationSource.token }),
-					/Canceled/,
-				);
-				assert.deepStrictEqual(polls, 1);
-			} finally {
-				cancellationSource.dispose();
-			}
+			await assert.rejects(
+				() => waitForNewStandaloneEndpoint(exec, '~/.vscode-server/code', '~/.vscode-server/cli', '/x', before, { timeoutMs: 60_000, token: cancellationSource.token }),
+				/Canceled/,
+			);
+			assert.deepStrictEqual(polls, 1);
 		});
 	});
 });

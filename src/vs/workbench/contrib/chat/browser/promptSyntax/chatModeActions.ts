@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -47,7 +48,10 @@ class ConfigureAgentsActionDisabled extends ConfigAgentActionImpl { constructor(
 /**
  * Helper to register all the `Configure Custom Agents` actions.
  */
-export function registerAgentActions(): void {
-	registerAction2(ConfigureAgentsAction);
-	registerAction2(ConfigureAgentsActionDisabled);
+export function registerAgentActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ConfigureAgentsAction));
+	store.add(registerAction2(ConfigureAgentsActionDisabled));
+
+	return store;
 }

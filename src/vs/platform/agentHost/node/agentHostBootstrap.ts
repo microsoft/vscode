@@ -130,7 +130,7 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 			[IProductService, productService],
 		);
 		services.set(IAgentHostClientConnectionService, infrastructure.add(new AgentHostClientConnectionService()));
-		services.set(IAgentHostSystemWakeService, new AgentHostSystemWakeService());
+		services.set(IAgentHostSystemWakeService, infrastructure.add(new AgentHostSystemWakeService(logService)));
 		services.set(IAgentHostMacAccessibilityTrustService, new AgentHostMacAccessibilityTrustService());
 		const agentServiceOptions: IAgentServiceOptions = {
 			rootConfigResource: joinPath(environmentService.appSettingsHome, 'globalStorage', 'agent-host-config.json'),
@@ -224,10 +224,8 @@ export async function createAgentHostRuntime(options: ICreateAgentHostRuntimeOpt
 		));
 		agentService = agentServiceComposition.agentService;
 		services.set(IAgentService, agentService);
-		// Freeze the migrate-legacy gate at host startup, before a setting toggled
-		// without a full restart can be live-propagated into the shared host.
-		agentService.primeMigrateLegacyGate();
 		agentServiceComposition.setContributions(instantiationService.invokeFunction(accessor => activateAgentHostContributions(accessor, instantiationService!)));
+		void agentServiceComposition.artifactRuntime.integrations.initialize().catch(error => logService.error('[ArtifactIntegrations] Failed to restore artifact automations', error));
 
 		const agentSdkDownloader = instantiationService.invokeFunction(accessor => accessor.get(IAgentSdkDownloader));
 		const startupPerformance = instantiationService.invokeFunction(accessor => accessor.get(IAgentHostStartupPerformance));

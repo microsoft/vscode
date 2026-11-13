@@ -83,7 +83,7 @@ export function renderIssueReporterRepositoryPicker(
 			getAnchor: () => button.element,
 			getActions: () => actions,
 			getCheckedActionsRepresentation: () => 'radio',
-			autoSelectFirstItem: true,
+			autoSelectItem: true,
 			skipTelemetry: true,
 			onHide: () => {
 				button.element.setAttribute('aria-expanded', 'false');

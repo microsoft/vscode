@@ -190,6 +190,21 @@ suite('AgentHostConnectionsService', () => {
 		], ['agent-host-codex:/external', 'remote-remote-codex:/external']);
 	});
 
+	test('resolves a catalog alias to an exact execution and releases only the alias', () => {
+		const { service } = createService([], new Map());
+		const backend = URI.parse('host-session://owner/session?revision=one');
+		const canonical = service.registerSessionResource(backend, 'remote', 'copilot');
+		const resource = URI.parse('cloud-sandbox-task:/task');
+		const registration = store.add(service.registerSessionResourceAlias(resource, backend, 'remote', 'copilot'));
+		const resolved = service.resolveSessionResourceIdentity(resource.with({ fragment: 'peer' }));
+		registration.dispose();
+		assert.deepStrictEqual({
+			resolved: [resolved?.connectionAuthority, resolved?.backendSession.toString()],
+			after: service.resolveSessionResourceIdentity(resource),
+			canonical: service.findSessionResource(backend, 'remote')?.toString(),
+		}, { resolved: ['remote', backend.toString()], after: undefined, canonical: canonical.toString() });
+	});
+
 	test('resolves mixed legacy and standard identities by provider on the owning connection', () => {
 		const { service } = createService([], new Map());
 		const resources = [
@@ -274,14 +289,26 @@ suite('AgentHostConnectionsService', () => {
 				const backend = URI.parse('codex:/external');
 				const resource = service.getSessionResource(backend, authority)!;
 				const selectedPeer = resource.with({ fragment: 'peer-chat' });
+				const selectedSubagent = resource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
 				const resolved = service.resolveSessionResource(selectedPeer);
+				const resolvedSubagent = service.resolveSessionResource(selectedSubagent);
+				const advertisedStandard = URI.parse('ahp-session:/standard-parent');
+				const advertisedResource = service.registerSessionResource(advertisedStandard, authority, aliased ? 'copilot' : 'codex');
+				const advertisedSubagent = advertisedResource.with({ query: 'subagentChatResource=ahp-chat%3A%2Fchild', fragment: 'child' });
+				const resolvedAdvertisedSubagent = service.resolveSessionResourceIdentity(advertisedSubagent);
 				assert.deepStrictEqual({
 					resource: resource.toString(),
 					backend: resolved?.backendSession.toString(),
+					subagentBackend: resolvedSubagent?.backendSession.toString(),
+					advertisedSubagentBackend: resolvedAdvertisedSubagent?.backendSession.toString(),
+					advertisedSubagentIsAdvertised: resolvedAdvertisedSubagent?.backendSessionIsAdvertised,
 					connection: resolved?.connection,
 				}, {
 					resource: `${authority === AMBIENT_AGENT_HOST_AUTHORITY ? 'agent-host-' : 'remote-myhost-'}${aliased ? 'copilot' : 'codex'}:/external`,
 					backend: backend.toString(),
+					subagentBackend: backend.toString(),
+					advertisedSubagentBackend: advertisedStandard.toString(),
+					advertisedSubagentIsAdvertised: true,
 					connection: authority === AMBIENT_AGENT_HOST_AUTHORITY ? ambient : connection,
 				});
 				byAddress.clear();

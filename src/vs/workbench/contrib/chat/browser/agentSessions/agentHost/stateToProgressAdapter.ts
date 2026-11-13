@@ -8,6 +8,7 @@ import { readUsageInfoMeta, type UsageInfoMeta, type IAgentContextUsage, type IA
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { escapeMarkdownLinkLabel, escapeMarkdownSyntaxTokens, IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { escapeIcons } from '../../../../../../base/common/iconLabels.js';
 import { type Tokens } from '../../../../../../base/common/marked/marked.js';
 import { rewriteMarkdownLinks as rewriteMarkdownSource } from '../../../../../../base/common/markdownLinks.js';
@@ -17,14 +18,16 @@ import { Schemas } from '../../../../../../base/common/network.js';
 import { posix, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
-import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { getTurnError, MessageKind, ToolCallCancellationReason, ToolCallContributorKind, ToolCallRiskAssessmentStatus, ToolCallStatus, ResponsePartKind, TurnState, getInlineToolInput, getToolFileEdits, getToolOutputText, getToolSubagentContent, hasReportedUsage, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ActiveTurn, type ChatInputAnswer, type ChatInputQuestion, type ChatInputRequest, type ICompletedToolCall, type InputRequestResponsePart, type Message, type TerminalCommandResult, type ToolCallPendingConfirmationState, type ToolCallState, type ToolResultSubagentContent, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent, type UsageInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { readAgentPlanReview, type IAgentPlanReview } from '../../../../../../platform/agentHost/common/meta/agentPlanReview.js';
-import { readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
+import { ChatInputRequestPurpose, readChatInputRequestPurpose } from '../../../../../../platform/agentHost/common/meta/agentChatInputRequestMeta.js';
+import { isComputerUseActivationAccepted, readComputerUseActivationCard, readComputerUseSetupCard } from '../../../../../../platform/agentHost/common/meta/computerUse.js';
 import { getToolKind as getProtocolToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { copilotCliToolInputContract, readToolCallMeta, readToolCallPresentation, type IAgentToolOutputChunk } from '../../../../../../platform/agentHost/common/meta/agentToolCallMeta.js';
 import { readImageGenerationToolMetadata } from '../../../../../../platform/agentHost/common/meta/agentImageGenerationMeta.js';
 import { readAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { COPILOT_HYDRA_FUSION_MODEL_ID } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { modelRouterNameFromModelId } from '../../../../../../platform/agentHost/common/modelRouter.js';
 import { getChatErrorDetailsFromMeta, IChatErrorContext } from '../../../common/chatErrorMessages.js';
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_SCHEME, createAgentHostResourceUriMapper, type IAgentHostResourceUriMapper, toAgentHostContentUri, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -35,18 +38,20 @@ import { getAgentFeedbackAttachmentMetadata, isAgentFeedbackAnnotationsAttachmen
 import { getBrowserViewAttachmentMetadata, isBrowserViewAttachment } from '../../../../../../platform/agentHost/common/meta/browserViewAttachments.js';
 import { readAgentMessageDelegationMeta } from '../../../../../../platform/agentHost/common/meta/agentMessageDelegationMeta.js';
 import { isAgentMergeMessage } from '../../../../../../platform/agentHost/common/meta/agentMergeMessageMeta.js';
+import { readArtifactIntegrationNotice, readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, AgentSystemNotificationWorkspaceKind, readAgentSystemNotificationMeta } from '../../../../../../platform/agentHost/common/meta/agentSystemNotificationMeta.js';
 import { isViewUnreviewedCommentsTool, isAddCommentTool } from '../../../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
 import { AGENT_HOST_SESSION_LINK_SCHEME, buildOpenSessionLinkUri, isCreateChatTool, isCreateSessionTool, isSendMessageTool, parseOpenSessionLinkChatId, parseOpenSessionLinkUri } from '../../../../../../platform/agentHost/common/openSessionLink.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { parsePartialToolInputForDisplay } from '../../../../../../platform/agentHost/common/partialToolInput.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { MessageAttachmentKind, type FileEdit, type MessageAttachment, type ReasoningResponsePart, type ResponsePart, type StringOrMarkdown, type TextRange } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { normalizeFileEdit } from '../../../../../../platform/agentHost/common/fileEditDiff.js';
 import { AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { ConfigureAutomationToolReferenceName } from '../../../common/automations/automationService.js';
-import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
+import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
+import { formatCopilotCreditsLabel, getSubagentIsActive, ElicitationState, type ChatExternalEditKind, type ChatMcpAppData, type IChatAgentFeedbackReviewConfirmationData, type IChatAutomationConfiguredData, type IChatAutoModeResolutionPart, type IChatExternalEdit, type IChatGeneratedImageData, type IChatMcpAuthenticationRequiredServer, type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatQuestion, type IChatQuestionAnswerValue, type IChatQuestionAnswers, type IChatResponseErrorDetails, type IChatSearchToolInvocationData, type IChatSessionTargetData, type IChatSubagentToolInvocationData, type IChatTerminalToolInvocationData, type IChatThinkingPart, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, type IChatUsage, type IChatUsagePromptTokenDetail, ToolConfirmKind, AgentFeedbackReviewCommandId } from '../../../common/chatService/chatService.js';
 import { isTerminalCommandPrompt, type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { type IQuotaSnapshot, type IRateLimitSnapshot } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -62,11 +67,12 @@ import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey, type Mutable } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { stripSystemNotificationWrapper } from '../../chatRequestText.js';
-import type { IRange } from '../../../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../../../editor/common/core/range.js';
+import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 import { isSessionReferenceTrajectoryAttachment, restoreSessionReferenceVariableEntryFromAttachment } from './agentHostSessionReferenceAttachment.js';
 import { restoreChatReferenceVariableEntryFromAttachment } from './agentHostChatReferenceAttachment.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID, type IAgentHostManagedPluginRetryTarget } from './agentHostManagedPluginRetry.js';
-import { getComputerUseSetupCardText } from './computerUseSetup.js';
+import { getComputerUseActivationCardText, getComputerUseSetupCardText } from './computerUseSetup.js';
 
 export const BOOLEAN_TRUE_OPTION_ID = 'true';
 export const BOOLEAN_FALSE_OPTION_ID = 'false';
@@ -324,7 +330,23 @@ export function createInputRequestPlanReview(inputReq: ChatInputRequest, planRev
 	);
 }
 
-export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: string): { authority: string; message: MarkdownString } {
+export function isEmptyFormInputRequest(inputReq: ChatInputRequest): boolean {
+	return !inputReq.url
+		&& readChatInputRequestPurpose(inputReq) === ChatInputRequestPurpose.Elicitation
+		&& !inputReq.questions?.length;
+}
+
+export function getElicitationInputRequestPresentation(inputReq: ChatInputRequest, connectionAuthority: string): { title: string; message: MarkdownString; acceptButtonLabel: string; rejectButtonLabel: string } {
+	const url = inputReq.url;
+	if (!url) {
+		return {
+			title: localize('agentHost.elicit.form.title', "Confirmation Required"),
+			message: rawMarkdownToString(inputReq.message ?? '', connectionAuthority),
+			acceptButtonLabel: localize('agentHost.elicit.form.accept', "Accept"),
+			rejectButtonLabel: localize('agentHost.elicit.form.decline', "Decline"),
+		};
+	}
+
 	let authority = url;
 	try {
 		authority = URI.parse(url).authority || url;
@@ -339,7 +361,12 @@ export function getUrlInputRequestPresentation(inputReq: ChatInputRequest, url: 
 	}
 	message.appendMarkdown(localize('agentHost.elicit.url.instruction', "Open this URL?"));
 	message.appendCodeblock('', url);
-	return { authority, message };
+	return {
+		title: localize('agentHost.elicit.url.title', "Authorization Required"),
+		message,
+		acceptButtonLabel: localize('agentHost.elicit.url.open', "Open {0}", authority),
+		rejectButtonLabel: localize('agentHost.elicit.url.cancel', "Cancel"),
+	};
 }
 
 export function inputRequestResponsePartToProgress(part: InputRequestResponsePart, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatProgress {
@@ -354,11 +381,11 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 		return review;
 	}
 
-	if (inputReq.url) {
-		const presentation = getUrlInputRequestPresentation(inputReq, inputReq.url);
+	if (inputReq.url || isEmptyFormInputRequest(inputReq)) {
+		const presentation = getElicitationInputRequestPresentation(inputReq, connectionAuthority);
 		return {
 			kind: 'elicitationSerialized',
-			title: localize('agentHost.elicit.url.title', "Authorization Required"),
+			title: presentation.title,
 			message: presentation.message,
 			subtitle: '',
 			source: undefined,
@@ -377,6 +404,20 @@ export function inputRequestResponsePartToProgress(part: InputRequestResponsePar
 			subtitle: '',
 			source: undefined,
 			state: part.response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
+			isHidden: false,
+		};
+	}
+
+	const computerUseActivation = readComputerUseActivationCard(inputReq);
+	if (computerUseActivation) {
+		const { title, message } = getComputerUseActivationCardText(computerUseActivation.reason);
+		return {
+			kind: 'elicitationSerialized',
+			title,
+			message: new MarkdownString(message),
+			subtitle: '',
+			source: undefined,
+			state: isComputerUseActivationAccepted(part.response, inputReq.answers) ? ElicitationState.Accepted : ElicitationState.Rejected,
 			isHidden: false,
 		};
 	}
@@ -617,6 +658,14 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 	const markdown = typeof value === 'string'
 		? new MarkdownString(stripSystemNotificationWrapper(value))
 		: { ...value, value: stripSystemNotificationWrapper(value.value) };
+	const artifactNotice = readArtifactIntegrationNotice({ _meta });
+	if (artifactNotice) {
+		const icon = artifactNotice.iconId ? ThemeIcon.fromString(`$(${artifactNotice.iconId})`) : undefined;
+		return {
+			kind: 'systemNotification', content: markdown, collapsible: true, renderInlineTiming: true,
+			icon: artifactNotice.kind === 'disabled' ? Codicon.circleSlash : icon ?? Codicon.link,
+		};
+	}
 	switch (meta.kind) {
 		case AgentSystemNotificationKind.FusionProgress: {
 			// The workflow selection only names the HydraFusion model for the response footer; it is not shown.
@@ -660,6 +709,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 					? localize('agentHost.workspaceTransition.worktree', "Workspace changed. This session is now working in {0} using an isolated worktree.", meta.workspaceName)
 					: localize('agentHost.workspaceTransition.folder', "Workspace changed. This session is now working directly in {0}.", meta.workspaceName),
 			};
+		case AgentSystemNotificationKind.ModelRouterSuggestion:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.lightbulb, alwaysVisible: true };
 		case AgentSystemNotificationKind.AutomaticApprovalReviewTimedOut:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.clock, collapsible: true };
 		case AgentSystemNotificationKind.AutomaticApprovalReviewAborted:
@@ -676,6 +727,8 @@ export function systemNotificationToChatPart(content: StringOrMarkdown | undefin
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.circleSlash, renderInlineTiming: true };
 		case AgentSystemNotificationKind.AgentMergePullRequestMerged:
 			return { kind: 'systemNotification', content: markdown, icon: Codicon.gitMerge, renderInlineTiming: true };
+		case AgentSystemNotificationKind.AgentMergeBlocked:
+			return { kind: 'systemNotification', content: markdown, icon: Codicon.warning, renderInlineTiming: true };
 		default:
 			return { kind: 'systemNotification', content: markdown };
 	}
@@ -786,8 +839,11 @@ export interface TurnModelLookup {
 	toResponseDetails(rawModelId: string | undefined, usage: UsageInfo | undefined, responseModelId?: string): string | undefined;
 	/** Whether a raw AHP model id names this provider's fusion routing model. */
 	isFusionModel?(rawModelId: string | undefined): boolean;
-	/** Returns the Auto model routing part carried by this usage report, if any. */
-	toAutoModeResolution?(usage: UsageInfo | undefined): IChatAutoModeResolutionPart | undefined;
+	/**
+	 * Returns the Auto model routing part carried by this usage report, if any. A report with nothing
+	 * new to show returns none, unless `settlesPendingRow` says a row that is still routing is waiting on it.
+	 */
+	toAutoModeResolution?(usage: UsageInfo | undefined, settlesPendingRow?: boolean): IChatAutoModeResolutionPart | undefined;
 	/**
 	 * Returns the identity and display name of the model a turn bills to, reading Auto's pick
 	 * when it routed and folding back to "Auto" while explainability is hidden.
@@ -861,6 +917,32 @@ export function formatTurnResponseDetails(
 		return [displayName, formatCopilotCreditsLabel(credits)].join(' • ');
 	}
 	return [displayName, model.pricing].filter(Boolean).join(' · ');
+}
+
+/**
+ * Whether a model router that picks once per chat has already picked for this chat. A later turn
+ * that selects it keeps that pick without being routed, so there is no routing to report. As on
+ * the host, a model picked by hand or another router selected since then means it routes afresh.
+ */
+export function isModelRouterPickSettled(turns: readonly Turn[], turnId: string, routerName: string | undefined): boolean {
+	if (!routerName) {
+		return false;
+	}
+	for (let i = turns.length - 1; i >= 0; i--) {
+		if (turns[i].id === turnId) {
+			continue;
+		}
+		const routed = readUsageInfoMeta(turns[i].usage).modelRouted;
+		if (routed) {
+			return routed.router === routerName && routed.firstTurnOnly === true;
+		}
+		// A turn since that pick that selected a model by hand, or another router.
+		const requested = turns[i].message.model?.id;
+		if (requested && modelRouterNameFromModelId(requested) !== routerName) {
+			return false;
+		}
+	}
+	return false;
 }
 
 /** Converts an agent-host Auto routing result into the shared chat UI part. */
@@ -1207,10 +1289,11 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const details = turnToResponseDetails(turn, lookup);
 
 		// Request
-		const variableData = messageToVariableData(turn.message, connectionAuthority);
+		const variableData = messageToVariableData(turn.message, connectionAuthority, resourceUris);
 		const origin = messageToRequestOrigin(backendSession, turn.message, participantId, connectionAuthority);
 		const isSystemInitiated = turn.message.origin.kind === MessageKind.SystemNotification;
 		const requestSource = messageToRequestSource(turn.message);
+		const artifactRequest = readArtifactIntegrationRequest(turn.message);
 		// A message runs as a terminal command when it starts with the host's
 		// advertised prefix and has a non-empty command after it (mirroring the
 		// host-side bang parser, where a lone `!` is forwarded to the agent).
@@ -1232,6 +1315,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				systemInitiatedLabel: readMessageSystemInitiatedLabel(turn.message),
 			} : {}),
 			...(requestSource !== undefined ? { requestSource } : {}),
+			...(artifactRequest ? { artifactRequest } : {}),
 			...(isTerminalRequest ? {
 				isTerminalRequest: true,
 			} : {}),
@@ -1275,7 +1359,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 				}
 				case ResponsePartKind.Reasoning:
 					if (rp.content) {
-						parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
+						parts.push(reasoningPartToThinking(rp));
 					}
 					break;
 				case ResponsePartKind.SystemNotification:
@@ -1315,7 +1399,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 		const completedAt = startedAt !== undefined && Number.isFinite(startedAt) && typeof turn.duration === 'number' && Number.isFinite(turn.duration) && turn.duration >= 0
 			? startedAt + turn.duration
 			: undefined;
-		history.push({ type: 'response', parts, participant: participantId, details, elapsedMs: turn.duration, completedAt, ...(errorDetails ? { errorDetails } : {}) });
+		history.push({ type: 'response', parts, participant: participantId, details, elapsedMs: turn.duration, completedAt, ...(turn.state === TurnState.Cancelled ? { isCanceled: true } : {}), ...(errorDetails ? { errorDetails } : {}) });
 	}
 	return history;
 }
@@ -1324,6 +1408,9 @@ export function turnsToHistory(backendSession: URI, turns: readonly Turn[], part
 export function messageToRequestSource(message: Message): ChatRequestSource | undefined {
 	if (message.origin.kind === MessageKind.SystemNotification && isAgentMergeMessage(message)) {
 		return 'agentMerge';
+	}
+	if (readArtifactIntegrationRequest(message)) {
+		return 'artifactIntegration';
 	}
 	return undefined;
 }
@@ -1361,16 +1448,17 @@ export function messageToRequestOrigin(backendSession: URI, message: Message, pa
  * history replay (and pending/server-initiated turn synthesis). Returns
  * `undefined` when the message has no convertible attachments.
  */
-export function messageToVariableData(message: Message, connectionAuthority: string): IChatRequestVariableData | undefined {
-	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text);
+export function messageToVariableData(message: Message, connectionAuthority: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatRequestVariableData | undefined {
+	return messageAttachmentsToVariableData(message.attachments, connectionAuthority, message.text, resourceUris);
 }
 
-export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string): IChatRequestVariableData | undefined {
+export function messageAttachmentsToVariableData(attachments: readonly MessageAttachment[] | undefined, connectionAuthority: string, messageText?: string, resourceUris: IAgentHostResourceUriMapper = createAgentHostResourceUriMapper(connectionAuthority)): IChatRequestVariableData | undefined {
 	if (!attachments?.length) {
 		return undefined;
 	}
 	const variables: IChatRequestVariableEntry[] = [];
-	const aggregatedFeedback = aggregateAgentFeedbackAttachments(attachments, connectionAuthority);
+	const positions = messageText !== undefined ? new PositionOffsetTransformer(messageText) : undefined;
+	const aggregatedFeedback = aggregateAgentFeedbackAttachments(attachments, resourceUris);
 	if (aggregatedFeedback) {
 		variables.push(aggregatedFeedback);
 	}
@@ -1385,7 +1473,7 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 			const imageAttachment = correlationId
 				? attachments.find(candidate => candidate.displayKind === 'image' && getElementAttachmentCorrelationId(candidate) === correlationId)
 				: undefined;
-			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, connectionAuthority) : undefined;
+			const image = imageAttachment ? messageAttachmentToVariableEntry(imageAttachment, resourceUris) : undefined;
 			if (imageAttachment && image?.kind === 'image') {
 				consumedAttachments.add(imageAttachment);
 			}
@@ -1394,9 +1482,10 @@ export function messageAttachmentsToVariableData(attachments: readonly MessageAt
 				: element);
 			continue;
 		}
-		const v = messageAttachmentToVariableEntry(a, connectionAuthority, messageText);
+		const v = messageAttachmentToVariableEntry(a, resourceUris, messageText);
 		if (v) {
-			variables.push(v);
+			const range = a.range && positions?.getOffsetRange(Range.lift(textRangeToIRange(a.range)));
+			variables.push(range ? { ...v, range: { start: range.start, endExclusive: range.endExclusive } } : v);
 		}
 	}
 	return variables.length > 0 ? { variables } : undefined;
@@ -1406,7 +1495,7 @@ function isAgentFeedbackMessageAttachment(attachment: MessageAttachment): boolea
 	return isAgentFeedbackAnnotationsAttachment(attachment) || isAgentFeedbackAttachment(attachment);
 }
 
-function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachment[], connectionAuthority: string): IChatRequestVariableEntry | undefined {
+function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachment[], resourceUris: IAgentHostResourceUriMapper): IChatRequestVariableEntry | undefined {
 	const feedbackAttachments = attachments.filter(isAgentFeedbackMessageAttachment);
 	if (feedbackAttachments.length === 0 || (feedbackAttachments.length === 1 && isAgentFeedbackAttachment(feedbackAttachments[0]))) {
 		return undefined;
@@ -1427,7 +1516,7 @@ function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachme
 			feedbackItems.set(item.id, {
 				id: item.id,
 				text: item.text,
-				resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+				resourceUri: resourceUris.fromAgentHost(URI.parse(item.resourceUri)),
 				range: textRangeToIRange(item.range),
 				...(item.replies?.length ? { replies: item.replies } : {}),
 			});
@@ -1461,7 +1550,7 @@ function aggregateAgentFeedbackAttachments(attachments: readonly MessageAttachme
 	};
 }
 
-function messageAttachmentToVariableEntry(attachment: MessageAttachment, connectionAuthority: string, messageText?: string): IChatRequestVariableEntry | undefined {
+function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourceUris: IAgentHostResourceUriMapper, messageText?: string): IChatRequestVariableEntry | undefined {
 	if (isAgentFeedbackAttachment(attachment)) {
 		const metadata = getAgentFeedbackAttachmentMetadata(attachment);
 		if (metadata) {
@@ -1474,7 +1563,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 				feedbackItems: metadata.feedbackItems.map(item => ({
 					id: item.id,
 					text: item.text,
-					resourceUri: toAgentHostUri(URI.parse(item.resourceUri), connectionAuthority),
+					resourceUri: resourceUris.fromAgentHost(URI.parse(item.resourceUri)),
 					range: textRangeToIRange(item.range),
 				})),
 				_meta: attachment._meta,
@@ -1486,7 +1575,7 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, connect
 		if (isSessionReferenceTrajectoryAttachment(attachment)) {
 			return undefined;
 		}
-		const uri = toAgentHostUri(URI.parse(attachment.uri), connectionAuthority);
+		const uri = resourceUris.fromAgentHost(URI.parse(attachment.uri));
 		const name = attachment.label;
 		const id = uri.toString() + (attachment.selection
 			? `:${attachment.selection.range.start.line}-${attachment.selection.range.end.line}`
@@ -1662,6 +1751,18 @@ function textRangeToIRange(range: TextRange): IRange {
 	};
 }
 
+export function reasoningPartToThinking(part: ReasoningResponsePart, value = part.content): IChatThinkingPart {
+	const startedAt = part.startedAt === undefined ? undefined : Date.parse(part.startedAt);
+	return {
+		kind: 'thinking',
+		id: part.id,
+		value,
+		reasoningTimingSource: 'provider',
+		...(startedAt !== undefined && Number.isFinite(startedAt) ? { reasoningStartedAt: startedAt } : {}),
+		...(typeof part.duration === 'number' && Number.isFinite(part.duration) && part.duration >= 0 ? { reasoningDurationMs: part.duration } : {}),
+	};
+}
+
 /**
  * Converts an active (in-progress) turn's accumulated state into progress
  * items suitable for replaying into the chat UI when reconnecting to a
@@ -1687,7 +1788,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTur
 				break;
 			case ResponsePartKind.Reasoning:
 				if (rp.content) {
-					parts.push({ kind: 'thinking', value: rp.content, id: rp.id });
+					parts.push(reasoningPartToThinking(rp));
 				}
 				break;
 			case ResponsePartKind.ToolCall: {
@@ -1929,6 +2030,7 @@ function buildTerminalToolSpecificData(
 		? { ...existing?.commandLine, original: nextCommand }
 		: existing?.commandLine ?? { original: '' };
 	const nextOutput = getTerminalOutput(tc);
+	const executionTarget = getTerminalExecutionTarget(tc);
 	// Spread `existing` so any field set by a prior pass (notably the
 	// async-populated AHP fields and anything we don't explicitly handle)
 	// is preserved unless we have a fresh value to override it with.
@@ -1942,13 +2044,26 @@ function buildTerminalToolSpecificData(
 		editable: false,
 		intention: tc.intention ?? existing?.intention,
 		language: existing?.language ?? getTerminalLanguage(tc),
-		autoApproveRuleResolvable: readToolCallMeta(tc).autoApproveRuleResolvable ?? existing?.autoApproveRuleResolvable,
 		terminalToolSessionId: terminalContentUri
 			? makeAhpTerminalToolSessionId(terminalContentUri, sessionResource)
 			: existing?.terminalToolSessionId,
 		terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
 		isPty: terminalContent?.isPty ?? existing?.isPty,
 		terminalCommandOutput: nextOutput ?? existing?.terminalCommandOutput,
+		...(executionTarget ? { executionTarget } : {}),
+	};
+}
+
+function getTerminalExecutionTarget(tc: ToolCallState): IChatTerminalToolInvocationData['executionTarget'] {
+	const meta = readToolCallMeta(tc);
+	const workingDirectory = meta['vscode.terminalWorkingDirectory'];
+	const environment = meta['vscode.terminalEnvironment'];
+	if (!workingDirectory && !environment) {
+		return undefined;
+	}
+	return {
+		...(workingDirectory ? { workingDirectory } : {}),
+		...(environment ? { environment } : {}),
 	};
 }
 
@@ -2010,10 +2125,11 @@ function toMcpCallToolResult(tc: ToolCallState, isError: boolean, connectionAuth
 		}
 	}
 	const structuredContent = tc.status === ToolCallStatus.Completed ? tc.structuredContent : undefined;
-	if (content.length === 0 && structuredContent === undefined && !isError) {
+	const resultMeta = tc.status === ToolCallStatus.Completed ? tc.resultMetadata : undefined;
+	if (content.length === 0 && structuredContent === undefined && resultMeta === undefined && !isError) {
 		return undefined;
 	}
-	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), isError: isError || undefined };
+	return { content, ...(structuredContent !== undefined ? { structuredContent } : {}), ...(resultMeta !== undefined ? { _meta: resultMeta } : {}), isError: isError || undefined };
 }
 
 function toMcpContentBlock(block: ToolResultContent, connectionAuthority: string): MCP.ContentBlock | undefined {
@@ -2147,6 +2263,35 @@ function buildAutomationConfiguredToolData(tc: ToolCallState): IChatAutomationCo
 	}
 }
 
+function modelComparisonReference(tc: ToolCallState): IMarkdownString | undefined {
+	if (tc.status !== ToolCallStatus.Completed || !tc.success
+		|| tc.toolName !== 'createModelComparison' && tc.toolName !== 'vscode_createModelComparison') {
+		return undefined;
+	}
+	const output = getToolOutputText(tc);
+	if (!output) {
+		return undefined;
+	}
+	let parsed: { comparisonId?: unknown } | null;
+	try {
+		parsed = JSON.parse(output);
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			return undefined;
+		}
+		throw error;
+	}
+	if (typeof parsed?.comparisonId !== 'string' || !parsed.comparisonId) {
+		return undefined;
+	}
+	return withCommandLink(
+		localize('agentHost.modelComparison.started', "Started model comparison."),
+		OPEN_SESSION_COMPARISON_COMMAND_ID,
+		[parsed.comparisonId],
+		localize('agentHost.modelComparison.open', "Open Comparison"),
+	);
+}
+
 /**
  * Derives a title for the "Open Session" button from a session tool's arguments —
  * the `prompt` (create_session/create_chat) or `message` (send_message) it was
@@ -2266,6 +2411,7 @@ export function completedToolCallToSerialized(tc: ICompletedToolCall, subAgentIn
 	let pastTenseMsg = imageTerminalMessage ?? (isSuccess
 		? stringOrMarkdownToString(presentation.pastTenseMessage, connectionAuthority) ?? invocationMsg
 		: invocationMsg);
+	pastTenseMsg = modelComparisonReference(tc) ?? pastTenseMsg;
 	// Tools that render a bespoke, client-authored message override both the
 	// invocation and past-tense text here. Add new per-tool cases alongside.
 	if (isAddCommentTool(tc.toolName)) {
@@ -2343,8 +2489,10 @@ function fileEditToExternalEdit(edit: FileEdit, undoStopId: string, connectionAu
 		: undefined;
 	return {
 		kind: 'externalEdit',
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): external edit identities need the owning connection mapper threaded into this helper
 		uri: toAgentHostUri(normalized.resource, connectionAuthority),
 		editKind: normalized.kind as ChatExternalEditKind,
+		// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): renamed file identities need the owning connection mapper threaded into this helper
 		originalUri: normalized.kind === FileEditKind.Rename && normalized.beforeUri ? toAgentHostUri(normalized.beforeUri, connectionAuthority) : undefined,
 		beforeContentUri: normalized.beforeContentUri ? toAgentHostContentUri(normalized.beforeContentUri, connectionAuthority, normalized.beforeUri) : undefined,
 		afterContentUri: normalized.afterContentUri ? toAgentHostContentUri(normalized.afterContentUri, connectionAuthority, normalized.afterUri) : undefined,
@@ -2430,6 +2578,7 @@ function rewriteLinkTokenRaw(token: Tokens.Link | Tokens.Image, connectionAuthor
 	if (!scheme || EXTERNAL_LINK_SCHEMES.has(scheme)) {
 		return undefined;
 	}
+	// eslint-disable-next-line local/code-agent-host-uri-mapping -- TODO(agent-host-uri): markdown file links use authority-only wrapping instead of the owning connection mapper
 	let agentHostUri = toAgentHostUri(parsed, connectionAuthority);
 	const isSkill = isSkillFileUri(parsed);
 	// VS-Code-specific: links pointing at a `SKILL.md` file are rendered as a
@@ -2582,6 +2731,7 @@ export function rewriteAgentHostLinkTarget(href: string, connectionAuthority: st
 	try {
 		agentHostUri = resourceUris.fromAgentHost(parsed);
 		if (parsed.scheme !== Schemas.file && isEqual(agentHostUri, parsed)) {
+			// eslint-disable-next-line local/code-agent-host-uri-mapping -- wraps non-file host filesystem/content links left unchanged by the connection mapper
 			agentHostUri = toAgentHostUri(parsed, connectionAuthority);
 		}
 	} catch {
@@ -2858,6 +3008,8 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			safety: riskAssessment.safety,
 		};
 	}
+	const meta = readToolCallMeta(tc);
+	const assistedApprovalNotice = meta['vscode.assistedApprovalNotice'];
 	return {
 		title: isViewUnreviewedCommentsTool(tc.toolName)
 			? localize('agentFeedback.reviewTitle', "Reveal unreviewed comments?")
@@ -2866,7 +3018,15 @@ export function toolCallConfirmationMessages(tc: ToolCallPendingConfirmationStat
 			? localize('agentFeedback.reviewMessage', "Choose which comments to reveal to the agent. Unchecked comments stay hidden.")
 			: stringOrMarkdownToString(presentation.invocationMessage, connectionAuthority),
 		approvalReason,
+		...(assistedApprovalNotice ? { disclaimer: assistedApprovalNotice } : {}),
 		...(tc.options ? { customOptions: tc.options } : {}),
+		...(meta['vscode.assistedApprovalFeedbackAccepted'] ? {
+			feedback: {
+				label: localize('agentHost.assistedApprovalFeedback.label', "Help improve Assisted permissions (optional)"),
+				placeholder: localize('agentHost.assistedApprovalFeedback.placeholder', "What should the approval system have understood?"),
+				description: localize('agentHost.assistedApprovalFeedback.description', "Feedback is sent with your decision. It won't change the decision or teach Copilot a rule."),
+			},
+		} : {}),
 	};
 }
 
@@ -3014,6 +3174,7 @@ export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: 
 			kind: 'subagent',
 			hasStarted: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.hasStarted : false,
 			isActive: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isActive : undefined,
+			isError: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isError : undefined,
 			isChatAvailable: existing.toolSpecificData?.kind === 'subagent' ? existing.toolSpecificData.isChatAvailable : false,
 			description: getSubagentTaskDescription(tc),
 			agentDisplayName: subagentContent.title,
@@ -3151,6 +3312,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				kind: 'subagent',
 				hasStarted: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.hasStarted : false,
 				isActive: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isActive : undefined,
+				isError: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isError : undefined,
 				isChatAvailable: invocation.toolSpecificData?.kind === 'subagent' ? invocation.toolSpecificData.isChatAvailable : false,
 				description: getSubagentTaskDescription(tc),
 				agentDisplayName: subagentContent.title,
@@ -3172,6 +3334,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 				kind: 'subagent',
 				hasStarted: invocation.toolSpecificData.hasStarted,
 				isActive: invocation.toolSpecificData.isActive,
+				isError: invocation.toolSpecificData.isError,
 				isChatAvailable: invocation.toolSpecificData.isChatAvailable,
 				description: getSubagentTaskDescription(tc) ?? invocation.toolSpecificData.description,
 				...(invocation.toolSpecificData.agentDisplayName ? { agentDisplayName: invocation.toolSpecificData.agentDisplayName } : {}),
@@ -3198,7 +3361,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolC
 		};
 	}
 	if (isCompleted && !isTerminal) {
-		invocation.pastTenseMessage = stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
+		invocation.pastTenseMessage = modelComparisonReference(tc) ?? stringOrMarkdownToString(readToolCallPresentation(tc).pastTenseMessage, connectionAuthority);
 	}
 	const imageTerminalMessage = getImageGenerationTerminalMessage(tc);
 	if (imageTerminalMessage) {

@@ -25,7 +25,13 @@ export function isContributionDisabled(state: ContributionEnablementState): bool
 
 export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
+	/**
+	 * Reads the global (non-workspace) enablement for `key`. Despite the name,
+	 * this state is shared by every profile and window; see {@link EnablementModel}.
+	 */
 	readProfileEnabled(key: string, reader?: IReader): boolean;
+	/** Whether a transition is permitted before starting an external mutation. */
+	canSetEnabled?(key: string, state: ContributionEnablementState): boolean;
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void;
 	setDefaultEnabled?(key: string, enabled: boolean, tx?: ITransaction): void;
 	remove(key: string): void;
@@ -44,15 +50,19 @@ function mapFromStorage(value: string): EnablementMap {
 
 /**
  * A reusable enablement model for string-keyed contributions. Uses
- * `observableMemento` to persist enable/disable state in both profile-scoped
- * and workspace-scoped storage.
+ * `observableMemento` to persist enable/disable state in both
+ * application-scoped and workspace-scoped storage.
+ *
+ * The global ("Profile") state is stored in {@link StorageScope.APPLICATION}
+ * so every window and profile, including the Agents Window, shares the same
+ * switches. The `*Profile` names are kept for compatibility.
  *
  * Resolution order: if a workspace-scoped entry exists for a key, it wins.
- * Otherwise, the profile-scoped entry is used. The default (absence of any
+ * Otherwise, the global entry is used. The default (absence of any
  * entry) is {@link ContributionEnablementState.EnabledProfile}.
  */
 export class EnablementModel extends Disposable implements IEnablementModel {
-	private readonly _profileState: ObservableMemento<EnablementMap>;
+	private readonly _globalState: ObservableMemento<EnablementMap>;
 	private readonly _workspaceState: ObservableMemento<EnablementMap>;
 	private readonly _defaultState = observableValue<EnablementMap>(this, new Map());
 
@@ -69,8 +79,8 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 			fromStorage: mapFromStorage,
 		});
 
-		this._profileState = this._register(
-			mapMemento(StorageScope.PROFILE, StorageTarget.MACHINE, storageService)
+		this._globalState = this._register(
+			mapMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, storageService)
 		);
 
 		this._workspaceState = this._register(
@@ -83,7 +93,7 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 	}
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
-		return this._profileState.read(reader).get(key) ?? this._defaultState.read(reader).get(key) ?? true;
+		return this._globalState.read(reader).get(key) ?? this._defaultState.read(reader).get(key) ?? true;
 	}
 
 	readEnabledWithWorkspaceKey(profileKey: string, workspaceKey: string | undefined, reader?: IReader): ContributionEnablementState {
@@ -94,7 +104,7 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 				: ContributionEnablementState.DisabledWorkspace;
 		}
 
-		const profileMap = this._profileState.read(reader);
+		const profileMap = this._globalState.read(reader);
 		if (profileMap.has(profileKey)) {
 			return profileMap.get(profileKey)!
 				? ContributionEnablementState.EnabledProfile
@@ -114,14 +124,14 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 		const defaultEnabled = this._defaultState.get().get(profileKey) ?? true;
 		switch (state) {
 			case ContributionEnablementState.EnabledProfile: {
-				this._setOrDeleteFromMap(this._profileState, profileKey, true, defaultEnabled, tx);
+				this._setOrDeleteFromMap(this._globalState, profileKey, true, defaultEnabled, tx);
 				if (workspaceKey !== undefined) {
 					this._deleteFromMap(this._workspaceState, workspaceKey, tx);
 				}
 				break;
 			}
 			case ContributionEnablementState.DisabledProfile: {
-				this._setOrDeleteFromMap(this._profileState, profileKey, false, defaultEnabled, tx);
+				this._setOrDeleteFromMap(this._globalState, profileKey, false, defaultEnabled, tx);
 				if (workspaceKey !== undefined) {
 					this._deleteFromMap(this._workspaceState, workspaceKey, tx);
 				}
@@ -152,7 +162,7 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 	}
 
 	remove(key: string): void {
-		this._deleteFromMap(this._profileState, key);
+		this._deleteFromMap(this._globalState, key);
 		this._deleteFromMap(this._workspaceState, key);
 		this._deleteFromMap(this._defaultState, key);
 	}
@@ -218,6 +228,10 @@ export class CollisionEnablementModel implements IEnablementModel {
 
 	readProfileEnabled(key: string, reader?: IReader): boolean {
 		return this._base.readProfileEnabled(key, reader);
+	}
+
+	canSetEnabled(key: string, state: ContributionEnablementState): boolean {
+		return this._base.canSetEnabled?.(key, state) ?? true;
 	}
 
 	setEnabled(key: string, state: ContributionEnablementState, tx?: ITransaction): void {

@@ -55,6 +55,22 @@ suite('GitHub client schema', () => {
 		}
 	});
 
+	test('uses optional defaults only for undefined', () => {
+		const boolean: parse.Parser<boolean> = parse.optional(parse.boolean, true);
+		const text = parse.optional(parse.string, 'default');
+		const nullable = parse.optional(parse.nullable(parse.string), 'default');
+		assert.deepStrictEqual({
+			missing: [boolean(undefined), text(undefined), nullable(undefined)],
+			present: [boolean(false), boolean(true), text(''), nullable(null)],
+		}, {
+			missing: [true, 'default', 'default'],
+			present: [false, true, '', null],
+		});
+		for (const value of [null, 0, 'false']) {
+			assert.throws(() => boolean(value), SchemaError);
+		}
+	});
+
 	test('distinguishes missing optional fields from explicit null', () => {
 		const parser = parse.object({
 			required: parse.string,
@@ -68,7 +84,7 @@ suite('GitHub client schema', () => {
 			parser({ required: 'value', optional: '', nullable: '', both: null }),
 		], [
 			{ required: 'value', nullable: null },
-			{ required: 'value', nullable: null },
+			{ required: 'value', optional: undefined, nullable: null, both: undefined },
 			{ required: 'value', optional: '', nullable: '', both: null },
 		]);
 		for (const value of [{ nullable: null }, { required: 'value' }, { required: 'value', nullable: null, optional: null }]) {
@@ -76,7 +92,7 @@ suite('GitHub client schema', () => {
 		}
 	});
 
-	test('composes collections and omits unknown fields without mutating the input', () => {
+	test('reuses unchanged collections and preserves extra fields without mutating the input', () => {
 		const parser = parse.object({
 			items: parse.arrayOf(parse.object({
 				name: parse.nonEmptyString,
@@ -86,10 +102,164 @@ suite('GitHub client schema', () => {
 		});
 		const input = { items: [{ name: 'one', labels: ['a', 'b'], counts: { open: 1, closed: 0 }, ignored: 'extra' }], ignored: true };
 		const original = structuredClone(input);
-		assert.deepStrictEqual({ result: parser(input), input }, {
-			result: { items: [{ name: 'one', labels: ['a', 'b'], counts: { open: 1, closed: 0 } }] },
+		const result = parser(input);
+		assert.deepStrictEqual({
+			result, input,
+			shared: [
+				result === input,
+				result.items === input.items,
+				result.items[0] === input.items[0],
+				result.items[0].labels === input.items[0].labels,
+				result.items[0].counts === input.items[0].counts,
+			],
+		}, {
+			result: original,
 			input: original,
+			shared: [true, true, true, true, true],
 		});
+	});
+
+	test('copyObject creates fresh objects and omits unknown and undefined fields', () => {
+		const parser = parse.copyObject({
+			name: value => parse.string(value).trim(),
+			optional: parse.optional(parse.string),
+			nullable: parse.nullable(parse.string),
+		});
+		const input = Object.freeze({ name: ' value ', optional: undefined, nullable: null, extra: true });
+		const result = parser(input);
+		const copied = parser(result);
+		assert.deepStrictEqual({
+			result,
+			copied,
+			fresh: [result !== input, copied !== result],
+			input,
+		}, {
+			result: { name: 'value', nullable: null },
+			copied: { name: 'value', nullable: null },
+			fresh: [true, true],
+			input: { name: ' value ', optional: undefined, nullable: null, extra: true },
+		});
+	});
+
+	test('copyObject uses nested parsers to choose filtering or reuse', () => {
+		const input = {
+			filtered: { value: 1, extra: true },
+			retained: { value: 2, extra: true },
+			extra: true,
+		};
+		const result = parse.copyObject({
+			filtered: parse.copyObject({ value: parse.integer }),
+			retained: parse.object({ value: parse.integer }),
+		})(input);
+		assert.deepStrictEqual({
+			result,
+			filteredCopied: result.filtered !== input.filtered,
+			retainedShared: result.retained === input.retained,
+			inputUnchanged: input.filtered.extra,
+		}, {
+			result: { filtered: { value: 1 }, retained: { value: 2, extra: true } },
+			filteredCopied: true,
+			retainedShared: true,
+			inputUnchanged: true,
+		});
+	});
+
+	test('copyObject validates own fields and preserves nested error locations', () => {
+		const parser = parse.copyObject({ name: parse.string });
+		for (const value of [null, [], 'value', {}, Object.create({ name: 'inherited' })]) {
+			assert.throws(() => parser(value), SchemaError);
+		}
+		const nested = parse.copyObject({ items: parse.arrayOf(parse.copyObject({ count: parse.integer })) });
+		assert.throws(() => nested({ items: [{ count: 'private-value' }] }),
+			/^SchemaError: Invalid value at key "items": Invalid value at index 0: Invalid value at key "count": Expected a safe integer$/);
+		const withProto = parse.copyObject({
+			['__proto__']: parse.integer,
+			constructor: parse.optional(parse.string),
+			toString: parse.optional(parse.string),
+		})(JSON.parse('{"__proto__":1,"extra":true}'));
+		assert.deepStrictEqual({
+			keys: Object.keys(withProto),
+			prototype: Object.getPrototypeOf(withProto) === Object.prototype,
+			value: Object.getOwnPropertyDescriptor(withProto, '__proto__')?.value,
+		}, { keys: ['__proto__'], prototype: true, value: 1 });
+	});
+
+	test('copies only transformed collections and preserves untouched children', () => {
+		const unchanged = Object.freeze({ label: 'Ready', extra: true });
+		const changed = Object.freeze({ label: ' Updated ', extra: true });
+		const input = Object.freeze({
+			items: Object.freeze([unchanged, changed]),
+			counts: Object.freeze({ value: -0 }),
+			extra: 'preserved',
+		});
+		const parser = parse.object({
+			items: parse.arrayOf(parse.object({ label: value => parse.string(value).trim() })),
+			counts: parse.dictionary(parse.exact(0)),
+		});
+		const result = parser(input);
+		assert.deepStrictEqual({
+			result,
+			copied: [!Object.is(result, input), !Object.is(result.items, input.items), !Object.is(result.items[1], changed), !Object.is(result.counts, input.counts)],
+			sharedChild: result.items[0] === unchanged,
+			inputLabel: changed.label,
+			inputNegativeZero: Object.is(input.counts.value, -0),
+		}, {
+			result: { items: [unchanged, { label: 'Updated', extra: true }], counts: { value: 0 }, extra: 'preserved' },
+			copied: [true, true, true, true],
+			sharedChild: true,
+			inputLabel: ' Updated ',
+			inputNegativeZero: true,
+		});
+	});
+
+	test('preserves own non-enumerable fields when a transformation requires a copy', () => {
+		const input = Object.defineProperty({ count: 1, extra: true }, 'name', { value: 'one' });
+		const result = parse.object({ name: parse.string, count: value => parse.integer(value) + 1 })(input);
+		assert.deepStrictEqual({
+			result,
+			inputCount: input.count,
+			name: Object.getOwnPropertyDescriptor(result, 'name')?.value,
+		}, {
+			result: { count: 2, extra: true, name: 'one' },
+			inputCount: 1,
+			name: 'one',
+		});
+	});
+
+	test('applies defaults and undefined transformations without modifying input', () => {
+		const input = Object.freeze({ clear: 1, optional: undefined, extra: true });
+		const result = parse.object({
+			clear: () => undefined,
+			optional: parse.optional(parse.string),
+			added: parse.optional(parse.string, 'default'),
+		})(input);
+		assert.deepStrictEqual({ result, input }, {
+			result: { clear: undefined, optional: undefined, extra: true, added: 'default' },
+			input: { clear: 1, optional: undefined, extra: true },
+		});
+	});
+
+	test('does not mutate collections when a later value fails validation', () => {
+		const input = Object.freeze({ first: ' trim ', second: 1 });
+		const parser = parse.dictionary(value => parse.string(value).trim());
+		assert.throws(() => parser(input), SchemaError);
+		assert.deepStrictEqual(input, { first: ' trim ', second: 1 });
+	});
+
+	test('validates retained non-enumerable dictionary values', () => {
+		const valid = Object.defineProperty({ count: 1 }, 'hidden', { value: 2 });
+		const invalid = Object.defineProperty({ count: 1 }, 'hidden', { value: 'invalid' });
+		const parser = parse.dictionary(parse.integer);
+		assert.strictEqual(parser(valid), valid);
+		assert.throws(() => parser(invalid), SchemaError);
+	});
+
+	test('validates sparse array holes as undefined', () => {
+		const input = new Array<number>(2);
+		input[1] = 1;
+		assert.throws(() => parse.arrayOf(parse.integer)(input),
+			/^SchemaError: Invalid value at index 0: Expected a safe integer$/);
+		assert.strictEqual(parse.arrayOf(parse.optional(parse.integer))(input), input);
 	});
 
 	test('rejects malformed collections and reports nested locations without payload values', () => {
@@ -161,6 +331,44 @@ suite('GitHub client schema', () => {
 			dictionaryKeys: ['__proto__', 'other'],
 			dictionaryPrototype: true,
 			dictionaryValue: 1,
+		});
+	});
+
+	test('transforms __proto__ data fields without changing prototypes or inputs', () => {
+		const input = JSON.parse('{"__proto__":1,"other":2}');
+		const increment = (value: unknown) => parse.integer(value) + 1;
+		const dictionary = parse.dictionary(increment)(input);
+		const object = parse.object({ ['__proto__']: increment })(input);
+		assert.deepStrictEqual({
+			values: [dictionary.__proto__, object.__proto__, input.__proto__],
+			ordinaryPrototypes: [dictionary, object, input].map(value => Object.getPrototypeOf(value) === Object.prototype),
+			dictionaryKeys: Object.keys(dictionary),
+			objectKeys: Object.keys(object),
+		}, {
+			values: [2, 2, 1],
+			ordinaryPrototypes: [true, true, true],
+			dictionaryKeys: ['__proto__', 'other'],
+			objectKeys: ['__proto__', 'other'],
+		});
+	});
+
+	test('copying an object-valued __proto__ field preserves it as data and retains symbols', () => {
+		const marker = Symbol('marker');
+		const prototypeValue = Object.freeze({ inherited: true });
+		const input = Object.freeze({ ['__proto__']: prototypeValue, count: 1, [marker]: 'retained' });
+		const result = parse.object({ count: value => parse.integer(value) + 1 })(input);
+		assert.deepStrictEqual({
+			count: result.count,
+			inputCount: input.count,
+			plainPrototype: Object.getPrototypeOf(result) === Object.prototype,
+			prototypeField: Object.getOwnPropertyDescriptor(result, '__proto__')?.value === prototypeValue,
+			symbolValue: Object.getOwnPropertyDescriptor(result, marker)?.value,
+		}, {
+			count: 2,
+			inputCount: 1,
+			plainPrototype: true,
+			prototypeField: true,
+			symbolValue: 'retained',
 		});
 	});
 });

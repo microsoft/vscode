@@ -333,11 +333,17 @@
 	pointer-events: none;
 }
 
-.customization-discovery-card-heading,
+.customization-discovery-card-heading {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	min-width: 0;
+}
+
 .customization-discovery-result-heading {
 	display: flex;
-	align-items: baseline;
-	gap: var(--vscode-spacing-size80);
+	align-items: center;
+	gap: 0;
 	min-width: 0;
 }
 
@@ -354,6 +360,19 @@
 	white-space: nowrap;
 }
 
+.customization-discovery-result-detail {
+	margin-left: var(--vscode-spacing-size80);
+}
+
+.customization-discovery-verified {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	margin-left: var(--vscode-spacing-size40);
+	color: var(--vscode-extensionIcon-verifiedForeground);
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 .customization-discovery-card-description {
 	display: -webkit-box;
 	margin-top: var(--vscode-spacing-size40);
@@ -364,9 +383,16 @@
 	-webkit-line-clamp: 1;
 }
 
+.customization-discovery-card-metadata {
+	flex: 1;
+}
+
+.customization-discovery-result-detail {
+	flex: 0 1 auto;
+}
+
 .customization-discovery-card-metadata,
 .customization-discovery-result-detail {
-	flex: 1;
 	min-width: 0;
 	color: var(--vscode-descriptionForeground);
 	font-size: var(--vscode-fontSize-label2);

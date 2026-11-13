@@ -20,12 +20,16 @@ jobs:
   variables:
     VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
   templateContext:
+    sdl:
+      antimalwareScan:
+        scanTimeoutInMinutes: '10'
     outputs:
       - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
         - output: pipelineArtifact
           targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_alpine_$(VSCODE_ARCH)_cli.tar.gz
           artifactName: vscode_cli_alpine_$(VSCODE_ARCH)_cli
           displayName: Publish vscode_cli_alpine_$(VSCODE_ARCH)_cli artifact
+          condition: and(succeeded(), ne(variables['CLI_PUBLISHED'], 'true'))
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) CLI"
           sbomPackageVersion: $(Build.SourceVersion)
@@ -34,14 +38,14 @@ jobs:
           targetPath: $(Build.ArtifactStagingDirectory)/unsigned_copilot_shim_alpine_$(VSCODE_ARCH).tar.gz
           artifactName: unsigned_copilot_shim_alpine_$(VSCODE_ARCH)
           displayName: Publish unsigned Copilot shim
+          condition: and(succeeded(), ne(variables['COPILOT_SHIM_PUBLISHED'], 'true'))
           sbomEnabled: false
   steps:
     - template: ../common/checkout.yml@self
 
-    - task: NodeTool@0
-      inputs:
-        versionSource: fromFile
-        versionFilePath: .nvmrc
+    - template: ../common/setup-node.yml@self
+      parameters:
+        os: linux
 
     - task: AzureKeyVault@2
       displayName: "Azure Key Vault: Get GitHub token"
@@ -72,9 +76,11 @@ jobs:
       condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
       displayName: Setup NPM Authentication
 
+    - template: ../common/install-pnpm.yml@self
+
     - script: |
         set -e
-        npm ci
+        pnpm install --frozen-lockfile
       workingDirectory: build
       env:
         GITHUB_TOKEN: "$(github-token-code-oss)"
@@ -98,10 +104,10 @@ jobs:
     # inspired by: https://github.com/emk/rust-musl-builder/blob/main/Dockerfile
     - bash: |
         set -e
-        sudo apt-get update
-        sudo apt-get install -yq build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
+        ./build/azure-pipelines/linux/apt-install-with-retry.sh build-essential musl-dev musl-tools linux-libc-dev pkgconf xutils-dev lld
         sudo ln -s "/usr/bin/g++" "/usr/bin/musl-g++" || echo "link exists"
       displayName: Install musl build dependencies
+      timeoutInMinutes: 25
 
     - template: ../cli/install-rust-posix.yml@self
       parameters:
@@ -158,3 +164,16 @@ jobs:
             GITHUB_TOKEN: "$(github-token-code-oss)"
             SYSROOT_ARCH: arm64
             IS_MUSL: "1"
+
+    - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+      # Pipeline artifacts can't be overwritten, so a retry of this job must skip
+      # the artifacts that an earlier attempt already published, for example
+      # before an injected SDL step hung (see ../common/checkForArtifact.ts)
+      - script: >-
+          node build/azure-pipelines/common/checkForArtifact.ts
+          CLI_PUBLISHED vscode_cli_alpine_$(VSCODE_ARCH)_cli
+          COPILOT_SHIM_PUBLISHED unsigned_copilot_shim_alpine_$(VSCODE_ARCH)
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        continueOnError: true
+        displayName: Check for artifacts published by an earlier attempt

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { marked } from '../../../../../base/common/marked/marked.js';
 import { basename } from '../../../../../base/common/resources.js';
@@ -31,8 +32,9 @@ export const MarkHelpfulActionId = 'workbench.action.chat.markHelpful';
 export const MarkUnhelpfulActionId = 'workbench.action.chat.markUnhelpful';
 const enableFeedbackConfig = 'config.telemetry.feedback.enabled';
 
-export function registerChatTitleActions() {
-	registerAction2(class MarkHelpfulAction extends Action2 {
+export function registerChatTitleActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.markHelpful',
@@ -75,9 +77,9 @@ export function registerChatTitleActions() {
 			});
 			item.setVote(ChatAgentVoteDirection.Up);
 		}
-	});
+	}));
 
-	registerAction2(class MarkUnhelpfulAction extends Action2 {
+	store.add(registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
 				id: MarkUnhelpfulActionId,
@@ -121,9 +123,9 @@ export function registerChatTitleActions() {
 				}
 			});
 		}
-	});
+	}));
 
-	registerAction2(class ReportIssueForBugAction extends Action2 {
+	store.add(registerAction2(class ReportIssueForBugAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.reportIssueForBug',
@@ -163,9 +165,9 @@ export function registerChatTitleActions() {
 				}
 			});
 		}
-	});
+	}));
 
-	registerAction2(class RetryChatAction extends Action2 {
+	store.add(registerAction2(class RetryChatAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.retry',
@@ -260,9 +262,9 @@ export function registerChatTitleActions() {
 				...widget?.getModeRequestOptions(),
 			});
 		}
-	});
+	}));
 
-	registerAction2(class InsertToNotebookAction extends Action2 {
+	store.add(registerAction2(class InsertToNotebookAction extends Action2 {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.insertIntoNotebook',
@@ -332,7 +334,9 @@ export function registerChatTitleActions() {
 				);
 			}
 		}
-	});
+	}));
+
+	return store;
 }
 
 interface MarkdownContent {

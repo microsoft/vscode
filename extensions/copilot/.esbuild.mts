@@ -13,6 +13,9 @@ const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
+// Skips the test and simulation bundles. The product build packages the built-in extension in this folder,
+// where a test bundle would also make the integration tests run the extension tests.
+const shippedBundlesOnly = process.argv.includes('--shipped-bundles-only');
 const sourceMapOutDir = './dist-sourcemaps';
 
 const baseBuildOptions = {
@@ -32,7 +35,6 @@ const baseNodeBuildOptions = {
 	external: [
 		'./package.json',
 		'./.vscode-test.mjs',
-		'playwright',
 		'keytar',
 		'@azure/functions-core',
 		'applicationinsights-native-metrics',
@@ -47,9 +49,13 @@ const baseNodeBuildOptions = {
 	platform: 'node',
 	mainFields: ['module', 'main'], // needed for jsonc-parser,
 	define: {
+		// applicationinsights reads this once while its module loads. Bundled ES imports are hoisted above
+		// runtime environment assignments, so its options must be defined at build time.
 		'process.env.APPLICATIONINSIGHTS_CONFIGURATION_CONTENT': JSON.stringify(JSON.stringify({
 			proxyHttpUrl: '',
-			proxyHttpsUrl: ''
+			proxyHttpsUrl: '',
+			// Statsbeat probes the Azure instance metadata service and reports SDK metrics even when telemetry is disabled.
+			disableStatsbeat: true
 		}))
 	},
 } satisfies esbuild.BuildOptions;
@@ -141,15 +147,10 @@ const shimVsCodeTypesPlugin: esbuild.Plugin = {
 			return {
 				contents: `
 					let vscode;
-					// See test/simulationExtension/extension.js for where and why this is created.
-					if (typeof COPILOT_SIMULATION_VSCODE !== 'undefined') {
-						vscode = COPILOT_SIMULATION_VSCODE;
-					} else {
-						try {
-							vscode = eval('require(' + JSON.stringify('vscode') + ')');
-						} catch (e) {
-							vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
-						}
+					try {
+						vscode = eval('require(' + JSON.stringify('vscode') + ')');
+					} catch (e) {
+						vscode = require('./src/util/common/test/shims/vscodeTypesShim.ts');
 					}
 					module.exports = vscode;
 				`,
@@ -168,14 +169,22 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
 		{ in: './src/extension/chatSessions/copilotcli/node/copilotCLITodoWorker.ts', out: 'copilotCLITodoWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
-		{ in: './src/test-extension.ts', out: 'test-extension' },
-		{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
+		...(shippedBundlesOnly ? [] : [
+			{ in: './src/test-extension.ts', out: 'test-extension' },
+			{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
+		]),
 	],
 	loader: { '.ps1': 'text' },
 	plugins: [testBundlePlugin, sanityTestBundlePlugin],
 	external: [
 		...baseNodeBuildOptions.external,
-		'vscode'
+		'vscode',
+		// `debug` tries to load `supports-color`, and `ws` `bufferutil` and `utf-8-validate`: optional
+		// peers that aren't installed. Don't bundle whichever version happens to be reachable. Without
+		// them, `debug` uses its basic colors and `ws` its JavaScript implementations.
+		'supports-color',
+		'bufferutil',
+		'utf-8-validate'
 	]
 } satisfies esbuild.BuildOptions;
 
@@ -375,8 +384,7 @@ async function main() {
 				`**/baseline.old.json`,
 				`**/*.w.json`,
 				'**/*.sqlite',
-				'**/*.sqlite-journal',
-				'test/aml/out/**'
+				'**/*.sqlite-journal'
 			]
 		});
 		rebuild();
@@ -384,9 +392,11 @@ async function main() {
 		await Promise.all([
 			esbuild.build(nodeExtHostBuildOptions),
 			esbuild.build(webExtHostBuildOptions),
-			esbuild.build(nodeSimulationBuildOptions),
-			esbuild.build(nodeSimulationWorkbenchUIBuildOptions),
-			esbuild.build(nodeExtHostSimulationTestOptions),
+			...(shippedBundlesOnly ? [] : [
+				esbuild.build(nodeSimulationBuildOptions),
+				esbuild.build(nodeSimulationWorkbenchUIBuildOptions),
+				esbuild.build(nodeExtHostSimulationTestOptions),
+			]),
 			esbuild.build(typeScriptServerPluginBuildOptions),
 			esbuild.build(webviewBuildOptions),
 		]);
@@ -452,11 +462,26 @@ function applyPackageJsonPatch() {
 }
 
 function getDateBasedPatch(counter: number): string {
+	return `${getPublishDate()}${String(counter).padStart(2, '0')}`;
+}
+
+/**
+ * Returns the date of the pre-release version, as `yyyyMMdd`. In the build pipeline, every Compile job
+ * builds the extension, so they all take the date from `VSCODE_PUBLISH_COUNTER_PREFIX`, which starts with
+ * the date the pipeline run started: the jobs of a run that spans midnight stamp the same version.
+ * `VSCODE_PUBLISH_COUNTER`, which restarts with each prefix, keeps the versions of a day's runs unique.
+ */
+function getPublishDate(): string {
+	const pipelineDate = /^(?<date>\d{8})-/.exec(process.env['VSCODE_PUBLISH_COUNTER_PREFIX'] ?? '')?.groups?.date;
+	if (pipelineDate) {
+		return pipelineDate;
+	}
+
 	const now = new Date();
 	const year = now.getFullYear();
 	const month = String(now.getMonth() + 1).padStart(2, '0');
 	const day = String(now.getDate()).padStart(2, '0');
-	return `${year}${month}${day}${String(counter).padStart(2, '0')}`;
+	return `${year}${month}${day}`;
 }
 
 main();

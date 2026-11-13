@@ -10,25 +10,20 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getExtensionForMimeType, getMediaMime, Mimes } from '../../../../base/common/mime.js';
+import { extname } from '../../../../base/common/path.js';
 import { localize } from '../../../../nls.js';
+import { IIssueReporterScreenshot } from '../common/issue.js';
 
 export const MAX_ISSUE_ATTACHMENTS = 5;
 export const MAX_ISSUE_IMAGE_BYTES = 10 * 1024 * 1024;
 export const MAX_ISSUE_VIDEO_BYTES = 100 * 1024 * 1024;
+export const MAX_ISSUE_FILE_BYTES = 25 * 1024 * 1024;
 
 export interface IIssueReporterMediaFormat {
-	readonly kind: 'image' | 'video';
+	readonly kind: 'image' | 'video' | 'file';
 	readonly mimeType: string;
 	readonly extension: string;
 	readonly maxBytes: number;
-}
-
-export interface IIssueReporterVideo {
-	readonly filePath: string;
-	readonly durationMs?: number;
-	readonly thumbnailDataUrl?: string;
-	readonly width?: number;
-	readonly height?: number;
 }
 
 export interface IIssueReporterVideoMetadata {
@@ -38,45 +33,33 @@ export interface IIssueReporterVideoMetadata {
 	readonly thumbnailDataUrl: string;
 }
 
-export type ImportedIssueMedia =
-	| { readonly kind: 'image'; readonly image: { readonly dataUrl: string; readonly width: number; readonly height: number } }
-	| { readonly kind: 'video'; readonly video: IIssueReporterVideo };
+export function getIssueReporterMediaFormat(name: string, type = ''): IIssueReporterMediaFormat {
+	const inferredType = getMediaMime(name);
+	const declaredType = type.split(';', 1)[0].trim().toLowerCase();
+	const mimeType = declaredType && declaredType !== Mimes.binary ? type : (inferredType === 'image/jpg' ? 'image/jpeg' : inferredType) || Mimes.binary;
+	const mediaType = mimeType.split(';', 1)[0].trim().toLowerCase();
+	const kind = mediaType.startsWith('image/') ? 'image' : mediaType.startsWith('video/') ? 'video' : 'file';
+	const originalExtension = extname(name).slice(1).toLowerCase();
+	const inferredExtension = mediaType === 'image/jpeg' || mediaType === 'image/jpg' ? 'jpg' : getExtensionForMimeType(mediaType)?.slice(1);
+	return {
+		kind,
+		mimeType,
+		extension: /^[a-z0-9][a-z0-9_+-]*$/.test(originalExtension) ? originalExtension : inferredExtension || 'bin',
+		maxBytes: kind === 'image' ? MAX_ISSUE_IMAGE_BYTES : kind === 'video' ? MAX_ISSUE_VIDEO_BYTES : MAX_ISSUE_FILE_BYTES,
+	};
+}
 
-export function getIssueReporterMediaFormat(name: string, type = ''): IIssueReporterMediaFormat | undefined {
-	let mimeType = type.split(';', 1)[0].trim().toLowerCase();
-	if (!mimeType || mimeType === Mimes.binary) {
-		mimeType = getMediaMime(name) ?? '';
-	}
-	if (mimeType === 'image/jpg') {
-		mimeType = 'image/jpeg';
-	}
-	switch (mimeType) {
-		case 'image/png':
-		case 'image/jpeg':
-		case 'image/gif':
-		case 'image/webp':
-		case 'image/avif':
-			return { kind: 'image', mimeType, extension: mimeType === 'image/jpeg' ? 'jpg' : getExtensionForMimeType(mimeType)!.slice(1), maxBytes: MAX_ISSUE_IMAGE_BYTES };
-		case 'video/mp4':
-		case 'video/webm':
-		case 'video/quicktime':
-			return { kind: 'video', mimeType, extension: getExtensionForMimeType(mimeType)!.slice(1), maxBytes: MAX_ISSUE_VIDEO_BYTES };
-		default:
-			return undefined;
-	}
+export function getIssueReporterScreenshotFile(screenshot: IIssueReporterScreenshot, screenshotNumber: number): { dataUrl: string; name: string; format: IIssueReporterMediaFormat } {
+	const dataUrl = screenshot.annotatedDataUrl ?? screenshot.dataUrl;
+	const format = getIssueReporterMediaFormat('', dataUrl.slice(5, dataUrl.indexOf(',')).split(';', 1)[0]);
+	return { dataUrl, name: `screenshot-${screenshotNumber}.${format.extension}`, format };
 }
 
 export function validateIssueReporterMediaFile(file: Pick<File, 'name' | 'type' | 'size'>): IIssueReporterMediaFormat {
 	const name = file.name || localize('unnamedAttachment', "Clipboard attachment");
 	const format = getIssueReporterMediaFormat(file.name, file.type);
-	if (!format) {
-		throw new Error(localize('unsupportedAttachment', "Cannot attach {0}. Use PNG, JPEG, GIF, WebP, AVIF, MP4, WebM, or MOV.", name));
-	}
-	if (file.size === 0) {
-		throw new Error(localize('emptyAttachment', "Cannot attach {0} because the file is empty.", name));
-	}
 	if (file.size > format.maxBytes) {
-		throw new Error(localize('attachmentTooLarge', "Cannot attach {0}. The limit is {1} MB per {2}.", name, format.maxBytes / (1024 * 1024), format.kind === 'image' ? localize('image', "image") : localize('video', "video")));
+		throw new Error(localize('attachmentTooLarge', "Cannot attach {0}. The limit for this file is {1} MB.", name, format.maxBytes / (1024 * 1024)));
 	}
 	return format;
 }
@@ -85,31 +68,7 @@ export async function readIssueReporterMediaFile(file: File, token: Cancellation
 	if (token.isCancellationRequested) {
 		throw new CancellationError();
 	}
-	const declaredFormat = validateIssueReporterMediaFile(file);
-	const header = VSBuffer.wrap(new Uint8Array(await raceCancellationError(file.slice(0, 64).arrayBuffer(), token)));
-	const signature = header.buffer;
-	const text = (start: number, end: number) => header.slice(start, end).toString();
-	let mimeType: string | undefined;
-	if (signature[0] === 0xFF && signature[1] === 0xD8 && signature[2] === 0xFF) {
-		mimeType = 'image/jpeg';
-	} else if (signature[0] === 0x89 && text(1, 8) === 'PNG\r\n\x1a\n') {
-		mimeType = 'image/png';
-	} else if (text(0, 6) === 'GIF87a' || text(0, 6) === 'GIF89a') {
-		mimeType = 'image/gif';
-	} else if (text(0, 4) === 'RIFF' && text(8, 12) === 'WEBP') {
-		mimeType = 'image/webp';
-	} else if (signature[0] === 0x1A && signature[1] === 0x45 && signature[2] === 0xDF && signature[3] === 0xA3) {
-		mimeType = 'video/webm';
-	} else if (text(4, 8) === 'ftyp') {
-		const brand = text(8, 12);
-		mimeType = brand === 'avif' || brand === 'avis' ? 'image/avif' : brand === 'qt  ' ? 'video/quicktime' : 'video/mp4';
-	} else if (declaredFormat.kind === 'video' && ['moov', 'mdat', 'wide', 'free'].includes(text(4, 8))) {
-		mimeType = declaredFormat.mimeType;
-	}
-	if (!mimeType) {
-		throw new Error(localize('invalidMediaHeader', "The file is not a supported image or video, or is damaged."));
-	}
-	const format = validateIssueReporterMediaFile({ name: file.name, type: mimeType, size: file.size });
+	const format = validateIssueReporterMediaFile(file);
 	const bytes = VSBuffer.wrap(new Uint8Array(await raceCancellationError(file.arrayBuffer(), token)));
 	return { format, bytes, durationMs: format.mimeType === 'video/webm' ? readWebmDuration(bytes.buffer) : undefined };
 }

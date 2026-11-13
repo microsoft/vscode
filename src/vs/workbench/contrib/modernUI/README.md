@@ -15,7 +15,7 @@ Standard HC Connected editors use the editor card's perimeter and `modernPanel.b
 
 ## Suggestion menu corners
 
-Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
+Editor and workbench suggestion menus use the Outer radius on their first item's upper corners and their last item's lower corners. These styles are shared with the Agents window, where they apply independently of the main workbench's Modern UI setting. These boundaries follow logical list positions, not virtualized DOM order; a single-item menu receives all four corners. The rounded list viewport clips partially scrolled highlights without clipping the workbench widget's resize sashes. Interior corners stay at the Control tier, and a visible status bar keeps the last row at that tier rather than rounding the footer seam.
 
 ## Editor tab style
 
@@ -23,6 +23,18 @@ Editor and workbench suggestion menus use the Outer radius on their first item's
 
 - `connected` (default): the bottom row's active tab joins the editor surface with an outside stroke and curved shoulders. Active caps touching the left frame omit their own left stroke and outside shoulder; the editor frame paints that edge once. Inactive tabs, upper wrapped rows, and a separate pinned row retain symmetric rounded pills. Active caps own their rounded top outline independently of the editor frame.
 - `pill`: separate rounded tabs, without the connected stroke or shoulders.
+
+In the editor window, this selection also applies to the Panel, Primary Side Bar, and Secondary Side Bar tab strips, for both text and icon labels, including the top and bottom Activity Bar positions. Connected headers continue the recessed tab-strip background through their toolbar actions, while the selected tab opens into its panel's own background. Selected caps fill the header height, with generous internal padding for text and icon labels; overflow controls retain their compact sizing. The first tab meets the frame without a second leading stroke or shoulder, and floating caps share the card's snapped perimeter stroke rather than drawing a second inset line. Bottom-positioned strips connect upward. Accounts, Settings, inactive tabs, and overflow actions remain separate controls. High-contrast themes retain explicit connected borders and keyboard-focus indicators. These panel and horizontal Activity Bar styles do not change the Agents window.
+
+Connected pane and horizontal Activity Bar caps use the same convex corner radius as editor tabs. Concave shoulder radii remain independent and stable through focus changes. Floating caps can paint beyond their header or footer to the card's rounded outer edge. At a rounded frame-touching corner, the first cap's fill follows the frame and leaves its curved stroke visible; the cap retains its own straight perimeter stroke. Square compact and Activity Bar joins retain their existing treatment. If a compact menu precedes the tab strip, the first tab retains its own leading stroke, rounded cap, and shoulder until the menu is removed.
+
+The default vertical Activity Bar retains its existing selection, hover, background colors, sizing, and overflow behavior independently of the editor tab style.
+
+Horizontal connected pane tabs use the editor's `tab.divider` color for subtle inset separators between adjacent inactive tabs. The default vertical Activity Bar remains separator-free. Dividers are omitted next to the selected tab, before overflow controls, and during drag-and-drop.
+
+Appearance changes made while a pane is hidden defer tab remeasurement until its next visible layout, so reopening a narrow pane retains correct overflow.
+
+Icon hover fills stay square and centered within their wider hit targets; text hover fills follow the label width. Cap outlines stop at the shoulder tangents so straight side strokes cannot cross the curved connection; footer tabs mirror this join upward. Their separator belongs to the top edge, while the card frame alone owns the bottom boundary. Legacy active-tab underline colors and resets do not paint connected strokes. Keyboard focus uses a separate outline without recoloring a structural shoulder.
 
 In high-contrast themes, the Pill tab fill owns the entire outer hover or focus stroke, including behind the Close action. The outer focus stroke remains visible when focus moves to Close. The action overlay does not redraw that stroke; the Close button retains its own hover and keyboard-focus outline.
 
@@ -151,7 +163,10 @@ Menus and dropdown pickers share closing-motion eligibility: Modern UI or an
 active glass root, with motion enabled on that same root. This includes Agents
 glass overlays without the editor-only Modern UI class and preserves immediate
 dismissal when motion is reduced.
-The glass layer also follows the closing scale without fading. Submenus use the
+The glass layer follows the closing scale and fades out with the menu contents,
+so an empty glass panel never outlives the items. Its opacity is applied to the
+blurred layer itself rather than an ancestor, so the backdrop stays real while it
+fades. Submenus use the
 full theme tint while an ancestor's closing fade isolates their backdrops;
 closing pickers use the same fallback. Glass menus do not
 retain opacity compositor hints after motion finishes.

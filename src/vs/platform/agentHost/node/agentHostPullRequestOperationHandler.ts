@@ -29,10 +29,10 @@ import { AgentHostUtilityModelUnavailableError, AgentHostUtilityModelUnavailable
 import { buildConversationContext } from '../common/agentHostConversationContext.js';
 import { IAgentBranchNameGenerator } from './shared/agentBranchNameGenerator.js';
 import { SessionConfigKey } from '../common/sessionConfigKeys.js';
-import { AgentMergeConfigKey, agentMergeRootConfigSchema, readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
+import { readAgentMergeFolderState, withAgentMergeFolderState } from '../common/agentMerge.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { createPullRequestDetailsResult, readPullRequestConversationMeta, readPullRequestOperationMeta, readPullRequestValidationMeta, type IPullRequestContext, type IPullRequestCreateOptions, type IPullRequestDetails } from '../common/meta/agentPullRequestOperationMeta.js';
-import { getAgentMergeConfiguration } from './agentMergeConfiguration.js';
+import { getAgentMergeConfiguration, isAgentMergeEnabled } from './agentMergeConfiguration.js';
 import { isSessionChatInFolder, resolveChangesetOwnerScope, resolveGitHubStateFolder } from './agentHostBranchChangesetScope.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { getWorkingDirectoryKey } from '../common/agentHostWorkingDirectories.js';
@@ -498,7 +498,7 @@ export class AgentHostPullRequestOperationHandler implements IChangesetOperation
 	}
 
 	private _isAgentMergeEnabled(): boolean {
-		return this._configurationService.getRootValue(agentMergeRootConfigSchema, AgentMergeConfigKey.Enabled) === true;
+		return isAgentMergeEnabled(this._configurationService);
 	}
 
 	private _validateAgentMergeAvailable(options: PullRequestCreationConfiguration): void {

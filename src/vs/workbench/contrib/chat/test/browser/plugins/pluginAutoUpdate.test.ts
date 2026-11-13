@@ -5,8 +5,6 @@
 
 import assert from 'assert';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -15,22 +13,7 @@ import { IMeteredConnectionService } from '../../../../../../platform/meteredCon
 import { PluginAutoUpdate } from '../../../browser/pluginAutoUpdate.js';
 import { IPluginInstallService, IUpdateAllPluginsOptions, IUpdateAllPluginsResult } from '../../../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
-
-class TestMeteredConnectionService extends Disposable implements IMeteredConnectionService {
-	declare readonly _serviceBrand: undefined;
-
-	private readonly _onDidChangeIsConnectionMetered = this._register(new Emitter<boolean>());
-	readonly onDidChangeIsConnectionMetered = this._onDidChangeIsConnectionMetered.event;
-
-	constructor(public isConnectionMetered: boolean) {
-		super();
-	}
-
-	setIsConnectionMetered(isConnectionMetered: boolean): void {
-		this.isConnectionMetered = isConnectionMetered;
-		this._onDidChangeIsConnectionMetered.fire(isConnectionMetered);
-	}
-}
+import { TestMeteredConnectionService } from '../../../../../../platform/meteredConnection/test/common/testMeteredConnectionService.js';
 
 suite('PluginAutoUpdate', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

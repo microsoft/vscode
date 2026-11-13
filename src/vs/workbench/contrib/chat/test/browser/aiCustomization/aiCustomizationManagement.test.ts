@@ -10,9 +10,25 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { AICustomizationManagementSection, resolveAICustomizationManagementOpenEditorTarget } from '../../../browser/aiCustomization/aiCustomizationManagement.js';
 import { CustomizationMigrationCategoryId } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
 import { CustomizationMigrationType } from '../../../common/promptSyntax/service/customizationMigrationService.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { IChatWidget } from '../../../browser/chat.js';
 
 suite('aiCustomizationManagement', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('input actions target their own widget for pointer and keyboard invocation', () => {
+		const origin = URI.parse('agent-host-copilot:/origin');
+		const fallback = URI.parse('local:/other-widget');
+		const results = [undefined, 'agent-host-claude'].map(pendingDelegationTarget =>
+			resolveAICustomizationManagementOpenEditorTarget({
+				widget: upcastPartial<IChatWidget>({
+					input: upcastPartial<IChatWidget['input']>({ pendingDelegationTarget }),
+					viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: origin }),
+				}),
+			}, 'unrelated-harness', fallback, sessionType => URI.from({ scheme: sessionType, path: '/draft' })).sessionResource?.toString(),
+		);
+		assert.deepStrictEqual(results, [origin.toString(), 'agent-host-claude:/draft']);
+	});
 
 	test('resolves the originating chat title context before fallback session state', () => {
 		const titleSessionResource = URI.parse('agent-host-copilot:/title-session');

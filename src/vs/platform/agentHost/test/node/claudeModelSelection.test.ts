@@ -61,7 +61,7 @@ suite('claudeModelSelection', () => {
 	suite('mergeClaudeModelCatalogs', () => {
 
 		const model = (id: string, name: string, supportsVision = false): IAgentModelInfo =>
-			({ provider: CLAUDE_AGENT_PROVIDER_ID, id, name, supportsVision });
+		({ provider: CLAUDE_AGENT_PROVIDER_ID, id, name, supportsVision });
 
 		test('lists proxy models first, qualifies each id + stamps each transport group into _meta, preserves provider and every other field', () => {
 			const merged = mergeClaudeModelCatalogs(

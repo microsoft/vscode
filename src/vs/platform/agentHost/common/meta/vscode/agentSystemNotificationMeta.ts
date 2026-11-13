@@ -23,12 +23,16 @@ export const enum AgentSystemNotificationKind {
 	AgentMergeDisabled = 'agentMergeDisabled',
 	/** The pull request Agent Merge was monitoring was merged. */
 	AgentMergePullRequestMerged = 'agentMergePullRequestMerged',
+	/** Agent Merge can't make progress until the user acts, such as authorizing single sign-on or opening a pull request for the branch. */
+	AgentMergeBlocked = 'agentMergeBlocked',
 	/** A model response round ended; clients settle any open thinking section and render nothing. */
 	ResponseRoundEnded = 'responseRoundEnded',
 	/** More tools were enabled than a bring-your-own-key model accepts, so some were not sent to it. */
 	ByokToolLimitExceeded = 'byokToolLimitExceeded',
 	/** Plugins required by the organization could not be checked or prepared; the turn continues without them. */
 	ManagedPluginPreparationFailure = 'managedPluginPreparationFailure',
+	/** A note from the model router about what it did for this turn. */
+	ModelRouterSuggestion = 'modelRouterSuggestion',
 }
 
 export const enum AgentSystemNotificationWorkspaceKind {
@@ -55,9 +59,11 @@ const knownKinds: ReadonlySet<string> = new Set<string>([
 	AgentSystemNotificationKind.AgentMergeConfigurationChanged,
 	AgentSystemNotificationKind.AgentMergeDisabled,
 	AgentSystemNotificationKind.AgentMergePullRequestMerged,
+	AgentSystemNotificationKind.AgentMergeBlocked,
 	AgentSystemNotificationKind.ResponseRoundEnded,
 	AgentSystemNotificationKind.ByokToolLimitExceeded,
 	AgentSystemNotificationKind.ManagedPluginPreparationFailure,
+	AgentSystemNotificationKind.ModelRouterSuggestion,
 ]);
 
 interface IHasSystemNotificationMeta {

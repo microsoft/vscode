@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -25,9 +24,8 @@ import { IChatProgressRenderableResponseContent, IChatTextEditGroup } from '../.
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { IChatResponseViewModel, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { IChatListItemRendererOptions } from '../../chat.js';
-import { CodeCompareBlockPart, ICodeCompareBlockData, ICodeCompareBlockDiffData } from './codeBlockPart.js';
-import { IDisposableReference } from './chatCollections.js';
 import { DiffEditorPool } from './chatContentCodePools.js';
+import { IChatEditPresentation, IChatEditPresentationService } from './chatEditPresentation.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 const $ = dom.$;
@@ -41,7 +39,7 @@ interface ICodeCompareModelService {
 
 export class ChatTextEditContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
-	private readonly comparePart: IDisposableReference<CodeCompareBlockPart> | undefined;
+	private readonly presentation: IChatEditPresentation | undefined;
 
 	constructor(
 		chatTextEdit: IChatTextEditGroup,
@@ -49,7 +47,8 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 		rendererOptions: IChatListItemRendererOptions,
 		diffEditorPool: DiffEditorPool,
 		currentWidth: number,
-		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService
+		@ICodeCompareModelService private readonly codeCompareModelService: ICodeCompareModelService,
+		@IChatEditPresentationService editPresentationService: IChatEditPresentationService,
 	) {
 		super();
 		const element = context.element;
@@ -71,47 +70,15 @@ export class ChatTextEditContentPart extends Disposable implements IChatContentP
 			// TODO@roblourens this case is now handled outside this Part in ChatListRenderer, but can it be cleaned up?
 			// return;
 		} else {
-
-
-			const cts = new CancellationTokenSource();
-
-			let isDisposed = false;
-			this._register(toDisposable(() => {
-				isDisposed = true;
-				cts.dispose(true);
-			}));
-
-			this.comparePart = this._register(diffEditorPool.get());
-
-			const data: ICodeCompareBlockData = {
-				element,
-				edit: chatTextEdit,
-				diffData: (async () => {
-
-					const ref = await this.codeCompareModelService.createModel(element, chatTextEdit);
-
-					if (isDisposed) {
-						ref.dispose();
-						return;
-					}
-
-					this._register(ref);
-
-					return {
-						modified: ref.object.modified.textEditorModel,
-						original: ref.object.original.textEditorModel,
-						originalSha1: ref.object.originalSha1
-					} satisfies ICodeCompareBlockDiffData;
-				})()
-			};
-			this.comparePart.object.render(data, currentWidth, cts.token);
-
-			this.domNode = this.comparePart.object.element;
+			this.presentation = this._register(editPresentationService.renderTextEdit(
+				chatTextEdit, element, () => this.codeCompareModelService.createModel(element, chatTextEdit), diffEditorPool, currentWidth,
+			));
+			this.domNode = this.presentation.domNode;
 		}
 	}
 
 	layout(width: number): void {
-		this.comparePart?.object.layout(width);
+		this.presentation?.layout(width);
 	}
 
 	hasSameContent(other: IChatProgressRenderableResponseContent): boolean {

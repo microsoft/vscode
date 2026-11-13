@@ -13,7 +13,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { FeedbackInputWidget } from '../../browser/feedbackInputWidget.js';
+import { FeedbackInputWidget } from '../../../../../workbench/browser/feedbackInputWidget.js';
 
 suite('FeedbackInputWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();

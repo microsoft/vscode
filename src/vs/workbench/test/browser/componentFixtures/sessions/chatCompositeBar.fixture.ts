@@ -7,39 +7,35 @@ import { Event } from '../../../../../base/common/event.js';
 import { $, getWindow } from '../../../../../base/browser/dom.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../../../browser/parts/editor/editor.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../../sessions/services/sessions/common/session.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IActiveSession, ISessionsManagementService } from '../../../../../sessions/services/sessions/common/sessionsManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ISessionsProvidersService } from '../../../../../sessions/services/sessions/browser/sessionsProvidersService.js';
-// eslint-disable-next-line local/code-import-patterns
-import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../../sessions/browser/parts/chatCompositeBar.js';
-// eslint-disable-next-line local/code-import-patterns
-import { applySessionViewThemeColors } from '../../../../../sessions/browser/parts/sessionBarStyles.js';
-// eslint-disable-next-line local/code-import-patterns
-import { applyAgentsPartCardStyles } from '../../../../../sessions/browser/parts/agentsPartCard.js';
-// eslint-disable-next-line local/code-import-patterns
-import { Menus } from '../../../../../sessions/browser/menus.js';
+import { ChatInteractivity, ChatOriginKind, IChat, ISessionCapabilities, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
+import { ITestSessionWithChat } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
+import { ChatCompositeBar, IChatCompositeBarDelegate } from '../../../../contrib/sessions/browser/parts/chatCompositeBar.js';
+import { applySessionViewThemeColors } from '../../../../contrib/sessions/browser/parts/sessionBarStyles.js';
+import { applyAgentsPartCardStyles } from '../../../../browser/parts/sessions/agentsPartCard.js';
+import { Menus } from '../../../../contrib/sessions/browser/menus.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../chat/chatWidget.fixture.js';
 
 import '../../../../contrib/modernUI/browser/media/tabs.css';
 import '../../../../contrib/modernUI/browser/connectedEditorTabs.js';
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/chatCompositeBar.css';
-// eslint-disable-next-line local/code-import-patterns
+import '../../../../contrib/sessions/browser/parts/media/chatCompositeBar.css';
 import '../../../../../sessions/browser/media/workbench.css';
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/sessionsPart.css';
-// eslint-disable-next-line local/code-import-patterns
-import '../../../../../sessions/browser/parts/media/chatGroupsView.css';
+import '../../../../browser/parts/sessions/media/sessionsPart.css';
+import '../../../../contrib/sessions/browser/parts/media/sessionsGridContent.css';
+import '../../../../contrib/sessions/browser/parts/media/chatGroupsView.css';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 
 // ============================================================================
 // Mock helpers
@@ -59,12 +55,16 @@ function createMockChat(options: IMockChatOptions): IChat {
 		override readonly title: IObservable<string> = observableValue('title', options.title);
 		override readonly status: IObservable<SessionStatus> = observableValue('status', options.status ?? SessionStatus.Completed);
 		override readonly isRead: IObservable<boolean> = observableValue('isRead', options.isRead ?? true);
+		override readonly isArchived = observableValue('isArchived', false);
 		override readonly interactivity: IObservable<ChatInteractivity> = observableValue('interactivity', options.interactivity ?? ChatInteractivity.Full);
 	}();
 }
 
-function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IActiveSession {
-	return new class extends mock<IActiveSession>() {
+/** A session fake with the tab strip the bar shows. */
+type IMockSession = ITestSessionWithChat & { readonly shouldShowChatTabs: IObservable<boolean> };
+
+function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTitle = 'Session'): IMockSession {
+	return new class extends mock<IMockSession>() {
 		override readonly sessionId = 'mock:session';
 		override readonly title: IObservable<string> = observableValue('title', sessionTitle);
 		override readonly openChats: IObservable<readonly IChat[]> = observableValue('openChats', chats);
@@ -79,13 +79,16 @@ function createMockSession(chats: readonly IChat[], activeChat: IChat, sessionTi
 		override readonly activeChat: IObservable<IChat> = observableValue('activeChat', activeChat);
 		override readonly capabilities: IObservable<ISessionCapabilities> = observableValue('capabilities', { supportsMultipleChats: true });
 		override readonly isCreated: IObservable<boolean> = observableValue('isCreated', true);
+		override readonly status = this.isCreated.map(created => created ? SessionStatus.Completed : SessionStatus.Untitled);
 		override readonly isArchived: IObservable<boolean> = observableValue('isArchived', false);
 	}();
 }
 
-function createMockDelegate(session: IActiveSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
+function createMockDelegate(session: IMockSession, chats: readonly IChat[], activeChat: IChat): IChatCompositeBarDelegate {
 	return {
 		session,
+		isDetached: false,
+		closePane: () => { },
 		chats: observableValue('chats', chats),
 		activeChatResource: observableValue('activeChatResource', activeChat.resource.toString()),
 		mainChatResource: observableValue('mainChatResource', chats[0].resource.toString()),
@@ -99,13 +102,22 @@ function createMockDelegate(session: IActiveSession, chats: readonly IChat[], ac
 // Render helper
 // ============================================================================
 
-function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, options: { startEditing?: boolean; connected?: boolean; compact?: boolean; active?: boolean; width?: number } = {}): HTMLElement {
+function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], activeChat: IChat, options: { startEditing?: boolean; connected?: boolean; compact?: boolean; active?: boolean; width?: number; reducedMotion?: boolean } = {}): HTMLElement {
 	const { container, disposableStore } = ctx;
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			reg.defineInstance(ISessionHost, upcastPartial<ISessionHost>({ commandContext: { sessionHostId: 'fixture-pane' } }));
 			registerWorkbenchServices(reg);
+			reg.defineInstance(IAccessibilityService, new class extends TestAccessibilityService {
+				override isMotionReduced(): boolean { return options.reducedMotion ?? false; }
+			}());
+			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
+				override getStatusIcon() {
+					return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+				}
+			}());
 			reg.defineInstance(IMenuService, new class extends mock<IMenuService>() {
 				override createMenu(id: MenuId): IMenu {
 					return {
@@ -137,7 +149,7 @@ function renderBar(ctx: ComponentFixtureContext, chats: readonly IChat[], active
 	container.style.width = `${options.width ?? 360}px`;
 	container.classList.add('agent-sessions-workbench', 'modern-ui-tabs', 'noeditorpane');
 	container.classList.toggle('modern-ui-connected-editor-tabs', options.connected !== false);
-	const card = $('.part.sessionspart.agents-part-card');
+	const card = $('.part.sessionspart.agents-part-card.agents-card-surface');
 	applyAgentsPartCardStyles(card, ctx.theme);
 	container.appendChild(card);
 	const cardContent = $('.content');
@@ -247,12 +259,48 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	MixedStatuses: defineComponentFixture({
 		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Progress, attention, and unread indicators all precede their chat titles. Close actions remain at the trailing edge.'],
 		render: (ctx) => {
 			const main = createMockChat({ title: 'Main chat' });
 			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
 			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
 			const unread = createMockChat({ title: 'Update docs', status: SessionStatus.Completed, isRead: false });
-			renderBar(ctx, [main, working, needsInput, unread], main);
+			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640 });
+		},
+	}),
+
+	ReadOnlyStatuses: defineComponentFixture({
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Progress, attention, and unread indicators precede the read-only locks and chat titles. Close actions remain separate at the trailing edge.'],
+		render: ctx => {
+			const main = createMockChat({ title: 'Main chat' });
+			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress, interactivity: ChatInteractivity.ReadOnly });
+			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput, interactivity: ChatInteractivity.ReadOnly });
+			const unread = createMockChat({ title: 'Update docs', isRead: false, interactivity: ChatInteractivity.ReadOnly });
+			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640 });
+		},
+	}),
+
+	PillMixedStatuses: defineComponentFixture({
+		deferPaint: true,
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Pill-style chat tabs show progress, attention, and unread indicators before their titles, separate from the trailing close actions.'],
+		render: ctx => {
+			const main = createMockChat({ title: 'Main chat' });
+			const working = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
+			const needsInput = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
+			const unread = createMockChat({ title: 'Update docs', isRead: false });
+			renderBar(ctx, [main, working, needsInput, unread], main, { width: 640, connected: false });
+		},
+	}),
+
+	InProgressReducedMotion: defineComponentFixture({
+		render: ctx => {
+			const main = createMockChat({ title: 'Refactor auth', status: SessionStatus.InProgress });
+			const second = createMockChat({ title: 'Add tests', status: SessionStatus.NeedsInput });
+			renderBar(ctx, [main, second], main, { reducedMotion: true });
 		},
 	}),
 

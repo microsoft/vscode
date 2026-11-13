@@ -24,6 +24,7 @@ const terminalDescriptors = '\n- ' + [
 	'`\${workspaceFolder}`: ' + localize('workspaceFolder', "the workspace in which the terminal was launched."),
 	'`\${workspaceFolderName}`: ' + localize('workspaceFolderName', "the `name` of the workspace in which the terminal was launched."),
 	'`\${local}`: ' + localize('local', "indicates a local terminal in a remote workspace."),
+	'`\${host}`: ' + localize('host', "the name of the remote agent host the terminal runs on."),
 	'`\${process}`: ' + localize('process', "the name of the terminal process."),
 	'`\${progress}`: ' + localize('progress', "the progress state as reported by the `OSC 9;4` sequence."),
 	'`\${separator}`: ' + localize('separator', "a conditional separator {0} that only shows when it's surrounded by variables with values or static text.", '(` - `)'),
@@ -365,7 +366,7 @@ export const terminalConfiguration: IStringDictionary<IConfigurationPropertySche
 	},
 	[TerminalSettingId.TerminalDescription]: {
 		'type': 'string',
-		'default': '${task}${separator}${local}${separator}${cwdFolder}',
+		'default': '${task}${separator}${local}${separator}${host}${separator}${cwdFolder}',
 		'markdownDescription': terminalDescription
 	},
 	[TerminalSettingId.RightClickBehavior]: {
@@ -497,6 +498,16 @@ export const terminalConfiguration: IStringDictionary<IConfigurationPropertySche
 		markdownDescription: localize('terminal.integrated.windowsUseConptyDll', "Whether to use the conpty.dll (v1.25.260303002) shipped with VS Code, instead of the one bundled with Windows."),
 		type: 'boolean',
 		default: true,
+	},
+	[TerminalSettingId.WindowsReparentConsoleWindow]: {
+		restricted: true,
+		markdownDescription: localize('terminal.integrated.windowsReparentConsoleWindow', "Whether to make the window that shows a terminal the owner of its console window, so dialogs that console applications open, like sign-in prompts, appear in front of VS Code instead of behind it. Requires {0}.", `\`#${TerminalSettingId.WindowsUseConptyDll}#\``),
+		type: 'boolean',
+		default: true,
+		tags: ['advanced'],
+		experiment: {
+			mode: 'auto'
+		}
 	},
 	[TerminalSettingId.SplitCwd]: {
 		description: localize('terminal.integrated.splitCwd', "Controls the working directory a split terminal starts with."),

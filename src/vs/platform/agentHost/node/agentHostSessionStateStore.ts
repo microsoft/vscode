@@ -650,6 +650,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			}
 			const chat = move.chat.toString();
 			const transfers = chatMoveFolderTransfers(move.folders, false);
+			const worktreeValues = worktreeListValues(source.model, target.model, move.worktreeLists, endSource);
 			const apply = (databaseMove: Parameters<IAgentHostDatabase['moveChatV2']>[0]) => endSource ? this._database.moveSessionV2(databaseMove) : this._database.moveChatV2(databaseMove);
 			const result = await apply({
 				chat,
@@ -665,7 +666,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					chats: [{ chat, workingDirectories: move.folders.chat }],
 					folders: transfers,
 					// Applied to the lists as they are now, under both sessions' sections.
-					values: worktreeListValues(source.model, target.model, move.worktreeLists, endSource),
+					values: { source: { ...worktreeValues.source, ...move.values?.source }, target: { ...worktreeValues.target, ...move.values?.target } },
 				},
 				coOwnedWorktrees: move.coOwnedWorktrees,
 			});
@@ -676,6 +677,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 			if (endSource) {
 				// The source ended: its central state is gone, and so is what was loaded of it.
 				this._forget(source.key);
+				await this._dropEndedSessionValueCopies(move.source, Object.keys(move.values?.target ?? {}));
 				await this._refreshAfterMove(target);
 				return { status: 'applied', moved: result.moved, targetOrder: result.targetOrder };
 			}
@@ -735,7 +737,7 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 					importedAt: Date.now(),
 					legacyMirrorBase: serializeBase(new Map()),
 					values: { ...promotion.values, ...newSessionWorktreeListValues(promotion.worktreeLists) },
-					sourceValues: worktreeListValues(source.model, undefined, promotion.worktreeLists, false).source,
+					sourceValues: { ...worktreeListValues(source.model, undefined, promotion.worktreeLists, false).source, ...promotion.sourceValues },
 					chats: [{ chat, workingDirectories: promotion.folders.chat }],
 					folders: transfers,
 				},
@@ -784,6 +786,8 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 
 	async whenIdle(session: URI | undefined): Promise<void> {
 		if (session) {
+			// Drain cold-session writes too. Their callers handle failures, including writes refused by deletion.
+			await Promise.allSettled([this._sequencer.peek(this._enter(session))]);
 			const record = this._records.get(session.toString());
 			if (record) {
 				await this._flushRecord(record);
@@ -1321,6 +1325,27 @@ export class AgentHostSessionStateStore extends Disposable implements IAgentHost
 	/** Called once a central write commits, so a prefetch read before it no longer answers for the session. */
 	private _noteCentralWrite(key: string): void {
 		this._centralWrites.set(key, ++this._centralWriteSequence);
+	}
+
+	/**
+	 * Drops the old-format copies of `keys` from the database of a session that ended by moving under another session:
+	 * it stays as its chat's storage, and the values are the destination's now, so no build may read them from it again.
+	 * Never fails the move.
+	 */
+	private async _dropEndedSessionValueCopies(session: URI, keys: readonly string[]): Promise<void> {
+		if (keys.length === 0) {
+			return;
+		}
+		try {
+			const reference = await this._sessionDataService.tryOpenDatabase(session);
+			try {
+				await reference?.object.deleteMetadata(keys);
+			} finally {
+				reference?.dispose();
+			}
+		} catch (error) {
+			this._logService.warn(`[AgentHostSessionStateStore] Failed to drop the values of ${session.toString()}, which ended by a move`, error);
+		}
 	}
 
 	private _forget(key: string): void {

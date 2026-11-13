@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import * as nls from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IDebugConfiguration, IDebugService } from './debug.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 
 export class DebugLifecycle implements IWorkbenchContribution {
 	private disposable: IDisposable;
@@ -54,5 +55,25 @@ export class DebugLifecycle implements IWorkbenchContribution {
 			primaryButton: nls.localize({ key: 'debug.stop', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging")
 		});
 		return !res.confirmed;
+	}
+}
+
+/**
+ * Blocks an unattended restart while debugging. Unlike {@link DebugLifecycle}, this is created
+ * after restore, before windows report that they finished starting.
+ */
+export class DebugUnattendedRestartParticipant extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.debugUnattendedRestartParticipant';
+
+	constructor(
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
+		@IDebugService debugService: IDebugService,
+	) {
+		super();
+
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => debugService.getModel().getSessions().length > 0 ? 'debug.sessionActive' : undefined
+		}));
 	}
 }

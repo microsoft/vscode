@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import * as dom from '../../../../../../base/browser/dom.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -35,7 +35,7 @@ import { ICustomizationMigrationTelemetryService } from '../../../common/promptS
 class TestMigrationService extends mock<ICustomizationMigrationService>() {
 	readonly requests: URI[] = [];
 	override readonly onDidChangeCustomizations: Event<void>;
-	result: ICustomizationMigrationHint | undefined;
+	result: Promise<ICustomizationMigrationHint | undefined> = Promise.resolve(undefined);
 
 	constructor(changed: Emitter<void>) {
 		super();
@@ -83,7 +83,7 @@ suite('ChatCustomizationMigrationNotice', () => {
 			message: '1 workspace customization needs an update to keep working.',
 			counts: [{ type: CustomizationMigrationType.PromptFiles, count: 1 }],
 		};
-		migrations.result = hint;
+		migrations.result = Promise.resolve(hint);
 		const migrationTelemetry = new TestMigrationTelemetryService();
 		const sentiment = observableValue<IChatSentiment>(store, {});
 		const show = observableValue(store, showNotice);
@@ -119,7 +119,7 @@ suite('ChatCustomizationMigrationNotice', () => {
 			visible => visibility.push(visible),
 			undefined,
 		));
-		return { notice, context, hint, migrations, migrationTelemetry, storage, commands, availability, visibility, get focusCount() { return focusCount; } };
+		return { notice, context, hint, migrations, migrationTelemetry, storage, changed, commands, availability, visibility, get focusCount() { return focusCount; } };
 	}
 
 	test('shows, opens, and dismisses the migration notice', async () => {
@@ -164,6 +164,45 @@ suite('ChatCustomizationMigrationNotice', () => {
 		}, {
 			visible: false,
 			available: true,
+		});
+	});
+
+	test('preserves the last known hint until a same-context refresh completes', async () => {
+		const env = setup();
+		await timeout(0);
+		const isVisible = () => env.notice.element.style.display !== 'none';
+
+		const refreshedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = refreshedHint.p;
+		env.changed.fire();
+		const refreshing = isVisible();
+		void refreshedHint.complete(env.hint);
+		await refreshedHint.p;
+		await timeout(0);
+		const refreshed = isVisible();
+
+		const removedHint = new DeferredPromise<ICustomizationMigrationHint | undefined>();
+		env.migrations.result = removedHint.p;
+		env.changed.fire();
+		const removing = isVisible();
+		void removedHint.complete(undefined);
+		await removedHint.p;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			refreshing,
+			refreshed,
+			removing,
+			removed: isVisible(),
+			availability: env.availability,
+			visibility: env.visibility,
+		}, {
+			refreshing: true,
+			refreshed: true,
+			removing: true,
+			removed: false,
+			availability: [false, true, false],
+			visibility: [true, false],
 		});
 	});
 

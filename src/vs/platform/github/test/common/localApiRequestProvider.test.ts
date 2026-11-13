@@ -524,6 +524,31 @@ suite('LocalApiRequestProvider', () => {
 		await assert.rejects(content.getRawFile({ owner: 'o', repo: 'r' }, 'a'.repeat(40), 'file.txt', signal()), { kind: 'validation' });
 	});
 
+	test('extra raw request options cannot override the URL, response limit, or timeout', async () => {
+		const requests: string[] = [];
+		let oversized = false;
+		const transport = store.add(new GitHubTransport(async input => {
+			requests.push(String(input));
+			return new Response(oversized ? 'x'.repeat(1024 * 1024 + 1) : 'contents');
+		}));
+		const baseUri = 'https://raw.githubusercontent.com';
+		const path = `/o/r/${'a'.repeat(40)}/file.txt`;
+		const options = {
+			caller: 'test.raw',
+			url: `${baseUri}/o/r/${'a'.repeat(40)}/other.txt`,
+			maximumBytes: 2 * 1024 * 1024,
+			timeout: 0,
+		};
+		const provider = new LocalApiRequestProvider(baseUri, transport, undefined, 'rawContent');
+		const request: ApiRequest = { method: 'GET', path, expectedStatus: 200, responseBody: 'text', options };
+		const result = await provider.request(request, signal(), parse.string);
+		oversized = true;
+		await assert.rejects(provider.request(request, signal(), parse.string), { kind: 'responseTooLarge' });
+		assert.deepStrictEqual({ contents: result.data, requests }, {
+			contents: 'contents', requests: [`${baseUri}${path}`, `${baseUri}${path}`],
+		});
+	});
+
 	test('rejects GET bodies before fetching', async () => {
 		const provider = anonymous(async () => assert.fail('No fetch expected'));
 		await assert.rejects(provider.request({ ...read, body: {} }, signal(), parseValue), { kind: 'validation' });

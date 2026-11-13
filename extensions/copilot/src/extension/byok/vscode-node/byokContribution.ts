@@ -19,7 +19,7 @@ import { BYOKStorageService, IBYOKStorageService } from './byokStorageService';
 import { CustomEndpointBYOKModelProvider } from './customEndpointProvider';
 import { CustomOAIBYOKModelProvider } from './customOAIProvider';
 import { GeminiNativeBYOKLMProvider } from './geminiNativeProvider';
-import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveSessionResult, isGptLiveModelAvailable, USE_BYOK_VOICE_MODEL_SETTING } from './gptLiveSession';
+import { createGptLiveSession, GPT_LIVE_SESSION_PROVIDER_ID, GptLiveModelAvailability, GptLiveSessionResult, USE_BYOK_VOICE_MODEL_SETTING } from './gptLiveSession';
 import { OllamaLMProvider } from './ollamaProvider';
 import { OAIBYOKLMProvider } from './openAIProvider';
 import { OpenRouterLMProvider } from './openRouterProvider';
@@ -34,6 +34,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	private _knownModelsRefreshed = false;
 	private _knownModelsRefreshTargets: ReadonlyArray<readonly [string, AbstractLanguageModelChatProvider]> = [];
 	private _openAIProvider: OAIBYOKLMProvider | undefined;
+	private readonly _gptLiveModelAvailability: GptLiveModelAvailability;
 
 	constructor(
 		@IFetcherService private readonly _fetcherService: IFetcherService,
@@ -44,6 +45,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
+		this._gptLiveModelAvailability = new GptLiveModelAvailability(this._fetcherService);
 		this._byokStorageService = new BYOKStorageService(extensionContext);
 		try {
 			this._register(speech.registerVoiceLiveSessionProvider(GPT_LIVE_SESSION_PROVIDER_ID, {
@@ -83,7 +85,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			return { available: false };
 		}
 		if (sdp === undefined) {
-			const isAvailable = await isGptLiveModelAvailable(this._fetcherService, apiKey, modelId, token);
+			const isAvailable = await this._gptLiveModelAvailability.isAvailable(apiKey, modelId, token);
 			this._logService.info(`BYOK: configured GPT-Live model is ${isAvailable ? 'available' : 'unavailable'}.`);
 			return isAvailable
 				? { available: true }

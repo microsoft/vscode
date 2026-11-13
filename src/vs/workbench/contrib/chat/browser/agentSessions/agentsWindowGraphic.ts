@@ -52,6 +52,14 @@ export class AgentsWindowGraphic extends Disposable {
 	/** The graphic rendered in {@link element}, or `undefined` when none is. Changes after the element has been updated. */
 	readonly shownDesign: IObservable<AgentsWindowGraphicDesign | undefined> = this._shownDesign;
 
+	private readonly _hasMultipleEditorWindows = observableValue<boolean | undefined>(this, undefined);
+	/**
+	 * Whether more than one editor window is open, or `undefined` until the windows have been counted.
+	 * {@link AgentsWindowGraphicVariant.Auto} picks its graphic from this. The windows are counted for every
+	 * variant, so that the page can log an experiment trigger for this case in every experiment arm.
+	 */
+	readonly hasMultipleEditorWindows: IObservable<boolean | undefined> = this._hasMultipleEditorWindows;
+
 	/**
 	 * How the graphic, its captions and the Agents window button should be set apart from the rest of the page,
 	 * see {@link ChatConfiguration.WelcomePageAgentsWindowSectionStyle}. The page that shows the graphic applies it.
@@ -75,12 +83,9 @@ export class AgentsWindowGraphic extends Disposable {
 			() => getAgentsWindowSectionStyle(configurationService),
 		);
 
-		// Count the editor windows when the graphic is shown, and only when the graphic depends on them
-		const hasMultipleEditorWindows = observableValue<boolean | undefined>(this, undefined);
+		// Count the editor windows whenever the setting changes, for every variant, see hasMultipleEditorWindows
 		this._register(autorun(reader => {
-			if (variant.read(reader) !== AgentsWindowGraphicVariant.Auto) {
-				return;
-			}
+			variant.read(reader);
 			let disposed = false;
 			reader.store.add(toDisposable(() => disposed = true));
 			const update = async () => {
@@ -91,13 +96,13 @@ export class AgentsWindowGraphic extends Disposable {
 					onUnexpectedError(error);
 				}
 				if (!disposed) {
-					hasMultipleEditorWindows.set(hasMultiple, undefined);
+					this._hasMultipleEditorWindows.set(hasMultiple, undefined);
 				}
 			};
 			update();
 		}));
 
-		const design = derived(this, reader => resolveAgentsWindowGraphicDesign(variant.read(reader), hasMultipleEditorWindows.read(reader)));
+		const design = derived(this, reader => resolveAgentsWindowGraphicDesign(variant.read(reader), this._hasMultipleEditorWindows.read(reader)));
 		this._register(autorun(reader => {
 			const shownDesign = design.read(reader);
 			reset(this.element, ...(shownDesign ? [renderAgentsWindowGraphic(shownDesign)] : []));
@@ -113,29 +118,38 @@ async function countEditorWindows(hostService: IHostService, environmentService:
 	return windows.filter(window => !(isWorkspaceIdentifier(window.workspace) && isEqual(window.workspace.configPath, environmentService.agentSessionsWorkspace))).length;
 }
 
+export interface IAgentsWindowGraphicOptions {
+	/**
+	 * Renders a small graphic for surfaces that explain the Agents window in their own words, such as a hover:
+	 * the drawings keep only the window titles of {@link AgentsWindowGraphicVariant.WindowComparison} and have no descriptions.
+	 */
+	readonly compact?: boolean;
+}
+
 /**
  * Renders a graphic and its captions.
  * The drawings are decorative and hidden from screen readers; the captions carry their meaning.
  */
-export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign): HTMLElement {
+export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign, options?: IAgentsWindowGraphicOptions): HTMLElement {
 	const ids = new GraphicIds();
+	const compact = !!options?.compact;
 	switch (design) {
 		case AgentsWindowGraphicVariant.WindowComparison:
-			return $('.agents-window-graphic.window-comparison', {},
+			return $(`.agents-window-graphic.window-comparison${compact ? '.compact' : ''}`, {},
 				figure(
 					graphicSvg(300, 180, editorWindow(ids, 0, 0)),
 					localize('agentsWindowGraphic.editorWindow.title', "Editor window"),
-					localize('agentsWindowGraphic.editorWindow.description', "Work on one task at a time, with AI at your side."),
+					compact ? undefined : localize('agentsWindowGraphic.editorWindow.description', "Work on one task at a time, with AI at your side."),
 				),
 				figure(
 					graphicSvg(300, 180, agentsWindow(ids, 0, 0, false, windowComparisonProjects)),
 					localize('agentsWindowGraphic.agentsWindow.title', "Agents window"),
-					localize('agentsWindowGraphic.agentsWindow.description', "Run multiple tasks at the same time, isolated from each other."),
-					localize('agentsWindowGraphic.new', "New"),
+					compact ? undefined : localize('agentsWindowGraphic.agentsWindow.description', "Run multiple tasks at the same time, isolated from each other."),
+					compact ? undefined : localize('agentsWindowGraphic.new', "New"),
 				),
 			);
 		case AgentsWindowGraphicVariant.ManyWindowsToOne:
-			return $('.agents-window-graphic.many-windows-to-one', {},
+			return $(`.agents-window-graphic.many-windows-to-one${compact ? '.compact' : ''}`, {},
 				figure(
 					graphicSvg(672, 204,
 						...agentsWindowProjects.map(({ color, sessions }, index) => projectEditorWindow(ids, 8 + 32 * index, 8 + 36 * index, color, sessions[0].state)),
@@ -143,7 +157,7 @@ export function renderAgentsWindowGraphic(design: AgentsWindowGraphicDesign): HT
 						agentsWindow(ids, 364, 14, true, agentsWindowProjects),
 					),
 					undefined,
-					localize('agentsWindowGraphic.manyWindowsToOne.description', "All your projects and agents, in one window."),
+					compact ? undefined : localize('agentsWindowGraphic.manyWindowsToOne.description', "All your projects and agents, in one window."),
 				),
 			);
 	}
@@ -187,12 +201,15 @@ class GraphicIds {
 	}
 }
 
-function figure(graphic: SVGSVGElement, title: string | undefined, description: string, badge?: string): HTMLElement {
+function figure(graphic: SVGSVGElement, title: string | undefined, description: string | undefined, badge?: string): HTMLElement {
+	if (!title && !description) {
+		return $('figure.agents-window-graphic-figure', {}, graphic);
+	}
 	return $('figure.agents-window-graphic-figure', {},
 		graphic,
 		$('figcaption.agents-window-graphic-caption', {},
 			...(title ? [$('.agents-window-graphic-title', {}, title, ...(badge ? [$('span.agents-window-graphic-badge', {}, badge)] : []))] : []),
-			$('.agents-window-graphic-description', {}, description),
+			...(description ? [$('.agents-window-graphic-description', {}, description)] : []),
 		),
 	);
 }

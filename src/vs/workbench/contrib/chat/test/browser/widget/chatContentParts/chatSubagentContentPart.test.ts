@@ -415,6 +415,55 @@ suite('ChatSubagentContentPart', () => {
 	}
 
 	suite('Basic rendering', () => {
+		for (const restored of [false, true]) {
+			test(`shows a failed subagent without putting its diagnostics in the pill (restored=${restored})`, async () => {
+				const invocation = new ChatToolInvocation({
+					toolSpecificData: { kind: 'subagent', description: 'Design review', chatResource: 'ahp-chat:/review', isActive: false },
+				}, { id: 'task', displayName: 'Task', modelDescription: 'Review', source: ToolDataSource.Internal }, 'failed-review', undefined, {});
+				await invocation.didExecuteTool({ content: [], toolResultError: 'Full provider diagnostics belong in the child chat' });
+				const part = createPart(restored ? invocation.toJSON() : invocation, createMockRenderContext());
+				const pill = getSubagentPill(part);
+				assert.ok(pill);
+
+				assert.deepStrictEqual({
+					failed: pill.classList.contains('chat-subagent-failed'),
+					label: pill.querySelector('.chat-subagent-pill-failure:not(.hidden)')?.textContent,
+					errorIcon: !!pill.querySelector('.codicon-error'),
+					accessibleFailure: getPillButton(pill).getAttribute('aria-label')?.includes('Subagent failed'),
+					exposedDiagnostics: pill.textContent?.includes('Full provider diagnostics'),
+				}, {
+					failed: true, label: 'Failed', errorIcon: true, accessibleFailure: true, exposedDiagnostics: false,
+				});
+			});
+		}
+
+		test('child recovery clears the failure indicator despite the original task error', async () => {
+			const invocation = new ChatToolInvocation({
+				toolSpecificData: { kind: 'subagent', description: 'Design review', chatResource: 'ahp-chat:/review', isActive: false, isError: true },
+			}, { id: 'task', displayName: 'Task', modelDescription: 'Review', source: ToolDataSource.Internal }, 'failed-review', undefined, {});
+			await invocation.didExecuteTool({ content: [], toolResultError: 'The original task failed' });
+			const part = createPart(invocation, createMockRenderContext());
+			const pill = getSubagentPill(part);
+			assert.ok(pill);
+			const snapshot = () => ({
+				failed: pill.classList.contains('chat-subagent-failed'),
+				running: pill.classList.contains('chat-subagent-running'),
+				failureHidden: pill.querySelector('.chat-subagent-pill-failure')?.classList.contains('hidden'),
+				accessibleFailure: getPillButton(pill).getAttribute('aria-label')?.includes('Subagent failed'),
+			});
+			const failed = snapshot();
+			invocation.toolSpecificData = { kind: 'subagent', description: 'Design review', chatResource: 'ahp-chat:/review', isActive: true, isError: false };
+			invocation.notifyToolSpecificDataChanged();
+			const retrying = snapshot();
+			invocation.toolSpecificData.isActive = false;
+			invocation.notifyToolSpecificDataChanged();
+			assert.deepStrictEqual({ failed, retrying, recovered: snapshot() }, {
+				failed: { failed: true, running: false, failureHidden: false, accessibleFailure: true },
+				retrying: { failed: false, running: true, failureHidden: true, accessibleFailure: false },
+				recovered: { failed: false, running: false, failureHidden: true, accessibleFailure: false },
+			});
+		});
+
 		test('expanded subagents omit their working row when the parent owns progress', () => {
 			const snapshots = [false, true].map(suppressProgressShimmer => {
 				const part = createPart(createMockToolInvocation(), { ...createMockRenderContext(), suppressProgressShimmer });
@@ -537,7 +586,7 @@ suite('ChatSubagentContentPart', () => {
 				opened: 0, tracked: 0, dragged: 0, dragPrevented: true,
 				enabled: false, draggable: false, role: 'group', ariaDisabled: null,
 				tabIndex: -1, focusable: false, focused: false,
-				phaseTooltip: 'HydraFusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
+				phaseTooltip: 'Copilot Fusion phase: Main pass\nPhase cancelled\nModel: model-a', model: 'model-a',
 				cancelled: true, cancelledIcon: true,
 			});
 		});
@@ -604,8 +653,8 @@ suite('ChatSubagentContentPart', () => {
 			changed.fire('newly-registered-model');
 			const expected = (model: string) => ({
 				model,
-				tooltip: `HydraFusion phase: Main pass\nPhase is running\nModel: ${model}`,
-				ariaLabel: `HydraFusion phase: Main pass. Phase is running. Model: ${model}. Working on it...`,
+				tooltip: `Copilot Fusion phase: Main pass\nPhase is running\nModel: ${model}`,
+				ariaLabel: `Copilot Fusion phase: Main pass. Phase is running. Model: ${model}. Working on it...`,
 			});
 			assert.deepStrictEqual({ known, byok, renamedVendor, unknown, registered: snapshot() }, {
 				known: expected('Main Model'), byok: expected('OpenRouter/Review Model'),
@@ -808,7 +857,7 @@ suite('ChatSubagentContentPart', () => {
 				const restoredContainer = mainWindow.document.createElement('div');
 				restoredItem.render(restoredContainer);
 				const statusLabel = phaseStatus === 'succeeded' ? 'completed' : phaseStatus;
-				const expected = { hidden: true, text: '', ariaLabel: `HydraFusion phase: Main pass. Phase ${statusLabel}` };
+				const expected = { hidden: true, text: '', ariaLabel: `Copilot Fusion phase: Main pass. Phase ${statusLabel}` };
 				assert.deepStrictEqual({ before, restored: snapshot(restoredContainer) }, { before: expected, restored: expected });
 			}));
 		}
@@ -1137,20 +1186,18 @@ suite('ChatSubagentContentPart', () => {
 				_displayedToolLabel: string;
 				_targetToolCallId: string;
 				_targetToolLabel: string;
-				_toolTransitionPhase: 'idle' | 'out' | 'in';
-				_runToolTransition(): void;
+				_toolTransition: { update(): void; readonly phase: 'idle' | 'out' | 'in' };
 			};
 			internals._displayedToolCallId = 'tool-1';
 			internals._displayedToolLabel = 'Read';
 			internals._targetToolCallId = 'tool-1';
 			internals._targetToolLabel = 'Reading package.json';
-			internals._toolTransitionPhase = 'idle';
 
-			internals._runToolTransition();
+			internals._toolTransition.update();
 
 			assert.deepStrictEqual({
 				displayedLabel: internals._displayedToolLabel,
-				transitionPhase: internals._toolTransitionPhase,
+				transitionPhase: internals._toolTransition.phase,
 			}, {
 				displayedLabel: 'Reading package.json',
 				transitionPhase: 'idle',
@@ -1433,7 +1480,7 @@ suite('ChatSubagentContentPart', () => {
 			));
 			const container = mainWindow.document.createElement('div');
 			viewItem.render(container);
-			const internals = viewItem as unknown as { _finishToolTransition(): void };
+			const internals = viewItem as unknown as { _toolTransition: { finish(): void } };
 
 			viewItem.setActionContext({
 				...baseContext,
@@ -1441,13 +1488,13 @@ suite('ChatSubagentContentPart', () => {
 				activeToolLabel: 'Search Tools',
 				activeToolIcon: Codicon.search,
 			});
-			internals._finishToolTransition();
+			internals._toolTransition.finish();
 			const toolState = {
 				label: container.querySelector('.chat-subagent-pill-active-tool-label')?.textContent,
 				ariaLabel: getPillButton(container).getAttribute('aria-label'),
 			};
 			viewItem.setActionContext(baseContext);
-			internals._finishToolTransition();
+			internals._toolTransition.finish();
 
 			assert.deepStrictEqual({
 				toolState,
@@ -2567,7 +2614,7 @@ suite('ChatSubagentContentPart', () => {
 			const outgoingRun = Event.toPromise(item.actionRunner.onDidRun);
 			label.querySelector<HTMLElement>('.monaco-link')!.click();
 			await outgoingRun;
-			label.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END));
+			label.dispatchEvent(new AnimationEvent(EventType.ANIMATION_END, { animationName: 'chat-activity-label-wipe-out' }));
 			const incomingText = label.textContent;
 			const incomingRun = Event.toPromise(item.actionRunner.onDidRun);
 			label.querySelector<HTMLElement>('.monaco-link')!.click();
@@ -4472,6 +4519,7 @@ suite('ChatSubagentContentPart', () => {
 				startedAt: 1000,
 				duration: 5000,
 				isActive: false,
+				isError: false,
 			});
 		});
 

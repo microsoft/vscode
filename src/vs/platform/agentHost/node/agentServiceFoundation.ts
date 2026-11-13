@@ -14,7 +14,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
 import { TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import type { IAgentCustomizationSettingsRegistration } from '../common/agentCustomizationSettings.js';
-import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel } from '../common/agentHostSchema.js';
+import { AgentHostProxyConfigKey, AgentHostTelemetryLevelConfigKey, agentHostConfigValueToTelemetryLevel, platformRootSchema } from '../common/agentHostSchema.js';
+import { MissionControlUseLocalCredentialsConfigKey } from '../common/missionControlEnvironment.js';
 import type { IAgentServiceCallbacks, IAgentServiceCallbackBinder } from './agentService.js';
 import { AgentConfigurationService, IAgentConfigurationService } from './agentConfigurationService.js';
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
@@ -33,9 +34,11 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 	readonly sessionServerToolAccessor: IAgentServiceSessionServerToolAccessor = {
 		getCredentialSource: chat => this.value.sessionServerToolAccessor.getCredentialSource(chat),
 		getAutomaticTitleGenerationStrategy: session => this.value.sessionServerToolAccessor.getAutomaticTitleGenerationStrategy(session),
-		isWorkspaceless: session => this.value.sessionServerToolAccessor.isWorkspaceless(session),
+		startedWorkspaceless: session => this.value.sessionServerToolAccessor.startedWorkspaceless(session),
 		canConvertWorkspace: session => this.value.sessionServerToolAccessor.canConvertWorkspace(session),
 		supportsChatWorkingDirectories: session => this.value.sessionServerToolAccessor.supportsChatWorkingDirectories(session),
+		getChatHarnesses: session => this.value.sessionServerToolAccessor.getChatHarnesses(session),
+		canCreateSessions: provider => this.value.sessionServerToolAccessor.canCreateSessions(provider),
 		listSessions: () => this.value.sessionServerToolAccessor.listSessions(),
 		getSession: session => this.value.sessionServerToolAccessor.getSession(session),
 		getWorktreeRoots: workspace => this.value.sessionServerToolAccessor.getWorktreeRoots(workspace),
@@ -47,6 +50,8 @@ export class AgentServiceCallbackAdapter implements IAgentServiceCallbackBinder 
 		prepareChatWorkingDirectory: (session, directory, options) => this.value.sessionServerToolAccessor.prepareChatWorkingDirectory(session, directory, options),
 		renameChat: (session, chat, title) => this.value.sessionServerToolAccessor.renameChat(session, chat, title),
 		reportToolError: (toolName, error) => this.value.sessionServerToolAccessor.reportToolError(toolName, error),
+		archiveSession: session => this.value.sessionServerToolAccessor.archiveSession(session),
+		archiveChat: chat => this.value.sessionServerToolAccessor.archiveChat(chat),
 		deleteSession: session => this.value.sessionServerToolAccessor.deleteSession(session),
 		getChatContext: (session, chatId) => this.value.sessionServerToolAccessor.getChatContext(session, chatId),
 		getSessionSpawnDepth: session => this.value.sessionServerToolAccessor.getSessionSpawnDepth(session),
@@ -130,11 +135,16 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 			Object.values(AgentHostProxyConfigKey).map(key => [key, undefined])
 		));
 	}
+	configurationService.publishRootTransientValues({ [MissionControlUseLocalCredentialsConfigKey]: undefined });
 	const gitHubEndpointService = options.owned.add(new AgentHostGitHubEndpointService(configurationService, options.logService));
 	const proxyResolver = options.proxyResolver ?? options.owned.add(new AgentHostProxyResolver(configurationService, options.logService));
 	const requestService = options.owned.add(new AgentHostRequestService(options.logService, proxyResolver));
 	const fetchFn = options.fetchFn ?? proxyResolver.fetch.bind(proxyResolver);
-	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn));
+	const authenticationService = options.owned.add(new AgentHostAuthenticationService(options.logService, fetchFn, {
+		isEnabled: () => configurationService.getRootValue(platformRootSchema, MissionControlUseLocalCredentialsConfigKey) === true,
+		getResources: () => [gitHubEndpointService.getCopilotResource(), gitHubEndpointService.getRepoResource()],
+		onDidChange: configurationService.onDidRootConfigChange,
+	}));
 
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);

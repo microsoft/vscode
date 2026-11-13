@@ -7,6 +7,7 @@ import assert from 'assert';
 import { once } from 'events';
 import { createServer, Socket } from 'net';
 import { randomBytes } from 'crypto';
+import * as tls from 'tls';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -19,7 +20,6 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
-import { IDefaultAccountService } from '../../../defaultAccount/common/defaultAccount.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from '../../../workspace/common/workspaceTrust.js';
 // This loopback integration test exercises the renderer client and native host together.
 // eslint-disable-next-line local/code-layering, local/code-import-patterns
@@ -35,10 +35,12 @@ import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostClientConnectionService } from '../../node/agentHostClientConnectionService.js';
 import { AgentHostManagedSettingsService } from '../../node/agentHostManagedSettingsService.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { authenticateAgentHostTransport } from '../../node/agentHostTransportAuthentication.js';
 import { MockDevContainerService } from '../common/mockDevContainerService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.js';
+import { createTestAgentHostProxyResolver } from './agentServiceTestUtils.js';
+import { TunnelProxy } from '../../../tunnel/node/tunnelProxy.js';
+import { createTunnelStream } from '../../../tunnel/node/tunnelStream.js';
 
 class RecordingLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -94,7 +96,7 @@ suite('AHP windowed TCP', function () {
 	this.timeout(20_000);
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function harness(onConnection: (socket: Socket) => void, authenticated = true, advertiseTcp = true) {
+	async function harness(onConnection: (socket: Socket) => void, advertiseTcp = true) {
 		const sockets = new Set<Socket>();
 		const destination = createServer({ allowHalfOpen: true }, socket => {
 			sockets.add(socket);
@@ -130,7 +132,7 @@ suite('AHP windowed TCP', function () {
 			const connections = store.add(new Emitter<IProtocolTransport>());
 			store.add(new ProtocolServerHandler(service, state, { onConnection: connections.event, address: 'test', dispose() { } }, {},
 				store.add(new AgentHostFileSystemProvider()), log, NullTelemetryService,
-				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state)));
+				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state), createTestAgentHostProxyResolver()));
 			return connections;
 		}
 		const primaryListener = listener();
@@ -151,7 +153,6 @@ suite('AHP windowed TCP', function () {
 					return message;
 				};
 			}
-			if (authenticated) { authenticateAgentHostTransport(remote); }
 			connections.fire(remote);
 			return local;
 		}
@@ -167,10 +168,7 @@ suite('AHP windowed TCP', function () {
 				override readonly onDidChangeTrustedFolders = Event.None;
 				override readonly onDidChangeTrust = Event.None;
 				override getTrustedUris(): URI[] { return []; }
-			}(), new class extends mock<IWorkspaceTrustRequestService>() { }(), new class extends mock<IDefaultAccountService>() {
-				override readonly policyData = null;
-				override readonly onDidChangePolicyData = Event.None;
-			}()));
+			}(), new class extends mock<IWorkspaceTrustRequestService>() { }()));
 		await client.connect();
 		return {
 			client, log, get wire() { return wire; }, port: address.port, newTransport: transport,
@@ -188,7 +186,7 @@ suite('AHP windowed TCP', function () {
 		}
 	}
 
-	test('default clients use TCP capabilities on the released protocol version', async () => {
+	test('accepted transports advertise TCP and forward data on the released protocol version', async () => {
 		const input = VSBuffer.fromString('capability-negotiated TCP');
 		const h = await harness(socket => socket.on('data', data => socket.end(data)));
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
@@ -201,7 +199,7 @@ suite('AHP windowed TCP', function () {
 	});
 
 	test('clients do not open TCP destinations without an advertised capability', async () => {
-		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, true, false);
+		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, false);
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
 		assert.strictEqual(h.client.initializeResult.get()?.tcpConnections, undefined);
 		await assert.rejects(h.open(), /does not support TCP/);
@@ -230,7 +228,11 @@ suite('AHP windowed TCP', function () {
 		await assert.rejects(h.open(), /Invalid TCP snapshot/);
 		const controls = h.wire.sent.filter(message => hasKey(message, { method: true }) && (message.method === 'unsubscribe' || message.method === 'tcp/reset'));
 		assert.deepStrictEqual(controls.map(message => hasKey(message, { method: true }) ? message.method : undefined), ['tcp/reset', 'unsubscribe']);
-		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, { warnings: [], errors: [] });
+		const [reset] = controls.map(message => vObj({ channel: vString() }).validateOrThrow(hasKey(message, { params: true }) ? message.params : undefined).channel);
+		assert.deepStrictEqual({ warnings: h.log.warnings, errors: h.log.errors }, {
+			warnings: [`[AgentHostChannels] ${reset} failed (invalidSnapshot); resetting the channel: Invalid TCP snapshot`],
+			errors: [],
+		});
 	});
 
 	test('client cancellation and repeated teardown controls are quiet on the host', async () => {
@@ -261,6 +263,67 @@ suite('AHP windowed TCP', function () {
 		await stream.drain();
 		assert.deepStrictEqual(await received.p, input);
 		assert.deepStrictEqual(await output, input);
+	});
+
+	test('browser proxies stream large responses and WebSockets over agent host TCP', async () => {
+		const http = await import('http');
+		const https = await import('https');
+		const largeBytes = 4 * 1024 * 1024;
+		const destination = http.createServer(async (_request, response) => {
+			response.writeHead(200, { 'Content-Length': String(largeBytes) });
+			const chunk = Buffer.alloc(64 * 1024, 0x5a);
+			for (let sent = 0; sent < largeBytes; sent += chunk.byteLength) {
+				if (!response.write(chunk)) {
+					await once(response, 'drain');
+				}
+			}
+			response.end();
+		});
+		// Echoes WebSocket payload bytes after the handshake.
+		destination.on('upgrade', (_request, socket) => {
+			socket.write('HTTP/1.1 101 Switching Protocols\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n');
+			socket.on('data', data => socket.write(data));
+		});
+		const { client, port } = await harness(socket => destination.emit('connection', socket));
+		const proxy = store.add(new TunnelProxy(async (host, destinationPort) => createTunnelStream(await client.openTcpConnection({ host, port: destinationPort })), new NullLogService()));
+		const info = await proxy.start();
+		const proxyAuthorization = `Basic ${Buffer.from(`${info.credentials.username}:${info.credentials.password}`).toString('base64')}`;
+
+		const large = await new Promise<number>((resolve, reject) => {
+			const request = https.get({ host: '127.0.0.1', port: info.port, path: `http://127.0.0.1:${port}/large`, headers: { 'Proxy-Authorization': proxyAuthorization }, rejectUnauthorized: false, agent: false }, response => {
+				let length = 0;
+				response.on('data', (chunk: Buffer) => length += chunk.byteLength);
+				response.on('end', () => resolve(length));
+				response.on('error', reject);
+			});
+			request.on('error', reject);
+		});
+		// Chromium tunnels WebSockets, including ws://, through CONNECT.
+		const socket = tls.connect({ host: '127.0.0.1', port: info.port, rejectUnauthorized: false });
+		const read = (until: string) => new Promise<string>((resolve, reject) => {
+			let data = '';
+			const onData = (chunk: Buffer) => {
+				data += chunk.toString();
+				if (data.includes(until)) {
+					socket.off('data', onData);
+					resolve(data);
+				}
+			};
+			socket.on('data', onData);
+			socket.once('error', reject);
+		});
+		socket.write(`CONNECT 127.0.0.1:${port} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nProxy-Authorization: ${proxyAuthorization}\r\n\r\n`);
+		const connect = await read('\r\n\r\n');
+		socket.write(`GET /socket HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n`);
+		const handshake = await read('\r\n\r\n');
+		socket.write('ping');
+		const echoed = await read('ping');
+		socket.destroy();
+
+		assert.deepStrictEqual(
+			{ large, connect: connect.split('\r\n', 1)[0], handshake: handshake.split('\r\n', 1)[0], echoed },
+			{ large: largeBytes, connect: 'HTTP/1.1 200 Connection Established', handshake: 'HTTP/1.1 101 Switching Protocols', echoed: 'ping' },
+		);
 	});
 
 	test('installs response routing before the empty snapshot, immediate data and EOF', async () => {
@@ -322,9 +385,10 @@ suite('AHP windowed TCP', function () {
 		let accepted = 0;
 		const h = await harness(socket => { accepted++; socket.end(input); });
 		const stream = store.add(await h.open());
-		await Promise.all([8192, 4096].map((windowBytes, index) => h.wire.request({
+		// Equal windows keep the client's credit threshold valid; the test bypasses the client stream's own renegotiation.
+		await Promise.all([1024, 2048].map((maximumFrameBytes, index) => h.wire.request({
 			jsonrpc: '2.0', id: 900 + index, method: 'subscribe', params: {
-				channel: stream.resource, flowControl: { receive: { windowBytes, maximumFrameBytes: 1024 } },
+				channel: stream.resource, flowControl: { receive: { windowBytes: agentHostTcpReceiveLimits.windowBytes, maximumFrameBytes } },
 			}
 		})));
 		assert.deepStrictEqual(await readAll(stream), input);
@@ -343,17 +407,6 @@ suite('AHP windowed TCP', function () {
 		assert.deepStrictEqual(await readAll(current), input);
 		await current.end();
 		await current.drain();
-	});
-
-	test('TCP capability and destination creation require authentication', async () => {
-		const untrusted = await harness(socket => socket.end(), false);
-		assert.strictEqual(untrusted.client.initializeResult.get()?.tcpConnections, undefined);
-		await assert.rejects(untrusted.open(), /does not support TCP/);
-		await assert.rejects(untrusted.wire.request({
-			jsonrpc: '2.0', id: 902, method: 'createTcpConnection', params: {
-				channel: 'ahp-tcp:/denied', host: '127.0.0.1', port: untrusted.port,
-			}
-		}), /authenticated/);
 	});
 
 	test('ownership is transport-local, even for the same logical client identity', async () => {
@@ -460,7 +513,7 @@ suite('AHP windowed TCP', function () {
 			jsonrpc: '2.0', method: 'unsubscribe',
 			params: { channel: stream.resource, padding: 'x'.repeat(16 * 1024) },
 		});
-		assert.ok(h.log.errors.some(error => error.includes('AgentHostChannels')));
+		assert.ok(h.log.warnings.some(warning => warning.includes('[AgentHostChannels] Control lane failed (controlLimitExceeded)')));
 		assert.strictEqual(h.wire.peer.disposed, true);
 	});
 
@@ -480,8 +533,8 @@ suite('AHP windowed TCP', function () {
 				},
 			});
 			assert.deepStrictEqual(result, replay
-				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'] }
-				: { type: 'snapshot', snapshots: [] });
+				? { type: 'replay', actions: [], missing: ['ahp-tcp:/subscription', 'ahp-tcp:/both', 'ahp-tcp:/window-only'], windows: { items: [] } }
+				: { type: 'snapshot', snapshots: [], windows: { items: [] } });
 		});
 	}
 
@@ -512,7 +565,12 @@ suite('AHP windowed TCP', function () {
 	});
 
 	test('enforces 256 transport and 512 host socket limits and reuses released capacity', async () => {
-		const h = await harness(() => { });
+		// The destination accepts one connection per event loop iteration, but one iteration can complete
+		// a whole batch of connects. Every batch waits for its accepts, so that the connections waiting to
+		// be accepted never exceed the listen backlog: macOS limits it to 128 and resets connects beyond it.
+		const accepted = Array.from({ length: 512 }, () => new DeferredPromise<void>());
+		let acceptedCount = 0;
+		const h = await harness(() => accepted[acceptedCount++]?.complete());
 		const second = h.newListenerTransport();
 		const third = h.newTransport();
 		for (const [index, wire] of [second, third].entries()) {
@@ -523,12 +581,16 @@ suite('AHP windowed TCP', function () {
 				channel: `ahp-tcp:/quota-${index}`, host: '127.0.0.1', port: h.port,
 			}
 		});
+		const createBatch = async (wire: Wire, start: number) => {
+			await Promise.all(Array.from({ length: 16 }, (_, offset) => create(wire, start + offset)));
+			await accepted[start + 15].p;
+		};
 		for (let i = 0; i < 256; i += 16) {
-			await Promise.all(Array.from({ length: 16 }, (_, offset) => create(h.wire, i + offset)));
+			await createBatch(h.wire, i);
 		}
 		await assert.rejects(create(h.wire, 256), /capacity/);
 		for (let i = 256; i < 512; i += 16) {
-			await Promise.all(Array.from({ length: 16 }, (_, offset) => create(second, i + offset)));
+			await createBatch(second, i);
 		}
 		await assert.rejects(create(third, 512), /capacity/);
 		h.wire.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel: 'ahp-tcp:/quota-0' } });
