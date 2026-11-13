@@ -4401,6 +4401,7 @@ suite('AgentHostProtocolClient', () => {
 			id: 2,
 			result: {
 				mode: 'load_and_augment',
+				reconciliation: { status: 'pending', message: 'Waiting for the chat to finish.' },
 				extensions: [{
 					id: 'user:preview',
 					name: 'Preview',
@@ -4424,6 +4425,7 @@ suite('AgentHostProtocolClient', () => {
 		await toggle;
 		assert.deepStrictEqual({
 			mode: inventory.mode,
+			reconciliation: inventory.reconciliation,
 			extensions: inventory.extensions.map(extension => ({
 				id: extension.id,
 				resourceScheme: extension.resource?.scheme,
@@ -4433,6 +4435,7 @@ suite('AgentHostProtocolClient', () => {
 			})),
 		}, {
 			mode: 'load_and_augment',
+			reconciliation: { status: 'pending', message: 'Waiting for the chat to finish.' },
 			extensions: [{
 				id: 'user:preview',
 				resourceScheme: 'vscode-agent-host',
@@ -4441,6 +4444,19 @@ suite('AgentHostProtocolClient', () => {
 				status: 'running',
 			}],
 		});
+	});
+
+	test('rejects malformed Copilot extension reconciliation diagnostics', async () => {
+		const { client, transport } = createClient();
+		await connectClient(client, transport, getAgentHostExtensionInitializeResultMeta(true, false, false, false, false, false, false, false, true));
+		const result = client.listAgentExtensions();
+		const sent = transport.sentMessages.at(-1) as JsonRpcRequest;
+		transport.fireMessage({
+			jsonrpc: '2.0',
+			id: sent.id,
+			result: { mode: 'load_and_augment', extensions: [], reconciliation: { status: 'pending', message: '' } },
+		});
+		await assert.rejects(result, /invalid extension reconciliation state/);
 	});
 
 	test('does not call Copilot extension methods without the advertised capability', async () => {

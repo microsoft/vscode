@@ -283,7 +283,7 @@ suite('SessionCanvasService', () => {
 			definitionOpens: harness.definitionOpens,
 			definitionsChanged: changeCount > beforeChange,
 		}, {
-			frontendSessionResource: harness.session.resource.toString(),
+			frontendSessionResource: context.owner.chat.toString(),
 			definitions: [harness.definition],
 			definitionOpens: [{ canvas: harness.definition, instanceId: 'preview-instance' }],
 			definitionsChanged: true,
@@ -1672,6 +1672,7 @@ suite('SessionCanvasService', () => {
 			const snapshot = () => ({
 				contexts: contextService.contexts.get().map(context => ({ chat: context.owner.chat.path, background: context.background })),
 				visible: [chatA, chatB].map(chat => contextService.isOwnerVisible(ownerOf(chat))),
+				customizationTargets: [chatA, chatB].map(chat => contextService.getFrontendSessionResource(ownerOf(chat))?.toString()),
 				group: [chatA, chatB].map(chat => contextService.getEditorGroup(ownerOf(chat), upcastPartial<CanvasInput>({}), false)?.id),
 			});
 			return { contextService, snapshot, windowChats, sessionBChats, chatA, chatB, observations, ownerOf };
@@ -1687,6 +1688,7 @@ suite('SessionCanvasService', () => {
 			assert.deepStrictEqual(setup(false), {
 				contexts: [{ chat: '/session/a', background: true }, { chat: '/session/b', background: true }],
 				visible: [true, true],
+				customizationTargets: ['agent-host-chat:/session/a', 'agent-host-chat:/session/b'],
 				group: [2, 2],
 			});
 		});

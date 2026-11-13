@@ -605,6 +605,7 @@ interface ICopilotSessionRefreshCheckOptions {
 interface ICopilotSessionRefreshOptions extends ICopilotSessionRefreshCheckOptions {
 	readonly allowRestart: 'whenIdle' | 'always';
 	readonly turnId?: string;
+	readonly extensionEnablementResync?: boolean;
 }
 
 interface ICopilotAgentSessionIdentity {
@@ -672,14 +673,17 @@ const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_life
 
 class IncompleteCopilotSessionMarkerError extends Error { }
 
-function isExtensionLifecycleReconciliationError(error: unknown): boolean {
+function extensionReconciliationCode(error: unknown): string | undefined {
 	if (!error || typeof error !== 'object') {
-		return false;
+		return undefined;
 	}
 	const data = (error as { readonly data?: unknown }).data;
-	return !!data
-		&& typeof data === 'object'
-		&& (data as { readonly code?: unknown }).code === EXTENSION_RECONCILIATION_LIFECYCLE_FAILED;
+	const code = data && typeof data === 'object' ? (data as { readonly code?: unknown }).code : undefined;
+	return typeof code === 'string' ? code : undefined;
+}
+
+function isExtensionLifecycleReconciliationError(error: unknown): boolean {
+	return extensionReconciliationCode(error) === EXTENSION_RECONCILIATION_LIFECYCLE_FAILED;
 }
 
 class CopilotExtensionReconciliationError extends Error {
@@ -688,7 +692,17 @@ class CopilotExtensionReconciliationError extends Error {
 	}
 }
 
-class CopilotExtensionReconcileTargetUnavailableError extends Error { }
+class CopilotExtensionReconcileTargetUnavailableError extends Error {
+	constructor() {
+		super(localize('copilot.extensionReconcileTargetUnavailable', "This chat stopped or was replaced before its canvas extensions could be updated."));
+	}
+}
+
+class CopilotExtensionReconcilePendingError extends Error {
+	constructor() {
+		super(localize('copilot.extensionReconcilePending', "Canvas extension changes are waiting for this chat to finish its work."));
+	}
+}
 
 class CopilotSessionConfigurationBusyError extends Error {
 	constructor(readonly session: CopilotAgentSession) {
@@ -1406,6 +1420,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** Sessions that may issue SDK callbacks before joining `_chatEntriesBySdkId`. */
 	private readonly _sessionsPendingRegistration = this._register(new DisposableSet<CopilotAgentSession>());
 	private readonly _connectorRefreshTasks = new WeakMap<CopilotAgentSession, Promise<void>>();
+	private readonly _extensionPreferenceSequencer = new Sequencer();
+	private _extensionPreferenceRevision = 0;
+	private readonly _appliedExtensionRevisions = new WeakMap<CopilotAgentSession, number>();
+	private readonly _extensionReconciliationFailures = new WeakMap<CopilotAgentSession, { readonly revision: number; readonly message: string }>();
+	private readonly _queuedExtensionCatchUps = new WeakSet<CopilotAgentSession>();
+	/** Runtimes whose last reconcile tolerated a lifecycle failure; each turn retries until one succeeds. */
+	private readonly _extensionLifecycleRetries = new WeakSet<CopilotAgentSession>();
 	/** Exact host chat URI -> persisted provider backing; live SDK sessions are tracked separately. */
 	private readonly _chatBackings = new Map<string, IPersistedChat>();
 	/** Selections awaiting replay survive a failed replacement or model update. */
@@ -2380,6 +2401,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _onChatTurnEnded(): void {
 		for (const session of this._allLiveSessions()) {
 			void this._scheduleConnectorRefresh(session);
+			this._scheduleExtensionCatchUp(session);
 		}
 		if (this._sessionTelemetryRevoked) {
 			queueMicrotask(() => {
@@ -3236,6 +3258,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async listAgentExtensions(session?: URI, chat?: URI): Promise<IAgentExtensionInventory> {
+		const revision = this._extensionPreferenceRevision;
 		const inventory = await this._retryAfterClosedConnection('listExtensions', client => client.rpc.extensions.discover());
 		if (!inventory || typeof inventory !== 'object' || typeof inventory.mode !== 'string' || !Array.isArray(inventory.extensions)) {
 			throw new Error('Copilot returned an invalid extension inventory.');
@@ -3274,14 +3297,52 @@ export class CopilotAgent extends Disposable implements IAgent {
 			return persisted;
 		}
 		const liveSession = this._findPluginOperationSession(session, chat);
-		if (!liveSession) {
+		if (!liveSession || liveSession.isDisposed) {
 			return persisted;
 		}
 		const persistedById = new Map(persisted.extensions.map(extension => [extension.id, extension]));
-		const liveExtensions = await liveSession.listExtensions();
+		const pending = this._extensionCatchUpPendingError(liveSession);
+		const failure = this._extensionReconciliationFailure(liveSession);
+		let reconciliation: IAgentExtensionInventory['reconciliation'] = failure
+			? { status: 'failed', message: failure }
+			: pending ? { status: 'pending', message: pending.message } : undefined;
+		let liveExtensions: readonly IAgentExtensionInfo[];
+		try {
+			liveExtensions = pending || failure || this._isExtensionEnablementCurrent(liveSession) ? await liveSession.listExtensions() : await this._queueChat(liveSession.sessionId, liveSession.sessionId, 'listExtensions', async () => {
+				if (this._findPluginOperationSession(session, chat) !== liveSession || liveSession.isDisposed) {
+					throw new CopilotExtensionReconcileTargetUnavailableError();
+				}
+				try {
+					do {
+						await this._catchUpExtensions(liveSession);
+					} while (!this._isExtensionEnablementCurrent(liveSession));
+				} catch (error) {
+					if (this._findPluginOperationSession(session, chat) !== liveSession || liveSession.isDisposed) {
+						throw error;
+					}
+					reconciliation = {
+						status: error instanceof CopilotExtensionReconcilePendingError ? 'pending' : 'failed',
+						message: this._extensionReconciliationFailure(liveSession) ?? getErrorMessage(error),
+					};
+					if (reconciliation.status === 'failed') {
+						this._logService.warn(`[Copilot:${liveSession.sessionId}] Canvas extension inventory remains unconfirmed`, error);
+					}
+				}
+				return liveSession.listExtensions();
+			});
+		} catch (error) {
+			if (this._findPluginOperationSession(session, chat) !== liveSession || liveSession.isDisposed) {
+				return this.listAgentExtensions(session, chat);
+			}
+			throw error;
+		}
+		if (revision !== this._extensionPreferenceRevision || this._findPluginOperationSession(session, chat) !== liveSession) {
+			return this.listAgentExtensions(session, chat);
+		}
 		const liveExtensionIds = new Set(liveExtensions.map(extension => extension.id));
 		return {
 			mode: persisted.mode,
+			...(reconciliation ? { reconciliation } : {}),
 			extensions: this._mergeExtensionInventoryEntries([
 				...liveExtensions.map(extension => {
 					const persistedExtension = persistedById.get(extension.id);
@@ -3326,35 +3387,51 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!extensionId) {
 			throw new Error('Extension id is required.');
 		}
-		const inventory = await this.listAgentExtensions(session, chat);
-		const extension = inventory.extensions.find(extension => extension.id === extensionId);
-		if (!extension) {
-			throw new Error(`Extension '${extensionId}' is not available or cannot be managed.`);
-		}
-		if (extension.source !== 'user' && extension.source !== 'plugin') {
-			throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
-		}
-		try {
-			await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
-				? client.rpc.extensions.enable({ ids: [extensionId] })
-				: client.rpc.extensions.disable({ ids: [extensionId] }));
-		} catch (error) {
-			throw new Error(enabled
-				? localize('copilot.extensionEnableFailed', "Couldn't enable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error))
-				: localize('copilot.extensionDisableFailed', "Couldn't disable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error)));
-		}
-		const targetSession = session ? this._findPluginOperationSession(session, chat) : undefined;
+		const { extension, targetSession } = await this._extensionPreferenceSequencer.queue(async () => {
+			const inventory = await this.listAgentExtensions();
+			let extension = inventory.extensions.find(extension => extension.id === extensionId);
+			if (!extension && session) {
+				extension = (await this._findPluginOperationSession(session, chat)?.listExtensions())?.find(extension => extension.id === extensionId);
+			}
+			if (!extension) {
+				throw new Error(`Extension '${extensionId}' is not available or cannot be managed.`);
+			}
+			if (extension.source !== 'user' && extension.source !== 'plugin') {
+				throw new Error(`Extension '${extensionId}' does not have a manageable source.`);
+			}
+			try {
+				await this._retryAfterClosedConnection('setExtensionEnabled', client => enabled
+					? client.rpc.extensions.enable({ ids: [extensionId] })
+					: client.rpc.extensions.disable({ ids: [extensionId] }));
+			} catch (error) {
+				throw new Error(enabled
+					? localize('copilot.extensionEnableFailed', "Couldn't enable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error))
+					: localize('copilot.extensionDisableFailed', "Couldn't disable canvas extension '{0}'. {1}", extension.name, getErrorMessage(error)));
+			}
+			const targetSession = session ? this._findPluginOperationSession(session, chat) : undefined;
+			this._extensionPreferenceRevision++;
+			for (const candidate of this._allLiveSessions()) {
+				if (candidate !== targetSession) {
+					this._scheduleExtensionCatchUp(candidate);
+				}
+			}
+			return { extension, targetSession };
+		});
 		if (!targetSession) {
 			return;
 		}
 		const targetSessionId = targetSession.sessionId;
 		try {
-			await this._queueChat(targetSessionId, targetSessionId, 'reconcileExtensions', () => {
+			await this._queueChat(targetSessionId, targetSessionId, 'reconcileExtensions', async () => {
 				const currentSession = this._findPluginOperationSession(session, chat);
-				if (!currentSession || currentSession.sessionId !== targetSessionId) {
+				if (!currentSession || currentSession.sessionId !== targetSessionId
+					|| !isEqual(currentSession.chatChannelUri, targetSession.chatChannelUri) || currentSession.isDisposed) {
 					throw new CopilotExtensionReconcileTargetUnavailableError();
 				}
-				return this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
+				await this._reconcileExtensionEnablement(currentSession, extensionId, enabled);
+				if (this._findPluginOperationSession(session, chat) !== currentSession || currentSession.isDisposed) {
+					throw new CopilotExtensionReconcileTargetUnavailableError();
+				}
 			});
 		} catch (error) {
 			if (error instanceof CopilotExtensionReconcileTargetUnavailableError) {
@@ -3401,9 +3478,173 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _reconcileExtensionEnablement(session: CopilotAgentSession, extensionId: string, enabled: boolean): Promise<void> {
+	private _isExtensionEnablementCurrent(session: CopilotAgentSession): boolean {
+		return !session.canvasRuntimeEnabled || (this._appliedExtensionRevisions.get(session) ?? 0) >= this._extensionPreferenceRevision;
+	}
+
+	private _extensionReconciliationFailure(session: CopilotAgentSession): string | undefined {
+		const failure = this._extensionReconciliationFailures.get(session);
+		return failure?.revision === this._extensionPreferenceRevision ? failure.message : undefined;
+	}
+
+	private _extensionCatchUpPendingError(session: CopilotAgentSession): CopilotExtensionReconcilePendingError | undefined {
+		return !this._isExtensionEnablementCurrent(session) && (session.hasActiveTurn || session.hasActiveSubagents)
+			? new CopilotExtensionReconcilePendingError()
+			: undefined;
+	}
+
+	private _isAttachedExtensionSession(session: CopilotAgentSession): boolean {
+		return this._activeClients.get(session.ownerSessionUri)?.hasContributors(session.chatChannelUri.toString()) === true
+			&& ![...this._provisionalSessions.values()].some(provisional => provisional.earlyLaunch?.launch.session === session);
+	}
+
+	private _scheduleExtensionCatchUp(session: CopilotAgentSession, retryFailure = false): void {
+		const canReconcile = () => !this._isShuttingDown && !session.isDisposed
+			&& this._findSessionBySdkId(session.sessionId) === session && this._isAttachedExtensionSession(session)
+			&& !session.hasActiveTurn && !session.hasActiveSubagents && !this._isExtensionEnablementCurrent(session)
+			&& (retryFailure || !this._extensionReconciliationFailure(session));
+		if (!canReconcile() || this._queuedExtensionCatchUps.has(session)) {
+			return;
+		}
+		this._queuedExtensionCatchUps.add(session);
+		void this._queueChat(session.sessionId, session.sessionId, 'catchUpExtensions', async () => {
+			// Clear before awaiting so a newer change can queue one successor.
+			this._queuedExtensionCatchUps.delete(session);
+			if (canReconcile()) {
+				if (retryFailure) {
+					this._extensionReconciliationFailures.delete(session);
+				}
+				await this._catchUpExtensions(session);
+			}
+		}).catch(error => {
+			this._logService.warn(`[Copilot:${session.sessionId}] Failed to reconcile canvas extension enablement`, error);
+			if (!session.isDisposed && this._findSessionBySdkId(session.sessionId) === session) {
+				session.publishCanvases();
+			}
+		});
+	}
+
+	private async _catchUpExtensions(session: CopilotAgentSession, atTurnBoundary = false): Promise<void> {
+		const isCurrentSession = () => !session.isDisposed
+			&& (this._findSessionBySdkId(session.sessionId) === session || this._sessionsPendingRegistration.has(session));
+		while (!this._isExtensionEnablementCurrent(session)) {
+			if (!isCurrentSession()) {
+				throw new CopilotExtensionReconcileTargetUnavailableError();
+			}
+			const failure = atTurnBoundary ? undefined : this._extensionReconciliationFailure(session);
+			if (failure) {
+				throw new Error(failure);
+			}
+			const pending = atTurnBoundary ? undefined : this._extensionCatchUpPendingError(session);
+			if (pending) {
+				throw pending;
+			}
+			const revision = this._extensionPreferenceRevision;
+			try {
+				await this._reconcileExtensionsTolerantly(session);
+			} catch (error) {
+				if (revision === this._extensionPreferenceRevision || !isCurrentSession()) {
+					const failure = !atTurnBoundary && this._extensionReconciliationFailure(session);
+					throw failure ? new Error(failure) : error;
+				}
+				this._logService.warn(`[Copilot:${session.sessionId}] Superseded canvas extension reconciliation failed`, error);
+			}
+			if (!isCurrentSession()) {
+				throw new CopilotExtensionReconcileTargetUnavailableError();
+			}
+		}
+	}
+
+	private async _catchUpExtensionsForTurn(context: IResolvedCopilotChatContext, entry: CopilotAgentSession, workingDirectories: readonly URI[] | undefined, options: ICopilotSessionRefreshOptions): Promise<CopilotAgentSession> {
+		if (this._extensionLifecycleRetries.has(entry) && this._isExtensionEnablementCurrent(entry)) {
+			try {
+				await this._reconcileExtensionsTolerantly(entry);
+			} catch (error) {
+				// This revision is already applied, so a failed retry leaves the chat usable and still owed.
+				if (isCancellationError(error) || error instanceof CopilotExtensionReconcileTargetUnavailableError) {
+					throw error;
+				}
+				this._logService.warn(`[Copilot:${entry.sessionId}] Retrying canvas extension reconciliation failed; the chat remains usable`, error);
+			}
+		}
+		try {
+			await this._catchUpExtensions(entry, true);
+			return entry;
+		} catch (error) {
+			if (error instanceof CopilotExtensionReconcilePendingError || error instanceof CopilotExtensionReconcileTargetUnavailableError || isCancellationError(error)) {
+				throw error;
+			}
+			if (entry.isDisposed || this._findSessionBySdkId(entry.sessionId) !== entry) {
+				throw new CopilotExtensionReconcileTargetUnavailableError();
+			}
+			if (entry.hasActiveTurn || entry.hasActiveSubagents) {
+				throw new Error(localize('copilot.extensionReconcileActiveWorkFailed', "Couldn't apply canvas extension changes while this chat is still working. Wait for its current work to finish or disable the failing extension, then try again. {0}", getErrorMessage(error)));
+			}
+			this._logService.warn(`[Copilot:${entry.sessionId}] Relaunching session after canvas extension reconciliation failed`, error);
+			const replacement = await this._refreshSessionConfiguration(context, entry, workingDirectories, { ...options, extensionEnablementResync: true });
+			await this._catchUpExtensions(replacement, true);
+			return replacement;
+		}
+	}
+
+	private async _reconcileExtensionsTolerantly(session: CopilotAgentSession): Promise<void> {
+		const lifecycleError = await this._reconcileExtensions(session);
+		if (lifecycleError) {
+			this._logService.warn(`[Copilot:${session.sessionId}] Some canvas extensions failed to start or stop; the chat remains usable and retries before its next turn`, lifecycleError);
+		}
+	}
+
+	/**
+	 * Resolves with a lifecycle error instead of rejecting, so an extension that failed to start or stop doesn't block
+	 * the rest of the chat. The runtime retries a failed stop only when reconciled again, so the chat retries before each
+	 * turn until a reconcile succeeds.
+	 */
+	private async _reconcileExtensions(session: CopilotAgentSession): Promise<unknown> {
+		const revision = this._extensionPreferenceRevision;
+		let lifecycleError: unknown;
 		try {
 			await session.reconcileExtensions();
+		} catch (error) {
+			if (!isExtensionLifecycleReconciliationError(error)) {
+				const code = extensionReconciliationCode(error);
+				if (!isCancellationError(error) && code !== 'extension_reconciliation_superseded' && code !== 'extension_reconciliation_not_ready'
+					&& revision === this._extensionPreferenceRevision && (this._appliedExtensionRevisions.get(session) ?? 0) < revision && !session.isDisposed
+					&& (this._findSessionBySdkId(session.sessionId) === session || this._sessionsPendingRegistration.has(session))) {
+					this._extensionReconciliationFailures.set(session, {
+						revision,
+						message: localize('copilot.extensionReconcileFailed', "Canvas extension changes couldn't be fully applied. Disable the failing extension or send a message when this chat is idle to restart it. {0}", getErrorMessage(error)),
+					});
+				}
+				throw error;
+			}
+			lifecycleError = error;
+		}
+		const registered = this._findSessionBySdkId(session.sessionId) === session;
+		if (session.isDisposed || !registered && !this._sessionsPendingRegistration.has(session)) {
+			throw new CopilotExtensionReconcileTargetUnavailableError();
+		}
+		this._appliedExtensionRevisions.set(session, Math.max(this._appliedExtensionRevisions.get(session) ?? 0, revision));
+		if (lifecycleError) {
+			this._extensionLifecycleRetries.add(session);
+		} else {
+			this._extensionLifecycleRetries.delete(session);
+		}
+		if ((this._extensionReconciliationFailures.get(session)?.revision ?? 0) <= revision) {
+			this._extensionReconciliationFailures.delete(session);
+		}
+		if (registered && this._isExtensionEnablementCurrent(session)) {
+			session.publishCanvases();
+		}
+		return lifecycleError;
+	}
+
+	private async _reconcileExtensionEnablement(session: CopilotAgentSession, extensionId: string, enabled: boolean): Promise<void> {
+		try {
+			// The chat stays usable after a lifecycle failure, but the selected chat still reports it.
+			const lifecycleError = await this._reconcileExtensions(session);
+			if (lifecycleError) {
+				throw lifecycleError;
+			}
 		} catch (error) {
 			if (session.isDisposed || !isExtensionLifecycleReconciliationError(error)) {
 				throw error;
@@ -3447,8 +3688,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!context.target && (context.credentials || this._releasedCanvasContinuity(context))) {
 			return undefined;
 		}
-		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases');
-		return liveSession.listCanvases();
+		return this._withSessionCanvasChat(session, chat, operationContext, 'listSessionCanvases', async liveSession => {
+			const revision = this._extensionPreferenceRevision;
+			const canvases = await liveSession.listCanvases();
+			return revision === this._extensionPreferenceRevision && this._findChatByUri(chat) === liveSession && !liveSession.isDisposed ? canvases : undefined;
+		});
 	}
 
 	watchChatCanvases(chat: URI, host: IAgentChatCanvasWatchHost): IDisposable {
@@ -3488,8 +3732,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
-		const liveSession = await this._resolveSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas');
-		await liveSession.openCanvas(request);
+		await this._withSessionCanvasChat(session, chat, operationContext, 'openSessionCanvas', liveSession => liveSession.openCanvas(request));
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI, operationContext: AgentChatOperationContext): Promise<void> {
@@ -3515,16 +3758,35 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _resolveSessionCanvasChat(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases'): Promise<CopilotAgentSession> {
+	private async _withSessionCanvasChat<T>(session: URI, chat: URI, operationContext: AgentChatOperationContext, operation: 'listSessionCanvases' | 'openSessionCanvas' | 'restoreCanvases', task: (liveSession: CopilotAgentSession) => Promise<T>): Promise<T> {
 		const context = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-		const liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
-			const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
-			return current.target ?? this._ensureResolvedChatSession(current);
-		});
-		if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
-			throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
+		if (context.target && !context.target.hasReleasedCanvasProjection) {
+			const failure = this._extensionReconciliationFailure(context.target);
+			if (failure) {
+				throw new Error(failure);
+			}
+			const pending = this._extensionCatchUpPendingError(context.target);
+			if (pending) {
+				throw pending;
+			}
 		}
-		return liveSession;
+		let liveSession: CopilotAgentSession;
+		do {
+			liveSession = await this._queueChat(context.lifetimeId, context.sequencerKey, operation, async () => {
+				const current = this._resolveSessionCanvasChatContext(session, chat, operationContext);
+				const liveSession = current.target ?? await this._ensureResolvedChatSession(current);
+				if (!liveSession || !isEqual(liveSession.ownerSessionUri, session)) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Canvas operation requires a resumable Copilot chat: ${chat.toString()}`);
+				}
+				liveSession.assertCanvasRuntimeAvailable();
+				await this._catchUpExtensions(liveSession);
+				return liveSession;
+			});
+		} while (!this._isExtensionEnablementCurrent(liveSession));
+		if (this._findChatByUri(chat) !== liveSession || !isEqual(liveSession.ownerSessionUri, session) || liveSession.isDisposed) {
+			throw new CopilotExtensionReconcileTargetUnavailableError();
+		}
+		return task(liveSession);
 	}
 
 	private _resolveSessionCanvasChatContext(session: URI, chat: URI, operationContext: AgentChatOperationContext): IResolvedCopilotChatContext {
@@ -6996,6 +7258,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw new Error(`[Copilot] resumeTurn for unknown chat: ${chat.toString()}`);
 			}
 			entry = await this._refreshSessionConfiguration(current, entry, undefined, { operation: 'resumeTurn', allowRestart: 'always', turnId, token });
+			entry = await this._catchUpExtensionsForTurn(current, entry, undefined, { operation: 'resumeTurn', allowRestart: 'whenIdle', turnId, token });
 			// The refresh already compared a warm runtime it left in place with the stored directory.
 			if (entry !== cachedEntry) {
 				await this._assertTurnWorkingDirectory(current, entry);
@@ -7006,6 +7269,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (credential) {
 				entry.assertScopedCredential(credential);
 			}
+			do {
+				await this._catchUpExtensions(entry, true);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+			} while (!this._isExtensionEnablementCurrent(entry));
 			await entry.resume(turnId, this._resolveSdkMode(current.ownerSession, current.chat), senderClientId, clientType, clientTelemetryContext, !URI.isUri(operationContext) && operationContext.agentMergeTurn === true, stageRecorder);
 			if (!token.isCancellationRequested) {
 				this._deliverPendingSteering(chat, entry);
@@ -8431,9 +8700,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 			);
 		}
 		const handle = activeClient.getOrCreateHandle(client.clientId, client.displayName);
-		if (joined && !this._findChatByUri(chat)) {
-			// The caller publishes the client's customizations next; a restore snapshots them after its first await.
-			this._restoreReleasedCanvasesWhenReady(chat);
+		if (joined) {
+			const liveSession = this._findChatByUri(chat);
+			if (liveSession) {
+				this._scheduleExtensionCatchUp(liveSession, true);
+			} else {
+				// The caller publishes the client's customizations next; a restore snapshots them after its first await.
+				this._restoreReleasedCanvasesWhenReady(chat);
+			}
 		}
 		return handle;
 	}
@@ -8566,6 +8840,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
 			?? (entry.requiresMcpLaunchConfigurationRefresh ? 'mcpLaunchConfigurationRefresh' : undefined)
 			?? (entry.requiresControlPlaneResync ? 'controlPlaneResync' : undefined)
+			?? (entry.hasReleasedCanvasProjection ? 'canvasProjectionReleased' : undefined)
 			// The chat changed owner since this runtime launched: relaunch with the new owner's configuration at this turn boundary.
 			?? (!isEqual(entry.launchOwner, context.ownerSession) ? 'ownerChanged' : undefined)
 			?? (currentSnapshot && entry.clientToolsRequireRestart(currentSnapshot.tools) ? 'clientToolsChanged' : undefined)
@@ -8606,7 +8881,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 		anchor: CustomizationAnchor | undefined,
 	): Promise<CopilotAgentSession> {
 		const { operation, allowRestart, turnId } = options;
-		const refreshReason = await this._sessionRefreshReasonWithAnchor(context, entry, workingDirectories, options, activeClient, anchor);
+		const refreshReason = await this._sessionRefreshReasonWithAnchor(context, entry, workingDirectories, options, activeClient, anchor)
+			?? (options.extensionEnablementResync ? 'extensionEnablementResync' : undefined);
 		if (!refreshReason) {
 			const tools = activeClient?.toolsForChat(context.chatKey);
 			if (tools && !equals(entry.appliedSnapshot.tools, tools)) {
@@ -8621,6 +8897,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (options.token?.isCancellationRequested) {
 			throw new CancellationError();
 		}
+		if (options.extensionEnablementResync) {
+			if (entry.isDisposed || this._findSessionBySdkId(entry.sessionId) !== entry) {
+				throw new CopilotExtensionReconcileTargetUnavailableError();
+			}
+			const pending = this._extensionCatchUpPendingError(entry);
+			if (pending) {
+				throw pending;
+			}
+		}
 		if (allowRestart === 'whenIdle' && entry.hasActiveTurn) {
 			throw new CopilotSessionConfigurationBusyError(entry);
 		}
@@ -8632,6 +8917,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			firstTurn: !entry.hasCompletedTurn,
 			phase: operation === 'startMcpServer' ? 'idle' : 'turnPrepare',
 		}, entry.completedTurnHistory);
+		const requireSuccessfulDisconnect = options.extensionEnablementResync === true || entry.hasReleasedCanvasProjection;
+		const publishReplacementInventory = requireSuccessfulDisconnect || !this._isExtensionEnablementCurrent(entry);
 		const canvasHandoff = entry.takeCanvasProjection() ?? this._canvasHandoffs.get(entry.chatChannelUri);
 		if (canvasHandoff) {
 			this._canvasHandoffs.set(entry.chatChannelUri, canvasHandoff);
@@ -8643,7 +8930,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		try {
 			// Finish a started restart so queued control operations can target the replacement runtime.
-			await this._destroyLiveSession(entry, true);
+			await this._destroyLiveSession(entry, true, requireSuccessfulDisconnect);
 			const token = operation === 'startMcpServer' ? CancellationToken.None : options.token;
 			if (entry.sessionId === context.sessionBackedId) {
 				replacement = await this._resumeSession(entry.sessionId, context.chat, context.workspaceless, workingDirectories, undefined, token, context.surface);
@@ -8654,6 +8941,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				}
 			}
 			await this._applyPendingModelSelection(context, replacement, token ?? CancellationToken.None);
+			if (!canvasHandoff && publishReplacementInventory) {
+				replacement.publishCanvases();
+			}
 			return replacement;
 		} finally {
 			if (canvasHandoff) {
@@ -8931,7 +9221,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (this._canvasWatches.get(chat) !== host) {
 				return;
 			}
-			await this._resolveSessionCanvasChat(context.ownerSession, chat, operationContext, 'restoreCanvases');
+			await this._withSessionCanvasChat(context.ownerSession, chat, operationContext, 'restoreCanvases', async () => { });
 			if (!this._canvasWatches.has(chat)) {
 				await this._releaseChat(chat, operationContext, {
 					reason: () => continuity.generation === this._canvasContinuityGeneration(context.chatKey) ? 'idle' : 'other',
@@ -9000,6 +9290,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (!entry) {
 				throw new Error(`[Copilot] sendMessage for unknown chat: ${chat.toString()}`);
 			}
+			entry = await this._catchUpExtensionsForTurn(current, entry, workingDirectories, { operation: 'sendMessage', allowRestart: 'whenIdle', turnId, token });
 			// The refresh already compared a warm runtime it left in place with the stored directory.
 			if (entry !== current.target) {
 				await this._assertTurnWorkingDirectory(current, entry);
@@ -9012,6 +9303,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			await this._applyPendingModelSelection(current, entry, token);
+			do {
+				await this._catchUpExtensions(entry, true);
+				if (token.isCancellationRequested) {
+					throw new CancellationError();
+				}
+			} while (!this._isExtensionEnablementCurrent(entry));
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
 			}
@@ -11016,11 +11313,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._registerUnboundSession(agentSession, activeClient);
 	}
 
-	private async _destroyLiveSession(chatSession: CopilotAgentSession, preserveRouting = false): Promise<void> {
+	private async _destroyLiveSession(chatSession: CopilotAgentSession, preserveRouting = false, requireSuccess = false): Promise<void> {
 		try {
 			await chatSession.destroySession();
 		} catch (error) {
 			this._logService.warn(`[Copilot:${chatSession.sessionId}] Failed to destroy session before cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			if (requireSuccess) {
+				throw error;
+			}
 		}
 		const chatChannelUri = chatSession.chatChannelUri;
 		if (!preserveRouting && chatChannelUri && this._chatBackings.get(chatChannelUri.toString())?.sdkSessionId === chatSession.sessionId) {
@@ -11036,6 +11336,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	/** Keeps SDK callbacks routable until ownership transfers to the live-session map. */
 	private async _initializeAndRegisterSession(session: CopilotAgentSession, register: () => void, beforeRegistration?: () => void | Promise<void>, token = CancellationToken.None): Promise<void> {
+		const extensionRevision = this._extensionPreferenceRevision;
 		if (this._isShuttingDown || token.isCancellationRequested) {
 			session.dispose();
 			throw new CancellationError();
@@ -11048,6 +11349,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 		session.setExtensionLaunchAdmission(extensionLaunchAdmission);
 		this._sessionsPendingRegistration.add(session);
+		this._appliedExtensionRevisions.set(session, extensionRevision);
 		this._copilotChatDiscovery.ignoreSession(session.sessionId);
 		// Managed plugins often finish preparing while the session is created, before its entry subscribes.
 		let runtimePluginsChangedBeforeRegistration = false;
@@ -11059,11 +11361,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 				await session.refreshConnectors();
 			}
 			await session.revalidateTelemetryBeforeRegistration?.();
+			try {
+				await this._catchUpExtensions(session);
+			} catch (error) {
+				if (isCancellationError(error) || error instanceof CopilotExtensionReconcileTargetUnavailableError || this._isShuttingDown) {
+					throw error;
+				}
+				this._logService.warn(`[Copilot:${session.sessionId}] Registering session with unconfirmed canvas extension changes`, error);
+			}
 			if (!this._sessionsPendingRegistration.deleteAndLeak(session)) {
 				throw new CancellationError();
 			}
 			runtimePluginsListener.dispose();
 			register();
+			if (!this._isExtensionEnablementCurrent(session)) {
+				session.publishCanvases();
+			}
+			this._scheduleExtensionCatchUp(session);
 		} finally {
 			runtimePluginsListener.dispose();
 			this._sessionsPendingRegistration.deleteAndLeak(session);

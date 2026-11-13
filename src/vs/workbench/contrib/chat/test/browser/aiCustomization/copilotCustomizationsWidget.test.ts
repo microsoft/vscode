@@ -77,6 +77,7 @@ suite('CopilotCanvasesWidget', () => {
 		readonly storageService?: IStorageService;
 		readonly visible?: boolean;
 		readonly contextAvailable?: boolean;
+		readonly frontendSessionAvailable?: boolean;
 		readonly ownerSuffix?: string;
 		readonly mutationGate?: Promise<void>;
 		readonly mutationError?: Error;
@@ -121,7 +122,7 @@ suite('CopilotCanvasesWidget', () => {
 			override readonly onDidRemoveOwner = Event.None;
 			override isOwnerVisible() { return true; }
 			override getContext() { return context; }
-			override getFrontendSessionResource() { return frontendSessionResource; }
+			override getFrontendSessionResource() { return options?.frontendSessionAvailable === false ? undefined : frontendSessionResource; }
 			override getEditorGroup() { return undefined; }
 		}();
 		const canvasService = new class extends mock<ICanvasService>() {
@@ -248,6 +249,10 @@ suite('CopilotCanvasesWidget', () => {
 			reveals,
 			itemCounts,
 			setContextAvailable(value: boolean) { contexts.set(value ? [context] : [], undefined); },
+			setExtensionInventory(value: IAgentExtensionInventory) {
+				extensionInventory = value;
+				definitionsChanged.fire();
+			},
 			widget,
 		};
 	}
@@ -558,6 +563,11 @@ suite('CopilotCanvasesWidget', () => {
 				name: 'never-run',
 				source: 'user',
 				status: 'disabled',
+			}, {
+				id: 'user:broken',
+				name: 'broken',
+				source: 'user',
+				status: 'failed',
 			}],
 		};
 		const harness = createHarness({ definitions: [], extensionInventory });
@@ -565,6 +575,7 @@ suite('CopilotCanvasesWidget', () => {
 		harness.widget.fireItemCount();
 		const detail = (name: string) => harness.container.querySelector(`.monaco-list-row[aria-label^="${name}."] .copilot-customization-tree-detail`)?.textContent;
 		const enabledPluginDetail = detail('microsoft-foundry');
+		const failedDetail = detail('broken');
 		const enable = harness.container.querySelector<HTMLElement>('[aria-label="Enable canvas extension \'never-run\'"]');
 		assert.ok(enable);
 		const neverRunEnableable = enable.checkVisibility() && enable.getAttribute('aria-disabled') !== 'true';
@@ -590,6 +601,7 @@ suite('CopilotCanvasesWidget', () => {
 			canvasRows: harness.container.querySelectorAll('.copilot-canvas-tree-item').length,
 			emptyVisible: harness.container.querySelector<HTMLElement>('.list-empty-state')?.style.display,
 			enabledPluginDetail,
+			failedDetail,
 			disabledPluginDetail: detail('microsoft-foundry'),
 			neverRunEnableable,
 			searchedRows,
@@ -597,10 +609,11 @@ suite('CopilotCanvasesWidget', () => {
 			itemCounts: harness.itemCounts,
 		}, {
 			accessible: true,
-			extensionRows: ['never-run', 'microsoft-foundry'],
+			extensionRows: ['broken', 'never-run', 'microsoft-foundry'],
 			canvasRows: 0,
 			emptyVisible: 'none',
 			enabledPluginDetail: 'Plugin: microsoft-foundry·No Canvases Reported',
+			failedDetail: 'Extension: broken·Failed',
 			disabledPluginDetail: 'Plugin: microsoft-foundry',
 			neverRunEnableable: true,
 			searchedRows: ['microsoft-foundry'],
@@ -1138,6 +1151,231 @@ suite('CopilotCanvasesWidget', () => {
 			link: 'Plugin: Diagram Plugin',
 			commands: [],
 			notifications: ['Plugin details for Diagram Plugin are not available in this window.'],
+		});
+	});
+
+	test('reopens readable inventory with a diagnostic and clears it after a data-only refresh', async () => {
+		const preview = definition();
+		const storageService = store.add(new InMemoryStorageService());
+		const first = createHarness({ definitions: [preview], storageService });
+		await timeout(0);
+		first.widget.dispose();
+		const message = 'Fixture preferences are waiting for the current turn.';
+		const reopened = createHarness({
+			storageService,
+			extensionInventory: { ...inventory([preview]), reconciliation: { status: 'pending', message } },
+		});
+		await timeout(0);
+		const inspect = () => {
+			const more = reopened.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			more.click();
+			const result = {
+				visible: reopened.container.textContent?.includes(message),
+				parentReason: reopened.container.querySelector('.copilot-canvas-extension-tree-item .copilot-customization-tree-detail')?.textContent?.includes(message),
+				accessible: reopened.widget.getAccessibilityContent().includes(message),
+				canDisable: reopened.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+				canOpen: reopened.menuActions.find(action => action.id === 'canvas.show')?.enabled,
+			};
+			reopened.hideMenu();
+			return result;
+		};
+		const pending = inspect();
+		reopened.setExtensionInventory(inventory([preview]));
+		const refreshing = inspect();
+		await timeout(0);
+
+		assert.deepStrictEqual({ pending, refreshing, applied: inspect() }, {
+			pending: { visible: true, parentReason: true, accessible: true, canDisable: true, canOpen: false },
+			refreshing: { visible: true, parentReason: true, accessible: true, canDisable: true, canOpen: false },
+			applied: { visible: false, parentReason: false, accessible: false, canDisable: true, canOpen: true },
+		});
+	});
+
+	for (const status of ['failed', 'disabled'] as const) {
+		test(`blocks a stale Canvas open after a data-only ${status} inventory update`, async () => {
+			const preview = definition();
+			const harness = createHarness({ definitions: [preview] });
+			await timeout(0);
+			const openMenu = () => {
+				const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+				assert.ok(more);
+				if (!more.checkVisibility()) {
+					return undefined;
+				}
+				more.click();
+				return harness.menuActions.find(action => action.id === 'canvas.show');
+			};
+			const staleOpen = openMenu();
+			assert.ok(staleOpen);
+			const closeStarted = new DeferredPromise<void>();
+			const releaseClose = new DeferredPromise<void>();
+			harness.widget.setCloseCustomizationEditor(async () => {
+				closeStarted.complete();
+				await releaseClose.p;
+				return true;
+			});
+			const opening = Promise.resolve(staleOpen.run());
+			await closeStarted.p;
+			harness.setExtensionInventory(inventory([preview], status));
+			await timeout(0);
+			releaseClose.complete();
+			await opening;
+			harness.hideMenu();
+			const currentOpen = openMenu();
+			harness.hideMenu();
+
+			assert.deepStrictEqual({
+				initiallyEnabled: staleOpen.enabled,
+				currentOpen: currentOpen?.enabled,
+				canManage: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+				opens: harness.openCalls,
+				notifications: harness.notifications,
+			}, {
+				initiallyEnabled: true,
+				currentOpen: status === 'failed' ? false : undefined,
+				canManage: true,
+				opens: 0,
+				notifications: status === 'failed' ? ['This canvas extension failed to start.'] : [],
+			});
+		});
+	}
+
+	test('retains known reconciliation health during a toggle-triggered refresh', async () => {
+		const preview = definition();
+		const reason = 'Fixture extension reconciliation failed.';
+		const release = new DeferredPromise<void>();
+		const requested = new DeferredPromise<void>();
+		let refreshing = false;
+		const harness = createHarness({
+			extensionInventory: { ...inventory([preview]), reconciliation: { status: 'failed', message: reason } },
+			mutationError: new Error('Fixture toggle did not settle.'),
+			onMutation: () => { refreshing = true; },
+			listCanvases: async () => {
+				if (refreshing) {
+					requested.complete();
+					await release.p;
+				}
+				return [preview];
+			},
+		});
+		await timeout(0);
+		try {
+			harness.container.querySelector<HTMLElement>('[role="switch"]')!.click();
+			await requested.p;
+			const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			more.click();
+			assert.deepStrictEqual({
+				knownReason: harness.widget.getAccessibilityContent().includes(reason),
+				claimsReady: harness.widget.getAccessibilityContent().includes('Ready to Open'),
+				canOpen: harness.menuActions.find(action => action.id === 'canvas.show')?.enabled,
+			}, { knownReason: true, claimsReady: false, canOpen: false });
+			harness.hideMenu();
+		} finally {
+			release.complete();
+			await timeout(0);
+		}
+	});
+
+	test('clears a recovered Canvas listing error when no extension inventory is available', async () => {
+		const preview = definition();
+		let failing = true;
+		const harness = createHarness({
+			frontendSessionAvailable: false,
+			listCanvases: async () => {
+				if (failing) {
+					throw new Error('Fixture Canvas listing failed.');
+				}
+				return [preview];
+			},
+		});
+		await timeout(0);
+		const failed = harness.widget.getAccessibilityContent().includes('Fixture Canvas listing failed.');
+		failing = false;
+		harness.definitionsChanged.fire();
+		await timeout(0);
+		assert.deepStrictEqual({
+			failed,
+			retainedFailure: harness.widget.getAccessibilityContent().includes('Fixture Canvas listing failed.'),
+			ready: harness.widget.getAccessibilityContent().includes('Ready to Open'),
+		}, { failed: true, retainedFailure: false, ready: true });
+	});
+
+	test('retains confirmed Canvas states during ordinary refresh and reports failures without blocking corrective toggles', async () => {
+		const preview = definition();
+		const refresh = new DeferredPromise<readonly ICanvasDefinition[]>();
+		const requested = new DeferredPromise<void>();
+		let refreshing = false;
+		const harness = createHarness({
+			listCanvases: async () => {
+				if (!refreshing) {
+					return [preview];
+				}
+				requested.complete();
+				return refresh.p;
+			},
+		});
+		await timeout(0);
+		const openMenu = () => {
+			const more = harness.container.querySelector<HTMLElement>('[aria-label^="More Actions for Canvas Preview"]');
+			assert.ok(more);
+			more.click();
+			const open = harness.menuActions.find(action => action.id === 'canvas.show');
+			assert.ok(open);
+			return open;
+		};
+		const staleOpen = openMenu();
+		refreshing = true;
+		harness.definitionsChanged.fire();
+		await requested.p;
+		await timeout(0);
+		await staleOpen.run();
+		harness.hideMenu();
+		const pending = {
+			visibleReason: harness.container.querySelector('.copilot-canvas-tree-item')?.textContent?.includes('Loading Canvases...'),
+			accessibleReason: harness.widget.getAccessibilityContent().includes('Loading Canvases...'),
+			claimsReadyToOpen: harness.widget.getAccessibilityContent().includes('Ready to Open'),
+			openEnabled: openMenu().enabled,
+			openLabel: harness.menuActions.find(action => action.id === 'canvas.show')?.label,
+			canDisable: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+		};
+		harness.hideMenu();
+		refresh.error(new Error('Fixture refresh failed.'));
+		await timeout(0);
+		const failed = {
+			visibleReason: harness.container.querySelector('.copilot-canvas-tree-item')?.textContent?.includes('Fixture refresh failed.'),
+			accessibleReason: harness.widget.getAccessibilityContent().includes('Fixture refresh failed.'),
+			claimsReadyToOpen: harness.widget.getAccessibilityContent().includes('Ready to Open'),
+			openEnabled: openMenu().enabled,
+			openLabel: harness.menuActions.find(action => action.id === 'canvas.show')?.label,
+			canDisable: harness.container.querySelector<HTMLButtonElement>('[role="switch"]')?.disabled === false,
+		};
+		harness.hideMenu();
+		refreshing = false;
+		harness.definitionsChanged.fire();
+		await timeout(0);
+		const closeStarted = new DeferredPromise<void>();
+		const releaseClose = new DeferredPromise<void>();
+		harness.widget.setCloseCustomizationEditor(async () => {
+			closeStarted.complete();
+			await releaseClose.p;
+			return true;
+		});
+		const opening = Promise.resolve(openMenu().run());
+		await closeStarted.p;
+		refreshing = true;
+		harness.definitionsChanged.fire();
+		await timeout(0);
+		releaseClose.complete();
+		await opening;
+		harness.hideMenu();
+
+		assert.deepStrictEqual({ pending, failed, opens: harness.openCalls, closes: harness.closeCalls }, {
+			pending: { visibleReason: false, accessibleReason: false, claimsReadyToOpen: true, openEnabled: true, openLabel: 'Open Canvas', canDisable: true },
+			failed: { visibleReason: true, accessibleReason: true, claimsReadyToOpen: false, openEnabled: false, openLabel: 'Open Canvas', canDisable: true },
+			opens: 1,
+			closes: 1,
 		});
 	});
 

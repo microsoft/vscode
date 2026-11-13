@@ -383,6 +383,11 @@ export interface IAgentExtensionInfo {
 export interface IAgentExtensionInventory {
 	readonly mode: AgentExtensionMode;
 	readonly extensions: readonly IAgentExtensionInfo[];
+	/** Query health for a live chat whose saved preferences remain unconfirmed, not enablement intent. */
+	readonly reconciliation?: {
+		readonly status: 'pending' | 'failed';
+		readonly message: string;
+	};
 }
 
 export type AgentCanvasExtensionSource = 'user' | 'project' | 'session' | 'plugin' | 'unknown';
@@ -2124,7 +2129,7 @@ export interface IAgent {
 	listAgentExtensions?(session?: URI, chat?: URI): Promise<IAgentExtensionInventory>;
 
 	/**
-	 * Persist User/Plugin enablement and reconcile one exact live chat when supplied.
+	 * Persist User/Plugin enablement and reconcile attached live chats, awaiting the supplied target.
 	 * Project entries are inventory-only; Project and Session mutation are unsupported.
 	 */
 	setAgentExtensionEnabled?(extensionId: string, enabled: boolean, session?: URI, chat?: URI): Promise<void>;
