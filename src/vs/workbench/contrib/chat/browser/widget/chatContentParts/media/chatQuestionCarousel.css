@@ -108,6 +108,12 @@
 	outline-offset: -1px;
 }
 
+/* Inline text icons align to the baseline, as in chat responses. */
+.interactive-session .chat-question-carousel-container .chat-question-detailed-message .rendered-markdown .codicon {
+	position: relative;
+	top: 2px;
+}
+
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
 	.chat-question-carousel-content {
 		.chat-question-body-scrollable,
