@@ -60,6 +60,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	}
 	override readonly onDidChangeSessions = Event.None;
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidReplaceSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];

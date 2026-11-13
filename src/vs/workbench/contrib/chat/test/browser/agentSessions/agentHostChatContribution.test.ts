@@ -9979,22 +9979,23 @@ suite('AgentHostChatContribution', () => {
 			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText })), [{ outcome: 'cancelled', hasResponseText: false }]);
 		});
 
-		test('first response timing excludes reasoning and error messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('first response timing counts root reasoning only toward the combined timing and ignores error messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
-			const records: { outcome: string; hasResponseText: boolean }[] = [];
+			const records: { outcome: string; hasResponseText: boolean; firstResponseOrReasoningMs?: number }[] = [];
 			instantiationService.get(ILogService).info = message => {
 				if (message?.startsWith('[AgentHostFirstResponse] ')) {
 					records.push(JSON.parse(message.substring('[AgentHostFirstResponse] '.length)));
 				}
 			};
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-			fire({ type: 'chat/responsePart', session, turnId, part: { kind: ResponsePartKind.Reasoning, id: 'thought', content: 'thinking' } } as ChatAction);
+			fire({ type: 'chat/responsePart', session, turnId, part: { kind: ResponsePartKind.Reasoning, id: 'thought', content: ' ' } } as ChatAction);
+			fire({ type: ActionType.ChatReasoning, turnId, partId: 'thought', content: 'thinking' } as ChatAction);
 			fire({
 				type: 'chat/error', endedAt: '2025-01-01T00:00:00.000Z', turnId,
 				part: { kind: ResponsePartKind.Error, error: { errorType: 'connection_error', message: 'connection lost' } },
 			} as ChatAction);
 			await turnPromise;
-			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText })), [{ outcome: 'error', hasResponseText: false }]);
+			assert.deepStrictEqual(records.map(record => ({ outcome: record.outcome, hasResponseText: record.hasResponseText, timedReasoning: typeof record.firstResponseOrReasoningMs === 'number' })), [{ outcome: 'error', hasResponseText: false, timedReasoning: true }]);
 		}));
 
 		test('delta events become markdownContent progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -25063,6 +25064,43 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 			await turnPromise;
 			assert.deepStrictEqual(records.map(record => record.rootToolCallsBeforeFirstText), [1]);
+		}));
+
+		test('first response timing ignores subagent reasoning and text', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+			const records = captureFirstResponseTimings(instantiationService);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const parentToolCallId = 'tc-parent-task';
+			const parentSession = mintedTestChatOwner(session);
+			assert.ok(parentSession);
+			const childSessionUri = buildSubagentChatUri(parentSession, parentToolCallId);
+			const childState = makeChildState(childSessionUri, 'tc-child-1');
+			childState.activeTurn!.responseParts.unshift(
+				{ kind: ResponsePartKind.Reasoning, id: 'child-thought', content: 'Child reasoning' },
+				{ kind: ResponsePartKind.Markdown, id: 'child-answer', content: 'Child answer' },
+			);
+			agentHostService.sessionStates.set(childSessionUri, childState);
+			fire({
+				type: 'chat/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'do some work', subagentAgentName: 'helper' },
+			} as ChatAction);
+			fire({ type: 'chat/toolCallReady', session, turnId, toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent', confirmed: 'not-needed' } as ChatAction);
+			fire({
+				type: 'chat/toolCallContentChanged', session, turnId, toolCallId: parentToolCallId,
+				content: [{ type: ToolResultContentType.Subagent, resource: childSessionUri, title: 'Subagent' }],
+			} as ChatAction);
+			await timeout(50);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+			await turnPromise;
+
+			assert.deepStrictEqual({
+				childToolObserved: collected.flat().some(part => part.kind === 'toolInvocation' && part.subAgentInvocationId === parentToolCallId),
+				timings: records.map(record => ({ hasResponseText: record.hasResponseText, firstResponseOrReasoningMs: record.firstResponseOrReasoningMs })),
+			}, {
+				childToolObserved: true,
+				timings: [{ hasResponseText: false, firstResponseOrReasoningMs: undefined }],
+			});
 		}));
 
 		for (const alreadyFailed of [false, true]) {
