@@ -23,7 +23,9 @@ import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../.
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { EditorService } from '../../../../services/editor/browser/editorService.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
 import { IUntitledTextEditorService } from '../../../../services/untitled/common/untitledTextEditorService.js';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from '../../../../services/workingCopy/common/workingCopyBackup.js';
@@ -108,7 +110,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			{ asCanonicalUri: (uri: URI) => uri, extUri: extUriIgnorePathCase } as unknown as IUriIdentityService,
 			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message) } as unknown as ILogService,
 			{ getBackups: async () => { await area.backupsGate; return area.backups; } } as unknown as IWorkingCopyBackupService,
-			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService
+			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService,
+			{ onDidEditorsChange: Event.None } as unknown as IEditorService
 		));
 
 		return {
@@ -582,6 +585,20 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		}
 	}
 
+	/** A file editor whose save is running and can fail, which only its editor reports, not its working copy. */
+	class SavingFileEditorInput extends TestFileEditorInput {
+		saving = true;
+
+		override isSaving(): boolean {
+			return this.saving;
+		}
+
+		failSave(): void {
+			this.saving = false;
+			this._onDidChangeDirty.fire();
+		}
+	}
+
 	/**
 	 * Switches the location while the backup of an untitled editor, which is only in an inactive tab of its own,
 	 * or of a diff editor as its modified or its original side, is being restored.
@@ -593,6 +610,8 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
+		instantiationService.stub(IEditorService, editorService);
 		const container = parts.testMainPart.getContainer()!;
 		mainWindow.document.body.appendChild(container);
 		disposables.add({ dispose: () => container.remove() });
@@ -611,7 +630,8 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 				accessor.get(IUriIdentityService),
 				accessor.get(ILogService),
 				backupService,
-				accessor.get(IWorkingCopyService)
+				accessor.get(IWorkingCopyService),
+				editorService
 			)));
 			return () => {
 				folder = URI.file('/work/project-alt');
@@ -709,6 +729,35 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 
 		assert.deepStrictEqual({ editors: group.count, diffDirty: diff.isDirty(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), owner: owner() }, {
 			editors: 2, diffDirty: false, disposed: false, dirty: true, content: 'unsaved', owner: undefined
+		});
+	});
+
+	test('a switch deferred by a closing diff editor whose dirty modified side is saving proceeds when the save fails, and the diff travels along', async () => {
+		const { instantiationService, parts, storage, owner, startAtPrimary } = await createWorkbench();
+		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
+		const original = disposables.add(new TestFileEditorInput(URI.file('/work/project/original.txt'), 'testTypeId'));
+		const modified = disposables.add(new SavingFileEditorInput(URI.file('/work/project/modified.txt'), 'testTypeId'));
+		modified.setDirty();
+		const diff = disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, original, modified, undefined));
+		const group = parts.testMainPart.activeGroup;
+		await group.openEditor(active, { pinned: true });
+		await group.openEditor(diff, { pinned: true, inactive: true });
+		await parts.whenRestored;
+
+		const switched = Event.toPromise(Event.filter(storage.onDidChangeValue(StorageScope.WORKSPACE, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, disposables), () => owner() === alternateKey), disposables);
+		startAtPrimary()();
+		await timeout(50);
+		const whileSaving = { editors: group.count, owner: owner() };
+
+		modified.failSave();
+		await switched;
+
+		assert.deepStrictEqual({ whileSaving, editors: group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor === diff ? 'diff' : 'other'), dirty: modified.isDirty(), disposed: [diff.isDisposed(), modified.isDisposed()], owner: owner() }, {
+			whileSaving: { editors: 2, owner: undefined },
+			editors: ['diff'],
+			dirty: true,
+			disposed: [false, false],
+			owner: alternateKey
 		});
 	});
 

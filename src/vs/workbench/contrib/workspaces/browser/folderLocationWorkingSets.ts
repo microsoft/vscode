@@ -13,9 +13,11 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 
@@ -70,7 +72,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	/** Set while a switch waits for the backups of editors it would close to be restored. */
 	private deferred = false;
 
-	/** Counts the changes of dirty state and unregistrations of working copies, which can make a deferred switch possible. */
+	/** Counts the changes of dirty state of working copies and editors and unregistrations of working copies, which can make a deferred switch possible. */
 	private workingCopyGeneration = 0;
 
 	constructor(
@@ -81,7 +83,8 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService,
 		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
-		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService
+		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
+		@IEditorService editorService: IEditorService
 	) {
 		super();
 
@@ -96,7 +99,9 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		this._register(this.folderLocationService.onDidChangeLocation(() => this.reconcile()));
 
 		// A restored backup makes its editor dirty, and an unregistered working copy discards its backup
-		this._register(Event.any(this.workingCopyService.onDidChangeDirty, this.workingCopyService.onDidUnregister)(() => {
+		// An editor can change whether it closes without its working copy changing, for example when a save fails
+		const onDidChangeEditorDirty = Event.filter(editorService.onDidEditorsChange, e => e.event.kind === GroupModelChangeKind.EDITOR_DIRTY);
+		this._register(Event.any<unknown>(this.workingCopyService.onDidChangeDirty, this.workingCopyService.onDidUnregister, onDidChangeEditorDirty)(() => {
 			this.workingCopyGeneration++;
 			if (this.deferred) {
 				this.reconcile();
