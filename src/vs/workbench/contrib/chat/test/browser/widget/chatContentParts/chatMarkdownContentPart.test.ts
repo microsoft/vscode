@@ -66,7 +66,16 @@ import { ChatConfiguration } from '../../../../common/constants.js';
 import { IChatLayoutService } from '../../../../common/widget/chatLayoutService.js';
 import { ChatLayoutService } from '../../../../browser/widget/chatLayoutService.js';
 import { MarkedKatexSupport } from '../../../../../markdown/browser/markedKatexSupport.js';
-import { rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { messageAttachmentsToVariableData, rewriteAgentHostLinkTarget } from '../../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { MessageAttachmentKind, type MessageAttachment } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { agentHostConnectionKinds } from '../../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
+import { ChatRequestParser } from '../../../../common/requestParser/chatRequestParser.js';
+import { IChatAgentService } from '../../../../common/participants/chatAgents.js';
+import { IChatSlashCommandService } from '../../../../common/participants/chatSlashCommands.js';
+import { IChatVariablesService } from '../../../../common/attachments/chatVariables.js';
+import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ToolAndToolSetEnablementMap } from '../../../../common/tools/languageModelToolsService.js';
+import { getInlineRequestAttachments } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IAiEditTelemetryService } from '../../../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { IViewDescriptorService } from '../../../../../../common/views.js';
 import { IDisposableReference } from '../../../../browser/widget/chatContentParts/chatCollections.js';
@@ -306,10 +315,10 @@ suite('ChatMarkdownContentPart', () => {
 			const text = `/${name}`;
 			const part = new ChatRequestSlashPromptPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), name);
 			const markdown = decorationsRenderer.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), { text, parts: [part] });
-			const rendered = disposables.add(renderer.render(new MarkdownString(markdown)));
+			const rendered = disposables.add(renderer.render(markdown));
 			const anchor = rendered.element.querySelector('a');
 			const href = anchor?.getAttribute('data-href');
-			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: new MarkdownString(markdown) }, rendered.element));
+			disposables.add(decorationsRenderer.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: markdown }, rendered.element));
 			return {
 				text: rendered.element.textContent,
 				decorationCount: rendered.element.querySelectorAll('.chat-resource-widget').length,
@@ -318,6 +327,59 @@ suite('ChatMarkdownContentPart', () => {
 		});
 		assert.deepStrictEqual(actual, names.map(name => ({ text: `/${name}`, decorationCount: 1, href: `http://_vscodedecoration_?${JSON.stringify({ title: name })}` })));
 	});
+
+	for (const kind of agentHostConnectionKinds) {
+		test(`opens sent skill references through resource widgets by click and keyboard (${kind.name})`, async () => {
+			const text = '/review and /review /compact';
+			const hostResources = [URI.file('/workspace/review (one)/SKILL.md'), URI.parse('custom-skill:/review?view=with%20spaces&bare&vscodeLinkType=opaque#details')];
+			const attachments: MessageAttachment[] = hostResources.map((uri, index) => ({
+				type: MessageAttachmentKind.Resource, uri: uri.toString(), label: '/review', displayKind: 'skill',
+				range: { start: { line: 0, character: index * 12 }, end: { line: 0, character: index * 12 + 7 } },
+				...(index === 0 ? { _meta: { uri: 'file:///wrong/SKILL.md' } } : {}),
+			}));
+			attachments.push({
+				type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: { command: 'compact' },
+				range: { start: { line: 0, character: 20 }, end: { line: 0, character: 28 } },
+			});
+			const variables = messageAttachmentsToVariableData(attachments, 'test', text, kind.resourceUris)!.variables;
+			const parser = new ChatRequestParser(
+				upcastPartial<IChatAgentService>({ getDefaultAgent: () => undefined }),
+				upcastPartial<IChatVariablesService>({}),
+				upcastPartial<IChatSlashCommandService>({ getCommands: () => [] }),
+				upcastPartial<IPromptsService>({ hasPromptSlashCommand: () => false, isValidSlashCommandName: () => false }),
+			);
+			const parsed = parser.parseChatRequestWithReferences(variables.map(variable => ({
+				id: variable.id, data: variable.value, _meta: variable._meta,
+				range: new Range(1, variable.range!.start + 1, 1, variable.range!.endExclusive + 1),
+			})), ToolAndToolSetEnablementMap.fromEntries([]), text);
+			const inlineAttachments = getInlineRequestAttachments(parsed.parts, variables, text);
+			const decorations = disposables.add(instantiationService.createInstance(ChatMarkdownDecorationsRenderer));
+			const markdown = decorations.convertParsedRequestToMarkdown(URI.parse('chat-session://test/session1'), parsed, new Set(inlineAttachments.keys()));
+			const opens: string[] = [];
+			instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+				override async open(resource: URI | string): Promise<boolean> {
+					opens.push(resource.toString());
+					return true;
+				}
+			}());
+			renderer = instantiationService.createInstance(ChatContentMarkdownRenderer);
+			const rendered = disposables.add(renderer.render(markdown));
+			disposables.add(decorations.walkTreeAndAnnotateReferenceLinks({ kind: 'markdownContent', content: markdown }, rendered.element));
+			const anchors = rendered.element.querySelectorAll<HTMLAnchorElement>('.chat-inline-anchor-widget');
+			assert.strictEqual(anchors.length, 2);
+			anchors[0].click();
+			anchors[1].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 13, bubbles: true, cancelable: true }));
+			anchors[0].dispatchEvent(new mainWindow.KeyboardEvent('keydown', { keyCode: 32, bubbles: true, cancelable: true }));
+			await timeout(0);
+			const resources = [kind.toClient(hostResources[0]), kind.resourceUris.fromAgentHost(hostResources[1])].map(uri => uri.toString());
+			assert.deepStrictEqual({
+				opens,
+				labels: Array.from(anchors, anchor => anchor.textContent),
+				commandDecorations: rendered.element.querySelectorAll('.chat-resource-widget').length,
+				inlineAttachments: inlineAttachments.size,
+			}, { opens: [resources[0], resources[1], resources[0]], labels: ['/review', '/review'], commandDecorations: 1, inlineAttachments: 0 });
+		});
+	}
 
 	test('decorates a response with 1000 ordinary links and one preview link in a single anchor scan', () => {
 		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;

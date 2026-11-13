@@ -12,9 +12,24 @@
 
 import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
 import { subagentChatUri } from '../common/agentHostChatMinting.js';
+import { readCompletionAttachmentMeta, restoreLegacySkillAttachment } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { isNativeAgentHost, supportsAgentHostChatUris } from '../common/meta/agentHostSessionUrisMeta.js';
 import type { InitializeResult } from '../common/state/protocol/common/commands.js';
-import type { RootState, URI as ProtocolURI } from '../common/state/sessionState.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment, type RootState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+
+/**
+ * Simple skill completions with `_meta.uri` were deprecated on 2026-11-12 in
+ * favor of Resource attachments with `displayKind: 'skill'`. Remove this
+ * adapter when support for pre-deprecation VS Code hosts ends.
+ */
+export function getOlderHostSkillCompletion(attachment: MessageAttachment, host: InitializeResult | undefined, root: RootState | undefined): MessageResourceAttachment | undefined {
+	if (!isNativeAgentHost(host, root) || attachment.type !== MessageAttachmentKind.Simple
+		|| (attachment.displayKind !== undefined && attachment.displayKind !== 'skill')
+		|| readCompletionAttachmentMeta(attachment)) {
+		return undefined;
+	}
+	return restoreLegacySkillAttachment({ ...attachment, displayKind: 'skill' });
+}
 
 /**
  * The default chat of `session` on an older VS Code host, which did not

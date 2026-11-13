@@ -27,7 +27,7 @@ import { AgentHostSteeringMessageHandoff } from './agentHostSteeringMessageHando
 import { MicrotaskDelay } from '../../../../../../base/common/symbols.js';
 import { Mutable } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { generateUuid, isUUID } from '../../../../../../base/common/uuid.js';
 import { getOlderHostSubagentChatUri } from '../../../../../../platform/agentHost/browser/agentHostOlderHostCompatibility.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
@@ -62,7 +62,7 @@ import { filterSessionConfigValues } from '../../../../../../platform/agentHost/
 import { readAttachmentDetail, withAttachmentDetail } from '../../../../../../platform/agentHost/common/meta/attachmentMeta.js';
 import { AgentPermissionDecisionSource, readAgentPermissionResponseMeta, toAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { readArtifactIntegrationRequest } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
-import { readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
+import { getCompletionDescription, readCompletionAttachmentMeta } from '../../../../../../platform/agentHost/common/meta/agentCompletionAttachmentMeta.js';
 import { readSlashCommandResource, type ISlashCommandResource } from '../../../../../../platform/agentHost/common/meta/agentSlashCommandOutputMeta.js';
 import { IRemoteAgentHostService } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { AgentHostClientConnectionKind, agentHostClientConnectionKindValidator } from '../../../../../../platform/agentHost/common/agentHostTelemetry.js';
@@ -1768,19 +1768,19 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						...(attachment._meta !== undefined && { _meta: attachment._meta }),
 					}, attachment.label !== raw.insertText ? attachment.label : undefined);
 				}
-				if (completionMeta?.kind === 'skill') {
-					return this._createCompletionItem(raw, text, {
-						kind: 'skill',
-						uri: this._config.connection.resourceUris.fromAgentHost(URI.parse(completionMeta.uri)),
-						...(completionMeta.displayName !== undefined ? { displayName: completionMeta.displayName } : {}),
-						...(completionMeta.description !== undefined ? { description: completionMeta.description } : {}),
-						...(attachment._meta !== undefined && { _meta: attachment._meta }),
-					});
-				}
 				return this._createCompletionItem(raw, text, { kind: 'text' }, attachment.label !== raw.insertText ? attachment.label : undefined);
 			}
 			case MessageAttachmentKind.Resource: {
-				const uri = this._config.connection.resourceUris.fromAgentHost(typeof attachment.uri === 'string' ? URI.parse(attachment.uri) : URI.from(attachment.uri));
+				const uri = this._config.connection.resourceUris.fromAgentHost(typeof attachment.uri === 'string' ? URI.parse(attachment.uri, attachment.displayKind === 'skill') : URI.from(attachment.uri));
+				if (attachment.displayKind === 'skill') {
+					return this._createCompletionItem(raw, text, {
+						kind: 'skill',
+						uri,
+						displayName: attachment.label.replace(/^\//, ''),
+						description: getCompletionDescription(attachment),
+						...(attachment._meta !== undefined && { _meta: attachment._meta }),
+					});
+				}
 				return this._createCompletionItem(raw, text, {
 					kind: 'resource',
 					uri,
@@ -8457,7 +8457,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return this._toSimpleAttachment(v.name, undefined, v._meta, 'command', referenceRange);
 		}
 		if (agentHostCompletionKind === AgentHostCompletionReferenceKind.Skill) {
-			return this._toSimpleAttachment(v.name, undefined, v._meta, 'skill', referenceRange);
+			if (isUUID(v.id)) {
+				this._logService.warn('[AgentHost] Skipping a legacy skill reference without a resource URI');
+				return undefined;
+			}
+			return {
+				type: MessageAttachmentKind.Resource,
+				uri: this._config.connection.resourceUris.toAgentHost(URI.parse(v.id, true)).toString(),
+				label: v.name,
+				displayKind: 'skill',
+				...(referenceRange ? { range: referenceRange } : {}),
+				...(v._meta ? { _meta: v._meta } : {}),
+			};
 		}
 		if (isChatReferenceVariableEntry(v)) {
 			return this._toChatReferenceAttachment(v, referenceRange);
