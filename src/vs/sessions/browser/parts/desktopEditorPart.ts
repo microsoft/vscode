@@ -247,6 +247,10 @@ export class DesktopMainEditorPart extends MainEditorPart {
 		return this._dockedAuxBar?.floatingDetails;
 	}
 
+	override get supportsSplitting(): boolean {
+		return false;
+	}
+
 	override addGroup(location: IEditorGroupView | GroupIdentifier, _direction: GroupDirection, _groupToCopy?: IEditorGroupView): IEditorGroupView {
 		return this.assertGroupView(location);
 	}
@@ -259,7 +263,7 @@ export class DesktopMainEditorPart extends MainEditorPart {
 	}
 
 	override createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
-		return super.createEditorDropTarget(container, { ...delegate, supportsSplitting: false });
+		return super.createEditorDropTarget(container, { ...delegate, supportsSplitting: this.supportsSplitting });
 	}
 
 	override async applyState(state: IEditorPartUIState | 'empty', options?: IEditorGroupViewOptions): Promise<void> {
