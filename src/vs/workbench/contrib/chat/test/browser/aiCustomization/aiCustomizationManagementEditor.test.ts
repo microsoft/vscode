@@ -1111,11 +1111,12 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	for (const isSessionsWindow of [false, true]) {
-		test(`backs up customization sources before launching an agent migration in the ${isSessionsWindow ? 'Agents' : 'editor'} window`, async () => {
+	for (const [isSessionsWindow, hasWorkspace] of [[false, true], [true, true], [true, false]]) {
+		test(`backs up customization sources before launching an agent migration in the ${isSessionsWindow ? 'Agents' : 'editor'} window (workspace: ${hasWorkspace})`, async () => {
 			const editor = createTestEditor();
 			store.add(editor.editorPreviewDisposables);
 			editor.workspaceService.isSessionsWindow = isSessionsWindow;
+			editor.workspaceService.activeProjectRoot.set(hasWorkspace ? URI.file('/workspace') : undefined, undefined);
 			const fileService = createInMemoryFileService(store, Schemas.inMemory);
 			const source = URI.from({ scheme: Schemas.inMemory, path: '/workspace/review.prompt.md' });
 			const recoveryRoot = URI.from({ scheme: Schemas.inMemory, path: '/workspaceStorage/workspace-id/customizationMigrations' });
@@ -1176,6 +1177,7 @@ suite('aiCustomizationManagementEditor', () => {
 				commandId,
 				agentHostProvider: commandOptions?.agentHostProvider,
 				folderUri: commandOptions?.folderUri?.toString(),
+				noWorkspace: commandOptions?.noWorkspace,
 				sessionToolIds: commandOptions?.sessionToolIds,
 				hasMigrationPrompt: commandOptions?.prompt?.startsWith('/migrate-customizations\n'),
 			}, {
@@ -1185,7 +1187,8 @@ suite('aiCustomizationManagementEditor', () => {
 				recoverySession: isSessionsWindow ? migrationSessionResource.toString() : undefined,
 				commandId: isSessionsWindow ? NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID : 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
 				agentHostProvider: isSessionsWindow ? 'copilotcli' : undefined,
-				folderUri: isSessionsWindow ? URI.file('/workspace').toString() : undefined,
+				folderUri: isSessionsWindow && hasWorkspace ? URI.file('/workspace').toString() : undefined,
+				noWorkspace: isSessionsWindow ? !hasWorkspace : undefined,
 				sessionToolIds: [CustomizationMigrationResultToolId],
 				hasMigrationPrompt: true,
 			});

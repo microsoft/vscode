@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
@@ -40,7 +40,7 @@ suite('NewChatInSessionsWindowAction', () => {
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
 	const folderUri = URI.file('/workspace');
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; workspace?: boolean; sendFailed?: boolean; submission?: Promise<boolean> } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; workspace?: boolean; sendFailed?: boolean; submission?: Promise<boolean>; loading?: IObservable<boolean> } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
@@ -48,7 +48,7 @@ suite('NewChatInSessionsWindowAction', () => {
 		const calls: string[] = [];
 		const sending = new DeferredPromise<void>();
 		const tools: { resource: URI; toolIds: readonly string[] }[] = [];
-		const session = upcastPartial<ITestSessionWithChat>({ resource, sessionId: 'new-session' });
+		const session = upcastPartial<ITestSessionWithChat>({ resource, sessionId: 'new-session', loading: options.loading ?? constObservable(false) });
 		instantiationService.stub(IAgentHostActiveClientService, {
 			setSessionTools: (resource, toolIds) => { calls.push('tools'); tools.push({ resource, toolIds }); },
 			clearSessionTools: () => { calls.push('clear'); },
@@ -192,11 +192,25 @@ suite('NewChatInSessionsWindowAction', () => {
 			returned = true;
 			return resource;
 		});
+
 		await fixture.sending;
 		const returnedBeforeSubmission = returned;
 		await submission.complete(true);
 		assert.deepStrictEqual({ returnedBeforeSubmission, result: await result, calls: fixture.calls }, {
 			returnedBeforeSubmission: false,
+			result: resource,
+			calls: ['tools', 'send:/migrate-customizations'],
+		});
+	});
+
+	test('waits for draft initialization before submitting the migration prompt', async () => {
+		const loading = observableValue('loading', true);
+		const fixture = createCommand({ loading });
+		const result = fixture.run({ noWorkspace: true, prompt: '/migrate-customizations', sessionToolIds: ['migration-result'] });
+		const callsWhileLoading = [...fixture.calls];
+		loading.set(false, undefined);
+		assert.deepStrictEqual({ callsWhileLoading, result: await result, calls: fixture.calls }, {
+			callsWhileLoading: [],
 			result: resource,
 			calls: ['tools', 'send:/migrate-customizations'],
 		});

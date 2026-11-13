@@ -1923,6 +1923,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 				if (this.workspaceService.isSessionsWindow) {
 					options.agentHostProvider = parseAgentHostHarness(harness.id);
 					options.folderUri = projectRoot;
+					options.noWorkspace = !projectRoot;
 				}
 				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(commandId, options);
 			} catch (error) {

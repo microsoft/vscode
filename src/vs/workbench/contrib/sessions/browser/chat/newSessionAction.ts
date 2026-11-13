@@ -6,6 +6,7 @@
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { waitForState } from '../../../../../base/common/observable.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2 } from '../../../../../platform/actions/common/actions.js';
@@ -124,6 +125,9 @@ export class NewChatInSessionsWindowAction extends Action2 {
 		const sendPrompt = async (session: ISession | undefined): Promise<void> => {
 			if (!options?.prompt) {
 				return;
+			}
+			if (session && !options.prefillPrompt) {
+				await waitForState(session.loading, loading => !loading);
 			}
 			const sessionView = sessionsPartService?.getSessionView(session?.sessionId);
 			if (!sessionView || (!session && activeClientService && !options.prefillPrompt)) {
