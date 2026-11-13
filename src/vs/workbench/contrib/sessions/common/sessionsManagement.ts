@@ -15,6 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
@@ -160,6 +161,12 @@ export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	readonly forceNew?: boolean;
 }
 
+/** A change of one session: see {@link ISessionsManagementService.onDidChangeSession}. */
+export interface ISessionChange {
+	readonly session: ISession;
+	readonly kind: 'added' | 'removed' | 'changed';
+}
+
 /**
  * Event fired when sessions change within a provider.
  */
@@ -275,9 +282,11 @@ export interface ISessionsManagementService {
 	// -- Sessions --
 
 	/**
-	 * Get all sessions from all registered providers.
+	 * The sessions the providers list, within their listing scope: without those a provider's listing scope hides, such as
+	 * the sessions of other folders in an editor window.
 	 */
 	getSessions(): ISession[];
+
 
 	/**
 	 * Get new sessions whose first request is still being prepared or sent.
@@ -288,7 +297,7 @@ export interface ISessionsManagementService {
 	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined;
 
 	/**
-	 * Get a session by its resource URI.
+	 * Get a session by its resource URI, also a session outside a provider's listing scope.
 	 */
 	getSession(resource: URI): ISession | undefined;
 
@@ -302,7 +311,7 @@ export interface ISessionsManagementService {
 	resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI>;
 
 	/**
-	 * Get the session and chat that own the given chat resource URI.
+	 * Get the session and chat that own the given chat resource URI, also of a session outside a provider's listing scope.
 	 */
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
 
@@ -376,9 +385,17 @@ export interface ISessionsManagementService {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * Fires when sessions change across any provider.
+	 * Fires when sessions change across any provider, as they list them: see {@link getSessions}.
 	 */
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
+
+	/**
+	 * Fires with the sessions that are added, removed or change together, such as as a provider registers, each once, also
+	 * a session outside a provider's listing scope, which {@link getSession} and {@link getSessionForChatResource} still
+	 * find: for following a session, such as the one a chat editor shows, wherever it is listed. A session leaving or
+	 * entering a listing scope is no change of it. As a provider registers, its sessions are added.
+	 */
+	readonly onDidChangeSession: Event<readonly ISessionChange[]>;
 	/**
 	 * Fires when a brand-new session is started by this window via
 	 * {@link sendNewChatRequest}.
@@ -726,7 +743,7 @@ export interface ISessionsManagementService {
 	listCanvases(session: ISession, chat: IChat): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas(session: ISession, chat: IChat, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat through its owning provider, notifying the extension that provides it. */
 	closeCanvas(session: ISession, chat: IChat, canvas: ISessionCanvas): Promise<void>;

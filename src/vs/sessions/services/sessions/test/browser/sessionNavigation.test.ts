@@ -117,6 +117,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly visibleSessions = observableValue<readonly TestShown[]>('test.visibleSessions', []);
 	readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly onDidChangeSessions = Event.None;
+	readonly onDidChangeSession = Event.None;
 	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 	readonly onWillSendRequest = Event.None;

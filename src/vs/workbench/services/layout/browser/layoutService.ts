@@ -27,6 +27,7 @@ export const enum Parts {
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
 	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
+	CHAT_PART = 'workbench.parts.chat',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -210,12 +211,15 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
+	// A chat part, where a window has one, sits immediately beside the editor on the primary side bar's side, inside a
+	// vertical panel on that side.
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
 	const fullOrder: Parts[] = sideBarLeft
 		? [
 			...sideBarGroup,
 			...(panelInLeftSequence ? panelGroup : []),
+			Parts.CHAT_PART,
 			Parts.EDITOR_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			Parts.AUXILIARYBAR_PART
@@ -224,6 +228,7 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 			Parts.AUXILIARYBAR_PART,
 			...(panelInLeftSequence ? panelGroup : []),
 			Parts.EDITOR_PART,
+			Parts.CHAT_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
 		];

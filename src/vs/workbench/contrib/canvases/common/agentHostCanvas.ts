@@ -16,9 +16,11 @@ import { IAgentSubscription, observableFromSubscription } from '../../../../plat
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
 import { ActionType, type ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { ActiveTurn, ChatState, ResponsePartKind, StateComponents, ToolCallStatus, Turn } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { openCanvasWithExtensionConsent } from './agentHostCanvasConsent.js';
 import { ICanvasContext, ICanvasDefinition, ICanvasDefinitionProvider, ICanvasOpenRequest } from './canvas.js';
-import { ICanvas, ICanvasOwner } from '../../../common/canvasReference.js';
+import { ICanvas, ICanvasOpenOptions, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class AgentHostCanvas implements ICanvas {
 	readonly resource: URI;
@@ -62,6 +64,7 @@ export class AgentHostCanvasCollection extends Disposable {
 		readonly providerId: string,
 		private readonly connection: IAgentConnection,
 		@ILogService private readonly logService: ILogService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 	}
@@ -91,11 +94,11 @@ export class AgentHostCanvasCollection extends Disposable {
 			? {
 				onDidChangeDefinitions,
 				listCanvases: () => this.connection.listSessionCanvases!(owner.session, owner.chat),
-				openCanvas: (canvas: ICanvasDefinition, instanceId: string) => this.connection.openSessionCanvas!(owner.session, {
+				openCanvas: (canvas: ICanvasDefinition, instanceId: string, options?: ICanvasOpenOptions) => openCanvasWithExtensionConsent(this.dialogService, answer => this.connection.openSessionCanvas!(owner.session, {
 					canvasId: canvas.canvasId,
 					extensionId: canvas.extensionId,
 					instanceId,
-				}, owner.chat),
+				}, owner.chat, answer), options),
 			}
 			: undefined;
 		const closeCanvas = this.connection.closeSessionCanvas

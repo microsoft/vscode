@@ -592,6 +592,9 @@ export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
+/** Root config key forwarded from the renderer for the configured MCP Gallery service URL. */
+export const AgentHostMcpGalleryServiceUrlConfigKey = 'mcpGalleryServiceUrl';
+
 /** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
 export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
@@ -970,6 +973,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
 		default: false,
 	}),
+	[AgentHostMcpGalleryServiceUrlConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.mcpGalleryServiceUrl.title', "MCP Gallery Service URL"),
+		description: localize('agentHost.config.mcpGalleryServiceUrl.description', "The MCP Gallery service URL configured in VS Code. The agent host downloads MCP server details for installation from this gallery itself, including when it is on a private network. Empty when no gallery is configured."),
+		default: '',
+	}),
 	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
 		type: 'array',
 		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
@@ -987,7 +996,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
 		type: 'object',
 		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
-		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, in all sessions on this agent host. Identities include the extension name and requested capabilities. Remove an entry to ask again."),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, or read sensitive environment variables, in all sessions on this agent host. Identities include the extension name and the requested capabilities or variable names. Decisions about a project's extensions to read sensitive environment variables are never stored. Remove an entry to ask again."),
 		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
 		default: {},
 	}),

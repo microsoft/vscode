@@ -55,7 +55,6 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 	setFeedbackResolved(_sessionResource: URI, _feedbackId: string, _resolved: boolean): void { }
 	addReply(_sessionResource: URI, _feedbackId: string, _replyText: string): void { }
 	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
-	getFeedbackObservable(_sessionResource: URI) { return constObservable<readonly IAgentFeedback[]>([]); }
 	isAgentHostSession(_sessionResource: URI): boolean { return false; }
 	showFeedbackInEditor(_sessionResource: URI, _feedbackIds: readonly string[]): void { }
 	hideFeedbackInEditor(_sessionResource: URI, _feedbackId: string): void { }

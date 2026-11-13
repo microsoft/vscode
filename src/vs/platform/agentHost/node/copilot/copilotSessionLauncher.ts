@@ -51,7 +51,7 @@ import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.j
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
 import { ICopilotApiService } from '../shared/copilotApiService.js';
-import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
+import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -441,7 +441,7 @@ export interface ICopilotSessionLauncher {
 	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
 }
 
-type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
+type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'> & {
 	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'>;
 };
 
@@ -488,6 +488,8 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
+	/** The Microsoft account the session signs in with instead of {@link githubCredentials}; the SDK takes no such credential when opening a session. */
+	readonly accountContext?: Extract<CopilotAccountContext, { kind: 'ready' }>;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
@@ -1202,23 +1204,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return session;
 	}
 
-	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
-		if (this._configurationService.copilotM365EnabledAtStartup && isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
-			this._accountService.requireReady();
-			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
-		}
-	}
-
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
 			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
 		}
-		this._assertConversationAuthentication(plan);
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
 		const built = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		if (runtime.cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
 			throw new CancellationError();
 		}
 		const modelPolicy = built.modelPolicy;
@@ -1334,6 +1331,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
 		})));
+		if (plan.accountContext) {
+			try {
+				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
+			} catch (error) {
+				// A resume does not sign in, so a conversation left without its account could never be used.
+				await raw.disconnect().catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to disconnect unauthenticated session`, cleanupError));
+				await plan.client.deleteSession(plan.sessionId).catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to delete unauthenticated session`, cleanupError));
+				throw error;
+			}
+		}
 		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config, runtime, trustWorkingDirectory);
 	}
 
@@ -1348,6 +1355,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
+			if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
+				throw new CancellationError();
+			}
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
