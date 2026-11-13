@@ -1285,6 +1285,25 @@ suite('WorkspaceContextService - Folder', () => {
 		assert.deepStrictEqual({ untrusted, trusted, published, unflagged }, { untrusted: undefined, trusted: 'alternateValue', published: [undefined, 'primaryValue', 'alternateValue'], unflagged: 0 });
 	});
 
+	test('setFolderLocation() skips a queued switch that became stale while an earlier edit was running', async () => {
+		const first = joinPath(ROOT, 'Alternate');
+		const second = joinPath(ROOT, 'Alternate2');
+		const hold = new DeferredPromise<void>();
+		let held = false;
+		disposables.add(testObject.onWillChangeWorkspaceFolders(e => { if (!held) { held = true; e.join(hold.p); } }));
+		const folders: string[] = [];
+		disposables.add(testObject.onDidChangeWorkspaceFolders(() => folders.push(testObject.getWorkspace().folders[0].uri.toString())));
+
+		let stale = false;
+		const holder = testObject.setFolderLocation(first);
+		const queued = testObject.setFolderLocation(second, { isCurrent: () => !stale });
+		stale = true;
+		hold.complete();
+		const applied = [await holder, await queued];
+
+		assert.deepStrictEqual({ applied, folders }, { applied: [true, false], folders: [first.toString()] });
+	});
+
 	test('setFolderLocation() switches the folder and keeps the identity', async () => {
 		const alternate = joinPath(ROOT, 'Alternate');
 		const workspaceId = testObject.getWorkspace().id;

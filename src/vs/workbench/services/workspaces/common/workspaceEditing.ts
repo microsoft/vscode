@@ -59,7 +59,9 @@ export interface IWorkspaceEditingService {
 	 * `location` must be resolved by a registered `IWorkspaceFolderLocationProvider`.
 	 * Only supported for single local folder workspaces.
 	 * If the workspace is trusted and the destination is not (and no built-in provider vouches for it),
-	 * the user is asked once; declining still switches, in Restricted Mode.
+	 * the user is asked once; declining still switches, in Restricted Mode. Returning to the primary location
+	 * follows the same rule with the primary's own trust. A request superseded before its trust grant starts
+	 * persists no trust; a grant that already started completes, but the superseded switch is not applied.
 	 * `options.folder` optionally names the folder to move by its current `uri`; it must match
 	 * the folder of the workspace. Multi-root workspaces are not supported yet.
 	 *
