@@ -31,7 +31,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.js';
 import { chatUriFormatOf, createChatUriError, mintDefaultChatUri, subagentChatUri } from '../common/agentHostChatMinting.js';
-import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, type AgentChatReleaseReason, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle, type IAgentImportedChat } from '../common/agent.js';
+import { AgentChatMigrationDeferred, type AgentCanvasDefinitionSnapshot, type AgentChatReleaseReason, AgentProvider, AgentSession, AgentSignal, CODEX_AGENT_PROVIDER_ID, COPILOT_CLI_AGENT_PROVIDER_ID, getChatSurfaceOptions, IAgent, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, IAgentChatContext, IAgentChatDataChange, IAgentChatMetadata, IAgentCreateChatOptions, IAgentCreateChatRequestOptions, IAgentCreateChatResult, IAgentCreateChatSideChatSelection, IAgentCreateChatSideChatSource, type IAgentCreateChatWorkspace, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDiscoveredChat, type IAgentExtensionInventory, IAgentLegacyChat, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPluginInstallRequest, type IAgentPluginUninstallRequest, IAgentResolveSessionConfigParams, IAgentChatAdoptionResult, type AgentChatAdoptionReason, IAgentSessionConfigCompletionsParams, type IAgentSessionChatMetadata, IAgentSessionMetadata, IAgentSpawnChatEvent, AuthenticateParams, AuthenticateResult, SubagentChatSignal, subagentChatTitle, type IAgentImportedChat } from '../common/agent.js';
 import { getPendingSteeringMessages } from '../common/agentSessionMessage.js';
 import { type AgentHostDebugLogsArtifactKind, type IAgentCreateChatInitialMessageContext, type IAgentHostDebugLogsArtifact, type IAgentHostDebugLogsChunk, IAgentHostManagedSettingsDiagnostics, IAgentHostNetworkDiagnosticsInfo, IAgentHostNetworkFetchResult, IAgentService, type IAgentServiceCreateSessionConfig, type IAgentImportSessionOptions } from '../common/agentService.js';
 import { ISessionDatabase, ISessionDataService, ISessionStorageAccessCounts, SESSION_ATTACHMENTS_DIRNAME } from '../common/sessionDataService.js';
@@ -6916,7 +6916,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listSessionCanvases(session, chat, this._chatContext(session, chat, this._chatStorageResource(session, chat)));
 	}
 
-	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+	async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult> {
 		this._assertCanvasesEnabled();
 		await this._restoreSessionChat(session, chat, 'Canvas operation');
 		const provider = this._providerService.getProviderForChat(session, chat);
@@ -6924,10 +6924,10 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`Opening canvases is unavailable for session '${session.toString()}'.`);
 		}
 		const credentials = await this._resolveExecutionCredentials(session.toString());
-		await provider.openSessionCanvas(session, request, chat, {
+		return provider.openSessionCanvas(session, request, chat, {
 			...this._chatContext(session, chat, this._chatStorageResource(session, chat)),
 			...(credentials ? { credentials } : {}),
-		});
+		}, answer);
 	}
 
 	async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
@@ -16426,6 +16426,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async shutdown(): Promise<void> {
 		this._logService.info('AgentService: shutting down all providers...');
+		this._chatContributions.willShutdown();
 		this._catalogReconciliationService.dispose();
 		try {
 			try {

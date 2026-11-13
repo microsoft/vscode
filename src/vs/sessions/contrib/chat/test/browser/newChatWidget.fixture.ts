@@ -127,9 +127,11 @@ import { MockChatService } from '../../../../../workbench/contrib/chat/test/comm
 import { MockLanguageModelToolsService } from '../../../../../workbench/contrib/chat/test/common/tools/mockLanguageModelToolsService.js';
 import { ChatSubmitAction } from '../../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
 import { ChatVoiceInputModeAction } from '../../../../../workbench/contrib/chat/browser/voiceInputMode/voiceInputModeActionViewItem.js';
-import { ModelPickerToolbarsContribution } from '../../browser/modelPicker.js';
-import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../browser/sharedChatInputComposer.contribution.js';
+import { ModelPickerToolbarsContribution } from '../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
 import { focusedSessionHostServiceOf, ITestSessionWithChat, stubSessionHosts } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import '../../browser/modelPicker.js';
+import '../../browser/sharedChatInputComposer.contribution.js';
 
 const DEFAULT_WIDTH = 800;
 const DEFAULT_HEIGHT = 560;

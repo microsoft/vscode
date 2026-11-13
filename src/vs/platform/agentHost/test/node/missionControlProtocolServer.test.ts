@@ -45,6 +45,8 @@ import { ISessionDataService } from '../../common/sessionDataService.js';
 import { AgentHostManagementService } from '../../node/agentHostManagementService.js';
 import { IAgentHostSystemWakeService } from '../../node/agentHostSystemWakeService.js';
 import { IAgentHostMacAccessibilityTrustService } from '../../node/agentHostMacAccessibilityTrustService.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 
 const prefix = 'user.owner.env.environment';
 const order = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
@@ -121,6 +123,7 @@ suite('Mission Control WPS', () => {
 		instantiation.stub(ILogService, new NullLogService());
 		instantiation.stub(IAgentHostSystemWakeService, new class extends mock<IAgentHostSystemWakeService>() { }());
 		instantiation.stub(IAgentHostMacAccessibilityTrustService, new class extends mock<IAgentHostMacAccessibilityTrustService>() { }());
+		instantiation.stub(ITelemetryService, NullTelemetryService);
 		const management = instantiation.createInstance(AgentHostManagementService,
 			new class extends mock<IAgentService>() { }(),
 			new class extends mock<IConnectionTrackerService>() { }(),
