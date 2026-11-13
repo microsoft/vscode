@@ -27,6 +27,8 @@ import { InMemoryStorageService } from '../../../../../platform/storage/common/s
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAutomationDescriptor, IAutomationRun } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
 import { IAutomationDialogService } from '../../../../../workbench/contrib/chat/common/automations/automationDialogService.js';
 import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
@@ -116,18 +118,18 @@ class FixtureRemoteAgentHostService extends mock<IRemoteAgentHostService>() {
 	override readonly configuredEntries: readonly IRemoteAgentHostEntry[];
 	override readonly connections: readonly IRemoteAgentHostConnectionInfo[];
 
-	constructor(labels: readonly string[]) {
+	constructor(entries: readonly IRemoteAgentHostEntry[]) {
 		super();
-		const hostNames = labels.length > 0
-			? [...labels, ...Array.from({ length: Math.max(0, 5 - labels.length) }, (_, index) => `Remote host ${labels.length + index + 1}`)]
-			: [];
-		this.configuredEntries = hostNames.map((label, index) => ({
-			name: label,
+		const tunnelCount = entries.filter(entry => entry.connection.type === RemoteAgentHostEntryType.Tunnel).length;
+		const fillerEntries = Array.from({ length: tunnelCount > 0 ? Math.max(0, 5 - tunnelCount) : 0 }, (_, index): IRemoteAgentHostEntry => ({
+			name: `Remote host ${tunnelCount + index + 1}`,
 			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: `127.0.0.1:${65531 + index}`,
+				type: RemoteAgentHostEntryType.Tunnel,
+				tunnelId: `fixture-${tunnelCount + index + 1}`,
+				clusterId: 'test',
 			},
 		}));
+		this.configuredEntries = [...entries, ...fillerEntries];
 		this.connections = this.configuredEntries.map(entry => ({
 			name: entry.name,
 			address: getEntryAddress(entry),
@@ -224,11 +226,27 @@ interface IAutomationsFixtureOptions {
 	readonly followUp?: boolean;
 	readonly historyState?: AutomationCatalogueState;
 	readonly emptyHistory?: boolean;
+	readonly remoteEntries?: readonly IRemoteAgentHostEntry[];
+	readonly githubEnvironments?: readonly IMissionControlHost[];
 }
 
+const TUNNEL_ENTRIES: readonly IRemoteAgentHostEntry[] = [
+	{ name: 'Remote build host', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'build', clusterId: 'test' } },
+	{ name: 'Remote test host', connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId: 'test', clusterId: 'test' } },
+];
+const GITHUB_ENVIRONMENT_ENTRY: IRemoteAgentHostEntry = {
+	name: 'GitHub Environment',
+	connection: {
+		type: RemoteAgentHostEntryType.CloudSandbox,
+		address: 'cloudsandbox:environment',
+		environmentId: 'environment',
+		environmentKind: 'user-local',
+	},
+};
+const remoteProviderId = (entry: IRemoteAgentHostEntry) => `agenthost-${agentHostAuthority(getEntryAddress(entry))}`;
 const UNAVAILABLE_PROVIDERS: readonly IAutomationProviderDescriptor[] = [
-	{ id: 'remote-build-host', label: 'Remote build host', unavailableReasonCode: 'disconnected' },
-	{ id: 'remote-test-host', label: 'Remote test host', unavailableReasonCode: 'disconnected' },
+	{ id: remoteProviderId(TUNNEL_ENTRIES[0]), label: TUNNEL_ENTRIES[0].name, unavailableReasonCode: 'disconnected' },
+	{ id: remoteProviderId(TUNNEL_ENTRIES[1]), label: TUNNEL_ENTRIES[1].name, unavailableReasonCode: 'disconnected' },
 	{ id: 'windows-host', label: 'Windows host', unavailableReasonCode: 'disabled' },
 	{ id: 'linux-host', label: 'Linux host', unavailableReasonCode: 'unsupported' },
 	{ id: 'mac-host', label: 'Mac host', unavailableReasonCode: 'incompatible' },
@@ -277,11 +295,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The unavailable empty state has no disconnected icon. No automations yet is followed by its description, then an italic remote detection count and Manage Remotes link.'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]], remoteEntries: TUNNEL_ENTRIES }),
+	}),
+	GitHubEnvironmentUnavailable: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		expectedVisualDescriptions: ['A disconnected GitHub Environment does not add a warning or remote count to the normal No automations yet empty state.'],
+		render: ctx => renderAutomations(ctx, {
+			width: 1000,
+			height: 620,
+			populated: false,
+			catalogueState: 'unavailable',
+			unavailableProviders: [{ id: remoteProviderId(GITHUB_ENVIRONMENT_ENTRY), label: GITHUB_ENVIRONMENT_ENTRY.name, unavailableReasonCode: 'disconnected' }],
+			githubEnvironments: [{ id: 'environment', name: GITHUB_ENVIRONMENT_ENTRY.name, kind: 'user-local', status: 'offline' }],
+		}),
 	}),
 	UnavailableMultipleReasons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS, remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	NarrowUnavailable: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -294,17 +324,17 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The unavailable banner below the automation cards shows an italic remote detection count followed by a Manage Remotes text link instead of the disconnected-host warning.'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]] }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: [UNAVAILABLE_PROVIDERS[0]], remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	PartialDisconnectedRemotes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The unavailable banner shows an italic remote detection count followed by a Manage Remotes text link without listing the disconnected hosts.'],
-		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2), remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	NarrowPartialDisconnectedRemotes: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['At a narrow width, the unavailable banner keeps the italic remote detection count and Manage Remotes link readable without clipping either.'],
-		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2) }),
+		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true, catalogueState: 'unavailable', unavailableProviders: UNAVAILABLE_PROVIDERS.slice(0, 2), remoteEntries: TUNNEL_ENTRIES }),
 	}),
 	PartialUnavailableMultipleReasons: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -314,6 +344,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 			populated: true,
 			catalogueState: 'unavailable',
 			unavailableProviders: UNAVAILABLE_PROVIDERS,
+			remoteEntries: TUNNEL_ENTRIES,
 		}),
 	}),
 	PartialError: defineComponentFixture({
@@ -362,10 +393,7 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	const customViewService = ctx.disposableStore.add(new CustomViewService(new NullLogService(), ctx.disposableStore.add(new InMemoryStorageService())));
 	const runs = options.emptyHistory ? [] : data.runs;
 	const automationService = new FixtureAutomationService(data.automations, runs, options.catalogueState ?? 'ready', options.unavailableProviders ?? []);
-	const disconnectedProviderLabels = options.unavailableProviders
-		?.filter(provider => provider.unavailableReasonCode === 'disconnected')
-		.map(provider => provider.label) ?? [];
-	const remoteAgentHostService = new FixtureRemoteAgentHostService(disconnectedProviderLabels);
+	const remoteAgentHostService = new FixtureRemoteAgentHostService(options.remoteEntries ?? []);
 	automationService.historyState = constObservable(options.historyState ?? 'ready');
 	const sessionsManagementService = new FixtureSessionsManagementService(options.cloud && !options.nativeCloud ? [] : runs);
 	const agentPluginService = new class extends mock<IAgentPluginService>() {
@@ -408,6 +436,10 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			}());
 			reg.defineInstance(IAutomationService, automationService);
 			reg.defineInstance(IRemoteAgentHostService, remoteAgentHostService);
+			reg.defineInstance(IMissionControlEnvironmentService, new class extends mock<IMissionControlEnvironmentService>() {
+				override readonly enabled = true;
+				override readonly hosts = constObservable(options.githubEnvironments ?? []);
+			}());
 			reg.defineInstance(IAutomationRunner, new class extends mock<IAutomationRunner>() { }());
 			reg.defineInstance(IAutomationDialogService, new class extends mock<IAutomationDialogService>() { }());
 			reg.defineInstance(IAgentPluginService, agentPluginService);

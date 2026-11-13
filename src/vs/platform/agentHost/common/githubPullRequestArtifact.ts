@@ -41,7 +41,7 @@ export const gitHubPullRequestArtifactOptions: readonly ArtifactAutomationOption
 	{
 		id: 'merge', kind: 'enum', defaultValue: 'never', disabledValue: 'never', actionIds: ['merge'], maxAttempts: 1,
 		label: localize('prArtifact.autoMerge', "Merge Automatically When Ready"),
-		description: localize('prArtifact.autoMerge.description', "Merge when every required check passes, qualifying review threads are resolved, and GitHub permits it."),
+		description: localize('prArtifact.autoMerge.description', "Merge when every required check passes, qualifying review threads are resolved, and GitHub permits it. This is the integration's own merge automation, separate from GitHub's native auto-merge."),
 		choices: [
 			{ value: 'never', label: localize('prArtifact.mergeOff', "Off") },
 			{ value: 'always', label: localize('prArtifact.mergeAlways', "Always") },

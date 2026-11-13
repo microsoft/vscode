@@ -28,6 +28,7 @@ import { resolveSessionRepositories } from './agentHostSessionRepositories.js';
 import { parseGitBlobUri } from './gitDiffContent.js';
 import { createFileEditDiscardRecord, createSessionFileEditDiscardRecords, getUndiscardedFileEditRevertSteps, readFileEditRevertSteps, spanFileEditRevertSteps } from './fileEditDiscard.js';
 import { createFileEditAcceptRecordAfter, fileEditContentEquals, getUnacceptedFileEditRecords, getWorkingSetFileEditRecords, isFileEditAcceptRecord } from './fileEditAccept.js';
+import { isFileEditPath } from './fileEditPath.js';
 import { FileEditsInProgressError, IAgentHostFileEditCoordinator } from './agentHostFileEditCoordinator.js';
 import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
 import { createChangedSinceShownError } from './workingSetNonce.js';
@@ -47,10 +48,6 @@ export function getLastTurn(stateManager: AgentHostStateManager, owner: Protocol
 	}
 	const id = lastAttributableTurnId(state.turns);
 	return id === undefined ? undefined : { id, inProgress: false };
-}
-
-function isFilePath(path: string | undefined, resource: URI): boolean {
-	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
 }
 
 /** The one-based lines that a zero-based range covers; a range that ends at the start of a line doesn't cover it. */
@@ -566,10 +563,10 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	 * rename that touches `resource` is rejected.
 	 */
 	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.renamed', "Changes to a renamed file can't be discarded."));
 		}
-		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFileEditPath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
 	}
 
 	/**
@@ -579,7 +576,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI): Promise<void> {
 		for (const db of otherChatDatabases) {
 			const records = await db.getAllFileEdits();
-			if (records.some(record => isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource))) {
+			if (records.some(record => isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource))) {
 				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.otherChat', "Changes to '{0}' can't be discarded because another chat in this session also changed it.", basename(resource)));
 			}
 		}

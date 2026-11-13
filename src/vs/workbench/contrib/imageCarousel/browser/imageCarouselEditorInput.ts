@@ -25,9 +25,14 @@ export class ImageCarouselEditorInput extends EditorInput {
 		return super.capabilities | EditorInputCapabilities.Singleton | EditorInputCapabilities.RequiresModal;
 	}
 
+	/**
+	 * @param markUpOnly Opens the start image's markup (see `ICarouselImage.markUp`) instead of a preview, and closes the
+	 * editor when the markup ends.
+	 */
 	constructor(
 		public readonly collection: IImageCarouselCollection,
-		public readonly startIndex: number = 0
+		public readonly startIndex: number = 0,
+		public readonly markUpOnly = false,
 	) {
 		super();
 		this._resource = URI.from({

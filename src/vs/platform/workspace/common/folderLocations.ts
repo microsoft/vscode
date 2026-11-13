@@ -84,6 +84,18 @@ export interface IWorkspaceFolderLocationService {
 	isAtAlternateLocation(folder: IWorkspaceFolder): boolean;
 
 	/**
+	 * Whether the location of `folder` can be set with `IWorkspaceEditingService.setFolderLocation`.
+	 * This is the case for the folder of a local single-folder workspace.
+	 */
+	canSetLocation(folder: IWorkspaceFolder): boolean;
+
+	/**
+	 * Fires when the answer of `canSetLocation` may have changed, that is when the folders
+	 * or the kind of the workspace change.
+	 */
+	readonly onDidChangeCanSetLocation: Event<void>;
+
+	/**
 	 * Fires when the location of a folder changes.
 	 */
 	readonly onDidChangeLocation: Event<IFolderLocationChangeEvent>;

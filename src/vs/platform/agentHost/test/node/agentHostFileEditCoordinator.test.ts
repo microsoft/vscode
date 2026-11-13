@@ -67,6 +67,35 @@ suite('AgentHostFileEditCoordinator', () => {
 		assert.deepStrictEqual({ error: error instanceof FileEditsInProgressError, ran, editing: coordinator.isEditing(file) }, { error: true, ran: false, editing: false });
 	});
 
+	test('coordinates an edit and a change of a file that spell its path with and without `.` segments', async () => {
+		const coordinator = disposables.add(new AgentHostFileEditCoordinator());
+		const dotted = URI.file('/repo/./src/./file.ts');
+		const log: string[] = [];
+
+		const running = await coordinator.beginEdit(dotted);
+		const editing = coordinator.isEditing(file);
+		const change = coordinator.runExclusive(file, async () => { log.push('change runs'); });
+		const later = coordinator.beginEdit(dotted).then(edit => {
+			log.push('later edit begins');
+			return edit;
+		});
+		await Promise.resolve();
+		log.push('running edit ends');
+		running.dispose();
+		await change;
+		(await later).dispose();
+		// A `..` segment can follow a symbolic link, so its path can name another file.
+		const parent = await coordinator.beginEdit(URI.file('/repo/src/link/../file.ts'));
+		const editingThroughParent = coordinator.isEditing(file);
+		parent.dispose();
+
+		assert.deepStrictEqual({ editing, log, editingThroughParent }, {
+			editing: true,
+			log: ['running edit ends', 'change runs', 'later edit begins'],
+			editingThroughParent: false,
+		});
+	});
+
 	test('knows which providers coordinate their edit tool calls while they are registered', () => {
 		const coordinator = disposables.add(new AgentHostFileEditCoordinator());
 		const first = coordinator.registerCoordinatedProvider('copilotcli');

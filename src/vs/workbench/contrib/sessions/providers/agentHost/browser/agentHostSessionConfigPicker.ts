@@ -87,7 +87,7 @@ import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/comm
 import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
-import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
+import { getChangedFileUri, getModifiedFilesSectionLabel, getUncommittedFilesDescription } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
 import { readPaneSessions } from '../../../../../services/sessions/browser/sessionGridPane.js';
 
@@ -121,6 +121,8 @@ export interface IConfigPickerItem {
 	readonly disabled?: boolean;
 	/** Text shown after the label, such as "Recommended". */
 	readonly badge?: string;
+	/** Shows {@link badge} as a quiet secondary pill instead of in the badge color. */
+	readonly secondaryBadge?: boolean;
 	/** Runs instead of selecting a value, for rows that are not options, such as reviewing uncommitted changes. */
 	readonly run?: () => void;
 }
@@ -160,10 +162,13 @@ function formatUncommittedChanges(count: number): string {
 		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
-/** Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. */
-function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion): IConfigPickerItem {
+/**
+ * Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. Once
+ * the user has started a session in a new worktree, the recommendation is a quieter secondary pill.
+ */
+function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion, hasCreatedWorktreeSession: boolean): IConfigPickerItem {
 	if (item.value === 'worktree') {
-		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended") };
+		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended"), secondaryBadge: hasCreatedWorktreeSession };
 	}
 	if (item.value === 'folder' || item.value === 'workspace') {
 		return {
@@ -187,6 +192,9 @@ const LISTED_FILES_MAX = 3;
 
 /** Aligns the label of the isolation picker's section of uncommitted files with the files. */
 const LISTED_FILES_CLASS = 'sessions-chat-isolation-listed-changes';
+
+/** Styles the badge of a row whose item has {@link IConfigPickerItem.secondaryBadge}. */
+const SECONDARY_BADGE_CLASS = 'sessions-chat-config-secondary-badge';
 
 /** Prefixes the values of rows that are not options, which no option value contains. */
 const LISTED_FILE_VALUE_PREFIX = '\0worktreeSuggestion:';
@@ -260,7 +268,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : item.badge ? { badge: item.badge } : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : item.badge ? { badge: item.badge, ...(item.secondaryBadge ? { className: SECONDARY_BADGE_CLASS } : {}) } : {}),
 			detail,
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: detail,
@@ -1202,7 +1210,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		// Counts the files the section lists, which the repository's count can briefly disagree with.
 		const total = this._worktreeSuggestionService.getUncommittedChanges(suggestion, undefined)?.length ?? suggestion.uncommittedChanges;
-		const sectionLabel = getUncommittedFilesSectionLabel(total);
+		const sectionLabel = getModifiedFilesSectionLabel(total);
 		const files = toConfigPickerItems(this._worktreeSuggestionService.getUncommittedChangesListItems(WorktreeSuggestionVariant.UncommittedFilesCount, suggestion, LISTED_FILES_MAX))
 			// Screen readers skip separators and the header, so each row carries the section in its group title.
 			.map(row => ({ ...row, group: { ...row.group, title: sectionLabel } }));
@@ -1319,7 +1327,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		const { items: filteredItems, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
 		const isolationSuggestion = presentation === SessionConfigKey.Isolation ? this._getIsolationPickerRecommendation(sessionId) : undefined;
-		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion)) : filteredItems;
+		const hasCreatedWorktreeSession = !!isolationSuggestion && this._worktreeSuggestionService.hasCreatedWorktreeSession(undefined);
+		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion, hasCreatedWorktreeSession)) : filteredItems;
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const config = this._getSessionConfig(provider, sessionId);
 		const currentValue = config?.values[property] ?? schema.default;

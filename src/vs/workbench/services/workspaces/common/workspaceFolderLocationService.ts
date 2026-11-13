@@ -12,7 +12,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { FolderLocationChangeReason, IFolderLocation, IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 interface IRegisteredProvider {
@@ -34,12 +35,16 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 	private readonly _onDidChangeLocation = this._register(new Emitter<IFolderLocationChangeEvent>());
 	readonly onDidChangeLocation = this._onDidChangeLocation.event;
 
+	readonly onDidChangeCanSetLocation: Event<void>;
+
 	constructor(
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILabelService labelService: ILabelService
 	) {
 		super();
+
+		this.onDidChangeCanSetLocation = Event.any<unknown>(contextService.onDidChangeWorkbenchState, contextService.onDidChangeWorkspaceFolders) as Event<void>;
 
 		this._register(labelService.registerWorkspaceLabelDecorator({
 			onDidChange: Event.map(this.onDidChangeLocation, e => e.folder.uri),
@@ -49,6 +54,14 @@ export class WorkspaceFolderLocationService extends Disposable implements IWorks
 
 	getLocation(folder: IWorkspaceFolder): IResolvedFolderLocation | undefined {
 		return this.isAtAlternateLocation(folder) ? this.locations.get(folder.uri) : undefined;
+	}
+
+	canSetLocation(folder: IWorkspaceFolder): boolean {
+		const workspace = this.contextService.getWorkspace();
+		return this.contextService.getWorkbenchState() === WorkbenchState.FOLDER
+			&& workspace.folders.length === 1
+			&& this.uriIdentityService.extUri.isEqual(workspace.folders[0].uri, folder.uri)
+			&& (workspace.uri ?? folder.uri).scheme === Schemas.file;
 	}
 
 	isAtAlternateLocation(folder: IWorkspaceFolder): boolean {

@@ -86,6 +86,10 @@ interface ILocalCredentialsOptions {
 	readonly onDidChange: Event<void>;
 }
 
+function isAccepted(result: PromiseSettledResult<boolean>): boolean {
+	return result.status === 'fulfilled' && result.value;
+}
+
 export class AgentHostAuthenticationService extends Disposable implements IAgentHostAuthenticationService, IAgentHostAuthenticationController {
 
 	declare readonly _serviceBrand: undefined;
@@ -262,7 +266,29 @@ export class AgentHostAuthenticationService extends Disposable implements IAgent
 		if (authenticated || previousToken !== token) {
 			this._onDidAuthenticate.fire({ resource: params.resource, scopes });
 		}
+		const accepting = new Set([
+			...matching.filter((_, index) => isAccepted(settled[index])),
+			...sessionResourceHandlers.filter((_, index) => isAccepted(sessionResourceSettled[index])),
+		]);
+		if (accepting.size) {
+			authenticated = await this._completeAuthentication(params, [...accepting]);
+		}
 		return { authenticated };
+	}
+
+	/** Lets accepting providers finish setup from the stored credential and reports whether any still accepts it. */
+	private async _completeAuthentication(params: AuthenticateParams, providers: readonly IAgent[]): Promise<boolean> {
+		const completed = await Promise.allSettled(providers.map(provider => provider.completeAuthentication?.(params)));
+		let accepted = false;
+		for (let i = 0; i < completed.length; i++) {
+			const result = completed[i];
+			if (result.status === 'rejected') {
+				this._logService.error(result.reason, `[AgentHostAuthenticationService] Provider '${providers[i].id}' failed to complete authentication`);
+			} else {
+				accepted = true;
+			}
+		}
+		return accepted;
 	}
 
 	async replay(provider: IAgent): Promise<void> {
