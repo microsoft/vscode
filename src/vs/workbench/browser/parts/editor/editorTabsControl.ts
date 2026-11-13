@@ -90,6 +90,7 @@ export interface IEditorTabsControl extends IDisposable {
 	unstickEditor(editor: EditorInput): void;
 	setActive(isActive: boolean): void;
 	updateEditorSelections(): void;
+	updateEditorActions(): void;
 	updateEditorLabel(editor: EditorInput): void;
 	updateEditorCapabilities(editor: EditorInput): void;
 	updateEditorDirty(editor: EditorInput): void;
@@ -227,6 +228,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		parent.appendChild(this.editorLayoutActionsToolbarContainer);
 
 		this.handleEditorLayoutActionsToolBarVisibility(this.editorLayoutActionsToolbarContainer);
+		this.updateEditorActionsPendingState();
 	}
 
 	protected createAddTabControl(parent: HTMLElement, menuId: MenuId, before?: HTMLElement, onDidChangeVisibility?: () => void): HTMLElement {
@@ -376,8 +378,22 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return createActionViewItem(this.instantiationService, action, { ...options, menuAsChild: this.renderDropdownAsChildElement });
 	}
 
+	updateEditorActions(): void {
+		this.updateEditorActionsPendingState();
+		this.updateEditorActionsToolbar();
+	}
+
+	private updateEditorActionsPendingState(): void {
+		for (const container of [this.editorActionsToolbarContainer, this.editorLayoutActionsToolbarContainer]) {
+			if (container) {
+				container.inert = this.groupView.isOpeningEditor;
+				container.setAttribute('aria-busy', String(this.groupView.isOpeningEditor));
+			}
+		}
+	}
+
 	protected updateEditorActionsToolbar(): void {
-		if (!this.editorActionsEnabled) {
+		if (!this.editorActionsEnabled || this.groupView.isOpeningEditor) {
 			return;
 		}
 
@@ -397,6 +413,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	protected updateEditorLayoutActionsToolbar(): void {
 		if (
 			!this.editorActionsEnabled ||
+			this.groupView.isOpeningEditor ||
 			!this.editorLayoutActionsToolbarContainer ||
 			!this.editorLayoutActionsToolbar
 		) {
