@@ -2183,22 +2183,24 @@ export class ChatPetWidget extends Disposable {
 							responseSubagentIds.add(JSON.stringify([request.id, part.toolCallId]));
 						}
 					}
-					// Keep unchanged IDs in place to preserve waiting order for available pet slots.
-					let changed = false;
-					for (const id of previousResponseSubagentIds) {
-						if (!responseSubagentIds.has(id)) {
-							activeSubagentIds.delete(id);
-							changed = true;
-						}
-					}
-					for (const id of responseSubagentIds) {
-						if (!previousResponseSubagentIds.has(id)) {
-							activeSubagentIds.add(id);
-							changed = true;
+					// Skip pet updates when a streamed response leaves the active subagents unchanged.
+					let changed = responseSubagentIds.size !== previousResponseSubagentIds.size;
+					if (!changed) {
+						for (const id of responseSubagentIds) {
+							if (!previousResponseSubagentIds.has(id)) {
+								changed = true;
+								break;
+							}
 						}
 					}
 					if (!changed) {
 						return;
+					}
+					for (const id of previousResponseSubagentIds) {
+						activeSubagentIds.delete(id);
+					}
+					for (const id of responseSubagentIds) {
+						activeSubagentIds.add(id);
 					}
 					previousResponseSubagentIds = responseSubagentIds;
 					if (!initializing) {
