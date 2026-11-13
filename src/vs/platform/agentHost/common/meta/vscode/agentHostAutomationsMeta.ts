@@ -125,6 +125,11 @@ export function withAgentHostScheduledChat(meta: Record<string, unknown> | undef
 	return result;
 }
 
+/** Whether a definition supplies an existing-chat target, even a malformed one. */
+export function hasAgentHostScheduledChatConversation(definition: AutomationDefinition): boolean {
+	return definition._meta?.[AgentHostScheduledChatConversationMetaKey] !== undefined;
+}
+
 export function getAgentHostScheduledChatConversation(definition: AutomationDefinition): IAgentHostScheduledChatConversation | undefined {
 	const value = definition._meta?.[AgentHostScheduledChatConversationMetaKey];
 	if (!value || typeof value !== 'object') {

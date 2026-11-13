@@ -2599,6 +2599,15 @@ suite('AgentHostAutomationService', () => {
 			{ session: 'mock:/missing', chat: 'ahp-chat:/missing' }, definition().message, 'followup'), /deleted, moved, or is unavailable/);
 	});
 
+	test('malformed existing-conversation target is rejected instead of creating a new session', async () => {
+		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), _meta: { ...scheduledChatMeta(), 'vscode.scheduledChatConversation': { session: 'mock:/existing' } }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /requires supported/);
+		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.length ?? 0, 0);
+	});
+
 	test('existing-conversation scheduling is absent and rejected without explicit host support', async () => {
 		const service = createService();
 		assert.strictEqual(service.supportsExistingConversation, false);

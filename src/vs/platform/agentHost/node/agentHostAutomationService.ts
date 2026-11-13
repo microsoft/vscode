@@ -45,7 +45,7 @@ import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type AutomationSessionOrigin, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
-import { agentHostAutomationSessionOrigin, getAgentHostAutomationHistoryState, getAgentHostOneTimeReceipts, getAgentHostScheduledChatConversation, isAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeReceipts, withAgentHostScheduledChat, withAgentHostScheduledChatConversation, type IAgentHostScheduledChatConversation } from '../common/meta/agentHostAutomationsMeta.js';
+import { agentHostAutomationSessionOrigin, getAgentHostAutomationHistoryState, getAgentHostOneTimeReceipts, getAgentHostScheduledChatConversation, hasAgentHostScheduledChatConversation, isAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeReceipts, withAgentHostScheduledChat, withAgentHostScheduledChatConversation, type IAgentHostScheduledChatConversation } from '../common/meta/agentHostAutomationsMeta.js';
 import { readMcpServerConnectorName } from '../common/meta/mcpCustomizationMeta.js';
 
 const STORAGE_KEY = 'automations';
@@ -1685,7 +1685,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error('A scheduled chat requires a one-time trigger.');
 		}
 		const conversation = getAgentHostScheduledChatConversation(definition);
-		if (conversation && (!this._execution.supportsExistingConversation || !oneTime || !scheduledChat
+		if (hasAgentHostScheduledChatConversation(definition) && (!conversation || !this._execution.supportsExistingConversation || !oneTime || !scheduledChat
 			|| !conversation.session || !conversation.chat)) {
 			throw new Error('An existing conversation requires supported one-time scheduled-chat execution and exact session and chat resources.');
 		}
