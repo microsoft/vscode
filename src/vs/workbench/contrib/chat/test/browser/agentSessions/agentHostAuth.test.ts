@@ -2335,7 +2335,7 @@ suite('authenticateProtectedResources', () => {
 			assert.deepStrictEqual({ request, scopedQueries: calls.filter(([, scopes]) => scopes !== undefined) }, {
 				request: {
 					resource: resource.resource, scopes: resource.scopes_supported, token: scoped.accessToken,
-					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: account.label }),
+					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id }),
 				},
 				scopedQueries: [['microsoft', resource.scopes_supported, { account, authorizationServer: URI.parse(resource.authorization_servers[0]), silent: true }, true]],
 			});

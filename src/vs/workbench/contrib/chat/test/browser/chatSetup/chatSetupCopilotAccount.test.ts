@@ -543,7 +543,7 @@ suite('Microsoft Copilot resource setup UI', () => {
 				success: true, completed: true, calls: ['signIn', 'install'], choices: [['GitHub Copilot', 'Microsoft 365 Copilot']],
 				delivered: [discovery, services[pick]].map(resource => ({
 					resource: resource.resource, scopes: resource.scopes_supported, token: 'synthetic', expiresIn: 120,
-					_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: f.account.id, label: f.account.label } },
+					_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: f.account.id } },
 				})),
 			});
 		});

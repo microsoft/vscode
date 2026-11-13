@@ -10,6 +10,7 @@ import { derived, derivedOpts, IObservable, mapObservableArrayCached } from '../
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { getCanvasUri } from '../../../../platform/agentHost/common/agentHostProtocolTransition.js';
 import { getInlineToolInput, parsePartialToolInput } from '../../../../platform/agentHost/common/partialToolInput.js';
 import { IAgentSubscription, observableFromSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { CanvasReference, CanvasState } from '../../../../platform/agentHost/common/state/protocol/channels-canvas/state.js';
@@ -41,9 +42,10 @@ export class AgentHostCanvas implements ICanvas {
 		this.canvasId = canvas?.canvasId;
 		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
 		this.status = canvas?.status;
-		if (canvas?.url !== undefined) {
+		const uri = canvas && getCanvasUri(canvas);
+		if (uri !== undefined) {
 			try {
-				const source = URI.parse(canvas.url, true);
+				const source = URI.parse(uri, true);
 				if ((source.scheme === Schemas.http || source.scheme === Schemas.https) && source.authority) {
 					this.source = source;
 				} else {

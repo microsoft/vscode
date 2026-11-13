@@ -20,7 +20,6 @@ import { IAgentHostAuthenticationService, type IAgentHostAuthCredential } from '
 
 interface IEntraAuthority {
 	readonly accountId: string;
-	readonly username?: string;
 }
 
 interface IEntraTokenChallenge {
@@ -63,7 +62,7 @@ export class CopilotEntraAuthentication extends Disposable {
 				if (request.resource === copilotEntraDiscoveryResource && !this._authority.get()) {
 					const account = this._authenticationService.getAuthCredential({ resource: copilotEntraDiscoveryResource, scopes: copilotEntraDiscoveryMetadata.scopes_supported })?.account;
 					if (account?.providerId === 'microsoft') {
-						this._authority.set({ accountId: account.accountId, ...(account.label !== undefined ? { username: account.label } : {}) }, undefined);
+						this._authority.set({ accountId: account.accountId }, undefined);
 					}
 				}
 				if (this.getCredential(request.resource, request.scopes ?? [])) {
@@ -276,7 +275,7 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 	if (request.reason === 'forceInteractive') {
 		return undefined;
 	}
-	return { kind: 'identity', accountId: authority.accountId, ...(authority.username !== undefined ? { username: authority.username } : {}) };
+	return { kind: 'identity', accountId: authority.accountId };
 }
 
 export function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {

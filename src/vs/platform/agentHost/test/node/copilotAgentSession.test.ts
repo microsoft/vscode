@@ -1169,6 +1169,7 @@ class CapturingRestrictedTelemetryService implements ITelemetryService, IAgentHo
 	setExperimentProperty(): void { }
 	setCommonProperty(): void { }
 	sendGHTelemetryEvent(): void { }
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.events.push({ destination: 'enhanced', eventName, properties, ...(measurements ? { measurements } : {}) });
 		this.onEvent?.();
@@ -1299,7 +1300,7 @@ function getActions(signals: readonly AgentSignal[]) {
 
 function summarizeCanvasSignals(signals: readonly AgentSignal[]) {
 	return {
-		states: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource.toString(), url: signal.state.url })),
+		states: signals.filter(signal => signal.kind === 'canvas').map(signal => ({ resource: signal.resource.toString(), url: signal.state.uri })),
 		membership: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.map(canvas => canvas.resource) ?? []),
 	};
 }
@@ -5074,7 +5075,7 @@ suite('CopilotAgentSession', () => {
 			openEvents: 0,
 			states: [{
 				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
-				canvasId: 'preview', title: 'Preview', status: 'ready', url: 'https://example.test/live',
+				canvasId: 'preview', title: 'Preview', status: 'ready', uri: 'https://example.test/live',
 			}, {
 				instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview',
 				canvasId: 'preview', title: 'Preview', status: 'ready',
@@ -5097,6 +5098,7 @@ suite('CopilotAgentSession', () => {
 		const preview = { instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview' };
 		const restored = { ...preview, url: 'https://example.test/restored' };
 		const live = { ...preview, title: 'Preview', url: 'https://example.test/live' };
+		const liveState = { ...preview, title: 'Preview', uri: 'https://example.test/live' };
 		const other = { ...restored, instanceId: 'other' };
 
 		for (const eventOrder of ['before response', 'after response', 'no event'] as const) {
@@ -5142,7 +5144,7 @@ suite('CopilotAgentSession', () => {
 				}, {
 					whilePending: { states: [], membership: [] },
 					openCalls: [preview],
-					states: [{ chat: chat.toString(), state: live }],
+					states: [{ chat: chat.toString(), state: liveState }],
 					membership: [[resource]],
 				});
 			});
@@ -5170,7 +5172,7 @@ suite('CopilotAgentSession', () => {
 				states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
 			}, {
 				afterFailure: { states: [], membership: [] },
-				states: [live],
+				states: [liveState],
 			});
 		});
 
@@ -5208,7 +5210,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.canvas.opened', newer);
 			response.complete(live);
 			await opening;
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [newer]);
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [{ ...liveState, uri: newer.url }]);
 		});
 
 		for (const openedEvent of [false, true]) {
@@ -5231,7 +5233,7 @@ suite('CopilotAgentSession', () => {
 					states: states.map(signal => signal.state),
 					membership: summarizeCanvasSignals(signals).membership,
 				}, {
-					states: [live],
+					states: [liveState],
 					membership: [[states[0]?.resource.toString()]],
 				});
 			});
@@ -5258,7 +5260,7 @@ suite('CopilotAgentSession', () => {
 					states: signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state),
 				}, {
 					afterResponse: { states: [], membership: [] },
-					states: [reopened],
+					states: [{ ...liveState, uri: reopened.url }],
 				});
 			});
 		}
@@ -5276,7 +5278,7 @@ suite('CopilotAgentSession', () => {
 			mockSession.fire('session.canvas.opened', newer);
 			response.complete(live);
 			await opening;
-			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [newer]);
+			assert.deepStrictEqual(signals.filter(signal => signal.kind === 'canvas').map(signal => signal.state), [{ ...liveState, title: newer.title, uri: newer.url }]);
 		});
 
 		for (const firstResponse of [0, 1]) {
@@ -5302,7 +5304,7 @@ suite('CopilotAgentSession', () => {
 					states: states.map(signal => signal.state),
 					membership: summarizeCanvasSignals(signals).membership,
 				}, {
-					states: [newer],
+					states: [{ ...liveState, title: newer.title, uri: newer.url }],
 					membership: [[states[0]?.resource.toString()], []],
 				});
 			});
@@ -6094,7 +6096,10 @@ suite('CopilotAgentSession', () => {
 			newLifetime: states[0].resource.toString() !== states[1].resource.toString(),
 			membershipCounts: getActions(signals).filter(action => action.type === ActionType.ChatCanvasesChanged).map(action => action.canvases?.length ?? 0),
 		}, {
-			states: [canvas, canvas],
+			states: [
+				{ instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', title: 'Preview', uri: 'https://example.test/live' },
+				{ instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', title: 'Preview', uri: 'https://example.test/live' },
+			],
 			newLifetime: true,
 			membershipCounts: [1, 0, 1],
 		});
@@ -6366,7 +6371,7 @@ suite('CopilotAgentSession', () => {
 		const survivingResources = new Set(finalCanvases?.map(canvas => canvas.resource));
 		assert.deepStrictEqual({
 			instanceIds: states.filter(signal => survivingResources.has(signal.resource.toString())).map(signal => signal.state.instanceId),
-			newestSource: states.at(-1)?.state.url,
+			newestSource: states.at(-1)?.state.uri,
 		}, {
 			instanceIds: ['canvas-1', 'canvas-2', 'canvas-3', 'canvas-4', 'canvas-5', 'canvas-6', 'canvas-7', 'canvas-8'],
 			newestSource: 'https://example.test/canvas-8',
