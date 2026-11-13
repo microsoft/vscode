@@ -26780,6 +26780,34 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 
+		test('an adopted legacy session keeps its own timestamps instead of the adoption time', async () => {
+			class AdoptAgent extends MockAgent {
+				constructor() { super('copilot'); }
+				override async listChatsToMigrate(): Promise<IAgentListedChat[]> {
+					return [];
+				}
+				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
+					return { adopted: true, eligible: true, timestamps: { startTime: 1_000, modifiedTime: 2_000 } };
+				}
+				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
+					return { chat, startTime: 1_000, modifiedTime: 2_000, summary: 'Adopted' };
+				}
+			}
+
+			const localService = disposables.add(createTestAgentService(new NullLogService(), fileService, createSessionDataService(new TestSessionDatabase()), { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			registerTestAgentProvider(localService, disposables.add(new AdoptAgent()));
+			const session = AgentSession.uri('copilot', 'adopted-keeps-timestamps');
+			await localService.restoreSession(session);
+
+			const registry = (localService as unknown as { _sessionRegistry: AgentSessionRegistry })._sessionRegistry;
+			const registered = await registry.get(session);
+			const summary = getStateManager(localService).getSessionSummary(session.toString());
+			assert.deepStrictEqual(
+				{ startTime: registered?.startTime, modifiedTime: registered?.modifiedTime, createdAt: summary?.createdAt, modifiedAt: summary?.modifiedAt },
+				{ startTime: 1_000, modifiedTime: 2_000, createdAt: new Date(1_000).toISOString(), modifiedAt: new Date(2_000).toISOString() },
+			);
+		});
+
 		test('rejects restore of a backing session whose default chat is owned by another session with SessionNotFound without emitting failed migration telemetry', async () => {
 			const events: { data: Record<string, unknown>; error: boolean }[] = [];
 			const telemetry = new class extends NullTelemetryServiceShape {

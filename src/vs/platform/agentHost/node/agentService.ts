@@ -14579,9 +14579,14 @@ export class AgentService extends Disposable implements IAgentService {
 			// list at all. A registration that cannot be made durable fails the
 			// migration: continuing would leave exactly the orphan this prevents.
 			if (adopted && !registeredSession) {
+				// Register with the legacy chat's own timestamps: the registry's modified
+				// time only advances, so the adoption time would permanently replace when
+				// the user last worked in the chat and make every adopted chat look new.
 				const registeredAt = Date.now();
+				const startTime = adoption.timestamps?.startTime ?? registeredAt;
+				const modifiedTime = adoption.timestamps?.modifiedTime ?? registeredAt;
 				await this._retryRegistryMutation(
-					() => this._sessionRegistry.register(session, { provider: agent.id, startTime: registeredAt, modifiedTime: registeredAt, source: 'restore' }, { checkTombstone: true }),
+					() => this._sessionRegistry.register(session, { provider: agent.id, startTime, modifiedTime, source: 'restore' }, { checkTombstone: true }),
 					`adoption registration for ${sessionStr}`,
 				);
 				registeredAfterAdoption = true;
