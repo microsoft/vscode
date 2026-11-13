@@ -1,6 +1,6 @@
 # Rulesets
 
-The JSON files in this folder define rulesets of microsoft/vscode, in the format of the [REST API for rulesets](https://docs.github.com/en/rest/repos/rules). GitHub doesn't read them: a repository admin applies them, and the [Rulesets workflow](../workflows/rulesets.yml) checks that the live rulesets still match them, every day and after every change to this folder on `main`.
+The JSON files in this folder define rulesets of microsoft/vscode, in the format of the [REST API for rulesets](https://docs.github.com/en/rest/repos/rules). They're here for versioning and maintenance only: GitHub doesn't read them, so committing or merging a change to one changes nothing on the repository. A repository admin applies them, and the [Rulesets workflow](../workflows/rulesets.yml) checks that the live rulesets still match them, every day and after every change to this folder on `main`.
 
 | File | Ruleset |
 | --- | --- |
