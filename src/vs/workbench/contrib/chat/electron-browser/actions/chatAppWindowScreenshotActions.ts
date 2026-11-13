@@ -20,7 +20,7 @@ import { Action2, registerAction2 } from '../../../../../platform/actions/common
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -41,13 +41,16 @@ import { AppWindowScreenshotPermission, AppWindowScreenshotResult, getAppWindowL
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IChatContextPickService, IChatContextValueItem } from '../../browser/attachments/chatContextPickService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
+import { ChatWidget, IChatWidgetContrib } from '../../browser/widget/chatWidget.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatConfiguration } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { isAutoLanguageModel } from '../../common/languageModels.js';
+import { AppWindowScreenshotHint } from './chatAppWindowScreenshotHint.js';
 import { AppWindowScreenshotSetupDialog } from './chatAppWindowScreenshotSetup.js';
 
 const ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.attachAppWindowScreenshot';
+const ATTACH_APP_WINDOW_SCREENSHOT_TITLE = localize2('chat.attachAppWindowScreenshot', "Attach Screenshot of App Window");
 const PICK_APP_WINDOW_SCREENSHOT_COMMAND_ID = 'workbench.action.chat.pickAppWindowScreenshot';
 const ENABLE_SYSTEM_WIDE_KEYBINDING_COMMAND_ID = 'workbench.action.chat.enableAppWindowScreenshotSystemWideKeybinding';
 
@@ -306,7 +309,7 @@ class AttachAppWindowScreenshotAction extends Action2 {
 	constructor() {
 		super({
 			id: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID,
-			title: localize2('chat.attachAppWindowScreenshot', "Attach Screenshot of App Window"),
+			title: ATTACH_APP_WINDOW_SCREENSHOT_TITLE,
 			metadata: {
 				description: localize2('chat.attachAppWindowScreenshot.description', "Attaches a screenshot of the window of another app to chat: the window that you are using, or the one that you just left."),
 			},
@@ -417,7 +420,41 @@ class AppWindowScreenshotContribution extends Disposable implements IWorkbenchCo
 	}
 }
 
+/** Shows {@link AppWindowScreenshotHint} above the main input of a chat widget. */
+class AppWindowScreenshotHintContribution extends Disposable implements IChatWidgetContrib {
+
+	static readonly ID = 'chatAppWindowScreenshotHint';
+
+	readonly id = AppWindowScreenshotHintContribution.ID;
+
+	constructor(
+		widget: IChatWidget,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+	) {
+		super();
+
+		const input = widget.inputPart;
+		this._register(instantiationService.createInstance(AppWindowScreenshotHint, {
+			inputUri: input.inputUri,
+			noticeHost: input.noticeHost,
+			container: input.attachmentHintContainerElement,
+			getAttachmentIds: () => input.attachmentModel.attachments.map(attachment => attachment.id),
+			onDidChangeAttachments: input.attachmentModel.onDidChange,
+			onDidChangeDraft: Event.any<unknown>(widget.onDidAcceptInput, widget.onDidChangeViewModel),
+			canAttachScreenshots: () => {
+				const model = input.selectedLanguageModel.get();
+				return widget.location === ChatAgentLocation.Chat
+					&& !!widget.attachmentCapabilities.supportsImageAttachments
+					&& (isAutoLanguageModel(model) || !!model?.metadata.capabilities?.vision)
+					&& contextKeyService.contextMatchesRules(ChatContextKeys.enabled);
+			},
+		}, { id: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, title: ATTACH_APP_WINDOW_SCREENSHOT_TITLE.value }));
+	}
+}
+
 registerAction2(AttachAppWindowScreenshotAction);
 registerAction2(PickAppWindowScreenshotAction);
 registerAction2(EnableAppWindowScreenshotSystemWideKeybindingAction);
 registerWorkbenchContribution2(AppWindowScreenshotContribution.ID, AppWindowScreenshotContribution, WorkbenchPhase.AfterRestored);
+ChatWidget.CONTRIBS.push(AppWindowScreenshotHintContribution);

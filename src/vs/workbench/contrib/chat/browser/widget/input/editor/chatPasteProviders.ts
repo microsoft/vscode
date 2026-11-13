@@ -35,6 +35,7 @@ import { chatVariableLeader } from '../../../../common/requestParser/chatParserT
 import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { fromRelativeRange } from '../../../../common/attachments/chatInlineAttachments.js';
 import { IChatPasteTarget, IChatPasteTargetService } from '../../../chat.js';
+import { getAddedImageIds, IChatUserImageAttachmentService } from '../../../attachments/chatUserImageAttachments.js';
 import { chatInputSchemes, isChatInputModel, ChatConfiguration } from '../../../../common/constants.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
@@ -69,6 +70,7 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 	constructor(
 		private readonly pasteTargetService: IChatPasteTargetService,
 		private readonly extensionService: IExtensionService,
+		private readonly userImageAttachmentService: IChatUserImageAttachmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService private readonly logService: ILogService,
@@ -140,7 +142,9 @@ export class PasteImageProvider implements DocumentPasteEditProvider {
 			return;
 		}
 
-		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.pasteTargetService);
+		const edit = createCustomPasteEdit(model, [scaledImageContext], mimeType, this.kind, localize('pastedImageAttachment', 'Pasted Image Attachment'), this.pasteTargetService, {
+			onDidAttachImages: attachmentIds => this.userImageAttachmentService.didAttachImages({ inputUri: model.uri, attachmentIds, gesture: 'paste' }),
+		});
 		return createEditSession(edit);
 	}
 }
@@ -619,6 +623,8 @@ function createCustomPasteEdit(
 		readonly announcement?: string;
 		readonly insertText?: string;
 		readonly statusAnnouncement?: string;
+		/** Called once, when the paste first applies, with the ids of the images that it attached and that weren't attached before. */
+		readonly onDidAttachImages?: (attachmentIds: readonly string[]) => void;
 	},
 ): DocumentPasteEdit {
 
@@ -627,6 +633,8 @@ function createCustomPasteEdit(
 		: localize('pastedAttachment.multiple', '{0} and {1} more', context[0].name, context.length - 1);
 	const announceImageAttachment = context.length === 1 && isImageVariableEntry(context[0]);
 	const inlineReference = context.length === 1 ? options?.inlineReference : undefined;
+	// A redo after an undo puts the attachments back, which is not the user attaching them.
+	let applied = false;
 
 	const resolveTarget = (operation: string): IChatPasteTarget => {
 		const target = pasteTargetService.getTarget(model.uri);
@@ -644,6 +652,9 @@ function createCustomPasteEdit(
 		},
 		redo: () => {
 			const target = resolveTarget('redo');
+			const onDidAttachImages = applied ? undefined : options?.onDidAttachImages;
+			applied = true;
+			const before = onDidAttachImages ? [...target.attachments] : [];
 			if (inlineReference) {
 				target.addInlineAttachment(context[0], inlineReference.text, inlineReference.range);
 			} else {
@@ -655,6 +666,10 @@ function createCustomPasteEdit(
 				status(options.statusAnnouncement);
 			} else if (announceImageAttachment) {
 				alert(localize('chat.pastedImageAttached', 'Attached image'));
+			}
+			const addedImageIds = onDidAttachImages ? getAddedImageIds(before, target.attachments) : [];
+			if (addedImageIds.length) {
+				onDidAttachImages?.(addedImageIds);
 			}
 		},
 		metadata: {
@@ -952,11 +967,12 @@ export class ChatPasteProvidersFeature extends Disposable {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatUserImageAttachmentService userImageAttachmentService: IChatUserImageAttachmentService,
 	) {
 		super();
 		const chatInputProviders: DocumentPasteEditProvider[] = [
 			instaService.createInstance(CopyAttachmentsProvider),
-			new PasteImageProvider(pasteTargetService, extensionService, fileService, environmentService, logService),
+			new PasteImageProvider(pasteTargetService, extensionService, userImageAttachmentService, fileService, environmentService, logService),
 			new PasteTextProvider(pasteTargetService, modelService, logService, configurationService),
 			new PasteHtmlProvider(),
 		];

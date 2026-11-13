@@ -5,6 +5,8 @@
 
 import { $ } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -12,6 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeAppWindow, INativeAppWindows, INativeHostService } from '../../../../platform/native/common/native.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IScreenshotToolImage } from '../browser/screenshotTool.js';
 
 export const IAppWindowScreenshotService = createDecorator<IAppWindowScreenshotService>('appWindowScreenshotService');
@@ -52,6 +55,12 @@ export type AppWindowScreenshotPermission =
 export interface IAppWindowScreenshotService {
 	readonly _serviceBrand: undefined;
 
+	/** Whether the user has captured the window of another app, in any window of VS Code or of the Agents window. */
+	readonly hasCaptured: boolean;
+
+	/** Fires when {@link hasCaptured} changes, including when another window captured. */
+	readonly onDidChangeHasCaptured: Event<void>;
+
 	/**
 	 * Returns the window that a capture takes: the frontmost window of another app, which is the one that the user looks
 	 * at, or the one they left for VS Code. It never shows system UI, so it returns `undefined` when finding the window
@@ -88,6 +97,9 @@ const FRAME_TIMEOUT = 5000;
 
 const MAC_SCREEN_RECORDING_SETTINGS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
 
+/** Remembers that the user captured the window of another app, for VS Code and the Agents window alike. */
+const CAPTURED_STORAGE_KEY = 'chat.appWindowScreenshots.captured';
+
 /** Electron's constraints to capture a desktop media source, which the DOM typings don't describe. */
 type DesktopMediaTrackConstraints = MediaTrackConstraints & {
 	readonly mandatory: {
@@ -102,15 +114,26 @@ interface IAppWindowPickItem extends IQuickPickItem {
 	readonly window: INativeAppWindow;
 }
 
-export class AppWindowScreenshotService implements IAppWindowScreenshotService {
+export class AppWindowScreenshotService extends Disposable implements IAppWindowScreenshotService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidChangeHasCaptured = this._register(new Emitter<void>());
+	readonly onDidChangeHasCaptured = this._onDidChangeHasCaptured.event;
+
+	get hasCaptured(): boolean {
+		return this.storageService.getBoolean(CAPTURED_STORAGE_KEY, StorageScope.APPLICATION_SHARED, false);
+	}
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
-	) { }
+		@IStorageService private readonly storageService: IStorageService,
+	) {
+		super();
+		this._register(this.storageService.onDidChangeValue(StorageScope.APPLICATION_SHARED, CAPTURED_STORAGE_KEY, this._store)(() => this._onDidChangeHasCaptured.fire()));
+	}
 
 	async getFrontmostWindow(): Promise<INativeAppWindow | undefined> {
 		try {
@@ -189,7 +212,13 @@ export class AppWindowScreenshotService implements IAppWindowScreenshotService {
 
 		try {
 			const image = await this.captureWindow(window);
-			return image ? { kind: 'captured', target, window, image } : { kind: 'failed', target, window };
+			if (!image) {
+				return { kind: 'failed', target, window };
+			}
+			if (!this.hasCaptured) {
+				this.storageService.store(CAPTURED_STORAGE_KEY, true, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
+			}
+			return { kind: 'captured', target, window, image };
 		} catch (error) {
 			this.logService.error('[AppWindowScreenshot] Capturing a window failed:', error);
 			return { kind: 'failed', target, window };

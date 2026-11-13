@@ -147,6 +147,7 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { applyScreenshotToolEdit, getEditableImageAttachment } from '../../attachments/chatScreenshotContext.js';
 import { ImplicitContextAttachmentWidget, isImplicitContextAlreadyAttached } from '../../attachments/implicitContextAttachment.js';
+import { getAddedImageIds, IChatUserImageAttachmentService } from '../../attachments/chatUserImageAttachments.js';
 import { IChatWidget, IChatWidgetService, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat.js';
 import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
@@ -607,6 +608,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatInputTodoListWidgetContainer!: HTMLElement;
 	private chatArtifactsWidgetContainer!: HTMLElement;
 	private chatGettingStartedTipContainer!: HTMLElement;
+	private chatAttachmentHintContainer!: HTMLElement;
 	private chatQuestionCarouselContainer!: HTMLElement;
 	private chatPlanReviewContainer!: HTMLElement;
 	private chatToolConfirmationCarouselContainer!: HTMLElement;
@@ -751,6 +753,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	get gettingStartedTipContainerElement(): HTMLElement {
 		return this.chatGettingStartedTipContainer;
+	}
+
+	/** The slot above the input for a hint about the attachments that the user just added. */
+	get attachmentHintContainerElement(): HTMLElement {
+		return this.chatAttachmentHintContainer;
 	}
 
 	/** Arbitrates which notice occupies the area above this input. */
@@ -1189,6 +1196,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatSpeechToTextService private readonly speechToTextService: IChatSpeechToTextService,
 		@IDictationOnboardingService private readonly dictationOnboardingService: IDictationOnboardingService,
 		@IChatInputNoticeHubService private readonly chatInputNoticeHubService: IChatInputNoticeHubService,
+		@IChatUserImageAttachmentService private readonly userImageAttachmentService: IChatUserImageAttachmentService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ISCMService private readonly scmService: ISCMService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -1361,7 +1369,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					// The pills of inline attachments are inserted at the cursor.
 					this._inputEditor.setPosition(dropPosition);
 				}
+				const before = attachmentModel.attachments;
 				attachmentModel.addContext(...entries);
+				this.userImageAttachmentService.didAttachImages({ inputUri: this.inputUri, attachmentIds: getAddedImageIds(before, attachmentModel.attachments), gesture: 'drop' });
 			},
 			getDropPosition: (clientX: number, clientY: number) => this._inlineAttachments?.isEnabled ? this._inlineAttachments.getPositionAtClientPoint(clientX, clientY) : undefined,
 		}, styles));
@@ -3846,6 +3856,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 						dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 						dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
+						dom.h(`.chat-attachment-hint-container.${chatInputStackSlotClass}@chatAttachmentHintContainer`),
 						dom.h(`.chat-getting-started-tip-container.${chatInputStackSlotClass}@chatGettingStartedTipContainer`),
 						dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 							dom.h('.chat-input-container@inputContainer', [
@@ -3882,6 +3893,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
 					dom.h('.chat-editing-session@chatEditingSessionWidgetContainer'),
+					dom.h(`.chat-attachment-hint-container.${chatInputStackSlotClass}@chatAttachmentHintContainer`),
 					dom.h(`.chat-getting-started-tip-container.${chatInputStackSlotClass}@chatGettingStartedTipContainer`),
 					dom.h('.interactive-input-and-side-toolbar@inputAndSideToolbar', [
 						dom.h('.chat-input-container@inputContainer', [
@@ -3941,6 +3953,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatInputTodoListWidgetContainer = elements.chatInputTodoListWidgetContainer;
 		this.chatArtifactsWidgetContainer = elements.chatArtifactsWidgetContainer;
 		this.chatGettingStartedTipContainer = elements.chatGettingStartedTipContainer;
+		this.chatAttachmentHintContainer = elements.chatAttachmentHintContainer;
 		this.chatQuestionCarouselContainer = elements.chatQuestionCarouselContainer;
 		this.chatPlanReviewContainer = elements.chatPlanReviewContainer;
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
