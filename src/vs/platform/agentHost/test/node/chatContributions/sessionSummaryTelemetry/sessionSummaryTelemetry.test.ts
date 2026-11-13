@@ -23,6 +23,7 @@ import { AgentHostStateManager, IAgentHostStateManager } from '../../../../node/
 import { AgentHostTelemetryReporter, IAgentHostTelemetryReporter, type AgentHostMessageOriginTelemetryKind, type AgentHostTurnResult, type IAgentHostEventTelemetry, type IAgentHostSessionSummaryClassification, type IAgentHostSessionSummaryEvent } from '../../../../node/agentHostTelemetryReporter.js';
 import { AgentHostTurnTracker, IAgentHostTurnTracker, TURN_HANG_THRESHOLD_MS } from '../../../../node/agentHostTurnTracker.js';
 import { SESSION_SUMMARY_IDLE_TIMEOUT_MS, SessionSummaryTelemetryContribution } from '../../../../node/chatContributions/sessionSummaryTelemetry/sessionSummaryTelemetryContribution.js';
+import { buildChatErrorInfoFromCopilotSdkFields } from '../../../../node/copilot/copilotSdkChatError.js';
 import { chatTurnComplete } from '../../../common/chatActionBuilders.js';
 import { CapturingTelemetryService } from '../../../common/capturingTelemetryService.js';
 import { MockAgent } from '../../mockAgent.js';
@@ -135,13 +136,16 @@ suite('SessionSummaryTelemetryContribution', () => {
 		complete(root, { tokens: [100, 40, 10], nanoAiu: 1000, modelCalls: 2 });
 		const steered = start();
 		await timeout(500);
-		complete(steered, { result: 'cancelled', steered: true });
+		// Cancelled after a model call but before its AI credits were reported.
+		complete(steered, { result: 'cancelled', steered: true, modelCalls: 1 });
 		const quota = start(automation);
 		await timeout(100);
 		complete(quota, { ...automation, result: 'error', error: { errorType: 'quota', message: 'Quota reached' } });
 		const failed = start();
 		await timeout(400);
 		complete(failed, { result: 'error' });
+		// A rate limit reached by a provider request, classified only by its forwarded HTTP status.
+		complete(start(), { result: 'error', error: buildChatErrorInfoFromCopilotSdkFields({ errorType: 'query', message: 'Too many requests', statusCode: 429 }) });
 		contributions.willShutdown();
 
 		const turns = events('agentHost.turnCompleted');
@@ -159,52 +163,68 @@ suite('SessionSummaryTelemetryContribution', () => {
 				summaryIndex: 0,
 				createdInHostProcess: false,
 				multipleClientTypes: false,
-				rootTurnCount: 4,
-				userTurnCount: 3,
+				rootTurnCount: 5,
+				userTurnCount: 4,
 				subagentTurnCount: 2,
-				failedTurnCount: 2,
+				failedTurnCount: 3,
 				cancelledTurnCount: 1,
-				usageLimitFailedTurnCount: 1,
+				usageLimitFailedTurnCount: 2,
 				failedSubagentTurnCount: 1,
 				unexpectedHangTurnCount: 0,
 				recoveredHangTurnCount: 0,
 				steeredTurnCount: 1,
-				modelCallCount: 3,
+				modelCallCount: 4,
 				promptTokenCount: 150,
 				promptCacheTokenCount: 60,
 				completionTokenCount: 15,
 				rootBilledNanoAiu: 1000,
 				subagentBilledNanoAiu: 300,
 				totalBilledNanoAiu: 1300,
+				missingBilledNanoAiuTurnCount: 1,
 				durationMs: 2000,
 				activeMs: 2000,
 			}],
-			turnEventTotals: { promptTokenCount: 150, totalBilledNanoAiu: 1300, modelCallCount: 3 },
+			turnEventTotals: { promptTokenCount: 150, totalBilledNanoAiu: 1300, modelCallCount: 4 },
 		});
 	}));
 
-	test('describes the first known client and the latest account context of the period', () => runWithFakedTimers({}, async () => {
-		const { agent, contributions, start, complete, summaries } = createSummaries();
+	test('describes the first known client, preferring root turns, and the latest account context of the period', () => runWithFakedTimers({}, async () => {
+		const { agent, contributions, start, complete, dispatch, summaries } = createSummaries();
+		const subagent: ITestTurn = { chat: buildSubagentChatUri(session, 'spawning-tool-call'), subagentKind: 'task', clientType: AgentHostClientType.EditorWindow };
 		agent.account = { copilotSku: 'first_sku', copilotTrackingId: 'first-tracking-id' };
 		complete(start({ clientType: AgentHostClientType.Unknown }));
-		complete(start({ clientType: AgentHostClientType.EditorWindow }));
+		// A subagent turn carries the client of the turn that started it, so it counts as that client.
+		complete(start(subagent), subagent);
 		agent.account = { copilotSku: 'latest_sku', copilotTrackingId: 'latest-tracking-id' };
+		complete(start({ clientType: AgentHostClientType.AgentsWindow }));
+		dispatch({ type: ActionType.SessionIsArchivedChanged, isArchived: true });
+		complete(start({ clientType: AgentHostClientType.Unknown }));
+		complete(start({ clientType: AgentHostClientType.EditorWindow }));
 		complete(start({ clientType: AgentHostClientType.AgentsWindow }));
 		contributions.willShutdown();
 
-		const [summary] = summaries();
-		assert.deepStrictEqual({
+		assert.deepStrictEqual(summaries().map(summary => ({
 			initiatorClientType: summary.initiatorClientType,
 			multipleClientTypes: summary.multipleClientTypes,
 			copilotSku: summary.copilotSku,
 			copilotTrackingId: summary['common.copilotTrackingId'],
-		}, {
-			initiatorClientType: AgentHostClientType.EditorWindow,
-			multipleClientTypes: true,
-			copilotSku: 'latest_sku',
-			copilotTrackingId: 'latest-tracking-id',
-		});
+		})), [
+			{ initiatorClientType: AgentHostClientType.AgentsWindow, multipleClientTypes: true, copilotSku: 'latest_sku', copilotTrackingId: 'latest-tracking-id' },
+			{ initiatorClientType: AgentHostClientType.EditorWindow, multipleClientTypes: true, copilotSku: 'latest_sku', copilotTrackingId: 'latest-tracking-id' },
+		]);
 	}));
+
+	test('attributes a period with only subagent turns to the client of the turn that started them', () => {
+		const { start, complete, dispatch, summaries } = createSummaries();
+		const subagent: ITestTurn = { chat: buildSubagentChatUri(session, 'spawning-tool-call'), subagentKind: 'task', clientType: AgentHostClientType.AgentsWindow };
+		start({ clientType: AgentHostClientType.AgentsWindow });
+		complete(start(subagent), subagent);
+		dispatch({ type: ActionType.SessionIsArchivedChanged, isArchived: true });
+
+		assert.deepStrictEqual(summaries().map(summary => ({ summaryReason: summary.summaryReason, initiatorClientType: summary.initiatorClientType, rootTurnCount: summary.rootTurnCount, subagentTurnCount: summary.subagentTurnCount })), [
+			{ summaryReason: 'archived', initiatorClientType: AgentHostClientType.AgentsWindow, rootTurnCount: 0, subagentTurnCount: 1 },
+		]);
+	});
 
 	test('sends an idle summary only after the session has had no active turn for the timeout', () => runWithFakedTimers({}, async () => {
 		const { stateManager, tracker, start, complete, createStateSession, summaries } = createSummaries();
@@ -308,7 +328,7 @@ suite('SessionSummaryTelemetryContribution', () => {
 			rootTurnCount: true, userTurnCount: true, subagentTurnCount: true, failedTurnCount: true, cancelledTurnCount: true, usageLimitFailedTurnCount: true,
 			failedSubagentTurnCount: true, unexpectedHangTurnCount: true, recoveredHangTurnCount: true, steeredTurnCount: true, modelCallCount: true,
 			promptTokenCount: true, promptCacheTokenCount: true, completionTokenCount: true, rootBilledNanoAiu: true, subagentBilledNanoAiu: true, totalBilledNanoAiu: true,
-			durationMs: true, activeMs: true,
+			missingBilledNanoAiuTurnCount: true, durationMs: true, activeMs: true,
 		};
 		assert.ok(Object.values(checked).every(value => value));
 	});

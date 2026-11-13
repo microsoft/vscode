@@ -46,9 +46,23 @@ function addOptional(total: number | undefined, value: number | undefined): numb
 	return value === undefined ? total : (total ?? 0) + value;
 }
 
+/** Ranks a turn's client context as the initiator of its period: a known client first, then a root turn before a subagent turn. */
+function initiatorRank(clientContext: IAgentHostClientTelemetryContext, isSubagent: boolean): number {
+	return (clientContext.clientType !== AgentHostClientType.Unknown ? 2 : 0) + (isSubagent ? 0 : 1);
+}
+
+/** What outlives a session's activity periods in this process. */
+interface ISessionSummaryState {
+	/** Whether this process created the session, rather than restoring it. */
+	createdInHostProcess: boolean;
+	/** How many summaries this process sent for the session. */
+	summaryCount: number;
+}
+
 /** Totals for one session's current activity period. */
-class SessionSummary {
+class SessionActivityPeriod {
 	private _clientContext: IAgentHostClientTelemetryContext | undefined;
+	private _clientContextRank = -1;
 	private readonly _clientTypes = new Set<AgentHostClientType>();
 	private _telemetryContext: IAgentTelemetryContext | undefined;
 	/** Turns, by chat and turn id, with an unexpected hang and no completion yet. */
@@ -73,6 +87,7 @@ class SessionSummary {
 		rootBilledNanoAiu: undefined,
 		subagentBilledNanoAiu: undefined,
 		totalBilledNanoAiu: undefined,
+		missingBilledNanoAiuTurnCount: 0,
 		durationMs: 0,
 		activeMs: 0,
 	};
@@ -91,6 +106,9 @@ class SessionSummary {
 		totals.promptTokenCount = addOptional(totals.promptTokenCount, report.directPromptTokenCount);
 		totals.promptCacheTokenCount = addOptional(totals.promptCacheTokenCount, report.directPromptCacheTokenCount);
 		totals.completionTokenCount = addOptional(totals.completionTokenCount, report.directCompletionTokenCount);
+		if (report.modelCallCount > 0 && report.directBilledNanoAiu === undefined) {
+			totals.missingBilledNanoAiuTurnCount++;
+		}
 		if (isSubagentTurn(report)) {
 			totals.subagentTurnCount++;
 			if (report.result === 'error') {
@@ -157,17 +175,19 @@ class SessionSummary {
 		if (copilotSku !== undefined || copilotTrackingId !== undefined) {
 			this._telemetryContext = { copilotSku, copilotTrackingId };
 		}
-		// Subagent turns inherit their parent's client, so only root turns say which client was used.
+		// Subagent turns are started with the client context of the turn that started them, so they can stand in for it,
+		// for example when the session is archived while that turn still runs.
 		const clientContext = report.clientContext;
-		if (!clientContext || isSubagentTurn(report)) {
+		if (!clientContext) {
 			return;
 		}
-		const isKnown = clientContext.clientType !== AgentHostClientType.Unknown;
-		if (isKnown) {
+		if (clientContext.clientType !== AgentHostClientType.Unknown) {
 			this._clientTypes.add(clientContext.clientType);
 		}
-		if (!this._clientContext || (isKnown && this._clientContext.clientType === AgentHostClientType.Unknown)) {
+		const rank = initiatorRank(clientContext, isSubagentTurn(report));
+		if (rank > this._clientContextRank) {
 			this._clientContext = clientContext;
+			this._clientContextRank = rank;
 		}
 	}
 }
@@ -182,16 +202,15 @@ class SessionSummary {
  * {@link SESSION_SUMMARY_IDLE_TIMEOUT_MS}, is archived or deleted, or when the
  * host begins a graceful shutdown. A session with nothing to report sends
  * nothing. Totals live only in memory, so a crash or forced exit loses the
- * current period.
+ * current period, and so do turns that end after a graceful shutdown begins.
  */
 export class SessionSummaryTelemetryContribution extends Disposable implements IAgentHostChatContribution {
 	static readonly id = 'sessionSummaryTelemetry';
 	readonly order = 900;
 
-	private readonly _summaries = new Map<string, SessionSummary>();
+	private readonly _periods = new Map<string, SessionActivityPeriod>();
 	private readonly _idleTimers = this._register(new DisposableMap<string>());
-	/** What outlives a period: whether this process created the session, and how many summaries it sent for it. */
-	private readonly _sessions = new Map<string, { createdInHostProcess: boolean; summaryCount: number }>();
+	private readonly _sessions = new Map<string, ISessionSummaryState>();
 
 	constructor(
 		_context: IAgentHostChatContributionContext,
@@ -202,7 +221,7 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 		super();
 		this._register(turnTracker.onDidCompleteTurn(report => {
 			const session = rootSessionOf(report.owner);
-			this._getSummary(session, report.provider).addTurn(report, Date.now());
+			this._getPeriod(session, report.provider).addTurn(report, Date.now());
 			this._armIdleTimer(session);
 		}));
 		this._register(turnTracker.onDidReportTurnHang(report => {
@@ -210,7 +229,7 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 				return;
 			}
 			const session = rootSessionOf(report.owner);
-			this._getSummary(session, report.provider).addUnexpectedHang(report, Date.now());
+			this._getPeriod(session, report.provider).addUnexpectedHang(report, Date.now());
 			this._armIdleTimer(session);
 		}));
 		this._register(this._stateManager.onDidDeleteSession(session => {
@@ -220,34 +239,36 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 	}
 
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
-		if (dispatched.rejectionReason !== undefined || isAhpChatChannel(dispatched.channel)) {
+		const action = dispatched.action;
+		// Checks the type first: this runs for every dispatched action, including each streamed delta.
+		if ((action.type !== ActionType.SessionReady && action.type !== ActionType.SessionIsArchivedChanged)
+			|| dispatched.rejectionReason !== undefined || isAhpChatChannel(dispatched.channel)) {
 			return;
 		}
-		const action = dispatched.action;
 		// Restored sessions are registered as ready without this action, so it marks a session created by this process.
 		if (action.type === ActionType.SessionReady) {
 			this._getSession(dispatched.session).createdInHostProcess = true;
-		} else if (action.type === ActionType.SessionIsArchivedChanged && action.isArchived) {
+		} else if (action.isArchived) {
 			this._send(dispatched.session, 'archived');
 		}
 	}
 
 	onWillShutdown(): void {
-		for (const session of [...this._summaries.keys()]) {
+		for (const session of [...this._periods.keys()]) {
 			this._send(session, 'shutdown');
 		}
 	}
 
-	private _getSummary(session: string, provider: string): SessionSummary {
-		let summary = this._summaries.get(session);
-		if (!summary) {
-			summary = new SessionSummary(provider);
-			this._summaries.set(session, summary);
+	private _getPeriod(session: string, provider: string): SessionActivityPeriod {
+		let period = this._periods.get(session);
+		if (!period) {
+			period = new SessionActivityPeriod(provider);
+			this._periods.set(session, period);
 		}
-		return summary;
+		return period;
 	}
 
-	private _getSession(session: string): { createdInHostProcess: boolean; summaryCount: number } {
+	private _getSession(session: string): ISessionSummaryState {
 		let state = this._sessions.get(session);
 		if (!state) {
 			state = { createdInHostProcess: false, summaryCount: 0 };
@@ -271,12 +292,12 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 
 	private _send(session: string, reason: AgentHostSessionSummaryReason): void {
 		this._idleTimers.deleteAndDispose(session);
-		const summary = this._summaries.get(session);
-		if (!summary) {
+		const period = this._periods.get(session);
+		if (!period) {
 			return;
 		}
-		this._summaries.delete(session);
+		this._periods.delete(session);
 		const state = this._getSession(session);
-		this._reporter.sessionSummary(summary.toReport(session, reason, state.summaryCount++, state.createdInHostProcess));
+		this._reporter.sessionSummary(period.toReport(session, reason, state.summaryCount++, state.createdInHostProcess));
 	}
 }

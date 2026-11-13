@@ -877,15 +877,19 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 
 /**
  * Why a session summary was sent: `idle` when the session had no active turn
- * for the idle timeout, `archived` and `deleted` when the session was, and
- * `shutdown` when the agent host began a graceful shutdown.
+ * for the idle timeout, `archived` when the session was, `deleted` when the
+ * session was deleted, cleaned up as an ephemeral session, or moved into
+ * another session, and `shutdown` when the agent host began a graceful
+ * shutdown.
  */
 export type AgentHostSessionSummaryReason = 'idle' | 'archived' | 'deleted' | 'shutdown';
 
 /**
  * Totals for one session's activity period, summed from the reports behind
  * `agentHost.turnCompleted` and `agentHost.turnHung`. Token and AI credit
- * totals are `undefined` when no turn in the period reported them.
+ * totals are `undefined` when no turn in the period reported them, and lower
+ * bounds when only some did. `missingBilledNanoAiuTurnCount` counts the turns
+ * missing from the AI credit totals.
  */
 export interface IAgentHostSessionSummaryTotals {
 	rootTurnCount: number;
@@ -905,6 +909,7 @@ export interface IAgentHostSessionSummaryTotals {
 	rootBilledNanoAiu: number | undefined;
 	subagentBilledNanoAiu: number | undefined;
 	totalBilledNanoAiu: number | undefined;
+	missingBilledNanoAiuTurnCount: number;
 	durationMs: number;
 	activeMs: number;
 }
@@ -923,10 +928,10 @@ export type IAgentHostSessionSummaryClassification = IAgentHostEventClassificati
 	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the session summary contract.' };
 	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the first turn in the summarized period.' };
 	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
-	summaryReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the summary was sent: idle (no active turn for the idle timeout), archived, deleted, or shutdown (graceful agent host shutdown).' };
+	summaryReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the summary was sent: idle (no active turn for the idle timeout), archived, deleted (also when the session was cleaned up as ephemeral or moved into another session), or shutdown (graceful agent host shutdown).' };
 	summaryIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based index of this summary among the summaries this agent host process sent for the session.' };
 	createdInHostProcess: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session was created in this agent host process rather than restored from an earlier one.' };
-	multipleClientTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether root turns in the period came from more than one known client type. The initiator fields describe the first root turn with a known client type.' };
+	multipleClientTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether turns in the period came from more than one known client type; a subagent turn counts as the client of the turn that started it. The initiator fields describe the first root turn with a known client type, else the first such subagent turn.' };
 	rootTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Root turns that completed in the period, including failed and cancelled turns.' };
 	userTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns that a user message started.' };
 	subagentTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Subagent turns that completed in the period.' };
@@ -943,7 +948,8 @@ export type IAgentHostSessionSummaryClassification = IAgentHostEventClassificati
 	completionTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Output tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
 	rootBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to root turns, excluding their subagent calls; absent when no root turn reported it.' };
 	subagentBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to subagent turns; absent when no subagent turn reported it.' };
-	totalBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'rootBilledNanoAiu plus subagentBilledNanoAiu; absent when neither was reported.' };
+	totalBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'rootBilledNanoAiu plus subagentBilledNanoAiu; absent when neither was reported, and a lower bound when missingBilledNanoAiuTurnCount is above zero.' };
+	missingBilledNanoAiuTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Completed root and subagent turns that made model calls but reported no AI credit usage, so they are missing from the AI credit totals.' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed turn start to the last observed turn end or hang report in the period.' };
 	activeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of root turn durations in milliseconds. Concurrent root turns in different chats each count.' };
 	owner: 'Giuspepe';
