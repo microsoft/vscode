@@ -550,6 +550,9 @@ class MockCopilotSession {
 	currentModelGate: Promise<void> | undefined;
 
 	readonly rpc = {
+		managedSettings: {
+			get: async () => (await createUnmanagedCopilotSettings().resolve({})).resolved,
+		},
 		name: {
 			get: async () => {
 				await this.nameGetGate;
@@ -1631,6 +1634,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 			rpc: { managedSettings: options?.managedSettings ?? createUnmanagedCopilotSettings(), account: new class extends mock<CopilotClient['rpc']['account']>() { }, sandbox: { proxyCa: sandboxCertificateRpc, getHostSupport: options?.getSandboxHostSupport ?? (async () => ({ supported: true, capabilities: [] })) } },
 			createSession: async () => mockSession as unknown as CopilotSession,
 			resumeSession: async () => mockSession as unknown as CopilotSession,
+			deleteSession: async () => { assert.fail('Unexpected session deletion'); },
 		},
 		activeClientToolSet: new ActiveClientToolSet(),
 		sessionId: 'test-session-1',
@@ -3863,6 +3867,30 @@ suite('CopilotAgentSession', () => {
 			],
 		});
 	});
+
+	for (const githubToken of ['github-token', undefined]) {
+		test(`refreshes policy through the runtime-wide resolver ${githubToken ? 'with the GitHub token' : 'without a GitHub token'}`, async () => {
+			const managedSettings = createUnmanagedCopilotSettings();
+			const baseline = await managedSettings.resolve({});
+			const calls: object[] = [];
+			managedSettings.resolve = async request => { calls.push(request); return baseline; };
+			const { session, mockSession, onDidReportModelConfiguration, modelConfigurationReported } = await createAgentSession(disposables, {
+				managedSettings, githubToken, workingDirectory: URI.file('/workspace'),
+				trackModelConfigurationUpdates: true,
+				configureMockSession: mock => {
+					mock.rpc.managedSettings.get = async () => { assert.fail('Policy refresh must use the runtime-wide resolver'); };
+				},
+			});
+			await modelConfigurationReported;
+			mockSession.currentModel = { modelId: 'gpt-5', reasoningEffort: 'high' };
+			const reported = Event.toPromise(onDidReportModelConfiguration);
+			session.refreshModelConfiguration();
+			await reported;
+			assert.deepStrictEqual(calls, Array.from({ length: 2 }, () => ({
+				clientName: 'vscode-agent-host', ...(githubToken ? { gitHubToken: githubToken } : {}), workingDirectory: URI.file('/workspace').fsPath,
+			})));
+		});
+	}
 
 	test('model changes do not wait for report-only policy resolution and report refreshes coalesce', async () => {
 		const managedSettings = createUnmanagedCopilotSettings();

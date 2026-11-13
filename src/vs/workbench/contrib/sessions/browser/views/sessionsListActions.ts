@@ -28,9 +28,9 @@ import { IViewsService } from '../../../../services/views/common/viewsService.js
 import { FocusedViewContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
-import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
+import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -367,9 +367,10 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 	}
 	const undo = modelService.setInboxState(targets, action);
 	const message = action === undefined ? localize('inboxResumed', "{0} returned to inbox", targets.length)
-		: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
-			: localize('inboxSnoozed', "{0} snoozed", targets.length);
-	if (targets.length === 1) {
+		: action === 'done' ? localize('inboxAcknowledged', "{0} acknowledged", targets.length)
+			: action === 'hold' ? localize('inboxHeld', "{0} put on hold", targets.length)
+				: localize('inboxSnoozed', "{0} snoozed", targets.length);
+	if (targets.length === 1 || action === 'done') {
 		status(message);
 		return;
 	}
@@ -1254,6 +1255,28 @@ export function registerSessionsListActions(): IDisposable {
 		}
 	}));
 
+	store.add(registerAction2(class AcknowledgeInboxSessionAction extends Action2 {
+		constructor() {
+			super({
+				id: ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID,
+				title: localize2('inboxAcknowledge', "Acknowledge"),
+				tooltip: localize('inboxAcknowledgeTooltip', "Acknowledge: Remove from Inbox until new activity"),
+				icon: Codicon.eye,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext),
+				menu: [Menus.SessionItemToolbar, SessionItemContextMenuId].map(id => ({
+					id,
+					group: id === Menus.SessionItemToolbar ? 'navigation' : '1_state',
+					order: 0.5,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, InboxModeContext, SessionIsArchivedContext.negate(),
+						id === Menus.SessionItemToolbar ? SessionItemCanAcknowledgeContext : SessionItemInboxStateContext.notEqualsTo('done')),
+				})),
+			});
+		}
+		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
+			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'done');
+		}
+	}));
+
 	store.add(registerAction2(class ResumeInboxSessionAction extends Action2 {
 		constructor() {
 			super({
@@ -1765,6 +1788,48 @@ export function registerSessionsListActions(): IDisposable {
 			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
 		}));
 	}
+
+	// Worktree grouping is offered only outside the Agents window, which shares the stored grouping and never shows it
+	const OffersWorktreeGroupingContext = IsSessionsWindowContext.negate();
+	const GroupedByWorktreeContext = ContextKeyExpr.and(OffersWorktreeGroupingContext, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
+
+	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsViewPane.groupByWorktree',
+				title: localize2('groupByWorktree', "Worktree"),
+				category: SessionsCategories.Sessions,
+				toggled: GroupedByWorktreeContext,
+				precondition: OffersWorktreeGroupingContext,
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: OffersWorktreeGroupingContext }],
+			});
+		}
+		override run(accessor: ServicesAccessor) {
+			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			view?.setGrouping(SessionsGrouping.Worktree);
+		}
+	}));
+
+	// Worktree grouping caps its sections as the other groupings by section do, which Show switches between Recent and All
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewShow,
+		title: localize2('showSessions', "Show"),
+		when: GroupedByWorktreeContext,
+		group: '1_presentation',
+		order: 2,
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		command: { id: 'sessionsViewPane.showRecentSessions', title: localize2('recent', "Recent"), toggled: IsWorkspaceGroupCappedContext },
+		group: '1_show',
+		order: 0,
+		when: GroupedByWorktreeContext,
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		command: { id: 'sessionsViewPane.showAllSessions', title: localize2('all', "All"), toggled: IsWorkspaceGroupCappedContext.negate() },
+		group: '1_show',
+		order: 1,
+		when: GroupedByWorktreeContext,
+	}));
 
 	return store;
 }
