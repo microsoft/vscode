@@ -67,12 +67,15 @@
 	outline: none;
 }
 
-.automation-dialog input[type="datetime-local"] {
+.automation-dialog input[type="datetime-local"],
+.automation-dialog input[type="number"] {
 	color-scheme: light;
 }
 
 .vs-dark .automation-dialog input[type="datetime-local"],
-.hc-black .automation-dialog input[type="datetime-local"] {
+.hc-black .automation-dialog input[type="datetime-local"],
+.vs-dark .automation-dialog input[type="number"],
+.hc-black .automation-dialog input[type="number"] {
 	color-scheme: dark;
 }
 
@@ -538,6 +541,20 @@
 .automation-form-end-date-row > .monaco-inputbox {
 	flex: 1;
 	min-width: 0;
+}
+
+.automation-form-duration-row > .monaco-inputbox {
+	flex: 0 1 80px;
+}
+
+.automation-form-duration-unit > .monaco-select-box {
+	height: 26px;
+	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size240) var(--vscode-spacing-size20) var(--vscode-spacing-size80);
+}
+
+.automation-form-duration-hint {
+	display: block;
+	margin-top: var(--vscode-spacing-size80);
 }
 
 /*

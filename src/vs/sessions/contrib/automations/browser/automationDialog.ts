@@ -278,6 +278,30 @@ export function getAutomationEndDateError(endDate: string | undefined, initial: 
 		: undefined;
 }
 
+type AutomationDurationUnit = 'days' | 'weeks' | 'months';
+
+/** Returns a local-calendar cutoff, or undefined when the duration cannot produce a supported end date. */
+export function getAutomationDurationEndDate(amount: number, unit: AutomationDurationUnit, now = Date.now()): string | undefined {
+	if (!Number.isSafeInteger(amount) || amount <= 0) {
+		return undefined;
+	}
+	const date = new Date(now);
+	if (unit === 'months') {
+		const day = date.getDate();
+		date.setDate(1);
+		date.setMonth(date.getMonth() + amount);
+		const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+		date.setDate(Math.min(day, lastDay));
+	} else {
+		date.setDate(date.getDate() + amount * (unit === 'weeks' ? 7 : 1));
+	}
+	if (!Number.isFinite(date.getTime())) {
+		return undefined;
+	}
+	const result = date.toISOString();
+	return isAutomationAfterDate(result) ? result : undefined;
+}
+
 interface IRenderFormHandle {
 	readonly getPrompt: () => string;
 	readonly getSessionConfiguration: (token: CancellationToken) => Promise<AutomationSessionConfigurationCapture>;
@@ -1505,44 +1529,112 @@ export function renderForm(
 	DOM.append(advancedSettingsSummary, $('span', undefined, localize('automation.form.advancedSettings', "Advanced Settings")));
 
 	const endDateRow = DOM.append(advancedSettings, $('.automation-form-row.automation-form-end-date-row'));
-	const endDateLabel = localize('automation.form.endDate', "Run until");
-	DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-end-date' }, endDateLabel));
-	const endDateInput = disposables.add(new InputBox(endDateRow, contextViewService, {
-		type: 'datetime-local',
-		ariaLabel: endDateLabel,
-		inputBoxStyles: defaultInputBoxStyles,
-	}));
-	endDateInput.inputElement.id = 'automation-end-date';
-	endDateInput.inputElement.step = '1';
-	if (state.endDate !== undefined) {
-		const date = new Date(state.endDate);
-		endDateInput.value = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
-	}
-	disposables.add(DOM.addDisposableListener(endDateInput.inputElement, DOM.EventType.INPUT, () => {
-		const value = endDateInput.value;
-		const date = new Date(value);
-		state.endDate = endDateInput.inputElement.validity.badInput ? ''
-			: value ? Number.isFinite(date.getTime()) ? date.toISOString() : value : undefined;
-		revalidate();
-	}));
 	const endDateError = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
 	}));
-	endDateInput.inputElement.setAttribute('aria-describedby', endDateError.id);
+	const useDuration = configurationService.getValue<string>('chat.automations.endDateInput') === 'duration';
+	let refreshEndDate = (): string | undefined => undefined;
+	let setEndDateInvalid: (invalid: boolean) => void;
+	if (useDuration) {
+		const units: { value: 'never' | AutomationDurationUnit; label: string }[] = [
+			{ value: 'never', label: localize('automation.form.duration.never', "Never") },
+			{ value: 'days', label: localize('automation.form.duration.days', "Days") },
+			{ value: 'weeks', label: localize('automation.form.duration.weeks', "Weeks") },
+			{ value: 'months', label: localize('automation.form.duration.months', "Months") },
+		];
+		let unit = state.endDate === undefined ? units[0].value : units[1].value;
+		let durationChanged = false;
+		endDateRow.classList.add('automation-form-duration-row');
+		DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-duration' }, localize('automation.form.disablesAfter', "Disables after")));
+		const amountInput = disposables.add(new InputBox(endDateRow, contextViewService, {
+			type: 'number',
+			ariaLabel: localize('automation.form.duration.amount', "Disables after: duration"),
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		amountInput.inputElement.id = 'automation-duration';
+		amountInput.inputElement.step = '1';
+		amountInput.value = state.endDate === undefined ? '1' : String(Math.max(0, Math.ceil((Date.parse(state.endDate) - Date.now()) / 86_400_000)));
+		amountInput.inputElement.min = amountInput.value === '0' ? '0' : '1';
+		DOM.setVisibility(unit !== 'never', amountInput.element);
+		const unitContainer = DOM.append(endDateRow, $('.automation-form-duration-unit'));
+		const unitSelect = disposables.add(new SelectBox(
+			units.map(option => ({ text: option.label })),
+			unit === 'never' ? 0 : 1,
+			contextViewService,
+			defaultSelectBoxStyles,
+			{ ...scheduleSelectOptions, ariaLabel: localize('automation.form.duration.unit', "Disables after: unit") },
+		));
+		unitSelect.render(unitContainer);
+		const durationHint = DOM.append(advancedSettings, $('span.automation-form-hint.automation-form-duration-hint', { id: 'automation-duration-hint' }));
+		amountInput.inputElement.setAttribute('aria-describedby', `${endDateError.id} ${durationHint.id}`);
+		setEndDateInvalid = invalid => amountInput.inputElement.setAttribute('aria-invalid', String(invalid));
+		refreshEndDate = () => {
+			if (durationChanged) {
+				amountInput.inputElement.min = '1';
+				const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
+				if (unit !== 'never' && date === undefined) {
+					durationHint.textContent = '';
+					return localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
+				}
+				state.endDate = date;
+			}
+			durationHint.textContent = state.endDate === undefined
+				? localize('automation.form.duration.unlimited', "No end date. Scheduled runs continue until disabled.")
+				: durationChanged
+					? localize('automation.form.duration.preview', "Starts when saved. Estimated end date: {0}. Months follow the calendar, using the last day when needed.", new Date(state.endDate).toLocaleString())
+					: localize('automation.form.duration.existing', "Approximate days remaining. Saved end date: {0}. Only editing the duration starts a new countdown.", new Date(state.endDate).toLocaleString());
+			return undefined;
+		};
+		disposables.add(amountInput.onDidChange(() => {
+			durationChanged = true;
+			revalidate();
+		}));
+		disposables.add(unitSelect.onDidSelect(event => {
+			unit = units[event.index].value;
+			durationChanged = true;
+			DOM.setVisibility(unit !== 'never', amountInput.element);
+			revalidate();
+		}));
+	} else {
+		const endDateLabel = localize('automation.form.endDate', "Run until");
+		DOM.append(endDateRow, $('label.automation-form-label', { for: 'automation-end-date' }, endDateLabel));
+		const endDateInput = disposables.add(new InputBox(endDateRow, contextViewService, {
+			type: 'datetime-local',
+			ariaLabel: endDateLabel,
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		endDateInput.inputElement.id = 'automation-end-date';
+		endDateInput.inputElement.step = '1';
+		if (state.endDate !== undefined) {
+			const date = new Date(state.endDate);
+			endDateInput.value = new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 19);
+		}
+		disposables.add(DOM.addDisposableListener(endDateInput.inputElement, DOM.EventType.INPUT, () => {
+			const value = endDateInput.value;
+			const date = new Date(value);
+			state.endDate = endDateInput.inputElement.validity.badInput ? ''
+				: value ? Number.isFinite(date.getTime()) ? date.toISOString() : value : undefined;
+			revalidate();
+		}));
+		endDateInput.inputElement.setAttribute('aria-describedby', endDateError.id);
+		setEndDateInvalid = invalid => endDateInput.inputElement.setAttribute('aria-invalid', String(invalid));
+	}
 
 	const conditionsWarning = DOM.append(formContent, $('span.automation-form-hint', {
 		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
 	}));
 	advancedSettingsSummary.setAttribute('aria-describedby', `${endDateError.id} ${conditionsWarning.id}`);
 	const refreshDisableConditionsWarning = () => {
-		validation.endDateError = getAutomationEndDateError(state.endDate, getAutomationAfterDate(initialDisableConditions));
+		validation.endDateError = refreshEndDate() ?? getAutomationEndDateError(state.endDate, getAutomationAfterDate(initialDisableConditions));
 		endDateError.textContent = validation.endDateError ?? '';
-		endDateInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
+		setEndDateInvalid(!!validation.endDateError);
 		DOM.setVisibility(!!validation.endDateError, endDateError);
 		const expired = state.enabled && isAutomationAfterDateExpired(buildAutomationDisableConditions(state.endDate));
 		DOM.setVisibility(expired, conditionsWarning);
 		const message = expired
-			? localize('automation.form.expiredConditions', "The end date has passed. Scheduling will stop immediately. Change or clear Run until to resume scheduling.")
+			? useDuration
+				? localize('automation.form.expiredDuration', "The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.")
+				: localize('automation.form.expiredConditions', "The end date has passed. Scheduling will stop immediately. Change or clear Run until to resume scheduling.")
 			: '';
 		if (conditionsWarning.textContent !== message) {
 			conditionsWarning.textContent = message;
