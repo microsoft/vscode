@@ -845,13 +845,13 @@ suite('stateToProgressAdapter', () => {
 			});
 		});
 
-		test('says an answer is kept out of the chat only for a secret', () => {
+		test('says the same thing about where the answer goes for every kind of prompt', () => {
 			const notes = (['secret', 'text', 'confirm'] as const).map(inputKind => {
 				const [question] = createShellAuthenticationCarousel('shell-auth', { program: 'git', prompt: 'Username for \'https://example.com\': ', inputKind, command: 'git fetch' }).questions;
 				return question.note && { icon: question.note.icon?.id, text: question.note.text };
 			});
 			assert.deepStrictEqual(notes, [
-				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model or saved in the chat.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
 				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
 				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
 			]);
