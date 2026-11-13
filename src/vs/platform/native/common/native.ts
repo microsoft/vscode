@@ -210,6 +210,43 @@ export const enum FocusMode {
 	Force,
 }
 
+/**
+ * A window of another application, which VS Code can capture.
+ */
+export interface INativeAppWindow {
+
+	/**
+	 * The id of the window as a desktop media source, which `getUserMedia` captures with the `desktop` media source.
+	 */
+	readonly sourceId: string;
+
+	/**
+	 * The title of the window, which can be empty.
+	 */
+	readonly title: string;
+
+	/**
+	 * The icon of the window's application as a PNG `data:` URL, where the platform provides it.
+	 */
+	readonly iconDataUrl?: string;
+
+	/**
+	 * Where the window shows on screen, in the coordinates of Electron's `screen`, where the platform tells: macOS does.
+	 */
+	readonly bounds?: IRectangle;
+}
+
+/**
+ * The windows of other applications, see {@link ICommonNativeHostService.getAppWindows}.
+ */
+export type INativeAppWindows =
+	/** The windows, front to back. */
+	| { readonly kind: 'windows'; readonly windows: readonly INativeAppWindow[] }
+	/** macOS only lists the windows of other applications with the Screen Recording permission, which is missing. */
+	| { readonly kind: 'permissionRequired' }
+	/** Only the system can list the windows, in a picker that it shows when the user asks to capture a window. */
+	| { readonly kind: 'systemPicker' };
+
 export interface INativeSystemWideKeybinding {
 
 	/**
@@ -298,6 +335,12 @@ export interface ICommonNativeHostService {
 
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
+	/**
+	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents
+	 * window is not brought to the front: the Agents Launcher shows and focuses its own window.
+	 */
+	showAgentsLauncher(): Promise<void>;
+
 	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
 	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
 	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;
@@ -328,6 +371,13 @@ export interface ICommonNativeHostService {
 	minimizeWindow(options?: INativeHostOptions): Promise<void>;
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
+
+	/** Shows a window hidden with {@link hideWindow} and focuses it. */
+	showWindow(options?: INativeHostOptions): Promise<void>;
+	/** Hides a window without closing it, such as a floating window that shows again later. */
+	hideWindow(options?: INativeHostOptions): Promise<void>;
+	/** Sets the opacity of a window, from 0 (transparent) to 1 (opaque). Unsupported on Linux. */
+	setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void>;
 
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
@@ -388,6 +438,39 @@ export interface ICommonNativeHostService {
 
 	/** Requests screen-capture permission without starting a recording. */
 	requestScreenCaptureAccess(): Promise<boolean>;
+
+	/**
+	 * Lists the windows of other applications, front to back, so that the first one is the window that the user is
+	 * looking at, or the one that they left for VS Code. The windows of VS Code are left out, except from the window
+	 * picker of Wayland sessions, which lists every window and identifies none of them.
+	 *
+	 * Without `interactive`, this never shows system UI: it reports `permissionRequired` instead of asking for the Screen
+	 * Recording permission on macOS, and `systemPicker` instead of showing the window picker of Wayland sessions. Only set
+	 * `interactive` when the user asked to capture a window: then macOS asks for the permission the first time, and
+	 * Wayland sessions list the one window that the user picks, or none when the user cancels.
+	 */
+	getAppWindows(options?: { readonly interactive?: boolean }): Promise<INativeAppWindows>;
+
+	/**
+	 * Captures a window of another application in a single screenshot, where the platform can: macOS can. Returns the
+	 * screenshot as a PNG, or `undefined` when the platform can't, so that the caller captures a frame of the window as a
+	 * desktop media source instead.
+	 *
+	 * With `feedback`, where the platform tells where the window is (see {@link INativeAppWindow.bounds}), the window
+	 * flashes, then turns into its screenshot, which stays above it until {@link endAppWindowCaptureFeedback}, or for a
+	 * while at most. The feedback draws above every window, ignores the mouse, and never takes focus. This resolves once
+	 * the screenshot shows above the window, so that another window can then come to the front without covering it.
+	 */
+	captureAppWindow(window: INativeAppWindow, options?: { readonly feedback?: { readonly reduceMotion: boolean } }): Promise<VSBuffer | undefined>;
+
+	/**
+	 * Ends the feedback of {@link captureAppWindow}. Given a destination, a rectangle of the target window in
+	 * device-independent pixels from the top left of its content, the screenshot flies into it and takes its corner
+	 * radius, then fades as the destination shows. Without a screenshot from the capture, it needs the screenshot as a
+	 * `data:` URL. Without a destination on the same display, the screenshot shrinks where the window is; without either,
+	 * the flash fades. Resolves once the screenshot covers the destination, or once the feedback is gone.
+	 */
+	endAppWindowCaptureFeedback(screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;

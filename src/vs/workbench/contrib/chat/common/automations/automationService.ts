@@ -10,6 +10,7 @@ import { stableStringify } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
+import type { Message } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatPermissionLevel } from '../constants.js';
 import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
@@ -125,9 +126,16 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	/** Client-generated UUID retained across retries of a scheduled-chat handoff. */
+	readonly creationId?: string;
+	/** Called by a scheduled-chat store with its opaque descriptor id before dispatch; throwing aborts creation. */
+	readonly onWillCreate?: (id: string) => void;
 	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
+	readonly purpose?: 'scheduledChat';
+	readonly request?: Message;
+	readonly conversation?: IAutomationDescriptor['conversation'];
 	readonly schedule: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
@@ -167,6 +175,8 @@ export interface IAutomationCustomizationChoice {
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
+	readonly purpose?: 'scheduledChat';
+	readonly request?: Message;
 	readonly schedule?: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
@@ -217,8 +227,16 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
+		purpose: automation.purpose,
+		request: automation.request,
+		conversation: automation.conversation ? {
+			sessionResource: automation.conversation.sessionResource.toString(),
+			chatResource: automation.conversation.chatResource.toString(),
+		} : undefined,
+		oneTimeRunId: automation.oneTimeRunId,
 		schedule: {
 			interval: automation.schedule.interval,
+			runAt: automation.schedule.runAt,
 			cronExpression: automation.schedule.cronExpression,
 			cronTimeZone: automation.schedule.cronTimeZone,
 			scheduleHour: automation.schedule.scheduleHour,
@@ -348,6 +366,9 @@ export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 
 export interface IAutomationProviderDescriptor {
 	readonly id: string;
 	readonly label: string;
+	/** Explicitly negotiated support, never inferred from ordinary recurring schedules. */
+	readonly supportsOneTimeAutomation?: boolean;
+	readonly supportsExistingChatAutomation?: boolean;
 	/** Optional category for grouping providers without interpreting localized explanations. */
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */

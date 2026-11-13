@@ -8,12 +8,13 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableSignalFromEvent, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId, IMissionControlEnvironmentService, IMissionControlHost, IMissionControlSharingService, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AgentHostConnectionsService } from '../../../../../../platform/agentHost/browser/agentHostConnectionsService.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -44,7 +45,8 @@ import { ConnectMissionControlEnvironmentCommand } from '../../../../../../workb
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
 import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
+import { ISessionChangeEvent } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getRemoteAgentHostPickerKey } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostPickerVisibility.js';
 
 class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
@@ -53,9 +55,31 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override readonly connectionStatus = observableValue<RemoteAgentHostConnectionStatus>(this, RemoteAgentHostConnectionStatus.disconnected);
 	cachedSessionsVisible = true;
 	disposed = false;
+	private readonly sessionChanges = new Emitter<ISessionChangeEvent>();
+	override readonly onDidChangeSessions = this.sessionChanges.event;
+	private listedSessions: readonly ISession[] = [];
+	/** Sessions continued from other providers, as `<from provider> <backend session>`. */
+	readonly adoptions: string[] = [];
 	constructor(override readonly remoteAddress: string, private name: string, private readonly options: IEntryDrivenProviderOptions) {
 		super();
 		this.id = `agenthost-${agentHostAuthority(remoteAddress)}`;
+	}
+	listSessions(...sessionIds: string[]): void {
+		this.listedSessions = sessionIds.map(sessionId => upcastPartial<ISession>({
+			sessionId, providerId: this.id,
+			chats: constObservable([upcastPartial<IChat>({ resource: URI.from({ scheme: 'test-chat', path: `/${this.id}/${sessionId}` }) })]),
+		}));
+		this.sessionChanges.fire({ added: this.listedSessions, removed: [], changed: [] });
+	}
+	override getSessions(): ISession[] { return this.cachedSessionsVisible ? [...this.listedSessions] : []; }
+	override getBackendSessionResource(sessionId: string): URI { return URI.from({ scheme: 'agent-host', path: `/${sessionId}` }); }
+	override getBackendChatResource(chatResource: URI): URI { return URI.from({ scheme: 'agent-host', path: `${chatResource.path.substring(chatResource.path.lastIndexOf('/'))}/chat` }); }
+	override adoptSession(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean {
+		if (!this.getSessions().some(session => this.getBackendSessionResource(session.sessionId).toString() === backendSession.toString())) {
+			return false;
+		}
+		this.adoptions.push(`${from.providerId} ${backendSession.path} ${[...backendChats ?? []].map(([chat, backendChat]) => `${chat.path}->${backendChat.path}`).join(',')}`);
+		return true;
 	}
 	override get defaultLabel(): string { return this.name; }
 	override get label(): string { return this.name; }
@@ -66,7 +90,10 @@ class TestProvider extends mock<RemoteAgentHostSessionsProvider>() {
 	override unpublishCachedSessions(): void { this.cachedSessionsVisible = false; }
 	override async connect(): Promise<void> { await this.options.connectOnDemand?.(); }
 	override async disconnect(): Promise<void> { await this.options.disconnectOnDemand?.(); }
-	override dispose(): void { this.disposed = true; }
+	override dispose(): void {
+		this.disposed = true;
+		this.sessionChanges.dispose();
+	}
 }
 
 suite('Mission Control native provider inventory', () => {
@@ -129,8 +156,15 @@ suite('Mission Control native provider inventory', () => {
 		const hosts = observableValue<readonly IMissionControlHost[]>('hosts', []);
 		const ownEnvironmentId = observableValue<string | undefined>('ownEnvironmentId', undefined);
 		const sharedRemoteEnvironmentIds = observableValue<ReadonlySet<string>>('sharedRemoteEnvironmentIds', new Set());
+		const shares = observableValue<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>('shares', new Map());
+		const keepSharingHandlers = new Set<(address: string, environmentId: string) => void>();
 		instantiation.stub(IRemoteGitHubEnvironmentSharingService, new class extends mock<IRemoteGitHubEnvironmentSharingService>() {
 			override readonly environmentIds = sharedRemoteEnvironmentIds;
+			override readonly shares = shares;
+			override registerKeepSharingHandler(handler: (address: string, environmentId: string) => void) {
+				keepSharingHandlers.add(handler);
+				return toDisposable(() => keepSharingHandlers.delete(handler));
+			}
 		}());
 		let account = 'first';
 		const created: { provider: TestProvider; options: IEntryDrivenProviderOptions }[] = [];
@@ -154,15 +188,15 @@ suite('Mission Control native provider inventory', () => {
 		const connectionsChanged = store.add(new Emitter<void>());
 		const connectionListeners = store.add(new DisposableStore());
 		const agentConnection = new class extends mock<IAgentConnection>() { }();
-		const setConnectionStatus = (id: string, status: RemoteAgentHostConnectionStatus | undefined) => {
-			const address = `cloudsandbox:${id}`;
+		const setAddressStatus = (address: string, status: RemoteAgentHostConnectionStatus | undefined, name = address) => {
 			if (status) {
-				connections.set(address, { address, name: id, status });
+				connections.set(address, { address, name, status });
 			} else {
 				connections.delete(address);
 			}
 			connectionsChanged.fire();
 		};
+		const setConnectionStatus = (id: string, status: RemoteAgentHostConnectionStatus | undefined) => setAddressStatus(`cloudsandbox:${id}`, status, id);
 		let sharedDiscoveries = 0;
 		let tunnelDiscoveries = 0;
 		const discoveryHandlers = new Set<Parameters<IAgentHostFilterService['registerDiscoveryHandler']>[0]>([async () => { tunnelDiscoveries++; }]);
@@ -194,6 +228,7 @@ suite('Mission Control native provider inventory', () => {
 		instantiation.stub(ISessionsProvidersService, {
 			onDidChangeProviders: Event.any(providerChanges.event, providersService.onDidChangeProviders),
 			batchProviderChanges: fn => providersService.batchProviderChanges(fn),
+			getProviders: options => providersService.getProviders(options),
 		});
 		const resolutionService = store.add(new AgentHostConnectionsService(
 			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
@@ -247,11 +282,12 @@ suite('Mission Control native provider inventory', () => {
 			}
 		}));
 		return {
-			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus,
+			hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, shares, created, actions, contribution, configuration, sharedProjects, recentQueries, providerChanges, providersService, resolutionService, rediscover, sharedStartup, setConnectionStatus, setAddressStatus,
 			whenConnected: (id: string) => {
 				const isConnected = () => RemoteAgentHostConnectionStatus.isConnected(connections.get(`cloudsandbox:${id}`)?.status);
 				return isConnected() ? Promise.resolve() : Event.toPromise(Event.filter(connectionsChanged.event, isConnected), connectionListeners);
 			},
+			keepSharing: (address: string, environmentId: string) => [...keepSharingHandlers].forEach(handler => handler(address, environmentId)),
 			setRecentFolders: (folders: readonly URI[]) => { recentFolders = folders; recentChanges.fire(); },
 			getDiscoveryCounts: () => ({ sharedDiscoveries, tunnelDiscoveries, missionControlDiscoveries: actions.filter(action => action === 'discover').length }),
 			changeAccount: () => { hosts.set([], undefined); connections.clear(); account = 'second'; },
@@ -308,12 +344,18 @@ suite('Mission Control native provider inventory', () => {
 	}
 
 	test('keeps this computer\'s environment and remotes shared by this client out of the picker and auto-connect', async () => {
-		const { hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, created, actions, rediscover } = fixture('profile', { web: true });
+		const { hosts, ownEnvironmentId, sharedRemoteEnvironmentIds, shares, created, actions, rediscover } = fixture('profile', { web: true });
 		ownEnvironmentId.set('own', undefined);
 		sharedRemoteEnvironmentIds.set(new Set(['shared']), undefined);
+		// A share kept after disconnecting is listed in the picker and reconnected through the relay
+		shares.set(new Map([
+			['ssh:shared', { state: 'enabled', environmentId: 'shared' }],
+			['ssh:kept', { state: 'enabled', environmentId: 'kept' }],
+		]), undefined);
 		hosts.set([
 			{ id: 'own', name: 'This Machine', kind: 'user-local', status: 'online' },
 			{ id: 'shared', name: 'Shared SSH Host', kind: 'user-local', status: 'online' },
+			{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' },
 			{ id: 'other', name: 'Other Machine', kind: 'user-local', status: 'online' },
 		], undefined);
 		await rediscover();
@@ -328,9 +370,65 @@ suite('Mission Control native provider inventory', () => {
 			providers: [
 				{ address: 'cloudsandbox:own', localRegistration: 'githubEnvironment', pickerVisible: false },
 				{ address: 'cloudsandbox:shared', localRegistration: undefined, pickerVisible: false },
+				{ address: 'cloudsandbox:kept', localRegistration: undefined, pickerVisible: true },
 				{ address: 'cloudsandbox:other', localRegistration: undefined, pickerVisible: true },
 			],
-			connects: ['connect:other'],
+			connects: ['connect:kept', 'connect:other'],
+		});
+	});
+
+	test('continues the sessions of a remote kept shared on disconnect through its environment once the remote is gone', () => {
+		const { hosts, sharedRemoteEnvironmentIds, shares, created, actions, providersService, keepSharing } = fixture();
+		const remote = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
+		const registration = providersService.registerProvider(remote);
+		remote.listSessions('session');
+		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
+		shares.set(new Map([['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
+		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
+		const environment = created[0].provider;
+		const connects = () => actions.filter(action => action.startsWith('connect:'));
+		keepSharing('ssh:kept', 'kept');
+		const whileShared = connects();
+		sharedRemoteEnvironmentIds.set(new Set(), undefined);
+		const whileListed = connects();
+		registration.dispose();
+		const afterDisconnect = connects();
+		environment.listSessions('session');
+		assert.deepStrictEqual({ whileShared, whileListed, afterDisconnect, adoptions: environment.adoptions }, {
+			whileShared: [],
+			whileListed: [],
+			afterDisconnect: ['connect:kept'],
+			adoptions: [`${remote.id} /session /${remote.id}/session->/session/chat`],
+		});
+	});
+
+	test('moves sessions back to a remote once it is connected directly again, also when its provider is recreated, and disconnects its environment without suppressing auto-connect', async () => {
+		const { hosts, sharedRemoteEnvironmentIds, shares, created, actions, providersService, setAddressStatus } = fixture();
+		shares.set(new Map([['ssh:kept', { state: 'enabled', environmentId: 'kept' }]]), undefined);
+		hosts.set([{ id: 'kept', name: 'Kept SSH Host', kind: 'user-local', status: 'online' }], undefined);
+		const environment = created[0].provider;
+		await environment.connect();
+		environment.listSessions('session');
+		const replaced = store.add(new TestProvider('ssh:kept', 'Kept SSH Host', {}));
+		const registration = providersService.registerProvider(replaced);
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connecting);
+		sharedRemoteEnvironmentIds.set(new Set(['kept']), undefined);
+		const whileConnecting = { actions: actions.filter(action => action !== 'discover'), listedByEnvironment: environment.getSessions().length };
+		setAddressStatus('ssh:kept', RemoteAgentHostConnectionStatus.connected);
+		const listedByEnvironment = environment.getSessions().length;
+		// Renaming the remote recreates its provider.
+		registration.dispose();
+		const remote = store.add(new TestProvider('ssh:kept', 'Renamed SSH Host', {}));
+		store.add(providersService.registerProvider(remote));
+		remote.listSessions('session');
+		const adoptions = { replaced: [...replaced.adoptions], remote: [...remote.adoptions] };
+		// Keeping the remote shared again reconnects its environment automatically
+		sharedRemoteEnvironmentIds.set(new Set(), undefined);
+		assert.deepStrictEqual({ whileConnecting, actions: actions.filter(action => action !== 'discover'), listedByEnvironment, adoptions }, {
+			whileConnecting: { actions: ['connect:kept'], listedByEnvironment: 1 },
+			actions: ['connect:kept', 'disconnect:kept', 'connect:kept'],
+			listedByEnvironment: 0,
+			adoptions: { replaced: [], remote: [`${environment.id} /session /${environment.id}/session->/session/chat`] },
 		});
 	});
 

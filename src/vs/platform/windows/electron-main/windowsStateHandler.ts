@@ -12,7 +12,7 @@ import { IConfigurationService } from '../../configuration/common/configuration.
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IStateService } from '../../state/node/state.js';
-import { INativeWindowConfiguration, IWindowFolderLocation, IWindowSettings } from '../../window/common/window.js';
+import { INativeWindowConfiguration, IWindowSettings } from '../../window/common/window.js';
 import { IWindowsMainService } from './windows.js';
 import { defaultWindowState, ICodeWindow, IWindowState as IWindowUIState, WindowMode } from '../../window/electron-main/window.js';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -21,7 +21,6 @@ export interface IWindowState {
 	readonly windowId?: number;
 	workspace?: IWorkspaceIdentifier;
 	folderUri?: URI;
-	folderLocation?: IWindowFolderLocation;
 	backupPath?: string;
 	remoteAuthority?: string;
 	uiState: IWindowUIState;
@@ -46,7 +45,6 @@ interface ISerializedWindowsState {
 interface ISerializedWindowState {
 	readonly workspaceIdentifier?: { id: string; configURIPath: string };
 	readonly folder?: string;
-	readonly folderLocation?: IWindowFolderLocation;
 	readonly backupPath?: string;
 	readonly remoteAuthority?: string;
 	readonly uiState: IWindowUIState;
@@ -319,7 +317,6 @@ export class WindowsStateHandler extends Disposable {
 			windowId: window.id,
 			workspace: isWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace : undefined,
 			folderUri: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.openedWorkspace.uri : undefined,
-			folderLocation: isSingleFolderWorkspaceIdentifier(window.openedWorkspace) ? window.config?.folderLocation : undefined,
 			backupPath: window.backupPath,
 			remoteAuthority: window.remoteAuthority,
 			uiState: window.serializeWindowState({ exact })
@@ -521,10 +518,6 @@ function restoreWindowState(windowState: ISerializedWindowState): IWindowState {
 		result.folderUri = URI.parse(windowState.folder);
 	}
 
-	if (windowState.folderLocation) {
-		result.folderLocation = windowState.folderLocation;
-	}
-
 	if (windowState.workspaceIdentifier) {
 		result.workspace = { id: windowState.workspaceIdentifier.id, configPath: URI.parse(windowState.workspaceIdentifier.configURIPath) };
 	}
@@ -544,7 +537,6 @@ function serializeWindowState(windowState: IWindowState): ISerializedWindowState
 	return {
 		workspaceIdentifier: windowState.workspace && { id: windowState.workspace.id, configURIPath: windowState.workspace.configPath.toString() },
 		folder: windowState.folderUri?.toString(),
-		folderLocation: windowState.folderLocation,
 		backupPath: windowState.backupPath,
 		remoteAuthority: windowState.remoteAuthority,
 		uiState: windowState.uiState

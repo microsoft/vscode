@@ -31,26 +31,8 @@ const IsNewCloudSession = ContextKeyExpr.and(IsNewChatSessionContext, ChatContex
 	SessionProviderIdContext.isEqualTo(CLOUD_SANDBOX_CREATION_PROVIDER_ID),
 ));
 
-/** Registers the Agent Mode and Approvals pickers of a new Copilot Cloud session, until the returned disposable is disposed. */
-export function registerCopilotSandboxPickerActions(): IDisposable {
-	const store = new DisposableStore();
-	for (const [id, title, order] of [
-		['sessions.sandbox.modePicker', localize2('sandbox.modePicker', "Agent Mode"), 0],
-		['sessions.sandbox.approvalPicker', localize2('sandbox.approvalPicker', "Approvals"), 1],
-	] as const) {
-		store.add(registerAction2(class extends Action2 {
-			constructor() {
-				super({ id, title, menu: [{ id: Menus.NewSessionControl, group: 'navigation', order, when: IsNewCloudSession }] });
-			}
-			override run(): void { }
-		}));
-	}
-	return store;
-}
-
 // -- Action View Item Registrations --
 
-/** Renders the pickers of {@link registerCopilotSandboxPickerActions}. */
 export class CopilotPickerActionViewItemContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.copilotPickerActionViewItems';
@@ -70,4 +52,28 @@ export class CopilotPickerActionViewItemContribution extends Disposable implemen
 			return new PickerActionViewItem(scopedInstantiationService.createInstance(MobilePermissionPicker, delegate), delegate, true);
 		}));
 	}
+}
+
+/**
+ * Registers the mode and approvals pickers of new Copilot Cloud and sandbox sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerCopilotSandboxPickerActions(): IDisposable {
+	const store = new DisposableStore();
+
+	for (const [id, title, order] of [
+		['sessions.sandbox.modePicker', localize2('sandbox.modePicker', "Agent Mode"), 0],
+		['sessions.sandbox.approvalPicker', localize2('sandbox.approvalPicker', "Approvals"), 1],
+	] as const) {
+		store.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({ id, title, menu: [{ id: Menus.NewSessionControl, group: 'navigation', order, when: IsNewCloudSession }] });
+			}
+			override run(): void { }
+		}));
+	}
+
+	return store;
 }

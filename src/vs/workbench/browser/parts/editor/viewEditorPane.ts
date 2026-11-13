@@ -242,8 +242,8 @@ export class ViewEditorPane extends EditorPane {
 		disposables.add(new DragAndDropObserver(handle, {
 			onDragStart: e => {
 
-				// Text fields in the handle, such as a rename, keep the mouse
-				if (isHTMLElement(e.target) && isEditableElement(e.target)) {
+				// Text fields in the handle, such as a rename, keep the mouse, as does what the handle's container already declined
+				if (e.defaultPrevented || (isHTMLElement(e.target) && isEditableElement(e.target))) {
 					e.preventDefault();
 					return;
 				}

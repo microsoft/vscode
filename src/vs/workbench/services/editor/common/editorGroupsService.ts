@@ -339,6 +339,14 @@ export interface IEditorGroupsContainer {
 	readonly partOptions: IEditorPartOptions;
 
 	/**
+	 * Whether the container supports splitting, i.e. creating editor
+	 * groups next to existing ones (for example to open an editor to
+	 * the side). Containers that do not support splitting keep all
+	 * editors in a single group.
+	 */
+	readonly supportsSplitting: boolean;
+
+	/**
 	 * Enforce container options temporarily.
 	 */
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;

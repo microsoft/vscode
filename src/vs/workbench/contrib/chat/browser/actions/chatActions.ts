@@ -26,7 +26,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -39,13 +39,12 @@ import product from '../../../../../platform/product/common/product.js';
 import { GitHubPaths, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { NewTabButtonEntryAction, NewTabButtonHidden } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -57,10 +56,11 @@ import { IChatInputNoticeHubService } from '../widget/input/chatInputNoticeHub.j
 import { ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatModel, IChatResponseModel } from '../../common/model/chatModel.js';
 import { ChatMode, IChatMode } from '../../common/chatModes.js';
-import { chatAgentLeader } from '../../common/requestParser/chatParserTypes.js';
+import { agentReg } from '../../common/requestParser/chatRequestParser.js';
 import { ElicitationState, IChatService, IChatToolInvocation } from '../../common/chatService/chatService.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/model/chatViewModel.js';
+import { IChatViewHostService } from '../chatViewHost.js';
 import { IChatWidgetHistoryService } from '../../common/widget/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatProgressAnimation, ChatProgressVerbosity, getDefaultNewChatSessionTypeAndReason } from '../../common/constants.js';
 import { AICustomizationManagementCommands } from '../aiCustomization/aiCustomizationManagement.js';
@@ -275,9 +275,14 @@ export interface IChatViewOpenRequestEntry {
 const OPEN_CHAT_QUOTA_EXCEEDED_DIALOG = 'workbench.action.chat.openQuotaExceededDialog';
 
 /** Whether opening chat with `opts`, or in `mode`, asks for what only local chat serves: Ask or Edit mode, or a chat participant. */
-function requiresLocalChat(opts: IChatViewOpenOptions | undefined, mode: IChatMode | undefined): boolean {
+function requiresLocalChat(opts: IChatViewOpenOptions | undefined, mode: IChatMode | undefined, chatAgentService: IChatAgentService): boolean {
 	const kind = opts?.mode ?? mode?.kind;
-	return kind === ChatModeKind.Ask || kind === ChatModeKind.Edit || !!opts?.query?.trimStart().startsWith(chatAgentLeader);
+	if (kind === ChatModeKind.Ask || kind === ChatModeKind.Edit) {
+		return true;
+	}
+	// Only a registered participant needs local chat: a query may start with `@` for other reasons, such as a decorator
+	const name = opts?.query?.trimStart().match(agentReg)?.[1];
+	return !!name && (chatAgentService.getAgentsByName(name).length > 0 || !!chatAgentService.getAgentByFullyQualifiedId(name));
 }
 
 abstract class OpenChatGlobalAction extends Action2 {
@@ -299,9 +304,10 @@ abstract class OpenChatGlobalAction extends Action2 {
 		opts = typeof opts === 'string' ? { query: opts } : opts;
 
 		const widgetService = accessor.get(IChatWidgetService);
-		// What replaces the Chat view shows sessions, not local chat: what only local chat serves is not available there
-		const chatViewHostDelegate = widgetService.chatViewHostDelegate;
-		if (chatViewHostDelegate && requiresLocalChat(opts, this.mode)) {
+		// The Agents view shows sessions, not local chat: what only local chat serves is not available there. The Ask and Edit
+		// mode actions are disabled by their precondition; this covers what a precondition cannot see, the arguments, such as
+		// a mode or a chat participant that the caller asks for.
+		if (accessor.get(IContextKeyService).getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key) && requiresLocalChat(opts, this.mode, accessor.get(IChatAgentService))) {
 			accessor.get(INotificationService).info(localize('chat.localChatUnavailable', "Ask and Edit modes and chat participants are not available while the Agents view is enabled."));
 			return;
 		}
@@ -762,42 +768,9 @@ export function registerChatActions() {
 		}
 
 		async run(accessor: ServicesAccessor) {
-			const layoutService = accessor.get(IWorkbenchLayoutService);
-			const viewsService = accessor.get(IViewsService);
-			const viewDescriptorService = accessor.get(IViewDescriptorService);
 			const widgetService = accessor.get(IChatWidgetService);
-
-			const chatViewHostDelegate = widgetService.chatViewHostDelegate;
-			if (chatViewHostDelegate) {
-				return chatViewHostDelegate.toggle();
-			}
-
-			const chatLocation = viewDescriptorService.getViewLocationById(ChatViewId);
-			const chatVisible = viewsService.isViewVisible(ChatViewId);
-			if (chatVisible) {
-				this.updatePartVisibility(layoutService, chatLocation, false);
-			} else {
-				this.updatePartVisibility(layoutService, chatLocation, true);
+			if (await accessor.get(IChatViewHostService).toggle()) {
 				(await widgetService.revealWidget())?.focusInput();
-			}
-		}
-
-		private updatePartVisibility(layoutService: IWorkbenchLayoutService, location: ViewContainerLocation | null, visible: boolean): void {
-			let part: Parts.PANEL_PART | Parts.SIDEBAR_PART | Parts.AUXILIARYBAR_PART | undefined;
-			switch (location) {
-				case ViewContainerLocation.Panel:
-					part = Parts.PANEL_PART;
-					break;
-				case ViewContainerLocation.Sidebar:
-					part = Parts.SIDEBAR_PART;
-					break;
-				case ViewContainerLocation.AuxiliaryBar:
-					part = Parts.AUXILIARYBAR_PART;
-					break;
-			}
-
-			if (part) {
-				layoutService.setPartHidden(!visible, part);
 			}
 		}
 	});

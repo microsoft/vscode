@@ -47,6 +47,8 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	// --- Folder Location
 	/** The alternate location the window was started at, if any. */
 	readonly folderLocation?: IWindowFolderLocation;
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	readonly folderLocationMissing?: { readonly label: string };
 
 	// --- Paths
 	readonly execPath: string;
@@ -78,6 +80,8 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get isPortable() { return this.configuration.isPortable; }
 
 	get folderLocation() { return this.configuration.folderLocation; }
+
+	get folderLocationMissing() { return this.configuration.folderLocationMissing; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }

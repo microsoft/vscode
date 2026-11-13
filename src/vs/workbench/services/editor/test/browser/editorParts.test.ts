@@ -654,6 +654,38 @@ suite('Editor Parts', () => {
 		}, { sourceRemoved: true, partACount: 1, partAEditors: 0, partBCount: 2, targetEditors: ['/first.txt', '/second.txt'], disposed: [false, false] });
 	});
 
+	test('applying an empty working set leaves a dirty and an untitled editor open with their content, without confirmation, and applying the saved one keeps them', async () => {
+		const { instantiationService, parts } = await createServices();
+		const group = parts.testMainPart.activeGroup;
+		const dirty = disposables.add(new TestFileEditorInput(URI.file('/dirty.txt'), 'testTypeId'));
+		dirty.setDirty();
+		const model = disposables.add(instantiationService.invokeFunction(accessor => accessor.get(IUntitledTextEditorService)).create({ initialValue: 'content' }));
+		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
+		(await untitled.resolve()).textEditorModel?.setValue('changed');
+		await group.openEditor(dirty, { pinned: true });
+		await group.openEditor(untitled, { pinned: true });
+
+		const workingSet = parts.saveWorkingSet('location');
+		const emptied = await parts.applyWorkingSet('empty', { preserveFocus: true });
+		const whileEmpty = { editors: group.count, dirty: dirty.isDirty(), untitledDirty: untitled.isDirty(), disposed: [dirty.gotDisposed, untitled.isDisposed()] };
+		const restored = await parts.applyWorkingSet(workingSet, { preserveFocus: true });
+		const editors = group.getEditors(EditorsOrder.SEQUENTIAL);
+
+		assert.deepStrictEqual({
+			emptied, whileEmpty, restored,
+			restoredSameEditors: editors.length === 2 && editors.includes(dirty) && editors.includes(untitled),
+			content: (await untitled.resolve()).textEditorModel?.getValue(),
+			dirty: [dirty.isDirty(), untitled.isDirty()]
+		}, {
+			emptied: true,
+			whileEmpty: { editors: 2, dirty: true, untitledDirty: true, disposed: [false, false] },
+			restored: true,
+			restoredSameEditors: true,
+			content: 'changed',
+			dirty: [true, true]
+		});
+	});
+
 	test('moving a group with a dirty editor into another part moves it without confirmation and keeps it dirty and alive', async () => {
 		const clean = disposables.add(new TestFileEditorInput(URI.file('/clean.txt'), 'testTypeId'));
 		const dirty = disposables.add(new TestFileEditorInput(URI.file('/dirty.txt'), 'testTypeId'));

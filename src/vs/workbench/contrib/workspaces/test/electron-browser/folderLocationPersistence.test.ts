@@ -10,7 +10,6 @@ import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -35,9 +34,10 @@ suite('FolderLocationPersistenceContribution', () => {
 		readonly persisted?: IWindowFolderLocation;
 		readonly folderUri?: URI;
 		readonly providerAvailable?: boolean;
-		readonly locationMissing?: boolean;
-		readonly stat?: () => Promise<{ isDirectory: boolean }>;
+		readonly folderLocationMissing?: { readonly label: string };
 		readonly resolveLocation?: () => Promise<IResolvedFolderLocation | undefined>;
+		readonly multiRoot?: boolean;
+		readonly confirmed?: IResolvedFolderLocation;
 		readonly setFolderLocation?: (location: URI, options?: { readonly ifIdle?: boolean }) => Promise<void>;
 	}
 
@@ -47,13 +47,16 @@ suite('FolderLocationPersistenceContribution', () => {
 		const notificationIds: (string | undefined)[] = [];
 		const errors: string[] = [];
 		const returns: URI[] = [];
+		const prompts: { readonly choices: string[]; run(): Promise<void>; closed(): boolean }[] = [];
 		const onDidChangeProviders = ds.add(new Emitter<void>());
+		const onDidChangeWorkbenchState = ds.add(new Emitter<void>());
+		const onDidChangeWorkspaceFolders = ds.add(new Emitter<void>());
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly folder: unknown; readonly reason: 'user' | 'programmatic' }>());
-		let currentLocation: IResolvedFolderLocation | undefined;
+		let currentLocation: IResolvedFolderLocation | undefined = options.confirmed;
 		let providerAvailable = !!options.providerAvailable;
 		let folderUri = options.folderUri ?? alternate;
 
-		let multiRoot = false;
+		let multiRoot = !!options.multiRoot;
 		const getWorkspace = () => multiRoot
 			? new Workspace('multi', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, URI.file('/work/a.code-workspace'), () => false)
 			: new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false, undefined, primary);
@@ -68,28 +71,36 @@ suite('FolderLocationPersistenceContribution', () => {
 		} as unknown as IWorkspaceFolderLocationService;
 
 		const contribution = ds.add(new FolderLocationPersistenceContribution(
-			{ getWorkspace } as unknown as IWorkspaceContextService,
+			{ getWorkspace, onDidChangeWorkbenchState: onDidChangeWorkbenchState.event, onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event } as unknown as IWorkspaceContextService,
 			locationService,
 			{
 				setFolderLocation: options.setFolderLocation ?? (async (l: URI) => { returns.push(l); folderUri = l; })
 			} as unknown as IWorkspaceEditingService,
 			{ setWindowFolderLocation: (value: IWindowFolderLocation | undefined) => { persistedCalls.push(value); } } as unknown as INativeHostService,
-			{ folderLocation: options.persisted } as unknown as INativeWorkbenchEnvironmentService,
-			{ notify: (n: { message: string; id?: string }) => { notifications.push(n.message); notificationIds.push(n.id); } } as unknown as INotificationService,
+			{ folderLocation: options.persisted, folderLocationMissing: options.folderLocationMissing } as unknown as INativeWorkbenchEnvironmentService,
+			{
+				notify: (n: { message: string; id?: string }) => { notifications.push(n.message); notificationIds.push(n.id); },
+				prompt: (_severity: unknown, _message: string, choices: { label: string; run: () => unknown }[]) => {
+					const onDidClose = ds.add(new Emitter<void>());
+					let closed = false;
+					prompts.push({ choices: choices.map(c => c.label), run: async () => { await choices[0].run(); }, closed: () => closed });
+					return { onDidClose: onDidClose.event, close: () => { closed = true; onDidClose.fire(); } };
+				}
+			} as unknown as INotificationService,
 			{ extUri } as unknown as IUriIdentityService,
-			{ stat: options.stat ?? (async () => { if (options.locationMissing) { throw new Error('ENOENT'); } return { isDirectory: true }; }) } as unknown as IFileService,
 			{ error: (message: string) => { errors.push(message); } } as unknown as ILogService
 		));
 
 		return {
-			persistedCalls, notifications, notificationIds, errors, returns, locationService, contribution,
+			persistedCalls, notifications, notificationIds, errors, returns, prompts, locationService, contribution,
 			registerProvider() { providerAvailable = true; onDidChangeProviders.fire(); },
 			fireProvidersChanged() { onDidChangeProviders.fire(); },
 			current: () => currentLocation,
 			setCurrent(location: IResolvedFolderLocation | undefined) { currentLocation = location; onDidChangeCurrentLocation.fire({ folder: getWorkspace().folders[0], reason: 'programmatic' }); },
 			hasProvidersListener: () => onDidChangeProviders.hasListeners(),
 			moveFolderTo(uri: URI) { folderUri = uri; },
-			enterMultiRoot() { multiRoot = true; }
+			enterMultiRoot() { multiRoot = true; onDidChangeWorkbenchState.fire(); onDidChangeWorkspaceFolders.fire(); },
+			dispose: () => contribution.dispose()
 		};
 	}
 
@@ -120,43 +131,6 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ current: undefined, persisted: [undefined], notifications: 1, returns: [] });
 	});
 
-	test('a location applied at startup that turns out to be missing returns to the primary and notifies', async () => {
-		const fixture = createFixture({ persisted, providerAvailable: true, locationMissing: true });
-		await settle();
-
-		assert.deepStrictEqual(
-			{ current: fixture.current(), persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns.map(r => r.toString()) },
-			{ current: undefined, persisted: [undefined], notifications: 1, returns: [primary.toString()] });
-	});
-
-	test('a switch completed while the stat is pending is not overwritten when the stat fails', async () => {
-		let failStat!: () => void;
-		const fixture = createFixture({ persisted, providerAvailable: true, stat: () => new Promise((_, reject) => { failStat = () => reject(new Error('ENOENT')); }) });
-		await settle();
-
-		fixture.setCurrent({ uri: URI.file('/work/other'), label: 'Other', providerId: 'test', builtIn: true });
-		failStat();
-		await settle();
-
-		assert.deepStrictEqual(
-			{ current: fixture.current()?.label, notifications: fixture.notifications, returns: fixture.returns },
-			{ current: 'Other', notifications: [], returns: [] });
-	});
-
-	test('disposing while the stat is pending has no side effects once it fails', async () => {
-		let failStat!: () => void;
-		const fixture = createFixture({ persisted, providerAvailable: true, stat: () => new Promise((_, reject) => { failStat = () => reject(new Error('ENOENT')); }) });
-		await settle();
-
-		fixture.contribution.dispose();
-		failStat();
-		await settle();
-
-		assert.deepStrictEqual(
-			{ notifications: fixture.notifications, returns: fixture.returns, persisted: fixture.persistedCalls },
-			{ notifications: [], returns: [], persisted: [] });
-	});
-
 	test('a provider registering late confirms the location', async () => {
 		const fixture = createFixture({ persisted });
 		await settle();
@@ -180,14 +154,70 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ current: undefined, persisted: [], notifications: [], returns: [] });
 	});
 
-	test('a provider that never resolves does not block the return to the primary', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('a provider that never resolves leaves the window at the location and offers to return, without switching', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
 
 		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
 
 		assert.deepStrictEqual(
-			{ current: fixture.current(), persisted: fixture.persistedCalls, notifications: fixture.notifications.length, returns: fixture.returns.map(l => l.toString()), listeners: fixture.hasProvidersListener() },
-			{ current: undefined, persisted: [undefined], notifications: 1, returns: [primary.toString()], listeners: false });
+			{ current: fixture.current(), persisted: fixture.persistedCalls, prompts: fixture.prompts.map(p => p.choices), returns: fixture.returns, listeners: fixture.hasProvidersListener() },
+			{ current: undefined, persisted: [], prompts: [['Return to Primary Location']], returns: [], listeners: false });
+	}));
+
+	test('the return offered for an unconfirmed location switches to the primary when chosen', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		await fixture.prompts[0].run();
+
+		assert.deepStrictEqual(fixture.returns.map(r => r.toString()), [primary.toString()]);
+	}));
+
+	test('a failing return chosen by the user is logged', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }), setFolderLocation: async () => { throw new Error('failed'); } });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		await fixture.prompts[0].run();
+
+		assert.strictEqual(fixture.errors.length, 1);
+	}));
+
+	test('the offer to return is withdrawn once the location is switched by someone else', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.setCurrent(resolvedLocation);
+
+		assert.strictEqual(fixture.prompts[0].closed(), true);
+	}));
+
+	test('the offer to return is withdrawn when the contribution is disposed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.dispose();
+
+		assert.strictEqual(fixture.prompts[0].closed(), true);
+	}));
+
+	test('the offer to return is withdrawn when the workspace becomes multi-root', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.enterMultiRoot();
+		await fixture.prompts[0].run();
+
+		assert.deepStrictEqual({ closed: fixture.prompts[0].closed(), returns: fixture.returns }, { closed: true, returns: [] });
+	}));
+
+	test('the offer to return does nothing when the folder is no longer at the location', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const fixture = createFixture({ persisted, resolveLocation: () => new Promise(() => { }) });
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+
+		fixture.moveFolderTo(primary);
+		await fixture.prompts[0].run();
+
+		assert.deepStrictEqual(fixture.returns, []);
 	}));
 
 	test('a positive result after the deadline is ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -198,10 +228,17 @@ suite('FolderLocationPersistenceContribution', () => {
 		resolution.complete(resolvedLocation);
 		await timeout(1);
 
-		assert.deepStrictEqual(
-			{ current: fixture.current(), returns: fixture.returns.length, notifications: fixture.notifications.length },
-			{ current: undefined, returns: 1, notifications: 1 });
+		assert.deepStrictEqual({ current: fixture.current(), returns: fixture.returns, prompts: fixture.prompts.length }, { current: undefined, returns: [], prompts: 1 });
 	}));
+
+	test('a location that no longer exists is reported once and nothing is persisted', async () => {
+		const fixture = createFixture({ folderUri: primary, folderLocationMissing: { label: 'Gone' } });
+		await settle();
+
+		assert.deepStrictEqual(
+			{ notifications: fixture.notifications, ids: fixture.notificationIds, persisted: fixture.persistedCalls, returns: fixture.returns },
+			{ notifications: ['The folder location \'Gone\' no longer exists. The folder was opened at its primary location.'], ids: ['workbench.folderLocationMissing'], persisted: [], returns: [] });
+	});
 
 	test('a provider registering while the resolution is pending is not missed', async () => {
 		const first = new DeferredPromise<IResolvedFolderLocation | undefined>();
@@ -244,71 +281,30 @@ suite('FolderLocationPersistenceContribution', () => {
 			{ current: undefined, persisted: [], notifications: [], returns: [], listeners: false });
 	}));
 
-	test('the return is not announced while a newer switch is in flight', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const other = URI.file('/work/project-other');
-		const fixture = createFixture({
-			persisted,
-			// the newer switch moved the folder, so the idle-only return does nothing
-			setFolderLocation: async (_l, options) => { assert.strictEqual(options?.ifIdle, true); fixture.moveFolderTo(other); }
-		});
+	test('a location already confirmed at construction is respected and persisted', async () => {
+		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', providerId: 'test', builtIn: true };
+		const fixture = createFixture({ persisted, folderUri: other.uri, confirmed: other });
+		await settle();
 
-		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+		assert.deepStrictEqual(
+			{ persisted: fixture.persistedCalls, notifications: fixture.notifications, returns: fixture.returns },
+			{ persisted: [{ uri: other.uri.toString(), label: 'Other', providerId: 'test' }], notifications: [], returns: [] });
+	});
 
-		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications }, { persisted: [], notifications: [] });
-	}));
+	test('a location confirmed before instantiation without a startup location is persisted', async () => {
+		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', providerId: 'test', builtIn: true };
+		const fixture = createFixture({ folderUri: other.uri, confirmed: other });
+		await settle();
 
-	test('a rejected return is logged and not announced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = createFixture({ persisted, setFolderLocation: async () => { throw new Error('failed'); } });
+		assert.deepStrictEqual(fixture.persistedCalls, [{ uri: other.uri.toString(), label: 'Other', providerId: 'test' }]);
+	});
 
-		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+	test('a stale location in a multi-root window is cleaned up without a warning', async () => {
+		const fixture = createFixture({ persisted, multiRoot: true });
+		await settle();
 
-		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors.length }, { persisted: [], notifications: [], errors: 1 });
-	}));
-
-	test('disposing while the return is pending has no side effects once it succeeds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const returning = new DeferredPromise<void>();
-		const fixture = createFixture({ persisted, setFolderLocation: async l => { await returning.p; fixture.moveFolderTo(l); } });
-
-		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
-		fixture.contribution.dispose();
-		returning.complete();
-		await timeout(1);
-
-		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
-	}));
-
-	test('disposing while the return is pending has no side effects once it is rejected', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const returning = new DeferredPromise<void>();
-		const fixture = createFixture({ persisted, setFolderLocation: async () => returning.p });
-
-		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
-		fixture.contribution.dispose();
-		returning.error(new Error('failed'));
-		await timeout(1);
-
-		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
-	}));
-
-	test('a return rejected because the workspace changed is neither logged nor announced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const fixture = createFixture({
-			persisted,
-			setFolderLocation: async () => { fixture.moveFolderTo(URI.file('/work/elsewhere')); throw new Error('workspace changed'); }
-		});
-
-		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
-
-		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
-	}));
-
-	test('entering a multi-root workspace while the return is pending has no side effects once it succeeds', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const returning = new DeferredPromise<void>();
-		const fixture = createFixture({ persisted, setFolderLocation: async l => { await returning.p; fixture.moveFolderTo(l); } });
-
-		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
-		fixture.enterMultiRoot();
-		returning.complete();
-		await timeout(1);
-
-		assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications, errors: fixture.errors }, { persisted: [], notifications: [], errors: [] });
-	}));
+		assert.deepStrictEqual(
+			{ persisted: fixture.persistedCalls, notifications: fixture.notifications, returns: fixture.returns },
+			{ persisted: [undefined], notifications: [], returns: [] });
+	});
 });

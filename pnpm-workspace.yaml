@@ -81,7 +81,13 @@ minimumReleaseAgeExclude:
 strictDepBuilds: true
 sideEffectsCache: false
 verifyDepsBeforeRun: false
-pmOnFail: ignore
+# Every pnpm command in the repository runs with the pnpm version that `packageManager` in
+# package.json pins: another pnpm downloads it (once, into $PNPM_HOME) and runs the command with
+# it. The first YAML document of each pnpm-lock.yaml locks that version. To update pnpm, change
+# `packageManager` in package.json, build/package.json and remote/package.json, run `pnpm install`
+# in the root, build and remote, and commit the three pnpm-lock.yaml files. build and remote use
+# the same setting.
+pmOnFail: download
 skills:
   dirs: []
 optimisticRepeatInstall: false

@@ -270,9 +270,9 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		this._updateForChatEnablement();
 
 		// A deleted session is no location's last one. One that a provider replaces is removed only after it was replaced, below
-		this._register(this._sessionsManagementService.onDidChangeAllSessions(e => {
+		this._register(this._sessionsManagementService.onDidChangeSession(changes => {
 			let changed = false;
-			for (const removed of e.removed) {
+			for (const { session: removed } of changes.filter(change => change.kind === 'removed')) {
 				for (const [location, resource] of this._lastSessions) {
 					if (extUriBiasedIgnorePathCase.isEqual(resource, removed.resource)) {
 						this._lastSessions.delete(location);

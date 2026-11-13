@@ -60,6 +60,7 @@ import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/agentsViewGate.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

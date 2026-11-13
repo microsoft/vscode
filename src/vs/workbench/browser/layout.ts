@@ -170,6 +170,8 @@ interface IChatPartLayout {
 	readonly version: number;
 	readonly visible: boolean;
 	readonly size: number;
+	/** Shown, but hidden by the layout for a maximized panel or secondary side bar, to show again when that is restored. */
+	readonly hiddenByLayout?: boolean;
 }
 
 function isChatPartLayout(value: unknown): value is IChatPartLayout {
@@ -2528,19 +2530,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	/** The layout of the chat part as the window last left it; not shown, at a default size, without one. */
-	private readChatPartLayout(): { readonly visible: boolean; readonly size: number | undefined } {
+	private readChatPartLayout(): { readonly visible: boolean; readonly size: number | undefined; readonly hiddenByLayout: boolean } {
 		const raw = this.storageService.get(CHAT_PART_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (raw) {
 			try {
 				const value: unknown = JSON.parse(raw);
 				if (isChatPartLayout(value)) {
-					return { visible: value.visible, size: value.size };
+					return { visible: value.visible, size: value.size, hiddenByLayout: value.hiddenByLayout === true };
 				}
 			} catch {
 				// a malformed value is as no value
 			}
 		}
-		return { visible: false, size: undefined };
+		return { visible: false, size: undefined, hiddenByLayout: false };
 	}
 
 	private saveChatPartLayout(): void {
@@ -2553,7 +2555,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const size = this.chatPartHidden
 			? this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView)
 			: this.workbenchGrid.getViewSize(this.chatPartView).width;
-		const value: IChatPartLayout = { version: CHAT_PART_LAYOUT_VERSION, visible, size: size ?? this.chatPartView.minimumWidth };
+		const value: IChatPartLayout = { version: CHAT_PART_LAYOUT_VERSION, visible, size: size ?? this.chatPartView.minimumWidth, hiddenByLayout: this.chatPartHiddenByLayout };
 		this.storageService.store(CHAT_PART_LAYOUT_STORAGE_KEY, JSON.stringify(value), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -2747,10 +2749,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return undefined;
 		}
 
+		// The chat part only where a feature registered one as the window started, and it joined the grid
+		const candidates = [Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART, ...(this.chatPartView ? [Parts.CHAT_PART] : [])];
 		for (const neighborView of neighborViews) {
-			const neighborPart =
-				[Parts.ACTIVITYBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.SIDEBAR_PART, Parts.STATUSBAR_PART, Parts.TITLEBAR_PART]
-					.find(partId => this.getPart(partId) === neighborView && this.isVisible(partId, mainWindow));
+			const neighborPart = candidates.find(partId => this.getPart(partId) === neighborView && this.isVisible(partId, mainWindow));
 
 			if (neighborPart !== undefined) {
 				return neighborPart;
@@ -2962,12 +2964,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		let chatNode: ISerializedLeafNode | undefined;
 		if (this.chatPartView) {
 			const chatPartLayout = this.readChatPartLayout();
-			this.chatPartHidden = !chatPartLayout.visible;
+			// Hidden by the layout for a maximized panel or secondary side bar, it stays hidden only while that restores maximized
+			this.chatPartHiddenByLayout = chatPartLayout.visible && chatPartLayout.hiddenByLayout && (this.isAuxiliaryBarMaximized() || this.isPanelMaximized());
+			this.chatPartHidden = !chatPartLayout.visible || this.chatPartHiddenByLayout;
 			chatNode = {
 				type: 'leaf',
 				data: { type: Parts.CHAT_PART },
 				size: Math.max(this.chatPartView.minimumWidth, chatPartLayout.size ?? Math.round(width * CHAT_PART_DEFAULT_WIDTH_RATIO)),
-				visible: chatPartLayout.visible
+				visible: !this.chatPartHidden
 			};
 		}
 

@@ -3,7 +3,7 @@ description: Determines whether a pull request can affect the Agent Host end-to-
 
 inputs:
   token:
-    description: GitHub token used to list the pull request files.
+    description: GitHub token used to list the files that the pull request or merge group changes.
     required: true
 
 outputs:

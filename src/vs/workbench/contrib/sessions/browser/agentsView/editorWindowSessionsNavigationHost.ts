@@ -9,7 +9,7 @@ import { ISessionGridPane } from '../../../../services/sessions/browser/sessionG
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
+import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import type { IOpenChatOptions, IOpenSessionOptions } from '../sessionsService.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
@@ -18,7 +18,7 @@ import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsV
  * The navigation of an editor window with the Sessions view: sessions and chats open in tabs of its chat part, beside the
  * editor area. The window has no grid of sessions: the active tab of the chat part is its active session.
  */
-export class EditorWindowSessionsNavigationHost implements ISessionsNavigationHost {
+export class EditorWindowSessionsNavigationHost implements ISessionsNavigationService {
 
 	declare readonly _serviceBrand: undefined;
 

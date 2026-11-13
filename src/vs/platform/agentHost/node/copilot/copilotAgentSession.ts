@@ -6,8 +6,9 @@
 import { compactAutoModeResolved, compactContextAttribution, createLocalModelTurnExecutionMeta, isAiCreditsStatus, type UsageInfoMeta } from '../../common/meta/agentUsageMeta.js';
 import type { ILocalTurnExecution } from '../../common/localModel.js';
 import type { ILocalModelDirectRequestWait } from './localModelBridge/localModelProvider.js';
-import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, MessageSource, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, CopilotClient, CopilotSession, CurrentToolMetadata, ElicitationContext, ElicitationFieldValue, ElicitationHandlerResult, ElicitationSchema, ElicitationSchemaField, ExitPlanModeCompletedData, ExitPlanModeRequest, ExitPlanModeResult, JsonValue, MessageOptions, MessageSource, PermissionDecisionSource, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, PermissionResult, SessionConfig, SessionEvent, SessionEventPayload, SessionHooks, SessionMode as CopilotSdkMode, Tool, ToolInvocation, ToolResultObject, McpServerStatus as SdkMcpServerStatus } from '@github/copilot-sdk';
 import { attributePermissionResult, isPermissionDeniedKind, permissionResultToConfirmKind } from './copilotPermissionAttribution.js';
+import { attributePromptResult } from './copilotPromptAttribution.js';
 import { McpSkillCacheWriter } from '../shared/mcpSkillCache.js';
 import { parseCopilotMcpSkillConsentRequest, type ICopilotMcpSkillConsentRequest } from './copilotMcpSkillConsent.js';
 import { createHash } from 'crypto';
@@ -48,6 +49,8 @@ import { withCustomizationEnablement } from '../../common/customizationEnablemen
 import { isAutoModeRoutingTier, isSupportedAutoModeTier, type IAutoModeTierSupport } from '../../common/autoModeTiers.js';
 import { getPlanActionDescription, type ChatInputRequestWithPlanReview, type IAgentHostPlanReviewAction } from '../../common/agentHostPlanReview.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import type { AgentChatInputResponseSource, IAgentChatInputResponseMeta } from '../../common/meta/agentChatInputResponseMeta.js';
+import { createShellAuthenticationRequest } from '../../common/meta/agentShellAuthenticationMeta.js';
 import { AgentSystemNotificationKind, AgentSystemNotificationSeverity, toAgentSystemNotificationMeta } from '../../common/meta/agentSystemNotificationMeta.js';
 import { canStopBackgroundWork, toStoppableBackgroundWorkMeta } from '../../common/meta/agentHostBackgroundWorkStopMeta.js';
 import type { IModelRouterGuidance } from '../../common/modelRouterGuidance.js';
@@ -442,6 +445,16 @@ function getEmptyToolResultText(binaryResults: readonly { readonly type: 'image'
 type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type ShellAuthenticationHandler = NonNullable<SessionConfig['onShellAuthenticationRequest']>;
+type ShellAuthenticationRequest = Parameters<ShellAuthenticationHandler>[0];
+type ShellAuthenticationInvocation = Parameters<ShellAuthenticationHandler>[1];
+type ShellAuthenticationResponse = Awaited<ReturnType<ShellAuthenticationHandler>>;
+
+interface IShellAuthenticationOutcome {
+	readonly answer: string | undefined;
+	readonly completedByClient: boolean;
+}
+
 type PreToolUseHookInput = Parameters<NonNullable<SessionHooks['onPreToolUse']>>[0];
 type PreToolUseHookOutput = Awaited<ReturnType<NonNullable<SessionHooks['onPreToolUse']>>>;
 type PostToolUseHookInput = Parameters<NonNullable<SessionHooks['onPostToolUse']>>[0];
@@ -1372,21 +1385,29 @@ export class CopilotAgentSession extends Disposable {
 	 * Managed approval requests never reuse an approval.
 	 */
 	private readonly _approvedDuplicablePermissionSignatures = new Map<string, string>();
-	/** Pending user input requests awaiting a renderer-side answer. */
+	/**
+	 * Pending user input requests awaiting a renderer-side answer. `responseSource` is set only by a client's
+	 * report that a person answered, so a settlement made by teardown stays unattributed.
+	 */
 	private readonly _pendingUserInputs = new PendingRequestRegistry<
-		{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> },
+		{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; responseSource?: AgentChatInputResponseSource },
 		{ questionId: string }
 	>();
 	/**
 	 * Pending elicitation requests awaiting a renderer-side answer. Keyed
 	 * by request id; the schema is retained so the completion handler can
 	 * project the submitted {@link ChatInputAnswer}s back into the
-	 * SDK's {@link ElicitationResult.content} shape.
+	 * SDK's {@link ElicitationHandlerResult.content} shape.
 	 */
 	private readonly _pendingElicitations = new PendingRequestRegistry<
-		{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer> },
+		{ response: ChatInputResponseKind; answers?: Record<string, ChatInputAnswer>; responseSource?: AgentChatInputResponseSource },
 		{ schema: ElicitationSchema | undefined }
 	>();
+	/**
+	 * Pending shell authentication prompts, keyed by chat input request id. Only {@link answerShellAuthentication}
+	 * delivers an answer: chat state keeps the answers of a `chat/inputCompleted`, so one only cancels the prompt.
+	 */
+	private readonly _pendingShellAuthentications = new PendingRequestRegistry<IShellAuthenticationOutcome>();
 	/**
 	 * Pending plan-review requests originating from the CLI's
 	 * `exitPlanMode.request` RPC. Tracked separately from
@@ -2011,6 +2032,7 @@ export class CopilotAgentSession extends Disposable {
 	private _offeredClientTools: readonly ToolDefinition[] | undefined;
 	/** Tool-search decision supplied by the launcher that built this SDK session. */
 	private _toolSearchActive = false;
+	private _clientToolReplacement: Promise<void> | undefined;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new PendingRequestRegistry<ToolResultObject>();
 	/** One-shot SDK callbacks, keyed by request id; answering one delivers a token but does not confirm acceptance. */
@@ -2043,6 +2065,7 @@ export class CopilotAgentSession extends Disposable {
 	/** Invalidates inventory snapshots when lifecycle events or authentication challenges arrive. */
 	private _mcpLifecycleVersion = 0;
 	private _mcpInventoryRequestVersion = 0;
+	private _mcpInventoryRefresh: Promise<void> = Promise.resolve();
 	/**
 	 * Servers reconnecting after an accepted OAuth token. The runtime reports their new connection's tools without a
 	 * `connected` status change, so their next tools-loaded event is treated as connected.
@@ -2129,6 +2152,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _mcpToolRoutingCache: CopilotMcpToolRoutingCache;
 	private readonly _mcpToolRoutingEnabled: boolean;
 	private readonly _configuredMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
+	private readonly _sdkMcpRoutingServers = new Map<string, ICopilotMcpRoutingServer>();
 	private readonly _mcpRoutingProxies = new Map<string, IMcpRoutingProxy>();
 	private readonly _mcpRoutingActivations = new Map<string, { readonly promise: Promise<void>; readonly cancellation: CancellationTokenSource }>();
 	/** Routing proxy calls per server on its current connection. */
@@ -3854,6 +3878,7 @@ export class CopilotAgentSession extends Disposable {
 		this._currentTurn.clear();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._computerUseActivation.cancel();
+		this._cancelPendingShellAuthentications();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._clearStreamingToolCalls(preservesFusionState);
@@ -4140,8 +4165,21 @@ export class CopilotAgentSession extends Disposable {
 		await this._replaceClientTools(tools, token);
 	}
 
-	private async _replaceClientTools(tools: readonly ToolDefinition[], token: CancellationToken, onlyIfRoutingChanged = false): Promise<void> {
-		if (token.isCancellationRequested) {
+	private _replaceClientTools(tools: readonly ToolDefinition[] | undefined, token: CancellationToken, onlyIfRoutingChanged = false): Promise<void> {
+		const replace = () => this._doReplaceClientTools(tools ?? this._appliedSnapshot.tools, token, onlyIfRoutingChanged);
+		// Preserve synchronous staging of the first replacement before SDK callbacks can arrive.
+		const operation = this._clientToolReplacement ? this._clientToolReplacement.then(replace, replace) : replace();
+		const pending = operation.finally(() => {
+			if (this._clientToolReplacement === pending) {
+				this._clientToolReplacement = undefined;
+			}
+		});
+		this._clientToolReplacement = pending;
+		return pending;
+	}
+
+	private async _doReplaceClientTools(tools: readonly ToolDefinition[], token: CancellationToken, onlyIfRoutingChanged: boolean): Promise<void> {
+		if (this.isDisposed || token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 		const configuration = this._clientToolConfiguration;
@@ -4448,9 +4486,9 @@ export class CopilotAgentSession extends Disposable {
 			return [];
 		}
 		const tools: Tool<Record<string, never>>[] = [];
-		for (const serverName of new Set([...this._configuredMcpRoutingServers.keys(), ...this._copilotConnectorServers.keys()])) {
+		for (const serverName of new Set([...this._configuredMcpRoutingServers.keys(), ...this._sdkMcpRoutingServers.keys(), ...this._copilotConnectorServers.keys()])) {
 			const server = this._mcpRoutingServer(serverName)!;
-			const cached = this._copilotConnectorServers.has(serverName) ? undefined : this._mcpToolRoutingCache.get(server);
+			const cached = this._configuredMcpRoutingServers.has(serverName) && !this._copilotConnectorServers.has(serverName) ? this._mcpToolRoutingCache.get(server) : undefined;
 			const name = getMcpRoutingProxyName(server);
 			const displayName = server.displayName ?? server.serverName;
 			proxies.set(name, { server });
@@ -4678,8 +4716,11 @@ export class CopilotAgentSession extends Disposable {
 		if (!proxy) {
 			return true;
 		}
-		const serverEnablement = this._mcpCustomizations.serverEnablement().find(server => server.serverName === proxy.server.serverName);
-		return serverEnablement?.enabled !== false && !availableTools?.some(tool => tool.mcpServerName === proxy.server.serverName);
+		const serverName = proxy.server.serverName;
+		const enabled = this._mcpConfiguredEnablement.get(serverName) ?? this._mcpCustomizations.enabledForServer(serverName);
+		return enabled !== false
+			&& this._getDesiredMcpServerEnablementByName([serverName]).get(serverName) !== false
+			&& !availableTools?.some(tool => tool.mcpServerName === serverName);
 	}
 
 	/** Builds routing hints without projecting SDK-owned user servers into the session configuration. */
@@ -4735,7 +4776,7 @@ export class CopilotAgentSession extends Disposable {
 			serverName,
 			displayName: localize('copilot.mcpRouting.connector', "{0} (Connector)", connector.displayName),
 			configuration: { connectorName: connector.connectorName },
-		} : this._configuredMcpRoutingServers.get(serverName);
+		} : this._configuredMcpRoutingServers.get(serverName) ?? this._sdkMcpRoutingServers.get(serverName);
 	}
 
 	private _refreshReadyMcpToolRoutingCaches(): void {
@@ -4785,7 +4826,7 @@ export class CopilotAgentSession extends Disposable {
 					if (def.topLevelChatOnly && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
 						throw new Error('This tool can only be called from a top-level chat with a known root tool-call origin.');
 					}
-					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, invocation.toolCallId);
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -5830,7 +5871,12 @@ export class CopilotAgentSession extends Disposable {
 				const recorder = this._currentTurn.value?.timingRecorder;
 				recorder?.markMilestone?.('elicitationRequest');
 				return measureAgentProviderOperation(recorder, 'elicitationRequest', () => this._handleElicitationRequest(context));
-			}, { action: 'cancel' } satisfies ElicitationResult, 'elicitation'),
+			}, { action: 'cancel' } satisfies ElicitationHandlerResult, 'elicitation'),
+			handleShellAuthenticationRequest: this._guarded(
+				(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation) => this._handleShellAuthenticationRequest(request, invocation),
+				{ action: 'cancel' } satisfies ShellAuthenticationResponse,
+				'shell-authentication',
+			),
 			adoptLaunchConnectorReconcile,
 			handleMcpAuthRequest: request => this._handleMcpAuthRequest(request, () => handleMcpAuthRequest(request)),
 			requestUnsandboxedCommandConfirmation: this._guarded(request => {
@@ -5905,7 +5951,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}
 		if (this._mcpToolRoutingEnabled && this._clientToolConfiguration?.toolSearchActive) {
-			await this._replaceClientTools(this._appliedSnapshot.tools, this._lifetimeCts.token, true);
+			await this._replaceClientTools(undefined, this._lifetimeCts.token, true);
 		}
 	}
 
@@ -6821,8 +6867,12 @@ export class CopilotAgentSession extends Disposable {
 						if (runtimeMode) {
 							mode = runtimeMode;
 						}
+						// A skill's display prompt is only its qualified runtime name, which
+						// can differ from what the user sent (`/act-on-feedback` resolves to
+						// `/VS Code Synced Data:act-on-feedback`). The SDK persists it as the
+						// message, so keep the sent text for history to match the live turn.
+						displayPrompt ??= runtimeSlashCommand.kind === 'skill' ? prompt : result.displayPrompt;
 						prompt = result.prompt;
-						displayPrompt ??= result.displayPrompt;
 						break;
 					}
 					case 'select-subcommand':
@@ -7285,7 +7335,7 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		}
-		if (attachment.type !== MessageAttachmentKind.Resource) {
+		if (attachment.type !== MessageAttachmentKind.Resource || attachment.displayKind === 'skill') {
 			return undefined;
 		}
 		const uri = URI.parse(attachment.uri);
@@ -9769,25 +9819,27 @@ export class CopilotAgentSession extends Disposable {
 			const result = await pendingInput;
 			this._logService.info(`[Copilot:${this.sessionId}] User input response: requestId=${requestId}, response=${result.response}`);
 
+			// The SDK's user-input reply cannot carry a dismissal, so a person's dismissal is their empty answer.
+			const attribute = (response: UserInputResponse) => attributePromptResult(response, result.responseSource);
 			if (result.response !== ChatInputResponseKind.Accept || !result.answers) {
-				return { answer: '', wasFreeform: true };
+				return attribute({ answer: '', wasFreeform: true });
 			}
 
 			// Extract the answer for our single question
 			const answer = result.answers[questionId];
 			if (!answer || answer.state === ChatInputAnswerState.Skipped) {
-				return { answer: '', wasFreeform: true };
+				return attribute({ answer: '', wasFreeform: true });
 			}
 
 			const { value: val } = answer;
 			if (val.kind === ChatInputAnswerValueKind.Text) {
-				return { answer: val.value, wasFreeform: true };
+				return attribute({ answer: val.value, wasFreeform: true });
 			} else if (val.kind === ChatInputAnswerValueKind.Selected) {
 				const wasFreeform = !request.choices?.includes(val.value);
-				return { answer: val.value, wasFreeform };
+				return attribute({ answer: val.value, wasFreeform });
 			}
 
-			return { answer: '', wasFreeform: true };
+			return attribute({ answer: '', wasFreeform: true });
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle user input request: question="${questionPreview}"`);
 			throw error;
@@ -9798,8 +9850,9 @@ export class CopilotAgentSession extends Disposable {
 	 * Projects structured ask_user and MCP elicitation requests into the question carousel.
 	 * Ask-user replies are permissive; MCP forms retain their schema coercion and autopilot cancellation.
 	 * Computer Use's macOS permission prompts go to the shared setup instead, when the host offers it.
+	 * Only an answer a client reports as a person's is labeled, refusals included; the runtime decides what it authorizes.
 	 */
-	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult> {
+	private async _handleElicitationRequest(context: ElicitationContext): Promise<ElicitationHandlerResult> {
 		// The runtime supplies a source for MCP forms, but not for its built-in ask_user tool.
 		const isAskUser = context.mode !== 'url' && !context.elicitationSource;
 		const isAutopilot = this._isAutopilotMode();
@@ -9860,19 +9913,20 @@ export class CopilotAgentSession extends Disposable {
 			const result = await pendingElicitation;
 			this._logService.info(`[Copilot:${this.sessionId}] Elicitation response: requestId=${requestId}, response=${result.response}`);
 
+			const attribute = (response: ElicitationHandlerResult) => attributePromptResult(response, result.responseSource);
 			if (result.response === ChatInputResponseKind.Decline) {
-				return { action: 'decline' };
+				return attribute({ action: 'decline' });
 			}
 			if (result.response !== ChatInputResponseKind.Accept) {
-				return { action: 'cancel' };
+				return attribute({ action: 'cancel' });
 			}
 			const answers = result.answers ?? {};
 			if (!schema) {
 				const freeform = answers.answer;
 				if (freeform && freeform.state !== ChatInputAnswerState.Skipped && freeform.value.kind === ChatInputAnswerValueKind.Text) {
-					return { action: 'accept', content: { answer: freeform.value.value } };
+					return attribute({ action: 'accept', content: { answer: freeform.value.value } });
 				}
-				return { action: 'accept' };
+				return attribute({ action: 'accept' });
 			}
 			const content: Record<string, ElicitationFieldValue> = {};
 			const answerToFieldValue = isAskUser ? askUserAnswerToFieldValue : elicitationAnswerToFieldValue;
@@ -9882,7 +9936,7 @@ export class CopilotAgentSession extends Disposable {
 					content[fieldName] = value;
 				}
 			}
-			return { action: 'accept', content };
+			return attribute({ action: 'accept', content });
 		} catch (error) {
 			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle elicitation request: message="${messagePreview}"`);
 			throw error;
@@ -9919,10 +9973,53 @@ export class CopilotAgentSession extends Disposable {
 		return provenance?.source === 'builtin' && provenance.sourcePlugin === COMPUTER_USE_PLUGIN_NAME;
 	}
 
-	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): boolean {
+	/**
+	 * Asks the user for an answer that `sudo -A`, `ssh`, or `git` needs. The answer arrives through
+	 * {@link answerShellAuthentication}, never through chat state.
+	 */
+	private async _handleShellAuthenticationRequest(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation): Promise<ShellAuthenticationResponse> {
+		if (this._isAutopilotMode() || this._isAutoReplyEnabled() || !this.hasActiveTurn || invocation.signal.aborted) {
+			this._logService.info(`[Copilot:${this.sessionId}] Cancelling ${request.program} prompt that nobody can answer`);
+			return { action: 'cancel' };
+		}
+		const requestId = generateUuid();
+		const pending = this._pendingShellAuthentications.register(requestId);
+		const cancel = () => this._pendingShellAuthentications.respond(requestId, { answer: undefined, completedByClient: false });
+		invocation.signal.addEventListener('abort', cancel);
+		try {
+			this._logService.info(`[Copilot:${this.sessionId}] Shell authentication request: requestId=${requestId}, program=${request.program}, inputKind=${request.inputKind}`);
+			this._emitAction({
+				type: ActionType.ChatInputRequested,
+				request: createShellAuthenticationRequest(requestId, request),
+			});
+			const { answer, completedByClient } = await pending;
+			this._logService.info(`[Copilot:${this.sessionId}] Shell authentication ${answer === undefined ? 'cancelled' : 'answered'}: requestId=${requestId}`);
+			if (!completedByClient && !this.isDisposed) {
+				this._emitAction({
+					type: ActionType.ChatInputCompleted,
+					requestId,
+					response: answer === undefined ? ChatInputResponseKind.Cancel : ChatInputResponseKind.Accept,
+				});
+			}
+			return answer === undefined ? { action: 'cancel' } : { action: 'accept', value: answer };
+		} finally {
+			invocation.signal.removeEventListener('abort', cancel);
+		}
+	}
+
+	answerShellAuthentication(requestId: string, answer: string | undefined): boolean {
+		return this._pendingShellAuthentications.respond(requestId, { answer, completedByClient: false });
+	}
+
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>, context?: IAgentChatInputResponseMeta): boolean {
+		const responseSource = context?.responseSource;
 		const pendingPlanReview = this._pendingPlanReviews.getMetadata(requestId);
 		if (pendingPlanReview) {
-			return this._pendingPlanReviews.respond(requestId, this._resolveExitPlanMode(pendingPlanReview, response, answers));
+			return this._pendingPlanReviews.respond(requestId, this._resolveExitPlanMode(pendingPlanReview, response, answers, responseSource));
+		}
+
+		if (this._pendingShellAuthentications.respond(requestId, { answer: undefined, completedByClient: true })) {
+			return true;
 		}
 
 		if (this._computerUseSetup?.()?.respondToInput(this._computerUseSetupChat, requestId, response, answers)) {
@@ -9933,11 +10030,11 @@ export class CopilotAgentSession extends Disposable {
 			return true;
 		}
 
-		if (this._pendingElicitations.respond(requestId, { response, answers })) {
+		if (this._pendingElicitations.respond(requestId, { response, answers, responseSource })) {
 			return true;
 		}
 
-		if (this._pendingUserInputs.respond(requestId, { response, answers })) {
+		if (this._pendingUserInputs.respond(requestId, { response, answers, responseSource })) {
 			return true;
 		}
 		return false;
@@ -9959,14 +10056,20 @@ export class CopilotAgentSession extends Disposable {
 	 * `selectedAction` is validated against the SDK's offered `actions`; an
 	 * unknown value is treated as a decline so the SDK isn't fed a value it
 	 * cannot handle.
+	 *
+	 * A person's response is labeled only where the result is what they chose:
+	 * their rejection, their feedback, or their approval of an offered action.
+	 * A result the host substitutes for an unusable answer stays unlabeled.
 	 */
 	private _resolveExitPlanMode(
 		pending: { actions: readonly string[]; recommendedAction: string; questionId: string },
 		response: ChatInputResponseKind,
 		answers?: Record<string, ChatInputAnswer>,
+		responseSource?: AgentChatInputResponseSource,
 	): CopilotExitPlanModeResponse {
+		const attribute = (result: CopilotExitPlanModeResponse) => attributePromptResult(result, responseSource);
 		if (response !== ChatInputResponseKind.Accept) {
-			return { approved: false };
+			return attribute({ approved: false });
 		}
 		const answer = answers?.[pending.questionId];
 		if (!answer || answer.state === ChatInputAnswerState.Skipped) {
@@ -10004,11 +10107,11 @@ export class CopilotAgentSession extends Disposable {
 		// `approved: false` with a non-empty `feedback`; it will revise
 		// the plan and re-emit `exit_plan_mode.requested`.
 		if (feedback) {
-			return {
+			return attribute({
 				approved: false,
 				feedback,
 				...(selectedAction ? { selectedAction } : {}),
-			};
+			});
 		}
 
 		// No selectable action and no feedback — nothing actionable.
@@ -10025,11 +10128,13 @@ export class CopilotAgentSession extends Disposable {
 		this._syncAhpModeFromExitPlanAction(selectedAction);
 
 		const isAutopilot = selectedAction === 'autopilot' || selectedAction === 'autopilot_fleet';
-		return {
+		const approval: CopilotExitPlanModeResponse = {
 			approved: true,
 			selectedAction,
 			...(isAutopilot && this._approvalPolicy.isBypassApprovals(this._getApprovalInputs()) ? { autoApproveEdits: true } : {}),
 		};
+		// The recommended action applied in place of an unoffered one is the host's choice, not the person's.
+		return selectedAction === candidateAction ? attribute(approval) : approval;
 	}
 
 	/**
@@ -12129,8 +12234,21 @@ export class CopilotAgentSession extends Disposable {
 		});
 	}
 
-	/** Refreshes inventory, retrying snapshots overtaken by lifecycle events without superseding a newer refresh. */
+	/** Waits for the newest inventory read before returning to callers that may activate a server. */
 	private async _refreshMcpServersFromRpc(): Promise<void> {
+		let refresh = this._doRefreshMcpServersFromRpc();
+		this._mcpInventoryRefresh = refresh;
+		while (true) {
+			await refresh;
+			if (refresh === this._mcpInventoryRefresh) {
+				return;
+			}
+			refresh = this._mcpInventoryRefresh;
+		}
+	}
+
+	/** Retries snapshots overtaken by lifecycle events without superseding a newer refresh. */
+	private async _doRefreshMcpServersFromRpc(): Promise<void> {
 		const mcpRpc = this._wrapper.session.rpc?.mcp;
 		if (!mcpRpc) {
 			return;
@@ -12173,6 +12291,20 @@ export class CopilotAgentSession extends Disposable {
 				status: server.live?.status ?? 'stopped',
 				error: server.live?.error,
 			})));
+			this._sdkMcpRoutingServers.clear();
+			for (const server of result.servers) {
+				if (server.enabled) {
+					this._sdkMcpRoutingServers.set(server.name, {
+						serverName: server.name,
+						displayName: server.displayName,
+						// This identity is only for routing; SDK-owned configuration and tool metadata stay out of the shared cache.
+						configuration: { source: server.source, sourcePlugin: server.sourcePlugin, sourcePluginVersion: server.sourcePluginVersion },
+					});
+				}
+			}
+			if (this._mcpToolRoutingEnabled && this._clientToolConfiguration?.toolSearchActive) {
+				await this._replaceClientTools(undefined, this._lifetimeCts.token, true);
+			}
 			for (const server of result.servers) {
 				if (server.live?.status === 'connected' && this._mcpToolsLoaded.has(server.name)) {
 					void this._refreshMcpToolRoutingCache(server.name).catch(error => {
@@ -13911,6 +14043,7 @@ export class CopilotAgentSession extends Disposable {
 		this._denyPendingPermissions();
 		this._cancelPendingUserInputs();
 		this._cancelPendingElicitations();
+		this._cancelPendingShellAuthentications();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._computerUseActivation.cancel();
 		this._cancelPendingPlanReviews();
@@ -13950,6 +14083,10 @@ export class CopilotAgentSession extends Disposable {
 
 	private _cancelPendingElicitations(): void {
 		this._pendingElicitations.denyAll({ response: ChatInputResponseKind.Cancel });
+	}
+
+	private _cancelPendingShellAuthentications(): void {
+		this._pendingShellAuthentications.denyAll({ answer: undefined, completedByClient: false });
 	}
 
 	private _cancelPendingPlanReviews(): void {

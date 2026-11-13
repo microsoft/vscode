@@ -59,7 +59,7 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChatPhoneInputPresenter } from '../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { createChatPhoneInputSessionContext } from '../../../browser/chatPhoneInputContext.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
@@ -1019,7 +1019,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const session = this._session.get();
 		return session?.sessionId === sessionId
 			? this._chat.get()?.resource
-			: (provider.getAllSessions?.() ?? provider.getSessions()).find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
+			: provider.getSessions().find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
 	}
 
 	private _requireChat(provider: IAgentHostSessionsProvider, sessionId: string): URI {
@@ -2045,8 +2045,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -2060,9 +2060,13 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// because the classes are only accessed inside these factory
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
+		let shownKey: string | undefined;
 		this._register(autorun(reader => {
-			this._readShownSessions(reader);
-			this._refreshRepositoryMenuItems(actionViewItemService);
+			const key = this._readShownSessions(reader).map(shown => `${shown.session.sessionId} ${shown.chat.toString()}`).join('\n');
+			if (key !== shownKey) {
+				shownKey = key;
+				this._refreshRepositoryMenuItems(actionViewItemService);
+			}
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -2151,7 +2155,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (this._readShownSessions(undefined).some(({ session }) => session.sessionId === sessionId)) {
+				if (this._readShownSessions(undefined).some(shown => shown.session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
@@ -2163,37 +2167,18 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		return true;
 	}
 
-	/**
-	 * Whether the repository controls also show for the sessions that panes and composers show outside the grid, such as
-	 * those of an editor window's chat part, which has no grid. Read as the contribution is constructed.
-	 */
-	protected get includesSessionHosts(): boolean {
-		return false;
-	}
-
-	/**
-	 * The sessions whose repository controls can show: those of the grid's slots and, when {@link includesSessionHosts},
-	 * those of the panes and composers that show a session.
-	 */
-	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: IChat | undefined }[] {
-		const shown = new Map<string, { readonly session: ISession; readonly chat: IChat | undefined }>();
-		for (const pane of this._sessionsService.slotPanes.read(reader)) {
-			const session = pane.session.read(reader);
+	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: URI }[] {
+		const shown = new Map<string, { readonly session: ISession; readonly chat: URI }>();
+		const add = (session: ISession | undefined, chat: IChat | undefined) => {
 			if (session && !shown.has(session.sessionId)) {
-				shown.set(session.sessionId, { session, chat: pane.chat.read(reader) });
+				shown.set(session.sessionId, { session, chat: (chat ?? session.mainChat.read(reader)).resource });
 			}
-		}
-		if (!this.includesSessionHosts) {
-			return [...shown.values()];
+		};
+		for (const pane of this._sessionsService.slotPanes.read(reader)) {
+			add(pane.session.read(reader), pane.chat.read(reader));
 		}
 		for (const host of this._sessionHostService.hosts.read(reader)) {
-			if (host.kind !== SessionHostKind.Pane && host.kind !== SessionHostKind.Composer) {
-				continue;
-			}
-			const session = host.session.read(reader);
-			if (session && !shown.has(session.sessionId)) {
-				shown.set(session.sessionId, { session, chat: host.chat.read(reader) });
-			}
+			add(host.session.read(reader), host.chat.read(reader));
 		}
 		return [...shown.values()];
 	}
@@ -2205,7 +2190,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, (chat ?? session.mainChat.get()).resource);
+			const config = provider.getSessionConfig(session.sessionId, chat);
 			if (!config) {
 				continue;
 			}
@@ -2216,8 +2201,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 				isPhoneLayout(this._layoutService),
 			).filter(([property, schema]) =>
 				isRenderableSessionConfigProperty(property, schema, config.schema, isNewSession) &&
-				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key) &&
-				this.showsRepositoryProperty(property === workspace.isolation?.key, isNewSession)
+				this.showsRepositoryProperty(property === workspace.isolation?.key, isNewSession) &&
+				(isNewSession || schema.sessionMutable || property === workspace.isolation?.key || property === workspace.baseBranch?.key)
 			);
 			const branchIndex = properties.findIndex(([property]) => property === workspace.baseBranch?.key);
 			const isolationIndex = properties.findIndex(([property]) => property === workspace.isolation?.key);
@@ -2546,22 +2531,22 @@ export class RunningSessionModePickerAction extends Action2 {
 }
 
 /**
- * Registers the agent host's pickers of a new session and of a running session's chat input, until the returned
- * disposable is disposed. {@link AgentHostSessionConfigPickerContribution} renders them.
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerAgentHostSessionConfigPickerActions(): IDisposable {
 	const store = new DisposableStore();
-	for (const action of [
-		NewSessionApprovePickerAction,
-		NewSessionPermissionModePickerAction,
-		NewSessionCodexApprovalsPickerAction,
-		NewSessionModePickerAction,
-		RunningSessionConfigPickerAction,
-		RunningSessionPermissionModePickerAction,
-		RunningSessionCodexApprovalsPickerAction,
-		RunningSessionModePickerAction,
-	]) {
-		store.add(registerAction2(action));
-	}
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
 	return store;
 }

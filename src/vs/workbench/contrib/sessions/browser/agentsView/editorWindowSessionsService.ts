@@ -90,6 +90,11 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	async restoreVisibleSessions(): Promise<void> { }
 	async openPreviousSession(): Promise<void> { }
 	async openNextSession(): Promise<void> { }
+	/** It keeps no navigation history, so it restores no saved draft from it. */
+	registerSavedDraftOpener(_opener: (draftId: string, token: CancellationToken) => Promise<boolean>): IDisposable {
+		return Disposable.None;
+	}
+	setCurrentDraftId(_draftId: string | undefined, _preserveCurrentEntry?: boolean): void { }
 
 	async submitNewSessionInput(): Promise<boolean> {
 		return false;
@@ -165,7 +170,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async moveChatToGrid(sessionId: string, chatResource: URI, _referenceSlotId: string, _direction: SessionGridDirection): Promise<void> {
-		const session = this._sessionsManagementService.getAllSessions().find(candidate => candidate.sessionId === sessionId);
+		const owner = this._sessionsManagementService.getSessionForChatResource(chatResource);
+		const session = owner?.session.sessionId === sessionId ? owner.session : this._sessionsManagementService.getSessions().find(candidate => candidate.sessionId === sessionId);
 		if (session) {
 			await this._chatPart.openChat(session, chatResource);
 		}

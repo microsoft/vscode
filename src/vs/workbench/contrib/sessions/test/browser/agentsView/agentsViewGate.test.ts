@@ -32,7 +32,7 @@ import { MockContextKeyService } from '../../../../../../platform/keybinding/tes
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { CHAT_OPEN_ACTION_ID } from '../../../../chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
@@ -84,13 +84,13 @@ suite('AgentsViewGate', () => {
 		viewVisibility.fire({ id: SessionsViewId, visible: true });
 	}
 
-	let delegates: number;
+	let hosts: number;
 	let hiddenParts: Parts[];
 	let contextKeyService: MockContextKeyService;
 
 	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }): AgentsViewGate {
 		createdChatParts = 0;
-		delegates = 0;
+		hosts = 0;
 		hiddenParts = [];
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
 			constructor() {
@@ -119,7 +119,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(IActionViewItemService, upcastPartial<IActionViewItemService>({ register: () => toDisposable(() => { }) }));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeLocation: Event.None }));
 		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ start: () => { }, switchToSession: async () => { } }));
-		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({ setChatViewHostDelegate: () => { delegates++; return toDisposable(() => delegates--); } }));
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ registerHost: () => { hosts++; return toDisposable(() => hosts--); } }));
 		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
 			getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [],
 			onDidPaneCompositeClose: (events?.compositeClose ?? Event.None) as IPaneCompositePartService['onDidPaneCompositeClose'],
@@ -218,16 +218,16 @@ suite('AgentsViewGate', () => {
 	test('replaces the Chat view in a local window: it hides it, its keys and what would show it show the chat part', () => {
 		const chatViewKeys = () => KeybindingsRegistry.getDefaultKeybindings().filter(rule => rule.command === CHAT_OPEN_ACTION_ID && rule.when?.serialize() === ContextKeyExpr.and(ChatContextKeys.agentsViewActive, AgentsViewAvailable)?.serialize()).length;
 		const local = createGate(true);
-		const localState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), delegates, chatViewKeys: chatViewKeys() };
+		const localState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), hosts, chatViewKeys: chatViewKeys() };
 		local.dispose();
-		const afterDispose = { delegates, chatViewKeys: chatViewKeys() };
+		const afterDispose = { hosts, chatViewKeys: chatViewKeys() };
 		createGate(true, 'ssh-remote+host');
-		const remoteState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), delegates, chatViewKeys: chatViewKeys() };
+		const remoteState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), hosts, chatViewKeys: chatViewKeys() };
 
 		assert.deepStrictEqual({ localState, afterDispose, remoteState }, {
-			localState: { active: true, delegates: 1, chatViewKeys: 1 },
-			afterDispose: { delegates: 0, chatViewKeys: 0 },
-			remoteState: { active: undefined, delegates: 0, chatViewKeys: 0 },
+			localState: { active: true, hosts: 1, chatViewKeys: 1 },
+			afterDispose: { hosts: 0, chatViewKeys: 0 },
+			remoteState: { active: undefined, hosts: 0, chatViewKeys: 0 },
 		});
 	});
 

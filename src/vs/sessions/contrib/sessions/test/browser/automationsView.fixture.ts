@@ -19,8 +19,11 @@ import { ContextKeyService } from '../../../../../platform/contextkey/browser/co
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
+import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -40,19 +43,21 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
 import { IAgentPlugin, IAgentPluginService } from '../../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
-import { stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
-import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
+import { navigationServiceOf, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices, waitForFixtureDomCondition } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { CustomViewNode } from '../../../../browser/parts/customViewNode.js';
 import { CustomViewService } from '../../../../services/customView/browser/customViewService.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { ISessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
 import { IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { AutomationsCustomViewContribution } from '../../browser/views/automationsView.js';
+import '../../../../browser/media/style.css';
 
 const WORKSPACE = URI.parse('file:///workspaces/vscode');
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
@@ -228,6 +233,7 @@ interface IAutomationsFixtureOptions {
 	readonly emptyHistory?: boolean;
 	readonly remoteEntries?: readonly IRemoteAgentHostEntry[];
 	readonly githubEnvironments?: readonly IMissionControlHost[];
+	readonly interaction?: 'cardHover' | 'cardActionHover' | 'cardActionOpen' | 'cardActionFocus' | 'cardFocus' | 'templateHover' | 'templateSectionHover';
 }
 
 const TUNNEL_ENTRIES: readonly IRemoteAgentHostEntry[] = [
@@ -359,6 +365,46 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 		labels: { kind: 'screenshot' },
 		render: ctx => renderAutomations(ctx, { width: 520, height: 720, populated: true }),
 	}),
+	CardHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardHover' }),
+	}),
+	CardActionHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the More Actions control. In high contrast themes, only the action has a dashed active-contrast boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionHover' }),
+	}),
+	CardActionOpen: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The More Actions control is open. In high contrast themes, only the action has a solid active-contrast boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionOpen' }),
+	}),
+	CardActionFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The More Actions control has keyboard focus while the pointer remains over the card. In high contrast themes, only the action has a solid focus boundary; the parent card does not.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardActionFocus' }),
+	}),
+	CardFocus: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The real automation card button has keyboard focus. In high contrast themes, the card has a two-stroke inset solid focus boundary and the production prompt hover is visible.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 720, populated: true, interaction: 'cardFocus' }),
+	}),
+	TemplateHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, interaction: 'templateHover' }),
+	}),
+	TemplateSectionHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the Built-in Templates disclosure. In high contrast themes, a dashed active-contrast outline surrounds the section header.'],
+		render: ctx => renderAutomations(ctx, { width: 1000, height: 620, populated: false, interaction: 'templateSectionHover' }),
+	}),
 	CloudHistory: defineComponentFixture({
 		additionalThemes: ['darkHighContrast'],
 		render: ctx => renderAutomations(ctx, { width: 1000, height: 850, populated: true, cloud: true }),
@@ -380,7 +426,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/automations/' }, {
 	}),
 });
 
-function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): void {
+async function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFixtureOptions): Promise<void> {
 	const data = options.repositoryOnly ? createRepositoryOnlyData() : options.cloud ? createCloudData() : options.populated ? createPopulatedData() : { automations: [], runs: [] };
 	const configurationService = new TestConfigurationService({
 		chat: { automations: { enabled: true } },
@@ -423,6 +469,14 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		colorTheme: ctx.theme,
 		additionalServices: reg => {
 			registerWorkbenchServices(reg);
+			if (options.interaction === 'cardFocus') {
+				reg.definePartialInstance(ILayoutService, { getContainer: () => ctx.container });
+				reg.define(IHoverService, class extends HoverService {
+					override showInstantHover(options: Parameters<IHoverService['showInstantHover']>[0]) {
+						return super.showInstantHover({ ...options, container: ctx.container }, false);
+					}
+				});
+			}
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
 			reg.define(IListService, ListService);
 			reg.define(IMarkdownRendererService, MarkdownRendererService);
@@ -445,12 +499,14 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 			reg.defineInstance(IAgentPluginService, agentPluginService);
 			reg.defineInstance(ICustomViewService, customViewService);
 			reg.defineInstance(ISessionsManagementService, sessionsManagementService);
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+			const sessionsService = new class extends mock<ISessionsService>() {
 				readonly gridShown = constObservable([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession = constObservable(undefined);
 				override async openSession(): Promise<void> { }
-			}());
+			}();
+			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(ISessionsNavigationService, navigationServiceOf(sessionsService));
 			reg.defineInstance(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 				override readonly onDidChange = Event.None;
 				override isSessionPinned(): boolean { return false; }
@@ -483,6 +539,16 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 	});
 	stubSessionHosts(instantiationService, ctx.disposableStore);
 
+	ctx.container.classList.add('monaco-workbench');
+	if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen' || options.interaction === 'cardActionFocus') {
+		ctx.container.classList.add('agent-sessions-workbench');
+	}
+	ctx.container.style.width = `${options.width}px`;
+	ctx.container.style.height = `${options.height}px`;
+	ctx.container.style.setProperty('--session-view-background', 'var(--vscode-agentsPanel-background, var(--vscode-sideBar-background))');
+	ctx.container.style.setProperty('--session-view-foreground', 'var(--vscode-agentsPanel-foreground, var(--vscode-sideBar-foreground))');
+	ctx.container.style.backgroundColor = 'var(--session-view-background)';
+
 	ctx.disposableStore.add(instantiationService.createInstance(AutomationsCustomViewContribution));
 	customViewService.showCustomView(AUTOMATIONS_CUSTOM_VIEW_ID);
 	const descriptor = customViewService.activeCustomView.get();
@@ -490,17 +556,42 @@ function renderAutomations(ctx: ComponentFixtureContext, options: IAutomationsFi
 		throw new Error('Automations custom view was not registered');
 	}
 
-	ctx.container.classList.add('monaco-workbench');
-	ctx.container.style.width = `${options.width}px`;
-	ctx.container.style.height = `${options.height}px`;
-	ctx.container.style.setProperty('--session-view-background', 'var(--vscode-agentsPanel-background, var(--vscode-sideBar-background))');
-	ctx.container.style.setProperty('--session-view-foreground', 'var(--vscode-agentsPanel-foreground, var(--vscode-sideBar-foreground))');
-	ctx.container.style.backgroundColor = 'var(--session-view-background)';
-
 	const node = ctx.disposableStore.add(instantiationService.createInstance(CustomViewNode, descriptor));
 	node.element.style.height = '100%';
 	ctx.container.appendChild(node.element);
 	node.layout(options.width, options.height);
+	if (options.interaction === 'cardHover') {
+		node.element.querySelector<HTMLElement>('.automations-card')?.classList.add('hovered');
+	} else if (options.interaction === 'cardActionHover' || options.interaction === 'cardActionOpen' || options.interaction === 'cardActionFocus') {
+		const card = node.element.querySelector<HTMLElement>('.automations-card');
+		const actions = card?.querySelector<HTMLElement>('.automations-card-actions');
+		const action = card?.querySelector<HTMLElement>('.automations-card-more-actions-button');
+		if (!card || !actions || !action) {
+			throw new Error('Automation card action was not rendered');
+		}
+		card.classList.add('hovered');
+		actions.classList.add(options.interaction === 'cardActionFocus' ? 'focus-within' : 'hovered');
+		action.classList.add(options.interaction === 'cardActionFocus' ? 'focus-visible' : 'hovered');
+		if (options.interaction === 'cardActionOpen') {
+			actions.classList.add('menu-open');
+			action.setAttribute('aria-expanded', 'true');
+		} else if (options.interaction === 'cardActionFocus') {
+			ctx.focus({ focus: () => action.focus({ focusVisible: true }) });
+		}
+	} else if (options.interaction === 'cardFocus') {
+		const main = node.element.querySelector<HTMLElement>('.automations-card-main');
+		if (!main) {
+			throw new Error('Automation card was not rendered');
+		}
+		ctx.focus({ focus: () => main.focus({ focusVisible: true }) });
+		if (ctx.overrideFocus) {
+			await waitForFixtureDomCondition(ctx.container.ownerDocument.body, () => ctx.container.ownerDocument.querySelector('.monaco-hover') !== null, ctx.disposableStore);
+		}
+	} else if (options.interaction === 'templateHover') {
+		node.element.querySelector<HTMLElement>('.automations-template-card')?.classList.add('hovered');
+	} else if (options.interaction === 'templateSectionHover') {
+		node.element.querySelector<HTMLElement>('.automations-template-section-summary')?.classList.add('hovered');
+	}
 	if (options.showDropTarget) {
 		const dataTransfer = new DataTransfer();
 		dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([URI.file('/shared/review.automation.md').toString()]));

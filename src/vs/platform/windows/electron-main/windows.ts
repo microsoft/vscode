@@ -17,7 +17,7 @@ import { ServicesAccessor, createDecorator } from '../../instantiation/common/in
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
-import { AgentsWindowOpenSource, ChatSessionToOpen, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowFolderLocation, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, ChatSessionToOpen, IAgentsWindowDraft, IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, TitlebarStyle, WindowMinimumSize, hasNativeTitlebar, useNativeFullScreen, useWindowControlsOverlay, zoomLevelToZoomFactor } from '../../window/common/window.js';
 import { ICodeWindow, IWindowState, WindowMode, defaultWindowState } from '../../window/electron-main/window.js';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
@@ -43,12 +43,6 @@ export interface IWindowsMainService {
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
 	openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault?: boolean, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]>;
-
-	/**
-	 * Remembers the alternate location a local folder was last at (or forgets it when `undefined`),
-	 * so that a fresh open of the folder starts at it again.
-	 */
-	rememberFolderLocation(primary: URI, location: IWindowFolderLocation | undefined): void;
 
 	sendToFocused(channel: string, ...args: unknown[]): void;
 	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
@@ -149,6 +143,8 @@ export interface IDefaultBrowserWindowOptionsOverrides {
 	notResizable?: boolean;
 	noBackgroundThrottling?: boolean;
 	backgroundColor?: string;
+	panel?: boolean;
+	opacity?: number;
 }
 
 /**
@@ -290,6 +286,19 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	if (overrides?.alwaysOnTop ?? windowState.alwaysOnTop) {
 		options.alwaysOnTop = true;
+	}
+
+	if (overrides?.panel) {
+		options.fullscreenable = false;
+		if (isMacintosh) {
+			options.type = 'panel';
+		} else {
+			options.skipTaskbar = true;
+		}
+	}
+
+	if (typeof overrides?.opacity === 'number') {
+		options.opacity = overrides.opacity;
 	}
 
 	if (overrides?.frameless) {

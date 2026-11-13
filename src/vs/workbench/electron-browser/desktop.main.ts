@@ -377,8 +377,9 @@ export class DesktopMain extends Disposable {
 
 	/**
 	 * The alternate location a local single-folder window has been persisted at. It is applied
-	 * without granting any trust and without being validated, like the primary folder.
-	 * `FolderLocationPersistenceContribution` validates it after startup.
+	 * without granting any trust. The main process has validated that it exists before loading the
+	 * window, so only its URI is checked here. `FolderLocationPersistenceContribution` has it
+	 * confirmed by a provider after startup.
 	 */
 	private resolveFolderLocation(workspace: IAnyWorkspaceIdentifier, environmentService: INativeWorkbenchEnvironmentService): URI | undefined {
 		const persisted = environmentService.folderLocation;

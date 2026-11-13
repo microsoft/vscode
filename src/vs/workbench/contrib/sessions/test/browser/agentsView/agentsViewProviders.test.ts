@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/virtualScheduling/index.js';
 import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
 import { AGENTS_VIEW_SESSION_WAIT_TIMEOUT, waitForAgentsViewSession } from '../../../browser/agentsView/agentsViewProviders.js';
-import { ISessionsChangeEvent, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 
 suite('waitForAgentsViewSession', () => {
@@ -26,8 +26,8 @@ suite('waitForAgentsViewSession', () => {
 		const chats = observableValue<readonly IChat[]>('chats', [built.mainChat.chat]);
 		const parent: ISession = { ...built.session, chats };
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
-			onDidChangeAllSessions: Event.None,
-			getAllSessions: () => [parent],
+			onDidChangeSession: Event.None,
+			getSessions: () => [parent],
 		});
 		const find = () => parent.chats.get().find(chat => isEqual(chat.resource, peer.resource));
 
@@ -41,20 +41,19 @@ suite('waitForAgentsViewSession', () => {
 	test('finds a session that its provider does not list, such as of another folder, as soon as the provider knows it', () => runWithFakedTimers({}, async () => {
 		const elsewhere = buildTestSession({ id: 'elsewhere', title: 'Elsewhere' }).session;
 		const allSessions: ISession[] = [];
-		const allSessionsChanged = new Emitter<ISessionsChangeEvent>();
+		const sessionChanged = new Emitter<readonly ISessionChange[]>();
 		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
-			onDidChangeAllSessions: allSessionsChanged.event,
+			onDidChangeSession: sessionChanged.event,
 			getSessions: () => [],
-			getAllSessions: () => allSessions,
 		});
 
 		const start = Date.now();
 		const found = waitForAgentsViewSession(sessionsManagementService, () => allSessions.find(session => isEqual(session.resource, elsewhere.resource)));
 		await timeout(10);
 		allSessions.push(elsewhere);
-		allSessionsChanged.fire({ added: [elsewhere], removed: [], changed: [] });
+		sessionChanged.fire([{ session: elsewhere, kind: 'added' }]);
 
 		assert.deepStrictEqual({ found: await found, beforeTimeout: Date.now() - start < AGENTS_VIEW_SESSION_WAIT_TIMEOUT }, { found: elsewhere, beforeTimeout: true });
-		allSessionsChanged.dispose();
+		sessionChanged.dispose();
 	}));
 });

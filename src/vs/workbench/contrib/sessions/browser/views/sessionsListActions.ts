@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -30,25 +30,25 @@ import { SessionsCategories } from '../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
 import { IsPhoneLayoutContext, SessionSupportsDeleteContext, SessionSupportsRenameContext, SessionActiveChatCanArchiveContext, SessionActiveChatIsUntitledContext, SessionHeaderTargetsChatContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext, SessionsListPromoteNewChatActionContext } from '../../common/contextkeys.js';
-import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from '../views/sessionsList.js';
+import { getSessionListChats, isAutomationSession, SessionItemInboxStateContext, SessionItemCanMergePullRequestContext, SessionItemCanImportContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionItemOrganizeMenuGroup, SessionItemHasUnreadNestedSessionsContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionGroupHasVisibleSessionsContext, SessionGroupIsEmptyContext, SessionGroupIsComparisonContext, IsSessionPinnedContext, SessionsGrouping, SessionsSorting, ISessionSection, ISessionGroupItem, ISessionChatItem, SessionChatItemCanArchiveContext, SessionChatItemCanMoveDownContext, SessionChatItemCanMoveUpContext, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionChatItemIsStandaloneContext, SessionChatItemIsUntitledContext, SessionsListFocusedChatItemContext, SessionsListSearchOpenContext } from './sessionsList.js';
 import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
 import { resolveSessionCommandTarget } from '../sessionCommandTarget.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { registerExternalSessionsFilterMenu } from '../../../chat/browser/agentSessions/externalSessionsFilterMenu.js';
 import { ChatAutomationsEnabledContext } from '../../../chat/common/automations/automationsEnabled.js';
 import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { SessionsListNotificationFocused } from '../views/sessionsListNotification.js';
+import { SessionsListNotificationFocused } from './sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../common/sessionInbox.js';
 import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
 
@@ -110,7 +110,6 @@ async function archiveSessionsWithUndo(
 	}
 }
 
-
 /**
  * Deletes a custom group and offers Undo when subgroups or nested sections are affected.
  */
@@ -131,23 +130,31 @@ function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGrou
 	});
 }
 
+//  View Title Menu
 
 /** Non-date grouping caps its sections, which Show switches between Recent and All. */
 const GroupedBySectionContext = ContextKeyExpr.or(
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Workspace),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Repository),
 	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
-	SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
 );
-
 
 //  Sort / Group Actions
 
 const InboxModeContext = SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox);
 
+//  Workspace Group Capping
 
+//  Collapse All Groups
+
+//  View Toolbar Actions
+
+// Escape in the list closes its find widget, as `list.closeFind` closes a tree's.
+
+//  Section Actions
+
+/** Grouping sections whose New Session starts in a workspace that their sessions work in. */
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
-
 
 function getArchiveSectionConfirmationMessage(context: ISessionSection, wording: ChatSessionArchiveActionWording): string {
 	if (context.id === 'pinned') {
@@ -172,7 +179,6 @@ function getArchiveSectionConfirmationMessage(context: ISessionSection, wording:
 		? localize('markSectionSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label)
 		: localize('archiveSectionSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", context.sessions.length, context.label);
 }
-
 
 abstract class BaseArchiveSectionAction extends Action2 {
 	constructor(private readonly wording: ChatSessionArchiveActionWording) {
@@ -234,20 +240,17 @@ abstract class BaseArchiveSectionAction extends Action2 {
 	}
 }
 
-
 class ArchiveSectionAction extends BaseArchiveSectionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
 }
 
-
 class MarkSectionSessionsDoneAction extends BaseArchiveSectionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
-
 
 //  Group Header Actions
 
@@ -262,7 +265,6 @@ function getArchiveGroupConfirmationMessage(groupName: string, sessionCount: num
 		? localize('markGroupSessionsDone.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", sessionCount, groupName)
 		: localize('archiveGroupSessions.confirm', "Are you sure you want to archive {0} sessions from '{1}'?", sessionCount, groupName);
 }
-
 
 abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 	constructor(private readonly wording: ChatSessionArchiveActionWording) {
@@ -328,20 +330,17 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 	}
 }
 
-
 class ArchiveSessionsInGroupAction extends BaseArchiveSessionsInGroupAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
 }
 
-
 class MarkAllSessionsInGroupAsDoneAction extends BaseArchiveSessionsInGroupAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
-
 
 function getSessionActionTargets(accessor: ServicesAccessor, context?: ISession | ISession[]): readonly ISession[] {
 	if (context) {
@@ -357,11 +356,9 @@ function getSessionActionTargets(accessor: ServicesAccessor, context?: ISession 
 	return activeSession ? [activeSession] : [];
 }
 
-
 function getFocusedSessionListTargets(accessor: ServicesAccessor): readonly ISession[] | undefined {
 	return accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedSessions();
 }
-
 
 function triageSessions(modelService: ISessionsListModelService, viewsService: IViewsService, sessions: readonly ISession[], action: SessionInboxAction): void {
 	const targets = sessions.filter(session => !session.isArchived.get());
@@ -383,7 +380,6 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		undo: async () => { undo(); status(localize('inboxTriageUndone', "Inbox change undone.")); },
 	});
 }
-
 
 abstract class BaseArchiveSessionAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
@@ -432,20 +428,17 @@ abstract class BaseArchiveSessionAction extends Action2 {
 	}
 }
 
-
 export class ArchiveSessionAction extends BaseArchiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
 }
 
-
 class MarkSessionAsDoneAction extends BaseArchiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
-
 
 abstract class BaseUnarchiveSessionAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
@@ -488,20 +481,17 @@ abstract class BaseUnarchiveSessionAction extends Action2 {
 	}
 }
 
-
 class UnarchiveSessionAction extends BaseUnarchiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
 }
 
-
 class RestoreArchivedSessionAction extends BaseUnarchiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
-
 
 abstract class BaseArchiveChatAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
@@ -541,12 +531,11 @@ abstract class BaseArchiveChatAction extends Action2 {
 			return;
 		}
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const navigationHost = accessor.get(ISessionsNavigationHost);
+		const navigationService = accessor.get(ISessionsNavigationService);
 		await sessionsManagementService.archiveChat(target.session, target.chat);
-		await navigationHost.closeArchivedChat(target.session, target.chat);
+		await navigationService.closeArchivedChat(target.session, target.chat);
 	}
 }
-
 
 export class ArchiveChatAction extends BaseArchiveChatAction {
 	constructor() {
@@ -554,13 +543,11 @@ export class ArchiveChatAction extends BaseArchiveChatAction {
 	}
 }
 
-
 class MarkChatAsDoneAction extends BaseArchiveChatAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
-
 
 abstract class BaseUnarchiveChatAction extends Action2 {
 	constructor(wording: ChatSessionArchiveActionWording) {
@@ -592,13 +579,11 @@ abstract class BaseUnarchiveChatAction extends Action2 {
 	}
 }
 
-
 class UnarchiveChatAction extends BaseUnarchiveChatAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
 }
-
 
 class RestoreArchivedChatAction extends BaseUnarchiveChatAction {
 	constructor() {
@@ -606,6 +591,7 @@ class RestoreArchivedChatAction extends BaseUnarchiveChatAction {
 	}
 }
 
+/** Opens the session of a chat that the Sessions list shows on its own row, such as a done chat in the Done section. */
 
 /** Moves a nested chat up or down among its session's chats in the Sessions list, through its provider, which owns their order. Only offered when sorting by creation, as the list shows that order. */
 abstract class BaseMoveSessionListChatAction extends Action2 {
@@ -637,14 +623,12 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 	}
 }
 
-
 function setSessionListChatReadState(sessionsManagementService: ISessionsManagementService, { session, chat }: ISessionChatItem, isRead: boolean): Promise<boolean | void> {
 	if (isEqual(chat.resource, session.mainChat.get().resource)) {
 		return isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session);
 	}
 	return isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat);
 }
-
 
 async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | ISessionChatItem | undefined, isRead: boolean): Promise<void> {
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
@@ -666,7 +650,6 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
 		await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
 	}
 }
-
 
 abstract class BaseUnarchiveActiveSessionAction extends Action2 {
 
@@ -699,20 +682,17 @@ abstract class BaseUnarchiveActiveSessionAction extends Action2 {
 	}
 }
 
-
 class UnarchiveActiveSessionAction extends BaseUnarchiveActiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.Archive);
 	}
 }
 
-
 class RestoreActiveSessionAction extends BaseUnarchiveActiveSessionAction {
 	constructor() {
 		super(ChatSessionArchiveActionWording.MarkAsDone);
 	}
 }
-
 
 /**
  * The archive actions for a wording. Both wordings share command ids, so only
@@ -739,7 +719,6 @@ export function getSessionsArchiveActionConstructors(wording: ChatSessionArchive
 			UnarchiveActiveSessionAction,
 		];
 }
-
 
 export class SessionsArchiveActionsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -872,9 +851,9 @@ export function registerSessionsListReadStateActions(): IDisposable {
 }
 
 /**
- * Registers the actions of the sessions list that do not depend on the window it shows in: its filters, grouping and
- * sorting, finding, and the actions of its sections, groups, sessions and chats. Until every returned disposable is
- * disposed: the Agents window and the Sessions view of an editor window share one registration.
+ * Registers the actions, menu items, keybindings and accessibility help of the sessions list that do not depend on the
+ * window it shows in, until every returned disposable is disposed: the Agents window and the Sessions view of an editor
+ * window share one registration, as its registrations are global.
  */
 let sessionsListActionsRegistration: { readonly store: DisposableStore; references: number } | undefined;
 export function registerSessionsListActions(): IDisposable {
@@ -936,8 +915,6 @@ function createSessionsListActions(): DisposableStore {
 			view?.showApplicationFilters();
 		}
 	}));
-
-	//  View Title Menu
 
 	store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 		submenu: Menus.SessionsViewFilter,
@@ -1136,23 +1113,6 @@ function createSessionsListActions(): DisposableStore {
 		}
 	}));
 
-	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
-		constructor() {
-			super({
-				id: 'sessionsViewPane.groupByWorktree',
-				title: localize2('groupByWorktree', "Worktree"),
-				category: SessionsCategories.Sessions,
-				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
-				precondition: sessionsViewOffersGrouping(SessionsGrouping.Worktree),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: sessionsViewOffersGrouping(SessionsGrouping.Worktree) }],
-			});
-		}
-		override run(accessor: ServicesAccessor) {
-			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
-			view?.setGrouping(SessionsGrouping.Worktree);
-		}
-	}));
-
 	store.add(registerAction2(class GroupByEnvironmentAction extends Action2 {
 		constructor() {
 			super({
@@ -1190,8 +1150,6 @@ function createSessionsListActions(): DisposableStore {
 			view?.toggleCompact();
 		}
 	}));
-
-	//  Workspace Group Capping
 
 	store.add(registerAction2(class ShowRecentWorkspaceSessionsAction extends Action2 {
 		constructor() {
@@ -1239,8 +1197,6 @@ function createSessionsListActions(): DisposableStore {
 		}
 	}));
 
-	//  Collapse All Groups
-
 	store.add(registerAction2(class CollapseAllGroupsAction extends Action2 {
 		constructor() {
 			super({
@@ -1256,8 +1212,6 @@ function createSessionsListActions(): DisposableStore {
 			view?.sessionsControl?.collapseAllSections();
 		}
 	}));
-
-	//  View Toolbar Actions
 
 	store.add(registerAction2(class RefreshSessionsAction extends Action2 {
 		constructor() {
@@ -1299,7 +1253,6 @@ function createSessionsListActions(): DisposableStore {
 		}
 	}));
 
-	// Escape in the list closes its find widget, as `list.closeFind` closes a tree's.
 	store.add(KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'sessionsViewPane.closeFind',
 		weight: KeybindingWeight.SessionsContrib,
@@ -1333,8 +1286,6 @@ function createSessionsListActions(): DisposableStore {
 			}
 		}
 	}));
-
-	//  Session Item Actions
 
 	store.add(registerAction2(class PinSessionAction extends Action2 {
 		constructor() {
@@ -1607,6 +1558,7 @@ function createSessionsListActions(): DisposableStore {
 		id: ARCHIVE_SESSION_COMMAND_ID,
 		weight: KeybindingWeight.SessionsContrib,
 		when: ContextKeyExpr.and(
+			IsSessionsWindowContext,
 			FocusedViewContext.isEqualTo(SessionsViewId),
 			WorkbenchListFocusContextKey,
 		),
@@ -1645,7 +1597,6 @@ function createSessionsListActions(): DisposableStore {
 		}
 	}));
 
-	/** Opens the session of a chat that the Sessions list shows on its own row, such as a done chat in the Done section. */
 	store.add(registerAction2(class OpenParentSessionAction extends Action2 {
 		constructor() {
 			super({
@@ -1698,6 +1649,7 @@ function createSessionsListActions(): DisposableStore {
 					primary: KeyCode.F2,
 					weight: KeybindingWeight.SessionsContrib,
 					when: ContextKeyExpr.and(
+						IsSessionsWindowContext,
 						ContextKeyExpr.or(
 							ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
 							ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.inChatSession, SessionSupportsRenameContext),
@@ -1818,6 +1770,59 @@ function createSessionsListActions(): DisposableStore {
 				return sessionsManagementService.markChatsRead(session, getSessionListChats(session).filter(chat => !chat.isRead.get()));
 			})).catch(onUnexpectedError);
 		}
+	}));
+
+	for (const [menu, submenu] of [
+		[Menus.SessionItemContextMenu, Menus.SessionItemOpenIn],
+		[Menus.SessionChatItemContext, Menus.SessionChatItemOpenIn],
+	]) {
+		store.add(MenuRegistry.appendMenuItem(menu, {
+			title: localize2('openIn', "Open in"),
+			submenu,
+			group: 'navigation',
+			order: 1,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
+		}));
+	}
+
+	const GroupedByWorktreeContext = ContextKeyExpr.and(sessionsViewOffersGrouping(SessionsGrouping.Worktree), SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
+
+	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
+		constructor() {
+			super({
+				id: 'sessionsViewPane.groupByWorktree',
+				title: localize2('groupByWorktree', "Worktree"),
+				category: SessionsCategories.Sessions,
+				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
+				precondition: sessionsViewOffersGrouping(SessionsGrouping.Worktree),
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: sessionsViewOffersGrouping(SessionsGrouping.Worktree) }],
+			});
+		}
+		override run(accessor: ServicesAccessor) {
+			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			view?.setGrouping(SessionsGrouping.Worktree);
+		}
+	}));
+
+	// Worktree grouping caps its sections as the other groupings by section do, which Show switches between Recent and All
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
+		submenu: Menus.SessionsViewShow,
+		title: localize2('showSessions', "Show"),
+		when: GroupedByWorktreeContext,
+		group: '1_presentation',
+		order: 2,
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		command: { id: 'sessionsViewPane.showRecentSessions', title: localize2('recent', "Recent"), toggled: IsWorkspaceGroupCappedContext },
+		group: '1_show',
+		order: 0,
+		when: GroupedByWorktreeContext,
+	}));
+	store.add(MenuRegistry.appendMenuItem(Menus.SessionsViewShow, {
+		command: { id: 'sessionsViewPane.showAllSessions', title: localize2('all', "All"), toggled: IsWorkspaceGroupCappedContext.negate() },
+		group: '1_show',
+		order: 1,
+		when: GroupedByWorktreeContext,
 	}));
 
 	return store;
