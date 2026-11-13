@@ -190,6 +190,10 @@ type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputInvocation = Parameters<UserInputHandler>[1];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type ShellAuthenticationHandler = NonNullable<SessionConfig['onShellAuthenticationRequest']>;
+type ShellAuthenticationRequest = Parameters<ShellAuthenticationHandler>[0];
+type ShellAuthenticationInvocation = Parameters<ShellAuthenticationHandler>[1];
+type ShellAuthenticationResponse = Awaited<ReturnType<ShellAuthenticationHandler>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthContext = Parameters<McpAuthHandler>[1];
@@ -384,6 +388,7 @@ export interface ICopilotSessionRuntime {
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
 	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationHandlerResult>;
+	handleShellAuthenticationRequest(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation): Promise<ShellAuthenticationResponse>;
 	/**
 	 * Takes over the launch-time Connector reconciliation, which settles after the launch returns. The promise does
 	 * not reject; it resolves to the session's Connector-owned servers, or `undefined` when they are unavailable.
@@ -1624,8 +1629,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
-		// Tool search follows the client's `toolSearch` tool, which users toggle in Chat Customizations.
-		const toolSearchEnabled = agentHostModelSupportsToolSearch(effectiveModel?.id);
+		// An omitted model delegates selection to the runtime, rather than opting out of the client's tool-search choice.
+		const toolSearchEnabled = effectiveModel === undefined || agentHostModelSupportsToolSearch(effectiveModel.id);
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: TOOL_SEARCH_DEFER_THRESHOLD } : { enabled: false };
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
@@ -1782,6 +1787,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			askUserVariant: 'elicitation',
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			onShellAuthenticationRequest: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ShellAuthentication) === true
+				? (request, invocation) => runtime.handleShellAuthenticationRequest(request, invocation)
+				: undefined,
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),

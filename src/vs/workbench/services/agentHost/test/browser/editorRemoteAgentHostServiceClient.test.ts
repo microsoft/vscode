@@ -457,6 +457,45 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		});
 	});
 
+	test('forwards shell authentication answers to the remote protocol client', async () => {
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		})));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined })],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: () => Disposable.None,
+				ensureSyncedCustomizationProvider: () => { },
+			}],
+		)));
+		const calls: { chat: string; requestId: string; answer: string | undefined }[] = [];
+		instantiationService.stubInstance(AgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			answerShellAuthentication: async (chat, requestId, answer) => {
+				calls.push({ chat: chat.toString(), requestId, answer });
+				return true;
+			},
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const chat = URI.parse('custom-chat://host/chat');
+		const delivered = await service.answerShellAuthentication(chat, 'shell-auth', 'remote-answer');
+		assert.deepStrictEqual({ calls, delivered }, {
+			calls: [{ chat: chat.toString(), requestId: 'shell-auth', answer: 'remote-answer' }],
+			delivered: true,
+		});
+	});
+
 	suite('sandbox certificate delegation', () => {
 		const operations = [
 			['installSandboxCertificate', 'sandboxCertificateInstallationSupported'],

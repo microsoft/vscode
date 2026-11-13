@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDefaultAccount } from '../../../../../base/common/defaultAccount.js';
-import { CancellationError } from '../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../../base/common/errors.js';
 import { localize } from '../../../../../nls.js';
+import { getConnectionDiagnosticError } from '../../../../../platform/agentHost/common/connectionDiagnostics.js';
+import { GitHubEnvironmentSharingError } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 
@@ -18,7 +20,11 @@ export function getGitHubEnvironmentAuthentication(product: IProductService): { 
 }
 
 /** Raised when no GitHub account can register GitHub environments, as opposed to a failure to look one up. */
-export class GitHubEnvironmentAccountUnavailableError extends Error { }
+export class GitHubEnvironmentAccountUnavailableError extends GitHubEnvironmentSharingError {
+	constructor(message: string, reason: 'nonGitHubAccount' | 'signInRequired') {
+		super(message, reason);
+	}
+}
 
 /**
  * Returns the sessions that can register GitHub environments: those of the
@@ -30,12 +36,12 @@ export async function getGitHubEnvironmentSessions(authentication: IAuthenticati
 	let account: AuthenticationSessionAccount | undefined;
 	if (defaultAccount) {
 		if (defaultAccount.authenticationProvider.id !== providerId) {
-			throw new GitHubEnvironmentAccountUnavailableError(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."));
+			throw new GitHubEnvironmentAccountUnavailableError(localize('missionControlSharing.githubAccountRequired', "GitHub environment sharing requires a GitHub.com Copilot account."), 'nonGitHubAccount');
 		}
 		const allSessions = await authentication.getSessions(providerId, undefined, undefined, true);
 		account = allSessions.find(session => session.id === defaultAccount.sessionId)?.account;
 		if (!account) {
-			throw new Error(localize('missionControlSharing.accountUnavailable', "The selected Copilot account is unavailable. Sign in to GitHub again to enable environment sharing."));
+			throw new GitHubEnvironmentSharingError(localize('missionControlSharing.accountUnavailable', "The selected Copilot account is unavailable. Sign in to GitHub again to enable environment sharing."), 'accountUnavailable');
 		}
 	}
 	const sessionOptions = account ? { account } : undefined;
@@ -46,13 +52,13 @@ export async function getGitHubEnvironmentSessions(authentication: IAuthenticati
 	}
 	if (!sessions.length && canPrompt()) {
 		const session = await authentication.createSession(providerId, [...scopes], sessionOptions).catch(error => {
-			if (error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
+			if (isCancellationError(error) || error === 'Cancelled' || (error instanceof Error && error.message === 'Cancelled')) {
 				throw new CancellationError();
 			}
-			throw error;
+			throw new GitHubEnvironmentSharingError(getErrorMessage(error), 'signInFailed', { cause: error, diagnostic: getConnectionDiagnosticError(error) });
 		});
 		if (account && session.account.id !== account.id) {
-			throw new Error(localize('missionControlSharing.accountMismatch', "Sign in with the selected Copilot account to enable GitHub environment sharing."));
+			throw new GitHubEnvironmentSharingError(localize('missionControlSharing.accountMismatch', "Sign in with the selected Copilot account to enable GitHub environment sharing."), 'accountMismatch');
 		}
 		sessions = [session];
 	}

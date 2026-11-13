@@ -11,8 +11,8 @@ import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, derived, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { autorun, constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -202,14 +202,16 @@ suite('Artifact Integration Groups', () => {
 			}
 			override hideHover(): void { }
 		}());
-		const toggles: { readonly id: string; readonly target: string; readonly selection?: ArtifactDetailsSelection }[] = [];
+		const toggles: { readonly id: string; readonly target: string; readonly selection?: ArtifactDetailsSelection; readonly sectionId?: string }[] = [];
 		const selected = observableValue<ArtifactIntegrationPresentation | undefined>('selected', undefined);
+		const activeSection = observableValue<string | undefined>('activeSection', undefined);
 		const detailsHost: IArtifactDetailsHost = {
-			id: 'details-host', selected,
-			toggle: (presentation, target, selection) => {
-				toggles.push({ id: presentation.model.snapshot.get().artifact.id, target: !target ? 'focused' : target.className.includes('chat-pill-button') ? 'pill' : target.className, ...(selection ? { selection } : {}) });
+			id: 'details-host', selected, activeSection,
+			toggle: (presentation, target, selection, sectionId) => {
+				toggles.push({ id: presentation.model.snapshot.get().artifact.id, target: !target ? 'focused' : target.className.includes('chat-pill-button') ? 'pill' : target.className, ...(selection ? { selection } : {}), ...(sectionId ? { sectionId } : {}) });
 			},
 			release: () => { },
+			suspend: () => Disposable.None,
 		};
 		const ran: string[] = [];
 		const action = (id: string, label: string, icon: ThemeIcon): IChatPillAction => toAction({ id, label, class: ThemeIcon.asClassName(icon), run: () => { ran.push(id); } });
@@ -252,7 +254,7 @@ suite('Artifact Integration Groups', () => {
 		};
 		const keyCodes: Record<string, number> = { ArrowDown: 40, ArrowRight: 39, Enter: 13, Escape: 27 };
 		const key = (target: HTMLElement, code: string) => target.dispatchEvent(new KeyboardEvent('keydown', { key: code, code, keyCode: keyCodes[code], bubbles: true, cancelable: true }));
-		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, member, hovers };
+		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, activeSection, member, hovers };
 	}
 
 	test('renders the group pill with its summary and an Autopilot section, and lists each artifact like its own pill', () => {
@@ -316,7 +318,7 @@ suite('Artifact Integration Groups', () => {
 			afterTitle: false,
 			open: false,
 			ran: ['open.2', 'open.1'],
-			toggles: [{ id: '1', target: 'pill', selection: ['experiments', 'checks'] }],
+			toggles: [{ id: '1', target: 'pill', selection: ['experiments', 'checks'], sectionId: '["experiments","checks"]' }],
 		});
 	});
 
@@ -325,13 +327,13 @@ suite('Artifact Integration Groups', () => {
 		f.members.set([...f.members.get(), f.member(snapshot('3', { groupLabel: 'Experiments' }))], undefined);
 		f.button().click();
 		const details = f.rows()[2].querySelector<HTMLElement>('.artifact-group-row-status')!;
-		const described = { statuses: f.describeRow(f.rows()[2]).statuses, label: details.getAttribute('aria-label'), icon: !!details.querySelector('.codicon-chevron-down') };
+		const described = { statuses: f.describeRow(f.rows()[2]).statuses, label: details.getAttribute('aria-label'), icon: !!details.querySelector('.codicon-info') };
 		details.click();
 		assert.deepStrictEqual({ described, open: !!f.dropdown(), ran: f.ran, toggles: f.toggles }, {
 			described: { statuses: [''], label: 'Show artifact details: Experiment 3 is running', icon: true },
 			open: false,
 			ran: [],
-			toggles: [{ id: '3', target: 'pill' }],
+			toggles: [{ id: '3', target: 'pill', sectionId: 'artifact-details' }],
 		});
 	});
 
@@ -398,6 +400,28 @@ suite('Artifact Integration Groups', () => {
 		const during = pill.classList.contains('artifact-pill-selected');
 		f.selected.set(undefined, undefined);
 		assert.deepStrictEqual({ before, during, after: pill.classList.contains('artifact-pill-selected') }, { before: false, during: true, after: false });
+	});
+
+	test('expands only the status section that shows a member\'s details in its row', () => {
+		const f = fixture();
+		f.members.set([...f.members.get(), f.member(snapshot('3', { groupLabel: 'Experiments', sections: [{ id: 'checks', label: '1/2', icon: 'pass' }, { id: 'reviews', label: '2', icon: 'comment' }] }))], undefined);
+		f.button().click();
+		const expanded = () => f.rows().map(row => [...row.querySelectorAll('.artifact-group-row-status')].map(status => status.getAttribute('aria-expanded')));
+		const before = expanded();
+		transaction(tx => {
+			f.selected.set(f.members.get()[2].presentation, tx);
+			f.activeSection.set('["experiments","reviews"]', tx);
+		});
+		const during = expanded();
+		transaction(tx => {
+			f.selected.set(undefined, tx);
+			f.activeSection.set(undefined, tx);
+		});
+		assert.deepStrictEqual({ before, during, after: expanded() }, {
+			before: [['false'], ['false'], ['false', 'false']],
+			during: [['false'], ['false'], ['false', 'true']],
+			after: [['false'], ['false'], ['false', 'false']],
+		});
 	});
 
 	test('pill sources keep a group pill while its members change, pin through shared storage, and never group references', () => {

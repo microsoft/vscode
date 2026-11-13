@@ -159,7 +159,7 @@ import { IAgentHostOTelService } from '../common/otel/agentHostOTelService.js';
 import { AgentHostAuthenticationService, SESSION_CREDENTIAL_PRINCIPAL_KEY } from './agentHostAuthenticationService.js';
 import { updateAgentHostTelemetryLevelFromConfig } from './agentHostTelemetryService.js';
 import type { IAgentHostCopilotSkuClassification, IAgentHostCopilotSkuTelemetry } from './agentHostTelemetryReporter.js';
-import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
+import { AgentHostArtifactToolsConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostChatResourcesConfigKey, AgentHostCodexEnabledConfigKey, AgentHostEditTelemetryEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostShowExternalSessionsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { supersedeTitleGenerationStrategyForLegacyUpdate } from '../common/titleGenerationConfiguration.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../common/agentHostChangesetService.js';
 import { GIT_DB_METADATA_KEYS, IAgentHostGitStateService, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_GITHUB_STATE, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
@@ -2357,6 +2357,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _createArtifactServerToolAccessor(): IArtifactServerToolAccessor {
 		return {
 			isEnabled: () => this._isArtifactToolsEnabled(),
+			isChatResourcesEnabled: () => this._configurationService.getRootValue(platformRootSchema, AgentHostChatResourcesConfigKey) === true,
 			associatePullRequests: (chat, urls) => this._gitStateService.associateRecordedPullRequests?.(chat, urls) ?? Promise.resolve({ pending: [], unmatched: [...urls] }),
 			removePendingPullRequest: (session, chat, url) => this._gitStateService.removePendingRecordedPullRequest?.(session, chat, url) ?? Promise.resolve(),
 			reportAssociationError: error => this._logService.warn('[AgentService] Failed to reconcile a recorded pull request', error),
@@ -2677,6 +2678,16 @@ export class AgentService extends Disposable implements IAgentService {
 			return false;
 		}
 		return await this._providerService.getProviderForChat(URI.parse(owner), chat)?.stopBackgroundWork?.(chat, id) ?? false;
+	}
+
+	async answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		// A chat with a pending prompt is live, so there is nothing to restore first.
+		const owner = this._chatOwnership.getChatOwner(chat.toString());
+		if (owner === undefined) {
+			this._logService.trace(`[AgentService] answerShellAuthentication ignored for unregistered chat: ${chat.toString()}`);
+			return false;
+		}
+		return await this._providerService.getProviderForChat(URI.parse(owner), chat)?.answerShellAuthentication?.(chat, requestId, answer) ?? false;
 	}
 
 	private _isArtifactToolsEnabled(): boolean {

@@ -6,10 +6,10 @@
 import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Emitter, Relay } from '../../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../../base/common/event.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { observableValue, waitForState } from '../../../../base/common/observable.js';
+import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ArtifactAuthenticationRequest, ArtifactDetails, ArtifactSnapshot, IArtifactIntegrationAccess, IArtifactModel } from '../../common/artifactIntegration.js';
@@ -122,6 +122,33 @@ suite('Artifact Integration Protocol', () => {
 		}, new NullLogService()));
 		const reference = store.add(await client.acquireArtifact('session', 'artifact'));
 		assert.deepStrictEqual(reference.object.snapshot.get().artifact.label, 'New');
+	});
+
+	test('snapshots equal to the current one are neither sent as new revisions nor applied', async () => {
+		const f = model();
+		const server = store.add(new ArtifactIntegrationServer(f.access));
+		const injected = store.add(new Emitter<ArtifactIntegrationUpdate>());
+		const sent: number[] = [];
+		store.add(server.onDidUpdate(update => sent.push(update.revision)));
+		let subscription = '';
+		const client = store.add(new ArtifactIntegrationClient({
+			onDidUpdate: Event.any(server.onDidUpdate, injected.event),
+			request: request => {
+				if (request.kind === 'acquire') {
+					subscription = request.subscription;
+				}
+				return server.request(request);
+			},
+		}, new NullLogService()));
+		const reference = store.add(await client.acquireArtifact('session', 'artifact'));
+		const labels: string[] = [];
+		store.add(autorun(reader => { labels.push(reference.object.snapshot.read(reader).artifact.label); }));
+		const relabel = (label: string) => ({ ...f.snapshot.get(), artifact: { ...f.snapshot.get().artifact, label } });
+		f.snapshot.set(relabel('Old'), undefined);
+		f.snapshot.set(relabel('New'), undefined);
+		injected.fire({ kind: 'artifact', subscription, revision: 3, snapshot: relabel('New') });
+		injected.fire({ kind: 'artifact', subscription, revision: 4, snapshot: relabel('Newer') });
+		assert.deepStrictEqual({ sent, labels }, { sent: [1, 2], labels: ['Old', 'New', 'Newer'] });
 	});
 
 	test('details keep their parent subscription alive until the last independent lease closes', async () => {

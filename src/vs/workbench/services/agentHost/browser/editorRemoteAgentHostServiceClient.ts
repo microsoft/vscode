@@ -424,6 +424,10 @@ export class EditorRemoteAgentHostServiceClient extends Disposable implements IA
 		return this._requireClient().disposeChat(chat);
 	}
 
+	answerShellAuthentication(chat: URI, requestId: string, answer: string | undefined): Promise<boolean> {
+		return this._requireClient().answerShellAuthentication(chat, requestId, answer);
+	}
+
 	createTerminal(params: CreateTerminalParams): Promise<void> {
 		return this._requireClient().createTerminal(params);
 	}

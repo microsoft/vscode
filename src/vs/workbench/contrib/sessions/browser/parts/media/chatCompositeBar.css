@@ -131,8 +131,13 @@
 	cursor: text;
 }
 
-.chat-composite-bar-session-title.editable:hover {
+.chat-composite-bar-session-title.editable:not(.editing):not(:focus-within):is(:hover, .hovered) {
 	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+:is(.hc-black, .hc-light) .chat-composite-bar-session-title.editable:not(.editing):not(:focus-within):is(:hover, .hovered) {
+	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .chat-composite-bar-session-title.editing {
