@@ -19,6 +19,9 @@ import { IChatEntitlementService } from '../../../../../services/chat/common/cha
  *
  * The provider only surfaces Copilot Cloud sessions from the Copilot extension;
  * local Copilot CLI sessions are owned by the agent host providers.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerCopilotChatSessionsProviders(accessor: ServicesAccessor): IDisposable {
 	const instantiationService = accessor.get(IInstantiationService);

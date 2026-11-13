@@ -36,18 +36,8 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { AccessibleViewType } from '../../../../../platform/accessibility/browser/accessibleView.js';
-import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
-import { SessionsListNotificationFocused } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
-AccessibleViewRegistry.register({
-	name: 'sessions-list-notification',
-	type: AccessibleViewType.Help,
-	priority: 110,
-	when: SessionsListNotificationFocused,
-	getProvider: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.getAccessibilityHelp(),
-});
 import { SessionsArchiveActionsContribution, registerSessionsListActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 
 registerSessionsListActions();

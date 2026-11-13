@@ -114,6 +114,9 @@ export class SharedChatInputComposerContribution extends Disposable implements I
 /**
  * Registers the items of a new-session composer's input toolbar, until the returned disposable is disposed: Add Context,
  * its progress and its session controls. {@link SharedChatInputComposerContribution} renders the progress and controls.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerSharedChatInputComposerToolbar(): IDisposable {
 	const store = new DisposableStore();

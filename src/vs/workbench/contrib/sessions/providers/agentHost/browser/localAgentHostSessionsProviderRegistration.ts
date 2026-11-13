@@ -22,6 +22,9 @@ import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider
  * via {@link IChatSessionsService}. This only bridges the session
  * listing and lifecycle to the {@link ISessionsProvidersService} layer used by
  * the sessions UI.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerLocalAgentHostSessionsProvider(accessor: ServicesAccessor): IDisposable {
 	const agentHostEnablementService = accessor.get(IAgentHostEnablementService);

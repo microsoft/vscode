@@ -760,6 +760,9 @@ export class SessionsArchiveActionsContribution extends Disposable implements IW
 /**
  * Registers the actions, menu items, keybindings and accessibility help of the sessions list that do not depend on the
  * window it shows in, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerSessionsListActions(): IDisposable {
 	const store = new DisposableStore();

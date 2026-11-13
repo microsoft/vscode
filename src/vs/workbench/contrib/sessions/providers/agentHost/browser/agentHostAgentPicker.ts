@@ -462,7 +462,12 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 	}
 }
 
-/** Registers the agent picker of agent host sessions and its keybinding, until the returned disposable is disposed. */
+/**
+ * Registers the agent picker of agent host sessions and its keybinding, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
 export function registerAgentHostAgentPickerActions(): IDisposable {
 	const store = new DisposableStore();
 

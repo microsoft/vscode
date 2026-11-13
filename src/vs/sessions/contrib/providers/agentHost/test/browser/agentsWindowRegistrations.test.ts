@@ -11,6 +11,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '.
 import { getSingletonServiceDescriptors } from '../../../../../../platform/instantiation/common/extensions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { AccessibleViewRegistry } from '../../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { AGENTS_WINDOW_REGISTRATIONS } from './agentsWindowRegistrations.snapshot.js';
 // The contributions whose registrations it snapshots
 import '../../../../sessions/browser/sessions.contribution.js';
@@ -25,7 +26,7 @@ import '../../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 
 /**
  * What the registries hold, one line each, in the order they were registered: commands, the items of every menu,
- * keybindings (with their weights, which order them), configuration keys and singletons.
+ * keybindings (with their weights, which order them), configuration keys, singletons and accessible views.
  */
 function registrations(): string[] {
 	const result: string[] = [];
@@ -49,17 +50,31 @@ function registrations(): string[] {
 	for (const [id] of getSingletonServiceDescriptors()) {
 		result.push(`singleton ${id}`);
 	}
+	for (const implementation of AccessibleViewRegistry.getImplementations()) {
+		result.push(`accessibleView ${implementation.name} ${implementation.type} priority ${implementation.priority} when ${implementation.when?.serialize() ?? ''}`);
+	}
 	return result;
+}
+
+/**
+ * What identifies a registration, regardless of how it is registered: a command, configuration key, singleton or
+ * accessible view by its line up to its details, a menu item by its menu and target, a keybinding by its command and chords.
+ */
+function keyOf(registration: string): string {
+	const details = /^(menu .*?) group |^(keybinding .*?) weight |^(accessibleView \S+) /.exec(registration);
+	return details?.[1] ?? details?.[2] ?? details?.[3] ?? registration;
 }
 
 suite('Agents window registrations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('the Agents window registers the same commands, menu items, keybindings, settings and services', () => {
+	test('the Agents window registers the same commands, menu items, keybindings, settings, services and accessible views, each once', () => {
 		// Each line holds what orders it: a menu item's group, order and when, a keybinding's weights and when. In which
-		// order other suites loaded these contributions, and so registered them, depends on the tests that run
-		const registered = registrations();
+		// order other suites loaded these contributions, and so registered them, depends on the tests that run.
+		// Everything registered under a key of the snapshot must be exactly its lines: no duplicates and no extra entries.
+		const keys = new Set(AGENTS_WINDOW_REGISTRATIONS.map(keyOf));
+		const registered = registrations().filter(registration => keys.has(keyOf(registration))).sort();
 
-		assert.deepStrictEqual(AGENTS_WINDOW_REGISTRATIONS.filter(registration => registered.filter(candidate => candidate === registration).length !== 1), []);
+		assert.deepStrictEqual(registered, [...AGENTS_WINDOW_REGISTRATIONS].sort());
 	});
 });

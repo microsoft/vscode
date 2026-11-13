@@ -281,7 +281,12 @@ export class ModelPickerToolbarsContribution extends Disposable implements IWork
 	}
 }
 
-/** Registers the model picker action of the new-session composer, until the returned disposable is disposed. */
+/**
+ * Registers the model picker action of the new-session composer, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
 export function registerModelPickerAction(): IDisposable {
 	const store = new DisposableStore();
 

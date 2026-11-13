@@ -2521,7 +2521,12 @@ export class RunningSessionModePickerAction extends Action2 {
 	}
 }
 
-/** Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed. */
+/**
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
 export function registerAgentHostSessionConfigPickerActions(): IDisposable {
 	const store = new DisposableStore();
 

@@ -54,7 +54,12 @@ export class CopilotPickerActionViewItemContribution extends Disposable implemen
 	}
 }
 
-/** Registers the mode and approvals pickers of new Copilot Cloud and sandbox sessions, until the returned disposable is disposed. */
+/**
+ * Registers the mode and approvals pickers of new Copilot Cloud and sandbox sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
 export function registerCopilotSandboxPickerActions(): IDisposable {
 	const store = new DisposableStore();
 

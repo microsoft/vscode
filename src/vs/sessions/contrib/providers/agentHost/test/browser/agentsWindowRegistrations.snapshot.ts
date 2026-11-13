@@ -242,4 +242,5 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'configuration sessions.markAsDoneConfetti',
 	'configuration sessions.useWorktree',
 	'singleton sessionAttentionService',
+	'accessibleView sessions-list-notification help priority 110 when sessionsListNotificationFocused',
 ];
