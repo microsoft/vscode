@@ -15,6 +15,7 @@ import { IRequestContext } from '../../../../../../base/parts/request/common/req
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { FileOperationError, FileOperationResult, IFileContent, IFileService } from '../../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { INotificationService, NotificationMessage } from '../../../../../../platform/notification/common/notification.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
@@ -33,6 +34,7 @@ suite('EmbeddedMarketplaceDetail', () => {
 			readonly repair?: (resource: ICustomizationMarketplaceResource) => Promise<void>;
 			readonly runPrompt?: (prompt: string) => Promise<void>;
 			readonly installState?: CustomizationMarketplaceInstallState;
+			readonly files?: ReadonlyMap<string, string>;
 		} = {},
 	) {
 		const parent = DOM.append(document.body, DOM.$('.embedded-marketplace-detail-test'));
@@ -82,6 +84,18 @@ suite('EmbeddedMarketplaceDetail', () => {
 					res: { statusCode: 200, headers: {} },
 					stream: bufferToStream(VSBuffer.fromString(readmeContent ?? '')),
 				};
+			}
+		}());
+		instantiationService.stub(IFileService, new class extends mock<IFileService>() {
+			override async readFile(resource: URI): Promise<IFileContent> {
+				const content = actions.files?.get(resource.toString());
+				if (content === undefined) {
+					throw new FileOperationError('Not found', FileOperationResult.FILE_NOT_FOUND);
+				}
+				const value = VSBuffer.fromString(content);
+				return new class extends mock<IFileContent>() {
+					override readonly value = value;
+				}();
 			}
 		}());
 		const detail = store.add(instantiationService.createInstance(EmbeddedMarketplaceDetail, parent, {
@@ -464,4 +478,31 @@ suite('EmbeddedMarketplaceDetail', () => {
 			requestCount: 1,
 		});
 	});
+
+	for (const exists of [true, false]) {
+		test(`reads ${exists ? 'the' : 'a missing'} README of a plugin from a cloned git marketplace`, async () => {
+			const readmeUri = URI.file('/agent-plugins/example/plugins/my-plugin/README.md');
+			const { parent, getRequestCount } = render({
+				sourceId: 'test',
+				identifier: 'my-plugin',
+				displayName: 'My Plugin',
+				description: 'Repro plugin',
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				tags: [],
+				capabilities: [],
+				representativeQueries: [],
+				readmeUri,
+			}, undefined, { files: new Map(exists ? [[readmeUri.toString(), '# my-plugin\n\nThis README should appear.']] : []) });
+
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				readme: parent.querySelector('.plugin-detail-readme-content')?.textContent,
+				requestCount: getRequestCount(),
+			}, {
+				readme: exists ? 'my-plugin\nThis README should appear.' : 'No README was provided for this plugin.',
+				requestCount: 0,
+			});
+		});
+	}
 });

@@ -71,6 +71,21 @@ export class PluginReadmeRenderGuard {
 	}
 }
 
+/**
+ * Reads a plugin README from a `file` or `vscode-remote` URI. Returns `undefined` when the file does not exist.
+ */
+export async function readPluginReadmeFile(readmeUri: URI, fileService: Pick<IFileService, 'readFile'>): Promise<IPluginReadme | undefined> {
+	try {
+		const content = await fileService.readFile(readmeUri);
+		return { content: content.value.toString(), baseUri: readmeUri };
+	} catch (error) {
+		if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
 export async function loadPluginReadme(
 	item: IAgentPluginItem,
 	fileService: Pick<IFileService, 'readFile'>,
@@ -83,15 +98,7 @@ export async function loadPluginReadme(
 		return undefined;
 	}
 	if (readmeUri.scheme === Schemas.file || readmeUri.scheme === Schemas.vscodeRemote) {
-		try {
-			const content = await fileService.readFile(readmeUri);
-			return { content: content.value.toString(), baseUri: readmeUri };
-		} catch (error) {
-			if (error instanceof FileOperationError && error.fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
-				return undefined;
-			}
-			throw error;
-		}
+		return readPluginReadmeFile(readmeUri, fileService);
 	}
 	if (readmeUri.scheme === Schemas.https) {
 		let fetchedUri = readmeUri;

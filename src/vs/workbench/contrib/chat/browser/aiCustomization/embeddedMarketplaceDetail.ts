@@ -22,12 +22,14 @@ import { localize } from '../../../../../nls.js';
 import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceResource } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { asTextOrError, IRequestService } from '../../../../../platform/request/common/request.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { CustomizationMarketplaceInstallState, ICustomizationMarketplaceInstallService } from '../../common/customizationMarketplaceInstallService.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
+import { IPluginReadme, readPluginReadmeFile } from './embeddedAgentPluginDetail.js';
 
 const $ = DOM.$;
 const maxRepresentativeQueries = 3;
@@ -82,6 +84,7 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IRequestService private readonly requestService: IRequestService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 		this.root = DOM.append(parent, $('article.ai-customization-embedded-detail.embedded-marketplace-detail'));
@@ -555,6 +558,12 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 			if (!this.isCurrent(resource, generation)) {
 				return;
 			}
+			if (!readme) {
+				DOM.clearNode(this.readmeContentEl);
+				DOM.append(this.readmeContentEl, $('.plugin-detail-readme-message')).textContent = localize('marketplaceDetail.readmeMissing', "No README was provided for this plugin.");
+				this._onDidChangeContent.fire();
+				return;
+			}
 			this.renderReadmeContent(readme.content, readme.baseUri);
 			this._onDidChangeContent.fire();
 		}, error => {
@@ -567,7 +576,11 @@ export class EmbeddedMarketplaceDetail extends Disposable {
 		});
 	}
 
-	private async loadReadme(readmeUri: URI, token: CancellationToken): Promise<{ readonly content: string; readonly baseUri: URI }> {
+	private async loadReadme(readmeUri: URI, token: CancellationToken): Promise<IPluginReadme | undefined> {
+		// Plugins in git marketplaces not hosted on GitHub point into the local clone of the marketplace
+		if (readmeUri.scheme === Schemas.file || readmeUri.scheme === Schemas.vscodeRemote) {
+			return readPluginReadmeFile(readmeUri, this.fileService);
+		}
 		if (readmeUri.scheme !== Schemas.https) {
 			throw new Error(`Unsupported marketplace README scheme: ${readmeUri.scheme}`);
 		}
