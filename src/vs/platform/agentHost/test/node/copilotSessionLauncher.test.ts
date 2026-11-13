@@ -16,6 +16,7 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
+import { ICopilotApiService, type IRestrictedTelemetryContext } from '../../node/shared/copilotApiService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { PluginFormat, toParsedAgent, type IMcpServerDefinition, type IParsedRule } from '../../../agentPlugins/common/pluginParsers.js';
 import { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
@@ -1395,7 +1396,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat, onDidChangeModels: emitter.event };
+		return { chat, onDidChangeModels: emitter.event, onDidDelta: Event.None };
 	}
 
 	/** A fake proxy handle plus a `startProxy` thunk that records its call count. */
@@ -1439,7 +1440,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		// A window connected without a BYOK handler never pushes, so it stays
 		// non-serving and contributes no models.
-		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None });
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None, onDidDelta: Event.None });
 		const proxy = countingProxy();
 
 		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -1552,6 +1553,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const registration = registry.register('client-1', {
 			chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 			onDidChangeModels: emitter.event,
+			onDidDelta: Event.None,
 		});
 		const proxy = countingProxy();
 
@@ -1670,7 +1672,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event };
+		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event, onDidDelta: Event.None };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
@@ -1885,7 +1887,7 @@ suite('CopilotSessionLauncher Connectors', () => {
 				warnings: logService.warnings.map(warning => warning.message),
 			}, {
 				adopted: scenario !== 'disabled',
-				featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
+				featureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: scenario !== 'disabled', TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false, ...(scenario === 'disabled' ? {} : { MANAGED_MCP_SERVERS: true }) },
 				connectorCalls: scenario === 'disabled' ? []
 					: scenario === 'unsupported' ? ['capabilities']
 						: scenario === 'noAccount' ? ['capabilities', 'account']
@@ -2545,7 +2547,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				createLargeOutput: { maxSizeBytes: 20480 },
 				createManagedSettings: { permissions: managedSettingsPermissions },
 				createStrictModelEnforcement: undefined,
-				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: true },
+				createFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: true, SECURITY_REVIEW_FINE_TUNED_MODEL: false },
 				createStreaming: true,
 				createEnableSessionStore: true,
 				createRequestExtensions: true,
@@ -2580,7 +2582,7 @@ suite('CopilotSessionLauncher shared session config', () => {
 				resumeLargeOutput: { maxSizeBytes: 20480 },
 				resumeManagedSettings: { permissions: managedSettingsPermissions },
 				resumeStrictModelEnforcement: undefined,
-				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: true },
+				resumeFeatureFlags: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: true, SECURITY_REVIEW_FINE_TUNED_MODEL: false },
 				resumeStreaming: true,
 				resumeEnableSessionStore: true,
 				resumeRequestExtensions: true,
@@ -3885,9 +3887,14 @@ suite('CopilotSessionLauncher resume config', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Builds a launcher over a config service stubbed with a fixed root-value bag. */
-	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string)): CopilotSessionLauncher {
+	function createLauncher(store: DisposableStore, values: SchemaValues<typeof copilotCliConfigSchema.definition> & Record<string, unknown>, fileContents?: string | (() => string), isInternalAccount?: (token: string) => Promise<boolean>): CopilotSessionLauncher {
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
+		if (isInternalAccount) {
+			services.set(ICopilotApiService, upcastPartial<ICopilotApiService>({
+				resolveRestrictedTelemetryContext: async token => upcastPartial<IRestrictedTelemetryContext>({ isInternal: await isInternalAccount(token) }),
+			}));
+		}
 		services.set(ICopilotHomeService, { _serviceBrand: undefined, home: URI.file('/copilot-home'), source: 'userHome' });
 		services.set(IByokLmBridgeRegistry, new ByokLmBridgeRegistry());
 		services.set(IAgentHostManagedSettingsService, store.add(new AgentHostManagedSettingsService()));
@@ -4142,6 +4149,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			CONTENT_EXCLUSION: true,
 			DETACH_LONG_LIVED_SERVICES: true,
 			copilot_swe_agent_memory_in_repo_store: false,
+			SECURITY_REVIEW_FINE_TUNED_MODEL: false,
 			...hydraFusionFeatureFlags,
 		};
 
@@ -4242,8 +4250,30 @@ suite('CopilotSessionLauncher resume config', () => {
 			disabled: disabled.featureFlags,
 			enabled: enabled.featureFlags,
 		}, {
-			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false },
-			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+			disabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false },
+			enabled: { ...catalogInstallationFeatureFlags, AUTO_APPROVAL: true, MCP_SKILLS: true, CONNECTORS: false, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, ...hydraFusionFeatureFlags, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false, STABILITY_ORDERED_SYSTEM_PROMPT_V2: true },
+		});
+	});
+
+	test('sends the security-review secret detection flag only for an opted-in internal account', async () => {
+		const store = disposables.add(new DisposableStore());
+		const opted = { [CopilotCliConfigKey.SecurityReviewSecretDetection]: true };
+		const flag = async (values: Record<string, unknown>, isInternalAccount?: (token: string) => Promise<boolean>) =>
+			(await buildResumeConfig(createLauncher(store, values, undefined, isInternalAccount), { id: 'gpt-5' })).featureFlags?.SECURITY_REVIEW_FINE_TUNED_MODEL;
+		const checkedTokens: string[] = [];
+
+		assert.deepStrictEqual({
+			notOptedIn: await flag({}, async () => true),
+			internal: await flag(opted, async token => { checkedTokens.push(token); return true; }),
+			external: await flag(opted, async () => false),
+			lookupFailed: await flag(opted, async () => { throw new Error('offline'); }),
+			checkedTokens,
+		}, {
+			notOptedIn: false,
+			internal: true,
+			external: false,
+			lookupFailed: false,
+			checkedTokens: ['token'],
 		});
 	});
 

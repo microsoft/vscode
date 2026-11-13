@@ -68,7 +68,8 @@ function escapeLeadingMarkdownBlockSyntax(value: string): string {
 }
 
 export interface IChatQuestionCarouselOptions {
-	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
+	/** `byUser` is `true` only when the person submitted or dismissed the carousel themselves. */
+	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined, byUser?: boolean) => void;
 	onDidDismiss?: (answers: ReadonlyMap<string, IChatQuestionAnswerValue>) => void;
 	dismissLabel?: string;
 	submissionAcknowledgement?: {
@@ -345,7 +346,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		interactiveStore.add(maximizeButton.onDidClick(() => this.toggleMaximized()));
 
 		if (this._skipAllButton) {
-			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
+			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore(true)));
 		}
 
 		// Capture phase, because buttons consume Escape themselves and would otherwise leave the card maximized.
@@ -377,7 +378,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (event.keyCode === KeyCode.Escape && this.carousel.allowSkip) {
 				e.preventDefault();
 				e.stopPropagation();
-				this.ignore();
+				this.ignore(true);
 			} else if (event.keyCode === KeyCode.Enter && (event.metaKey || event.ctrlKey)) {
 				// Cmd/Ctrl+Enter submits immediately from anywhere
 				e.preventDefault();
@@ -557,7 +558,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (!this.validateRequiredFields()) {
 				return;
 			}
-			this._options.onSubmit(this._answers);
+			this._options.onSubmit(this._answers, true);
 			this.hideAndShowSummary();
 		}
 	}
@@ -573,7 +574,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (!this.validateRequiredFields()) {
 			return;
 		}
-		this._options.onSubmit(this._answers);
+		this._options.onSubmit(this._answers, true);
 		this.hideAndShowSummary();
 	}
 
@@ -720,8 +721,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns undefined to signal the carousel was ignored.
 	 *
 	 * Guarded on `carousel.isUsed` for the same reason as {@link skip}.
+	 *
+	 * @param byUser Whether the person dismissed the carousel themselves, rather than it being dismissed for them.
 	 */
-	public ignore(): boolean {
+	public ignore(byUser = false): boolean {
 		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
@@ -729,7 +732,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._options.onDidDismiss?.(new Map(this._answers));
 		this._isSkipped = true;
 
-		this._options.onSubmit(undefined);
+		this._options.onSubmit(undefined, byUser);
 
 		// Dispose interactive UI and clear DOM
 		this.clearInteractiveResources();

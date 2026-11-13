@@ -18,7 +18,7 @@ import { IAccessibilityService } from '../../../../../../platform/accessibility/
 import { IMenu, IMenuService, MenuId, MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { LocalSelectionTransfer } from '../../../../../../platform/dnd/browser/dnd.js';
-import { DraggedSessionIdentifier, getSessionChatDragData, SessionsDataTransfers } from '../../../browser/dnd.js';
+import { DraggedSessionIdentifier, getSessionChatDragData, registerSessionChatDragEndHandler, SessionsDataTransfers } from '../../../browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../../browser/dnd.js';
 import { IEditorIdentifier } from '../../../../../common/editor.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
@@ -255,6 +255,40 @@ suite('Sessions - Headers', () => {
 			session: session.sessionId,
 			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
 		});
+	});
+
+	test('a header that drags the editor of its chat carries the session and its chat from anywhere but its toolbar, which keeps the mouse', () => {
+		const { header, session, mainChat } = createHarness(disposables);
+		header.setDragsEditor(true);
+		const titleActions = header.element.querySelector<HTMLElement>('.chat-composite-bar-title-actions')!;
+
+		const fromToolbar = simulateDragFrom(header, titleActions);
+		const fromHeader = simulateDragFrom(header, header.element);
+
+		assert.deepStrictEqual({
+			toolbarPrevented: fromToolbar.defaultPrevented,
+			headerPrevented: fromHeader.defaultPrevented,
+			session: JSON.parse(fromHeader.dataTransfer!.getData(SessionsDataTransfers.SESSION) || '{}').sessionId,
+			chat: getSessionChatDragData(fromHeader),
+		}, {
+			toolbarPrevented: true,
+			headerPrevented: false,
+			session: session.sessionId,
+			chat: { sessionId: session.sessionId, resource: mainChat.resource.toString() },
+		});
+	});
+
+	test('the end of a drag of the header, that of the session or its chat, is handed to the session drag-out, and not when the header drags the editor of its chat', () => {
+		const ended: string[] = [];
+		disposables.add(registerSessionChatDragEndHandler(async (_e, _element, session) => { ended.push(session.sessionId); return true; }));
+		const { header, session } = createHarness(disposables);
+
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END, { bubbles: true }));
+		const sessionDrag = [...ended];
+		header.setDragsEditor(true);
+		header.element.dispatchEvent(new DragEvent(EventType.DRAG_END, { bubbles: true }));
+
+		assert.deepStrictEqual({ sessionDrag, afterEditorDrag: ended }, { sessionDrag: [session.sessionId], afterEditorDrag: [session.sessionId] });
 	});
 
 	test('a small pointer move over the title actions toolbar does not start a session drag', () => {

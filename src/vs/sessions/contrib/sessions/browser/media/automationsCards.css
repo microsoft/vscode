@@ -428,6 +428,23 @@
 	font-size: 12px;
 }
 
+.automations-cards-create-dropdown > .automations-cards-create-button,
+.automations-cards-create-dropdown > .automations-cards-state-create-button {
+	max-width: none;
+	margin-top: 0;
+	white-space: nowrap;
+}
+
+.automations-cards-state > .automations-cards-create-dropdown {
+	margin-top: var(--vscode-spacing-size120);
+}
+
+/* The header's flex row would otherwise leave the chevron shorter than the primary button. */
+.custom-view-header-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	height: auto;
+	align-self: stretch;
+}
+
 /* Loading and error states */
 .automations-cards-state {
 	display: flex;

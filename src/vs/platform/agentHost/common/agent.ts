@@ -18,6 +18,7 @@ import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentChatInputResponseMeta } from './meta/agentChatInputResponseMeta.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -341,6 +342,8 @@ export interface IAgentPluginInstallation extends IAgentPluginUninstallRequest {
 	readonly enabled?: boolean;
 	/** Effective activation in the exact live chat; absent before that chat is initialized. */
 	readonly effectiveEnabled?: boolean;
+	/** Explicit repository override; null inherits global state, absent means unavailable. */
+	readonly repositoryEnabled?: boolean | null;
 	readonly managedDesiredEnabled?: boolean;
 	/** Installed content, including disabled plugins. Never forward this as an additional plugin. */
 	readonly resource?: URI;
@@ -1682,6 +1685,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
+	/** Host-only raw MCP server name as configured, for MCP permission requests. */
+	readonly mcpServerName?: string;
+	/** Host-only raw MCP tool name, for MCP permission requests. */
+	readonly mcpToolName?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
 	readonly shellCommand?: string;
 	/**
@@ -2051,7 +2058,7 @@ export interface IAgent {
 	/** Uninstall a plugin through the provider that owns its installation state. */
 	uninstallPlugin?(request: IAgentPluginUninstallRequest, session?: URI, chat?: URI): Promise<void>;
 	/** Persists enablement at the requested scope, deriving the repository from the target chat. */
-	setPluginEnabled?(plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
+	setPluginEnabled?(plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void>;
 
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
@@ -2243,8 +2250,11 @@ export interface IAgent {
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void;
 
-	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
+	/**
+	 * Respond to a pending user input request from the SDK's ask_user tool. `context` attributes the response to a
+	 * person only when a client reported their own interaction; omit it for any response the host produces itself.
+	 */
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>, context?: IAgentChatInputResponseMeta): void;
 
 	// ---- Configuration and customizations ----------------------------------
 

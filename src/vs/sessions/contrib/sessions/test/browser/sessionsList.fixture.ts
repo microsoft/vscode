@@ -944,6 +944,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The pointer is over the vscode-docs workspace section header. It shows its hover background, a chevron in place of the folder icon, and its section actions on the right.'],
 	}),
+	SessionsList_ScheduledHoverActions: defineSessionsListFixture({
+		sessions: [{ id: 'scheduled', title: 'Clarify request', workspace: 'vscode', hasScheduledMessages: true }],
+		interaction: { hovered: { session: 'scheduled' } },
+	}, {
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The passive scheduled clock is hidden while the row actions are shown.'],
+	}),
+	SessionsList_ScheduledHoverActionsCompact: defineSessionsListFixture({
+		sessions: [{ id: 'scheduled', title: 'Clarify request', workspace: 'vscode', hasScheduledMessages: true }],
+		view: { width: 260, compact: true },
+		interaction: { hovered: { session: 'scheduled' } },
+	}, {
+		expectedVisualDescriptions: ['The narrow compact row hides its passive scheduled clock and shows its actions without clipping them.'],
+	}),
 	SessionsList_HoveredChat: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_SESSION],
 		view: { width: 340 },

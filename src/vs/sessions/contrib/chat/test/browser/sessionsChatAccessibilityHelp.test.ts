@@ -49,6 +49,7 @@ import { IsSessionsWindowContext } from '../../../../../workbench/common/context
 import { KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED } from '../../../../../workbench/contrib/webview/browser/webview.js';
 import { WebviewFindAccessibilityHelp } from '../../../../../workbench/contrib/webview/browser/webviewFindAccessibilityHelp.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } from '../../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
 import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -160,6 +161,37 @@ suite('SessionsChatAccessibilityHelp', () => {
 			});
 		});
 	}
+
+	test('documents native visuals only while this window renders them', () => {
+		const help = (nativeComponentsEnabled: boolean, aiDisabled = false) => {
+			const instantiation = store.add(new TestInstantiationService());
+			const configuration = new TestConfigurationService({ 'chat.disableAIFeatures': aiDisabled, [ChatConfiguration.NativeComponentsEnabled]: nativeComponentsEnabled });
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			stubContextKeyService(instantiation, configuration);
+			instantiation.stub(IChatEntitlementService, { sentiment: { hidden: false } });
+			instantiation.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
+			instantiation.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+			instantiation.stub(IAgentHostFilterService, { selectedHost: undefined });
+			instantiation.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
+			instantiation.stub(ISessionsHostLayoutService, {});
+			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiation)).provideContent();
+			return {
+				visuals: content.includes('vscode-ui code fence'),
+				sourceToggle: content.includes('Choose Show Source to toggle the original markup'),
+				textAlternative: content.includes('presents each visual as text'),
+				setting: content.includes(ChatConfiguration.NativeComponentsEnabled),
+				skill: content.includes('built-in /vscode-ui skill'),
+			};
+		};
+		const all = (documented: boolean) => ({ visuals: documented, sourceToggle: documented, textAlternative: documented, setting: documented, skill: documented });
+
+		const withoutRenderer = help(true);
+		store.add(registerChatNativeComponentsRenderer(upcastPartial<IChatNativeComponentsRenderer>({})));
+		assert.deepStrictEqual({ withoutRenderer, enabled: help(true), settingOff: help(false), aiDisabled: help(true, true) }, {
+			withoutRenderer: all(false), enabled: all(true), settingOff: all(false), aiDisabled: all(false),
+		});
+	});
 
 	for (const remotesEnabled of [false, true]) {
 		for (const manageEnabled of [undefined, false, true]) {
@@ -997,7 +1029,8 @@ suite('SessionsChatAccessibilityHelp', () => {
 		assert.deepStrictEqual({
 			listedInKindPills: content?.includes('Other integrated artifacts and references are listed in the Artifacts, References, Pull Requests or Issues pill'),
 			listedRowDetails: content?.includes('where Enter or Space opens the artifact\'s details and the row\'s Open action opens the resource'),
-			mainDetails: content?.includes('Enter or Space on a main pill opens an input-width details panel'),
+			mainOpens: content?.includes('Enter or Space on a main pill opens its resource'),
+			mainDetails: content?.includes('or a Details section when it has none, open an input-width details panel'),
 			runOnce: content?.includes('Actions below the lists run once'),
 			standingPermission: content?.includes('standing permission'),
 			turningOff: content?.includes('does not cancel work already started'),
@@ -1006,7 +1039,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			switchKeyboard: content?.includes('Space to change a switch'),
 			listKeyboard: content?.includes('arrow keys navigate list rows'),
 			oldActionsSegment: content?.includes('Actions button'),
-		}, { listedInKindPills: true, listedRowDetails: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
+		}, { listedInKindPills: true, listedRowDetails: true, mainOpens: true, mainDetails: true, runOnce: true, standingPermission: true, turningOff: true, sharedAutomation: true, enabledAutomation: true, switchKeyboard: true, listKeyboard: true, oldActionsSegment: false });
 	});
 
 	test('describes grouped artifact pills, their list navigation, and pinning', () => {
@@ -1027,10 +1060,11 @@ suite('SessionsChatAccessibilityHelp', () => {
 			grouped: content?.includes('they appear as one pill named by the integration'),
 			rows: content?.includes('Up and Down Arrow, Home and End move between artifacts'),
 			controls: content?.includes('Left and Right Arrow move between an artifact\'s controls'),
-			details: content?.includes('opens the artifact\'s details'),
+			opens: content?.includes('Enter or Space on the label opens the artifact\'s resource'),
+			details: content?.includes('offers a Details section that opens its details'),
 			pin: content?.includes('Pin moves the artifact into a pill of its own'),
 			escape: content?.includes('Escape closes the list and returns focus to the pill'),
-		}, { grouped: true, rows: true, controls: true, details: true, pin: true, escape: true });
+		}, { grouped: true, rows: true, controls: true, opens: true, details: true, pin: true, escape: true });
 	});
 
 	test('omits response-selection help when the widget is unsupported', () => {

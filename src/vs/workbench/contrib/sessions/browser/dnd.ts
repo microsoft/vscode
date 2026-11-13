@@ -7,10 +7,10 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { stringHash } from '../../../../base/common/hash.js';
-import { CodeDataTransfers, DraggedChatReferenceIdentifier, fillInChatReferenceDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
-import { isHTMLElement } from '../../../../base/browser/dom.js';
-import { getInputDropTargetClipPath, isInputDropTarget } from '../../../browser/dnd.js';
-import { ISession } from '../../../services/sessions/common/session.js';
+import { fillInChatReferenceDragData, LocalSelectionTransfer } from '../../../../platform/dnd/browser/dnd.js';
+import { IChat, ISession } from '../../../services/sessions/common/session.js';
+import { isAgentHostProvider } from '../common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from './sessionsProvidersService.js';
 
 /**
  * Code data transfer mime types specific to the Agents window.
@@ -23,20 +23,6 @@ export const SessionsDataTransfers = {
 	/** Marks a chat dragged from a standalone pane, readable during dragover. */
 	DETACHED_CHAT: 'application/vnd.code.session.chat.detached',
 };
-
-/** Attachment inputs take precedence over grid placement for chat references. */
-export function isChatReferenceInputDrop(event: DragEvent): boolean {
-	return !!event.dataTransfer?.types.includes(CodeDataTransfers.CHAT_REFERENCE)
-		&& isHTMLElement(event.target) && isInputDropTarget(event.target, event);
-}
-
-/** Leave composer inputs outside the placement overlay's pointer hit region. */
-export function getChatReferenceDropClipPath(container: HTMLElement, event: DragEvent): string {
-	if (!event.dataTransfer?.types.includes(CodeDataTransfers.CHAT_REFERENCE)) {
-		return '';
-	}
-	return getInputDropTargetClipPath(container);
-}
 
 /** Keep a small drag-free buffer beside the pane's resize boundaries. */
 export function isSessionDragFromPaneEdge(element: HTMLElement, event: MouseEvent): boolean {
@@ -150,25 +136,16 @@ export function getSessionChatDragData(e: DragEvent): IDraggedSessionChat | unde
 }
 
 /**
- * Shared local transfer for an in-process chat-reference drag. Unlike the
- * `dataTransfer` mime payload it is readable during `dragover`, so the drop
- * target can gate the overlay (e.g. suppress it for a self-reference) before the
- * drop lands.
- */
-const chatReferenceTransfer = LocalSelectionTransfer.getInstance<DraggedChatReferenceIdentifier>();
-
-/**
- * Attach a chat-reference payload to a drag started from a chat tab in the
- * Agents window, so it can be dropped into an agent-host chat input to insert an
- * inline `#chat:<title>` reference. The payload carries both the opaque
+ * Attach a chat-reference payload to a drag that stands for a chat in the
+ * Agents window, such as of its tab, so it can be dropped into an agent-host
+ * chat input to insert an inline `#chat:<title>` reference. The payload carries both the opaque
  * {@link chatResource backend chat URI} — forwarded verbatim into the reference
  * entry — and the {@link clientResource client chat resource} used only for
  * identity comparison, plus the display title. The payload is transient (never
  * persisted), so carrying both resources is fine.
  *
- * Populates both the `dataTransfer` mime payload (read on drop) and an in-process
- * {@link LocalSelectionTransfer} (readable during `dragover`). Callers MUST pair
- * this with {@link clearChatReferenceDragData} on `dragend`.
+ * The payload is also readable during `dragover`, see {@link fillInChatReferenceDragData}.
+ * Callers MUST pair this with `clearChatReferenceDragData` on `dragend`.
  *
  * @param e The in-progress drag event to fill.
  * @param chatResource The referenced chat's opaque backend chat URI (the value
@@ -180,19 +157,21 @@ const chatReferenceTransfer = LocalSelectionTransfer.getInstance<DraggedChatRefe
  */
 export function fillChatReferenceDragData(e: DragEvent, chatResource: URI, clientResource: URI, title: string): void {
 	const collapsedTitle = title.replace(/\s+/g, ' ').trim();
-	const chatResourceString = chatResource.toString();
-	const clientResourceString = clientResource.toString();
-	fillInChatReferenceDragData({ chatResource: chatResourceString, clientResource: clientResourceString, title: collapsedTitle }, e);
-	chatReferenceTransfer.setData([new DraggedChatReferenceIdentifier(chatResourceString, clientResourceString, collapsedTitle)], DraggedChatReferenceIdentifier.prototype);
+	fillInChatReferenceDragData({ chatResource: chatResource.toString(), clientResource: clientResource.toString(), title: collapsedTitle }, e);
 }
 
 /**
- * Clears the in-process chat-reference local transfer set by
- * {@link fillChatReferenceDragData}. Call on `dragend` so a stale reference does
- * not leak into a later, unrelated drag.
+ * Attach a reference to `chat` of `session` to a drag that stands for the chat, such as of its tab or of its session's
+ * row in the sessions list, see {@link fillChatReferenceDragData}. The reference needs the opaque backend chat URI, which
+ * only the owning agent-host provider knows: where it is unavailable (not agent-host backed, or state not yet hydrated),
+ * the drag simply carries no reference.
  */
-export function clearChatReferenceDragData(): void {
-	chatReferenceTransfer.clearData(DraggedChatReferenceIdentifier.prototype);
+export function fillSessionChatReferenceDragData(e: DragEvent, session: ISession, chat: IChat, sessionsProvidersService: ISessionsProvidersService): void {
+	const provider = sessionsProvidersService.getProvider(session.providerId, session.sessionId);
+	const backendChatResource = provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
+	if (backendChatResource) {
+		fillChatReferenceDragData(e, backendChatResource, chat.resource, chat.title.get());
+	}
 }
 
 /**

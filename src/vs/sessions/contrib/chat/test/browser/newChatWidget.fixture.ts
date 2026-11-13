@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -96,6 +96,9 @@ import { IWorktreeSuggestionService } from '../../../../../workbench/contrib/ses
 import { NullWorktreeSuggestionService } from '../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionDraftsService, SessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
+import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatModelSource, IChat, ISession, ISessionWorkspace, ISessionType, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, SessionTypeAuthRequirement } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -470,6 +473,8 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 	const sessionsService = new class extends mock<ISessionsService>() {
 		override readonly initialRestoreComplete = constObservable(true);
 		readonly activeSession = activeSessionObservable;
+		override registerSavedDraftOpener() { return Disposable.None; }
+		override setCurrentDraftId() { }
 	}();
 	const configurationService = new TestConfigurationService({
 		// Editor settings the composer's chat widget reads.
@@ -622,6 +627,9 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 			reg.defineInstance(ISearchService, new class extends mock<ISearchService>() { }());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessionTypes = Event.None;
+				override readonly onDidSendRequest = Event.None;
+				override readonly onDidEndNewSessionRequest = Event.None;
+				override readonly onDidReplaceNewDraftSession = Event.None;
 				override isQuickChatTargetAvailable(): boolean { return false; }
 				override getAllProviderSessionTypes() {
 					return activeSession ? sessionTypes.map(sessionType => ({ providerId: provider.id, sessionType })) : [];
@@ -634,6 +642,16 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 				override readonly comparisons = constObservable([]);
 			}());
 			reg.defineInstance(ISessionsService, sessionsService);
+			reg.define(ISessionDraftsService, SessionDraftsService);
+			reg.defineInstance(ISessionGroupsService, new class extends mock<ISessionGroupsService>() {
+				override getPendingNewSessionGroup() { return undefined; }
+			}());
+			reg.defineInstance(IScheduledChatsService, new class extends mock<IScheduledChatsService>() {
+				override readonly enabled = constObservable(false);
+				override readonly availableProviders = constObservable([]);
+				override canSchedule() { return false; }
+				override assertUnscheduled() { }
+			}());
 			reg.defineInstance(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
 				override readonly onDidChangeProviders = Event.None;
 				override getProviders() { return activeSession ? [provider] : []; }
@@ -914,6 +932,7 @@ async function renderNewChatWidget(context: ComponentFixtureContext, options: IN
 		session: activeSessionObservable,
 	}));
 	sessionViewContent.appendChild(view.element);
+	view.setVisible(true);
 	view.layout(width, height, 0, 0);
 	const targetWindow = dom.getWindow(container);
 	const nextFrame = () => new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => resolve()));
@@ -2045,12 +2064,14 @@ function createFixtureActiveSession(workspace: ISessionWorkspace, sessionType: I
 		override readonly sessionId = 'fixture-session';
 		override readonly providerId = providerId;
 		override readonly sessionType = sessionType.id;
+		override readonly application = constObservable({ id: 'fixture', label: 'Fixture' });
 		override readonly status = constObservable(SessionStatus.Untitled);
 		override readonly isCreated = constObservable(false);
 		override readonly loading = constObservable(false);
 		override readonly workspace = constObservable(workspace);
 		override readonly branch = constObservable<string | undefined>('main');
 		override readonly modelId = constObservable<string | undefined>(undefined);
+		override readonly mode = constObservable(undefined);
 		override readonly mainChat = constObservable(activeChat);
 		override readonly activeChat = constObservable(activeChat);
 	}();

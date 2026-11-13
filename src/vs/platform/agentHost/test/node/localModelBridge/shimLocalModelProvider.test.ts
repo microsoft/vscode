@@ -322,6 +322,7 @@ const proxyResolver: IAgentHostProxyResolver = {
 	notifySharedNetworkClientChanged: () => { },
 	lookupClientKerberosAuthorization: async () => undefined,
 	lookupKerberosAuthorization: async () => undefined,
+	lookupBasicAuthorization: async () => undefined,
 	getConfigurationValue: () => undefined,
 	resolveProxy: async () => undefined,
 	resolveProxyByURL: async () => ({ url: undefined, type: 'DIRECT', source: 'remote', result: 'DIRECT' }),
