@@ -828,35 +828,32 @@ suite('stateToProgressAdapter', () => {
 			]);
 		});
 
-		test('shows a shell authentication command as written, without rendering its Markdown or theme icons', () => {
+		test('keeps a shell authentication command as written, in plain text rather than Markdown', () => {
 			const command = 'sudo -A chown $(whoami) /tmp/x <<\'EOF\'\n\n# Approved by your admin\n[details](https://example.com)\nEOF';
-			const { message } = createShellAuthenticationCarousel('shell-auth', { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command });
-			assert.ok(message && typeof message !== 'string');
-			const rendered = store.add(renderMarkdown(message, getChatMarkdownRenderOptions()));
+			const carousel = createShellAuthenticationCarousel('shell-auth', { program: 'sudo', prompt: '[sudo] password for dev:', inputKind: 'secret', command });
+			const [question] = carousel.questions;
 			assert.deepStrictEqual({
-				label: rendered.element.querySelector('p')?.textContent,
-				command: rendered.element.querySelector('pre code')?.textContent,
-				headings: rendered.element.querySelectorAll('h1').length,
-				links: rendered.element.querySelectorAll('a').length,
-				icons: rendered.element.querySelectorAll('.codicon').length,
+				context: question.context,
+				message: carousel.message,
+				questionMessage: question.message,
+				detailedMessage: question.detailedMessage,
 			}, {
-				label: 'Command:',
-				command: `${command}\n`,
-				headings: 0,
-				links: 0,
-				icons: 0,
+				context: `Command:\n${command}`,
+				message: undefined,
+				questionMessage: undefined,
+				detailedMessage: undefined,
 			});
 		});
 
 		test('says an answer is kept out of the chat only for a secret', () => {
-			const details = (['secret', 'text', 'confirm'] as const).map(inputKind => {
+			const notes = (['secret', 'text', 'confirm'] as const).map(inputKind => {
 				const [question] = createShellAuthenticationCarousel('shell-auth', { program: 'git', prompt: 'Username for \'https://example.com\': ', inputKind, command: 'git fetch' }).questions;
-				return typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage?.value;
+				return question.note && { icon: question.note.icon?.id, text: question.note.text };
 			});
-			assert.deepStrictEqual(details, [
-				'$(lock) Your answer goes only to `git` and isn\'t sent to the model or saved in the chat.',
-				'$(lock) Your answer goes only to `git` and isn\'t sent to the model.',
-				'$(lock) Your answer goes only to `git` and isn\'t sent to the model.',
+			assert.deepStrictEqual(notes, [
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model or saved in the chat.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
+				{ icon: 'lock', text: 'Your answer goes only to git and isn\'t sent to the model.' },
 			]);
 		});
 

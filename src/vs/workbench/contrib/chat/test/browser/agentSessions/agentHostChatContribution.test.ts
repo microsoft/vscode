@@ -12081,14 +12081,12 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 
 			assert.deepStrictEqual({
-				questions: carousel.questions.map(question => ({ type: question.type, password: question.password, required: question.required, title: question.title, description: question.description, details: typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage?.value })),
-				command: typeof carousel.message === 'string' ? carousel.message : carousel.message?.value,
+				questions: carousel.questions.map(question => ({ type: question.type, password: question.password, required: question.required, title: question.title, context: question.context, description: question.description, note: question.note && { icon: question.note.icon?.id, text: question.note.text } })),
 				answered,
 				completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).length,
 				stored: JSON.stringify(carousel.toJSON()).includes('private-password'),
 			}, {
-				questions: [{ type: 'text', password: true, required: true, title: 'sudo needs a password', description: '[sudo] password for dev:', details: '$(lock) Your answer goes only to `sudo` and isn\'t sent to the model or saved in the chat.' }],
-				command: 'Command:\n```\nsudo -A true\n```\n',
+				questions: [{ type: 'text', password: true, required: true, title: 'sudo needs a password', context: 'Command:\nsudo -A true', description: '[sudo] password for dev:', note: { icon: 'lock', text: 'Your answer goes only to sudo and isn\'t sent to the model or saved in the chat.' } }],
 				answered: [{ requestId: 'shell-auth', answer: 'private-password' }],
 				completions: 0,
 				stored: false,
@@ -12161,11 +12159,11 @@ suite('AgentHostChatContribution', () => {
 				await timeout(10);
 
 				assert.deepStrictEqual({
-					questions: carousel.questions.map(question => ({ type: question.type, password: question.password, options: question.options?.map(option => option.id), details: typeof question.detailedMessage === 'string' ? question.detailedMessage : question.detailedMessage?.value })),
+					questions: carousel.questions.map(question => ({ type: question.type, password: question.password, options: question.options?.map(option => option.id), note: question.note && { icon: question.note.icon?.id, text: question.note.text } })),
 					answered,
 					completions: agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action),
 				}, {
-					questions: [{ type: 'singleSelect', password: undefined, options: ['cancel'], details: '$(info) This connection can\'t send your answer privately, so you can only cancel the prompt here.' }],
+					questions: [{ type: 'singleSelect', password: undefined, options: ['cancel'], note: { icon: 'info', text: 'This connection can\'t send your answer privately, so you can only cancel the prompt here.' } }],
 					answered: [],
 					completions: [{ type: ActionType.ChatInputCompleted, requestId: 'shell-auth', response: ChatInputResponseKind.Cancel }],
 				});

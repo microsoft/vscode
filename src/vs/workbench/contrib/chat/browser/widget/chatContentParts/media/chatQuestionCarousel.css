@@ -108,12 +108,6 @@
 	outline-offset: -1px;
 }
 
-/* Inline text icons align to the baseline, as in chat responses. */
-.interactive-session .chat-question-carousel-container .chat-question-detailed-message .rendered-markdown .codicon {
-	position: relative;
-	top: 2px;
-}
-
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
 	.chat-question-carousel-content {
 		.chat-question-body-scrollable,
@@ -143,7 +137,8 @@
 	}
 
 	.chat-question-message + .chat-question-answers,
-	.chat-question-detailed-message + .chat-question-answers {
+	.chat-question-detailed-message + .chat-question-answers,
+	.chat-question-note + .chat-question-answers {
 		padding-top: 0;
 	}
 
@@ -421,6 +416,30 @@
 	flex-shrink: 0;
 	word-wrap: break-word;
 	overflow-wrap: break-word;
+}
+
+/* plain text shown as written before the description, such as a command */
+.interactive-session .chat-question-carousel-container .chat-question-context {
+	padding-top: 8px;
+	white-space: pre-wrap;
+}
+
+/* short note just above the answer */
+.interactive-session .chat-question-carousel-container .chat-question-note {
+	display: flex;
+	gap: 4px;
+	padding: 4px 16px 8px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+
+	.chat-question-note-icon {
+		flex-shrink: 0;
+		font-size: var(--vscode-codiconFontSize-compact);
+		line-height: inherit;
+	}
 }
 
 /* validation error message below input area */

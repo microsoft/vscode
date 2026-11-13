@@ -991,6 +991,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}
 
+		if (question.context) {
+			const contextEl = dom.$('.chat-question-description.chat-question-context');
+			contextEl.textContent = question.context;
+			bodyContent.appendChild(contextEl);
+		}
+
 		// Render description if present
 		if (question.description) {
 			const descriptionEl = dom.$('.chat-question-description');
@@ -1009,6 +1015,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const renderedDetailedMessage = questionRenderStore.add(this._markdownRenderer.render(detailedMd));
 			detailedMessageEl.appendChild(renderedDetailedMessage.element);
 			bodyContent.appendChild(detailedMessageEl);
+		}
+
+		if (question.note) {
+			const noteEl = dom.append(bodyContent, dom.$('.chat-question-note'));
+			if (question.note.icon) {
+				const icon = dom.append(noteEl, dom.$('span.chat-question-note-icon'));
+				icon.classList.add(...ThemeIcon.asClassNameArray(question.note.icon));
+				icon.setAttribute('aria-hidden', 'true');
+			}
+			dom.append(noteEl, dom.$('span', undefined, question.note.text));
 		}
 
 		// Render input based on question type

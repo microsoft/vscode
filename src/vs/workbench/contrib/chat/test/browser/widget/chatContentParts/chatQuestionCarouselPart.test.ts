@@ -7,6 +7,7 @@ import assert from 'assert';
 import { isSafari } from '../../../../../../../base/browser/browser.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -711,6 +712,28 @@ suite('ChatQuestionCarouselPart', () => {
 				options: [{ label: 'Yes', selected: false }, { label: 'No', selected: true }],
 				hasFreeform: false,
 				submitted: { selectedValue: 'false', freeformValue: undefined },
+			});
+		});
+
+		test('renders the context and note as plain text around the description and answer', () => {
+			const context = 'Command:\nsudo -A tee "$(whoami)" <<\'EOF\'\n\n# Heading\n[link](https://example.com) $(lock) <b>bold</b>\nEOF';
+			createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'sudo needs a password', context, description: 'Password:', note: { icon: Codicon.lock, text: 'Your answer goes only to sudo.' } }]));
+			const body = widget.domNode.querySelector('.chat-question-body-scrollable')!;
+			const contextElement = body.querySelector('.chat-question-context');
+			const note = body.querySelector('.chat-question-note');
+
+			assert.deepStrictEqual({
+				context: contextElement?.textContent,
+				contextElements: contextElement?.childElementCount,
+				note: note?.textContent,
+				noteIcon: [...note?.querySelectorAll('.codicon') ?? []].map(icon => ({ lock: icon.classList.contains('codicon-lock'), ariaHidden: icon.getAttribute('aria-hidden') })),
+				order: [...body.querySelectorAll('.chat-question-description, .chat-question-note, .chat-question-answers')].map(element => element.classList.contains('chat-question-context') ? 'context' : element.className),
+			}, {
+				context,
+				contextElements: 0,
+				note: 'Your answer goes only to sudo.',
+				noteIcon: [{ lock: true, ariaHidden: 'true' }],
+				order: ['context', 'chat-question-description', 'chat-question-note', 'chat-question-answers'],
 			});
 		});
 
