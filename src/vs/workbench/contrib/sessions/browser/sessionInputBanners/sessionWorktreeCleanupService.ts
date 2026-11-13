@@ -20,7 +20,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../platf
 import { ByteSize } from '../../../../../platform/files/common/files.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressService, IProgressStep, Progress, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { localize } from '../../../../../nls.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
@@ -889,12 +889,7 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 		onProgress?.({ state: 'started' });
 		const failures: string[] = [];
 		let failedWorktrees = 0;
-		await this.progressService.withProgress({
-			location: ProgressLocation.Notification,
-			title: worktreeCount === 1
-				? localize('worktreeCleanup.cleaning.one', "Scheduling cleanup for 1 agent session worktree...")
-				: localize('worktreeCleanup.cleaning.many', "Scheduling cleanup for {0} agent session worktrees...", worktreeCount),
-		}, async progress => {
+		const schedule = async (progress: IProgress<IProgressStep>) => {
 			let completedWorktrees = 0;
 			for (const candidate of selected) {
 				const id = getWorktreeCleanupId(candidate);
@@ -967,11 +962,21 @@ export class SessionWorktreeCleanupService extends Disposable implements ISessio
 				onProgress?.({ state: 'scheduled', candidate });
 				completedWorktrees += candidate.worktreeCount;
 				progress.report({
-					increment: candidate.worktreeCount / worktreeCount * 100,
-					message: localize('worktreeCleanup.cleaningProgress', "scheduled {0} of {1} worktrees", completedWorktrees, worktreeCount),
+					increment: candidate.worktreeCount,
+					message: localize('worktreeCleanup.cleaningProgress', "{0} of {1} worktrees scheduled", completedWorktrees, worktreeCount),
 				});
 			}
-		});
+		};
+		if (onProgress) {
+			await schedule(Progress.None);
+		} else {
+			await this.progressService.withProgress({
+				location: ProgressLocation.Notification,
+				title: localize('worktreeCleanup.cleaning', "Scheduling worktree cleanup..."),
+				total: worktreeCount,
+				delay: 300,
+			}, schedule);
+		}
 		this._lastScanAt = 0;
 		if (failures.length > 0) {
 			throw new Error(localize('worktreeCleanup.schedulingFailed', "Couldn't schedule cleanup for {0} worktrees.\n{1}", failedWorktrees, failures.join('\n')));

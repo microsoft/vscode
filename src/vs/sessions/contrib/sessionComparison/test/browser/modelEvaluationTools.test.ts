@@ -185,6 +185,13 @@ suite('ModelEvaluationTools', () => {
 		]);
 	});
 
+	test('keeps comparison IDs available for tools without encouraging them in user-facing replies', () => {
+		const fixture = setup();
+		for (const name of ['createModelComparison', 'listModelComparisons', 'readModelComparison'] as const) {
+			assert.match(fixture.tool(name).getToolData().modelDescription, /Keep comparisonId internal unless the user explicitly requests it; refer to comparisons by title in user-facing replies/, name);
+		}
+	});
+
 	test('disabling evaluator tools rejects all invocations including a previously prepared launch', async () => {
 		const fixture = setup();
 		const tool = fixture.tool('createModelComparison');

@@ -50,7 +50,7 @@ import { runWhenWindowIdle } from '../../../../base/browser/dom.js';
 import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { fixSettingLinks } from '../../preferences/common/preferencesModels.js';
 import { IExperimentalSettingsService } from '../common/experimentalSettings.js';
-import { isCancellationError } from '../../../../base/common/errors.js';
+import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	const isDefaultProfile = userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings;
@@ -219,39 +219,55 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	/**
-	 * Moves the single folder of this workspace to `location`, an alternate location of
-	 * `primary`, or back to `primary` when `location` is `undefined`. The workspace
-	 * identity (id, storage) is unchanged: only the folder's effective `uri` changes.
+	 * Moves the single folder of this workspace to `location`. Passing the workspace's `uri`
+	 * moves the folder back to its own location. The workspace identity (id, storage) is unchanged:
+	 * only the folder's effective `uri` changes.
+	 * `options.trusted` is the trust of the destination, which is applied before its settings are loaded
+	 * so that restricted settings are never applied while the destination is untrusted.
+	 * `options.isCurrent` is checked when the queued switch starts: a stale switch is skipped.
+	 * `options.onApplied` is called right after the switch was applied, before the next queued edit starts.
+	 * Resolves to whether the switch was not skipped.
 	 */
-	public setFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
-		return this.workspaceEditingQueue.queue(() => this.doSetFolderLocation(primary, location));
+	public setFolderLocation(location: URI, options?: { readonly trusted?: boolean; readonly isCurrent?: () => boolean; readonly onApplied?: () => void }): Promise<boolean> {
+		let applied = false;
+		return this.workspaceEditingQueue.queue(async () => {
+			if (options?.isCurrent && !options.isCurrent()) {
+				return;
+			}
+			await this.doSetFolderLocation(location, options?.trusted);
+			applied = true;
+			try {
+				options?.onApplied?.(); // runs while this switch still owns the queue, so no other switch can change the folder first
+			} catch (error) {
+				onUnexpectedError(error); // the switch was applied: a failing callback must not report it as failed
+			}
+		}).then(() => applied);
 	}
 
-	private async doSetFolderLocation(primary: URI, location: URI | undefined): Promise<void> {
+	private async doSetFolderLocation(location: URI, trusted: boolean | undefined): Promise<void> {
 		if (this.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			throw new Error('Folder locations are only supported in single-folder workspaces');
 		}
 
 		const folder = this.workspace.folders[0];
-		const currentPrimary = folder.primaryUri ?? folder.uri;
-		if (!this.uriIdentityService.extUri.isEqual(currentPrimary, primary)) {
-			throw new Error('The folder is not the primary location of the workspace folder');
-		}
-
-		const target = location && !this.uriIdentityService.extUri.isEqual(location, primary) ? location : undefined;
-		const currentLocation = folder.primaryUri ? folder.uri : undefined;
-		if (target === currentLocation || (target && currentLocation && this.uriIdentityService.extUri.isEqual(target, currentLocation))) {
+		if (this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
 			return; // already there
 		}
 
 		const workspace = new Workspace(
 			this.workspace.id,
-			[new WorkspaceFolder({ uri: target ?? primary, name: folder.name, index: 0, primaryUri: target ? primary : undefined }, { uri: (target ?? primary).toString() })],
+			[new WorkspaceFolder({ uri: location, name: folder.name, index: 0 }, { uri: location.toString() })],
 			false,
 			null,
-			uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+			uri => this.uriIdentityService.extUri.ignorePathCasing(uri),
+			undefined,
+			this.workspace.uri);
 		workspace.initialized = true;
-		await this.updateWorkspaceAndInitializeConfiguration(workspace, true);
+		if (trusted !== undefined) {
+			this.isWorkspaceTrusted = trusted;
+		}
+		// Keep session (memory) settings: the workspace is the same, only its folder location changed
+		await this.updateWorkspaceAndInitializeConfiguration(workspace, true, true, true);
 	}
 
 	public isInsideWorkspace(resource: URI): boolean {
@@ -268,7 +284,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 					folderUri = workspaceIdOrFolder.uri;
 				}
 
-				return URI.isUri(folderUri) && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.folders[0].primaryUri ?? this.workspace.folders[0].uri);
+				return URI.isUri(folderUri) && !!this.workspace.uri && this.uriIdentityService.extUri.isEqual(folderUri, this.workspace.uri);
 			}
 			case WorkbenchState.WORKSPACE:
 				return isWorkspaceIdentifier(workspaceIdOrFolder) && this.workspace.id === workspaceIdOrFolder.id;
@@ -574,7 +590,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		const workspaceConfigPath = workspaceIdentifier.configPath;
 		const workspaceFolders = toWorkspaceFolders(this.workspaceConfiguration.getFolders(), workspaceConfigPath, this.uriIdentityService.extUri);
 		const workspaceId = workspaceIdentifier.id;
-		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(workspaceId, workspaceFolders, this.workspaceConfiguration.isTransient(), workspaceConfigPath, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), undefined);
 		workspace.initialized = this.workspaceConfiguration.initialized;
 		return workspace;
 	}
@@ -582,9 +598,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	private createSingleFolderWorkspace(singleFolderWorkspaceIdentifier: ISingleFolderWorkspaceIdentifier, folderLocation?: URI): Workspace {
 		const primaryFolder = toWorkspaceFolder(singleFolderWorkspaceIdentifier.uri);
 		const folder = folderLocation && !this.uriIdentityService.extUri.isEqual(folderLocation, primaryFolder.uri)
-			? new WorkspaceFolder({ uri: folderLocation, name: primaryFolder.name, index: 0, primaryUri: primaryFolder.uri }, { uri: folderLocation.toString() })
+			? new WorkspaceFolder({ uri: folderLocation, name: primaryFolder.name, index: 0 }, { uri: folderLocation.toString() })
 			: primaryFolder;
-		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [folder], false, null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri));
+		const workspace = new Workspace(singleFolderWorkspaceIdentifier.id, [folder], false, null, uri => this.uriIdentityService.extUri.ignorePathCasing(uri), undefined, singleFolderWorkspaceIdentifier.uri);
 		workspace.initialized = true;
 		return workspace;
 	}
@@ -602,7 +618,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		}
 	}
 
-	private async updateWorkspaceAndInitializeConfiguration(workspace: Workspace, trigger: boolean): Promise<void> {
+	private async updateWorkspaceAndInitializeConfiguration(workspace: Workspace, trigger: boolean, preserveMemory: boolean = false, isFolderLocationChange: boolean = false): Promise<void> {
 		const hasWorkspaceBefore = !!this.workspace;
 		let previousState: WorkbenchState | undefined;
 		let previousWorkspacePath: string | undefined;
@@ -617,7 +633,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			this.workspace = workspace;
 		}
 
-		await this.initializeConfiguration(trigger);
+		await this.initializeConfiguration(trigger, preserveMemory);
 
 		// Trigger changes after configuration initialization so that configuration is up to date.
 		if (hasWorkspaceBefore) {
@@ -633,7 +649,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 			const folderChanges = this.compareFolders(previousFolders, this.workspace.folders);
 			if (folderChanges && (folderChanges.added.length || folderChanges.removed.length || folderChanges.changed.length)) {
-				await this.handleWillChangeWorkspaceFolders(folderChanges, false);
+				await this.handleWillChangeWorkspaceFolders(folderChanges, false, isFolderLocationChange);
 				this._onDidChangeWorkspaceFolders.fire(folderChanges);
 			}
 		}
@@ -662,7 +678,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return result;
 	}
 
-	private async initializeConfiguration(trigger: boolean): Promise<void> {
+	private async initializeConfiguration(trigger: boolean, preserveMemory: boolean = false): Promise<void> {
 		await this.defaultConfiguration.initialize();
 
 		const initPolicyConfigurationPromise = this.policyConfiguration.initialize();
@@ -685,7 +701,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		]);
 
 		mark('code/willInitWorkspaceConfiguration');
-		await this.loadConfiguration(application, local, remote, trigger);
+		await this.loadConfiguration(application, local, remote, trigger, preserveMemory);
 		mark('code/didInitWorkspaceConfiguration');
 	}
 
@@ -742,7 +758,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return this.onWorkspaceFolderConfigurationChanged(folder);
 	}
 
-	private async loadConfiguration(applicationConfigurationModel: ConfigurationModel, userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel, trigger: boolean): Promise<void> {
+	private async loadConfiguration(applicationConfigurationModel: ConfigurationModel, userConfigurationModel: ConfigurationModel, remoteUserConfigurationModel: ConfigurationModel, trigger: boolean, preserveMemory: boolean = false): Promise<void> {
 		// reset caches
 		this.cachedFolderConfigs.clearAndDisposeAll();
 
@@ -754,7 +770,9 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		folderConfigurations.forEach((folderConfiguration, index) => folderConfigurationModels.set(folders[index].uri, folderConfiguration));
 
 		const currentConfiguration = this._configuration;
-		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, ConfigurationModel.createEmptyModel(this.logService), new ResourceMap<ConfigurationModel>(), this.workspace, this.logService);
+		const memoryConfiguration = preserveMemory ? currentConfiguration.memoryConfiguration : ConfigurationModel.createEmptyModel(this.logService);
+		const memoryConfigurationByResource = preserveMemory ? currentConfiguration.memoryConfigurationByResource : new ResourceMap<ConfigurationModel>();
+		this._configuration = new Configuration(this.defaultConfiguration.configurationModel, this.policyConfiguration.configurationModel, applicationConfigurationModel, userConfigurationModel, remoteUserConfigurationModel, workspaceConfiguration, folderConfigurationModels, memoryConfiguration, memoryConfigurationByResource, this.workspace, this.logService);
 
 		this.initialized = true;
 
@@ -969,14 +987,15 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		this.updateRestrictedSettings();
 	}
 
-	private async handleWillChangeWorkspaceFolders(changes: IWorkspaceFoldersChangeEvent, fromCache: boolean): Promise<void> {
+	private async handleWillChangeWorkspaceFolders(changes: IWorkspaceFoldersChangeEvent, fromCache: boolean, isFolderLocationChange?: boolean): Promise<void> {
 		const joiners: Promise<void>[] = [];
 		this._onWillChangeWorkspaceFolders.fire({
 			join(updateWorkspaceTrustStatePromise) {
 				joiners.push(updateWorkspaceTrustStatePromise);
 			},
 			changes,
-			fromCache
+			fromCache,
+			isFolderLocationChange
 		});
 		try { await Promises.settled(joiners); } catch (error) { /* Ignore */ }
 	}

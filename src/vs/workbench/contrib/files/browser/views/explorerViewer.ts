@@ -11,7 +11,6 @@ import { IProgressService, ProgressLocation, } from '../../../../../platform/pro
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IFileService, FileKind, FileOperationError, FileOperationResult, FileChangeType, FileSystemProviderCapabilities } from '../../../../../platform/files/common/files.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
-import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IDisposable, Disposable, dispose, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -20,7 +19,7 @@ import { ITreeNode, ITreeFilter, TreeVisibility, IAsyncDataSource, ITreeSorter, 
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
-import { dirname, isEqual, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
+import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
@@ -820,13 +819,6 @@ export interface IFileTemplateData {
 	currentContext?: ExplorerItem;
 }
 
-/**
- * The label of an Explorer root: while its folder is at an alternate location, the location is appended to the name.
- */
-export function getExplorerRootLabel(name: string, primaryUri: URI | undefined, locationLabel: string | undefined): string {
-	return primaryUri && locationLabel ? localize('explorerRootAtLocation', "{0} ({1})", name, locationLabel) : name;
-}
-
 export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, FuzzyScore, IFileTemplateData>, IListAccessibilityProvider<ExplorerItem>, IDisposable {
 	static readonly ID = 'file';
 
@@ -847,7 +839,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
@@ -1129,8 +1120,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	private getRootLabel(stat: ExplorerItem): string {
-		const location = this.folderLocationService.currentLocation;
-		return getExplorerRootLabel(stat.name, this.contextService.getWorkspace().folders.find(folder => folder.primaryUri && (isEqual(folder.uri, stat.resource) || isEqual(folder.primaryUri, stat.resource)))?.primaryUri, location && getFolderLocationText(location));
+		const location = stat.isRoot ? this.labelService.getFolderLocationLabel(stat.resource) : undefined;
+		return location ? localize('explorerRootAtLocation', "{0} ({1})", stat.name, location) : stat.name;
 	}
 
 	getAriaLevel(element: ExplorerItem): number {

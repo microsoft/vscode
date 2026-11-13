@@ -56,7 +56,8 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/agentsViewGate.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 
@@ -356,12 +357,17 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('offers Worktree grouping only in a view that allows it', () => {
+	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
 		const { snapshot, contextKeyService } = createMenu();
-		const offered = () => snapshot(Menus.SessionsViewGrouping).some(item => item.title === 'Worktree');
-		const agentsWindow = offered();
-		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(true);
-		assert.deepStrictEqual({ agentsWindow, editorWindow: offered() }, { agentsWindow: false, editorWindow: true });
+		IsSessionsWindowContext.bindTo(contextKeyService).set(true);
+		const offered = (groupings: readonly SessionsGrouping[]) => {
+			bindSessionsViewGroupings(contextKeyService, groupings);
+			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
+		};
+		assert.deepStrictEqual({ agentsWindow: offered(DEFAULT_SESSIONS_GROUPINGS), editorWindow: offered(EDITOR_WINDOW_SESSIONS_GROUPINGS.offered) }, {
+			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
+			editorWindow: ['Time', 'Environment', 'Worktree'],
+		});
 	});
 
 	test('inbox triage menu respects the mode, triage state, and disabled AI', () => {

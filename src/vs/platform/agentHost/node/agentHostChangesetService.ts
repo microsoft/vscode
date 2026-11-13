@@ -56,6 +56,7 @@ import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agent
 import { IAgentHostCheckpointService } from '../common/agentHostCheckpointService.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, computeTurnDiffs, computeUnionedDiffs, computeWorkingSetFiles, type IIncrementalDiffOptions, type ISessionDiffSource } from './sessionDiffAggregator.js';
+import { getFileEditResourceKey } from './fileEditPath.js';
 import { IAgentHostChangesetService, CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, StaticChangesetKind, ChangesetDiffStrategy, type ITrackedSessionDatabases, type ITrackedTurnDatabase } from '../common/agentHostChangesetService.js';
 import { IAgentHostChangesetSubscriptionService } from '../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../common/agentHostChangesetOperationService.js';
@@ -610,6 +611,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/** Marks files at edit start, and clears the mark only with a freshly computed Working Set. */
 	private _publishWorkingSetEditing(resource: URI): void {
 		const editing = this._fileEditCoordinator.isEditing(resource);
+		const fileKey = getFileEditResourceKey(resource);
 		for (const changesetUri of this._publishedWorkingSets) {
 			const state = this._stateManager.getChangesetState(changesetUri);
 			if (!state) {
@@ -618,7 +620,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			for (const file of state.files) {
 				const id = file.edit.after?.uri ?? file.edit.before?.uri;
-				if (id && (file.isEditing === true) !== editing && extUriBiasedIgnorePathCase.isEqual(URI.parse(id), resource)) {
+				if (id && (file.isEditing === true) !== editing && getFileEditResourceKey(URI.parse(id)) === fileKey) {
 					if (editing) {
 						this._stateManager.dispatchServerAction(changesetUri, {
 							type: ActionType.ChangesetFileSet,

@@ -245,7 +245,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			const previous = followed;
 			followed = input && session ? { input, workingDirectory } : undefined;
 			if (session && previous && previous.input === input && workingDirectory && !isEqual(previous.workingDirectory, workingDirectory)) {
-				void this._folderLocationService.switchToSession(session);
+				void this._folderLocationService.switchToSession(session, { automatic: true });
 			}
 		}));
 
@@ -552,7 +552,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 					// Only while its tab shows: a send that completes after the user moved on to another tab leaves the folder
 					// where that tab put it, until the user comes back to this one
 					if (this._activeInput.read(undefined) === chat.input) {
-						void this._folderLocationService.switchToSession(session);
+						void this._folderLocationService.switchToSession(session, { automatic: true });
 					}
 				}
 			}

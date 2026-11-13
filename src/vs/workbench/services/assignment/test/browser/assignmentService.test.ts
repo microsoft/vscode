@@ -19,6 +19,7 @@ import { ASSIGNMENT_REFETCH_INTERVAL, ASSIGNMENT_STORAGE_KEY } from '../../../..
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { COPILOT_INTEGRATION_ID } from '../../../../../platform/endpoint/common/licenseAgreement.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -126,6 +127,7 @@ suite('WorkbenchAssignmentService polling', () => {
 
 		let value: string | undefined = 'initial';
 		const requestedFilters: Record<string, string>[] = [];
+		const requestedHeaders: IRequestOptions['headers'][] = [];
 		const requestedUrls: (string | undefined)[] = [];
 		let waitForResponse = async () => { };
 		let respond: ((options: IRequestOptions, token: CancellationToken) => Promise<IRequestContext>) | undefined;
@@ -134,6 +136,7 @@ suite('WorkbenchAssignmentService polling', () => {
 				assert.ok(options.data);
 				const body: { userParams: Record<string, string> } = JSON.parse(options.data);
 				requestedFilters.push(body.userParams);
+				requestedHeaders.push(options.headers);
 				requestedUrls.push(options.url);
 				if (respond) {
 					return respond(options, token);
@@ -156,7 +159,7 @@ suite('WorkbenchAssignmentService polling', () => {
 			return client;
 		};
 		return {
-			service, ready, errors, requestedFilters, requestedUrls, entitlements,
+			service, ready, errors, requestedFilters, requestedHeaders, requestedUrls, entitlements,
 			requests: () => requestedFilters.length,
 			setValue: (next: string | undefined) => { value = next; },
 			setWaitForResponse: (wait: () => Promise<void>) => { waitForResponse = wait; },
@@ -188,6 +191,22 @@ suite('WorkbenchAssignmentService polling', () => {
 				accountChanged.fire(defaultAccountService.currentDefaultAccount);
 			},
 		};
+	}
+
+	for (const accountState of ['signedIn', 'signedOut'] as const) {
+		test(`keeps integrator targeting in the body with CORS-compatible headers (${accountState})`, async () => {
+			const { service, ready, requestedFilters, requestedHeaders } = createService(true, accountState);
+			await ready();
+			assert.deepStrictEqual({
+				treatment: await service.getTreatment(treatmentName),
+				integratorIds: requestedFilters.map(filters => filters.integratorid),
+				headers: requestedHeaders,
+			}, {
+				treatment: 'initial',
+				integratorIds: [COPILOT_INTEGRATION_ID],
+				headers: [{ 'Content-Type': 'application/json' }],
+			});
+		});
 	}
 
 	test('serves cached treatments before account discovery without calling a new endpoint', () => runWithFakedTimers({}, async () => {

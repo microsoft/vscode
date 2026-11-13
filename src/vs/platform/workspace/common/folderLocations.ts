@@ -9,6 +9,7 @@ import { IDisposable } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { IWorkspaceFolder } from './workspace.js';
 
 /**
  * An alternate location of a workspace folder.
@@ -18,14 +19,6 @@ export interface IFolderLocation {
 	readonly label: string;
 	readonly description?: string;
 	readonly icon?: ThemeIcon;
-}
-
-/**
- * The compact text of a location shown in the UI: its label, followed by
- * its description if there is one, e.g. `my-location · my-description`.
- */
-export function getFolderLocationText(location: Pick<IFolderLocation, 'label' | 'description'>): string {
-	return location.description && location.description !== location.label ? `${location.label} · ${location.description}` : location.label;
 }
 
 /**
@@ -65,6 +58,12 @@ export interface IWorkspaceFolderLocationProvider {
 export type FolderLocationChangeReason = 'user' | 'programmatic';
 
 export interface IFolderLocationChangeEvent {
+
+	/**
+	 * The workspace folder whose location changed, as it is after the change.
+	 */
+	readonly folder: IWorkspaceFolder;
+
 	readonly reason: FolderLocationChangeReason;
 }
 
@@ -74,25 +73,43 @@ export interface IWorkspaceFolderLocationService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * The alternate location `folder` is currently at, or `undefined` while it is at its own location
+	 * or when its workspace does not support alternate locations.
+	 */
+	getLocation(folder: IWorkspaceFolder): IResolvedFolderLocation | undefined;
+
+	/**
+	 * Whether `folder` is opened at an alternate location. The service decides which workspaces support it.
+	 */
+	isAtAlternateLocation(folder: IWorkspaceFolder): boolean;
+
+	/**
+	 * Whether the location of `folder` can be set with `IWorkspaceEditingService.setFolderLocation`.
+	 * This is the case for the folder of a local single-folder workspace.
+	 */
+	canSetLocation(folder: IWorkspaceFolder): boolean;
+
+	/**
+	 * Fires when the answer of `canSetLocation` may have changed, that is when the folders
+	 * or the kind of the workspace change.
+	 */
+	readonly onDidChangeCanSetLocation: Event<void>;
+
+	/**
+	 * Fires when the location of a folder changes.
+	 */
+	readonly onDidChangeLocation: Event<IFolderLocationChangeEvent>;
+
+	/**
 	 * Fires when a provider is registered or unregistered.
 	 */
 	readonly onDidChangeProviders: Event<void>;
 
 	/**
-	 * The alternate location the workspace folder is currently at, or `undefined` while at its primary location.
-	 */
-	readonly currentLocation: IResolvedFolderLocation | undefined;
-
-	/**
-	 * Fires when `currentLocation` changes.
-	 */
-	readonly onDidChangeCurrentLocation: Event<IFolderLocationChangeEvent>;
-
-	/**
-	 * Records the location the workspace folder is at. Called by `IWorkspaceEditingService`
+	 * Records the location `folder` is at. Called by `IWorkspaceEditingService`
 	 * and when restoring a location; do not use it to switch locations.
 	 */
-	setCurrentLocation(location: IResolvedFolderLocation | undefined, reason?: FolderLocationChangeReason): void;
+	setLocation(folder: IWorkspaceFolder, location: IResolvedFolderLocation | undefined, reason?: FolderLocationChangeReason): void;
 
 	/**
 	 * Registers a provider. Locations of `builtIn` providers inherit the trust of the primary location.

@@ -8,6 +8,8 @@ import { $, append, EventType } from '../../../base/browser/dom.js';
 import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IViewSize } from '../../../base/browser/ui/grid/grid.js';
 import { constObservable, disposableObservableValue, observableValue } from '../../../base/common/observable.js';
 import { mock } from '../../../base/test/common/mock.js';
 import { ISession, ISessionPreparationProgress, SessionStatus } from '../../../workbench/services/sessions/common/session.js';
@@ -573,6 +575,7 @@ suite('Sessions - Session View', () => {
 		const groupsLayout: number[] = [];
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_headerHeight: observableValue('headerHeight', 0),
+			_onDidChange: disposables.add(new Emitter<IViewSize | undefined>()),
 			element,
 			_isPartVisible: true,
 			_isLeafVisible: true,
@@ -601,8 +604,11 @@ suite('Sessions - Session View', () => {
 		const header = { visible: true, height: 35 };
 		const element = document.createElement('div');
 		const centeredContentContainer = document.createElement('div');
+		const onDidChange = disposables.add(new Emitter<IViewSize | undefined>());
 		const view: SessionView = Object.assign(Object.create(SessionView.prototype), {
 			_headerHeight: observableValue('headerHeight', 0),
+			_onDidChange: onDidChange,
+			onDidChange: onDidChange.event,
 			element,
 			_isPartVisible: true,
 			_isLeafVisible: true,
@@ -616,6 +622,9 @@ suite('Sessions - Session View', () => {
 			_standaloneView: { get: () => undefined },
 			_preparationView: constObservable(undefined),
 		});
+		// The session grid re-reads the minimum height, which includes the header, when the view reports a constraint change.
+		const minimumHeights = [view.minimumHeight];
+		disposables.add(view.onDidChange(size => minimumHeights.push(size === undefined ? view.minimumHeight : -1)));
 		view.layoutContainer(1200, 800, 10, 20);
 		const beforeContents = { calls: layouts.length, headerWidth: centeredContentContainer.style.width };
 		view.layoutContents();
@@ -630,7 +639,7 @@ suite('Sessions - Session View', () => {
 		view.layoutContents();
 		view.layout(1000, 0, 30, 40);
 		view.layout(1000, 700, 30, 40);
-		assert.deepStrictEqual({ beforeContents, layouts }, {
+		assert.deepStrictEqual({ beforeContents, layouts, minimumHeights }, {
 			beforeContents: { calls: 0, headerWidth: '1200px' },
 			layouts: [
 				[1200, 765, 45, 20, 0],
@@ -639,6 +648,7 @@ suite('Sessions - Session View', () => {
 				[1000, 700, 30, 40, 0],
 				[1000, 700, 30, 40, 0],
 			],
+			minimumHeights: [200, 235, 245, 200],
 		});
 	});
 

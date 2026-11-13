@@ -16,7 +16,7 @@ import { IViewsService } from '../../../../../workbench/services/views/common/vi
 import { CLOSE_MOBILE_SIDEBAR_DRAWER_COMMAND_ID } from '../../../../browser/workbench.js';
 import { EditorsVisibleContext, EditorAreaFocusContext, IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { SessionsCategories } from '../../../../../workbench/contrib/sessions/common/categories.js';
-import { IsNewChatSessionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsNewChatSessionContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { canStartNewSessionLike, getNewSessionSources, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, SessionSectionTypeContext, SessionSectionHasNonCloudRepositoryContext, SessionGroupIsComparisonContext, ISessionSection, ISessionGroupItem, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
@@ -37,6 +37,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/ses
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { registerSessionsListActions, registerSessionsListReadStateActions, SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 registerSessionsListActions();
 registerSessionsListReadStateActions();
@@ -427,6 +428,32 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 	}
 });
 
+//  Session Item Actions
+
+registerAction2(class OpenSessionCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.openCustomizations',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			menu: {
+				id: Menus.SessionItemContextMenu,
+				group: 'navigation',
+				order: 6,
+				when: ChatContextKeys.enabled,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessions = context ? Array.isArray(context) ? context : [context] : [];
+		if (sessions.length !== 1) {
+			throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+		}
+		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+	}
+});
 
 for (const [menu, submenu] of [
 	[Menus.SessionItemContextMenu, Menus.SessionItemOpenIn],

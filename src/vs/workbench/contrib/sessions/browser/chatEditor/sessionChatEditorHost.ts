@@ -203,8 +203,9 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			heldChat.hold(this.chat.get(), this._boundCheck());
 		}
 
-		// Once it knows its session, only sessions added or removed can change where its chat is: what changes in its session
-		// it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
+		// Once it knows its session, only sessions added, removed or replaced can change where its chat is: what changes in its
+		// session it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
+		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.
 		const sessionsChanged = observableSignal(this);
 		// Of every session, also one that a listing scope hides, such as of another folder, which its host can show
 		this._register(this.sessionsManagementService.onDidChangeAllSessions(e => {
@@ -212,7 +213,7 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
 				this._knownSessionRemoved = true;
 			}
-			if (!known || e.added.length || e.removed.length) {
+			if (!known || e.added.length || e.removed.length || e.changed.some(changed => changed !== known && changed.sessionId === known.sessionId)) {
 				sessionsChanged.trigger(undefined);
 			}
 		}));

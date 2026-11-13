@@ -35,7 +35,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from '../views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
@@ -1041,9 +1041,9 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('inboxMode', "Inbox Mode"),
 				category: SessionsCategories.Sessions,
 				f1: true,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.has(`config.${ChatConfiguration.AgentsViewEnabled}`)), ChatContextKeys.enabled),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.has(`config.${ChatConfiguration.AgentsViewEnabled}`)), ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)),
 				toggled: InboxModeContext,
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ChatContextKeys.enabled }],
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ContextKeyExpr.and(ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)) }],
 			});
 		}
 		run(accessor: ServicesAccessor): void {
@@ -1092,7 +1092,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('workspace', "Workspace"),
 				category: SessionsCategories.Sessions,
 				toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Workspace),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1 }]
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 1, when: sessionsViewOffersGrouping(SessionsGrouping.Workspace) }]
 			});
 		}
 		override run(accessor: ServicesAccessor) {
@@ -1109,7 +1109,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('repository', "Repository"),
 				category: SessionsCategories.Sessions,
 				toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Repository),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 2 }]
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 2, when: sessionsViewOffersGrouping(SessionsGrouping.Repository) }]
 			});
 		}
 		override run(accessor: ServicesAccessor) {
@@ -1126,7 +1126,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('time', "Time"),
 				category: SessionsCategories.Sessions,
 				toggled: ContextKeyExpr.equals(SessionsViewGroupingContext.key, SessionsGrouping.Date),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 0 }]
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 0, when: sessionsViewOffersGrouping(SessionsGrouping.Date) }]
 			});
 		}
 		override run(accessor: ServicesAccessor) {
@@ -1143,8 +1143,8 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('groupByWorktree', "Worktree"),
 				category: SessionsCategories.Sessions,
 				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
-				precondition: SessionsViewWorktreeGroupingContext,
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: SessionsViewWorktreeGroupingContext }],
+				precondition: sessionsViewOffersGrouping(SessionsGrouping.Worktree),
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: sessionsViewOffersGrouping(SessionsGrouping.Worktree) }],
 			});
 		}
 		override run(accessor: ServicesAccessor) {
@@ -1160,7 +1160,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('groupByEnvironment', "Environment"),
 				category: SessionsCategories.Sessions,
 				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Environment),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3 }],
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3, when: sessionsViewOffersGrouping(SessionsGrouping.Environment) }],
 			});
 		}
 		override run(accessor: ServicesAccessor) {

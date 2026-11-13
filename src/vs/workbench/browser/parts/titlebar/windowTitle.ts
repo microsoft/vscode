@@ -32,7 +32,7 @@ import { getWindowById } from '../../../../base/browser/dom.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { IDecorationsService } from '../../../services/decorations/common/decorations.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
-import { getFolderLocationText, IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -73,13 +73,14 @@ export class WindowTitle extends Disposable {
 
 	/** The label of the alternate folder location, or an empty string while the folder is at its primary location. */
 	get folderLocation(): string {
-		const location = this.folderLocationInfo;
-		return location ? getFolderLocationText(location) : '';
+		const folder = this.contextService.getWorkspace().folders[0];
+		return (folder && this.labelService.getFolderLocationLabel(folder.uri)) ?? '';
 	}
 
 	/** The alternate folder location the folder is at, or `undefined` while it is at its primary location. */
 	get folderLocationInfo() {
-		return this.contextService.getWorkspace().folders[0]?.primaryUri ? this.folderLocationService.currentLocation : undefined;
+		const folder = this.contextService.getWorkspace().folders[0];
+		return folder ? this.folderLocationService.getLocation(folder) : undefined;
 	}
 	get fileName() {
 		const activeEditor = this.editorService.activeEditor;
@@ -89,6 +90,34 @@ export class WindowTitle extends Disposable {
 		const fileName = activeEditor.getTitle(Verbosity.SHORT);
 		const dirty = activeEditor?.isDirty() && !activeEditor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
 		return `${dirty}${fileName}`;
+	}
+
+	/**
+	 * The label of the command center. While the folder is at an alternate location it is always the
+	 * folder name, independent of the window title format and `showFileName`. With `fileNameAsFallback` the
+	 * file name is only used when there is no workspace name.
+	 */
+	getCommandCenterLabel(options: { showFileName: boolean; fileNameAsFallback?: boolean }): string {
+		const { prefix, suffix } = this.getTitleDecorations();
+		let label = this.workspaceName;
+		if (!this.folderLocationInfo) {
+			if (this.isCustomTitleFormat()) {
+				label = this.getWindowTitle();
+			} else if (options.showFileName && (!options.fileNameAsFallback || !label) && this.fileName !== undefined) {
+				label = this.fileName;
+			}
+		}
+		if (!label) {
+			label = localize('commandCenterLabel.search', "Search");
+		}
+		if (prefix) {
+			label = localize('commandCenterLabel.prefix', "{0} {1}", prefix, label);
+		}
+		if (suffix) {
+			label = localize('commandCenterLabel.suffix', "{0} {1}", label, suffix);
+		}
+
+		return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
 	}
 
 	private title: string | undefined;
@@ -128,7 +157,7 @@ export class WindowTitle extends Disposable {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.titleUpdater.schedule()));
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.titleUpdater.schedule()));
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.titleUpdater.schedule()));
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
@@ -339,7 +368,7 @@ export class WindowTitle extends Disposable {
 		if (workspace.configuration) {
 			root = workspace.configuration;
 		} else if (workspace.folders.length) {
-			root = workspace.folders[0].primaryUri ?? workspace.folders[0].uri;
+			root = workspace.uri ?? workspace.folders[0].uri;
 		}
 
 		// Compute active editor folder

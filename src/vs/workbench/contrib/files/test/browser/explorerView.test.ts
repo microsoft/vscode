@@ -10,13 +10,14 @@ import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../..
 import { ExplorerItem } from '../../common/explorerModel.js';
 import { ExplorerView, getContext, shouldPreserveWorkspaceNameCase } from '../../browser/views/explorerView.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { CompressedNavigationController, ExplorerDataSource, ExplorerFindProvider, FileDragAndDrop, FilesFilter, FilesRenderer, FileSorter, getExplorerRootLabel, ICompressedNavigationController } from '../../browser/views/explorerViewer.js';
+import { CompressedNavigationController, ExplorerDataSource, ExplorerFindProvider, FileDragAndDrop, FilesFilter, FilesRenderer, FileSorter, ICompressedNavigationController } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { provideDecorations } from '../../browser/views/explorerDecorationsProvider.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { NullFilesConfigurationService, TestFileService } from '../../../../test/common/workbenchTestServices.js';
 import { TestEnvironmentService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
@@ -33,6 +34,7 @@ import { IEditorResolverService } from '../../../../services/editor/common/edito
 import { IExplorerService } from '../../browser/files.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
 import { hasKey } from '../../../../../base/common/types.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class TestExplorerView extends ExplorerView {
 	renderForTesting(container: HTMLElement): void {
@@ -54,22 +56,15 @@ suite('Files - ExplorerView', () => {
 		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
 	}
 
-	test('explorer root label shows the alternate location only while switched', () => {
-		const primary = URI.file('/work/project');
-		assert.deepStrictEqual(
-			[getExplorerRootLabel('project', primary, 'Alternate'), getExplorerRootLabel('project', undefined, undefined), getExplorerRootLabel('project', primary, undefined)],
-			['project (Alternate)', 'project', 'project']);
-	});
-
 	test('explorer root aria label follows the presented label while switched', () => {
 		const primary = URI.file('/work/project');
 		const alternate = URI.file('/work/project-alt');
 		let switched = true;
 		const renderer = ds.add(new FilesRenderer(
 			dom.$('div'), undefined!, undefined!, () => { },
-			undefined!, configService, undefined!, undefined!,
-			{ getWorkspace: () => ({ folders: [switched ? { uri: alternate, primaryUri: primary } : { uri: alternate }] }) } as unknown as IWorkspaceContextService,
-			{ get currentLocation() { return switched ? { uri: alternate, label: 'Alternate', description: 'feature/x', providerId: 'test', builtIn: true } : undefined; } } as unknown as IWorkspaceFolderLocationService,
+			undefined!, configService, undefined!,
+			{ getFolderLocationLabel: (folder: URI) => switched && folder.toString() === alternate.toString() ? 'Alternate · feature/x' : undefined } as unknown as ILabelService,
+			{ getWorkspace: () => ({ folders: [{ uri: alternate }] }) } as unknown as IWorkspaceContextService,
 			undefined!));
 		const root = new ExplorerItem(alternate, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, 'project', 0, false);
 		const child = new ExplorerItem(URI.file('/work/project-alt/a'), fileService, configService, NullFilesConfigurationService, root, false, false, false, false, 'a', 0, false);
@@ -78,7 +73,20 @@ suite('Files - ExplorerView', () => {
 		switched = false;
 		assert.deepStrictEqual(
 			[switchedLabels, renderer.getAriaLabel(root)],
-			[['project (Alternate · feature/x)', 'a', 'project (Alternate · feature/x)'], 'project']);
+			[['project (Alternate · feature/x)', 'a', 'project'], 'project']);
+	});
+
+	test('explorer root labels and aria labels are the plain folder names at the primary location in single and multi-root workspaces', () => {
+		const folders = [URI.file('/work/project'), URI.file('/work/other')];
+		const renderer = ds.add(new FilesRenderer(
+			dom.$('div'), undefined!, undefined!, () => { },
+			undefined!, configService, undefined!,
+			{ getFolderLocationLabel: () => undefined } as unknown as ILabelService,
+			{ getWorkspace: () => ({ folders: folders.map(uri => ({ uri })) }) } as unknown as IWorkspaceContextService,
+			undefined!));
+		const roots = folders.map((uri, index) => new ExplorerItem(uri, fileService, configService, NullFilesConfigurationService, undefined, true, false, false, false, `name${index}`, 0, false));
+
+		assert.deepStrictEqual(roots.map(root => renderer.getAriaLabel(root)), ['name0', 'name1']);
 	});
 
 	test('getContext', async function () {
@@ -143,7 +151,7 @@ suite('Files - ExplorerView', () => {
 				getEditable: () => undefined,
 			});
 			instantiationService.stub(IClipboardService, new TestClipboardService());
-			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeCurrentLocation = Event.None; });
+			instantiationService.stub(IWorkspaceFolderLocationService, new class extends mock<IWorkspaceFolderLocationService>() { override readonly onDidChangeLocation = Event.None; });
 			instantiationService.stub(IContextMenuService, {
 				showContextMenu: delegate => {
 					assert.ok(hasKey(delegate, { menuActionOptions: true }));
@@ -462,7 +470,7 @@ suite('Files - ExplorerView', () => {
 	test('preserves workspace name case only for user named workspaces', async function () {
 		const untitledWorkspacesHome = TestEnvironmentService.untitledWorkspacesHome;
 		function workspace(configuration: URI | null): IWorkspace {
-			return { id: 'test', folders: [], configuration };
+			return testIWorkspace({ id: 'test', folders: [], configuration });
 		}
 
 		assert.deepStrictEqual({

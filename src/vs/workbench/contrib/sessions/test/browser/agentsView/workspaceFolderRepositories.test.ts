@@ -146,7 +146,7 @@ suite('WorkspaceFolderRepositories', () => {
 
 		await timeout(0);
 		const atPrimary = listed();
-		folder = upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode.worktrees/feature'), primaryUri: URI.file('/work/vscode') });
+		folder = upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode.worktrees/feature') });
 		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [folder] });
 		await timeout(0);
 

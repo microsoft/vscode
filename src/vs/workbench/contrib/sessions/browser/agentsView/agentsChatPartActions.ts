@@ -23,6 +23,8 @@ import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { getWorktreeSectionFolder, ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { AICustomizationManagementCommands } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 /** Whether the chat part of the editor window shows. */
@@ -207,6 +209,32 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			if (session && folderUri) {
 				await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, session), { newComposer: true });
 			}
+		}
+	}));
+
+	// The customizations of a session, as the Agents window offers them from its session list. Its editor opens as any editor
+	// does: an editor opened while the chat part was the part last active goes to the editor area, as its chats hand it off
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.agentsView.openSessionCustomizations',
+				title: localize2('agentsView.openSessionCustomizations', "Open Customizations"),
+				icon: Codicon.extensions,
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+				menu: {
+					id: SessionItemContextMenuId,
+					group: 'navigation',
+					order: 6,
+					when: ChatContextKeys.enabled,
+				},
+			});
+		}
+		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+			const sessions = context ? Array.isArray(context) ? context : [context] : [];
+			if (sessions.length !== 1) {
+				throw new Error(localize('agentsView.openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+			}
+			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
 		}
 	}));
 

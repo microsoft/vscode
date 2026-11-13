@@ -14,6 +14,7 @@ import { extUri } from '../../../../../../base/common/resources.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -25,9 +26,8 @@ import { ILabelService } from '../../../../../../platform/label/common/label.js'
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IFolderLocationChangeEvent, IResolvedFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceFoldersChangeEvent, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
@@ -87,8 +87,14 @@ suite('AgentsViewFolderLocation', () => {
 		return entry;
 	};
 	let reads = 0;
+	/** Holds reading whether a folder exists, per folder, until a test releases it. */
+	const heldStats = new ResourceMap<DeferredPromise<void>>();
+	teardown(() => heldStats.clear());
 	const fileService = upcastPartial<IFileService>({
-		stat: async (resource: URI) => upcastPartial<IFileStatWithMetadata>({ isDirectory: (lookup(resource) ?? true) === true }),
+		stat: async (resource: URI) => {
+			await heldStats.get(resource)?.p;
+			return upcastPartial<IFileStatWithMetadata>({ isDirectory: (lookup(resource) ?? true) === true });
+		},
 		readFile: async (resource: URI) => {
 			reads++;
 			const entry = lookup(resource);
@@ -110,43 +116,66 @@ suite('AgentsViewFolderLocation', () => {
 	 * The service, started, in a single-folder window at `/work/vscode` (or at `location` of it), with the real workspace
 	 * editing service, whose resolving of a location waits for `resolution` when one is given.
 	 */
-	function createService(options?: { readonly location?: string; readonly workbenchState?: WorkbenchState; readonly chatEnabled?: boolean; readonly resolution?: DeferredPromise<void>; readonly storage?: InMemoryStorageService }) {
+	function createService(options?: { readonly location?: string; readonly cannotSetLocation?: boolean; readonly chatEnabled?: boolean; readonly resolution?: DeferredPromise<void>; readonly application?: DeferredPromise<void>; readonly storage?: InMemoryStorageService }) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const contextKeyService = disposables.add(new ChangingContextKeyService());
 		contextKeyService.createKey(ChatContextKeys.enabled.key, options?.chatEnabled ?? true);
 		const primary = URI.file('/work/vscode');
-		const folder = upcastPartial<IWorkspaceFolder>({ uri: options?.location ? URI.file(options.location) : primary, primaryUri: options?.location ? primary : undefined });
+		// Where the folder is: it follows the moves the workspace applies
+		let at = options?.location ? URI.file(options.location) : undefined;
+		/** The window's folders, while a test has changed them from the single movable folder. */
+		let otherFolders: URI[] | undefined;
+		const onDidChangeWorkspaceFolders = disposables.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
+		const telemetry: string[] = [];
 		const moves: string[] = [];
 		const trusted: string[] = [];
 		const notifications: string[] = [];
 		let provider: IWorkspaceFolderLocationProvider | undefined;
-		const currentLocation = options?.location ? upcastPartial<IResolvedFolderLocation>({ uri: URI.file(options.location), providerId: AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID }) : undefined;
+		// The workspace's own location is the folder's primary location; it does not change as the folder moves
 		const workspaceContextService = {
-			getWorkbenchState: () => options?.workbenchState ?? WorkbenchState.FOLDER,
-			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [folder] }),
-			onDidChangeWorkspaceFolders: Event.None,
-			setFolderLocation: async (_primary: URI, location: URI | undefined) => { moves.push(location ? location.path : 'primary'); },
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+			getWorkspace: () => otherFolders
+				? upcastPartial<IWorkspace>({ uri: otherFolders.length ? URI.file('/work/multi.code-workspace') : undefined, folders: otherFolders.map(uri => upcastPartial<IWorkspaceFolder>({ uri })) })
+				: upcastPartial<IWorkspace>({ uri: primary, folders: [upcastPartial<IWorkspaceFolder>({ uri: at ?? primary })] }),
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchState: Event.None,
+			// As the workspace applies a switch: queued, and skipped when no longer current as its turn comes
+			setFolderLocation: async (location: URI, applyOptions?: { readonly isCurrent?: () => boolean; readonly onApplied?: () => void }) => {
+				await options?.application?.p;
+				if (otherFolders || applyOptions?.isCurrent?.() === false) {
+					return;
+				}
+				const toPrimary = extUri.isEqual(location, primary);
+				moves.push(toPrimary ? 'primary' : location.path);
+				at = toPrimary ? undefined : location;
+				applyOptions?.onApplied?.();
+			},
 		};
 		const folderLocationService = {
-			currentLocation,
+			canSetLocation: () => !options?.cannotSetLocation && !otherFolders,
+			isAtAlternateLocation: (folder: IWorkspaceFolder) => !!at && !otherFolders && extUri.isEqual(folder.uri, at),
+			onDidChangeLocation: onDidChangeLocation.event,
+			getLocation: () => at && upcastPartial<IResolvedFolderLocation>({ uri: at, providerId: AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID }),
 			registerProvider: (registered: IWorkspaceFolderLocationProvider) => { provider = registered; return toDisposable(() => provider = undefined); },
 			resolveLocation: async (from: URI, location: URI) => {
 				await options?.resolution?.p;
 				const resolved = await provider?.resolveLocation(from, location, CancellationToken.None);
 				return resolved && { ...resolved, providerId: provider!.id, builtIn: true };
 			},
-			setCurrentLocation: () => { },
+			setLocation: (folder: IWorkspaceFolder) => onDidChangeLocation.fire({ folder, reason: 'user' }),
 		};
 		// The real one: only its latest request applies
 		const workspaceEditingService = disposables.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 			undefined, workspaceContextService, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-			{ extUri }, { getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris.map(uri => uri.path)); } }, undefined, undefined, undefined, folderLocationService));
+			{ extUri }, { isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris.map(uri => uri.path)); } }, undefined, undefined, undefined, folderLocationService,
+			{ isWorkspaceTrustEnabled: () => true }));
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILabelService, labelService);
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ITelemetryService, upcastPartial<ITelemetryService>({ publicLog2: (_event: string, data?: object) => { telemetry.push(Object.values(data ?? {}).join(':')); } }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: undefined }));
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({
 			info: (message: string) => { notifications.push(`info: ${message}`); return undefined!; },
@@ -163,25 +192,23 @@ suite('AgentsViewFolderLocation', () => {
 
 		const service = disposables.add(instantiationService.createInstance(AgentsViewFolderLocationService));
 		service.start();
-		return { service, moves, trusted, notifications, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), replaceSession: (from: ISession, to: ISession) => sessionReplaced.fire({ from, to }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
+		const setFolders = (folders: URI[]) => { otherFolders = folders; onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] }); };
+		return { service, workspaceEditingService, moves, trusted, notifications, telemetry, setFolders, removeSession: (session: ISession) => sessionsChanged.fire({ added: [], removed: [session], changed: [] }), replaceSession: (from: ISession, to: ISession) => sessionReplaced.fire({ from, to }), hasProvider: () => !!provider, setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled) };
 	}
 
 	/** The recall of a location's last session over `service`, with a chat part that moves the folder as it opens a session, unless asked to keep it. */
 	function createRecall(service: AgentsViewFolderLocationService, sessions: ISession[]) {
-		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
-		let folder = URI.file('/work/vscode');
+		const onDidChangeLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 		const opened: string[] = [];
 		disposables.add(new AgentsViewLocationSessions(
-			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event }),
+			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeLocation: onDidChangeLocation.event }),
 			service,
-			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
 			upcastPartial<ISessionsManagementService>({ getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()) }),
 			upcastPartial<IAgentsChatPartService>({ openChat: async (session, _chat, options) => { opened.push(session.resource.toString()); if (!options?.keepFolder) { await service.switchToSession(session); } } }),
 			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => true as T }),
 		));
 		const pick = async (path: string) => {
-			folder = URI.file(path);
-			onDidChangeCurrentLocation.fire({ reason: 'user' });
+			onDidChangeLocation.fire({ folder: upcastPartial<IWorkspaceFolder>({ uri: URI.file(path) }), reason: 'user' });
 			await timeout(0);
 		};
 		return { opened, pick };
@@ -262,7 +289,7 @@ suite('AgentsViewFolderLocation', () => {
 			ordinaryCheckout: await moved(sessionIn('/work/ordinary')),
 			missing: await moved(sessionIn('/work/vscode.worktrees/gone', '/work/vscode')),
 			unreadable: await moved(sessionIn('/work/denied')),
-			multiRoot: await moved(sessionIn('/work/vscode.worktrees/feature'), { workbenchState: WorkbenchState.WORKSPACE }),
+			multiRoot: await moved(sessionIn('/work/vscode.worktrees/feature'), { cannotSetLocation: true }),
 			aiDisabled: await moved(sessionIn('/work/vscode.worktrees/feature'), { chatEnabled: false }),
 		}, {
 			toLinked: '/work/vscode.worktrees/feature',
@@ -405,6 +432,99 @@ suite('AgentsViewFolderLocation', () => {
 		await pending;
 
 		assert.deepStrictEqual({ moves, trusted }, { moves: ['primary'], trusted: [] });
+	});
+
+	test('an automatic switch, such as following a tab\'s session or a composer\'s first send, gives way to a switch under way; one the user asks for supersedes it', async () => {
+		/** Holds a switch the user picked in the window's title (to the linked checkout) inside the workspace, then completes `then` and the switch. */
+		const whileSwitching = async (then: (service: AgentsViewFolderLocationService) => Promise<void>) => {
+			const resolution = new DeferredPromise<void>();
+			const { service, workspaceEditingService, moves } = createService({ resolution });
+			const manual = workspaceEditingService.setFolderLocation(URI.file('/work/vscode.worktrees/feature'), { reason: 'user' });
+			await timeout(0);
+			const done = then(service);
+			resolution.complete();
+			await Promise.all([manual, done]);
+			return moves;
+		};
+		/** Holds a switch the user asked of the service (to the linked checkout), then completes `then` and the switch. */
+		const whileServiceSwitching = async (then: (service: AgentsViewFolderLocationService) => Promise<void>) => {
+			const resolution = new DeferredPromise<void>();
+			const { service, moves } = createService({ resolution });
+			const manual = service.switchToSession(sessionIn('/work/vscode.worktrees/feature'));
+			await timeout(0);
+			const done = then(service);
+			resolution.complete();
+			await Promise.all([manual, done]);
+			return moves;
+		};
+
+		assert.deepStrictEqual({
+			// (a) a followed tab's session that comes to work in another linked checkout, (b) a composer's first send there
+			followedTab: await whileSwitching(service => service.switchToSession(sessionIn('/work/vscode.worktrees/detached'), { automatic: true })),
+			composerSend: await whileSwitching(service => service.switchToSession(sessionIn('/work/vscode.worktrees/headless'), { automatic: true })),
+			// Keeping the folder where it is does not ask the workspace, which would supersede the user's switch
+			keepCurrent: await whileSwitching(service => service.switchToSession(sessionIn('/work/vscode/src'), { automatic: true })),
+			ofTheService: await whileServiceSwitching(service => service.switchToSession(sessionIn('/work/vscode.worktrees/detached'), { automatic: true })),
+			// A tab the user picks supersedes the switch under way
+			tabPick: await whileSwitching(service => service.switchToSession(sessionIn('/work/vscode.worktrees/detached'))),
+		}, {
+			followedTab: ['/work/vscode.worktrees/feature'],
+			composerSend: ['/work/vscode.worktrees/feature'],
+			keepCurrent: ['/work/vscode.worktrees/feature'],
+			ofTheService: ['/work/vscode.worktrees/feature'],
+			tabPick: ['/work/vscode.worktrees/detached'],
+		});
+	});
+
+	test('an automatic switch that read where its session works while the user switched the folder does not apply after that switch completed, in either order', async () => {
+		/** An automatic switch to the detached checkout, whose reading where its session works waits, and the user's switch to the linked checkout. */
+		const race = async (userFirst: boolean) => {
+			const { service, workspaceEditingService, moves, telemetry } = createService();
+			const read = new DeferredPromise<void>();
+			heldStats.set(URI.file('/work/vscode.worktrees/detached'), read);
+			const user = () => workspaceEditingService.setFolderLocation(URI.file('/work/vscode.worktrees/feature'), { reason: 'user' });
+			let manual = userFirst ? user() : undefined;
+			const automatic = service.switchToSession(sessionIn('/work/vscode.worktrees/detached'), { automatic: true });
+			await timeout(0);
+			manual ??= user();
+			await manual;
+			read.complete();
+			await automatic;
+			return { moves, telemetry };
+		};
+
+		assert.deepStrictEqual({ automaticFirst: await race(false), userFirst: await race(true) }, {
+			automaticFirst: { moves: ['/work/vscode.worktrees/feature'], telemetry: ['toAlternate:superseded'] },
+			userFirst: { moves: ['/work/vscode.worktrees/feature'], telemetry: ['toAlternate:superseded'] },
+		});
+	});
+
+	test('an automatic return that the window turns multi-root or empty during is not taken for applied, and does not change the last sessions', async () => {
+		const returning = async (folders: URI[]) => {
+			const application = new DeferredPromise<void>();
+			const { service, moves, telemetry, setFolders } = createService({ location: '/work/vscode.worktrees/feature', application });
+			const automatic = service.switchToSession(sessionIn('/work/vscode/src'), { automatic: true });
+			await timeout(0);
+			setFolders(folders);
+			application.complete();
+			await automatic;
+			return { moves, telemetry, last: service.getLastSession(URI.file('/work/vscode'))?.toString() ?? null };
+		};
+
+		assert.deepStrictEqual({ multiRoot: await returning([URI.file('/work/vscode'), URI.file('/work/plain')]), empty: await returning([]) }, {
+			multiRoot: { moves: [], telemetry: ['toPrimary:superseded'], last: null },
+			empty: { moves: [], telemetry: ['toPrimary:superseded'], last: null },
+		});
+	});
+
+	test('an automatic switch moves the folder when no other switch is under way, and asks nothing to keep it where it is', async () => {
+		const { service, moves } = createService();
+
+		await service.switchToSession(sessionIn('/work/vscode/src'), { automatic: true });
+		const kept = moves.splice(0);
+		await service.switchToSession(sessionIn('/work/vscode.worktrees/feature'), { automatic: true });
+
+		assert.deepStrictEqual({ kept, moved: moves, last: service.getLastSession(URI.file('/work/vscode.worktrees/feature'))?.toString() }, { kept: [], moved: ['/work/vscode.worktrees/feature'], last: sessionIn('/work/vscode.worktrees/feature').resource.toString() });
 	});
 
 	test('disabling AI features stops offering locations, cancels a move under way, and returns the folder from a session\'s location', async () => {

@@ -452,7 +452,8 @@ export class WindowsStateHandler extends Disposable {
 				} else {
 					state = {
 						...lastActiveState,
-						zoomLevel: undefined // do not inherit zoom level
+						zoomLevel: undefined, // do not inherit zoom level
+						alwaysOnTop: undefined
 					};
 				}
 

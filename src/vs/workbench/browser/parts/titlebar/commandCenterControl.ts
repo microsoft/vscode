@@ -11,7 +11,7 @@ import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js'
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -20,89 +20,14 @@ import { MenuId, MenuRegistry, SubmenuItemAction } from '../../../../platform/ac
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
-import { IFolderLocation } from '../../../../platform/workspace/common/folderLocations.js';
 import { WindowTitle } from './windowTitle.js';
+import { CommandCenterLabel } from './commandCenterLabel.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
-
-/**
- * Computes the command center label text. While the folder is at an alternate location the label is
- * always the folder name, independent of the window title format and the visibility of tabs.
- */
-export function getCommandCenterLabelText(options: { atFolderLocation: boolean; prefix?: string; suffix?: string; workspaceName: string; customTitle?: string; fileName?: string }): string {
-	let label = options.workspaceName;
-	if (!options.atFolderLocation) {
-		if (options.customTitle !== undefined) {
-			label = options.customTitle;
-		} else if (options.fileName !== undefined) {
-			label = options.fileName;
-		}
-	}
-	if (!label) {
-		label = localize('label.dfl', "Search");
-	}
-	if (options.prefix) {
-		label = localize('label1', "{0} {1}", options.prefix, label);
-	}
-	if (options.suffix) {
-		label = localize('label2', "{0} {1}", label, options.suffix);
-	}
-
-	return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
-}
-
-/**
- * Renders the command center label. While the folder is at an alternate location this is the location's icon,
- * the name and a branch-style group with the location description.
- */
-export function renderCommandCenterLabel(labelElement: HTMLElement, text: string, location: IFolderLocation | undefined, setupHover: (element: HTMLElement, content: string) => IDisposable): IDisposable {
-	const store = new DisposableStore();
-	labelElement.classList.toggle('has-folder-location', !!location);
-	labelElement.removeAttribute('aria-label');
-	if (!location) {
-		labelElement.textContent = text;
-		return store;
-	}
-
-	const description = location.description;
-	const nameGroup = document.createElement('span');
-	nameGroup.classList.add('folder-location-name-group');
-	const icon = renderIcon(location.icon ?? Codicon.gitBranchCheckout);
-	icon.classList.add('folder-location-icon');
-	icon.ariaHidden = 'true';
-	const name = document.createElement('span');
-	name.classList.add('folder-location-name');
-	name.textContent = text;
-	nameGroup.append(icon, name);
-	const children: HTMLElement[] = [nameGroup];
-
-	if (description) {
-		const separator = document.createElement('span');
-		separator.classList.add('folder-location-separator');
-		separator.ariaHidden = 'true';
-		separator.textContent = '·';
-		const branchGroup = document.createElement('span');
-		branchGroup.classList.add('folder-location-branch-group');
-		store.add(setupHover(branchGroup, description));
-		const branchIcon = renderIcon(Codicon.gitBranchCompact);
-		branchIcon.classList.add('folder-location-branch-icon');
-		branchIcon.ariaHidden = 'true';
-		const branch = document.createElement('span');
-		branch.classList.add('folder-location-branch');
-		branch.textContent = description;
-		branchGroup.append(branchIcon, branch);
-		children.push(separator, branchGroup);
-		labelElement.setAttribute('aria-label', localize('label.withFolderLocationBranch', "{0}, branch {1}", text, description));
-	} else {
-		labelElement.setAttribute('aria-label', text);
-	}
-	labelElement.replaceChildren(...children);
-	return store;
-}
 
 export class CommandCenterControl {
 
@@ -284,27 +209,19 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							}));
 						}
 
-						private readonly _labelHovers = this._store.add(new MutableDisposable());
+						private _label: CommandCenterLabel | undefined;
 
 						private _renderLabel(labelElement: HTMLElement): void {
-							const location = that._windowTitle.folderLocationInfo;
-							this._labelHovers.value = renderCommandCenterLabel(labelElement, this._getLabel(!!location), location, (element, content) => that._hoverService.setupManagedHover(that._hoverDelegate, element, content));
+							this._label ??= this._store.add(that._instaService.createInstance(CommandCenterLabel, labelElement, that._hoverDelegate));
+							this._label.update(this._getLabel(), that._windowTitle.folderLocationInfo);
 						}
 
 						protected override getTooltip() {
 							return that.getTooltip();
 						}
 
-						private _getLabel(atFolderLocation: boolean): string {
-							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
-							return getCommandCenterLabelText({
-								atFolderLocation,
-								prefix,
-								suffix,
-								workspaceName: that._windowTitle.workspaceName,
-								customTitle: that._windowTitle.isCustomTitleFormat() ? that._windowTitle.getWindowTitle() : undefined,
-								fileName: that._editorGroupService.partOptions.showTabs === 'none' ? that._windowTitle.fileName : undefined
-							});
+						private _getLabel(): string {
+							return that._windowTitle.getCommandCenterLabel({ showFileName: that._editorGroupService.partOptions.showTabs === 'none' });
 						}
 					});
 				}

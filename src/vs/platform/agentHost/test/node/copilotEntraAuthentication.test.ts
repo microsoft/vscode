@@ -18,7 +18,7 @@ import { authenticationAccountMeta } from '../../common/meta/agentAuthentication
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
-import { CopilotEntraAuthentication } from '../../node/copilot/copilotEntraAuthentication.js';
+import { CopilotEntraAuthentication, copilotEntraDiscoveryMetadata } from '../../node/copilot/copilotEntraAuthentication.js';
 
 suite('Copilot Entra authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -73,6 +73,70 @@ suite('Copilot Entra authentication', () => {
 			{ kind: 'identity', accountId: 'selected', username: 'Selected account' },
 			{ kind: 'identity', accountId: 'selected', username: 'Selected account' },
 		]);
+	});
+
+	test('discovery requires canonical acceptance rather than provider delivery alone', async () => {
+		const f = fixture();
+		await f.acquire(identity);
+		const credential = f.credential();
+		await f.bridge.authenticate(credential);
+		assert.throws(() => f.bridge.authorizeDiscovery(credential), /authority is unavailable/);
+		await f.authenticate(credential);
+		assert.deepStrictEqual({
+			accountId: f.bridge.authorizeDiscovery(credential),
+			identity: await f.acquire(identity),
+		}, { accountId: 'selected', identity: { kind: 'identity', accountId: 'selected' } });
+	});
+
+	for (const label of ['Selected display name', undefined, ' \t ']) {
+		test(`discovery authority preserves ${label?.trim() ? 'supplied' : label === undefined ? 'absent' : 'blank'} metadata for SDK identity recovery`, async () => {
+			const f = fixture();
+			await f.signIn(label);
+			const accountId = f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, label));
+			assert.deepStrictEqual({
+				accountId,
+				initial: await f.acquire(identity),
+				renewed: await f.acquire({ ...identity, reason: 'renewal', accountId }),
+				pending: f.bridge.authenticationRequired.get(),
+			}, {
+				accountId: 'selected',
+				initial: { kind: 'identity', accountId: 'selected', ...(label?.trim() ? { username: label } : {}) },
+				renewed: { kind: 'identity', accountId: 'selected', ...(label?.trim() ? { username: label } : {}) },
+				pending: undefined,
+			});
+		});
+	}
+
+	test('discovery and selection match opaque IDs instead of labels and preserve authority metadata', async () => {
+		const f = fixture();
+		await f.signIn('Shared label');
+		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, 'Shared label'));
+		assert.throws(() => f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'other', 'Shared label')), /original account/);
+		assert.throws(() => f.bridge.validateSelection(f.credential(undefined, undefined, 'other', 'Shared label'), copilotEntraDiscoveryMetadata), /original account/);
+		f.bridge.validateSelection(f.credential(undefined, undefined, undefined, 'Changed display'), copilotEntraDiscoveryMetadata);
+		assert.deepStrictEqual(await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' }), {
+			kind: 'identity', accountId: 'selected', username: 'Shared label',
+		});
+	});
+
+	test('discovery rejects malformed labels and drops display metadata on sign-out', async () => {
+		const f = fixture();
+		assert.throws(() => f.bridge.authorizeDiscovery({
+			...f.credential(),
+			_meta: { 'vscode.authentication.account': { providerId: 'microsoft', accountId: 'selected', label: 42 } },
+		}), /account provenance/);
+		const before = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		await f.signIn('Previous label');
+		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, undefined, 'Previous label'));
+		await f.authenticate({ resource: copilotEntraDiscoveryResource, token: '' });
+		const after = await f.acquire({ ...identity, reason: 'renewal', accountId: 'selected' });
+		await f.acquire(identity);
+		await f.authenticate(f.credential(undefined, undefined, 'replacement'));
+		f.bridge.authorizeDiscovery(f.credential(undefined, undefined, 'replacement'));
+		assert.deepStrictEqual({ before, after, replacement: await f.acquire(identity) }, {
+			before: { kind: 'unavailable' }, after: { kind: 'unavailable' },
+			replacement: { kind: 'identity', accountId: 'replacement' },
+		});
 	});
 
 	for (const audience of [copilotEntraEmuAudience, copilotEntraM365Audience]) {

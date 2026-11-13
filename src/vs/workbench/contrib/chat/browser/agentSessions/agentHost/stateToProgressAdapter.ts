@@ -60,6 +60,7 @@ import { ChatQuestionCarouselData } from '../../../common/model/chatProgressType
 import { type ChatRequestSource, type IChatRequestVariableData, type IChatSessionCost } from '../../../common/model/chatModel.js';
 import { ChatRequestOriginKind, type IChatRequestOrigin } from '../../../common/chatRequestOrigin.js';
 import { AgentHostCompletionReferenceKind, restoreChatTranscriptContextVariableEntry, restorePasteVariableEntryFromAttachment, toAgentHostCompletionVariableEntryFromMetadata, type IAgentFeedbackVariableEntry, type IChatRequestVariableEntry, type IElementVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
+import { GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX } from '../../../common/attachments/chatInlineAttachments.js';
 import { type IToolConfirmationMessages, type IToolData, type IPreparedToolInvocation, type IToolResult, type IToolResultInputOutputDetails, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { ChatToolInvocationSummary, getToolInvocationSummaryFromInput } from '../../../common/tools/toolInvocationSummary.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
@@ -591,7 +592,7 @@ function getToolSummary(tc: ToolCallState, resourceUris: IAgentHostResourceUriMa
 	if (tc.contributor || meta['vscode.toolInputContract'] !== copilotCliToolInputContract) {
 		return { kind: 'unknown' };
 	}
-	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri)) ?? { kind: 'unknown' };
+	return getToolInvocationSummaryFromInput(tc.toolName, getToolRawInput(tc), uri => resourceUris.fromAgentHost(uri), meta['vscode.viewedResourceType']) ?? { kind: 'unknown' };
 }
 
 function buildMcpAppToolInputData(tc: ToolCallState, connectionAuthority: string, existingRawInput?: unknown): IChatToolInputInvocationData | undefined {
@@ -1703,6 +1704,10 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 	if (pasteEntry) {
 		return pasteEntry;
 	}
+	const gitHubContextEntry = restoreGitHubContextVariableEntry(attachment, modelRepresentation);
+	if (gitHubContextEntry) {
+		return gitHubContextEntry;
+	}
 	const detail = readAttachmentDetail(attachment);
 	const reference = detail?.url && URL.canParse(detail.url) && ['http:', 'https:'].includes(new URL(detail.url).protocol) ? URI.parse(detail.url) : undefined;
 	return {
@@ -1712,6 +1717,26 @@ function messageAttachmentToVariableEntry(attachment: MessageAttachment, resourc
 		value: reference ?? (modelRepresentation || attachment.label),
 		_meta: attachment._meta,
 		...(detail?.text !== undefined ? { modelDescription: detail.text } : {}),
+	};
+}
+
+/**
+ * Restores the attachment of a GitHub issue or pull request, which says only its
+ * link. History keeps what the attachment says but not its id and icon, by which
+ * the link in the request is shown as the pill of the attachment.
+ */
+function restoreGitHubContextVariableEntry(attachment: MessageAttachment, modelRepresentation: string | undefined): IChatRequestVariableEntry | undefined {
+	const groups = modelRepresentation === undefined ? undefined : /^GitHub context: (?<link>https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/(?<kind>issues|pull)\/\d+)$/.exec(modelRepresentation)?.groups;
+	if (!groups) {
+		return undefined;
+	}
+	return {
+		kind: 'generic',
+		id: `${GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX}${groups.link}`,
+		name: attachment.label,
+		icon: groups.kind === 'issues' ? Codicon.issues : Codicon.gitPullRequest,
+		value: modelRepresentation,
+		_meta: attachment._meta,
 	};
 }
 

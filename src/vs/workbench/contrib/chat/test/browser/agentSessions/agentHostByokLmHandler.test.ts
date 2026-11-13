@@ -11,7 +11,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
-import type { IByokLmChatRequest } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
+import type { IByokLmChatRequest, IByokLmStreamDelta } from '../../../../../../platform/agentHost/common/agentHostByokLm.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -371,6 +371,79 @@ suite('AgentHostByokLmHandler', () => {
 			],
 			responseId: 'resp_provider',
 			usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
+		});
+	});
+
+	test('streams a delta for every part it folds into the result, in fold order', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+			() => responseOf([
+				{ type: 'thinking', value: 'considered ', id: 'rs_1' },
+				{ type: 'thinking', value: ['options'], id: 'rs_1', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'thinking', value: '', id: 'thinking_2', metadata: { signature: 'sig', _completeThinking: 'full thought' } },
+				{ type: 'text', value: 'hello ' },
+				{ type: 'text', value: 'world' },
+				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+				{ type: 'tool_use', name: 'apply_patch', toolCallId: 't2', parameters: { input: 'patch' } },
+				{ type: 'data', mimeType: 'stateful_marker', data: VSBuffer.fromString('claude\\resp_provider') },
+			]),
+		);
+		const handler = createHandler(service);
+		const deltas: IByokLmStreamDelta[] = [];
+		store.add(handler.onDidDelta(delta => deltas.push(delta)));
+
+		const result = await handler.chat(
+			{
+				requestId: 'req-1',
+				vendor: 'acme',
+				modelId: 'claude',
+				input: [{ type: 'message', role: 'user', content: [{ type: 'text', text: 'hi' }] }],
+				tools: [
+					{ type: 'function', name: 'getWeather' },
+					{ type: 'custom', name: 'apply_patch' },
+				],
+			},
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual({
+			deltas,
+			output: result.output,
+		}, {
+			deltas: [
+				{ requestId: 'req-1', kind: 'reasoning', id: 'rs_1', delta: 'considered ', newSummaryPart: true },
+				{ requestId: 'req-1', kind: 'reasoning', id: 'rs_1', delta: 'options', newSummaryPart: true, encryptedContent: 'opaque' },
+				{ requestId: 'req-1', kind: 'reasoning', id: 'thinking_2', delta: '', newSummaryPart: true, encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig","_completeThinking":"full thought"}' },
+				{ requestId: 'req-1', kind: 'text', delta: 'hello ' },
+				{ requestId: 'req-1', kind: 'text', delta: 'world' },
+				{ requestId: 'req-1', kind: 'toolCall', callId: 't1', name: 'getWeather', isCustom: false, value: '{"city":"NYC"}' },
+				{ requestId: 'req-1', kind: 'toolCall', callId: 't2', name: 'apply_patch', isCustom: true, value: 'patch' },
+			],
+			// The deltas above describe exactly these items, in this order.
+			output: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['considered ', 'options'], encryptedContent: 'opaque', metadata: { encrypted_content: 'opaque' } },
+				{ type: 'reasoning', id: 'thinking_2', summary: [''], encryptedContent: 'vscode-reasoning-metadata:{"signature":"sig","_completeThinking":"full thought"}', metadata: { signature: 'sig', _completeThinking: 'full thought' } },
+				{ type: 'message', content: [{ type: 'text', text: 'hello world' }] },
+				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+				{ type: 'custom_tool_call', callId: 't2', name: 'apply_patch', input: 'patch' },
+			],
+		});
+	});
+
+	test('emits no deltas for a request that does not ask to be streamed', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme-claude', byokModel('acme', 'claude')]]),
+			() => responseOf([{ type: 'text', value: 'ok' }]),
+		);
+		const handler = createHandler(service);
+		const deltas: IByokLmStreamDelta[] = [];
+		store.add(handler.onDidDelta(delta => deltas.push(delta)));
+
+		const result = await handler.chat({ vendor: 'acme', modelId: 'claude', input: [] }, CancellationToken.None);
+
+		assert.deepStrictEqual({ deltas, output: result.output }, {
+			deltas: [],
+			output: [{ type: 'message', content: [{ type: 'text', text: 'ok' }] }],
 		});
 	});
 

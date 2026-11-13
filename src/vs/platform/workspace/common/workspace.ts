@@ -179,27 +179,15 @@ export function toWorkspaceIdentifier(arg0: IWorkspace | string | undefined, isE
 		return UNKNOWN_EMPTY_WINDOW_WORKSPACE;
 	}
 
-	// Multi root
-	const workspace = arg0;
-	if (workspace.configuration) {
-		return {
-			id: workspace.id,
-			configPath: workspace.configuration
-		};
+	if (arg0.configuration) {
+		return { id: arg0.id, configPath: arg0.configuration };
 	}
 
-	// Single folder
-	if (workspace.folders.length === 1) {
-		return {
-			id: workspace.id,
-			uri: workspace.folders[0].primaryUri ?? workspace.folders[0].uri
-		};
+	if (arg0.uri) {
+		return { id: arg0.id, uri: arg0.uri };
 	}
 
-	// Empty window
-	return {
-		id: workspace.id
-	};
+	return { id: arg0.id };
 }
 
 export function isWorkspaceIdentifier(obj: unknown): obj is IWorkspaceIdentifier {
@@ -254,6 +242,12 @@ export interface IWorkspaceFoldersWillChangeEvent {
 	readonly changes: IWorkspaceFoldersChangeEvent;
 	readonly fromCache: boolean;
 
+	/**
+	 * Whether the change moves the single folder to another location. The trust of
+	 * the destination is settled by the folder location change itself.
+	 */
+	readonly isFolderLocationChange?: boolean;
+
 	join(promise: Promise<void>): void;
 }
 
@@ -269,6 +263,14 @@ export interface IWorkspace {
 	 * the unique identifier of the workspace.
 	 */
 	readonly id: string;
+
+	/**
+	 * The location of the workspace itself: the configuration file of a multi-root workspace,
+	 * the folder's own location of a single-folder workspace and `undefined` for an empty one.
+	 * Unlike `folders[i].uri`, which is where a folder is now, it does not change while a
+	 * folder is at an alternate location.
+	 */
+	readonly uri: URI | undefined;
 
 	/**
 	 * Folders in the workspace.
@@ -319,16 +321,10 @@ export interface IWorkspaceFolderData {
 	 * The ordinal number of this workspace folder.
 	 */
 	readonly index: number;
-
-	/**
-	 * The primary location of this workspace folder, which is its identity.
-	 * Only set while the folder is at an alternate location, in which case
-	 * `uri` is that alternate location. Otherwise `undefined`.
-	 */
-	readonly primaryUri?: URI;
 }
 
 export interface IWorkspaceFolder extends IWorkspaceFolderData {
+
 
 	/**
 	 * Given workspace folder relative path, returns the resource with the absolute path.
@@ -363,7 +359,9 @@ export class Workspace implements IWorkspace {
 		private _configuration: URI | null,
 		private ignorePathCasing: (key: URI) => boolean,
 		private _workspaceName?: string,
+		private _uri?: URI,
 	) {
+		this._uri ??= _configuration ?? (folders.length === 1 ? folders[0].uri : undefined);
 		this.foldersMap = TernarySearchTree.forUris<WorkspaceFolder>(this.ignorePathCasing, () => true);
 		this.folders = folders;
 	}
@@ -373,12 +371,17 @@ export class Workspace implements IWorkspace {
 		this._configuration = workspace.configuration;
 		this._transient = workspace.transient;
 		this._workspaceName = workspace.name;
+		this._uri = workspace._uri;
 		this.ignorePathCasing = workspace.ignorePathCasing;
 		this.folders = workspace.folders;
 	}
 
 	get id(): string {
 		return this._id;
+	}
+
+	get uri(): URI | undefined {
+		return this._uri;
 	}
 
 	get transient(): boolean {
@@ -413,7 +416,7 @@ export class Workspace implements IWorkspace {
 	}
 
 	toJSON(): IWorkspace {
-		return { id: this.id, folders: this.folders, transient: this.transient, configuration: this.configuration, name: this.name };
+		return { id: this.id, uri: this.uri, folders: this.folders, transient: this.transient, configuration: this.configuration, name: this.name };
 	}
 }
 
@@ -432,7 +435,6 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	readonly uri: URI;
 	readonly name: string;
 	readonly index: number;
-	readonly primaryUri?: URI;
 
 	constructor(
 		data: IWorkspaceFolderData,
@@ -448,7 +450,6 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 		this.uri = data.uri;
 		this.index = data.index;
 		this.name = data.name;
-		this.primaryUri = data.primaryUri;
 	}
 
 	toResource(relativePath: string): URI {
@@ -456,7 +457,7 @@ export class WorkspaceFolder implements IWorkspaceFolder {
 	}
 
 	toJSON(): IWorkspaceFolderData {
-		return { uri: this.uri, name: this.name, index: this.index, ...(this.primaryUri ? { primaryUri: this.primaryUri } : undefined) };
+		return { uri: this.uri, name: this.name, index: this.index };
 	}
 }
 

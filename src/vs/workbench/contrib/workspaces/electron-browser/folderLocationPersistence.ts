@@ -7,11 +7,12 @@ import { CancellationToken, CancellationTokenSource } from '../../../../base/com
 import { Disposable, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { IWorkspaceFolderLocationService, IResolvedFolderLocation } from '../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWindowFolderLocation } from '../../../../platform/window/common/window.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -30,7 +31,8 @@ export const FOLDER_LOCATION_RESTORE_TIMEOUT = 10000;
  * has been started at.
  *
  * The window starts at the persisted alternate location (see `WorkspaceService`),
- * without any trust being granted. Once a provider confirms the location, it
+ * without any trust being granted or the location being validated. A missing location
+ * is detected asynchronously and the window returns to the primary location. Once a provider confirms the location, it
  * becomes the current location. If no provider does, the window returns to the
  * primary location.
  */
@@ -46,11 +48,12 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
+		@IFileService private readonly fileService: IFileService,
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
-		this._register(this.folderLocationService.onDidChangeCurrentLocation(() => this.persist(this.folderLocationService.currentLocation)));
+		this._register(this.folderLocationService.onDidChangeLocation(e => this.persist(this.folderLocationService.getLocation(e.folder))));
 
 		const persisted = environmentService.folderLocation;
 		if (persisted) {
@@ -66,8 +69,8 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	}
 
 	private isAtAlternate(location: URI): boolean {
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		return !!folder?.primaryUri && this.uriIdentityService.extUri.isEqual(folder.uri, location);
+		const folder = this.contextService.getWorkspace().folders[0];
+		return !!folder && this.folderLocationService.isAtAlternateLocation(folder) && this.uriIdentityService.extUri.isEqual(folder.uri, location);
 	}
 
 	private async restore(persisted: IWindowFolderLocation, token: CancellationToken): Promise<void> {
@@ -80,16 +83,37 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		const primary = this.contextService.getWorkspace().folders[0].primaryUri!;
+		const workspace = this.contextService.getWorkspace();
+		const primary = workspace.uri ?? workspace.folders[0].uri;
+
+		// The location is applied at startup without validation, so a missing one is detected here
+		const exists = await this.isDirectory(location);
+		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
+			return; // disposed, or switched by someone else in the meantime
+		}
+
+		if (!exists) {
+			await this.returnToPrimary(persisted, primary, location, token);
+			return;
+		}
+
 		const resolved = await this.resolve(primary, location, token);
-		if (token.isCancellationRequested || this.folderLocationService.currentLocation || !this.isAtAlternate(location)) {
+		if (token.isCancellationRequested || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0]) || !this.isAtAlternate(location)) {
 			return; // disposed, or switched by someone else in the meantime
 		}
 
 		if (resolved) {
-			this.folderLocationService.setCurrentLocation(resolved);
+			this.folderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved);
 		} else {
 			await this.returnToPrimary(persisted, primary, location, token);
+		}
+	}
+
+	private async isDirectory(location: URI): Promise<boolean> {
+		try {
+			return (await this.fileService.stat(location)).isDirectory;
+		} catch (error) {
+			return false;
 		}
 	}
 
@@ -140,7 +164,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 		try {
 
 			// Does nothing while a newer switch is in flight: that one is authoritative
-			await this.workspaceEditingService.setFolderLocation(primary, undefined, { ifIdle: true });
+			await this.workspaceEditingService.setFolderLocation(primary, { ifIdle: true });
 		} catch (error) {
 			if (token.isCancellationRequested) {
 				return;
@@ -155,8 +179,11 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			return;
 		}
 
-		const folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? this.contextService.getWorkspace().folders[0] : undefined;
-		if (folder && !folder.primaryUri) {
+		// Only announce when this is still the original single-folder workspace, at its primary location
+		const workspace = this.contextService.getWorkspace();
+		const identity = toWorkspaceIdentifier(workspace);
+		const folder = workspace.folders[0];
+		if (isSingleFolderWorkspaceIdentifier(identity) && this.uriIdentityService.extUri.isEqual(identity.uri, primary) && folder && this.uriIdentityService.extUri.isEqual(folder.uri, primary)) {
 			this.discard(persisted);
 		}
 	}

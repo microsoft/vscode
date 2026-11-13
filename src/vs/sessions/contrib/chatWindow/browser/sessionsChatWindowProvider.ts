@@ -104,6 +104,8 @@ class SessionsChatWindowChat extends SessionChatEditorEntry implements IChatWind
 
 	/** Keeps the chat out of the main window's grid while the window shows it. */
 	private readonly _gridHold = this._register(new MutableDisposable());
+	private _heldSession: ISession | undefined;
+	private readonly _shownSession = observableValue<ISessionChatEditorShown | undefined>(this, undefined);
 
 	readonly window: IObservable<IChatWindow | undefined>;
 	readonly active: IObservable<boolean>;
@@ -125,12 +127,21 @@ class SessionsChatWindowChat extends SessionChatEditorEntry implements IChatWind
 		super(chatResource, sessionsManagementService, chatService, sessionsListModelService, sessionsProvidersService, configurationService);
 		this.window = owner.window;
 		this.active = derived(this, reader => isEqual(owner.window.read(reader)?.chat.read(reader), this.chat.read(reader)));
+		// It takes the chat out of the main window's grid only once the window binds it: the window first takes along the
+		// editors the main window has open for the chat's session, which taking the chat out of the grid closes.
+		this._register(autorun(reader => {
+			const shown = this._shownSession.read(reader);
+			if (shown && this.window.read(reader) && this._heldSession?.sessionId !== shown.session.sessionId) {
+				this._heldSession = shown.session;
+				this._gridHold.value = this._sessionsService.hideChatFromGrid(shown.session, shown.chat.resource);
+			}
+		}));
 		// The loaded model of the chat bridges its move into the window, from the main window's grid, which lets go of it.
 		this.start(composer, 'ChatWindow#move');
 	}
 
 	protected override onDidShowSession(shown: ISessionChatEditorShown): void {
-		this._gridHold.value = this._sessionsService.hideChatFromGrid(shown.session, shown.chat.resource);
+		this._shownSession.set(shown, undefined);
 	}
 
 	protected override onDidSetComposer(_composer: ChatWindowComposerModel, store: DisposableStore): void {
@@ -584,14 +595,20 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			return resolved;
 		}
 		// What it would resolve as now, from what is known: a stored composer as the session its send started, once that is
-		// known and created, a session as its main chat.
+		// known and created, a session as its main chat, a chat by a previous identity of its session as its current resource.
 		if (isChatWindowComposerResource(original)) {
 			const sent = this._composers.storedAttemptSessionOf(original);
 			const session = sent && this._sessionsManagementService.getSession(sent);
 			return session && isSessionCreated(session) ? session.mainChat.get().resource : undefined;
 		}
-		const chat = resolveSessionChat(this._sessionsManagementService, original);
-		return chat && !chat.chat ? chat.session.mainChat.get().resource : undefined;
+		const known = resolveSessionChat(this._sessionsManagementService, original);
+		if (!known) {
+			return undefined;
+		}
+		if (!known.chat) {
+			return known.session.mainChat.get().resource;
+		}
+		return isEqual(known.chat, original) ? undefined : known.chat;
 	}
 
 	/** Opens a new-session composer in `window`, as {@link SessionsChatWindowContent.openNewChat} does. */

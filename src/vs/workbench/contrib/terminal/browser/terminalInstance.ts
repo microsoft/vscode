@@ -2110,7 +2110,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Any of the above setting changes could have changed the dimensions of the
 			// terminal, re-evaluate now.
-			this._initDimensions();
+			if (this._lastLayoutDimensions && this._lastLayoutDimensions.width > 0 && this._lastLayoutDimensions.height > 0) {
+				// Use the last layout, the container can have a temporary size while its view is laid out
+				this._evaluateColsAndRows(this._lastLayoutDimensions.width, this._lastLayoutDimensions.height);
+			}
 			cols = this.cols;
 			rows = this.rows;
 
