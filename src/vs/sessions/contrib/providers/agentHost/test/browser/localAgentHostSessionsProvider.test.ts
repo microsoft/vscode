@@ -16521,6 +16521,9 @@ suite('LocalAgentHostSessionsProvider', () => {
 			openSession: true,
 			sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
 		});
+		// Who learns of the replacement, such as the sessions management service, subscribed before the scope was set
+		const atReplacement: string[][] = [];
+		disposables.add(provider.onDidReplaceSession(({ from, to }) => atReplacement.push(provider.getSessions().map(listed => listed === to ? 'committed' : listed === from ? 'draft' : listed.sessionId))));
 		// Every folder: the scope lists every session, through its own listing
 		provider.setListingScope({ folders: constObservable([]), repositories: constObservable([]) });
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
@@ -16536,9 +16539,10 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.deepStrictEqual({
 			draftListed,
+			atReplacement,
 			listed: provider.getSessions().map(listed => listed === committed ? 'committed' : listed.sessionId === session.sessionId ? 'draft' : listed.sessionId),
 			all: provider.getAllSessions().map(listed => listed === committed ? 'committed' : listed.sessionId),
-		}, { draftListed: true, listed: ['committed'], all: ['committed'] });
+		}, { draftListed: true, atReplacement: [['committed']], listed: ['committed'], all: ['committed'] });
 	});
 
 	test('sendRequest ignores same-type session-added notifications until its own session appears', async () => {

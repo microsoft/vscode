@@ -278,7 +278,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				const from = this._publicSession(event.from);
 				const to = this._publicSession(event.to);
 				if (from !== to) {
-					this._onDidReplaceSession.fire({ from, to });
+					this._replaceSession({ from, to });
 				}
 			}));
 			store.add(provider.onDidInvokeChangesetOperation(event => this._onDidInvokeChangesetOperation.fire({

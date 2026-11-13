@@ -98,9 +98,8 @@ suite('SessionsListingScopeFilter', () => {
 		const draft = createSession('draft', 'repo');
 		const sessions: ISession[] = [hidden];
 		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
-		const replaced = disposables.add(new Emitter<void>());
 		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
-		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event, replaced.event));
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event));
 		const listed = () => filter.getSessions().map(session => session === hidden ? 'hidden (stale)' : session === draft ? 'draft' : session.sessionId === 'hidden' ? 'hidden (replacement)' : session.sessionId);
 
 		// A replacement under the same ID that works in the scope, reported as a change only
@@ -108,12 +107,12 @@ suite('SessionsListingScopeFilter', () => {
 		sessions[0] = moved;
 		changes.fire({ added: [], removed: [], changed: [moved] });
 		const afterMove = listed();
-		// A draft is added and listed; its provider then drops it for the session it committed, firing only the replacement
+		// A draft is added and listed; its provider then drops it for the session it committed, with no change, and matches again
 		sessions.push(draft);
 		changes.fire({ added: [draft], removed: [], changed: [] });
 		const withDraft = listed();
 		sessions.splice(sessions.indexOf(draft), 1, createSession('committed', 'repo'));
-		replaced.fire();
+		filter.rematch();
 
 		assert.deepStrictEqual({ afterMove, withDraft, graduated: listed() }, {
 			afterMove: ['hidden (replacement)'],
