@@ -392,6 +392,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	/** What the last conclusive checkout probe was based on and when; the same inputs give the same answer until the checkout changes, which a Git state refresh reports. */
 	private lastWorkspaceProbe: string | undefined;
 	private lastWorkspaceProbeAt = 0;
+	/** Counts the announced Git state refreshes of the session, so that a probe that started before one is not taken for current. */
+	private gitRefreshGeneration = 0;
 	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	/** Threads resolved from their details row, by resolution time, hidden until GitHub's thread list reflects it. */
@@ -423,7 +425,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
 		const refreshWorkspace = this._register(new RunOnceScheduler(() => { void this.refreshWorkspaces(); }, 50));
-		this._register(sessionGitRefreshes(() => { this.lastWorkspaceProbe = undefined; }));
+		this._register(sessionGitRefreshes(() => { this.gitRefreshGeneration++; }));
 		this._register(autorun(reader => this.pruneResolvedThreads(resource.snapshot.read(reader).reviewThreads)));
 		this._register(autorun(reader => {
 			resource.snapshot.read(reader);
@@ -854,7 +856,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			return;
 		}
 		const directories = this.configuration.getEffectiveWorkingDirectories(chat);
-		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner]);
+		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner, this.gitRefreshGeneration]);
 		if ((probe === this.lastWorkspaceProbe && Date.now() - this.lastWorkspaceProbeAt < workspaceProbeMaxAge) || probe === this.probingWorkspace) {
 			return;
 		}

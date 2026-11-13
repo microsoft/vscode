@@ -1644,6 +1644,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		sessionOpenError?: Error;
 		/** Receives the resource of each session database that is opened. */
 		dbOpens?: string[];
+		operations?: IAgentHostChangesetOperationService;
 	}): { svc: TestAgentHostChangesetService; stateManager: AgentHostStateManager; log: RecordingLogService } {
 		const resource = options.session?.resource ?? sessionStr;
 		const log = options.log ?? new RecordingLogService();
@@ -1689,7 +1690,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			options.git,
 			options.checkpoint,
 			disposables.add(new AgentConfigurationService(stateManager, new NullLogService())),
-			createOperationService(),
+			options.operations ?? createOperationService(),
 			createSubscriptionService(...(options.subscriptions ?? [])),
 			options.review ?? NULL_REVIEW_SERVICE,
 			options.telemetry ?? NullTelemetryService,
@@ -1879,6 +1880,21 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 			dbOpens: 0,
 			statusChangesAfterRepeats: 0,
 		});
+	});
+
+	test('a branch refresh that finds the changeset current still refreshes its operations', async () => {
+		const state = { fingerprint: 'tree-1' as string | undefined };
+		const { git } = createCountingBranchGitService(state);
+		const updates: Array<{ owner: string; changeset: string | undefined }> = [];
+		const operations: IAgentHostChangesetOperationService = { ...createOperationService(), updateOperations: (owner, changeset) => { updates.push({ owner, changeset }); } };
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE, operations });
+		const owner = buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo']));
+
+		await refreshBranch(svc, sessionStr);
+		const afterCompute = updates.length;
+		await refreshBranch(svc, sessionStr);
+
+		assert.deepStrictEqual({ afterCompute, afterCurrent: updates }, { afterCompute: 0, afterCurrent: [{ owner, changeset: buildBranchChangesetUri(owner) }] });
 	});
 
 	test('a branch refresh recomputes when the working tree, a commit or the base changed, or when forced', async () => {

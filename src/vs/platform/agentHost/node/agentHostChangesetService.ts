@@ -2164,6 +2164,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (provider === undefined && branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
 				this._logService.trace(`[AgentHostChangesetService] Branch changeset of ${session} is current; skipping its computation`);
 				this._restoreStaticChangesetStatus(changesetUri, reusable);
+				// The operations follow Git state the fingerprint does not cover, such as the commits ahead of the upstream.
+				this._changesetOperationService.updateOperations(session, changesetUri);
 				return;
 			}
 			if (this._store.isDisposed) {
