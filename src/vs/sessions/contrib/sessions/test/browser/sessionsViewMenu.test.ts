@@ -359,7 +359,7 @@ suite('Sessions - View Menu', () => {
 	test('inbox triage menu respects the mode, triage state, and disabled AI', () => {
 		const { snapshot, grouping, contextKeyService } = createMenu();
 		const state = SessionItemInboxStateContext.bindTo(contextKeyService);
-		const actions = () => snapshot(SessionItemContextMenuId).filter(item => ['Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark as Done'].includes(item.title)).map(item => item.title);
+		const actions = () => snapshot(SessionItemContextMenuId).filter(item => ['Acknowledge', 'Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark as Done'].includes(item.title)).map(item => item.title);
 		const archiveFilter = () => snapshot(Menus.SessionsViewFilter).filter(item => ['Show Done', 'Show Archived'].includes(item.title)).map(item => item.title);
 		const ordinary = actions();
 		const ordinaryFilter = archiveFilter();
@@ -369,10 +369,18 @@ suite('Sessions - View Menu', () => {
 		const done = actions();
 		state.set('hold');
 		const held = actions();
+		state.set('mixed');
+		SessionItemIsMultiSelectionContext.bindTo(contextKeyService).set(true);
+		const mixed = actions();
+		const archivedContext = SessionIsArchivedContext.bindTo(contextKeyService);
+		archivedContext.set(true);
+		const archived = actions();
+		archivedContext.set(false);
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
-		assert.deepStrictEqual({ ordinary, ordinaryFilter, active, done, held, hidden: actions(), inboxFilter: archiveFilter() }, {
-			ordinary: ['Mark as Done'], ordinaryFilter: ['Show Done'], active: ['Put on Hold', 'Snooze...', 'Mark as Done'], done: ['Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark as Done'],
-			held: ['Return to Inbox', 'Snooze...', 'Mark as Done'], hidden: [], inboxFilter: ['Show Done'],
+		assert.deepStrictEqual({ ordinary, ordinaryFilter, active, done, held, mixed, archived, hidden: actions(), inboxFilter: archiveFilter() }, {
+			ordinary: ['Mark as Done'], ordinaryFilter: ['Show Done'], active: ['Acknowledge', 'Put on Hold', 'Snooze...', 'Mark as Done'], done: ['Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark as Done'],
+			held: ['Acknowledge', 'Return to Inbox', 'Snooze...', 'Mark as Done'], mixed: ['Acknowledge', 'Return to Inbox', 'Put on Hold', 'Snooze...', 'Mark as Done'],
+			archived: [], hidden: [], inboxFilter: ['Show Done'],
 		});
 	});
 
@@ -430,15 +438,20 @@ suite('Sessions - View Menu', () => {
 		await run('sessionsViewPane.inboxHold');
 		const held = states();
 		await notices[1].undo!();
-		assert.deepStrictEqual({ resumed, restored, held, holdUndone: states(), archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
+		const holdUndone = states();
+		await run('sessionsViewPane.inboxAcknowledge');
+		const acknowledged = states();
+		await notices[2].undo!();
+		assert.deepStrictEqual({ resumed, restored, held, holdUndone, acknowledged, acknowledgementUndone: states(), acknowledgementMessage: notices[2].message, archived: sessions.map(session => session.isArchived.get()), countdowns: notices.map(notice => notice.showCountdown), closed }, {
 			resumed: [undefined, undefined, undefined], restored: ['untilActivity', undefined, undefined],
-			held: ['hold', 'hold', undefined], holdUndone: ['untilActivity', undefined, undefined], archived: [false, false, true],
-			countdowns: [true, true],
+			held: ['hold', 'hold', undefined], holdUndone: ['untilActivity', undefined, undefined],
+			acknowledged: ['done', 'done', undefined], acknowledgementUndone: ['untilActivity', undefined, undefined], acknowledgementMessage: '2 acknowledged',
+			archived: [false, false, true], countdowns: [true, true, true],
 			closed: [],
 		});
 	});
 
-	test('hold, resume, and snooze leave the session open and Inbox has no separate dismissal command', async () => {
+	test('acknowledge, hold, resume, and snooze leave the session open and Inbox has no separate dismissal command', async () => {
 		const session = buildTestSession({ id: 'session', title: 'Session' }).session;
 		const harness = createListHarness(store, [session]);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -452,12 +465,12 @@ suite('Sessions - View Menu', () => {
 			upcastPartial<SessionsView>({ grouping: SessionsGrouping.Inbox, listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
 		harness.instantiationService.stub(IQuickInputService, upcastPartial<IQuickInputService>({}), 'pick', async (items: IQuickPickItem[]) => items[0]);
 		const counts: { notices: number; closed: number }[] = [];
-		for (const action of ['inboxHold', 'inboxResume', 'inboxSnooze']) {
+		for (const action of ['inboxAcknowledge', 'inboxHold', 'inboxResume', 'inboxSnooze']) {
 			await CommandsRegistry.getCommand(`sessionsViewPane.${action}`)!.handler(harness.instantiationService, session);
 			counts.push({ notices: notices.length, closed: closed.length });
 		}
 		assert.deepStrictEqual({ counts, closed, dismissal: CommandsRegistry.getCommand('sessionsViewPane.inboxDone'), archived: session.isArchived.get() }, {
-			counts: [{ notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 0, closed: 0 }],
+			counts: [{ notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 0, closed: 0 }],
 			closed: [], dismissal: undefined, archived: false,
 		});
 	});
