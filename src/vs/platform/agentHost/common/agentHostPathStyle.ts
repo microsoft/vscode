@@ -40,18 +40,3 @@ export function getAgentHostPathStyle(connection: IAgentHostEnvironmentConnectio
 
 	return undefined;
 }
-
-/**
- * Whether the host's file paths are case-sensitive, or `undefined` when its platform and path style are unknown.
- * Linux hosts are case-sensitive; Windows and macOS hosts are not.
- */
-export function isAgentHostPathCaseSensitive(connection: IAgentHostEnvironmentConnection): boolean | undefined {
-	const root = connection.rootState?.value;
-	const platform = readAgentHostResources(root instanceof Error ? undefined : root)?.platform;
-	if (platform) {
-		// Posix path style also covers macOS, whose file systems are usually case-insensitive.
-		return platform === 'linux';
-	}
-	const pathStyle = getAgentHostPathStyle(connection);
-	return pathStyle === undefined ? undefined : pathStyle === PathStyle.Posix;
-}
