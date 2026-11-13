@@ -81,6 +81,7 @@ russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = 
 russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 
 [profile.release]
+opt-level = "z"
 strip = true
 lto = "thin"
 codegen-units = 1
