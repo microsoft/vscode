@@ -67,6 +67,7 @@ import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '..
 import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 // The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
+import { EditorWindowAgentHostSessionConfigPickerContribution } from '../../../../../../../workbench/contrib/sessions/providers/agentsView/browser/agentsViewComposerControls.js';
 import '../../../browser/agentHostSessionConfigPicker.contribution.js';
 import { InSessionHostScopeContext, ISessionHost, ISessionHostService } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, testChatSourceOf, testGridPanes } from '../../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -715,12 +716,7 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual(localEntries, entries);
 	});
 
-	test('a contribution can leave a repository control out of the new session composer', () => {
-		class WithoutNewSessionIsolation extends AgentHostSessionConfigPickerContribution {
-			protected override showsRepositoryProperty(isIsolation: boolean, isNewSession: boolean): boolean {
-				return !(isIsolation && isNewSession);
-			}
-		}
+	test('the editor window contribution leaves the isolation control out of the new session composer', () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
 			override readonly onDidChange = Event.None;
@@ -733,7 +729,7 @@ suite('Agent Host Session Config Picker', () => {
 			readonly gridShown = constObservable([services.activeSession]);
 			override readonly slotPanes = testGridPanes(this.gridShown);
 		}());
-		store.add(services.instantiationService.createInstance(WithoutNewSessionIsolation));
+		store.add(services.instantiationService.createInstance(EditorWindowAgentHostSessionConfigPickerContribution));
 
 		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
 			.filter(isIMenuItem)

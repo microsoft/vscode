@@ -1769,7 +1769,8 @@ function createSessionsListActions(): DisposableStore {
 		}));
 	}
 
-	const GroupedByWorktreeContext = ContextKeyExpr.and(sessionsViewOffersGrouping(SessionsGrouping.Worktree), SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
+	const OffersWorktreeGroupingContext = ContextKeyExpr.and(IsSessionsWindowContext.negate(), sessionsViewOffersGrouping(SessionsGrouping.Worktree));
+	const GroupedByWorktreeContext = ContextKeyExpr.and(OffersWorktreeGroupingContext, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree));
 
 	store.add(registerAction2(class GroupByWorktreeAction extends Action2 {
 		constructor() {
@@ -1778,8 +1779,8 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('groupByWorktree', "Worktree"),
 				category: SessionsCategories.Sessions,
 				toggled: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Worktree),
-				precondition: sessionsViewOffersGrouping(SessionsGrouping.Worktree),
-				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: sessionsViewOffersGrouping(SessionsGrouping.Worktree) }],
+				precondition: OffersWorktreeGroupingContext,
+				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 3.5, when: OffersWorktreeGroupingContext }],
 			});
 		}
 		override run(accessor: ServicesAccessor) {

@@ -978,6 +978,32 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('mounts Find in the container of its options rather than in the overlay of the tree', async () => {
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(findWidgetContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const treeElement = listContainer.querySelector('.monaco-list')?.parentElement;
+			const inTreeBefore = treeElement?.querySelectorAll('.monaco-findInput').length;
+			list.openFind();
+			const found = {
+				inContainer: findWidgetContainer.querySelectorAll('.monaco-findInput').length,
+				inTree: listContainer.querySelectorAll('.monaco-findInput').length,
+				inTreeBefore,
+			};
+			list.closeFind();
+			await timeout(350);
+			assert.deepStrictEqual(found, { inContainer: 1, inTree: 0, inTreeBefore: 0 });
+		});
+
 		test('moves Customizations without moving other navigation shortcuts', () => {
 			const harness = createListHarness(disposables, []);
 			const container = harness.createContainer();
