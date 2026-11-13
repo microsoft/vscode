@@ -53,8 +53,8 @@ import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangese
 import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
-import { ChatEditorContent, IChatEditorComposer } from '../../../chatEditor/browser/chatEditorContent.js';
-import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY } from '../../browser/chatWindowComposer.js';
+import { ChatEditorContent, IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatWindowComposer.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../common/chatWindows.js';
 import { SESSION_ACTIVITY_BAR_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { SessionChangesEditorFileListContext } from '../../../../../workbench/contrib/sessions/common/changes.js';
@@ -75,7 +75,7 @@ import { EditorInput } from '../../../../../workbench/common/editor/editorInput.
 import { IGroupModelChangeEvent } from '../../../../../workbench/common/editor/editorGroupModel.js';
 import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ISessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ISessionChatViewHost } from '../../../chatEditor/browser/chatEditor.js';
+import { ISessionChatViewHost } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditor.js';
 import { ITitleService } from '../../../../../workbench/services/title/browser/titleService.js';
 import { IAuxiliaryTitlebarPart } from '../../../../../workbench/browser/parts/titlebar/titlebarPart.js';
 import { ViewEditorInput } from '../../../../../workbench/browser/parts/editor/viewEditorInput.js';
@@ -130,6 +130,8 @@ suite('Sessions chat window provider', () => {
 		// The main window shows another session than those that move into it, such as one whose opening was cancelled
 		const mainWindowActiveSession = constObservable<ITestSessionWithChat | undefined>(undefined);
 		const onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
+		/** How many times the chats looked their session up. */
+		const lookups = { count: 0 };
 		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', []);
 		const configuration = new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true, [SIZE_CUSTOMIZATIONS_SETTING]: options?.sizes ?? {} });
 		store.add(configuration.onDidChangeConfigurationEmitter);
@@ -188,8 +190,10 @@ suite('Sessions chat window provider', () => {
 			override getSession(resource: URI) { return sessions.find(session => session.resource.toString() === resource.toString()); }
 			override getSessions() { return sessions; }
 			override getSessionForChatResource(resource: URI) {
+				lookups.count++;
 				for (const session of sessions) {
-					const chat = session.chats.get().find(candidate => candidate.resource.toString() === resource.toString());
+					// A chat is also found by a previous identity of its session, such as before a migration
+					const chat = session.chats.get().find(candidate => candidate.resource.toString() === resource.toString() || (candidate as { readonly previousResource?: URI }).previousResource?.toString() === resource.toString());
 					if (chat) {
 						return { session, chat };
 					}
@@ -299,7 +303,7 @@ suite('Sessions chat window provider', () => {
 		}));
 		beforeProvider?.(storage);
 		const provider = store.add(instantiationService.createInstance(SessionsChatWindowProvider));
-		return { provider, chatWindowService, editorParts, storage, events, window, titleBars, opening, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
+		return { provider, lookups, chatWindowService, editorParts, storage, events, window, titleBars, opening, slots, onDidAcceptNewSessionRequest, onDidEndNewSessionRequest, windowInstantiationService: store.add(instantiationService.createChild(new ServiceCollection([IContextKeyService, store.add(new ContextKeyService(configuration))]))), onDidChangeSessions, sentiment, configuration, editorGroups, activeChat, chatHostOpenerService, visibleSessions };
 	}
 
 	/** The window the chats show in: its active chat is `activeChat`. */
@@ -354,16 +358,33 @@ suite('Sessions chat window provider', () => {
 		});
 	});
 
+	test('a chat stays in the main window\'s grid until its window binds it, so that the editors of its session are there to move into the window; its window then keeps it out', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const { provider, events, windowInstantiationService } = createProvider(store, [session]);
+
+		const content = (await provider.resolveContent(session.resource))!;
+		await content.resolveChat(session.resource);
+		const beforeBind = [...events];
+		const binding = store.add(content.bind!(window, windowInstantiationService));
+		const afterBind = [...events];
+		binding.dispose();
+		const afterUnbind = [...events];
+		content.dispose();
+
+		assert.deepStrictEqual({ beforeBind, afterBind, afterUnbind }, { beforeBind: [], afterBind: ['hide session /main'], afterUnbind: ['hide session /main'] });
+	});
+
 	test('another resource of a chat a window shows, such as its session\'s, resolves to the entry the window has of it, not to one of its own', async () => {
 		const store = disposables.add(new DisposableStore());
 		const session = createSession('session', [createChat('main')]);
-		const { provider, events } = createProvider(store, [session]);
+		const { provider } = createProvider(store, [session]);
 		const content = store.add((await provider.resolveContent(session.resource))!);
 		const shown = (await content.resolveChat(URI.parse('test:/main')))!;
 
 		const ofSession = await content.resolveChat(session.resource);
 
-		assert.deepStrictEqual({ same: ofSession === shown, events }, { same: true, events: ['hide session /main'] });
+		assert.deepStrictEqual({ same: ofSession === shown }, { same: true });
 	});
 
 	test('a session resolves to the chat its grid slot shows, unless the exact chat is asked for, which is its main chat', async () => {
@@ -398,6 +419,85 @@ suite('Sessions chat window provider', () => {
 		onDidChangeSessions.fire({ added: [], changed: [session], removed: [] });
 
 		assert.deepStrictEqual(ended, ['/archived', '/deleted']);
+	});
+
+	test('a chat leaves its window once its session is removed, such as deleted, also while the session\'s last state still lists it; not as its provider goes away, which removes nothing', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const sessions = [session];
+		const { provider, onDidChangeSessions } = createProvider(store, sessions);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		const chat = (await content.resolveChat(URI.parse('test:/main')))!;
+		const ended: string[] = [];
+		store.add(chat.onDidEnd(() => ended.push('ended')));
+
+		// Its provider goes away, which hides its sessions, and comes back
+		sessions.length = 0;
+		onDidChangeSessions.fire({ added: [], changed: [], removed: [] });
+		sessions.push(session);
+		onDidChangeSessions.fire({ added: [session], changed: [], removed: [] });
+		const afterProviderReturned = [...ended];
+		// It is deleted, while its last state still lists the chat
+		sessions.length = 0;
+		onDidChangeSessions.fire({ added: [], changed: [], removed: [session] });
+
+		assert.deepStrictEqual({ afterProviderReturned, afterRemoved: ended }, { afterProviderReturned: [], afterRemoved: ['ended'] });
+	});
+
+	test('a chat whose session its provider replaces, as it registers again, keeps showing until the replacement lists it, and ends once the replacement is archived', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main'), createChat('peer')]);
+		const sessions = [session];
+		const { provider, onDidChangeSessions } = createProvider(store, sessions);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/peer')))!);
+		const ended: string[] = [];
+		store.add(chat.onDidEnd(() => ended.push('ended')));
+
+		// The replacement does not list the chat yet, such as a chat its session's chats publish later
+		const isArchived = observableValue('archived', false);
+		const replacement = Object.assign(createSession('session', [createChat('main')]), { isArchived });
+		sessions[0] = replacement;
+		onDidChangeSessions.fire({ added: [replacement], changed: [], removed: [] });
+		const whileReplacing = { showsOriginal: chat.session.get() === session, ended: ended.length };
+		isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ whileReplacing, ended }, { whileReplacing: { showsOriginal: true, ended: 0 }, ended: ['ended'] });
+	});
+
+	test('a chat that knows its session looks it up again only as sessions are added or removed, not as sessions change, such as while they stream', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const other = createSession('other', [createChat('other-main')]);
+		const sessions = [session, other];
+		const { provider, onDidChangeSessions, lookups } = createProvider(store, sessions);
+		const content = store.add((await provider.resolveContent(session.resource))!);
+		await content.resolveChat(URI.parse('test:/main'));
+		const before = lookups.count;
+
+		for (let index = 0; index < 5; index++) {
+			onDidChangeSessions.fire({ added: [], changed: [other, session], removed: [] });
+		}
+		const afterChanges = lookups.count - before;
+		onDidChangeSessions.fire({ added: [createSession('added', [createChat('added-main')])], changed: [], removed: [] });
+
+		assert.deepStrictEqual({ afterChanges, afterAdded: lookups.count - before }, { afterChanges: 0, afterAdded: 1 });
+	});
+
+	test('a chat follows its session as it is replaced by another object with the same ID, such as a pending session that is committed, which comes only as a change', async () => {
+		const store = disposables.add(new DisposableStore());
+		const pending = createSession('session', [createChat('main')]);
+		const sessions = [pending];
+		const { provider, onDidChangeSessions } = createProvider(store, sessions);
+		const content = store.add((await provider.resolveContent(pending.resource))!);
+		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/main')))!);
+		const before = chat.session.get() === pending;
+
+		const committed = createSession('session', [createChat('main')]);
+		sessions[0] = committed;
+		onDidChangeSessions.fire({ added: [], changed: [committed], removed: [] });
+
+		assert.deepStrictEqual({ before, after: chat.session.get() === committed }, { before: true, after: true });
 	});
 
 	test('a chat is read once it shows: while it is the active chat of its window, also of a window without focus, and its editor shows it; a chat marked unread stays unread until its next turn ends, which marks it read while it shows', async () => {
@@ -574,9 +674,10 @@ suite('Sessions chat window provider', () => {
 		const from = Object.assign(createSession('from', fromChats.get()), { chats: fromChats, dispose: () => disposed.push('from') });
 		const to = Object.assign(createSession('to', toChats.get()), { chats: toChats, dispose: () => disposed.push('to') });
 		const sessions = [from, to];
-		const { provider, events, onDidChangeSessions } = createProvider(store, sessions);
+		const { provider, events, onDidChangeSessions, windowInstantiationService } = createProvider(store, sessions);
 		const content = (await provider.resolveContent(URI.parse('test:/moved')))!;
 		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/moved')))!);
+		store.add(content.bind!(window, windowInstantiationService));
 		const before = chat.session.get() === from;
 
 		transaction(tx => {
@@ -1296,6 +1397,16 @@ suite('Sessions chat window provider', () => {
 			afterRestore: '/main',
 			resolvedAfterRestore: '/main',
 		});
+	});
+
+	test('a stored chat by a previous identity of its session opens as the chat by its current resource, also when its window failed before resolving it, so that restoration retires the stored alias', () => {
+		const store = disposables.add(new DisposableStore());
+		const peer = Object.assign(createChat('peer'), { previousResource: URI.parse('test:/legacy-peer') });
+		const session = createSession('session', [createChat('main'), peer]);
+		const { provider } = createProvider(store, [session]);
+		const canonical = (resource: string) => provider.canonicalChatOf(URI.parse(resource))?.path;
+
+		assert.deepStrictEqual({ alias: canonical('test:/legacy-peer'), current: canonical('test:/peer'), session: canonical('test:/session') }, { alias: '/peer', current: undefined, session: '/main' });
 	});
 
 	test('chat windows that failed to open are retired once the chats their stored chats open as show, a composer whose send started its session as that session\'s main chat and a session stored as such as its main chat, and closing those does not bring them back; an unsent composer beside them stays stored', async () => {

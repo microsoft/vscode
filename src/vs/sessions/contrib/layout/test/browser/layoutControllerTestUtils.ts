@@ -857,6 +857,14 @@ export function createTestHarness(store: DisposableStore, options: ICreateOption
 			workingSetContents.set(name, { resources, activeResource: harness.activeEditorInput?.resource });
 			return { id: name, name };
 		}
+		override resolveWorkingSet(workingSet: IEditorWorkingSet) {
+			const contents = workingSetContents.get(workingSet.id);
+			if (!contents) {
+				return undefined;
+			}
+			const editors = contents.resources.map(resource => store.add(new TestStubEditorInput(resource)));
+			return { editors, activeEditor: editors.find(editor => isEqual(editor.resource, contents.activeResource)), dispose: () => editors.forEach(editor => editor.dispose()) };
+		}
 		override async applyWorkingSet(workingSet: IEditorWorkingSet | 'empty') {
 			harness.applyWorkingSetCalls.push(workingSet);
 			const contents = workingSet === 'empty' ? { resources: [], activeResource: undefined } : workingSetContents.get(workingSet.id);

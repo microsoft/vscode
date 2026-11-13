@@ -6,6 +6,7 @@
 import './agentSessions/agentHost/codexContinuation.contribution.js';
 import './agentSessions/agentHost/computerUseSetup.contribution.js';
 import './agentSessions/agentHost/localModel.contribution.js';
+import './agentSessions/agentHost/agentHostToolApprovals.js';
 import { getDefaultModelPolicyDescription } from '../common/modelSelection.js';
 import { CODEX_CONTINUATION_DEFAULT_THRESHOLD } from '../../../services/agentHost/browser/codexContinuation.js';
 import { CODEX_CONTINUATION_SETTING, CODEX_CONTINUATION_THRESHOLD_SETTING } from '../../../services/agentHost/browser/codexContinuationService.js';
@@ -1409,7 +1410,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ExtensionToolsEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions."),
+			description: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions. These tools are also disabled when your organization disables MCP."),
 			default: true,
 			policy: {
 				name: 'ChatAgentExtensionTools',
@@ -1418,7 +1419,7 @@ configurationRegistry.registerConfiguration({
 				localization: {
 					description: {
 						key: 'chat.extensionToolsEnabled',
-						value: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions.")
+						value: nls.localize('chat.extensionToolsEnabled', "Enable using tools contributed by third-party extensions. These tools are also disabled when your organization disables MCP.")
 					}
 				},
 			}
@@ -1959,6 +1960,17 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.mathEnabled.description', "Enable math rendering in chat responses using KaTeX."),
 			default: true,
+		},
+		[ChatConfiguration.HtmlPreviewEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.htmlPreview.enabled.description', "Render explicit html-preview code blocks as inline HTML previews in the Agents window. When disabled, these blocks are shown as source code."),
+			default: false,
+		},
+		[ChatConfiguration.NativeComponentsEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.nativeComponents.enabled.description', "Render explicit vscode-ui code blocks as native visuals, such as metrics, tables, and bar charts, in Agents window responses. When disabled, these blocks are shown as source code."),
+			default: false,
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.ShowCodeBlockProgressAnimation]: {
 			type: 'boolean',

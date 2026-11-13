@@ -32,6 +32,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../../../base/common/async.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { Position } from '../../../../../../editor/common/core/position.js';
+import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
+import { LanguageFeaturesService } from '../../../../../../editor/common/services/languageFeaturesService.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
 import { isLocation } from '../../../../../../editor/common/languages.js';
 import { ITextModel, TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
@@ -45,6 +48,7 @@ import { ChatAttachmentModel } from '../../../browser/attachments/chatAttachment
 import { IChatAttachmentResolveService } from '../../../browser/attachments/chatAttachmentResolveService.js';
 import { ChatInputPart } from '../../../browser/widget/input/chatInputPart.js';
 import { ChatWidget } from '../../../browser/widget/chatWidget.js';
+import { AgentHostInputCompletions } from '../../../browser/widget/input/editor/agentHostInputCompletions.js';
 import { IChatVariablesService, type IDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { ChatRequestParser } from '../../../common/requestParser/chatRequestParser.js';
 import { ChatRequestDynamicVariablePart } from '../../../common/requestParser/chatParserTypes.js';
@@ -61,7 +65,7 @@ import { ContextKeyExpr, type ContextKeyValue } from '../../../../../../platform
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TERMINAL_AUTO_APPROVE_SETTING_ID, URL_AUTO_APPROVE_SETTING_ID } from '../../../../../../platform/agentHost/common/agentHostSchema.js';
 import { permissionGrantOptionId, PermissionGrantScope } from '../../../../../../platform/agentHost/common/permissionRules.js';
-import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
+import { SAVE_SANDBOX_PATH, SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH } from '../../../../../../platform/agentHost/common/sandboxPathGrant.js';
 import { readAgentPermissionResponseMeta } from '../../../../../../platform/agentHost/common/meta/agentPermissionResponseMeta.js';
 import { withMcpServerConnectorNameMeta } from '../../../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import { AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
@@ -121,7 +125,7 @@ import { IChatEditingService, IChatEditingSession, IChatEditingSessionProvider }
 import { ITextFileEditorModelManager, ITextFileService } from '../../../../../services/textfile/common/textfiles.js';
 import { IChatResponseFileChangesService } from '../../../browser/chatResponseFileChangesService.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { ChatSessionForkError, ChatSessionStatus, IChatSessionsService, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
+import { ChatSessionForkError, ChatSessionStatus, IChatSessionsService, type IChatInputCompletionItem, type IChatSession, type IChatSessionForkOptions, type IChatSessionHistoryItem, type IChatSessionContentProvider, type IChatSessionItem, type IChatSessionItemController, type IChatSessionRequestHistoryItem, type IChatSessionServerRequest, type IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { IChatSideChatOrigin } from '../../../common/chatSideChatService.js';
 import { ILanguageModelsService, type ILanguageModelChatMetadata } from '../../../common/languageModels.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
@@ -190,7 +194,7 @@ import { IAgentHostMcpAppToolsService } from '../../../browser/agentSessions/age
 import { IAgentHostCustomizationService, NullAgentHostCustomizationService } from '../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { ILanguageModelToolsService, ToolAndToolSetEnablementMap, ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { IPromptsService } from '../../../common/promptSyntax/service/promptsService.js';
-import { IChatWidgetService } from '../../../browser/chat.js';
+import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatElicitationRequestPart } from '../../../common/model/chatProgressTypes/chatElicitationRequestPart.js';
@@ -985,7 +989,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		agentHostService,
 		new NullRemoteAgentHostService(),
 		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-		new NullLogService(),
+		upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 	)));
 	instantiationService.stub(ILogService, new NullLogService());
 	instantiationService.stub(IProductService, { quality: 'insider' });
@@ -1282,7 +1286,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	const newSessionFolderService = disposables.add(new AgentHostNewSessionFolderService(chatService as Partial<IChatService> as IChatService, instantiationService.get(IWorkspaceContextService), { extUri: extUriBiasedIgnorePathCase } as Partial<IUriIdentityService> as IUriIdentityService));
 	instantiationService.stub(IAgentHostNewSessionFolderService, newSessionFolderService);
 	const customizationsByScope = new Map<string, { readonly customizations: IObservable<readonly ClientPluginCustomization[]>; readonly customAgents: IObservable<readonly AgentCustomization[]>; readonly tools: IObservable<readonly ToolDefinition[]>; readonly isResolved: IObservable<boolean>; readonly whenResolved: Promise<void> }>();
-	const scopeKey = (sessionType: string, roots: readonly URI[]) => `${sessionType}\n${roots.map(root => root.toString()).sort().join('\n')}`;
+	const scopeKey = (sessionType: string, roots: readonly URI[] | undefined) => `${sessionType}\n${(roots ?? []).map(root => root.toString()).sort().join('\n')}`;
 	const seedActiveClient = (sessionType: string, entry: { customizations: IObservable<readonly ClientPluginCustomization[]>; customAgents?: IObservable<readonly AgentCustomization[]>; tools?: IObservable<readonly ToolDefinition[]>; isResolved?: IObservable<boolean>; whenResolved?: Promise<void> }, roots: readonly URI[] = []): IDisposable => {
 		const key = scopeKey(sessionType, roots);
 		const scopeEntry = {
@@ -1299,7 +1303,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 			}
 		});
 	};
-	const acquireScope = (sessionType: string, roots: readonly URI[]) => {
+	const acquireScope = (sessionType: string, roots: readonly URI[] | undefined) => {
 		const entry = customizationsByScope.get(scopeKey(sessionType, roots)) ?? {
 			customizations: constObservable<readonly ClientPluginCustomization[]>([]),
 			customAgents: constObservable<readonly AgentCustomization[]>([]),
@@ -2741,7 +2745,8 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		const usageCases = [
-			{ name: 'VS Code zero turn cost', meta: { cost: 0 }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'VS Code zero turn cost', meta: { copilotUsage: { totalNanoAiu: 0 } }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'VS Code model multiplier is not measured credits', meta: { cost: 2 }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 			{
 				name: 'VS Code credits, quota and context attribution', meta: {
 					copilotUsage: { totalNanoAiu: 2_000_000_000, sessionTotalNanoAiu: 4_000_000_000 },
@@ -2753,7 +2758,7 @@ suite('AgentHostChatContribution', () => {
 				]
 			},
 			{ name: 'Copilot D latest-call diagnostics', meta: { 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: { cost: 0.5, duration: 12 }, attribution: undefined },
-			{ name: 'mixed usage preserves VS Code turn cost', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'mixed usage does not promote model multipliers to credits', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 		];
 		for (const entry of usageCases) {
 			test(`${entry.name} reaches Chat usage through the live handler`, async () => {
@@ -3352,14 +3357,85 @@ suite('AgentHostChatContribution', () => {
 
 	suite('request attachments', () => {
 
-		test('sends accepted agent-host skill and command completions as ranged simple attachments', async () => {
+		for (const kind of agentHostConnectionKinds) {
+			test(`accepts, sends, and restores native skill resource completions without metadata (${kind.name})`, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables, {
+					chatSessionsServiceOverride: { getContentProviderSchemes: () => [], onDidChangeContentProviderSchemes: Event.None },
+				});
+				agentHostService.resourceUris = kind.resourceUris;
+				const hostResource = URI.file('/workspace/skills/review/SKILL.md');
+				agentHostService.completions = async () => ({
+					items: [{
+						insertText: '/tools:review ', rangeStart: 0, rangeEnd: 1,
+						attachment: { type: MessageAttachmentKind.Resource, uri: hostResource.toString(), label: '/tools:review', displayKind: 'skill' },
+					}],
+				});
+				const item = (await sessionHandler.provideChatInputCompletions(URI.parse('agent-host-copilot:/abc'), { text: '/', offset: 1 }, CancellationToken.None))!.items[0];
+				instantiationService.stub(ILanguageFeaturesService, new LanguageFeaturesService());
+				const completions = disposables.add(instantiationService.createInstance(class extends AgentHostInputCompletions {
+					build(item: IChatInputCompletionItem, widget: IChatWidget) {
+						return this._buildItem(new Position(1, 2), item, widget);
+					}
+				}));
+				const codeEditorService = disposables.add(new TestCodeEditorService(new TestThemeService()));
+				disposables.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
+					rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+				}));
+				const editor = disposables.add(createTestCodeEditor(disposables.add(createTextModel('/')), {
+					serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+				}));
+				const attachmentModel = disposables.add(new ChatAttachmentModel(
+					upcastPartial<IFileService>({}), upcastPartial<ISharedWebContentExtractorService>({}), upcastPartial<IChatAttachmentResolveService>({}),
+				));
+				const widget = upcastPartial<IChatWidget>({
+					inputEditor: editor, input: upcastPartial<IChatWidget['input']>({ attachmentModel }),
+					onDidChangeActiveInputEditor: Event.None, refreshParsedInput: () => { }, getContrib: () => undefined,
+				});
+				const references = disposables.add(new ChatDynamicVariableModel(widget, new MockLabelService()));
+				const getContrib = sinon.stub(widget, 'getContrib');
+				disposables.add(toDisposable(() => getContrib.restore()));
+				getContrib.withArgs(ChatDynamicVariableModel.ID).returns(references);
+				const completion = completions.build(item, widget)!;
+				editor.executeEdits('suggest', [{ range: Range.isIRange(completion.range) ? completion.range : completion.range.replace, text: completion.insertText }]);
+				const command = completion.command!;
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(command.id)!.handler(accessor, ...(command.arguments ?? [])));
+				const parser = new ChatRequestParser(
+					upcastPartial<IChatAgentService>({ getDefaultAgent: () => undefined }), upcastPartial<IChatVariablesService>({}),
+					upcastPartial<IChatSlashCommandService>({ getCommands: () => [] }), upcastPartial<IPromptsService>({ hasPromptSlashCommand: () => false, isValidSlashCommandName: () => false }),
+				);
+				const parsed = parser.parseChatRequestWithReferences(references.variables, ToolAndToolSetEnablementMap.fromEntries([]), editor.getValue());
+				const variables = parsed.parts.flatMap(part => part instanceof ChatRequestDynamicVariablePart ? [part.toVariableEntry()] : []);
+				const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+					message: parsed.text, variables: { variables },
+				});
+				const sent = (agentHostService.turnActions[0].action as ITurnStartedAction).message.attachments;
+				const restored = messageAttachmentsToVariableData(sent, 'test', parsed.text, kind.resourceUris)!.variables;
+				fire(chatTurnComplete(turnId!, 1000));
+				await turnPromise;
+				assert.deepStrictEqual({
+					clientResource: item.attachment?.kind === 'skill' ? item.attachment.uri.toString() : undefined,
+					text: parsed.text, sent, restored: restored.map(variable => ({ id: variable.id, value: variable.value, range: variable.range })),
+					attachments: attachmentModel.attachments.length,
+				}, {
+					clientResource: kind.toClient(hostResource).toString(),
+					text: '/tools:review ',
+					sent: [{
+						type: MessageAttachmentKind.Resource, uri: hostResource.toString(), label: '/tools:review', displayKind: 'skill',
+						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 13 } },
+					}],
+					restored: [{ id: kind.toClient(hostResource).toString(), value: { $mid: 'agentHostCompletion', kind: 'skill' }, range: { start: 0, endExclusive: 13 } }],
+					attachments: 0,
+				});
+			});
+		}
+
+		test('sends accepted agent-host skill resources and command completions with ranges', async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const message = 'use /author-contributions\n/rename Title';
 			const skillStart = message.indexOf('/author-contributions');
 			const commandStart = message.indexOf('/rename');
 			const skillMeta = {
 				providerPayload: 'skill-metadata',
-				displayName: 'author-contributions',
 				description: 'Summarize author contributions',
 			};
 			const commandMeta = {
@@ -3386,7 +3462,8 @@ suite('AgentHostChatContribution', () => {
 			const turnStarted = agentHostService.turnActions[0].action as ITurnStartedAction;
 			assert.deepStrictEqual(turnStarted.message.attachments, [
 				{
-					type: MessageAttachmentKind.Simple,
+					type: MessageAttachmentKind.Resource,
+					uri: 'file:///skills/author-contributions/SKILL.md',
 					label: '/author-contributions',
 					displayKind: 'skill',
 					range: {
@@ -3409,6 +3486,18 @@ suite('AgentHostChatContribution', () => {
 
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session: session!, turnId: turnId! } as ChatAction);
 			await turnPromise;
+		});
+
+		test('keeps a legacy skill invocation without a resource as text rather than emitting a new Simple skill', async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				message: '/review',
+				variables: { variables: [toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', undefined, undefined)] },
+			});
+			const action = agentHostService.turnActions[0].action as ITurnStartedAction;
+			fire(chatTurnComplete(turnId!, 1000));
+			await turnPromise;
+			assert.deepStrictEqual({ text: action.message.text, attachments: action.message.attachments }, { text: '/review', attachments: undefined });
 		});
 
 		test('sends paste variables as embedded text attachments', async () => {
@@ -4804,9 +4893,10 @@ suite('AgentHostChatContribution', () => {
 				const sessionResource = URI.parse('agent-host-copilot:/inline-draft-sync');
 				const text = '/review #file.ts\n/compact now';
 				const file = URI.file('/workspace/file.ts');
-				const skillMetadata = { uri: 'host-skill:/review', name: 'review', opaque: false };
+				const skillUri = URI.file('/workspace/review/SKILL.md');
+				const skillMetadata = { uri: 'host-skill:/wrong', opaque: false };
 				const commandMetadata = { command: 'compact', opaque: 0 };
-				const skill = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', skillMetadata.uri, skillMetadata);
+				const skill = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/review', kind.toClient(skillUri), skillMetadata);
 				const command = toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/compact', 'compact', commandMetadata);
 				const references: IDynamicVariable[] = [
 					{ id: skill.id, range: new Range(1, 1, 1, 8), data: skill.value, _meta: skillMetadata },
@@ -4904,7 +4994,7 @@ suite('AgentHostChatContribution', () => {
 					{ range: [2, 1, 2, 9], data: command.value, metadata: commandMetadata },
 				];
 				const expectedAttachments = [
-					{ type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } }, _meta: skillMetadata },
+					{ type: MessageAttachmentKind.Resource, uri: skillUri.toString(), label: '/review', displayKind: 'skill', range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } }, _meta: skillMetadata },
 					{ type: MessageAttachmentKind.Resource, label: 'file.ts', uri: file.toString(), displayKind: 'document', range: { start: { line: 0, character: 8 }, end: { line: 0, character: 16 } } },
 					{ type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', range: { start: { line: 1, character: 0 }, end: { line: 1, character: 8 } }, _meta: commandMetadata },
 				];
@@ -4951,7 +5041,7 @@ suite('AgentHostChatContribution', () => {
 			const sessionResource = URI.parse('agent-host-copilot:/widget-draft-clear');
 			const text = 'explain /commit and /compact please';
 			const completions = [
-				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/commit', 'host-skill:/commit', { uri: 'host-skill:/commit', opaque: false }),
+				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/commit', 'host-skill:/commit', { opaque: false }),
 				toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/compact', 'compact', { command: 'compact', opaque: 0 }),
 			];
 			const sender = createContribution(disposables);
@@ -5082,7 +5172,7 @@ suite('AgentHostChatContribution', () => {
 				source: summarizeInput(source), peer: summarizeInput(peer), editedPeer: summarizeInput(editedPeer),
 				peerDrafts: peer.agentHostService.dispatchedActions.filter(entry => entry.action.type === ActionType.ChatDraftChanged),
 			}, {
-				draftAttachments: completions.map(completion => ({ type: MessageAttachmentKind.Simple, label: completion.name, metadata: completion._meta })),
+				draftAttachments: completions.map(completion => ({ type: completion.value.kind === AgentHostCompletionReferenceKind.Skill ? MessageAttachmentKind.Resource : MessageAttachmentKind.Simple, label: completion.name, metadata: completion._meta })),
 				afterRestore: { references: 2, viewAttachments: 2, modelAttachments: 0 },
 				beforeSend: { references: 2, attachments: 2, origin: undefined },
 				source: { editor: '', model: '', references: 0, attachments: 0 },
@@ -5105,9 +5195,9 @@ suite('AgentHostChatContribution', () => {
 				seedDraftSession(agentHostService, backendSession, 'Pill Projection', {
 					text, origin: { kind: MessageKind.User },
 					attachments: [{
-						type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill',
+						type: MessageAttachmentKind.Resource, uri: 'host-skill:/review', label: '/review', displayKind: 'skill',
 						range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
-						_meta: { uri: 'host-skill:/review', opaque: false },
+						_meta: { opaque: false },
 					}, {
 						type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command',
 						range: { start: { line: 0, character: 12 }, end: { line: 0, character: 20 } },
@@ -5214,7 +5304,7 @@ suite('AgentHostChatContribution', () => {
 			const file = URI.file('/workspace/file.ts');
 			for (const reference of [
 				{ name: 'file', text: 'please #file\nabc', attachment: { type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'file.ts', displayKind: 'document' } },
-				{ name: 'skill', text: 'please /skill\nabc', attachment: { type: MessageAttachmentKind.Simple, label: '/skill', displayKind: 'skill', _meta: { uri: 'host-skill:/skill' } } },
+				{ name: 'skill', text: 'please /skill\nabc', attachment: { type: MessageAttachmentKind.Resource, uri: 'host-skill:/skill', label: '/skill', displayKind: 'skill' } },
 				{ name: 'command', text: 'please /compact\nabc', attachment: { type: MessageAttachmentKind.Simple, label: '/compact', displayKind: 'command', _meta: { command: 'compact' } } },
 			] as const) {
 				test(`keeps multiline ${reference.name} draft mentions as attachments (${kind.name})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -8954,7 +9044,7 @@ suite('AgentHostChatContribution', () => {
 			const captured: string[][] = [];
 			const original = activeClientService.acquireScope;
 			activeClientService.acquireScope = (sessionType, roots) => {
-				captured.push(roots.map(root => root.toString()));
+				captured.push((roots ?? []).map(root => root.toString()));
 				return original(sessionType, roots);
 			};
 			return captured;
@@ -10306,7 +10396,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10354,7 +10444,7 @@ suite('AgentHostChatContribution', () => {
 				const { turnPromise, session, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 					userSelectedModelId: 'agent-host-copilot:hydrafusion', cancellationToken: cts.token,
 				});
-				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } } } as ChatAction);
+				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } } } as ChatAction);
 				if (cancelled) {
 					cts.cancel();
 				} else {
@@ -10378,7 +10468,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { userSelectedModelId: 'agent-host-copilot:hydrafusion' });
-				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { cost } } } as ChatAction);
+				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { copilotUsage: { totalNanoAiu: cost * 1_000_000_000 } } } } as ChatAction);
 				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 				assert.strictEqual((await turnPromise).details, cost === undefined ? 'HydraFusion Preview · 2x' : 'HydraFusion Preview • 2 credits');
 			}));
@@ -10390,7 +10480,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'openrouter/amazon/nova-micro-v1', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10404,7 +10494,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'customendpoint/custom-model', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'customendpoint/custom-model', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10422,7 +10512,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cts.token });
 
 			// Usage (credits) accumulated before the user interrupts the turn.
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 
 			// User cancels mid-flight before the turn reaches a terminal state.
 			cts.cancel();
@@ -10440,7 +10530,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 0 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 0 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10458,8 +10548,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { cost: 1 } } } as ChatAction);
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10484,7 +10574,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables,
 				{ userSelectedModelId: 'agent-host-copilot:auto' });
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10518,7 +10608,7 @@ suite('AgentHostChatContribution', () => {
 			// Parent turn reports its own usage. For hosts that fold subagent usage
 			// into the parent turn aggregate, this value already includes the subagent;
 			// the client emits it as-is and never re-adds subagent credits itself.
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { cost: 2.0 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } } } as ChatAction);
 
 			// Spawn a subagent tool call.
 			const parentToolCallId = 'tc-sub-cost';
@@ -10559,7 +10649,7 @@ suite('AgentHostChatContribution', () => {
 			} as ChatAction);
 			fireChild({
 				type: 'chat/usage', session: childSessionUri, turnId: childTurnId,
-				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 5.0 } },
+				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } },
 			} as ChatAction);
 
 			await timeout(50);
@@ -11112,6 +11202,45 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
+		test('marks a completion as a person\'s only when they settled the request in its UI', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const question = { kind: ChatInputQuestionKind.Text, id: 'q', message: 'Delete the file?', required: true };
+			const plan: ChatInputRequestWithPlanReview = {
+				id: 'plan',
+				planReview: { title: 'Review Plan', content: 'Plan', canProvideFeedback: true, answerQuestionId: 'action', actions: [{ id: 'interactive', label: 'Implement Plan', default: true }] },
+			};
+			for (const request of [{ id: 'answered', questions: [question] }, { id: 'dismissed', questions: [question] }, { id: 'defaults', questions: [question] }, plan]) {
+				fire({ type: ActionType.ChatInputRequested, request } as ChatAction);
+			}
+			await timeout(10);
+			const [answered, dismissed, defaults] = collected.flat().filter((part): part is ChatQuestionCarouselData => part instanceof ChatQuestionCarouselData);
+			const review = collected.flat().find((part): part is ChatPlanReviewData => part instanceof ChatPlanReviewData)!;
+			agentHostService.dispatchedActions.length = 0;
+
+			answered.submittedByUser = true;
+			answered.completion.complete({ answers: { q: 'Yes' } });
+			dismissed.submittedByUser = true;
+			dismissed.completion.complete({ answers: undefined });
+			// Defaults submitted for the person when they send another message.
+			defaults.submittedByUser = false;
+			defaults.completion.complete({ answers: { q: 'Yes' } });
+			review.submittedByUser = true;
+			review.completion.complete({ rejected: true });
+			await timeout(10);
+
+			const answer = { q: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Text, value: 'Yes' } } };
+			const human = { 'agentHost.inputResponseSource': 'human_response' };
+			assert.deepStrictEqual(agentHostService.dispatchedActions.filter(d => d.action.type === ActionType.ChatInputCompleted).map(d => d.action), [
+				{ type: ActionType.ChatInputCompleted, requestId: 'answered', response: ChatInputResponseKind.Accept, answers: answer, _meta: human },
+				{ type: ActionType.ChatInputCompleted, requestId: 'dismissed', response: ChatInputResponseKind.Cancel, _meta: human },
+				{ type: ActionType.ChatInputCompleted, requestId: 'defaults', response: ChatInputResponseKind.Accept, answers: answer },
+				{ type: ActionType.ChatInputCompleted, requestId: 'plan', response: ChatInputResponseKind.Decline, _meta: human },
+			]);
+			fire({ type: ActionType.ChatTurnComplete, turnId, endedAt: '2025-01-01T00:00:00.000Z' } as ChatAction);
+			await turnPromise;
+		}));
+
 		test('plan-review rejection dispatches a decline without selecting an implementation action', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
@@ -11657,7 +11786,7 @@ suite('AgentHostChatContribution', () => {
 					completionsBeforeClick: [],
 					completions: [{
 						channel: session,
-						action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}) },
+						action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response, ...(response === ChatInputResponseKind.Accept ? { answers: {} } : {}), _meta: { 'agentHost.inputResponseSource': 'human_response' } },
 					}],
 					state: response === ChatInputResponseKind.Accept ? ElicitationState.Accepted : ElicitationState.Rejected,
 					openedUrls: [],
@@ -13088,42 +13217,46 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
-		test('session sandbox path grant dispatches the selected scope without writing user settings or claiming a saved receipt', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
-			const config = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
-			const update = sinon.stub(config, 'updateValue');
-			try {
-				const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
-				fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-session-grant', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
-				fire({
-					type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-session-grant',
-					invocationMessage: 'Read /outside', confirmationTitle: 'Allow sandbox path access and retry?',
-					_meta: { 'vscode.sandboxPathGrant': { path: '/outside', access: 'read' } },
-					options: [
-						{ id: SAVE_SESSION_SANDBOX_PATH, label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve },
-						{ id: SAVE_SANDBOX_PATH, label: 'Allow for This User', kind: ConfirmationOptionKind.Approve },
-						{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
-					],
-				} as ChatAction);
-				await timeout(10);
-				const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
-				assert.ok(invocation?.kind === 'toolInvocation');
-				IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: SAVE_SESSION_SANDBOX_PATH });
-				await timeout(10);
-				const confirmations = agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/toolCallConfirmed');
-				assert.deepStrictEqual({
-					settingsWrites: update.callCount,
-					confirmations: confirmations.map(item => ({
-						option: (item.action as IToolCallConfirmedAction).selectedOptionId,
-						receipt: readAgentPermissionResponseMeta(item.action as IToolCallConfirmedAction).sandboxPathGrantSaved,
-					})),
-				}, { settingsWrites: 0, confirmations: [{ option: SAVE_SESSION_SANDBOX_PATH, receipt: undefined }] });
-				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
-				await turnPromise;
-			} finally {
-				update.restore();
-			}
-		}));
+		for (const scope of [SAVE_SESSION_SANDBOX_PATH, SAVE_WORKSPACE_SANDBOX_PATH]) {
+			test(`sandbox path grant ${scope} dispatches without writing settings or claiming a saved receipt`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const { sessionHandler, agentHostService, chatAgentService, instantiationService } = createContribution(disposables);
+				const config = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
+				const update = sinon.stub(config, 'updateValue');
+				try {
+					const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+					fire({ type: 'chat/toolCallStart', session, turnId, toolCallId: 'tc-session-grant', toolName: 'read_file', displayName: 'Read File' } as ChatAction);
+					fire({
+						type: 'chat/toolCallReady', session, turnId, toolCallId: 'tc-session-grant',
+						invocationMessage: 'Read /outside', confirmationTitle: 'Allow sandbox path access and retry?',
+						_meta: { 'vscode.sandboxPathGrant': { path: '/outside', access: 'read' } },
+						options: [
+							{ id: SAVE_SESSION_SANDBOX_PATH, label: 'Allow for This Session', kind: ConfirmationOptionKind.Approve },
+							{ id: SAVE_WORKSPACE_SANDBOX_PATH, label: 'Allow for This Workspace', kind: ConfirmationOptionKind.Approve },
+							{ id: SAVE_SANDBOX_PATH, label: 'Allow for This User', kind: ConfirmationOptionKind.Approve },
+							{ id: 'skip', label: 'Skip', kind: ConfirmationOptionKind.Deny },
+						],
+					} as ChatAction);
+					await timeout(10);
+					const invocation = collected.flat().find(p => p.kind === 'toolInvocation');
+					assert.ok(invocation?.kind === 'toolInvocation');
+					IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.UserAction, selectedButton: scope });
+					await timeout(10);
+					const confirmations = agentHostService.dispatchedActions.filter(a => a.action.type === 'chat/toolCallConfirmed');
+					assert.deepStrictEqual({
+						settingsWrites: update.callCount,
+						confirmations: confirmations.map(item => ({
+							option: (item.action as IToolCallConfirmedAction).selectedOptionId,
+							receipt: readAgentPermissionResponseMeta(item.action as IToolCallConfirmedAction).sandboxPathGrantSaved,
+							source: readAgentPermissionResponseMeta(item.action as IToolCallConfirmedAction).decisionSource,
+						})),
+					}, { settingsWrites: 0, confirmations: [{ option: scope, receipt: undefined, source: 'human_response' }] });
+					fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+					await turnPromise;
+				} finally {
+					update.restore();
+				}
+			}));
+		}
 
 		for (const failSave of [false, true]) {
 			test(`sandbox path grant ${failSave ? 'keeps confirmation open when saving fails' : 'saves before dispatching the grant'}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -14227,9 +14360,8 @@ suite('AgentHostChatContribution', () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/completion-history' });
 			const sessionUri = AgentSession.uri('copilot', 'completion-history');
+			const skillUri = 'file:///skills/agent-host-docs/SKILL.md';
 			const skillMeta = {
-				uri: 'file:///skills/agent-host-docs/SKILL.md',
-				displayName: 'agent-host-docs',
 				description: 'Use this skill when working on Agent Host code',
 			};
 			const commandMeta = {
@@ -14247,7 +14379,8 @@ suite('AgentHostChatContribution', () => {
 						origin: { kind: MessageKind.User },
 						attachments: [
 							{
-								type: MessageAttachmentKind.Simple,
+								type: MessageAttachmentKind.Resource,
+								uri: skillUri,
 								label: '/agent-host-docs',
 								displayKind: 'skill',
 								_meta: skillMeta,
@@ -14279,7 +14412,7 @@ suite('AgentHostChatContribution', () => {
 					value: variable.value,
 					_meta: variable._meta,
 				})), [
-					toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/agent-host-docs', skillMeta.uri, skillMeta),
+					toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Skill, '/agent-host-docs', skillUri, skillMeta),
 					toAgentHostCompletionVariableEntry(AgentHostCompletionReferenceKind.Command, '/rename', 'rename', commandMeta),
 				]);
 			}
@@ -14464,7 +14597,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider });
 				const sessionUri = AgentSession.uri(provider, 'sess-fusion-footers');
-				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } };
 				const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
@@ -14513,7 +14646,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const sessionUri = AgentSession.uri('copilotcli', 'sess-fusion-footers');
-				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } };
 				const message = (model: string) => ({ text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
@@ -14552,7 +14685,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						message: { text: 'Q1', origin: { kind: MessageKind.User } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
+						usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 						state: TurnState.Complete,
 					},
 					{
@@ -14568,7 +14701,7 @@ suite('AgentHostChatContribution', () => {
 					startedAt: '2025-01-01T00:00:00.000Z',
 					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'max' } } },
 					responseParts: [],
-					usage: { _meta: { cost: 1 } },
+					usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } },
 				},
 			});
 
@@ -15282,12 +15415,12 @@ suite('AgentHostChatContribution', () => {
 					childState.turns[0] = {
 						...childState.turns[0],
 						startedAt: new Date(startedAt).toISOString(), duration: 40_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } },
 					};
 					childState.turns.push({
 						...childState.turns[0], id: 'followup',
 						startedAt: new Date(startedAt + 60_000).toISOString(), duration: 23_000,
-						usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 0.25 } },
+						usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
 					});
 					const { session, pills } = await scenario.open();
 					const pill = pills.find(part => part.toolCallId === 'launch-1');
@@ -15314,7 +15447,7 @@ suite('AgentHostChatContribution', () => {
 							turns: [{
 								...childState.turns[0], id: 'earlier',
 								startedAt: new Date(startedAt - 10_000).toISOString(), duration: 10_000,
-								usage: { inputTokens: 30, outputTokens: 15, _meta: { cost: 1.25 } },
+								usage: { inputTokens: 30, outputTokens: 15, _meta: { copilotUsage: { totalNanoAiu: 1_250_000_000 } } },
 							}],
 						},
 						serverSeq: 100, origin: undefined,
@@ -15349,7 +15482,7 @@ suite('AgentHostChatContribution', () => {
 					childState.turns[0] = {
 						...childState.turns[0],
 						...(duration !== undefined ? { startedAt: children[0].modifiedAt, duration } : {}),
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } },
 					};
 					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
 					assert.ok(childResource);
@@ -15378,7 +15511,7 @@ suite('AgentHostChatContribution', () => {
 					const startedAt = Date.parse(children[0].modifiedAt);
 					const latestTurn: Turn = {
 						...childState.turns[0], startedAt: new Date(startedAt).toISOString(), duration: 20_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } },
 					};
 					const tail = { ...childState, turns: [latestTurn], turnsNextCursor: 'older' };
 					agentHostService.chatStates.set(child, tail);
@@ -15397,7 +15530,7 @@ suite('AgentHostChatContribution', () => {
 							type: ActionType.ChatTurnsLoaded,
 							turns: [{
 								...latestTurn, id: 'earlier', startedAt: new Date(startedAt - 60_000).toISOString(), duration: 30_000,
-								usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 1.5 } },
+								usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 							}],
 							turnsNextCursor: hasMoreHistory ? 'oldest' : undefined,
 						},
@@ -15434,7 +15567,7 @@ suite('AgentHostChatContribution', () => {
 					assert.ok(childState);
 					childState.turns[0] = {
 						...childState.turns[0], startedAt: children[0].modifiedAt, duration: 40_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } },
 					};
 					const { pills } = await scenario.open();
 					const presentation = () => {
@@ -15450,7 +15583,7 @@ suite('AgentHostChatContribution', () => {
 						...childState,
 						turns: childState.turns.map(turn => ({
 							...turn,
-							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { cost: restoredCredits } },
+							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: restoredCredits * 1_000_000_000 } } },
 						})),
 					});
 					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
@@ -15760,8 +15893,8 @@ suite('AgentHostChatContribution', () => {
 					for (const [index, child] of children.entries()) {
 						const state = agentHostService.chatStates.get(child.resource);
 						assert.ok(state?.activeTurn);
-						state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: index === 0 ? 0.5 : 0.75 } };
-						state.activeTurn.usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.25 } };
+						state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: index === 0 ? 500_000_000 : 750_000_000 } } };
+						state.activeTurn.usage = { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } };
 					}
 					const { pills } = await scenario.open();
 					const credits = () => pills.filter(part => part.toolSpecificData?.kind === 'subagent')
@@ -15770,7 +15903,7 @@ suite('AgentHostChatContribution', () => {
 					let sequence = 100;
 					const fireChild = (chat: string, action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: sequence++, origin: undefined });
 					for (const [index, child] of children.entries()) {
-						fireChild(child.resource, { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: index + 2 } } });
+						fireChild(child.resource, { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: (index + 2) * 1_000_000_000 } } } });
 						fire({ type: ActionType.SessionChatUpdated, chat: child.resource, changes: { status: SessionStatus.Idle } });
 						fireChild(child.resource, chatTurnComplete('child-turn', 40000));
 					}
@@ -15792,7 +15925,7 @@ suite('AgentHostChatContribution', () => {
 					assert.ok(previous);
 					agentHostService.chatStates.set(child, { ...previous, activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, '2026-10-19T00:01:00.000Z') });
 					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InProgress, modifiedAt: '2026-10-19T00:01:00.000Z' } });
-					fireChild(child, { type: ActionType.ChatUsage, turnId: 'followup', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } } });
+					fireChild(child, { type: ActionType.ChatUsage, turnId: 'followup', usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } } });
 					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle, modifiedAt: '2026-10-19T00:01:10.000Z' } });
 					fireChild(child, chatTurnComplete('followup', 10000));
 					await timeout(0);
@@ -15815,7 +15948,7 @@ suite('AgentHostChatContribution', () => {
 				const state = agentHostService.chatStates.get(child);
 				assert.ok(state);
 				state.activeTurn = undefined;
-				state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } };
+				state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } };
 				await scenario.open();
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
 				await timeout(0);
@@ -15840,7 +15973,7 @@ suite('AgentHostChatContribution', () => {
 				const child = children[0].resource;
 				agentHostService.fireAction({
 					channel: child,
-					action: { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } } },
+					action: { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } } },
 					serverSeq: 99, origin: undefined,
 				});
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
@@ -19952,7 +20085,7 @@ suite('AgentHostChatContribution', () => {
 				message: 'Proceed after reconnect?',
 				completions: [{
 					channel: chatUri,
-					action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Accept, answers: {} },
+					action: { type: ActionType.ChatInputCompleted, requestId: 'empty-form', response: ChatInputResponseKind.Accept, answers: {}, _meta: { 'agentHost.inputResponseSource': 'human_response' } },
 				}],
 			});
 		});
@@ -26556,11 +26689,11 @@ suite('AgentHostChatContribution', () => {
 						rangeStart: 0,
 						rangeEnd: 1,
 						attachment: {
-							type: MessageAttachmentKind.Simple,
+							type: MessageAttachmentKind.Resource,
+							uri: 'file:///skills/agent-host-docs/SKILL.md',
 							label: '/agent-host-docs',
+							displayKind: 'skill',
 							_meta: {
-								uri: 'file:///skills/agent-host-docs/SKILL.md',
-								displayName: 'Agent Host Docs',
 								description: 'Use this skill when working on Agent Host code',
 							},
 						},
@@ -26584,11 +26717,9 @@ suite('AgentHostChatContribution', () => {
 						attachment: {
 							kind: 'skill',
 							uri: URI.parse('file:///skills/agent-host-docs/SKILL.md'),
-							displayName: 'Agent Host Docs',
+							displayName: 'agent-host-docs',
 							description: 'Use this skill when working on Agent Host code',
 							_meta: {
-								uri: 'file:///skills/agent-host-docs/SKILL.md',
-								displayName: 'Agent Host Docs',
 								description: 'Use this skill when working on Agent Host code',
 							},
 						},
@@ -26598,15 +26729,15 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		for (const authority of ['local', 'sandbox']) {
-			test(`maps MCP skill completion resources and preserves friendly display names (${authority})`, async () => {
+			test(`maps MCP skill completion resources and preserves namespaced invocation labels (${authority})`, async () => {
 				const { sessionHandler, agentHostService } = createContribution(disposables);
 				agentHostService.resourceUris = createAgentHostResourceUriMapper(authority);
 				const resource = URI.parse(buildMcpResourceUri('opaque-mcp-channel:skills', 'skill://server/friendly/SKILL.md', 'Friendly'));
-				const meta = { uri: resource.toString(), name: 'Friendly', displayName: 'Friendly', description: 'MCP skill (MCP: Server)' };
+				const meta = { description: 'MCP skill (MCP: Server)' };
 				agentHostService.completions = async () => ({
 					items: [{
 						insertText: '/mcp1:server:friendly ', rangeStart: 0, rangeEnd: 1,
-						attachment: { type: MessageAttachmentKind.Simple, label: '/Friendly', _meta: meta },
+						attachment: { type: MessageAttachmentKind.Resource, uri: resource.toString(), label: '/mcp1:server:friendly', displayKind: 'skill', _meta: meta },
 					}]
 				});
 
@@ -26616,7 +26747,7 @@ suite('AgentHostChatContribution', () => {
 					items: [{
 						insertText: '/mcp1:server:friendly ',
 						start: { lineNumber: 1, column: 1 }, end: { lineNumber: 1, column: 2 },
-						attachment: { kind: 'skill', uri: toAgentHostUri(resource, authority), displayName: 'Friendly', description: meta.description, _meta: meta },
+						attachment: { kind: 'skill', uri: toAgentHostUri(resource, authority), displayName: 'mcp1:server:friendly', description: meta.description, _meta: meta },
 					}]
 				});
 			});

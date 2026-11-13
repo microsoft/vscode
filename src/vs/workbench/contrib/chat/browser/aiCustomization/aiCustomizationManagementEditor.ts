@@ -10,7 +10,7 @@ import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CustomizationMarketplaceIcon, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplacePage, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
-import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
+import { mcpAccessConfig, McpAccessValue, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { getGitHubMcpRegistryIdentity, getGitHubMcpRegistryResourceIdentity } from './githubMcpRegistryIcons.js';
 import { dirname as dirnamePath } from '../../../../../base/common/path.js';
 
@@ -58,7 +58,6 @@ import { IAICustomizationListItem } from './aiCustomizationItemSource.js';
 import { IAICustomizationItemsModel, ITEMS_MODEL_SECTIONS } from './aiCustomizationItemsModel.js';
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { createInstalledPluginItem, McpListWidget } from './mcpListWidget.js';
-import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { PluginListWidget } from './pluginListWidget.js';
 import { ToolsListWidget } from './toolsListWidget.js';
 import { AGENT_HOST_COPILOT_CLI_SESSION_TYPE } from '../agentSessions/agentHost/agentHostToolSetEnablementService.js';
@@ -627,6 +626,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this._register(autorun(reader => {
 			this.workspaceService.activeProjectRoot.read(reader);
 			this.workspaceService.activeProjectLabel.read(reader);
+			this.workspaceService.activeTargetLabels?.read(reader);
 			this.updateTargetLabelPresentation();
 			if (this.viewMode === 'editor') {
 				this.currentEditingProjectRoot = this.workspaceService.getActiveProjectRoot();
@@ -792,11 +792,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 	}
 
 	private updateTargetLabelPresentation(): void {
-		const harnessLabel = this.getActiveHarnessLabel();
-		const workspaceLabel = this.workspaceService.activeProjectLabel.get();
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		const harnessLabel = targetLabels?.harness ?? this.getActiveHarnessLabel();
+		const workspaceLabel = targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get();
 		this.welcomePage?.setHarnessLabel(harnessLabel);
 		if (this.input instanceof AICustomizationManagementEditorInput) {
-			this.input.setTargetLabels(harnessLabel, workspaceLabel);
+			this.input.setTargetLabels(harnessLabel, workspaceLabel, targetLabels?.environment);
 		}
 	}
 
@@ -2472,6 +2473,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		if (item.extensionId) {
+			// The Agents window has no Extensions view, so it shows the extension in its Extensions section instead.
+			const extensionsSection = this.sections.some(section => section.id === AICustomizationManagementSection.Extensions)
+				? this.ensureContributedSectionWidget(AICustomizationManagementSection.Extensions)
+				: undefined;
+			if (extensionsSection?.showExtension) {
+				this.selectSection(AICustomizationManagementSection.Extensions);
+				extensionsSection.showExtension(item.extensionId);
+				return;
+			}
 			await this.commandService.executeCommand(showExtensionsWithIdsCommandId, [item.extensionId]);
 		}
 	}
@@ -4179,7 +4189,12 @@ export class AICustomizationManagementEditor extends EditorPane {
 		});
 
 		await super.setInput(input, options, context, token);
-		input.setTargetLabels(this.getActiveHarnessLabel(), this.workspaceService.activeProjectLabel.get());
+		const targetLabels = this.workspaceService.activeTargetLabels?.get();
+		input.setTargetLabels(
+			targetLabels?.harness ?? this.getActiveHarnessLabel(),
+			targetLabels?.workspace ?? this.workspaceService.activeProjectLabel.get(),
+			targetLabels?.environment,
+		);
 		if (!token.isCancellationRequested) {
 			this.initializeContributedSectionWidgets();
 			if (this.selectedSection && this.isContributedSectionEnabled(this.selectedSection)) {

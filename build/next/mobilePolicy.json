@@ -58,6 +58,7 @@
 		"src/vs/editor/contrib/inlineCompletions/browser/inlineCompletions.contribution.ts",
 		"src/vs/editor/contrib/middleScroll/browser/middleScroll.contribution.ts",
 		"src/vs/editor/contrib/placeholderText/browser/placeholderText.contribution.ts",
+		"src/vs/editor/contrib/structuralDiff/common/structuralDiff.contribution.ts",
 		"src/vs/editor/editor.all.ts",
 		"src/vs/platform/actions/common/actions.contribution.ts",
 		"src/vs/platform/agentHost/common/agentHostStarter.config.contribution.ts",

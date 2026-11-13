@@ -16,6 +16,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IOpenSessionOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionEditorWorkingSetService, SessionEditorWorkingSetService } from '../../../layout/common/sessionEditorWorkingSet.js';
 import { SessionsTitleBarWidget } from '../../browser/sessionsTitleBarWidget.js';
 import { ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IChatWindow, IChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
@@ -70,6 +71,7 @@ suite('SessionsTitleBarWidget', () => {
 			[IEditorGroupsService, upcastPartial<IEditorGroupsService>({})],
 			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({})],
 			[ISessionHostService, upcastPartial<ISessionHostService>({ getHostOfWindow: () => upcastPartial<ISessionHost>({ session: constObservable(undefined), chat: constObservable(undefined) }) })],
+			[ISessionEditorWorkingSetService, new SessionEditorWorkingSetService()],
 		]);
 		const accessor: ServicesAccessor = { get: <T>(id: ServiceIdentifier<T>) => services.get(id) as T };
 		Reflect.set(widget, '_windowHost', upcastPartial<ISessionHost>({ kind: SessionHostKind.ChatWindow, parent: undefined, windowId: constObservable(7) }));

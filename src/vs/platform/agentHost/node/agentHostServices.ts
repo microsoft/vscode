@@ -29,9 +29,11 @@ import { IAgentHostCheckpointService } from '../common/agentHostCheckpointServic
 import { IAgentHostGitStateService } from '../common/agentHostGitStateService.js';
 import { IAgentHostSessionStateStore } from '../common/agentHostSessionStateStore.js';
 import { ISessionSandboxPathService, SessionSandboxPathService } from './sessionSandboxPathService.js';
+import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from './workspaceSandboxPathService.js';
 import { IAgentHostReviewService } from '../common/agentHostReviewService.js';
 import { IAgentHostSubscriptionService } from '../common/agentHostSubscriptionService.js';
 import { CopilotApiService, ICopilotApiService } from './shared/copilotApiService.js';
+import { CopilotAccountService, ICopilotAccountService } from './copilot/copilotAccountService.js';
 import { AgentHostUtilityModelService, IAgentHostUtilityModelService } from './agentHostUtilityModelService.js';
 import { AgentHostFileMonitorService, IAgentHostFileMonitorService } from './agentHostFileMonitorService.js';
 import { AgentHostGitService } from './agentHostGitService.js';
@@ -121,6 +123,7 @@ export function registerAgentHostCoreServices(services: ServiceCollection, input
 	services.set(IAgentHostCustomizationEnablementService, new SyncDescriptor(AgentHostCustomizationEnablementService));
 	services.set(IAgentHostSessionStateStore, new SyncDescriptor(AgentHostSessionStateStore, [SESSION_STATE_MIRROR_FLUSH_DELAY]));
 	services.set(ISessionSandboxPathService, new SyncDescriptor(SessionSandboxPathService));
+	services.set(IWorkspaceSandboxPathService, new SyncDescriptor(WorkspaceSandboxPathService));
 	services.set(IAgentHostGitStateService, new SyncDescriptor(AgentHostGitStateService));
 	services.set(IAgentHostCheckpointService, new SyncDescriptor(AgentHostCheckpointService));
 	services.set(IAgentHostPromptCache, new SyncDescriptor(AgentHostPromptCache));
@@ -164,6 +167,7 @@ export interface IAgentHostHostServiceInputs {
 
 export function registerAgentHostHostServices(services: ServiceCollection, inputs: IAgentHostHostServiceInputs): void {
 	services.set(ICopilotHomeService, new SyncDescriptor(CopilotHomeService));
+	services.set(ICopilotAccountService, new SyncDescriptor(CopilotAccountService));
 	services.set(IDevContainerAgentHostMainService, new SyncDescriptor(RemoteDevContainerAgentHostService));
 	services.set(ISandboxHelperService, new SyncDescriptor(SandboxHelperService));
 	services.set(IAgentHostGitService, new SyncDescriptor(AgentHostGitService));

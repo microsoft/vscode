@@ -624,7 +624,7 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().listPluginInstallations(provider, session, chat);
 	}
 
-	setPluginEnabled(provider: string, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
+	setPluginEnabled(provider: string, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI): Promise<void> {
 		return this._getManagementService().setPluginEnabled(provider, plugin, enabled, scope, session, chat);
 	}
 

@@ -30,7 +30,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AccessibleViewRegistry } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -78,6 +80,9 @@ import { ISessionsProvidersService } from '../../../../../workbench/contrib/sess
 import { IVoicePlaybackService } from '../../../../../workbench/contrib/chat/common/voicePlaybackService.js';
 import { IChatService } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
+import { toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
+import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
@@ -711,6 +716,37 @@ class FakeRemoteAgentHostService extends mock<IRemoteAgentHostService>() impleme
 	}
 }
 
+class FakeMissionControlEnvironmentService extends mock<IMissionControlEnvironmentService>() {
+	override readonly hosts = observableValue<readonly IMissionControlHost[]>(this, []);
+
+	setHosts(hosts: readonly IMissionControlHost[]): void {
+		this.hosts.set(hosts, undefined);
+	}
+}
+
+function tunnelEntry(name: string, tunnelId: string): IRemoteAgentHostEntry {
+	return {
+		name,
+		connection: { type: RemoteAgentHostEntryType.Tunnel, tunnelId, clusterId: 'test' },
+	};
+}
+
+function githubEnvironmentEntry(name: string, environmentId: string): IRemoteAgentHostEntry {
+	return {
+		name,
+		connection: {
+			type: RemoteAgentHostEntryType.CloudSandbox,
+			address: `cloudsandbox:${environmentId}`,
+			environmentId,
+			environmentKind: 'user-local',
+		},
+	};
+}
+
+function providerId(entry: IRemoteAgentHostEntry): string {
+	return `agenthost-${agentHostAuthority(getEntryAddress(entry))}`;
+}
+
 suite('AutomationsCardsWidget', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let archiveActionRegistration: IDisposable;
@@ -745,6 +781,7 @@ suite('AutomationsCardsWidget', () => {
 			readonly catalogueState: AutomationCatalogueState;
 			readonly unavailableProviders: readonly IAutomationProviderDescriptor[];
 			readonly configuredEntries: readonly IRemoteAgentHostEntry[];
+			readonly githubEnvironments?: readonly IMissionControlHost[];
 		},
 	) {
 		const automationService = new FakeAutomationService();
@@ -766,10 +803,12 @@ suite('AutomationsCardsWidget', () => {
 		const keybindingService = new TestKeybindingService();
 		const telemetryService = new TestDataTelemetryService();
 		const remoteAgentHostService = disposables.add(new FakeRemoteAgentHostService());
+		const missionControlEnvironmentService = new FakeMissionControlEnvironmentService();
 		if (initialState) {
 			automationService.setUnavailableProviders(initialState.unavailableProviders);
 			automationService.setCatalogueState(initialState.catalogueState);
 			remoteAgentHostService.setConfiguredEntries(initialState.configuredEntries);
+			missionControlEnvironmentService.setHosts(initialState.githubEnvironments ?? []);
 		}
 		const store = disposables.add(new DisposableStore());
 		store.add(toDisposable(() => ModifierKeyEmitter.disposeInstance()));
@@ -796,8 +835,10 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IAutomationRunner, runner);
 		instantiationService.stub(ISessionsService, sessionsService);
+		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
+		instantiationService.stub(IMissionControlEnvironmentService, missionControlEnvironmentService);
 		instantiationService.stub(IConfigurationService, configurationService);
 		if (fileService) {
 			instantiationService.stub(IFileService, fileService);
@@ -850,7 +891,7 @@ suite('AutomationsCardsWidget', () => {
 		const widget = disposables.add(instantiationService.createInstance(AutomationsCardsWidget));
 		document.body.append(widget.element);
 		disposables.add(toDisposable(() => widget.element.remove()));
-		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
+		return { agentPluginService, automationService, automationDialogService, commandService, configurationService, contextKeyService, contextMenuService, dialogService, instantiationService, keybindingService, logService, missionControlEnvironmentService, remoteAgentHostService, runner, sessionsManagementService, sessionsService, shownAutomationSessionIds, telemetryService, widget, refreshErrors, opened, chatModels, windowFocus, actionFactories };
 	}
 
 	function renderRefreshButton({ instantiationService, contextKeyService, actionFactories }: ReturnType<typeof setup>): HTMLElement {
@@ -1242,6 +1283,139 @@ suite('AutomationsCardsWidget', () => {
 		enabled.set(true);
 		assert.deepStrictEqual({ initiallyVisible, hidden, restored: hasRefresh() }, { initiallyVisible: true, hidden: true, restored: true });
 	});
+
+	test('header offers Create with Agent once automations exist, with Create Manually in its dropdown', async () => {
+		const { actionFactories, automationService, commandService, contextKeyService, contextMenuService, instantiationService } = setup();
+		const headerActions = () => instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+			.flatMap(([, actions]) => actions);
+		const empty = headerActions().map(action => action.id);
+		automationService.setAutomations([automation()]);
+		const populated = headerActions().map(action => action.id);
+		const executed: unknown[][] = [];
+		const execute = stub(commandService, 'executeCommand').callsFake(async (commandId: string, ...args: unknown[]) => {
+			executed.push([commandId, ...args]);
+			if (commandId === 'sessions.automations.createWithAgent') {
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(commandId)!.handler(accessor));
+			}
+			return undefined;
+		});
+		disposables.add(toDisposable(() => execute.restore()));
+		const action = headerActions().find(action => action.id === 'sessions.automations.createWithAgent')!;
+		const container = document.createElement('div');
+		document.body.append(container);
+		disposables.add(toDisposable(() => container.remove()));
+		disposables.add(actionFactories.get(action.id)!(action, {}, instantiationService, 1)!).render(container);
+
+		const [primary, chevron] = container.querySelectorAll<HTMLElement>('.monaco-button');
+		primary.click();
+		await timeout(0);
+		chevron.click();
+		const dropdown = contextMenuService.delegate!.getActions();
+		await dropdown[0].run();
+
+		assert.deepStrictEqual({ empty, populated, label: primary.textContent, dropdown: dropdown.map(action => action.label), executed }, {
+			empty: ['sessions.automations.import', 'sessions.automations.refresh'],
+			populated: ['sessions.automations.createWithAgent', 'sessions.automations.import', 'sessions.automations.refresh'],
+			label: 'Create with Agent',
+			dropdown: ['Create Manually'],
+			executed: [
+				['sessions.automations.createWithAgent'],
+				['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }],
+				['sessionsView.newAutomation'],
+			],
+		});
+	});
+
+	for (const content of ['empty', 'text', 'attachment', 'mounted'] as const) {
+		for (const confirmed of [false, true]) {
+			test(`Create with Agent confirms replacing a ${content} draft (confirmed: ${confirmed})`, async () => {
+				const storageService = disposables.add(new InMemoryStorageService());
+				const { commandService, dialogService, instantiationService } = setup('archive', NullHoverService, undefined, storageService);
+				const draft = {
+					inputText: content === 'text' ? 'Keep my draft' : '',
+					attachments: content === 'attachment' ? [toPasteVariableEntry('Notes', 'Attached notes', { id: 'notes' })] : [],
+				};
+				writeNewChatDraftState(storageService, draft);
+				const savedDraft = readNewChatDraftState(storageService);
+				if (content === 'mounted') {
+					instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
+				}
+				dialogService.confirmResult = { confirmed };
+				const execute = stub(commandService, 'executeCommand').resolves();
+				disposables.add(toDisposable(() => execute.restore()));
+
+				await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+
+				assert.deepStrictEqual({
+					confirmations: dialogService.confirmations.map(confirmation => confirmation.primaryButton),
+					details: dialogService.confirmations.map(confirmation => confirmation.detail),
+					commands: execute.args,
+					savedDraft: readNewChatDraftState(storageService),
+				}, {
+					confirmations: content === 'empty' ? [] : ['Replace Draft'],
+					details: content === 'empty' ? [] : ['The draft\'s text will be replaced with /automate. Existing attachments will be kept.'],
+					commands: content === 'empty' || confirmed
+						? [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]]
+						: [],
+					savedDraft,
+				});
+			});
+		}
+	}
+
+	for (const chatEnabled of [true, false]) {
+		test(`header split button supports toolbar navigation and manual creation (chat enabled: ${chatEnabled})`, async () => {
+			const { actionFactories, automationService, contextKeyService, contextMenuService, instantiationService } = setup();
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(chatEnabled);
+			automationService.setAutomations([automation()]);
+			const actions = instantiationService.get(IMenuService).getMenuActions(AgentsWindowMenus.CustomViewAutomations, contextKeyService)
+				.flatMap(([, actions]) => actions);
+			const create = actions.find(action => action.id === 'sessions.automations.createWithAgent')!;
+			const container = document.createElement('div');
+			document.body.append(container);
+			disposables.add(toDisposable(() => container.remove()));
+			const toolbar = disposables.add(new ActionBar(container, {
+				actionViewItemProvider: (action, options) => actionFactories.get(action.id)?.(action, options, instantiationService, 1),
+			}));
+			toolbar.push([create, disposables.add(new Action('other', 'Other'))]);
+			const [primary, dropdown] = container.querySelectorAll<HTMLElement>('.monaco-button');
+			const other = container.querySelector<HTMLElement>('.action-label')!;
+			const wrapper = primary.closest<HTMLElement>('.action-item')!;
+			const initialTabStops = [wrapper, primary, dropdown, other].map(element => element.tabIndex);
+			const key = (key: string, keyCode: number) => {
+				document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true }));
+				document.activeElement!.dispatchEvent(new KeyboardEvent('keyup', { key, keyCode, bubbles: true }));
+			};
+			toolbar.focus(0);
+			const entry = document.activeElement === (chatEnabled ? primary : dropdown);
+			if (chatEnabled) {
+				key('ArrowRight', 39);
+			}
+			const rightToDropdown = document.activeElement === dropdown;
+			key('Enter', 13);
+			const menu = contextMenuService.delegate!.getActions().map(action => action.label);
+			contextMenuService.delegate!.onHide?.(false);
+			key('ArrowRight', 39);
+			const rightToOther = document.activeElement === other;
+			key('ArrowLeft', 37);
+			const leftFromOther = document.activeElement === dropdown;
+			if (chatEnabled) {
+				key('ArrowLeft', 37);
+			}
+			const leftWithinSplit = document.activeElement === (chatEnabled ? primary : dropdown);
+			toolbar.setFocusable(false);
+
+			assert.deepStrictEqual({
+				initialTabStops, primaryDisabled: primary.getAttribute('aria-disabled'), entry, rightToDropdown, menu,
+				rightToOther, leftFromOther, leftWithinSplit,
+				finalTabStops: [wrapper, primary, dropdown, other].map(element => element.tabIndex),
+			}, {
+				initialTabStops: [-1, chatEnabled ? 0 : -1, chatEnabled ? -1 : 0, -1],
+				primaryDisabled: String(!chatEnabled), entry: true, rightToDropdown: true, menu: ['Create Manually'],
+				rightToOther: true, leftFromOther: true, leftWithinSplit: true, finalTabStops: [-1, -1, -1, -1],
+			});
+		});
+	}
 
 	test('refreshes every 60 seconds while visible without refreshing on window focus or overlapping requests', async () => {
 		const clock = useFakeTimersWithRealAnimationFrames();
@@ -1763,7 +1937,7 @@ suite('AutomationsCardsWidget', () => {
 			emptyPersonal: {
 				title: 'No automations yet',
 				description: 'Describe what you want to automate, then choose when it runs.',
-				button: 'Create Automation',
+				button: 'Create with Agent',
 				accessible: true,
 			},
 		});
@@ -2812,9 +2986,9 @@ suite('AutomationsCardsWidget', () => {
 		};
 
 		assert.deepStrictEqual({ loadingState, errorState, unavailableState, readyState }, {
-			loadingState: { loading: '', error: 'none', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
-			errorState: { loading: 'none', error: '', createButton: 'Create Automation', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
-			unavailableState: { loading: 'none', unavailable: '', error: 'none', title: 'No automations yet', createButton: 'Create Automation', templates: AUTOMATION_TEMPLATES.length },
+			loadingState: { loading: '', error: 'none', createButton: 'Create with Agent', templates: AUTOMATION_TEMPLATES.length },
+			errorState: { loading: 'none', error: '', createButton: 'Create with Agent', description: 'The complete automation catalogue could not be read.', templates: AUTOMATION_TEMPLATES.length },
+			unavailableState: { loading: 'none', unavailable: '', error: 'none', title: 'No automations yet', createButton: 'Create with Agent', templates: AUTOMATION_TEMPLATES.length },
 			readyState: { loading: 'none', error: 'none', templates: AUTOMATION_TEMPLATES.length },
 		});
 	});
@@ -2864,27 +3038,80 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
-	test('create remains available after a catalogue error', async () => {
-		const { automationDialogService, automationService, widget } = setup();
+	test('create with agent and create manually remain available after a catalogue error', async () => {
+		const { automationDialogService, automationService, commandService, contextMenuService, widget } = setup();
 		automationService.setCatalogueState('error');
+		const executed: string[] = [];
+		const execute = stub(commandService, 'executeCommand').callsFake(async (commandId: string) => { executed.push(commandId); return undefined; });
+		disposables.add(toDisposable(() => execute.restore()));
 
-		widget.element.querySelector<HTMLButtonElement>('.automations-cards-error .automations-cards-state-create-button')?.click();
+		const errorState = widget.element.querySelector<HTMLElement>('.automations-cards-error')!;
+		errorState.querySelector<HTMLButtonElement>('.automations-cards-state-create-button')!.click();
+		errorState.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+		const dropdown = contextMenuService.delegate!.getActions();
+		await dropdown[0].run();
 		await Promise.resolve();
 
-		assert.strictEqual(automationDialogService.showCalls, 1);
+		assert.deepStrictEqual({
+			label: errorState.querySelector('.automations-cards-state-create-button')?.textContent,
+			executed,
+			dropdown: dropdown.map(action => action.label),
+			manualDialogs: automationDialogService.showCalls,
+		}, {
+			label: 'Create with Agent',
+			executed: ['sessions.automations.createWithAgent'],
+			dropdown: ['Create Manually'],
+			manualDialogs: 1,
+		});
+	});
+
+	test('empty-state split buttons keep manual creation available while chat readiness changes', async () => {
+		const { automationDialogService, automationService, commandService, contextKeyService, contextMenuService, widget } = setup();
+		const execute = stub(commandService, 'executeCommand').resolves();
+		disposables.add(toDisposable(() => execute.restore()));
+		automationService.setCatalogueState('ready');
+		const chatEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
+		chatEnabled.set(false);
+		const primary = widget.element.querySelector<HTMLElement>('.automations-cards-empty .automations-cards-create-button')!;
+		primary.click();
+		primary.parentElement!.querySelector<HTMLElement>('.monaco-dropdown-button')!.click();
+		await contextMenuService.delegate!.getActions()[0].run();
+		const unavailable = { disabled: primary.getAttribute('aria-disabled'), agentCalls: execute.callCount, manualDialogs: automationDialogService.showCalls };
+		chatEnabled.set(true);
+		primary.click();
+
+		assert.deepStrictEqual({ unavailable, restored: primary.getAttribute('aria-disabled'), agentCalls: execute.callCount }, {
+			unavailable: { disabled: 'true', agentCalls: 0, manualDialogs: 1 }, restored: 'false', agentCalls: 1,
+		});
+	});
+
+	test('in-view Create with Agent failures are logged and surfaced in every catalogue state', async () => {
+		const { automationService, commandService, logService, refreshErrors, widget } = setup();
+		const failure = new Error('Session could not open');
+		const execute = stub(commandService, 'executeCommand').rejects(failure);
+		disposables.add(toDisposable(() => execute.restore()));
+		const states: readonly AutomationCatalogueState[] = ['loading', 'ready', 'unavailable', 'error'];
+		for (const state of states) {
+			automationService.setCatalogueState(state);
+			const selector = state === 'ready' ? '.automations-cards-empty .automations-cards-create-button' : `.automations-cards-${state} .automations-cards-state-create-button`;
+			widget.element.querySelector<HTMLElement>(selector)!.click();
+			await timeout(0);
+		}
+
+		assert.deepStrictEqual({
+			notifications: refreshErrors,
+			logs: logService.errors.map(entry => ({ message: entry.message, error: entry.args[0] })),
+		}, {
+			notifications: states.map(() => 'Could not open a session to create an automation: Session could not open'),
+			logs: states.map(() => ({ message: '[Automations] Failed to open agent creation session', error: failure })),
+		});
 	});
 
 	test('renders an initially unavailable disconnected remote without reading uninitialized state', () => {
-		const entry: IRemoteAgentHostEntry = {
-			name: 'Remote host',
-			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: '127.0.0.1:65531',
-			},
-		};
+		const entry = tunnelEntry('Remote host', 'remote');
 		const { widget } = setup('archive', NullHoverService, undefined, undefined, {
 			catalogueState: 'unavailable',
-			unavailableProviders: [{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }],
+			unavailableProviders: [{ id: providerId(entry), label: entry.name, unavailableReasonCode: 'disconnected' }],
 			configuredEntries: [entry],
 		});
 
@@ -2906,12 +3133,10 @@ suite('AutomationsCardsWidget', () => {
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
-		remoteAgentHostService.setConfiguredEntries([{
-			name: 'Remote host',
-			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
-		}]);
+		const entry = tunnelEntry('Remote host', 'remote');
+		remoteAgentHostService.setConfiguredEntries([entry]);
 		automationService.setAutomations([automation()]);
-		automationService.setUnavailableProviders([{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' }]);
+		automationService.setUnavailableProviders([{ id: providerId(entry), label: entry.name, unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 		const message = widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')!;
 		const disconnectedDisplay = message.style.display;
@@ -2944,15 +3169,17 @@ suite('AutomationsCardsWidget', () => {
 			for (const setting of settings) {
 				await setSetting(setting, true);
 			}
-			remoteAgentHostService.setConfiguredEntries([
-				{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' } },
-				{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65532' } },
-			]);
+			const entries = [
+				tunnelEntry('Host 1', 'host-1'),
+				tunnelEntry('Host 2', 'host-2'),
+			];
+			remoteAgentHostService.setConfiguredEntries(entries);
 			automationService.setAutomations(hasSavedAutomations ? [automation()] : []);
-			automationService.setUnavailableProviders([
-				{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' },
-				{ id: 'host2', label: 'Host 2', unavailableReasonCode: 'disconnected' },
-			]);
+			automationService.setUnavailableProviders(entries.map(entry => ({
+				id: providerId(entry),
+				label: entry.name,
+				unavailableReasonCode: 'disconnected' as const,
+			})));
 			automationService.setCatalogueState('unavailable');
 			const selector = hasSavedAutomations ? '.automations-cards-partial-state' : '.automations-cards-unavailable';
 			const container = widget.element.querySelector<HTMLElement>(`${selector} .automations-manage-remotes`)!;
@@ -2972,7 +3199,7 @@ suite('AutomationsCardsWidget', () => {
 			dispatchKeydown(link, { key: 'Enter', keyCode: 13 });
 			dispatchKeydown(link, { key: ' ', keyCode: 32 });
 			await Promise.resolve();
-			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'disconnected' }]);
 			const singleRemote = container.style.display;
 			const disabledSettings = [];
 			for (const setting of settings) {
@@ -2981,9 +3208,9 @@ suite('AutomationsCardsWidget', () => {
 				await setSetting(setting, true);
 			}
 			const restored = container.style.display;
-			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'unsupported' }]);
+			automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'unsupported' }]);
 			const unsupported = { control: container.style.display, warning: description.textContent, warningDisplay: description.style.display };
-			automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+			automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'disconnected' }]);
 			automationService.setCatalogueState('ready');
 			assert.deepStrictEqual({
 				initial, singleRemote, disabledSettings, restored, unsupported, ready: container.style.display,
@@ -3055,12 +3282,10 @@ suite('AutomationsCardsWidget', () => {
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
-		remoteAgentHostService.setConfiguredEntries([{
-			name: 'Remote host',
-			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
-		}]);
+		const remote = tunnelEntry('Remote host', 'remote');
+		remoteAgentHostService.setConfiguredEntries([remote]);
 		automationService.setUnavailableProviders([
-			{ id: 'remote', label: 'Remote host', unavailableReasonCode: 'disconnected' },
+			{ id: providerId(remote), label: remote.name, unavailableReasonCode: 'disconnected' },
 			{ id: 'local-agent-host', label: 'This Computer', unavailableReasonCode: 'disconnected' },
 		]);
 		automationService.setCatalogueState('unavailable');
@@ -3086,6 +3311,70 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('ignores disconnected GitHub Environments and excludes them from the remote count', async () => {
+		const { automationService, configurationService, instantiationService, missionControlEnvironmentService, remoteAgentHostService, widget } = setup();
+		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
+			await configurationService.setUserConfiguration(setting, true);
+		}
+		const tunnel = tunnelEntry('benbox3', 'benbox3');
+		const environment = githubEnvironmentEntry('CPC-bevil', 'environment');
+		remoteAgentHostService.setConfiguredEntries([tunnel]);
+		remoteAgentHostService.setConnections([{
+			name: tunnel.name,
+			address: getEntryAddress(tunnel),
+			status: RemoteAgentHostConnectionStatus.connected,
+		}]);
+		missionControlEnvironmentService.setHosts([{
+			id: 'environment',
+			name: environment.name,
+			kind: 'user-local',
+			status: 'offline',
+		}]);
+		automationService.setUnavailableProviders([{
+			id: providerId(environment),
+			label: environment.name,
+			unavailableReasonCode: 'disconnected',
+		}]);
+		automationService.setCatalogueState('unavailable');
+
+		const emptyState = {
+			controlDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes')?.style.display,
+			count: widget.element.querySelector('.automations-cards-unavailable .automations-manage-remotes-count')?.textContent,
+			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-unavailable-message')?.style.display,
+		};
+		automationService.setAutomations([automation()]);
+		const savedState = {
+			bannerDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state')?.style.display,
+			warningDisplay: widget.element.querySelector<HTMLElement>('.automations-cards-partial-state-message')?.style.display,
+		};
+		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() { });
+		stubSessionsHostLayout(instantiationService);
+		const accessibleView = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-view')!;
+		const accessibleProvider = disposables.add(instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor))!);
+		const accessibleContent = accessibleProvider.provideContent();
+
+		assert.deepStrictEqual({
+			emptyState, savedState, accessible: {
+				includesEnvironment: accessibleContent.includes(environment.name),
+				includesUnavailable: accessibleContent.includes('Some automations are unavailable.'),
+			}
+		}, {
+			emptyState: {
+				controlDisplay: 'none',
+				count: '1/1 remotes detected',
+				warningDisplay: 'none',
+			},
+			savedState: {
+				bannerDisplay: 'none',
+				warningDisplay: 'none',
+			},
+			accessible: {
+				includesEnvironment: false,
+				includesUnavailable: false,
+			},
+		});
+	});
+
 	test('updates Manage Remotes detected count for connection and configured-entry changes', async () => {
 		const { automationService, configurationService, remoteAgentHostService, widget } = setup();
 		const settings = [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING];
@@ -3099,20 +3388,15 @@ suite('AutomationsCardsWidget', () => {
 			affectsConfiguration: key => settings.includes(key),
 		});
 
-		const entries = Array.from({ length: 5 }, (_, index): IRemoteAgentHostEntry => ({
-			name: `Host ${index + 1}`,
-			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: `127.0.0.1:${65531 + index}`,
-			},
-		}));
+		const entries = Array.from({ length: 5 }, (_, index) => tunnelEntry(`Host ${index + 1}`, `host-${index + 1}`));
+		const githubEnvironment = githubEnvironmentEntry('GitHub Environment', 'environment');
 		const connection = (index: number, status: RemoteAgentHostConnectionStatus): IRemoteAgentHostConnectionInfo => ({
 			name: entries[index].name,
-			address: `127.0.0.1:${65531 + index}`,
+			address: getEntryAddress(entries[index]),
 			status,
 		});
 
-		remoteAgentHostService.setConfiguredEntries(entries);
+		remoteAgentHostService.setConfiguredEntries([...entries, githubEnvironment]);
 		remoteAgentHostService.setConnections([
 			connection(0, RemoteAgentHostConnectionStatus.connected),
 			connection(1, RemoteAgentHostConnectionStatus.connected),
@@ -3120,7 +3404,7 @@ suite('AutomationsCardsWidget', () => {
 			connection(3, RemoteAgentHostConnectionStatus.reconnecting),
 			connection(4, RemoteAgentHostConnectionStatus.disconnected),
 		]);
-		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		automationService.setUnavailableProviders([{ id: providerId(entries[0]), label: entries[0].name, unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 
 		const count = widget.element.querySelector<HTMLElement>('.automations-cards-unavailable .automations-manage-remotes-count');
@@ -3143,13 +3427,7 @@ suite('AutomationsCardsWidget', () => {
 		remoteAgentHostService.setConfiguredEntries(entries.slice(0, 4));
 		snapshot();
 
-		remoteAgentHostService.setConfiguredEntries([...entries.slice(0, 4), {
-			name: 'Host 6',
-			connection: {
-				type: RemoteAgentHostEntryType.WebSocket,
-				address: '127.0.0.1:65536',
-			},
-		}]);
+		remoteAgentHostService.setConfiguredEntries([...entries.slice(0, 4), tunnelEntry('Host 6', 'host-6'), githubEnvironment]);
 		snapshot();
 
 		assert.deepStrictEqual(snapshots, [
@@ -3165,11 +3443,9 @@ suite('AutomationsCardsWidget', () => {
 		for (const setting of [RemoteAgentHostsEnabledSettingId, ENVIRONMENT_PICKER_SETTING, ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING]) {
 			await configurationService.setUserConfiguration(setting, true);
 		}
-		remoteAgentHostService.setConfiguredEntries([{
-			name: 'Host 1',
-			connection: { type: RemoteAgentHostEntryType.WebSocket, address: '127.0.0.1:65531' },
-		}]);
-		automationService.setUnavailableProviders([{ id: 'host1', label: 'Host 1', unavailableReasonCode: 'disconnected' }]);
+		const entry = tunnelEntry('Host 1', 'host-1');
+		remoteAgentHostService.setConfiguredEntries([entry]);
+		automationService.setUnavailableProviders([{ id: providerId(entry), label: entry.name, unavailableReasonCode: 'disconnected' }]);
 		automationService.setCatalogueState('unavailable');
 		const failure = new Error('Remote Environments could not be opened');
 		const stubbedCommand = stub(commandService, 'executeCommand').rejects(failure);
@@ -4113,6 +4389,36 @@ suite('AutomationsCardsWidget', () => {
 		});
 	});
 
+	test('disabling a shared automation warns that the change affects other users', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({ ownership: 'repository' });
+		automationService.setAutomations([source]);
+		const command = CommandsRegistry.getCommand('sessions.automations.disable');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+		dialogService.confirmResult = { confirmed: true };
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual({
+			confirmations: dialogService.confirmations,
+			updateCalls: automationService.guardedUpdateCalls,
+		}, {
+			confirmations: [{
+				type: 'warning',
+				message: 'Disable automation "Daily review"?',
+				detail: 'WARNING: This is a shared automation, this will disable it for everyone in this repository.',
+				primaryButton: 'Disable',
+			}, {
+				type: 'warning',
+				message: 'Disable automation "Daily review"?',
+				detail: 'WARNING: This is a shared automation, this will disable it for everyone in this repository.',
+				primaryButton: 'Disable',
+			}],
+			updateCalls: [{ id: source.id, patch: { enabled: false }, expected: source }],
+		});
+	});
+
 	test('disable conflicts are logged and reported to the user', async () => {
 		const { automationService, dialogService, instantiationService, logService } = setup();
 		const source = automation();
@@ -4155,7 +4461,7 @@ suite('AutomationsCardsWidget', () => {
 		}]);
 	});
 
-	test('capable providers offer keeping history with its accessible owner name', async () => {
+	test('capable providers always delete all history without offering a choice', async () => {
 		const { automationService, dialogService, instantiationService } = setup();
 		const source = automation();
 		automationService.setAutomations([source]);
@@ -4165,21 +4471,32 @@ suite('AutomationsCardsWidget', () => {
 		const command = CommandsRegistry.getCommand('sessions.automations.delete');
 		assert.ok(command);
 		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
-		const accessible = buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => source.name, () => 'retained', () => true);
 		assert.deepStrictEqual({
-			checkbox: dialogService.confirmations[0].checkbox,
+			confirmation: dialogService.confirmations[0],
 			options: automationService.deleteOptions,
 			runs: automationService.runs.get().length,
-			accessible: {
-				owner: accessible.includes('Daily review,'),
-				retained: accessible.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
-			},
 		}, {
-			checkbox: { label: 'Delete Run History', checked: true },
-			options: [{ deleteHistory: false }],
-			runs: 1,
-			accessible: { owner: true, retained: true },
+			confirmation: {
+				type: 'warning',
+				message: 'Delete automation "Daily review"?',
+				detail: 'This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
+				primaryButton: 'Delete',
+			},
+			options: [{ deleteHistory: true }],
+			runs: 0,
 		});
+	});
+
+	test('previously retained history keeps its accessible owner and deletion guidance', () => {
+		const { automationService } = setup();
+		automationService.setRuns([run()]);
+		const accessible = buildAutomationsAccessibleContent([], automationService.runs.get(), 'ready', [], [], 'ready', [], () => 'Daily review', () => 'retained', () => true);
+		assert.deepStrictEqual({
+			owner: accessible.includes('Daily review,'),
+			retained: accessible.includes('Run history for Daily review is retained. Use the run context menu to delete it.'),
+			runs: automationService.runs.get().length,
+			deleteCalls: automationService.deleteCalls,
+		}, { owner: true, retained: true, runs: 1, deleteCalls: [] });
 	});
 
 	test('delete context menu action confirms before deleting the automation and its history', async () => {
@@ -4202,17 +4519,43 @@ suite('AutomationsCardsWidget', () => {
 			runs: automationService.runs.get(),
 		}, {
 			confirmations: [{
+				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation and its run history.',
+				detail: 'This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
 				primaryButton: 'Delete',
 			}, {
+				type: 'warning',
 				message: 'Delete automation "Daily review"?',
-				detail: 'This will permanently delete the automation and its run history.',
+				detail: 'This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
 				primaryButton: 'Delete',
 			}],
 			deleteCalls: [source.id],
 			automations: [],
 			runs: [],
+		});
+	});
+
+	test('deleting a shared automation warns that the change affects other users', async () => {
+		const { automationService, dialogService, instantiationService } = setup();
+		const source = automation({ ownership: 'repository' });
+		automationService.setAutomations([source]);
+		dialogService.confirmResult = { confirmed: true };
+		const command = CommandsRegistry.getCommand('sessions.automations.delete');
+		assert.ok(command);
+
+		await instantiationService.invokeFunction(accessor => command.handler(accessor, source));
+
+		assert.deepStrictEqual({
+			confirmation: dialogService.confirmations[0],
+			deleteCalls: automationService.deleteCalls,
+		}, {
+			confirmation: {
+				type: 'warning',
+				message: 'Delete automation "Daily review"?',
+				detail: 'WARNING: This is a shared automation, this will delete it for everyone in this repository.\n\nThis will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.',
+				primaryButton: 'Delete',
+			},
+			deleteCalls: [source.id],
 		});
 	});
 
@@ -5295,6 +5638,10 @@ suite('AutomationsCardsWidget', () => {
 		assert.ok(provider);
 		disposables.add(provider);
 		assert.ok(provider.provideContent().includes('When creating an automation, you only need to enter a prompt. An empty name is derived from the prompt, and the target defaults to No workspace unless one is already supplied. An available Agent Host that supports the target is still required.'));
+		assert.deepStrictEqual(provider.provideContent().split('\n').filter(line => line.startsWith('Create with Agent')), [
+			'Create with Agent opens a new session with /automate prefilled and the input focused. This button is in the empty state, or in the view header once automations exist. Choose Create Manually from its adjacent More Actions dropdown to open the automation dialog. In the header, use Left Arrow and Right Arrow to move between the button and dropdown; in the empty state, use Tab and Shift+Tab. Press Enter or Space to activate either control. Create Manually remains available while chat is not ready.',
+		]);
+		assert.ok(provider.provideContent().includes('Existing attachments are kept. Choose Cancel to keep the draft unchanged.'));
 	});
 
 	test('accessibility help explains the disconnected remote management link', () => {
@@ -5303,7 +5650,7 @@ suite('AutomationsCardsWidget', () => {
 		stubSessionsHostLayout(instantiationService);
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'sessions-automations-help')!;
 		const provider = disposables.add(instantiationService.invokeFunction(accessor => help.getProvider(accessor))!);
-		assert.ok(provider.provideContent().includes('the unavailable message shows how many remotes are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage all remotes.'));
+		assert.ok(provider.provideContent().includes('the unavailable message shows how many dev tunnels are detected followed by Manage Remotes. Tab to this link and press Enter or Space to open Remote Environments, where you can manage dev tunnels. GitHub Environments do not appear in Automations warnings or this count.'));
 	});
 
 	test('accessibility help explains showing run sessions in the Sessions list', () => {

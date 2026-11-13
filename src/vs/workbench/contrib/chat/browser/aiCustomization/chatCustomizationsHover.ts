@@ -11,7 +11,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { raceCancellation } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { isEqual } from '../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../base/common/resources.js';
 import { IObservable, IReader, autorun, constObservable, derived, observableSignal } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { isObject } from '../../../../../base/common/types.js';
@@ -95,7 +95,10 @@ export class ChatCustomizationsHover {
 	}
 
 	getSessionResource(context?: unknown, reader?: IReader): URI {
-		const active = this.harnessService.activeSessionResource.read(reader);
+		return this.getExplicitSessionResource(context) ?? this.harnessService.activeSessionResource.read(reader);
+	}
+
+	getExplicitSessionResource(context?: unknown): URI | undefined {
 		if (isObject(context)) {
 			const widgetContext: unknown = Reflect.get(context, 'widget');
 			if (widgetContext) {
@@ -116,7 +119,7 @@ export class ChatCustomizationsHover {
 				return resource;
 			}
 		}
-		return active;
+		return undefined;
 	}
 
 	getProjectRoot(sessionResource: URI, reader?: IReader): URI | undefined {
@@ -169,9 +172,11 @@ export class ChatCustomizationsHover {
 			};
 			const content = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: { enabledCommands: hoverCommands } });
 			content.appendMarkdown(`**${localize('customizationsHover.title', "Session Customizations")}**\n\n`);
-			content.appendText(this.getProjectRoot(sessionResource)
-				? localize('customizationsHover.scopeWithWorkspace', "Available for {0} and current workspace", descriptor.label)
-				: localize('customizationsHover.scope', "Available for {0}", descriptor.label));
+			const projectRoot = this.getProjectRoot(sessionResource);
+			const projectLabel = active ? this.workspaceService.activeProjectLabel.get() : projectRoot ? basename(projectRoot) : undefined;
+			content.appendText(projectLabel
+				? localize('customizationsHover.context', "{0} \u00b7 {1}", descriptor.label, projectLabel)
+				: descriptor.label);
 			content.appendMarkdown('\n\n');
 			let hasSections = false;
 			const appendSection = (section: AICustomizationManagementSection & CustomizationsHoverTarget, icon: ThemeIcon, label: string, count: () => number) => {

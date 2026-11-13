@@ -18,6 +18,7 @@ import { agentMergeEnabledNotice, defaultAgentMergeConfiguration } from '../../.
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { getIconsStyleSheet } from '../../../../../../../platform/theme/browser/iconsStyleSheet.js';
+import '../../../../../../browser/media/style.css';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
 import { ChatCollapsibleContentPart } from '../../../../browser/widget/chatContentParts/chatCollapsibleContentPart.js';
 import { ChatSystemNotificationContentPart } from '../../../../browser/widget/chatContentParts/chatSystemNotificationContentPart.js';
@@ -291,6 +292,24 @@ suite('ChatSystemNotificationContentPart', () => {
 			));
 		});
 	}
+
+	test('keeps the disclosure chevron compact under the workbench codicon size', () => {
+		const instantiationService = workbenchInstantiationService(undefined, store);
+		const renderer: IMarkdownRenderer = { render: markdown => renderMarkdown(markdown) };
+		const container = $('.monaco-workbench');
+		container.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		mainWindow.document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const part = store.add(instantiationService.createInstance(
+			ChatSystemNotificationContentPart,
+			{ kind: 'systemNotification', icon: Codicon.gitPullRequest, collapsible: true, content: new MarkdownString('Autopilot updated\n\n- Automatically Fix CI enabled') },
+			renderer,
+		));
+		container.appendChild(part.domNode);
+		const chevron = part.domNode.querySelector<HTMLElement>('.chat-collapsible-hover-chevron')!;
+
+		assert.strictEqual(mainWindow.getComputedStyle(chevron).fontSize, '12px');
+	});
 
 	test('uses the ordinary compact icon and avoids a disclosure without details', () => {
 		const disposables = store.add(new DisposableStore());
