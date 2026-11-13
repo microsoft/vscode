@@ -103,7 +103,6 @@ export class BrowserViewInspector extends Disposable {
 
 	private readonly _registry = this._register(new FrameInspectorRegistry());
 	private _attachPromise: Promise<void> | undefined;
-	private _commentsUpdate: IBrowserElementCommentsUpdate | undefined;
 	private readonly _sessionListeners = this._register(new DisposableMap<ICDPConnection, DisposableStore>());
 
 	constructor(private readonly browser: BrowserView) {
@@ -342,10 +341,6 @@ export class BrowserViewInspector extends Disposable {
 		}
 
 		inspector.setTheme(this._theme);
-
-		if (this._commentsUpdate) {
-			inspector.setElementComments(this._commentsUpdate);
-		}
 	}
 
 	setTheme(theme: IBrowserViewTheme): void {
@@ -435,11 +430,7 @@ export class BrowserViewInspector extends Disposable {
 		return result;
 	}
 
-	async setElementComments(update: IBrowserElementCommentsUpdate): Promise<void> {
-		this._commentsUpdate = update.comments?.length ? update : undefined;
-		if (update.comments?.length) {
-			await this._ensureAttached();
-		}
+	setElementComments(update: IBrowserElementCommentsUpdate): void {
 		for (const inspector of this._registry.inspectors) {
 			inspector.setElementComments(update);
 		}
