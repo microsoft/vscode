@@ -5277,12 +5277,15 @@ export class CopilotAgentSession extends Disposable {
 		return this._awaitCanvasOpen(operation);
 	}
 
-	/** Applies a permission mode changed while the chat was idle, which decides whether the open's extension asks for consent. */
+	/**
+	 * Applies a permission mode changed while the chat was idle, which decides whether the open's extension asks for consent.
+	 * Bounded like other control-plane requests; only the user's consent decision, which comes after it, is not.
+	 */
 	private async _syncPermissionModeBeforeCanvasOpen(): Promise<void> {
 		if (this.hasActiveTurn || this._configurationService.getChatConfigValues(this._configTarget()) === undefined) {
 			return;
 		}
-		await this.syncPermissionMode('canvas-open');
+		await this._awaitControlPlaneRpc('permission mode sync before rpc.canvas.open', this.syncPermissionMode('canvas-open'));
 	}
 
 	/** Shows the client consent the open waits for, or waits for the open, bounded like other control-plane requests while nobody is asked. */
@@ -5345,9 +5348,10 @@ export class CopilotAgentSession extends Disposable {
 			}
 		}) : undefined;
 		try {
+			// A failed permission mode sync fails the open before it starts, never as a consent denial.
+			await operation.ready;
 			let canvas: Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>;
 			try {
-				await operation.ready;
 				canvas = await wrapper.session.rpc.canvas.open(request);
 			} catch (error) {
 				const denied = operation.denied ?? this._extensionConsentDenialFor(request.extensionId);

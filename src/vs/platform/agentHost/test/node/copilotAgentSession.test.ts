@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { PluginFormat } from '../../../agentPlugins/common/pluginParsers.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { isCancellationError } from '../../../../base/common/errors.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
@@ -20805,6 +20805,24 @@ Use the attached image as context.
 				useLazyCanvas(mockSession, runtime);
 				const opened = await session.openCanvas(canvasRequest('user:demo'));
 				assert.deepStrictEqual({ opened, modes: mockSession.permissionModeSetCalls, actions: getActions(signals) }, { opened: { kind: 'opened' }, modes: ['allow-all'], actions: [] });
+			});
+
+			test('bounds the permission mode sync before an idle open, and does not start the open when it times out', async () => {
+				const { session, mockSession } = await createAgentSession(disposables, { controlPlaneRpcTimeoutMs: 10, configValues: { [SessionConfigKey.AutoApprove]: 'autoApprove' } });
+				mockSession.rpc.permissions.setMode = () => new Promise<never>(() => { });
+				let opens = 0;
+				mockSession.rpc.canvas.open = async params => {
+					opens++;
+					return { instanceId: params.instanceId, extensionId: params.extensionId ?? '', canvasId: params.canvasId, url: 'https://example.test/demo' };
+				};
+				const outcome = await raceTimeout(
+					session.openCanvas(canvasRequest('user:demo')).then(result => result.kind, (error: Error) => error.message.replace(/^\[Copilot:[^\]]+\] /, '')),
+					500,
+				) ?? 'still waiting';
+				await timeout(0);
+				assert.deepStrictEqual({ outcome, desynchronized: session.requiresControlPlaneResync, opens }, {
+					outcome: 'permission mode sync before rpc.canvas.open timed out after 10ms', desynchronized: true, opens: 0,
+				});
 			});
 		});
 
