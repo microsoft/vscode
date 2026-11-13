@@ -6327,7 +6327,28 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	async getAutomationSessionConfiguration(sessionId: string): Promise<IAutomationSessionConfiguration | undefined> {
 		const newSession = this._getNewSession(sessionId);
 		if (!newSession) {
-			return undefined;
+			const rawId = this._sessionKeyFromChatId(sessionId);
+			const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+			const config = this.getSessionOwnConfig(sessionId);
+			if (!cached || !config || !this.connection) {
+				return undefined;
+			}
+			const chat = cached.mainChat.get().resource;
+			const backendChat = this.getBackendChatResource(chat);
+			const runningModel = backendChat ? this._readRunningChatModel(this.connection, cached, backendChat) : undefined;
+			const selectedModel = cached.getChatModelSelection(chat) ?? runningModel;
+			const modelId = cached.getChatModelId(chat)
+				?? (selectedModel ? `${cached.getChatModelScheme(chat)}:${selectedModel.id}` : undefined);
+			const modelConfiguration = selectedModel?.id === runningModel?.id ? runningModel?.config : undefined;
+			const agentUri = cached.getChatMode(chat)?.id;
+			return {
+				sessionTemplate: {
+					modelId,
+					...(modelId && modelConfiguration ? { modelConfiguration: deepClone(modelConfiguration) } : {}),
+					...(agentUri ? { agent: { uri: agentUri } } : {}),
+					config: omitAutomationSessionTemplateConfigValues(deepClone(config.values)),
+				},
+			};
 		}
 		await newSession.waitForConfigurationReady(() => this._refreshNewSessionConfig(newSession, { strict: true }));
 		if (this._getNewSession(sessionId) !== newSession) {

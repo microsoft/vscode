@@ -16768,6 +16768,44 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Running session config seeding (from SessionState.config) -------
 
+	test('Automation capture snapshots a running session without copying definition-owned configuration', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('capture-running', { summary: 'Capture Running' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'Capture Running')!;
+		provider.getSessionOwnConfig(session.sessionId);
+		const unresolved = await provider.getAutomationSessionConfiguration(session.sessionId);
+		const config: SessionConfigState = {
+			schema: {
+				type: 'object', properties: {
+					autoApprove: { type: 'string', title: 'Approvals' },
+					isolation: { type: 'string', title: 'Isolation' },
+					mode: { type: 'string', title: 'Mode' },
+				},
+			},
+			values: { autoApprove: 'default', isolation: 'worktree', mode: 'plan' },
+		};
+		const chat = { resource: 'ahp-chat:/captured-main', title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
+		const model = { id: 'test-model', config: { reasoningEffort: 'high' } };
+		agentHost.setChatState(chat.resource, { ...chat, turns: [], draft: { text: '', origin: { kind: MessageKind.User }, model } });
+		agentHost.setSessionState('capture-running', 'copilotcli', {
+			provider: 'copilotcli', title: 'Capture Running', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], defaultChat: chat.resource, chats: [chat], config,
+		});
+		await waitForSessionConfig(provider, session, value => value?.values.mode === 'plan');
+		const captured = await provider.getAutomationSessionConfiguration(session.sessionId);
+		config.values.mode = 'agent';
+		model.config.reasoningEffort = 'low';
+		assert.deepStrictEqual({ unresolved, template: captured?.sessionTemplate }, {
+			unresolved: undefined,
+			template: {
+				modelId: 'agent-host-copilotcli:test-model', modelConfiguration: { reasoningEffort: 'high' },
+				config: { autoApprove: 'default', mode: 'plan' },
+			},
+		});
+	}));
+
 	test('getSessionConfig seeds running config from session state subscription with full schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('seed-1', { summary: 'Seeded Session' }));
 		const provider = createProvider(disposables, agentHost);
