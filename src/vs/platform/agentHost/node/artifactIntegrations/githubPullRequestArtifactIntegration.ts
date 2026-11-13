@@ -419,8 +419,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			refreshWorkspace.schedule();
 		}));
 		this.actions = [
-			this.promptAction('fixCI', 'github-action', localize('prArtifact.fixCI', "Fix Checks")),
-			this.promptAction('addressReviews', 'comment-discussion', localize('prArtifact.addressReviews', "Address Comments")),
+			this.promptAction('fixCI', 'lightbulb', localize('prArtifact.fixCI', "Fix Checks")),
+			this.promptAction('addressReviews', 'comment', localize('prArtifact.addressReviews', "Address Comments")),
 			this.promptAction('resolveConflicts', 'git-compare', localize('prArtifact.updateBranch', "Resolve Conflicts / Update Branch")),
 			this.codeAction('markReady', 'git-pull-request', localize('prArtifact.markReady', "Mark Ready")),
 			this.codeAction('merge', 'git-merge', localize('prArtifact.merge', "Merge")),

@@ -15,7 +15,7 @@ import { createEditorInlineChatInstruction, createTerminalChatInstruction, readC
 import { readAgentCustomizationMeta, toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import { readMcpRoutingServers, readMcpServerControllingSetting, readMcpServerDisplayName, readMcpServerSource, readMcpServerSourcePlugin, withMcpRoutingServers, withMcpServerControllingSettingMeta, withMcpServerDisplayNameMeta, withMcpServerSourceMeta, withMcpServerSourcePluginMeta } from '../../common/meta/mcpCustomizationMeta.js';
 import { readSkillArgumentHint, withSkillArgumentHintMeta } from '../../common/meta/skillCustomizationMeta.js';
-import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { getCommandArgumentHint, getCompletionAction, readCompletionAttachmentMeta, restoreLegacySkillAttachment, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import { CustomizationType, MessageAttachmentKind, ToolCallStatus, hasReportedUsage, readSessionComparisonMetadata, readUsageInfoMeta, withSessionComparisonMetadata, type AgentCustomization, type ClientPluginCustomization, type SkillCustomization, type ToolCallState, type UsageInfo } from '../../common/state/sessionState.js';
 import { McpServerStatus, type McpServerCustomization, type SessionModelInfo, type SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { createAgentModelByokMeta, readAgentModelByokIdentifier } from '../../common/agentModelByokMeta.js';
@@ -575,11 +575,22 @@ suite('Agent host _meta readers', () => {
 			);
 		});
 
-		test('classifies a skill bag, dropping wrong-typed optional fields', () => {
+		test('does not use URI metadata to identify a skill completion', () => {
 			assert.deepStrictEqual(
 				readCompletionAttachmentMeta(attachment({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: 5 })),
-				{ kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' }
+				undefined
 			);
+		});
+
+		test('restores legacy persisted skills only at the explicit skill boundary', () => {
+			const legacy = { ...attachment({ uri: 'file:///s/SKILL.md', opaque: false }), displayKind: 'skill' };
+			assert.deepStrictEqual([
+				restoreLegacySkillAttachment(legacy),
+				restoreLegacySkillAttachment({ ...legacy, displayKind: 'command' }),
+				restoreLegacySkillAttachment({ ...legacy, _meta: { uri: 42 } }),
+			], [{
+				type: MessageAttachmentKind.Resource, uri: 'file:///s/SKILL.md', label: legacy.label, displayKind: 'skill', _meta: legacy._meta,
+			}, undefined, undefined]);
 		});
 
 		test('returns undefined for an unrecognized or empty bag', () => {
@@ -596,15 +607,6 @@ suite('Agent host _meta readers', () => {
 			const cmdWithHint = toCommandCompletionAttachmentMeta({ command: 'rename', isSkill: true, argumentHint: 'New name', description: undefined });
 			assert.deepStrictEqual(cmdWithHint, { command: 'rename', isSkill: true, argumentHint: 'New name' });
 			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(cmdWithHint)), { kind: 'command', command: 'rename', isSkill: true, argumentHint: 'New name' });
-
-			const skill = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon', description: undefined });
-			assert.deepStrictEqual(skill, { uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skill)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', displayName: 'mon' });
-
-			const skillWithHint = toSkillCompletionAttachmentMeta({ uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
-			assert.deepStrictEqual(skillWithHint, { uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
-			assert.deepStrictEqual(readCompletionAttachmentMeta(attachment(skillWithHint)), { kind: 'skill', uri: 'file:///s/SKILL.md', name: 'mon', argumentHint: '<pr number>' });
-			assert.strictEqual(getCommandArgumentHint(skillWithHint), '<pr number>');
 		});
 
 		test('getCommandArgumentHint reads the hint and ignores wrong-typed / absent bags', () => {
