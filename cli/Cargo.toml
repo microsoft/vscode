@@ -76,7 +76,6 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-regex = { version = "1.8.3", default-features = false, features = ["std", "unicode-perl"] }
 zbus = { version = "3.13.1", default-features = false, features = ["tokio"] }
 
 [patch.crates-io]
