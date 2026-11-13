@@ -2334,9 +2334,7 @@ export class ChatPetWidget extends Disposable {
 	}
 
 	private _handleHostLayoutChange(): void {
-		if (this._subagentPets.size && !this._subagentResizeScheduler.isScheduled()) {
-			this._subagentResizeScheduler.schedule();
-		}
+		this._scheduleSubagentResize();
 		if (this._jumpGame.value) {
 			this._jumpGame.value.layout();
 			return;
@@ -2995,22 +2993,24 @@ export class ChatPetWidget extends Disposable {
 		return this._button.element.offsetLeft;
 	}
 
-	/** Returns the visible, inset horizontal bounds for mini-pet placement. */
-	private _getSubagentHorizontalBounds(overlay: DOMRect, input: DOMRect, movement: DOMRect, platform: IChatPetPlatform | undefined): { left: number; right: number } {
-		const left = Math.max(0, input.left, movement.left, platform?.left ?? input.left);
-		const right = Math.min(dom.getWindow(this._overlay).innerWidth, input.right, movement.right, platform?.right ?? input.right);
-		const inset = Math.min(CHAT_PET_SUBAGENT_EDGE_INSET, Math.max(0, (right - left) / 4));
-		return { left: left + inset - overlay.left, right: right - inset - overlay.left };
-	}
-
-	/** Choose a random landing point, accounting for mini pets already on the platform. */
-	private _getSubagentLanding(size: number): { left: number; top: number } {
+	/** Returns the visible bounds and platforms for mini-pet placement. */
+	private _getSubagentBounds(): { overlay: DOMRect; movement: DOMRect; platforms: readonly IChatPetPlatform[]; left: number; right: number; bottom: number; floor: number } {
 		const overlay = this._overlay.getBoundingClientRect();
 		const input = this.dragBounds.getBoundingClientRect();
 		const movement = this.movementBounds.getBoundingClientRect();
 		const platforms = this._getPlatforms();
 		const platform = getChatPetFallTarget(input.left + input.width / 2, movement.top - 1, 0, 0, platforms, input.top).platform;
-		const bounds = this._getSubagentHorizontalBounds(overlay, input, movement, platform);
+		const left = Math.max(0, input.left, movement.left, platform?.left ?? input.left);
+		const right = Math.min(dom.getWindow(this._overlay).innerWidth, input.right, movement.right, platform?.right ?? input.right);
+		const inset = Math.min(CHAT_PET_SUBAGENT_EDGE_INSET, Math.max(0, (right - left) / 4));
+		const floor = Math.min(input.top, movement.bottom);
+		return { overlay, movement, platforms, left: left + inset - overlay.left, right: right - inset - overlay.left, bottom: Math.min(platform?.top ?? input.top, floor) - overlay.top, floor };
+	}
+
+	/** Choose a random landing point, accounting for mini pets already on the platform. */
+	private _getSubagentLanding(size: number): { left: number; top: number } {
+		const bounds = this._getSubagentBounds();
+		const { overlay, movement, platforms, floor } = bounds;
 		const minimumLeft = bounds.left;
 		const maximumLeft = Math.max(minimumLeft, bounds.right - size);
 		const petLeft = this._button.element.offsetLeft;
@@ -3018,8 +3018,7 @@ export class ChatPetWidget extends Disposable {
 		const afterPetStart = Math.max(minimumLeft, petLeft + this._getDisplaySize());
 		const afterPet = Math.max(0, maximumLeft - afterPetStart);
 		const available = beforePet + afterPet;
-		const floor = Math.min(input.top, movement.bottom);
-		const minimumTop = Math.max(movement.top, Math.min(platform?.top ?? input.top, floor) - CHAT_PET_SUBAGENT_MAX_HEIGHT) - overlay.top;
+		const minimumTop = Math.max(movement.top - overlay.top, bounds.bottom - CHAT_PET_SUBAGENT_MAX_HEIGHT);
 		const attempts = Math.max(1, Math.ceil(available / Math.max(1, size / 2)));
 		const start = Math.random() * available;
 		let best: { left: number; top: number } | undefined;
@@ -3229,7 +3228,7 @@ export class ChatPetWidget extends Disposable {
 					pet.left = landing.left;
 					element.style.left = `${pet.left}px`;
 					fallTo(landing.top);
-					this._constrainSubagentPets();
+					this._scheduleSubagentResize();
 				}
 			};
 			const pet: ChatPetSubagent = { element, left, top, canvas, image, get accessoryImage() { return accessoryImage; }, eyes, disposables, updateBlink, updateAppearance, fallTo, isRespawning: () => respawnPhase !== 'none' };
@@ -3240,7 +3239,7 @@ export class ChatPetWidget extends Disposable {
 			this._subagentPets.set(id, pet);
 		}
 		if (added || removed) {
-			this._constrainSubagentPets();
+			this._scheduleSubagentResize();
 		}
 		if (removed) {
 			this._settleSubagentPets();
@@ -3276,18 +3275,19 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
+	private _scheduleSubagentResize(): void {
+		if (this._subagentPets.size && !this._subagentResizeScheduler.isScheduled()) {
+			this._subagentResizeScheduler.schedule();
+		}
+	}
+
 	/** Relocate only mini pets that no longer fit after resizing has settled. */
 	private _reconcileSubagentResize(): void {
 		const pets = [...this._subagentPets.values()].filter(pet => !pet.isRespawning());
 		if (!pets.length) {
 			return;
 		}
-		const overlay = this._overlay.getBoundingClientRect();
-		const input = this.dragBounds.getBoundingClientRect();
-		const movement = this.movementBounds.getBoundingClientRect();
-		const platform = getChatPetFallTarget(input.left + input.width / 2, movement.top - 1, 0, 0, this._getPlatforms(), input.top).platform;
-		const { left, right } = this._getSubagentHorizontalBounds(overlay, input, movement, platform);
-		const bottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
+		const { overlay, movement, left, right, bottom } = this._getSubagentBounds();
 		let displaced = false;
 		for (const pet of pets) {
 			const petLeft = pet.left;
@@ -3300,34 +3300,6 @@ export class ChatPetWidget extends Disposable {
 		}
 		if (displaced) {
 			this._settleSubagentPets();
-		}
-	}
-
-	/** Check whether pets need to fall after their bounds change. */
-	private _constrainSubagentPets(): void {
-		const activePets = [...this._subagentPets.values()].filter(pet => !pet.isRespawning());
-		if (!activePets.length) {
-			return;
-		}
-		const overlay = this._overlay.getBoundingClientRect();
-		const input = this.dragBounds.getBoundingClientRect();
-		const movement = this.movementBounds.getBoundingClientRect();
-		const platform = getChatPetFallTarget(input.left + input.width / 2, movement.top - 1, 0, 0, this._getPlatforms(), input.top).platform;
-		const bounds = this._getSubagentHorizontalBounds(overlay, input, movement, platform);
-		const minimumLeft = bounds.left;
-		const maximumRight = bounds.right;
-		// The input's top edge is the floor; the movement bounds also include the input itself.
-		const maximumBottom = Math.min(platform?.top ?? input.top, input.top, movement.bottom) - overlay.top;
-		for (const pet of activePets) {
-			const left = pet.left;
-			const top = pet.top;
-			const size = CHAT_PET_DISPLAY_SIZE * 0.5 * this._scale;
-			if (left < minimumLeft - CHAT_PET_SUBAGENT_BOUNDARY_EPSILON || left + size > maximumRight + CHAT_PET_SUBAGENT_BOUNDARY_EPSILON || top + size > maximumBottom + CHAT_PET_SUBAGENT_BOUNDARY_EPSILON) {
-				if (!this._subagentResizeScheduler.isScheduled()) {
-					this._subagentResizeScheduler.schedule();
-				}
-				break;
-			}
 		}
 	}
 
@@ -3373,9 +3345,7 @@ export class ChatPetWidget extends Disposable {
 			pet.element.style.top = `${pet.top}px`;
 			pet.element.style.transform = `scale(${miniScale})`;
 		}
-		if (this._subagentPets.size && !this._subagentResizeScheduler.isScheduled()) {
-			this._subagentResizeScheduler.schedule();
-		}
+		this._scheduleSubagentResize();
 		const displaySize = this._getDisplaySize();
 		this._button.element.style.width = `${displaySize}px`;
 		this._button.element.style.height = `${displaySize}px`;
