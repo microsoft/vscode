@@ -494,6 +494,11 @@ export class AgentHostChangesetOperationService extends Disposable implements IA
 				status: ChangesetOperationStatus.Error,
 				error: toChangesetOperationError(error),
 			});
+			// A failed operation may have changed the checkout part way, and its error status stands until the operations are published again.
+			const owner = parseChangesetUri(params.channel)?.ownerUri;
+			if (owner) {
+				void this._refreshGitState(owner, source);
+			}
 
 			throw error;
 		}

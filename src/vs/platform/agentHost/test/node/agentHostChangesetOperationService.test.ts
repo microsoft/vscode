@@ -981,6 +981,28 @@ suite('AgentHostChangesetOperationService', () => {
 		});
 	});
 
+	test('refreshes the Git state of the owner after an operation fails', async () => {
+		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+		const sessionKey = 'agent:/session';
+		const changesetUri = buildUncommittedChangesetUri(sessionKey);
+		stateManager.registerChangeset(changesetUri);
+		stateManager.dispatchServerAction(changesetUri, {
+			type: ActionType.ChangesetOperationsChanged,
+			operations: [{ id: testOperationId, label: 'Commit', scopes: [ChangesetOperationScope.Changeset], status: ChangesetOperationStatus.Idle }],
+		});
+		const gitStateService = new TestGitStateService();
+		const service = createService(stateManager, undefined, gitStateService);
+		const handler = new TestHandler();
+		disposables.add(service.registerContribution(new TestContribution(handler)));
+
+		const invocation = service.invokeChangesetOperation({ channel: changesetUri, operationId: testOperationId });
+		const refreshesWhileRunning = gitStateService.refreshes.length;
+		handler.fail(new Error('Failed to commit changes'));
+		await assert.rejects(invocation, /Failed to commit changes/);
+
+		assert.deepStrictEqual({ refreshesWhileRunning, refreshes: gitStateService.refreshes }, { refreshesWhileRunning: 0, refreshes: [sessionKey] });
+	});
+
 	test('serializes identical operations from different credential sources without sharing results', async () => {
 		const stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		const changeset = buildUncommittedChangesetUri('agent:/session');
