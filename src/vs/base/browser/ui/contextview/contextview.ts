@@ -228,16 +228,11 @@ export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor
 	if (DOM.isHTMLElement(anchor)) {
 		const elementPosition = DOM.getDomNodePagePosition(anchor);
 
-		// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
-		// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-		// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
-		const zoom = DOM.getDomNodeZoomLevel(anchor);
-
 		return {
-			top: elementPosition.top * zoom,
-			left: elementPosition.left * zoom,
-			width: elementPosition.width * zoom,
-			height: elementPosition.height * zoom
+			top: elementPosition.top,
+			left: elementPosition.left,
+			width: elementPosition.width,
+			height: elementPosition.height
 		};
 	} else if (isAnchor(anchor)) {
 		return {
@@ -613,7 +608,8 @@ export class ContextView extends Disposable {
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
 		const positioningOrigin = DOM.getDomNodePagePosition(this.view);
-		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
+		const viewZoom = DOM.getDomNodeZoomLevel(this.view);
+		const view = { width: DOM.getTotalWidth(this.view) * viewZoom, height: DOM.getTotalHeight(this.view) * viewZoom };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
 		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
@@ -630,8 +626,8 @@ export class ContextView extends Disposable {
 			this.view.classList.add(left >= anchor.left ? 'left' : 'right');
 		}
 
-		this.view.style.top = `${top - positioningOrigin.top}px`;
-		this.view.style.left = `${left - positioningOrigin.left}px`;
+		this.view.style.top = `${(top - positioningOrigin.top) / viewZoom}px`;
+		this.view.style.left = `${(left - positioningOrigin.left) / viewZoom}px`;
 		this.view.style.width = 'initial';
 	}
 

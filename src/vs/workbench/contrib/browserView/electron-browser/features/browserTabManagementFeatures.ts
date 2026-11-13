@@ -22,9 +22,10 @@ import { generateUuid } from '../../../../../base/common/uuid.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { logBrowserOpen } from '../../../../../platform/browserView/common/browserViewTelemetry.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { AGENT_HOST_SCHEME } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, BrowserDimOverlaySettingId, IBrowserViewModel, IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { BrowserNewTabPlacementSettingId } from '../browserViewWorkbenchService.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { workbenchConfigurationNodeBase } from '../../../../common/configuration.js';
@@ -351,8 +352,19 @@ class OpenIntegratedBrowserAction extends Action2 {
 
 class OpenFileInIntegratedBrowserAction extends Action2 {
 	constructor() {
-		const IS_SUPPORTED_LOCAL_BROWSER_FILE = ContextKeyExpr.and(
-			ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+		const IS_SUPPORTED_BROWSER_FILE = ContextKeyExpr.and(
+			// Remote files can only be loaded by tabs on a remote network, which needs the remote proxy.
+			ContextKeyExpr.or(
+				ResourceContextKey.Scheme.isEqualTo(Schemas.file),
+				ContextKeyExpr.and(
+					ContextKeyExpr.has(`config.${BrowserRemoteProxyEnabledSettingId}`),
+					// Only the Agents window has a network resolver for agent hosts.
+					ContextKeyExpr.or(
+						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
+						ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(AGENT_HOST_SCHEME), IsSessionsWindowContext),
+					),
+				),
+			),
 			ContextKeyExpr.regex(ResourceContextKey.Extension.key, /\.(?:html?|mht(?:ml)?)$/i),
 		);
 		super({
@@ -361,25 +373,25 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 			category: BrowserActionCategory,
 			icon: Codicon.globe,
 			f1: true,
-			precondition: IS_SUPPORTED_LOCAL_BROWSER_FILE,
+			precondition: IS_SUPPORTED_BROWSER_FILE,
 			menu: [
 				{
 					id: MenuId.ExplorerContext,
 					group: 'navigation',
 					order: 29,
-					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
+					when: IS_SUPPORTED_BROWSER_FILE,
 				},
 				{
 					id: MenuId.EditorTitleContext,
 					group: '1_open',
 					order: 5,
-					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
+					when: IS_SUPPORTED_BROWSER_FILE,
 				},
 				{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
 					order: 99,
-					when: IS_SUPPORTED_LOCAL_BROWSER_FILE,
+					when: IS_SUPPORTED_BROWSER_FILE,
 				},
 			]
 		});
@@ -391,7 +403,7 @@ class OpenFileInIntegratedBrowserAction extends Action2 {
 		const browserViewService = accessor.get(IBrowserViewWorkbenchService);
 
 		// Resolve the file URI from the context or the active editor
-		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [Schemas.file], supportSideBySide: SideBySideEditor.PRIMARY });
+		const fileUri = resource ?? EditorResourceAccessor.getOriginalUri(editorService.activeEditor, { filterByScheme: [...BROWSER_FILE_SCHEMES], supportSideBySide: SideBySideEditor.PRIMARY });
 		if (!fileUri) {
 			return;
 		}

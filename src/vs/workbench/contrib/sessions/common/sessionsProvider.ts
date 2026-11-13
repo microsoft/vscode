@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -28,8 +29,9 @@ import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinit
  * Event fired when sessions change within a provider.
  */
 /**
- * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: see
- * `getSessionsInScopeFolders`. With no folders, it lists every session.
+ * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: the sessions
+ * working in one of its folders, and the sessions of the same git or GitHub repositories, such as of their worktrees, as
+ * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
  */
 export interface ISessionsListingScope {
 	readonly folders: IObservable<readonly URI[]>;
@@ -66,6 +68,14 @@ export interface IChatMoveEnd {
 export interface IChatMovedEvent {
 	readonly from: IChatMoveEnd;
 	readonly to: IChatMoveEnd;
+}
+
+/** A session replaced by another; see {@link ISessionsProvider.onDidReplaceSession}. */
+export interface ISessionReplacedEvent {
+	readonly from: ISession;
+	readonly to: ISession;
+	/** The chats of `to` by the resources of the chats of `from` they continue, when their resources differ. */
+	readonly chats?: ResourceMap<URI>;
 }
 
 /**
@@ -404,13 +414,14 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
+	 * The sessions the provider lists, within its listing scope ({@link setListingScope}); without one, every session it
+	 * knows. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
 
 	/**
-	 * Every session known to the provider, also those its listing scope hides from {@link getSessions}, such as the
-	 * sessions of other folders in an editor window. For looking a session up, not for listing sessions. Without it,
+	 * Every session known to the provider, also those outside its listing scope, which {@link getSessions} leaves out,
+	 * such as the sessions of other folders in an editor window; for looking sessions up, not for listing. Without it,
 	 * {@link getSessions} lists every session.
 	 */
 	getAllSessions?(): ISession[];
@@ -500,7 +511,7 @@ export interface ISessionsProvider {
 	 * @internal This is an implementation detail of the Copilot Chat sessions
 	 * provider. Do not implement or consume this event in other providers.
 	 */
-	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+	readonly onDidReplaceSession?: Event<ISessionReplacedEvent>;
 
 	/**
 	 * Optional. Fires when the user invokes a changeset operation of one of

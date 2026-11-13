@@ -8919,6 +8919,36 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
+	test('picking another folder after New Worktree selects it, also where leaving New Worktree selects the first folder again as its configuration changes', async () => {
+		const newWorktree = { selected: true };
+		const { picker } = createPicker(['/local/a', '/local/b'], undefined, {
+			newWorktree: {
+				isAvailable: () => true,
+				isSelected: () => newWorktree.selected,
+				setSelected: selected => {
+					newWorktree.selected = selected;
+					// As the composer does as the draft's configuration changes: it selects the draft's folder again
+					picker.setSelectedWorkspace(URI.file('/local/a'), { fireEvent: false });
+				},
+			},
+		});
+		picker.setSelectedWorkspace(URI.file('/local/a'), { fireEvent: false });
+		const picked = await picker.dispatchFolder(URI.file('/local/b'), 'local-1');
+
+		assert.deepStrictEqual({ picked, selected: picker.selectedFolderUri?.path, newWorktree: newWorktree.selected }, { picked: true, selected: '/local/b', newWorktree: false });
+	});
+
+	test('is read-only for its one folder only once the folder is selected', () => {
+		const { picker, snapshot } = createPicker(['/local/vscode']);
+		const unselected = snapshot();
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+
+		assert.deepStrictEqual({ unselected: { readOnly: unselected.readOnly, items: unselected.items }, selected: { readOnly: snapshot().readOnly } }, {
+			unselected: { readOnly: null, items: ['/local/vscode'] },
+			selected: { readOnly: 'true' },
+		});
+	});
+
 	test('the window\'s folder at one of its worktrees shows as that worktree, by its icon and branch, also on the trigger; its primary location as a folder', () => {
 		const { picker } = createPicker(['/local/vscode.worktrees/a', '/local/vscode'], undefined, {
 			getAllowedFolderPresentation: folderUri => folderUri.path === '/local/vscode.worktrees/a' ? { uri: folderUri, label: 'a', description: 'feature-a', icon: Codicon.gitBranchCheckout } : undefined,

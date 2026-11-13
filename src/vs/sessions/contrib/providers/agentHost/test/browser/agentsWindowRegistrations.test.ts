@@ -26,7 +26,7 @@ import '../../../copilotChatSessions/browser/copilotChatSessionsActions.js';
 
 /**
  * What the registries hold, one line each, in the order they were registered: commands, the items of every menu,
- * keybindings (with their weights, which order them), configuration keys, singletons and accessible views.
+ * primary keybindings (with their weights, which order them), configuration keys, singletons and accessible views.
  */
 function registrations(): string[] {
 	const result: string[] = [];
@@ -41,8 +41,11 @@ function registrations(): string[] {
 			result.push(`menu ${menu.id} ${target} group ${item.group ?? ''} order ${item.order ?? ''} when ${item.when?.serialize() ?? ''}`);
 		}
 	}
+	// Chords and secondary keybindings are resolved for the current OS, so only primary keybindings are listed, without their chords
 	for (const keybinding of KeybindingsRegistry.getDefaultKeybindings()) {
-		result.push(`keybinding ${keybinding.command} ${keybinding.keybinding?.chords.map(chord => chord.getHashCode()).join(' ') ?? ''} weight ${keybinding.weight1}/${keybinding.weight2} when ${keybinding.when?.serialize() ?? ''}`);
+		if (keybinding.weight2 === 0) {
+			result.push(`keybinding ${keybinding.command} weight ${keybinding.weight1} when ${keybinding.when?.serialize() ?? ''}`);
+		}
 	}
 	for (const key of Object.keys(Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties())) {
 		result.push(`configuration ${key}`);
@@ -58,7 +61,7 @@ function registrations(): string[] {
 
 /**
  * What identifies a registration, regardless of how it is registered: a command, configuration key, singleton or
- * accessible view by its line up to its details, a menu item by its menu and target, a keybinding by its command and chords.
+ * accessible view by its line up to its details, a menu item by its menu and target, a keybinding by its command.
  */
 function keyOf(registration: string): string {
 	const details = /^(menu .*?) group |^(keybinding .*?) weight |^(accessibleView \S+) /.exec(registration);
@@ -69,7 +72,7 @@ suite('Agents window registrations', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('the Agents window registers the same commands, menu items, keybindings, settings, services and accessible views, each once', () => {
-		// Each line holds what orders it: a menu item's group, order and when, a keybinding's weights and when. In which
+		// Each line holds what orders it: a menu item's group, order and when, a keybinding's weight and when. In which
 		// order other suites loaded these contributions, and so registered them, depends on the tests that run.
 		// Everything registered under a key of the snapshot must be exactly its lines: no duplicates and no extra entries.
 		const keys = new Set(AGENTS_WINDOW_REGISTRATIONS.map(keyOf));

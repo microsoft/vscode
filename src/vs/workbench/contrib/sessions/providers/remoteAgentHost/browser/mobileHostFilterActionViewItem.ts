@@ -16,6 +16,7 @@ import { localize } from '../../../../../../nls.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../common/agentHostFilter.js';
 import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
 import './media/hostPickerSheet.css';
@@ -41,8 +42,9 @@ export class MobileHostFilterActionViewItem extends HostFilterActionViewItem {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IHoverService private readonly sheetHoverService: IHoverService,
 		@ICommandService commandService: ICommandService,
+		@IRemoteGitHubEnvironmentSharingService remoteSharing: IRemoteGitHubEnvironmentSharingService,
 	) {
-		super(action, 'titlebar', filterService, contextMenuService, sheetHoverService, commandService);
+		super(action, 'titlebar', filterService, contextMenuService, sheetHoverService, commandService, remoteSharing);
 	}
 
 	/**

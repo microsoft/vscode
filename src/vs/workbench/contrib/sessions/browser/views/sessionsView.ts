@@ -60,7 +60,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
@@ -82,11 +82,11 @@ const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
-export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
+export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, navigationIncludesCustomizations: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
 	if (phoneLayout || !aiEnabled || aiHidden) {
 		return 'hidden';
 	}
-	const resolved = resolveChatCustomizationsLocation(location, true, treatment);
+	const resolved = resolveChatCustomizationsLocation(location, true, navigationIncludesCustomizations);
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
@@ -94,18 +94,6 @@ export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsVi
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
 export const IsWorkspaceGroupCappedContext = new RawContextKey<boolean>('sessionsViewPane.workspaceGroupCapped', true);
-/** Whether the Sessions view offers {@link SessionsGrouping.Worktree}; no view does unless it is created with `allowWorktreeGrouping`. */
-export const SessionsViewWorktreeGroupingContext = new RawContextKey<boolean>('sessionsViewPane.worktreeGrouping', false);
-
-/**
- * The grouping a stored value names, or `undefined` for a value this build does not know or this view does not offer:
- * {@link SessionsGrouping.Worktree} is offered only by views that allow it, so a view that does not, such as the Agents
- * window's, which shares the stored grouping, keeps its default.
- */
-export function getStoredSessionsGrouping(stored: string | undefined, allowWorktreeGrouping: boolean): SessionsGrouping | undefined {
-	const grouping = Object.values(SessionsGrouping).find(value => value === stored);
-	return grouping === SessionsGrouping.Worktree && !allowWorktreeGrouping ? undefined : grouping;
-}
 
 export interface ISessionsHeaderElements {
 	readonly row: HTMLElement;
@@ -168,12 +156,6 @@ class SessionsFilterActionViewItem extends SubmenuEntryActionViewItem {
 	}
 }
 
-/** The options of the Sessions view. */
-export interface ISessionsViewOptions extends IViewPaneOptions {
-	/** Whether it offers {@link SessionsGrouping.Worktree}; it does not by default. */
-	readonly allowWorktreeGrouping?: boolean;
-}
-
 export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
@@ -188,6 +170,7 @@ export class SessionsView extends ViewPane {
 	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly separateNavigation: IObservable<boolean>;
+	private readonly customizationsAtBottom: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
@@ -212,7 +195,7 @@ export class SessionsView extends ViewPane {
 	private readonly _mainWindowHost: ISessionHost;
 
 	constructor(
-		options: ISessionsViewOptions,
+		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -241,13 +224,15 @@ export class SessionsView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
+		this.customizationsAtBottom = observableConfigValue(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
 
 		// Restore persisted grouping
-		this.allowWorktreeGrouping = !!options.allowWorktreeGrouping;
-		this.currentGrouping = getStoredSessionsGrouping(this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE), this.allowWorktreeGrouping);
+		// The Agents window, which shares the stored grouping, does not offer Worktree grouping: it keeps its default instead
+		this.allowWorktreeGrouping = contextKeyService.getContextKeyValue<boolean>(IsSessionsWindowContext.key) !== true;
+		this.currentGrouping = this.readStoredGrouping();
 
 		// Restore persisted sorting
 		const storedSorting = this.storageService.get(SORTING_STORAGE_KEY, StorageScope.PROFILE);
@@ -258,7 +243,6 @@ export class SessionsView extends ViewPane {
 		logSessionsListCompactViewState(telemetryService, this.currentCompact);
 
 		// Ensure context keys reflect restored state immediately
-		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(this.allowWorktreeGrouping);
 		this.groupingContextKey = SessionsViewGroupingContext.bindTo(contextKeyService);
 		this.groupingContextKey.set(this.grouping);
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
@@ -607,8 +591,9 @@ export class SessionsView extends ViewPane {
 		const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 		const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden === true;
 		const navigation = this.separateNavigation.read(reader);
+		const navigationIncludesCustomizations = navigation && !this.customizationsAtBottom.read(reader);
 		this.updateCustomizationsPresentation(
-			getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
+			getCustomizationsPresentation(phone, enabled, hidden, navigationIncludesCustomizations, this.customizationsLocation.read(reader)),
 			navigation && !phone && enabled && !hidden,
 		);
 	}
@@ -1160,6 +1145,12 @@ export class SessionsView extends ViewPane {
 
 	get compact(): boolean {
 		return this.currentCompact;
+	}
+
+	/** The stored grouping, unless this build does not know it or this view does not offer it, such as Worktree in the Agents window. */
+	private readStoredGrouping(): SessionsGrouping | undefined {
+		const grouping = Object.values(SessionsGrouping).find(value => value === this.storageService.get(GROUPING_STORAGE_KEY, StorageScope.PROFILE));
+		return grouping === SessionsGrouping.Worktree && !this.allowWorktreeGrouping ? undefined : grouping;
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

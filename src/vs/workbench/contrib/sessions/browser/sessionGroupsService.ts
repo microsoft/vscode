@@ -481,7 +481,15 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 		// Follow both pre-send draft replacement and committed-session graduation.
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this.replaceInFlightSession(from, to)));
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this.replaceInFlightSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this.replaceInFlightSession(from, to);
+			// A session replaced by one with another ID, such as one its host hands off to another connection, continues as it
+			const changed = new Set<string>();
+			if (this.migrateIdentities([[from.sessionId, to.sessionId]], changed)) {
+				this.save();
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([from.sessionId, ...changed]) });
+			}
+		}));
 
 		// The started session carries the committed id; record its group now.
 		this._register(this.sessionsManagementService.onDidStartSession(session => {
@@ -563,28 +571,31 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	private migratePreviousIdentities(sessions: readonly ISession[], changedSessions?: Set<string>): boolean {
+		return this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])), changedSessions);
+	}
+
+	/** Moves the custom-group membership of each `[from, to]` session ID to `to`, unless `to` has a placement of its own. */
+	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[], changedSessions?: Set<string>): boolean {
 		let changed = false;
-		for (const session of sessions) {
-			for (const previous of session.previousIdentities ?? []) {
-				if (previous.sessionId === session.sessionId) {
-					continue;
+		for (const [from, to] of identities) {
+			if (from === to) {
+				continue;
+			}
+			const group = this._membership.get(from);
+			if (group !== undefined) {
+				if (!this._membership.has(to) && !this._explicitlyUngroupedSessionIds.has(to)) {
+					this._membership.set(to, group);
 				}
-				const group = this._membership.get(previous.sessionId);
-				if (group !== undefined) {
-					if (!this._membership.has(session.sessionId) && !this._explicitlyUngroupedSessionIds.has(session.sessionId)) {
-						this._membership.set(session.sessionId, group);
-					}
-					this._membership.delete(previous.sessionId);
-					changedSessions?.add(session.sessionId);
-					changed = true;
+				this._membership.delete(from);
+				changedSessions?.add(to);
+				changed = true;
+			}
+			if (this._explicitlyUngroupedSessionIds.delete(from)) {
+				changedSessions?.add(to);
+				if (!this._membership.has(to)) {
+					this._explicitlyUngroupedSessionIds.add(to);
 				}
-				if (this._explicitlyUngroupedSessionIds.delete(previous.sessionId)) {
-					changedSessions?.add(session.sessionId);
-					if (!this._membership.has(session.sessionId)) {
-						this._explicitlyUngroupedSessionIds.add(session.sessionId);
-					}
-					changed = true;
-				}
+				changed = true;
 			}
 		}
 		return changed;

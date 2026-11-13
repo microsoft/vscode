@@ -24,7 +24,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../../platform/notification/common/notification.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
@@ -414,7 +414,8 @@ export class NewChatWidget extends Disposable {
 		// which scopes recents to the active host and renders as a bottom
 		// sheet on phone-layout viewports. On Electron desktop, the regular
 		// {@link WorkspacePicker} is fine — phones never run there.
-		this._newWorktree = this._draftHost?.allowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session);
+		const draftHostAllowedFolders = this._draftHost?.allowedFolders;
+		this._newWorktree = draftHostAllowedFolders && this.instantiationService.createInstance(NewWorktreeChoice, this._session, derived(this, reader => draftHostAllowedFolders.read(reader).length > 0));
 		const PickerCtor = isWeb ? WebWorkspacePicker : WorkspacePicker;
 		this._workspacePicker = this._register(this.instantiationService.createInstance(PickerCtor, {
 			environment: this._environment,
@@ -441,12 +442,20 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
+			// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
+			getNoWorkspaceOption: () => this._draftHost?.allowedFolders?.get().length ? undefined : this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),
 			newWorktree: this._newWorktree,
 		}));
+		if (this._newWorktree) {
+			// The user's choice, or the default, settles after the configuration's last change: the trigger shows what it settled on
+			this._register(this._newWorktree.onDidChange(() => {
+				this._environmentWorkspaceChanged.trigger(undefined);
+				this._workspacePicker.refreshTriggerLabel();
+			}));
+		}
 		this._register(this._workspacePicker.onDidChangeSelection(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._register(this._workspacePicker.onDidChangeDevContainerAvailability(() => this._environmentWorkspaceChanged.trigger(undefined)));
 		this._environmentWorkspaceChanged.trigger(undefined);
@@ -454,6 +463,7 @@ export class NewChatWidget extends Disposable {
 			providersChanged.read(reader);
 			const activeSession = this._session.read(reader);
 			activeSession?.isQuickChat?.read(reader);
+			this._draftHost?.allowedFolders?.read(reader);
 			this._newWorktree?.applyDefault();
 			this._workspacePicker.refreshTriggerLabel();
 			if (!activeSession) {
@@ -604,6 +614,7 @@ export class NewChatWidget extends Disposable {
 				: undefined),
 			inputVisible: this.options.inputVisible,
 			hostVisible: this.options.hostVisible,
+			hideChatWidgetWhileHidden: this.options.hideChatWidgetWhileHidden,
 			canSendRequest,
 			canSubmitWithoutSession,
 			hasAdditionalSendContent: hasFeedback,
@@ -2681,6 +2692,7 @@ export class NewChatWidget extends Disposable {
 	}
 
 	private async _send(query: string, attachedContext?: IChatRequestVariableEntry[], background?: boolean, userInteraction?: NewChatUserInteraction): Promise<boolean> {
+		const requestedInBackground = !!background;
 		background = this._backgroundSend || background;
 		// A composer of a host of its own, such as a chat window's, shows the status of its background sends.
 		const showBackgroundSendStatus = this._backgroundSend || !!background && (!!this._draftHost || this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.grouping === SessionsGrouping.Inbox);
@@ -2769,7 +2781,12 @@ export class NewChatWidget extends Disposable {
 			)(event => {
 				clearFeedback();
 				restoreWorkspace();
-				if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
+				if (!this._backgroundSend && !this._draftHost) {
+					this.notificationService.prompt(Severity.Info, localize('newSession.messageSent', "Message sent"), [{
+						label: localize('newSession.openSentSession', "Open Session"),
+						run: () => this.sessionsService.openSession(event.session.resource, { source: 'link', forceMainChat: true }).catch(onUnexpectedError),
+					}]);
+				} else if (showBackgroundSendStatus && this._lastBackgroundSendOptions === sendOptions && !this._newChatInput.hasInput) {
 					this._lastBackgroundSentSessionResource = event.session.resource;
 					this._lastBackgroundSentSession = event.session;
 					this._backgroundSendStatus.set(localize('newSession.messageSent', "Message sent"), undefined);
@@ -2785,7 +2802,7 @@ export class NewChatWidget extends Disposable {
 		// It holds the composer weakly, so a request that outlives the composer does not keep it alive.
 		const composer = new WeakRef(this);
 		const hostTracking = background && this._draftHost
-			? this._draftHost.trackBackgroundSend({ session, query, attachedContext: attachedContext?.slice(), isLatest: () => composer.deref()?._lastBackgroundSendOptions === sendOptions })
+			? this._draftHost.trackBackgroundSend({ session, query, attachedContext: attachedContext?.slice(), requestedInBackground, isLatest: () => composer.deref()?._lastBackgroundSendOptions === sendOptions })
 			: undefined;
 
 		try {

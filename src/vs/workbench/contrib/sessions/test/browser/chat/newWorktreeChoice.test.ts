@@ -63,7 +63,8 @@ suite('NewWorktreeChoice', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as unknown as T }));
 		const session = observableValue<ISession | undefined>('session', undefined);
-		const choice = instantiationService.createInstance(NewWorktreeChoice, session);
+		const enabled = observableValue('enabled', true);
+		const choice = instantiationService.createInstance(NewWorktreeChoice, session, enabled);
 		// As the composer does on each change of its draft's configuration
 		const onDidChangeSessionConfig = () => choice.applyDefault();
 		const draft = (sessionId: string) => {
@@ -77,6 +78,9 @@ suite('NewWorktreeChoice', () => {
 		};
 		return {
 			choice,
+			enabled,
+			/** A composer that shows the same drafts again, such as as its editor moves to another group. */
+			another: () => instantiationService.createInstance(NewWorktreeChoice, session, enabled),
 			show: (sessionId: string) => {
 				const shown = draft(sessionId);
 				session.set(shown, undefined);
@@ -159,14 +163,29 @@ suite('NewWorktreeChoice', () => {
 		assert.deepStrictEqual({ state: state(), writes }, { state: { available: false, selected: false }, writes: [] });
 	});
 
-	test('sets a draft to its folder by default once: where its agent keeps a new worktree and tells of it again, it writes no more, and shows the new worktree', () => {
+	test('sets a draft to its folder by default once: where its agent keeps a new worktree and tells of it again, it writes no more, and shows the new worktree', async () => {
 		const { choice, show, resolve, writes, state } = create({ ignoresWrites: true });
 		show('a');
 		resolve('a');
 		choice.applyDefault();
 		choice.applyDefault();
+		await timeout(0);
 
 		assert.deepStrictEqual({ state: state(), writes }, { state: { available: true, selected: true }, writes: ['a=folder'] });
+	});
+
+	test('tells of what the draft shows as its agent keeps a new worktree after the last change of its configuration, as its write settles', async () => {
+		const { choice, show, resolve, state } = create({ ignoresWrites: true });
+		const shown: boolean[] = [];
+		store.add(choice.onDidChange(() => shown.push(state().selected)));
+		show('a');
+		resolve('a');
+		// The agent tells of its configuration, unchanged, before its write settles: the draft shows as in its folder until then
+		choice.applyDefault();
+		const before = state().selected;
+		await timeout(0);
+
+		assert.deepStrictEqual({ before, shown, after: state().selected }, { before: false, shown: [true], after: true });
 	});
 
 	test('undoes only the user\'s latest choice as its agent rejects it', async () => {
@@ -194,8 +213,8 @@ suite('NewWorktreeChoice', () => {
 		choice.applyDefault();
 
 		assert.deepStrictEqual({ afterStaleRejection, writes }, {
-			afterStaleRejection: ['a=worktree', 'a=worktree'],
-			writes: ['a=worktree', 'a=worktree', 'b=worktree', 'b=folder'],
+			afterStaleRejection: ['a=worktree', 'a=folder', 'a=worktree'],
+			writes: ['a=worktree', 'a=folder', 'a=worktree', 'b=worktree', 'b=folder'],
 		});
 	});
 
@@ -230,5 +249,54 @@ suite('NewWorktreeChoice', () => {
 			afterStaleRejection: ['a=worktree', 'b=worktree'],
 			writes: ['a=worktree', 'b=worktree', 'a=folder', 'a=folder'],
 		});
+	});
+
+	test('the user\'s final choice wins where the agent has not taken the earlier ones yet', () => {
+		const { choice, show, resolve, applyWrites, writes, state } = create({ initial: 'folder' });
+		show('a');
+		resolve('a');
+		choice.setSelected(true);
+		choice.setSelected(false);
+		choice.setSelected(true);
+		const beforeTaken = state();
+		applyWrites();
+
+		assert.deepStrictEqual({ beforeTaken, taken: state(), writes }, {
+			beforeTaken: { available: true, selected: true },
+			taken: { available: true, selected: true },
+			writes: ['a=worktree', 'a=folder', 'a=worktree'],
+		});
+	});
+
+	test('offers nothing and defaults nothing where the composer is not restricted to folders, and does as it becomes restricted', () => {
+		const { choice, enabled, show, resolve, applyWrites, writes, state } = create();
+		show('a');
+		resolve('a');
+		enabled.set(false, undefined);
+		choice.applyDefault();
+		const unrestricted = state();
+		enabled.set(true, undefined);
+		choice.applyDefault();
+		applyWrites();
+
+		assert.deepStrictEqual({ unrestricted, restricted: state(), writes }, {
+			unrestricted: { available: false, selected: false },
+			restricted: { available: true, selected: false },
+			writes: ['a=folder'],
+		});
+	});
+
+	test('a composer that shows the draft again keeps the user\'s choice, and its default, as another composer', () => {
+		const { choice, another, show, resolve, applyWrites, writes } = create();
+		show('a');
+		resolve('a');
+		choice.applyDefault();
+		choice.setSelected(true);
+		applyWrites();
+		const other = another();
+		other.applyDefault();
+		applyWrites();
+
+		assert.deepStrictEqual({ selected: other.isSelected(), writes }, { selected: true, writes: ['a=folder', 'a=worktree'] });
 	});
 });

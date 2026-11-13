@@ -49,6 +49,7 @@ import { createTestSession, TestSessionsManagementService } from './sessionsList
 import '../../browser/sessionsActions.js';
 import { ITestSessionsService, ITestSessionWithChat, stubPaneHost, stubSessionHostsFromSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import '../../browser/views/sessionsViewActions.js';
 
 const DELETE_CHAT_COMMAND_ID = 'sessions.chatCompositeBar.deleteChat';
 

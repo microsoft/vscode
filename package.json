@@ -2,12 +2,12 @@
   "name": "code-oss-dev",
   "version": "1.147.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "c7f10af2a65c7aa7bad7c7d13e765d685665ee98",
+  "distro": "6bd04838efcabcaa1e3ebabe21a3ace8404875e9",
   "nativeBuild": {
     "runtime": "electron",
-    "target": "43.8.6",
+    "target": "43.8.9",
     "disturl": "https://electronjs.org/headers",
-    "msBuildId": "15893748",
+    "msBuildId": "16012121",
     "buildFromSource": true
   },
   "author": {
@@ -112,7 +112,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.32-preview.3",
+    "@github/copilot-sdk": "1.0.33-preview.0",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -281,5 +281,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.110-3"
+  "copilotRuntimeVersion": "1.0.111-0"
 }

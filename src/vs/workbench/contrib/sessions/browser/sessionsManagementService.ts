@@ -23,9 +23,9 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../chat/common/widget/chatWidgetHistoryService.js';
 import { dedupeMigratedCopilotCliSessions } from '../../chat/browser/copilotCliEventsUri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, type ISessionReplacedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -94,8 +94,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
-	private readonly _onDidChangeAllSessions = this._register(new Emitter<ISessionsChangeEvent>());
-	readonly onDidChangeAllSessions: Event<ISessionsChangeEvent> = this._onDidChangeAllSessions.event;
+	private readonly _onDidChangeSession = this._register(new Emitter<readonly ISessionChange[]>());
+	readonly onDidChangeSession: Event<readonly ISessionChange[]> = this._onDidChangeSession.event;
 	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
 	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
@@ -122,8 +122,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+	private readonly _onDidReplaceSession = this._register(new Emitter<ISessionReplacedEvent>());
+	readonly onDidReplaceSession: Event<ISessionReplacedEvent> = this._onDidReplaceSession.event;
 	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
 	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
@@ -232,10 +232,20 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._fireDidChangeSessions({ added, removed: [], changed: [] }, { added: allAdded, removed: [], changed: [] });
 	}
 
-	/** Fires the change of the listed sessions, and of all sessions: the same, unless a provider's listing scope hides some. */
+	/** Fires the change of the listed sessions, and of each session: the same, unless a provider's listing scope hides some. */
 	private _fireDidChangeSessions(listed: ISessionsChangeEvent, all: ISessionsChangeEvent = listed): void {
 		this._onDidChangeSessions.fire(listed);
-		this._onDidChangeAllSessions.fire(all);
+		this._fireDidChangeEachSession(all);
+	}
+
+	private _fireDidChangeEachSession(e: ISessionsChangeEvent): void {
+		const changes: ISessionChange[] = [
+			...e.added.map(session => ({ session, kind: 'added' as const })),
+			...e.removed.map(session => ({ session, kind: 'removed' as const })),
+			...e.changed.map(session => ({ session, kind: 'changed' as const })),
+		];
+		// Also an empty batch, such as a provider's invalidation of what it lists, which those waiting for a session look up again on
+		this._onDidChangeSession.fire(changes);
 	}
 
 	private _subscribeToProviders(providers: readonly ISessionsProvider[], added: ISession[] = [], allAdded: ISession[] = []): ISession[] {
@@ -251,10 +261,10 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			added.push(...sessions);
 			allAdded.push(...allSessions);
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
-			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._onDidChangeAllSessions.fire(e)));
+			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._fireDidChangeEachSession(e)));
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
-				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
+				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e)));
 			}
 			if (provider.onDidInvokeChangesetOperation) {
 				disposables.add(provider.onDidInvokeChangesetOperation(e => this._onDidInvokeChangesetOperation.fire(e)));
@@ -266,12 +276,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return added;
 	}
 
-	private _handleDidReplaceSession(from: ISession, to: ISession): void {
+	private _handleDidReplaceSession(event: ISessionReplacedEvent): void {
+		const { from, to } = event;
 		this._moveOwnership(from, to);
 		this._explicitlyMarkedUnreadChats.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
-		this._onDidReplaceSession.fire({ from, to });
+		this._onDidReplaceSession.fire(event);
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
@@ -397,7 +408,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessions;
 	}
 
-	getAllSessions(): ISession[] {
+	/** Every session, also those outside a provider's listing scope, for looking sessions up. */
+	private _getAllSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			sessions.push(...(provider.getAllSessions?.() ?? provider.getSessions()));
@@ -425,14 +437,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this.getAllSessions().find(s =>
+		return this._getAllSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this.getAllSessions()) {
+		for (const session of this._getAllSessions()) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };
