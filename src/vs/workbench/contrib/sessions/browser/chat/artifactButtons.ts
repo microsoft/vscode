@@ -108,7 +108,12 @@ class ArtifactButton extends Disposable {
 			}
 			this.value.run(this.button.element);
 		}));
-		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.value.description ?? this.value.label, style: HoverStyle.Pointer }), hoverLifecycleOptions));
+		// Icon-only buttons have no visible text, so their hover names the action as well as any reason.
+		this._register(hoverService.setupDelayedHover(this.button.element, () => ({ content: this.value.iconOnly ? this.accessibleLabel : this.value.description ?? this.value.label, style: HoverStyle.Pointer }), hoverLifecycleOptions));
+	}
+
+	private get accessibleLabel(): string {
+		return this.value.ariaLabel ?? (this.value.description ? localize('artifactButtonDescription', "{0}. {1}", this.value.label, this.value.description) : this.value.label);
 	}
 
 	get reachable(): boolean {
@@ -123,7 +128,7 @@ class ArtifactButton extends Disposable {
 		if (this.kind === 'action') {
 			this.button.secondary = !value.primary;
 		}
-		this.button.element.setAttribute('aria-label', value.ariaLabel ?? (value.description ? localize('artifactButtonDescription', "{0}. {1}", value.label, value.description) : value.label));
+		this.button.element.setAttribute('aria-label', this.accessibleLabel);
 		if (value.expanded !== undefined && value.controls) {
 			this.button.element.setAttribute('aria-haspopup', 'dialog');
 			this.button.element.setAttribute('aria-expanded', String(value.expanded));

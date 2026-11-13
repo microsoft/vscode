@@ -11,7 +11,7 @@ export namespace TypeScript {
 	const unifiedSection = 'js/ts';
 	const legacySection = 'typescript';
 	const useTsgoKey = 'experimental.useTsgo';
-	const version7ExtensionIds = ['typescriptteam.vscode-typescript', 'typescriptteam.native-preview'] as const;
+	const version7ExtensionIds = ['typescriptteam.vscode-typescript', 'typescriptteam.vscode-typescript-nightly', 'typescriptteam.native-preview'] as const;
 
 	export const versionKey = `${unifiedSection}.${useTsgoKey}`;
 	export const legacyVersionKey = `${legacySection}.${useTsgoKey}`;

@@ -71,7 +71,7 @@ import { ISessionsProvidersService, SessionsProvidersService } from '../../../..
 import { ISessionModelsSnapshot } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { MobileChatPhoneInputPresenterContribution } from '../../browser/mobile/mobileChatPhoneInputPresenter.js';
 import { INewChatModelPickerService, NewChatModelPickerService } from '../../../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
-import { ModelPicker } from '../../../../chat/browser/modelPicker.js';
+import { ModelPicker } from '../../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
 import { ISessionModelSelection } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { createModelSelectionState, normalizeModelPickerOptions } from '../../../../../../workbench/contrib/sessions/browser/chat/sessionModelPickerState.js';
 import { IChatSessionsService } from '../../../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -556,7 +556,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 		const { modeDelegate, modelDelegate } = harness.delegates;
 		const action = store.add(new Action('test.config', 'Configure'));
 		const customItem = harness.presenter.createActionViewItem?.(action, modeDelegate, modelDelegate);
-		const item = store.add(new MobileChatInputCombinedPickerActionItem(action, modeDelegate, modelDelegate, harness.presenter));
+		const item = store.add(harness.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate));
 		const buttonContainer = dom.append(harness.container, dom.$('div'));
 		item.render(buttonContainer);
 		assert.deepStrictEqual({

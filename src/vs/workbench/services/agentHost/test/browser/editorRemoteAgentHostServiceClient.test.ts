@@ -10,7 +10,6 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, observableValue } from '../../../../../base/common/observable.js';
-import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IChannel, IServerChannel } from '../../../../../base/parts/ipc/common/ipc.js';
@@ -41,6 +40,7 @@ import { TestRemoteAgentService } from '../../../../test/browser/workbenchTestSe
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { PathStyle } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 
 class TestRemoteAgentConnection extends Disposable implements IRemoteAgentConnection {
 	readonly isConnected = true;
@@ -317,7 +317,12 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 			onDidNotification: Event.None,
 			onDidAction: Event.None,
 			onMcpNotification: Event.None,
-			initializeResult: constObservable(undefined),
+			initializeResult: constObservable({
+				protocolVersion: '1.0.0',
+				serverSeq: 0,
+				snapshots: [],
+				environment: { pathStyle: PathStyle.Windows },
+			}),
 			rootState: {
 				value: undefined,
 				verifiedValue: undefined,
@@ -364,7 +369,7 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		agentHostEnabled.set(true, undefined);
 		const beforeReady = connectCalls;
 
-		remoteAgentService.environmentReady.complete(upcastPartial<IRemoteAgentEnvironment>({ os: OperatingSystem.Windows }));
+		remoteAgentService.environmentReady.complete(upcastPartial<IRemoteAgentEnvironment>({}));
 		while (connectCalls === 0) {
 			await Promise.resolve();
 		}
@@ -449,6 +454,45 @@ suite('EditorRemoteAgentHostServiceClient', () => {
 		assert.deepStrictEqual({ calls, result }, {
 			calls: [{ session: session.toString(), chat: chat.toString(), progressToken: 'export-progress' }, { progressToken: 'export-progress' }],
 			result: artifact,
+		});
+	});
+
+	test('forwards shell authentication answers to the remote protocol client', async () => {
+		const remoteAgentService = new DeferredRemoteAgentService(disposables.add(new TestRemoteAgentConnection({
+			call: <T>() => Promise.resolve(undefined as T),
+			listen: () => Event.None,
+		})));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection(
+			[IRemoteAgentService, remoteAgentService],
+			[IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined })],
+			[IRemoteAuthorityResolverService, upcastPartial<IRemoteAuthorityResolverService>({})],
+			[IAgentHostEnablementService, { _serviceBrand: undefined, enabled: constObservable(false), managedSandboxEnforced: constObservable(false) }],
+			[ILogService, new NullLogService()],
+			[IWorkbenchEnvironmentService, { isSessionsWindow: false }],
+			[ILabelService, upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })],
+			[IAgentHostFileSystemService, {
+				_serviceBrand: undefined,
+				registerAuthority: () => Disposable.None,
+				ensureSyncedCustomizationProvider: () => { },
+			}],
+		)));
+		const calls: { chat: string; requestId: string; answer: string | undefined }[] = [];
+		instantiationService.stubInstance(AgentHostProtocolClient, {
+			onDidClose: Event.None,
+			onDidChangeConnectionState: Event.None,
+			answerShellAuthentication: async (chat, requestId, answer) => {
+				calls.push({ chat: chat.toString(), requestId, answer });
+				return true;
+			},
+			dispose: () => { },
+		});
+		instantiationService.set(IInstantiationService, instantiationService);
+		const service = disposables.add(instantiationService.createInstance(EditorRemoteAgentHostServiceClient));
+		const chat = URI.parse('custom-chat://host/chat');
+		const delivered = await service.answerShellAuthentication(chat, 'shell-auth', 'remote-answer');
+		assert.deepStrictEqual({ calls, delivered }, {
+			calls: [{ chat: chat.toString(), requestId: 'shell-auth', answer: 'remote-answer' }],
+			delivered: true,
 		});
 	});
 

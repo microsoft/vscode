@@ -224,7 +224,7 @@ export function createPolicyManagedEnablementAction(plugin: IAgentPlugin, notifi
 /**
  * Builds the standard context menu action groups for an installed plugin.
  */
-export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, removePlugin?: () => Promise<boolean>): IAction[][] {
+export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, instantiationService: IInstantiationService, removePlugin?: () => Promise<boolean>, runtimeEnablementActions?: IAction[]): IAction[][] {
 	return instantiationService.invokeFunction(accessor => {
 		const agentPluginService = accessor.get(IAgentPluginService);
 		const workspaceService = accessor.get(IWorkspaceContextService);
@@ -234,7 +234,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 			groups.push([policyAction]);
 		} else if (plugin.copilotCliInstallation) {
 			const enabled = isContributionEnabled(plugin.enablement.get());
-			groups.push([new Action('agentPlugin.toggleRuntime', enabled ? localize('disableGlobally', "Disable Globally") : localize('enableGlobally', "Enable Globally"), undefined, plugin.setEnabled !== undefined,
+			groups.push(runtimeEnablementActions ?? [new Action('agentPlugin.toggleRuntime', enabled ? localize('disableGlobally', "Disable Globally") : localize('enableGlobally', "Enable Globally"), undefined, plugin.setEnabled !== undefined,
 				() => setAgentPluginEnablement(plugin, agentPluginService.enablementModel, enabled ? ContributionEnablementState.DisabledProfile : ContributionEnablementState.EnabledProfile))]);
 		} else {
 			groups.push(buildEnablementContextMenuGroup(
@@ -260,7 +260,7 @@ export function getInstalledPluginContextMenuActions(plugin: IAgentPlugin, insta
 }
 
 /**
- * Builds enablement actions for a plugin customization published by an agent host.
+ * Builds scoped enablement actions whose switch reflects the host-reported effective activation.
  * Legacy VS Code-owned plugin menus continue to use {@link getInstalledPluginContextMenuActions}.
  */
 export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAgentHostCustomizationService, agentPluginService: IAgentPluginService | undefined, sessionResource: URI, customization: PluginCustomization, hasWorkspace: boolean): ICustomizationItemAction[] {
@@ -269,27 +269,40 @@ export function getAgentHostPluginEnablementActions(agentHostCustomizations: IAg
 		const available = agentHostCustomizations.canSetRuntimePluginEnablement?.(sessionResource) === true;
 		const managed = runtime.managedDesiredEnabled !== undefined;
 		const ready = runtime.effectiveEnabled !== undefined;
-		const create = (scope: 'global' | 'repository', enabled: boolean, supported: boolean): ICustomizationItemAction => ({
-			id: `agentPlugin.runtime.${enabled ? 'enable' : 'disable'}.${scope}`,
+		const workspaceScope = hasWorkspace && runtime.repositorySupported && typeof runtime.repositoryEnabled === 'boolean';
+		const checked = runtime.effectiveEnabled ?? (workspaceScope ? runtime.repositoryEnabled : undefined) ?? runtime.globalEnabled;
+		const create = (scope: 'global' | 'repository', enabled: boolean | null, supported: boolean): ICustomizationItemAction => ({
+			id: `agentPlugin.runtime.${enabled === null ? 'inherit' : enabled ? 'enable' : 'disable'}.${scope}`,
 			label: scope === 'global'
 				? enabled ? localize('runtimePluginEnableGlobal', "Enable Globally") : localize('runtimePluginDisableGlobal', "Disable Globally")
-				: enabled ? localize('runtimePluginEnableRepository', "Enable for Repository") : localize('runtimePluginDisableRepository', "Disable for Repository"),
-			enabled: available && !managed && ready && supported,
-			checked: scope === 'global' ? runtime.globalEnabled : undefined,
+				: enabled === null ? localize('runtimePluginScopeGlobal', "Use Global Enablement")
+					: enabled ? localize('runtimePluginEnableWorkspace', "Enable for Workspace") : localize('runtimePluginDisableWorkspace', "Disable for Workspace"),
+			enabled: available && !managed && ready && supported && (scope === 'global' || runtime.repositoryEnabled !== undefined),
 			tooltip: managed ? getPluginManagedByOrganizationMessage()
 				: !available ? localize('runtimePluginHostUnsupported', "This host does not support plugin enablement.")
 					: !supported ? localize('runtimePluginRepositoryUnsupported', "This plugin does not support workspace enablement. You can change global enablement.")
-						: !ready ? localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready.") : undefined,
+						: !ready ? localize('runtimePluginEnablementPending', "Plugin enablement is unavailable until this chat's session is ready.")
+							: scope === 'repository' && runtime.repositoryEnabled === undefined ? localize('runtimePluginRepositoryStateUnavailable', "This host does not report the repository plugin setting.") : undefined,
 			run: async () => {
-				if (!available || managed || !ready || !supported || !agentHostCustomizations.setRuntimePluginEnablement) {
+				if (!available || managed || !ready || !supported || scope === 'repository' && runtime.repositoryEnabled === undefined || !agentHostCustomizations.setRuntimePluginEnablement) {
 					throw new Error(localize('runtimePluginActionUnavailable', "Plugin enablement is unavailable."));
 				}
 				await agentHostCustomizations.setRuntimePluginEnablement(sessionResource, customization.id, scope, enabled);
 			},
 		});
+		const toggle = create(workspaceScope ? 'repository' : 'global', !checked, true);
+		const scopeAction = create('repository', workspaceScope ? null : runtime.effectiveEnabled ?? runtime.globalEnabled, runtime.repositorySupported);
 		return [
-			create('global', !runtime.globalEnabled, true),
-			...(hasWorkspace ? [create('repository', runtime.effectiveEnabled === false, runtime.repositorySupported)] : []),
+			{ ...toggle, checked, scope: workspaceScope ? 'workspace' : 'global' },
+			...(hasWorkspace ? [{
+				...scopeAction,
+				id: `agentPlugin.runtime.scope.${workspaceScope ? 'global' : 'workspace'}`,
+				scope: workspaceScope ? 'global' : 'workspace',
+				label: workspaceScope ? localize('runtimePluginScopeGlobal', "Use Global Enablement") : localize('runtimePluginScopeWorkspace', "Manage Enablement for This Workspace"),
+				tooltip: scopeAction.tooltip ?? (workspaceScope
+					? localize('runtimePluginScopeGlobalDescription', "Remove the workspace override and follow global enablement. This may change whether the plugin is enabled.")
+					: localize('runtimePluginScopeWorkspaceDescription', "Change enablement only for this workspace. The current activation is preserved.")),
+			} satisfies ICustomizationItemAction] : []),
 		];
 	}
 	const enablement = getCustomizationScopeEnablement(customization);

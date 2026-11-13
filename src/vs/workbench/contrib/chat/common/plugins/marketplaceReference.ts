@@ -200,7 +200,7 @@ export function deduplicateMarketplaceReferences(primary: readonly IMarketplaceR
 }
 
 export function parseProviderMarketplaceReference(source: string): IMarketplaceReference | undefined {
-	const labeledSource = /^(?:GitHub|URL):\s+(?<source>.+)$/.exec(source)?.groups?.source;
+	const labeledSource = /^(?:GitHub|URL):\s*(?<source>.+)$/.exec(source)?.groups?.source;
 	return parseMarketplaceReference(labeledSource ?? source);
 }
 

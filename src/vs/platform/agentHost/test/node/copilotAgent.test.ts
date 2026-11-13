@@ -738,6 +738,7 @@ interface ITestCopilotModelInfo {
 
 interface ITestCopilotClient extends Pick<CopilotClient, 'start' | 'stop' | 'listSessions' | 'createSession' | 'resumeSession' | 'getSessionMetadata' | 'deleteSession'> {
 	readonly rpc: {
+		readonly user: { readonly settings: Pick<CopilotClient['rpc']['user']['settings'], 'get'> };
 		readonly agents: CopilotAgentDiscovery;
 		readonly instructions: CopilotInstructionDiscovery;
 		readonly skills: CopilotSkillDiscovery;
@@ -800,6 +801,7 @@ function toSdkModelInfo(model: ITestCopilotModelInfo): CopilotModelInfo {
 type ManagedSettingsResolveResult = Awaited<ReturnType<CopilotClient['rpc']['managedSettings']['resolve']>>;
 
 class TestCopilotClient implements ITestCopilotClient {
+	userSettings: Awaited<ReturnType<CopilotClient['rpc']['user']['settings']['get']>> = { settings: {} };
 	mcpConfigListResult: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>> = { servers: {} };
 	managedSettingsResolution: ManagedSettingsResolveResult = {
 		resolved: { source: 'none', serverManaged: false, deviceManaged: false, clientManaged: false, failClosed: false, bypassPermissionsDisabled: false, managedKeys: [] },
@@ -908,6 +910,7 @@ class TestCopilotClient implements ITestCopilotClient {
 				return { models: models.map(toSdkModelInfo), ...(auto ? { auto } : {}) };
 			}
 		},
+		user: { settings: { get: async () => this.userSettings } },
 		plugins: {
 			list: async () => ({ plugins: this.pluginInstallations }),
 			enable: async ({ names }) => {
@@ -1440,6 +1443,13 @@ class TestProxyResolver implements IAgentHostProxyResolver {
 		return 'Negotiate ticket';
 	}
 
+	readonly basicLookups: { readonly proxyUrl: string; readonly realm: string | undefined; readonly attempt: number }[] = [];
+	basicCredentials = (attempt: number): { username: string; password: string } | undefined => attempt === 1 ? { username: 'user', password: 'secret' } : undefined;
+	async lookupBasicAuthorization(proxyUrl: string, realm: string | undefined, attempt: number): Promise<{ username: string; password: string } | undefined> {
+		this.basicLookups.push({ proxyUrl, realm, attempt });
+		return this.basicCredentials(attempt);
+	}
+
 	getConfigurationValue<T>(_key: string): T | undefined {
 		return undefined;
 	}
@@ -1753,6 +1763,7 @@ function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationServic
 				return mockSession as unknown as CopilotSession;
 			},
 			resumeSession: async (_id, options) => { reportManagedSettings(options); return mockSession as unknown as CopilotSession; },
+			deleteSession: async () => { assert.fail('Unexpected session deletion'); },
 		},
 		extensionSdkPath: '/copilot-sdk',
 		// Production always launches with the owning session's live registry
@@ -2283,7 +2294,7 @@ suite('CopilotAgent', () => {
 		}
 	});
 
-	test('persists repository plugin enablement separately from global installation state', async () => {
+	test('persists repository plugin enablement in each chat working directory, separately from global state', async () => {
 		const client = new TestCopilotClient([]);
 		client.pluginInstallations = [{ name: 'spark', marketplace: 'copilot-plugins', enabled: false }];
 		const gitService = new TestAgentHostGitService();
@@ -2300,23 +2311,38 @@ suite('CopilotAgent', () => {
 		setDefaultSessionStub(agent, 'repository-plugin-enablement', {
 			workingDirectory: URI.file('/different-repository'),
 			reloadPlugins: async () => { },
+			listInstalledPlugins: async () => [{
+				name: 'spark', marketplace: 'copilot-plugins',
+				enabled: JSON.parse((await fileService.readFile(URI.file('/different-repository/.github/copilot/settings.json'))).value.toString()).enabledPlugins['spark@copilot-plugins'] ?? false,
+			}],
 		});
 		setPeerChatStub(agent, chat, {
 			workingDirectory: URI.file('/repository/nested'),
 			reloadPlugins: async (reason: string) => { reloads.push(reason); },
+			listInstalledPlugins: async () => [{
+				name: 'spark', marketplace: 'copilot-plugins',
+				enabled: JSON.parse((await fileService.readFile(URI.file('/repository/nested/.github/copilot/settings.json'))).value.toString()).enabledPlugins['spark@copilot-plugins'] ?? false,
+			}],
 		}, 'sdk-repository-plugin-peer');
 		const resolveRepository = spy(agent['_gitService'], 'getRepositoryRoot');
 		afterTest(async () => resolveRepository.restore());
 
 		await agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat);
-		const resource = joinPath(gitService.repositoryRoot, '.github', 'copilot', 'settings.json');
+		const resource = URI.file('/repository/nested/.github/copilot/settings.json');
 		const enabled = JSON.parse((await fileService.readFile(resource)).value.toString());
+		const enabledInventory = (await agent.listPluginInstallations(session, chat))[0];
 		await agent.setPluginEnabled('spark@copilot-plugins', false, 'repository', session, chat);
+		const disabledInventory = (await agent.listPluginInstallations(session, chat))[0];
 		await agent.setPluginEnabled('spark@copilot-plugins', false, 'repository', session);
+		await agent.setPluginEnabled('spark@copilot-plugins', null, 'repository', session, chat);
+		const inheritedInventory = (await agent.listPluginInstallations(session, chat))[0];
 
 		assert.deepStrictEqual({
 			enabled,
-			disabled: JSON.parse((await fileService.readFile(resource)).value.toString()),
+			inherited: JSON.parse((await fileService.readFile(resource)).value.toString()),
+			repositoryChoices: [enabledInventory, disabledInventory, inheritedInventory].map(plugin => plugin.repositoryEnabled),
+			defaultChat: JSON.parse((await fileService.readFile(URI.file('/different-repository/.github/copilot/settings.json'))).value.toString()),
+			parentSettingsCreated: await fileService.exists(joinPath(gitService.repositoryRoot, '.github', 'copilot', 'settings.json')),
 			global: client.pluginInstallations.map(plugin => plugin.enabled),
 			globalWrites: [enable.callCount, disable.callCount],
 			reloads,
@@ -2324,13 +2350,37 @@ suite('CopilotAgent', () => {
 			options: resolveRepository.args.map(args => args[1]),
 		}, {
 			enabled: { enabledPlugins: { 'spark@copilot-plugins': true } },
-			disabled: { enabledPlugins: { 'spark@copilot-plugins': false } },
+			inherited: { enabledPlugins: {} },
+			repositoryChoices: [true, false, null],
+			defaultChat: { enabledPlugins: { 'spark@copilot-plugins': false } },
+			parentSettingsCreated: false,
 			global: [false],
 			globalWrites: [0, 0],
-			reloads: ['enablement', 'enablement', 'enablement'],
-			directories: [URI.file('/repository/nested'), URI.file('/repository/nested'), URI.file('/different-repository')],
-			options: [{ refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }],
+			reloads: ['enablement', 'enablement', 'enablement', 'enablement'],
+			directories: [URI.file('/repository/nested'), URI.file('/repository/nested'), URI.file('/different-repository'), URI.file('/repository/nested')],
+			options: [{ refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }, { refreshIfNone: true }],
 		});
+	});
+
+	test('reports a repository plugin decision that the SDK does not apply', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginInstallations = [{ name: 'spark', marketplace: 'test', enabled: true }];
+		const gitService = new TestAgentHostGitService();
+		gitService.repositoryRoot = URI.file('/repository');
+		const { agent, fileService } = createTestAgentContext(disposables, { copilotClient: client, gitService });
+		disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new InMemoryFileSystemProvider())));
+		afterTest(() => disposeAgent(agent));
+		const session = AgentSession.uri('copilotcli', 'repository-plugin-not-applied');
+		setDefaultSessionStub(agent, 'repository-plugin-not-applied', {
+			workingDirectory: URI.file('/repository/nested'),
+			reloadPlugins: async () => { },
+			listInstalledPlugins: async () => [{ name: 'spark', marketplace: 'test', enabled: true }],
+		});
+		await assert.rejects(() => agent.setPluginEnabled('spark@test', false, 'repository', session), /was saved, but the runtime did not apply it/);
+		assert.deepStrictEqual({
+			saved: JSON.parse((await fileService.readFile(URI.file('/repository/nested/.github/copilot/settings.json'))).value.toString()),
+			global: client.pluginInstallations.map(plugin => plugin.enabled),
+		}, { saved: { enabledPlugins: { 'spark@test': false } }, global: [true] });
 	});
 
 	test('rejects unsupported repository plugin targets without falling back to global enablement', async () => {
@@ -2348,6 +2398,7 @@ suite('CopilotAgent', () => {
 		setPeerChatStub(agent, chat, target);
 
 		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository'), /active chat/);
+		await assert.rejects(agent.setPluginEnabled('source-id', null, 'global'), /must be enabled or disabled/);
 		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', URI.file('/wrong-session'), chat), /active chat/);
 		await assert.rejects(agent.setPluginEnabled('spark@copilot-plugins', true, 'repository', session, chat), /filesystem working directory/);
 		target.workingDirectory = URI.file('/repository');
@@ -2964,6 +3015,72 @@ suite('CopilotAgent', () => {
 			await disposeAgent(agent);
 		}
 	});
+
+	test('installs marketplace plugins through the SDK server API without creating a session', async () => {
+		const client = new TestCopilotClient([]);
+		client.pluginMarketplaces = [{
+			name: 'marketplace',
+			source: 'GitHub: owner/repository',
+			isDefault: false,
+			managed: false,
+			available: true,
+		}];
+		client.pluginMarketplaceBrowsePlugins = [{ name: 'plugin' }];
+		const agent = createTestAgent(disposables, { copilotClient: client });
+		afterTest(() => disposeAgent(agent));
+
+		const marketplace = await agent.addPluginMarketplace(undefined, 'owner/repository#feature/beta');
+		const plugins = await agent.browsePluginMarketplace(undefined, marketplace.name);
+		await agent.installPlugin({ source: `${plugins[0].name}@${marketplace.name}` });
+
+		assert.deepStrictEqual({
+			add: client.pluginMarketplaceAddRequests,
+			browse: client.pluginMarketplaceBrowseRequests,
+			install: client.pluginInstallRequests,
+		}, {
+			add: [{ source: 'owner/repository#feature/beta' }],
+			browse: [{ name: 'marketplace' }],
+			install: [{ source: 'plugin@marketplace' }],
+		});
+	});
+
+	for (const source of [
+		{ source: 'github', repo: 'owner/repository', ref: 'feature/beta' },
+		{ source: 'git', url: 'https://example.com/marketplace.git', ref: 'release/v1' },
+	] as const) {
+		test(`lists the exact registered marketplace revision when its display source omits it: ${source.source}`, async () => {
+			const client = new TestCopilotClient([]);
+			const displaySource = source.source === 'github' ? 'GitHub: owner/repository' : 'URL: https://example.com/marketplace.git';
+			client.pluginMarketplaces = [
+				{ name: 'user-marketplace', source: displaySource },
+				{ name: 'managed-marketplace', source: displaySource, managed: true },
+				{ name: 'default-marketplace', source: displaySource, isDefault: true },
+				{ name: 'team-marketplace', source: displaySource, team: true },
+			];
+			const registeredSource: Record<string, string> = source.source === 'github'
+				? { source: 'github', repo: source.repo, ref: source.ref }
+				: { source: 'git', url: source.url, ref: source.ref };
+			client.userSettings = {
+				settings: {
+					extraKnownMarketplaces: {
+						value: Object.fromEntries(client.pluginMarketplaces.map(marketplace => [marketplace.name, { source: registeredSource }])),
+						default: {},
+						isDefault: false,
+					},
+				}
+			};
+			const agent = createTestAgent(disposables, { copilotClient: client });
+			afterTest(() => disposeAgent(agent));
+
+			const marketplaces = await agent.listPluginMarketplaces();
+			assert.deepStrictEqual(marketplaces.map(marketplace => ({ name: marketplace.name, source: marketplace.source })), [
+				{ name: 'user-marketplace', source: `${source.source === 'github' ? source.repo : source.url}#${source.ref}` },
+				{ name: 'managed-marketplace', source: displaySource },
+				{ name: 'default-marketplace', source: displaySource },
+				{ name: 'team-marketplace', source: displaySource },
+			]);
+		});
+	}
 
 	test('preserves marketplace revisions through the SDK server API', async () => {
 		const client = new TestCopilotClient([]);
@@ -4207,8 +4324,12 @@ suite('CopilotAgent', () => {
 			const workspace = URI.file('/workspace');
 			const plugin = URI.file('/sdk-installed/native');
 			const source = URI.joinPath(plugin, '.mcp.json');
+			// Let the in-memory provider report these writes before the plugin watcher exists, or its publish can show the
+			// server as a plugin child before the runtime-first update below.
+			const written = Event.toPromise(fileService.onDidFilesChange);
 			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"native"}'));
 			await fileService.writeFile(source, VSBuffer.fromString('{"mcpServers":{"native":{"command":"native-server"}}}'));
+			await written;
 			const client = new TestCopilotClient([]);
 			let discovered = false;
 			let hostDecision: boolean | undefined;
@@ -4494,8 +4615,12 @@ suite('CopilotAgent', () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);
 			const plugin = URI.file('/sdk-plugins/session-timeline');
 			const skill = URI.joinPath(plugin, 'skills', 'session-timeline', 'SKILL.md');
+			// The in-memory provider reports both writes in one batch a few milliseconds later. Let that happen before
+			// the plugin watcher exists, or it can republish once the uninstall settles.
+			const written = Event.toPromise(fileService.onDidFilesChange);
 			await fileService.writeFile(URI.joinPath(plugin, '.plugin', 'plugin.json'), VSBuffer.fromString(JSON.stringify({ name: 'session-timeline' })));
 			await fileService.writeFile(skill, VSBuffer.fromString('---\nname: session-timeline\ndescription: Timeline\n---\n'));
+			await written;
 			const scans = Array.from({ length: 3 }, () => ({
 				started: new DeferredPromise<void>(),
 				release: new DeferredPromise<void>(),
@@ -6552,6 +6677,54 @@ suite('CopilotAgent', () => {
 			});
 		});
 	}
+
+	test('stamps forwarded runtime telemetry with the client of the turn active when it arrived', async () => {
+		const initiatorClientTypes: Record<string, unknown> = {};
+		const response = new DeferredPromise<void>();
+		const telemetryService = new class extends RecordingTelemetryService {
+			override publicLog(eventName?: string, data?: ITelemetryData): void {
+				if (eventName?.startsWith('copilotSdk/')) {
+					initiatorClientTypes[eventName] = data?.initiatorClientType;
+				}
+				if (eventName === 'copilotSdk/response.success') {
+					response.complete();
+				}
+			}
+		}();
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), telemetryService, sessionDataService });
+		afterTest(() => disposeAgent(agent));
+		await agent.listChatsToMigrate();
+		const forward = getCreatedClientOptions(agent).at(-1)?.onGitHubTelemetry;
+		assert.ok(forward);
+		const { session } = createAgentSessionThroughAgent(agent, instantiationService);
+		setLiveChatStub(agent, session.sessionId, session);
+		await session.initializeSession();
+		const notification = (kind: string, properties: Record<string, string> = {}): GitHubTelemetryNotification => ({
+			sessionId: session.sessionId,
+			restricted: false,
+			event: { kind, properties, metrics: {} },
+		});
+
+		session.resetTurnState('agents-turn', undefined, AgentHostClientType.AgentsWindow);
+		// The response waits for a model-call mapping that never arrives while another client starts a turn.
+		await forward(notification('response.success', { modelCallId: 'unmapped-call', initiatorType: 'agent' }));
+		session.resetTurnState('editor-turn', undefined, AgentHostClientType.EditorWindow);
+		session.compactionTurnCorrelation.record('attempt', 'editor-turn');
+		await forward(notification('tool_call_executed'));
+		await forward(notification('session_compaction_start', { compaction_attempt_id: 'attempt' }));
+		await response.p;
+		session.discardActiveTurn();
+		await forward(notification('tgrep_incremental_indexing'));
+		await timeout(0);
+
+		assert.deepStrictEqual(initiatorClientTypes, {
+			'copilotSdk/response.success': 'agents_window',
+			'copilotSdk/tool_call_executed': 'editor_window',
+			'copilotSdk/session_compaction_start': 'editor_window',
+			'copilotSdk/tgrep_incremental_indexing': 'unknown',
+		});
+	});
 
 	test('does not relabel SDK responses when credentials change before notification arrival', async () => {
 		const events: ITelemetryData[] = [];
@@ -14730,7 +14903,7 @@ suite('CopilotAgent', () => {
 				copilotClient: new TestCopilotClient([]),
 				proxyResolver: new TestProxyResolver(),
 				rootConfig: {
-					[AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080',
+					[AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@configured-proxy.example:8080',
 					[AgentHostProxyConfigKey.NoProxy]: ['localhost'],
 				},
 			});
@@ -14742,11 +14915,13 @@ suite('CopilotAgent', () => {
 				scope: options?.network?.scope,
 				resolveProxy: typeof options?.network?.resolveProxy,
 				authenticateNegotiate: typeof options?.network?.authenticateNegotiate,
+				authenticateBasic: typeof options?.network?.authenticateBasic,
 				proxyEnvironment: Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options?.env?.[key]])),
 			}, {
 				scope: 'runtime',
 				resolveProxy: 'function',
 				authenticateNegotiate: 'function',
+				authenticateBasic: 'function',
 				proxyEnvironment: {
 					HTTPS_PROXY: 'http://ambient-proxy.example:8080',
 					https_proxy: undefined,
@@ -14755,37 +14930,6 @@ suite('CopilotAgent', () => {
 					NO_PROXY: 'intranet.example',
 					no_proxy: undefined,
 				},
-			});
-		});
-		test('restarts the Copilot runtime with an http.proxy setting with credentials, which its callbacks cannot carry, in its environment', async () => {
-			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
-			process.env['NO_PROXY'] = 'intranet.example';
-			const client = new TestCopilotClient([]);
-			const proxyResolver = new TestProxyResolver();
-			const { agent, configurationService } = createTestAgentContext(disposables, {
-				copilotClient: client,
-				proxyResolver,
-				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://configured-proxy.example:8080' },
-			});
-			afterTest(() => disposeAgent(agent));
-			await agent.listChatsToMigrate();
-			const credentialedProxy = 'http://alice:s%40cret@configured-proxy.example:8080';
-			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: credentialedProxy, [AgentHostProxyConfigKey.NoProxy]: ['localhost', '.corp.example'] });
-			proxyResolver.fireConfigurationChange();
-			await proxyRefresh(agent);
-			await agent.listChatsToMigrate();
-
-			assert.deepStrictEqual({
-				startCallCount: client.startCallCount,
-				stopCallCount: client.stopCallCount,
-				proxyEnvironments: getCreatedClientOptions(agent).map(options => Object.fromEntries(['HTTPS_PROXY', 'https_proxy', 'HTTP_PROXY', 'http_proxy', 'NO_PROXY', 'no_proxy'].map(key => [key, options.env?.[key]]))),
-			}, {
-				startCallCount: 2,
-				stopCallCount: 1,
-				proxyEnvironments: [
-					{ HTTPS_PROXY: 'http://ambient-proxy.example:8080', https_proxy: undefined, HTTP_PROXY: undefined, http_proxy: undefined, NO_PROXY: 'intranet.example', no_proxy: undefined },
-					{ HTTPS_PROXY: credentialedProxy, https_proxy: undefined, HTTP_PROXY: credentialedProxy, http_proxy: undefined, NO_PROXY: 'localhost,.corp.example', no_proxy: undefined },
-				],
 			});
 		});
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
@@ -15082,7 +15226,7 @@ suite('CopilotAgent', () => {
 					clientNone: undefined,
 					noClient: undefined,
 					setting: 'HTTPS secure-proxy.example:443',
-					settingWithCredentials: undefined,
+					settingWithCredentials: 'HTTPS secure-proxy.example:443',
 					noProxySetting: 'DIRECT',
 				},
 				systemProxyDisabled: {
@@ -15124,7 +15268,178 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('answers the Copilot runtime\'s Basic proxy challenges with the credentials of the http.proxy setting or a client', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+
+			assert.deepStrictEqual({
+				credentials: [
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: false }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'http://proxy.example:3128', realm: 'Corp', previousRejected: true }, signal),
+					await authenticateBasic?.({ proxy: 'https://proxy.example:8443', previousRejected: false }, signal),
+				],
+				basicLookups: proxyResolver.basicLookups,
+			}, {
+				credentials: [{ username: 'alice', password: 's@cret' }, { username: 'user', password: 'secret' }, undefined, { username: 'user', password: 'secret' }],
+				basicLookups: [
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 },
+					{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 2 },
+					{ proxyUrl: 'https://proxy.example:8443', realm: undefined, attempt: 1 },
+				],
+			});
+		});
+
+		test('answers a Copilot runtime the credentials a client was asked for after the proxy rejected another runtime\'s', async () => {
+			const proxyResolver = new TestProxyResolver();
+			let sessionCredentials = { username: 'alice', password: 'old' };
+			// Like Electron's login: the first attempt answers the session credentials, a later one asks for others.
+			proxyResolver.basicCredentials = attempt => attempt === 1 ? sessionCredentials : sessionCredentials = { username: 'alice', password: 'new' };
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			const internal = agent as unknown as { _startClientWithConfigRetry(scope: { kind: 'storage' }): Promise<CopilotClient> };
+			await (await internal._startClientWithConfigRetry({ kind: 'storage' })).stop();
+			await agent.listChatsToMigrate();
+			const [first, second] = getCreatedClientOptions(agent).map(options => options.network?.authenticateBasic);
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await first?.({ ...request, previousRejected: false }, signal),
+				await second?.({ ...request, previousRejected: false }, signal),
+				await first?.({ ...request, previousRejected: true }, signal),
+				await second?.({ ...request, previousRejected: true }, signal),
+			];
+
+			assert.deepStrictEqual({ credentials, attempts: proxyResolver.basicLookups.map(lookup => lookup.attempt) }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'new' }],
+				attempts: [1, 1, 1, 2, 1],
+			});
+		});
+
+		test('asks a client again when it answers the rejected credentials of the http.proxy setting', async () => {
+			const proxyResolver = new TestProxyResolver();
+			proxyResolver.basicCredentials = attempt => attempt === 1 ? { username: 'alice', password: 'old' } : { username: 'alice', password: 'stored' };
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			assert.deepStrictEqual({
+				credentials: [
+					await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+					await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+					await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+				],
+				attempts: proxyResolver.basicLookups.map(lookup => lookup.attempt),
+			}, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'stored' }, { username: 'alice', password: 'stored' }],
+				attempts: [1, 2, 1, 2],
+			});
+		});
+
+		test('answers a rejection with the credentials of the http.proxy setting once after they change', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [await authenticateBasic?.({ ...request, previousRejected: false }, signal)];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+			);
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'user', password: 'secret' }],
+				basicLookups: [{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }],
+			});
+		});
+
+		test('answers rejected credentials of the http.proxy setting again after the setting changes back to them', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const authenticateBasic = getCreatedClientOptions(agent).at(-1)?.network?.authenticateBasic;
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await authenticateBasic?.({ ...request, previousRejected: false }, signal),
+				await authenticateBasic?.({ ...request, previousRejected: true }, signal),
+			];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(await authenticateBasic?.({ ...request, previousRejected: true }, signal));
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' });
+			credentials.push(await authenticateBasic?.({ ...request, previousRejected: true }, signal));
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'user', password: 'secret' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'old' }],
+				basicLookups: [{ proxyUrl: 'http://proxy.example:3128', realm: 'Corp', attempt: 1 }],
+			});
+		});
+
+		test('answers each Copilot runtime the changed credentials of the http.proxy setting after a rejection', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				proxyResolver,
+				rootConfig: { [AgentHostProxyConfigKey.Proxy]: 'http://alice:old@proxy.example:3128' },
+			});
+			afterTest(() => disposeAgent(agent));
+			const internal = agent as unknown as { _startClientWithConfigRetry(scope: { kind: 'storage' }): Promise<CopilotClient> };
+			await (await internal._startClientWithConfigRetry({ kind: 'storage' })).stop();
+			await agent.listChatsToMigrate();
+			const [first, second] = getCreatedClientOptions(agent).map(options => options.network?.authenticateBasic);
+			const signal = new AbortController().signal;
+			const request = { proxy: 'http://proxy.example:3128', realm: 'Corp' };
+
+			const credentials = [
+				await first?.({ ...request, previousRejected: false }, signal),
+				await second?.({ ...request, previousRejected: false }, signal),
+			];
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:new@proxy.example:3128' });
+			credentials.push(
+				await first?.({ ...request, previousRejected: true }, signal),
+				await second?.({ ...request, previousRejected: true }, signal),
+			);
+
+			assert.deepStrictEqual({ credentials, basicLookups: proxyResolver.basicLookups }, {
+				credentials: [{ username: 'alice', password: 'old' }, { username: 'alice', password: 'old' }, { username: 'alice', password: 'new' }, { username: 'alice', password: 'new' }],
+				basicLookups: [],
+			});
+		});
+
 		test('does not restart the Copilot runtime when clients come and go or proxy settings change', async () => {
+			process.env['HTTPS_PROXY'] = 'http://ambient-proxy.example:8080';
 			const client = new TestCopilotClient([]);
 			const proxyResolver = new TestProxyResolver();
 			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: client, proxyResolver });
@@ -15141,14 +15456,22 @@ suite('CopilotAgent', () => {
 				lookupAuthorization: async () => undefined,
 			});
 			await settle();
-			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });
+			configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://alice:s%40cret@proxy.example:8080', [AgentHostProxyConfigKey.NoProxy]: ['intranet.example'] });
 			proxyResolver.fireConfigurationChange();
 			await settle();
 			sharedNetworkClient.dispose();
 			renderer.dispose();
 			await settle();
 
-			assert.deepStrictEqual({ startCallCount: client.startCallCount, stopCallCount: client.stopCallCount }, { startCallCount: 1, stopCallCount: 0 });
+			assert.deepStrictEqual({
+				startCallCount: client.startCallCount,
+				stopCallCount: client.stopCallCount,
+				proxyEnvironment: Object.fromEntries(['HTTPS_PROXY', 'HTTP_PROXY', 'NO_PROXY'].map(key => [key, getCreatedClientOptions(agent).at(-1)?.env?.[key]])),
+			}, {
+				startCallCount: 1,
+				stopCallCount: 0,
+				proxyEnvironment: { HTTPS_PROXY: 'http://ambient-proxy.example:8080', HTTP_PROXY: undefined, NO_PROXY: undefined },
+			});
 		});
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
 			const client = new TestCopilotClient([]);
@@ -17588,6 +17911,7 @@ suite('CopilotAgent', () => {
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		};
 		disposables.add(byokBridgeRegistry.register('renderer', connection));
 
@@ -17644,6 +17968,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 
 		afterTest(() => disposeAgent(agent));
@@ -17672,6 +17997,7 @@ suite('CopilotAgent', () => {
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		};
 		disposables.add(byokBridgeRegistry.register('renderer', connection));
 		const copilotRequired = () => agent.getProtectedResources()
@@ -17724,6 +18050,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 		const publishedModels = () => agent.models.get().map(model => model.id);
 
@@ -17778,6 +18105,7 @@ suite('CopilotAgent', () => {
 		const connection: IByokLmBridgeConnection = {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		};
 		disposables.add(byokBridgeRegistry.register('renderer', connection));
 
@@ -17811,6 +18139,7 @@ suite('CopilotAgent', () => {
 		disposables.add(byokBridgeRegistry.register('renderer', {
 			chat: async () => ({ output: [] }),
 			onDidChangeModels: modelSnapshots.event,
+			onDidDelta: Event.None,
 		}));
 		const sessionId = 'byok-early-restore';
 		const session = AgentSession.uri('copilotcli', sessionId);
@@ -23931,7 +24260,7 @@ suite('CopilotAgent', () => {
 				clientToken: undefined,
 				configToken: 'connector-session-token',
 				hasTokenProvider: false,
-				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, MCP_SKILLS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, MANAGED_MCP_SERVERS: true },
+				connectorFlags: { AUTO_APPROVAL: true, CATALOG_SEARCH: true, AGENT_FINDER_SKILL_INSTALL: true, AGENT_FINDER_PLUGIN_INSTALL: true, CONNECTORS: true, MCP_SKILLS: true, TGREP: true, CONTENT_EXCLUSION: true, DETACH_LONG_LIVED_SERVICES: true, HYDRAFUSION: true, HYDRAFUSION_ROLLOUT: true, HYDRAFUSION_INTERRUPTED_COMMIT: true, HYDRAFUSION_PLAN_V2: true, HYDRAFUSION_STICKY_ROOT: true, copilot_swe_agent_memory_in_repo_store: false, SECURITY_REVIEW_FINE_TUNED_MODEL: false, MANAGED_MCP_SERVERS: true },
 			});
 		});
 

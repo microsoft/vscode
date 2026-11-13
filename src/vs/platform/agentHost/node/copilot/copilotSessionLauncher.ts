@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
+import type { AttributedPermissionResult, ContextTier, CopilotClient, CopilotExpAssignmentResponse, CopilotSession, ElicitationContext, ElicitationHandlerResult, ExitPlanModeRequest, ExitPlanModeResult, ManagedSettingsPermissions, MCPServerConfig, MCPStdioServerConfig, ModelCapabilitiesOverride, NamedProviderConfig, PermissionHandler, PermissionMode, PermissionRequest, PermissionRequestResult, ProviderModelConfig, ResumeSessionConfig, SessionConfig, SessionEvent, SessionHooks, Tool, Verbosity } from '@github/copilot-sdk';
 import { homedir } from 'os';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -50,7 +50,8 @@ import { IByokLmProxyService, type IByokLmProxyHandle } from './byokLmProxyServi
 import type { ICopilotMcpServerInfo, ICopilotPluginInfo } from './copilotAgent.js';
 import { CopilotGitHubSessionCredentials } from './copilotGitHubCredentials.js';
 import { ICopilotAccountService } from './copilotAccountService.js';
-import { isMicrosoftCopilotAccountContext } from '../../common/copilotAccountContext.js';
+import { ICopilotApiService } from '../shared/copilotApiService.js';
+import type { CopilotAccountContext } from '../../common/copilotAccountContext.js';
 import { reconcileCopilotConnectors, type ICopilotConnectorServers } from './copilotConnectors.js';
 import { getSdkCustomAgentName, mapCopilotCustomAgentTools, toSdkClientToolName, toSdkCustomAgents, toSdkHooks, toSdkInstructionDirectories, toSdkMcpServers, toSdkMcpServersFromConfigMap, toSdkSkillDirectories, type ISdkCustomAgentResource } from './copilotPluginConverters.js';
 import { buildCopilotBuiltinAgents, COPILOT_BUILTIN_AGENT_NAMES } from './copilotBuiltinAgents.js';
@@ -189,6 +190,10 @@ type UserInputHandler = NonNullable<SessionConfig['onUserInputRequest']>;
 type UserInputRequest = Parameters<UserInputHandler>[0];
 type UserInputInvocation = Parameters<UserInputHandler>[1];
 type UserInputResponse = Awaited<ReturnType<UserInputHandler>>;
+type ShellAuthenticationHandler = NonNullable<SessionConfig['onShellAuthenticationRequest']>;
+type ShellAuthenticationRequest = Parameters<ShellAuthenticationHandler>[0];
+type ShellAuthenticationInvocation = Parameters<ShellAuthenticationHandler>[1];
+type ShellAuthenticationResponse = Awaited<ReturnType<ShellAuthenticationHandler>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
 type McpAuthContext = Parameters<McpAuthHandler>[1];
@@ -382,7 +387,8 @@ export interface ICopilotSessionRuntime {
 	handlePermissionRequest(request: PermissionRequest, invocation?: Parameters<PermissionHandler>[1]): Promise<PermissionRequestResult | AttributedPermissionResult>;
 	handleExitPlanModeRequest(request: ExitPlanModeRequest, invocation: { sessionId: string }): Promise<ExitPlanModeResult>;
 	handleUserInputRequest(request: UserInputRequest, invocation: UserInputInvocation): Promise<UserInputResponse>;
-	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationResult>;
+	handleElicitationRequest(context: ElicitationContext): Promise<ElicitationHandlerResult>;
+	handleShellAuthenticationRequest(request: ShellAuthenticationRequest, invocation: ShellAuthenticationInvocation): Promise<ShellAuthenticationResponse>;
 	/**
 	 * Takes over the launch-time Connector reconciliation, which settles after the launch returns. The promise does
 	 * not reject; it resolves to the session's Connector-owned servers, or `undefined` when they are unavailable.
@@ -435,7 +441,7 @@ export interface ICopilotSessionLauncher {
 	resolveByokSessionConfig(sessionId: string): Promise<ICopilotByokSessionConfig>;
 }
 
-type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession'> & {
+type CopilotSessionClient = Pick<CopilotClient, 'createSession' | 'resumeSession' | 'deleteSession'> & {
 	readonly rpc: Pick<CopilotClient['rpc'], 'account' | 'sandbox' | 'managedSettings'>;
 };
 
@@ -482,6 +488,8 @@ interface ICopilotSessionLaunchBase {
 	readonly activeClientToolSet: ActiveClientToolSet;
 	readonly shellManager: ShellManager | undefined;
 	readonly githubCredentials: CopilotGitHubSessionCredentials;
+	/** The Microsoft account the session signs in with instead of {@link githubCredentials}; the SDK takes no such credential when opening a session. */
+	readonly accountContext?: Extract<CopilotAccountContext, { kind: 'ready' }>;
 	/** Receives launch stage timing for the turn that triggered this launch, if any. */
 	readonly stageRecorder?: IAgentProviderSendStageRecorder;
 	/** The on-device model provider installed on {@link client} when the user opted in: replaceable direct-selection rows and turn attribution. */
@@ -1122,6 +1130,7 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ICopilotHomeService private readonly _copilotHomeService: ICopilotHomeService,
 		@ICopilotAccountService private readonly _accountService: ICopilotAccountService,
+		@ICopilotApiService private readonly _copilotApiService: ICopilotApiService,
 	) { }
 
 	async createCustomizationPolicySession(client: CopilotClient, sessionId: string, workingDirectory: string, githubCredentials: CopilotGitHubSessionCredentials, githubHostUri: string): Promise<CopilotSession> {
@@ -1195,23 +1204,18 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		return session;
 	}
 
-	private _assertConversationAuthentication(plan: CopilotSessionLaunchPlan): void {
-		if (this._configurationService.copilotM365EnabledAtStartup && isMicrosoftCopilotAccountContext(this._accountService.state.get()) && !plan.githubCredentials.usesScopedCredential) {
-			this._accountService.requireReady();
-			throw new Error(localize('copilot.microsoftConversationUnavailable', "Microsoft Copilot conversation authentication is not yet available."));
-		}
-	}
-
 	async launch(plan: CopilotSessionLaunchPlan, runtime: ICopilotSessionRuntime): Promise<CopilotSessionWrapper> {
 		if (plan.workspace?.kind === 'virtual' && !plan.virtualSessionFs) {
 			throw new Error('Virtual Copilot sessions require an editor-backed filesystem provider');
 		}
-		this._assertConversationAuthentication(plan);
 		this._logService.info(`[Copilot:${plan.sessionId}] Preparing SDK session: kind=${plan.kind}, configuration=${runtime.launchOwner.toString()}, chat=${runtime.chatUri.toString()}`);
 		let managedSettingsResolved = false;
 		plan.stageRecorder?.mark('config');
 		const built = await this._buildSessionConfig(plan, runtime, () => { managedSettingsResolved = true; });
 		if (runtime.cancellationToken?.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
 			throw new CancellationError();
 		}
 		const modelPolicy = built.modelPolicy;
@@ -1327,6 +1331,16 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			...(trustWorkingDirectory ? { trustWorkingDirectory } : {}),
 			workingDirectory: plan.virtualSessionFs?.pathMapper.rootSdkPath ?? plan.workingDirectory?.fsPath,
 		})));
+		if (plan.accountContext) {
+			try {
+				await this._accountService.authenticateSession(raw, plan.client, plan.accountContext, runtime.cancellationToken ?? CancellationToken.None);
+			} catch (error) {
+				// A resume does not sign in, so a conversation left without its account could never be used.
+				await raw.disconnect().catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to disconnect unauthenticated session`, cleanupError));
+				await plan.client.deleteSession(plan.sessionId).catch(cleanupError => this._logService.error(`[Copilot:${plan.sessionId}] Failed to delete unauthenticated session`, cleanupError));
+				throw error;
+			}
+		}
 		return this._finalizeSession(raw, sandboxConfig, plan, plan.model?.id, config, runtime, trustWorkingDirectory);
 	}
 
@@ -1341,6 +1355,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			}
 			await sandboxConfig(raw);
 			await this._configureExecutionSubagentTool(raw, config);
+			if (plan.accountContext && this._accountService.state.get() !== plan.accountContext) {
+				throw new CancellationError();
+			}
 		} catch (err) {
 			// Nothing owns `raw` until it is wrapped below, so a fail-closed launch has
 			// to disconnect it here or the runtime keeps an orphaned session alive.
@@ -1455,6 +1472,23 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 	}
 
 	/**
+	 * Whether the session's own GitHub account is internal (staff or an internal organization).
+	 * Gates staff-only runtime features per session, since root config is shared by every client
+	 * and editable through host settings. Fails closed.
+	 */
+	private async _isInternalAccount(githubToken: string | undefined): Promise<boolean> {
+		if (!githubToken) {
+			return false;
+		}
+		try {
+			return (await this._copilotApiService.resolveRestrictedTelemetryContext(githubToken)).isInternal === true;
+		} catch (error) {
+			this._logService.debug(`[Copilot] Could not resolve whether the account is internal: ${error instanceof Error ? error.message : String(error)}`);
+			return false;
+		}
+	}
+
+	/**
 	 * Builds the SDK session config. `resetAutoTier` is set for a resume whose forced Auto tier leaves routing to the
 	 * runtime: a resume config cannot clear the journaled tier, so the launch clears it once the session is open.
 	 */
@@ -1474,6 +1508,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		const searchSubagentEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SearchSubagent) === true;
 		const copilotConnectorsEnabled = this._configurationService.getRootValue(platformRootSchema, AgentHostMcpConnectorsEnabledConfigKey) === true;
 		const stabilityOrderedPromptEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.StabilityOrderedPrompt) === true;
+		const securityReviewSecretDetectionEnabled = this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.SecurityReviewSecretDetection) === true
+			&& await this._isInternalAccount(plan.githubCredentials.token);
 		// The runtime defaults CONNECTORS on, so the VS Code rollout gate must explicitly disable it.
 		const featureFlags = {
 			AUTO_APPROVAL: true,
@@ -1496,6 +1532,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			// The runtime regroups the system prompt into global, repository and
 			// per-session cache blocks so a new session reuses the stable prefix.
 			...(stabilityOrderedPromptEnabled ? { STABILITY_ORDERED_SYSTEM_PROMPT_V2: true } : {}),
+			// Runs the fine-tuned secret detection model in /security-review. Always explicit, so runtime
+			// defaults cannot turn it on without the VS Code opt-in.
+			SECURITY_REVIEW_FINE_TUNED_MODEL: securityReviewSecretDetectionEnabled,
 			HYDRAFUSION_PLAN_V2: true,
 			HYDRAFUSION_STICKY_ROOT: true,
 		};
@@ -1600,8 +1639,8 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 		if (modelFamily) {
 			this._logService.info(`[Copilot:${plan.sessionId}] Model capability override: routing prompt for '${describeModelId(model)}' as family '${modelFamily}'`);
 		}
-		// Tool search follows the client's `toolSearch` tool, which users toggle in Chat Customizations.
-		const toolSearchEnabled = agentHostModelSupportsToolSearch(effectiveModel?.id);
+		// An omitted model delegates selection to the runtime, rather than opting out of the client's tool-search choice.
+		const toolSearchEnabled = effectiveModel === undefined || agentHostModelSupportsToolSearch(effectiveModel.id);
 		const resolveToolSearch = (names: ReadonlySet<string>): NonNullable<SessionConfig['toolSearch']> =>
 			toolSearchEnabled && names.has(CLIENT_TOOL_SEARCH_REFERENCE_NAME) ? { enabled: true, deferThreshold: TOOL_SEARCH_DEFER_THRESHOLD } : { enabled: false };
 		const toolSearchActive = resolveToolSearch(filterClientToolNames(trustedClientToolNames(plan.snapshot.tools), availableTools, excludedTools)).enabled === true;
@@ -1758,6 +1797,9 @@ export class CopilotSessionLauncher implements ICopilotSessionLauncher {
 			onUserInputRequest: (request, invocation) => runtime.handleUserInputRequest(request, invocation),
 			askUserVariant: 'elicitation',
 			onElicitationRequest: context => runtime.handleElicitationRequest(context),
+			onShellAuthenticationRequest: this._configurationService.getRootValue(copilotCliConfigSchema, CopilotCliConfigKey.ShellAuthentication) === true
+				? (request, invocation) => runtime.handleShellAuthenticationRequest(request, invocation)
+				: undefined,
 			// VS Code owns durable MCP credentials; the runtime must not consult its keychain store.
 			mcpOAuthTokenStorage: 'in-memory',
 			onMcpAuthRequest: (request, context) => runtime.handleMcpAuthRequest(request, context),

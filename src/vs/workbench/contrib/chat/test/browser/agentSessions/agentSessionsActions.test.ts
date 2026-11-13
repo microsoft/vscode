@@ -13,7 +13,8 @@ import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
 import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -30,7 +31,7 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
@@ -42,6 +43,7 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../../common/chatSessionCommands.js';
+import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('AgentSessionsActions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -49,6 +51,59 @@ suite('AgentSessionsActions', () => {
 
 	suiteSetup(() => actionRegistration = registerAction2(RenameAgentSessionAction));
 	suiteTeardown(() => actionRegistration.dispose());
+
+	test('offers Open Customizations for one selected session and hides it when AI is disabled', () => {
+		disposables.add(registerAction2(OpenAgentSessionCustomizationsAction));
+		const item = MenuRegistry.getMenuItems(MenuId.AgentSessionsContext).filter(isIMenuItem).find(item => item.command.id === 'agentSession.openCustomizations');
+		assert.ok(item);
+		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
+			const values: Record<string, boolean> = {
+				[ChatContextKeys.enabled.key]: enabled,
+				[ChatContextKeys.hasMultipleAgentSessionsSelected.key]: multipleSelection,
+			};
+			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
+			return { visible: item.when?.evaluate(context), enabled: item.command.precondition?.evaluate(context) };
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			single: evaluate(true, false),
+			multiple: evaluate(true, true),
+			aiDisabled: evaluate(false, false),
+		}, {
+			group: 'navigation',
+			single: { visible: true, enabled: true },
+			multiple: { visible: true, enabled: false },
+			aiDisabled: { visible: false, enabled: false },
+		});
+	});
+
+	test('adapts explicit session contexts to the customization command without falling back to another session', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { commandId: string; target: { sessionResource: URI } }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (commandId: string, target: { sessionResource: URI }) => {
+				calls.push({ commandId, target });
+				return undefined;
+			},
+		}));
+		const session = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-copilot:/selected-session') });
+		const other = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-claude:/other-session') });
+		const action = new OpenAgentSessionCustomizationsAction();
+		await instantiationService.invokeFunction(accessor => action.run(accessor, session));
+		await instantiationService.invokeFunction(accessor => action.run(accessor, {
+			$mid: MarshalledId.AgentSessionContext, session, sessions: [session],
+		}));
+		for (const sessions of [[], [session, other]]) {
+			await assert.rejects(() => instantiationService.invokeFunction(accessor => action.run(accessor, {
+				$mid: MarshalledId.AgentSessionContext, session, sessions,
+			})), /Select a single session/);
+		}
+		await assert.rejects(() => instantiationService.invokeFunction(accessor => action.run(accessor)), /Select a single session/);
+		assert.deepStrictEqual(calls, Array(2).fill({
+			commandId: AICustomizationManagementCommands.OpenEditor,
+			target: { sessionResource: session.resource },
+		}));
+	});
 
 	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {
 		const registrations = disposables.add(new DisposableStore());

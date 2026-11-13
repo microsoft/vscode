@@ -15,7 +15,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { FileOperationError, FileOperationResult } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { setCopilotRepositoryPluginEnabled } from '../../node/copilot/copilotRepositoryPluginSettings.js';
+import { readCopilotRepositoryPluginEnablement, setCopilotRepositoryPluginEnabled } from '../../node/copilot/copilotRepositoryPluginSettings.js';
 
 suite('CopilotRepositoryPluginSettings', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -29,6 +29,30 @@ suite('CopilotRepositoryPluginSettings', () => {
 	});
 
 	teardown(() => sinon.restore());
+
+	for (const content of ['{ invalid', '{"enabledPlugins":{"plugin@marketplace":"invalid"}}']) {
+		test(`reports invalid repository inventory as a read failure: ${content}`, async () => {
+			await fileService.writeFile(settings, VSBuffer.fromString(content));
+			await assert.rejects(() => readCopilotRepositoryPluginEnablement(fileService, repository), /Cannot read repository plugin enablement/);
+		});
+	}
+
+	test('restores inheritance without creating settings or removing other choices', async () => {
+		await setCopilotRepositoryPluginEnabled(fileService, repository, 'plugin@marketplace', null);
+		const absent = await fileService.exists(settings);
+		await fileService.writeFile(settings, VSBuffer.fromString('{\n  // Keep this setting.\n  "model": "existing",\n  "enabledPlugins": { "plugin@marketplace": false, "other@marketplace": true }\n}'));
+		const before = [...await readCopilotRepositoryPluginEnablement(fileService, repository)];
+		await setCopilotRepositoryPluginEnabled(fileService, repository, 'plugin@marketplace', null);
+		const content = (await fileService.readFile(settings)).value.toString();
+		assert.deepStrictEqual({
+			absent, before, after: [...await readCopilotRepositoryPluginEnablement(fileService, repository)],
+			settings: parse(content), commentPreserved: content.includes('// Keep this setting.'),
+		}, {
+			absent: false, before: [['plugin@marketplace', false], ['other@marketplace', true]],
+			after: [['other@marketplace', true]], settings: { model: 'existing', enabledPlugins: { 'other@marketplace': true } },
+			commentPreserved: true,
+		});
+	});
 
 	test('creates shared repository settings and preserves other plugin decisions across concurrent writes', async () => {
 		await Promise.all([

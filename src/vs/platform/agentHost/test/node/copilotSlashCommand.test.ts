@@ -503,7 +503,7 @@ suite('Copilot slash command handlers', () => {
 			});
 		});
 
-		test('qualifies runtime list entries using the installed plugin inventory', async () => {
+		test('qualifies session-enabled plugins without applying the persisted disabled flag', async () => {
 			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
 				{ name: 'azure', marketplace: 'awesome-copilot', enabled: false },
 			]);
@@ -521,8 +521,24 @@ suite('Copilot slash command handlers', () => {
 				text: [
 					'# Installed plugins',
 					'',
-					'- `azure@awesome-copilot` — v1.2.94 (disabled)',
+					'- `azure@awesome-copilot` — v1.2.94',
 				].join('\n'),
+				markdown: true,
+			});
+		});
+
+		test('preserves session-disabled plugins despite an enabled installation record', async () => {
+			const handler = getCopilotCustomizationCommandHandler(command, undefined, async () => [
+				{ name: 'azure', marketplace: 'awesome-copilot', enabled: true },
+			]);
+			const output = await handler?.getOutput?.('list', {
+				kind: 'text',
+				text: 'Installed Plugins:\n\n  • azure (disabled)',
+			});
+
+			assert.deepStrictEqual(output, {
+				kind: 'text',
+				text: '# Installed plugins\n\n- `azure@awesome-copilot` (disabled)',
 				markdown: true,
 			});
 		});

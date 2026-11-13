@@ -22,7 +22,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { TelemetryConfiguration } from '../../../telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { AGENT_HOST_ENDPOINT_REGISTRY_SCHEMA_VERSION, type AgentHostEndpointAddress, type IAgentHostEndpointMetadata } from '../../common/agentHostEndpointRegistry.js';
-import { SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
+import { isSSHAuthenticationFailedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHConnectProgress, type ISSHEndpointSelection, type ISSHEndpointSelectionRequest, type ISSHKeyboardInteractivePrompt, type ISSHKeyboardInteractiveRequest, type ISSHResolvedConfig } from '../../common/sshRemoteAgentHost.js';
 import { SSHRemoteAgentHostMainService, makeAuthHandler, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import { parseSSHGOutput } from '../../common/sshConfigParsing.js';
 import type { AnyAuthMethod, AuthenticationType, ConnectConfig } from 'ssh2';
@@ -565,6 +565,28 @@ suite('SSHRemoteAgentHostMainService - connect flow', () => {
 				}, {
 					message: expectedMessage, code: 'ECONNREFUSED', name: error.name,
 					log: [`[SSHRemoteAgentHost] SSH connection error: ${expectedMessage}`],
+				});
+				return true;
+			});
+		});
+	}
+
+	for (const level of ['client-authentication', 'client-dns', 'client-socket', 'client-timeout', undefined]) {
+		test(`classifies SSH authentication failure by level (${level}) rather than message`, async () => {
+			const connecting = disposables.add(new KeyboardInteractiveConnectTestService(
+				new NullLogService(), { quality, dataFolderName } as IProductService, NullTelemetryService));
+			const error = Object.assign(new Error(level === 'client-authentication' ? 'Credentials rejected' : 'All configured authentication methods failed'), { level });
+			connecting.client.connectError = error;
+
+			await assert.rejects(connecting.connectSSHForTest(makeConfig()), actual => {
+				assert.deepStrictEqual({
+					authenticationFailed: isSSHAuthenticationFailedError(actual),
+					sameError: actual === error,
+					message: toErrorMessage(actual),
+				}, {
+					authenticationFailed: level === 'client-authentication',
+					sameError: level !== 'client-authentication',
+					message: error.message,
 				});
 				return true;
 			});

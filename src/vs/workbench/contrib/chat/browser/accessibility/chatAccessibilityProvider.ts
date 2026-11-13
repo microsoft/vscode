@@ -16,12 +16,12 @@ import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/
 import { getTerminalExecutionTargetDescription, migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { getExplicitFileOrImageAttachmentSummary } from '../../common/attachments/chatVariableEntries.js';
 import { IChatToolInvocation } from '../../common/chatService/chatService.js';
-import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../common/model/chatViewModel.js';
 import { isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { CancelChatActionId } from '../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../actions/chatToolActions.js';
 import { ChatTreeItem, IChatResponseIdentity } from '../chat.js';
-import { getChatRequestText } from '../chatRequestText.js';
+import { getChatRequestText, getChatScheduledRequestAccessibleText } from '../chatRequestText.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -117,6 +117,9 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	getAriaLabel(element: ChatTreeItem): string {
+		if (isScheduledRequestVM(element)) {
+			return getChatScheduledRequestAccessibleText(element);
+		}
 		if (isRequestVM(element)) {
 			return getChatRequestText(element).trim()
 				|| getExplicitFileOrImageAttachmentSummary(element.variables)

@@ -984,4 +984,43 @@ suite('AgentsWindowExtensionsWidget', () => {
 			goBack: { page: false, pages: ['clear'], focus: 'Tools', goBackReturns: false },
 		});
 	});
+
+	test('shows the page of an installed extension that another section links to, or searches for an extension that isn\'t installed', async () => {
+		const container = createContainer();
+		const tools = anExtension('pub.tools', { displayName: 'Tools' });
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		instantiationService.stub(IExtensionsWorkbenchService, new class extends mock<IExtensionsWorkbenchService>() {
+			override readonly local = [tools];
+			override readonly onChange = Event.None;
+			override canSetLanguage() { return false; }
+		});
+		instantiationService.stub(IWorkbenchExtensionEnablementService, new class extends mock<IWorkbenchExtensionEnablementService>() {
+			override isEnabledEnablementState() { return false; }
+			override canChangeWorkspaceEnablement() { return true; }
+		});
+		const pages: string[] = [];
+		instantiationService.stubInstance(AgentsWindowExtensionPage, new class extends mock<AgentsWindowExtensionPage>() {
+			override async show(extension: IExtension) { pages.push(`show ${extension.identifier.id}`); }
+			override clear() { pages.push('clear'); }
+			override layout() { }
+			override dispose() { }
+		}());
+		stubSectionServices(instantiationService);
+		const widget = disposables.add(instantiationService.createInstance(AgentsWindowExtensionsWidget, container, anEditorGroup()));
+		widget.setVisible(true);
+		const section = container.querySelector<HTMLElement>('.agents-window-extensions')!;
+		const searchInput = container.querySelector<HTMLInputElement>('.agents-window-extensions-search input')!;
+		const state = () => ({ page: section.classList.contains('shows-extension-page'), pages: pages.splice(0), search: searchInput.value });
+
+		// Extension identifiers are case-insensitive.
+		widget.showExtension('PUB.Tools');
+		const installed = state();
+		widget.showExtension('pub.missing');
+		const missing = state();
+
+		assert.deepStrictEqual({ installed, missing }, {
+			installed: { page: true, pages: ['show pub.tools'], search: '' },
+			missing: { page: false, pages: ['clear'], search: 'pub.missing' },
+		});
+	});
 });

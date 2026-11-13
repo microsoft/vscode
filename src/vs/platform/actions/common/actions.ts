@@ -122,6 +122,7 @@ export class MenuId {
 	static readonly EditorGroupWatermarkToolbar = new MenuId('EditorGroupWatermarkToolbar');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
+	static readonly EditorTabsBarAddTab = new MenuId('EditorTabsBarAddTab');
 	static readonly EditorTabsBarShowTabsZenModeSubmenu = new MenuId('EditorTabsBarShowTabsZenModeSubmenu');
 	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
 	static readonly DiffEditorViewSubmenu = new MenuId('DiffEditorViewSubmenu');
@@ -284,7 +285,9 @@ export class MenuId {
 	static readonly ChatSubagentContent = new MenuId('ChatSubagentContent');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteQueue = new MenuId('ChatExecuteQueue');
+	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
 	static readonly ChatInput = new MenuId('ChatInput');
+	static readonly ChatScheduledExecute = new MenuId('ChatScheduledExecute');
 	static readonly ChatInputSecondary = new MenuId('ChatInputSecondary');
 	static readonly ChatInputStatus = new MenuId('ChatInputStatus');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
@@ -345,6 +348,8 @@ export class MenuId {
 	static readonly SessionItemContextMenu = new MenuId('SessionItemContextMenu');
 	static readonly SessionHeaderContext = new MenuId('SessionsSessionHeaderContext');
 	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
+	/** Buttons that extensions contribute to the title bar of the Agents window, left of its built-in buttons. */
+	static readonly AgentsTitleBar = new MenuId('AgentsTitleBar');
 	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
 	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
 	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');

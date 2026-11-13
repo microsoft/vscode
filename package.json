@@ -2,12 +2,12 @@
   "name": "code-oss-dev",
   "version": "1.147.0",
   "packageManager": "pnpm@12.16.0",
-  "distro": "c7f10af2a65c7aa7bad7c7d13e765d685665ee98",
+  "distro": "6bd04838efcabcaa1e3ebabe21a3ace8404875e9",
   "nativeBuild": {
     "runtime": "electron",
-    "target": "43.8.6",
+    "target": "43.8.9",
     "disturl": "https://electronjs.org/headers",
-    "msBuildId": "15893748",
+    "msBuildId": "16012121",
     "buildFromSource": true
   },
   "author": {
@@ -79,7 +79,7 @@
     "tsec-compile-check": "node --max-old-space-size=8192 build/lib/tsec.ts",
     "vscode-dts-compile-check": "tsc --project src/tsconfig.vscode-dts.json && tsc --project src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/checker/layersChecker.ts && node build/checker/layersTypeCheck.ts",
-    "define-class-fields-check": "node --max-old-space-size=8192 build/lib/propertyInitOrderChecker.ts && tsc --project src/tsconfig.defineClassFields.json",
+    "define-class-fields-check": "tsc --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.ts",
     "export-policy-data": "node build/lib/policies/exportPolicyData.ts",
     "web": "echo 'pnpm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
@@ -112,7 +112,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
     "@devcontainers/cli": "0.88.0",
-    "@github/copilot-sdk": "1.0.32-preview.1",
+    "@github/copilot-sdk": "1.0.33-preview.0",
     "@hpke/core": "^1.9.0",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
@@ -143,16 +143,16 @@
     "@vscode/windows-mutex": "^0.5.0",
     "@vscode/windows-process-tree": "^0.8.0",
     "@vscode/windows-registry": "^1.3.0",
-    "@xterm/addon-clipboard": "^0.3.0-beta.303",
-    "@xterm/addon-image": "^0.10.0-beta.301",
-    "@xterm/addon-ligatures": "^0.11.0-beta.301",
-    "@xterm/addon-progress": "^0.3.0-beta.301",
-    "@xterm/addon-search": "^0.17.0-beta.301",
-    "@xterm/addon-serialize": "^0.15.0-beta.301",
-    "@xterm/addon-unicode11": "^0.10.0-beta.301",
-    "@xterm/addon-webgl": "^0.20.0-beta.300",
-    "@xterm/headless": "^6.1.0-beta.303",
-    "@xterm/xterm": "^6.1.0-beta.304",
+    "@xterm/addon-clipboard": "^0.3.0-beta.334",
+    "@xterm/addon-image": "^0.10.0-beta.331",
+    "@xterm/addon-ligatures": "^0.11.0-beta.330",
+    "@xterm/addon-progress": "^0.3.0-beta.330",
+    "@xterm/addon-search": "^0.17.0-beta.330",
+    "@xterm/addon-serialize": "^0.15.0-beta.330",
+    "@xterm/addon-unicode11": "^0.10.0-beta.330",
+    "@xterm/addon-webgl": "^0.20.0-beta.329",
+    "@xterm/headless": "^6.1.0-beta.334",
+    "@xterm/xterm": "^6.1.0-beta.336",
     "chrome-remote-interface": "^0.33.0",
     "detect-libc": "^2.1.2",
     "foundry-local-sdk": "2.2.1",
@@ -281,5 +281,5 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.6.1"
   },
-  "copilotRuntimeVersion": "1.0.110-1"
+  "copilotRuntimeVersion": "1.0.111-0"
 }

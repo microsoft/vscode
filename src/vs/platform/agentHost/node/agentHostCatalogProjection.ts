@@ -379,6 +379,7 @@ const codexSessionModelValidator = new RefinedValidator(plainObject(vObj({
 
 export const agentHostCatalogSessionOriginValidator = plainObject(vObj({
 	kind: vEnum(SessionOriginKind.Automation),
+	purpose: vOptionalProp(vEnum('scheduledChat')),
 	automation: uriString(),
 	run: uriString(),
 }));

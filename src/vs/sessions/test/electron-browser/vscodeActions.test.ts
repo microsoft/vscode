@@ -20,7 +20,6 @@ import { IAgentHostSessionsProvider } from '../../../workbench/contrib/sessions/
 import { ISessionsProvider } from '../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { LabelService } from '../../../workbench/services/label/common/labelService.js';
 import { workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
 import { splitRecentLabel } from '../../../base/common/labels.js';
 import { ILabelService } from '../../../platform/label/common/label.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,6 +27,7 @@ import { IAgentHostConnectionsService } from '../../../platform/agentHost/common
 import { remoteAgentHostSessionTypeId } from '../../../platform/agentHost/common/agentHostSessionType.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { PathStyle } from '../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { ISSHAgentHostConnection, ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService, TunnelGatewayServerType } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 
@@ -254,7 +254,7 @@ suite('VS Code Actions', () => {
 			const address = getEntryAddress(entry);
 			const folder = toAgentHostUri(URI.file('/remote/project'), agentHostAuthority(address));
 			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: address });
-			const formatter = agentHostLabelFormatter(folder.authority, OperatingSystem.Linux);
+			const formatter = agentHostLabelFormatter(folder.authority, PathStyle.Posix);
 			disposables.add(labelService.registerFormatter({
 				...formatter,
 				formatting: { ...formatter.formatting, workspaceSuffix: entry.name },
@@ -296,7 +296,7 @@ suite('VS Code Actions', () => {
 		const calls: { uri: URI; label: string | undefined; title: string | undefined }[][] = [];
 		const authority = agentHostAuthority('test:host');
 		const folders = ['/c:/remote/project', '/d:/other/repository'].map(path => toAgentHostUri(URI.from({ scheme: 'file', path }), authority));
-		const formatter = agentHostLabelFormatter(authority, OperatingSystem.Windows);
+		const formatter = agentHostLabelFormatter(authority, PathStyle.Windows);
 		disposables.add(labelService.registerFormatter({
 			...formatter,
 			formatting: { ...formatter.formatting, workspaceSuffix: 'Windows dev box' },
