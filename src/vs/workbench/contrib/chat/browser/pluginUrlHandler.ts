@@ -27,6 +27,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { AICustomizationManagementCommands } from '../common/aiCustomizationWorkspaceService.js';
 import { SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
+import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IMarketplaceReference, MarketplaceReferenceKind, parseMarketplaceReference, parseMarketplaceReferences, parseProviderMarketplaceReference, readConfiguredMarketplaces } from '../common/plugins/marketplaceReference.js';
 
@@ -44,6 +45,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 	constructor(
 		@IURLService urlService: IURLService,
 		@IAgentHostService private readonly agentHostService: IAgentHostService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IPluginInstallService private readonly pluginInstallService: IPluginInstallService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDialogService private readonly dialogService: IDialogService,
@@ -168,8 +170,16 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		}
 		const provider = COPILOT_CLI_AGENT_PROVIDER_ID;
 		const marketplaces = await this.agentHostService.listPluginMarketplaces(provider);
-		const existing = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
-		const marketplace = existing ?? await this.agentHostService.addPluginMarketplace(provider, undefined, ref.rawValue);
+		let marketplace = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
+		if (!marketplace) {
+			const managementProvider = this.harnessService.getDescriptorForSession(
+				this.harnessService.getSessionResourceForHarness(SessionType.AgentHostCopilot),
+			)?.marketplaceManagementProvider;
+			if (!managementProvider) {
+				throw new Error(localize('pluginLinkMarketplaceManagementUnavailable', "Copilot marketplace management is unavailable in this window."));
+			}
+			marketplace = await managementProvider.add(undefined, ref.rawValue);
+		}
 		if (pluginName) {
 			const plugins = await this.agentHostService.browsePluginMarketplace!(provider, undefined, marketplace.name);
 			if (!plugins.some(plugin => plugin.name === pluginName)) {

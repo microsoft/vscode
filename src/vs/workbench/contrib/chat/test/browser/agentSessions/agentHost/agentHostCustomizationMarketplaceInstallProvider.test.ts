@@ -136,6 +136,45 @@ suite('AgentHostCustomizationMarketplaceInstallProvider', () => {
 		});
 	});
 
+	test('session-free marketplace additions notify source consumers without resolving a session or chat', async () => {
+		const calls: unknown[] = [];
+		const provider = store.add(createTestProvider(
+			'copilotcli',
+			async () => true,
+			new class extends mock<IAgentHostService>() {
+				override readonly onAgentHostStart = Event.None;
+				override readonly onAgentHostExit = Event.None;
+				override async addPluginMarketplace(provider: string, session: URI | undefined, source: string, chat?: URI) {
+					calls.push([provider, session, source, chat]);
+					if (source === 'invalid') {
+						throw new Error('SDK rejected source');
+					}
+					return { name: 'catalog', source, isDefault: false, managed: false, available: true };
+				}
+			}(),
+			new class extends mock<IAgentHostConnectionsService>() { }(),
+			new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+			}(),
+			new class extends mock<IDialogService>() { }(),
+			new NullLogService(),
+			pluginService,
+		));
+		const changes: string[] = [];
+		store.add(provider.onDidChangeMarketplaces(() => changes.push('marketplaces')));
+		store.add(provider.onDidChange(() => changes.push('customizations')));
+
+		await provider.add(undefined, 'owner/repo#feature/beta');
+		await assert.rejects(provider.add(undefined, 'invalid'), /SDK rejected source/);
+		assert.deepStrictEqual({ calls, changes }, {
+			calls: [
+				['copilotcli', undefined, 'owner/repo#feature/beta', undefined],
+				['copilotcli', undefined, 'invalid', undefined],
+			],
+			changes: ['marketplaces', 'customizations'],
+		});
+	});
+
 	test('routes saved feeds through the owning session and preserves SDK identities and authentication recovery', async () => {
 		const requests: { session: string; request: IAgentCustomizationMarketplaceSearchRequest }[] = [];
 		const provider = store.add(createTestProvider(
