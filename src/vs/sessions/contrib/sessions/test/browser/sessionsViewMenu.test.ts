@@ -22,7 +22,7 @@ import { IMenuService, isIMenuItem, isISubmenuItem, MenuId, MenuRegistry } from 
 import { MenuService } from '../../../../../platform/actions/common/menuService.js';
 import { ChatExternalSessionsMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId } from '../../../../../platform/chat/common/sessionArchiveActions.js';
-import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
@@ -42,14 +42,14 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
-import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
-import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, SessionChangesetOperationScope, SessionChangesetOperationStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISession, ISessionChangeset, ISessionChangesetOperation, ISessionEnvironment, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
 import { buildTestSession } from '../../../../../workbench/contrib/sessions/test/common/testSessionBuilder.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
-import { getSessionArchiveOnboardingTargetId, SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { getSessionArchiveOnboardingTargetId, SessionItemCanAcknowledgeContext, SessionItemCanMergePullRequestContext, SessionItemContextMenuId, SessionItemInboxStateContext, SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { getInboxPullRequestMergeOperation } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -405,6 +405,61 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('Acknowledge is available inline and in the context menu independently of read state only in Inbox with AI enabled', () => {
+		const { grouping, contextKeyService } = createMenu();
+		const eligible = SessionItemCanAcknowledgeContext.bindTo(contextKeyService);
+		eligible.set(true);
+		const actions = () => [Menus.SessionItemToolbar, SessionItemContextMenuId].flatMap(id =>
+			MenuRegistry.getMenuItems(id).filter(isIMenuItem)
+				.filter(item => item.command.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID && contextKeyService.contextMatchesRules(item.when))
+				.map(item => ({ group: item.group, enabled: contextKeyService.contextMatchesRules(item.command.precondition) })));
+		const ordinary = actions();
+		grouping.set(SessionsGrouping.Inbox);
+		SessionIsReadContext.bindTo(contextKeyService).set(false);
+		const unread = actions();
+		SessionIsReadContext.bindTo(contextKeyService).set(true);
+		const read = actions();
+		SessionItemIsMultiSelectionContext.bindTo(contextKeyService).set(true);
+		const multiple = actions();
+		eligible.set(false);
+		const ineligible = actions();
+		eligible.set(true);
+		SessionIsArchivedContext.bindTo(contextKeyService).set(true);
+		const archived = actions();
+		SessionIsArchivedContext.bindTo(contextKeyService).set(false);
+		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
+		const available = [{ group: 'navigation', enabled: true }, { group: '1_state', enabled: true }];
+		assert.deepStrictEqual({ ordinary, unread, read, multiple, ineligible, archived, hidden: actions() }, {
+			ordinary: [], unread: available, read: available, multiple: available, ineligible: [], archived: [], hidden: [],
+		});
+	});
+
+	test('bulk Acknowledge changes only current Inbox activity and leaves held, working, and archived sessions alone', async () => {
+		const sessions = [
+			...['unread', 'read', 'held'].map(id => buildTestSession({ id, title: id, isRead: id === 'read' }).session),
+			buildTestSession({ id: 'working', title: 'Working', status: SessionStatus.InProgress }).session,
+			buildTestSession({ id: 'archived', title: 'Archived', isArchived: true }).session,
+		];
+		const harness = createListHarness(store, sessions);
+		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+		harness.instantiationService.stub(ISessionsListModelService, model);
+		model.setInboxState([sessions[2]], 'hold');
+		const notices: ISessionsListNotice[] = [];
+		harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
+			upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+		await CommandsRegistry.getCommand(ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!.handler(harness.instantiationService, sessions);
+		const acknowledged = sessions.map(session => model.getInboxState(session)?.kind);
+		assert.deepStrictEqual({
+			acknowledged, notices,
+			read: sessions.map(session => session.isRead.get()), archived: sessions.map(session => session.isArchived.get()),
+			providerActions: { read: harness.managementService.readSessions, archived: harness.managementService.archived, cancelled: harness.managementService.cancelled, deleted: harness.managementService.deleted },
+		}, {
+			acknowledged: ['done', 'done', 'hold', undefined, undefined], notices: [],
+			read: [false, true, false, true, true], archived: [false, false, false, false, true],
+			providerActions: { read: [], archived: [], cancelled: [], deleted: [] },
+		});
+	});
+
 	test('bulk inbox triage remains undoable without archiving or closing sessions', async () => {
 		const sessions = ['first', 'second', 'archived'].map(id => buildTestSession({ id, title: id, isArchived: id === 'archived', isRead: false }).session);
 		const harness = createListHarness(store, sessions);
@@ -438,7 +493,7 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('hold, resume, and snooze leave the session open and Inbox has no separate dismissal command', async () => {
+	test('hold, resume, and snooze leave the session open without single-session notices', async () => {
 		const session = buildTestSession({ id: 'session', title: 'Session' }).session;
 		const harness = createListHarness(store, [session]);
 		const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
@@ -456,9 +511,9 @@ suite('Sessions - View Menu', () => {
 			await CommandsRegistry.getCommand(`sessionsViewPane.${action}`)!.handler(harness.instantiationService, session);
 			counts.push({ notices: notices.length, closed: closed.length });
 		}
-		assert.deepStrictEqual({ counts, closed, dismissal: CommandsRegistry.getCommand('sessionsViewPane.inboxDone'), archived: session.isArchived.get() }, {
+		assert.deepStrictEqual({ counts, closed, archived: session.isArchived.get() }, {
 			counts: [{ notices: 0, closed: 0 }, { notices: 0, closed: 0 }, { notices: 0, closed: 0 }],
-			closed: [], dismissal: undefined, archived: false,
+			closed: [], archived: false,
 		});
 	});
 
@@ -504,6 +559,80 @@ suite('Sessions - View Menu', () => {
 			afterNavigation: [undefined, undefined], states: ['done', 'done'], archived: [false, false], read: [false, false],
 		});
 	});
+
+	for (const source of ['toolbar', 'context menu']) {
+		test(`Acknowledge from the ${source} quietly removes an already-read active Inbox session and returns on activity`, async () => {
+			const built = buildTestSession({ id: 'first', title: 'First', isRead: true });
+			const other = buildTestSession({ id: 'second', title: 'Second', isRead: false }).session;
+			const session = built.session;
+			const activeSession = constObservable({ ...session, activeChat: session.mainChat });
+			const harness = createListHarness(store, [session, other], { activeSession });
+			const model = store.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			harness.instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+				executeCommand: async (id, ...args) => {
+					await CommandsRegistry.getCommand(id)!.handler(harness.instantiationService, ...args);
+					return undefined;
+				},
+			}));
+			const context = store.add(new ContextKeyService(harness.instantiationService.get(IConfigurationService)));
+			ChatContextKeys.enabled.bindTo(context).set(true);
+			SessionsViewGroupingContext.bindTo(context).set(SessionsGrouping.Inbox);
+			harness.instantiationService.stub(IContextKeyService, context);
+			harness.instantiationService.stub(IMenuService, store.add(harness.instantiationService.createInstance(MenuService)));
+			const notices: ISessionsListNotice[] = [];
+			harness.instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'getViewWithId', () =>
+				upcastPartial<SessionsView>({ listNotification: upcastPartial<SessionsListNotification>({ show: notice => notices.push(notice) }) }));
+			let shown: IContextMenuDelegate | undefined;
+			harness.instantiationService.stub(IContextMenuService, {
+				showContextMenu: (delegate: IContextMenuDelegate) => { shown = delegate; },
+			});
+			let grouping = SessionsGrouping.Inbox;
+			const container = harness.createContainer();
+			const list = store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => grouping, sorting: () => SessionsSorting.Created, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			list.setSelectedItems([{ session: session.resource }]);
+			list.setFocusedItem({ session: session.resource });
+			list.focus();
+			const row = list.getItemRow({ session: session.resource })!;
+			if (source === 'toolbar') {
+				await retry(async () => assert.ok(row.querySelector('.session-title-toolbar [aria-label^="Acknowledge"]')), 10, 100);
+				const button = row.querySelector<HTMLElement>('.session-title-toolbar [aria-label^="Acknowledge"]')!;
+				button.focus();
+				assert.strictEqual(getActiveElement(), button);
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', keyCode: 9, bubbles: true }));
+				button.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true }));
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, bubbles: true }));
+			} else {
+				row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+				assert.ok(shown);
+				const action = shown.getActions().find(action => action.id === ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID)!;
+				await shown.actionRunner!.run(action, shown.getActionsContext?.());
+			}
+			await retry(async () => assert.deepStrictEqual(list.getVisibleSessions().map(session => session.sessionId), [other.sessionId]), 10, 100);
+			const acknowledged = model.getInboxState(session)?.kind;
+			const stillActive = activeSession.get().sessionId;
+			const keyboardFocusRetained = source !== 'toolbar' || container.contains(getActiveElement());
+			grouping = SessionsGrouping.Workspace;
+			list.update();
+			const availableElsewhere = list.getVisibleSessions().includes(session);
+			grouping = SessionsGrouping.Inbox;
+			built.status.set(SessionStatus.InProgress, undefined);
+			built.status.set(SessionStatus.Completed, undefined);
+			list.update();
+			assert.deepStrictEqual({
+				acknowledged, notices, stillActive, keyboardFocusRetained, availableElsewhere, resurfaced: list.getVisibleSessions().includes(session),
+				read: session.isRead.get(), otherRead: other.isRead.get(), archived: session.isArchived.get(),
+				providerActions: { read: harness.managementService.readSessions, archived: harness.managementService.archived, cancelled: harness.managementService.cancelled, deleted: harness.managementService.deleted },
+			}, {
+				acknowledged: 'done', notices: [], stillActive: session.sessionId, keyboardFocusRetained: true, availableElsewhere: true, resurfaced: true,
+				read: true, otherRead: false, archived: false,
+				providerActions: { read: [], archived: [], cancelled: [], deleted: [] },
+			});
+		});
+	}
 
 	test('inbox keeps the real archive toolbar target visible throughout onboarding', async () => {
 		const sessions = ['first', 'second'].map(id => buildTestSession({ id, title: id }).session);
