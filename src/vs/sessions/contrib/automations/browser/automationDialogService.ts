@@ -31,7 +31,7 @@ import { IHostService } from '../../../../workbench/services/host/browser/host.j
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAutomationSessionConfiguration } from '../../../services/sessions/common/sessionsProvider.js';
-import { AutomationSessionConfigurationCapture, buildChangedAutomationFields, buildAutomationDisableConditions, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
+import { AutomationSessionConfigurationCapture, buildAutomationDisableConditions, getAutomationDialogProviders, IFormState, IValidationState, isAutomationDialogPopupTarget, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from './automationDialog.js';
 import { AutomationDialogTelemetry } from './automationTelemetry.js';
 
 const $ = DOM.$;
@@ -134,7 +134,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 		let focusSessionConfigurationError: () => void = () => { };
 		let getFocusableElements: () => readonly HTMLElement[] = () => [];
 		let focusFirst: () => void = () => { };
-		let refreshDisableConditionsWarning: () => void = () => { };
 		let saveInProgress = false;
 		const saveCancellation = disposables.add(new MutableDisposable<CancellationTokenSource>());
 		const completion = new DeferredPromise<IAutomationDialogResult | undefined>();
@@ -162,6 +161,7 @@ export class AutomationDialogService implements IAutomationDialogService {
 			if (!target) {
 				return undefined;
 			}
+			const disableConditions = buildAutomationDisableConditions(state.endDate);
 			if (existing) {
 				const patch: IUpdateAutomationOptions = {
 					name: state.name,
@@ -171,11 +171,10 @@ export class AutomationDialogService implements IAutomationDialogService {
 					...(sessionConfigurationCapture.kind === 'captured' ? {
 						sessionTemplate: sessionTemplate ?? null,
 					} : {}),
-					...buildChangedAutomationFields(state.enabled, state.endDate, existing),
+					...(state.endDate !== getAutomationAfterDate(existing.disableConditions) ? { disableConditions } : {}),
 				};
 				return { kind: 'update', id: existing.id, value: patch };
 			}
-			const disableConditions = buildAutomationDisableConditions(state.endDate);
 			const create: ICreateAutomationOptions = {
 				name: state.name.trim() ? state.name : deriveAutomationName(prompt),
 				prompt,
@@ -209,7 +208,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 				return;
 			}
 			revalidate();
-			refreshDisableConditionsWarning();
 			if (validation.nameError || validation.promptError || validation.folderError || validation.sessionTypeError || validation.branchError || validation.endDateError) {
 				dialogTelemetry.validationFailed();
 				return;
@@ -241,7 +239,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 					return;
 				}
 				revalidate();
-				refreshDisableConditionsWarning();
 				if (validation.sessionTypeError || validation.endDateError) {
 					return;
 				}
@@ -332,7 +329,6 @@ export class AutomationDialogService implements IAutomationDialogService {
 					showSessionConfigurationError = handle.showSessionConfigurationError;
 					focusSessionConfigurationError = handle.focusSessionConfigurationError;
 					getFocusableElements = handle.getFocusableElements;
-					refreshDisableConditionsWarning = handle.refreshDisableConditionsWarning;
 					const keyboardNavigation = disposables.add(registerAutomationDialogKeyboardNavigation(
 						DOM.getWindow(container),
 						() => [

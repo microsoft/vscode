@@ -64,7 +64,7 @@ import { IAutomationSessionConfiguration } from '../../../../services/sessions/c
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { AutomationDialogService } from '../../browser/automationDialogService.js';
-import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildChangedAutomationFields, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationDurationEndDate, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
+import { AutomationIsolationGroupActionViewItem, AutomationSessionDraftSynchronizer, buildAutomationDisableConditions, canSelectAutomationWorkspace, getAutomationDialogProviders, getAutomationDurationEndDate, getAutomationEndDateError, IFormState, IValidationState, isAutomationDialogPopupTarget, MobileAutomationsWorkspacePicker, registerAutomationDialogKeyboardNavigation, renderForm, shouldPassThroughAutomationDialogCommand, updateSaveButtonState } from '../../browser/automationDialog.js';
 import { AutomationInputCompletions } from '../../browser/automationInputCompletions.js';
 import { AutomationIsolationModel } from '../../common/isolationGroupModel.js';
 
@@ -270,6 +270,36 @@ suite('Automation dialog creation', () => {
 		const edited = await edit.result;
 		assert.ok(edited?.kind === 'update');
 		assert.deepStrictEqual({ disableConditions: edited.value.disableConditions, enabled: edited.value.enabled }, { disableConditions: undefined, enabled: undefined });
+	});
+
+	test('preserves or clears a disabled automation end date without resending enablement', async () => {
+		const existing: IAutomationDescriptor = {
+			id: 'existing', name: 'Expired automation', prompt: 'Review changes',
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'manual', scheduleHour: 9, scheduleMinute: 0, scheduleDay: 1 },
+			enabled: false, createdAt: '', updatedAt: '',
+			disableConditions: buildAutomationDisableConditions('2000-01-21T17:24:37.123Z'),
+		};
+		const edit = openDialog({ existing });
+		edit.setName('Changed name');
+		edit.saveButton.click();
+		const preserved = await edit.result;
+		assert.ok(preserved?.kind === 'update');
+
+		const clear = openDialog({ existing });
+		const unit = clear.container.querySelector<HTMLSelectElement>('[aria-label="Disables after: unit"]')!;
+		unit.selectedIndex = 0;
+		unit.dispatchEvent(new (DOM.getWindow(unit).Event)('change'));
+		clear.saveButton.click();
+		const cleared = await clear.result;
+		assert.ok(cleared?.kind === 'update');
+		assert.deepStrictEqual({
+			preserved: { endDate: preserved.value.disableConditions, enabled: preserved.value.enabled },
+			cleared: { endDate: cleared.value.disableConditions, enabled: cleared.value.enabled },
+		}, {
+			preserved: { endDate: undefined, enabled: undefined },
+			cleared: { endDate: [], enabled: undefined },
+		});
 	});
 });
 
@@ -2012,24 +2042,6 @@ suite('Automation dialog end date', () => {
 		});
 	});
 
-	test('duration mode preserves an existing expired cutoff until explicitly changed', () => {
-		const date = '2000-01-21T14:30:00Z';
-		const { form, state, handle, validation } = renderEndDateForm({
-			state: createFormState({ endDate: date }),
-			disableConditions: buildAutomationDisableConditions(date),
-		});
-		handle.refreshDisableConditionsWarning();
-		assert.deepStrictEqual({
-			date: state.endDate, error: validation.endDateError,
-			warning: form.querySelector('#automation-conditions-warning')!.textContent,
-			patch: buildChangedAutomationFields(true, state.endDate, { enabled: true, disableConditions: buildAutomationDisableConditions(date) }),
-		}, {
-			date, error: undefined,
-			warning: 'The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.',
-			patch: {},
-		});
-	});
-
 	test('stepper actions increment and decrement whole durations without going below one', () => {
 		const { form, summary, amountInput, unitSelect, validation } = renderEndDateForm({ state: createFormState() });
 		summary.click();
@@ -2062,26 +2074,29 @@ suite('Automation dialog end date', () => {
 		});
 	});
 
-	test('shows only the estimated end date hint, and no hint for Never', () => {
-		const date = '2099-01-21T17:00:00Z';
+	test('shows the estimated end date without seconds, preserving the stored timestamp', () => {
+		const date = '2099-01-21T17:24:37.123Z';
 		const { form, summary, amountInput, unitSelect, state } = renderEndDateForm({
 			state: createFormState({ endDate: date }), disableConditions: buildAutomationDisableConditions(date),
 		});
 		summary.click();
 		const hint = form.querySelector<HTMLElement>('#automation-duration-hint')!;
 		const savedHint = hint.textContent;
+		const savedDate = state.endDate;
 		amountInput.value = '2';
 		amountInput.dispatchEvent(new (DOM.getWindow(form).Event)('input', { bubbles: true }));
 		const changedHint = hint.textContent;
 		const changedDate = state.endDate!;
 		unitSelect.selectedIndex = 0;
 		unitSelect.dispatchEvent(new (DOM.getWindow(form).Event)('change'));
+		const format: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' };
 		assert.deepStrictEqual({
-			savedHint, changedHint, neverHint: hint.textContent,
+			savedHint, savedDate, changedHint, neverHint: hint.textContent,
 			neverHidden: hint.style.display === 'none', datePicker: form.querySelector('input[type="datetime-local"]'),
 		}, {
-			savedHint: `Estimated end date: ${new Date(date).toLocaleString()}`,
-			changedHint: `Estimated end date: ${new Date(changedDate).toLocaleString()}`,
+			savedHint: `Estimated end date: ${new Date(date).toLocaleString(undefined, format)}`,
+			savedDate: date,
+			changedHint: `Estimated end date: ${new Date(changedDate).toLocaleString(undefined, format)}`,
 			neverHint: '', neverHidden: true, datePicker: null,
 		});
 	});
@@ -2102,11 +2117,11 @@ suite('Automation dialog end date', () => {
 				label: summary.textContent,
 				tabIndex: summary.tabIndex,
 				decorativeChevron: summary.querySelector('.codicon')?.getAttribute('aria-hidden'),
-				unchangedFields: buildChangedAutomationFields(state.enabled, state.endDate, { enabled: true, disableConditions }),
+				endDate: state.endDate,
 			}, {
 				initiallyOpen: false, expandedAfterClick: true, collapsedAfterClick: true,
 				nativeSummary: true, label: 'Advanced Settings', tabIndex: 0, decorativeChevron: 'true',
-				unchangedFields: {},
+				endDate,
 			});
 		});
 	}
@@ -2176,26 +2191,6 @@ suite('Automation dialog end date', () => {
 		});
 	});
 
-	test('sets, clears and preserves an end date without resending unchanged authority fields', () => {
-		const date = '2099-01-01T00:00:00Z';
-		const conditions = buildAutomationDisableConditions(date);
-		assert.deepStrictEqual({
-			create: conditions,
-			unlimited: buildAutomationDisableConditions(undefined),
-			unchanged: buildChangedAutomationFields(true, date, { enabled: true, disableConditions: conditions }),
-			set: buildChangedAutomationFields(true, date, { enabled: true }),
-			clear: buildChangedAutomationFields(false, undefined, { enabled: false, disableConditions: conditions }),
-			enable: buildChangedAutomationFields(true, date, { enabled: false, disableConditions: conditions }),
-		}, {
-			create: [{ kind: AutomationDisableConditionKind.AfterDate, date }],
-			unlimited: [],
-			unchanged: {},
-			set: { disableConditions: conditions },
-			clear: { disableConditions: [] },
-			enable: { enabled: true },
-		});
-	});
-
 	test('requires valid future dates but preserves an unchanged expired date', () => {
 		const past = '2000-01-01T00:00:00Z';
 		assert.deepStrictEqual([
@@ -2216,7 +2211,7 @@ suite('Automation dialog end date', () => {
 
 	for (const enabled of [false, true]) {
 		test(`preserves enabled=${enabled} and warns accessibly about an expired date without an Enabled checkbox`, () => {
-			const { form, handle, state, summary, unitSelect } = renderEndDateForm({
+			const { form, handle, state, summary, unitSelect, validation } = renderEndDateForm({
 				state: createFormState({ enabled, endDate: '2000-01-01T00:00:00Z' }),
 				disableConditions: [{ kind: AutomationDisableConditionKind.AfterDate, date: '2000-01-01T00:00:00Z' }],
 			});
@@ -2224,6 +2219,8 @@ suite('Automation dialog end date', () => {
 			const message = warning.textContent;
 			const announcedContent = warning.firstChild;
 			handle.refreshDisableConditionsWarning();
+			const preservedEndDate = state.endDate;
+			const unchangedError = validation.endDateError;
 			const retainedAnnouncement = warning.firstChild === announcedContent;
 			summary.click();
 			unitSelect.selectedIndex = 0;
@@ -2231,11 +2228,13 @@ suite('Automation dialog end date', () => {
 			assert.deepStrictEqual({
 				message, describedBy: summary.getAttribute('aria-describedby'),
 				retainedAnnouncement, cleared: warning.textContent, live: warning.getAttribute('aria-live'),
+				preservedEndDate, unchangedError,
 				enabled: state.enabled, checkbox: form.querySelector('[role="checkbox"][aria-label="Enabled"]'),
 			}, {
 				message: enabled ? 'The end date has passed. Scheduling will stop immediately. Change the duration or select Never before re-enabling scheduling.' : '',
 				describedBy: 'automation-end-date-error automation-conditions-warning',
 				retainedAnnouncement: true, cleared: '', live: 'polite', enabled, checkbox: null,
+				preservedEndDate: '2000-01-01T00:00:00Z', unchangedError: undefined,
 			});
 		});
 	}

@@ -51,7 +51,7 @@ import { isMobilePickerSheetTarget } from '../../../browser/parts/mobile/mobileP
 import { ISession, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_LOCAL } from '../../../services/sessions/common/session.js';
 import { IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
 import { AutomationInterval, AutomationTarget, IAutomationDescriptor } from '../../../../workbench/contrib/chat/common/automations/automation.js';
-import { IAutomationService, IUpdateAutomationOptions } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
+import { IAutomationService } from '../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { DAYS_OF_WEEK } from '../../../../workbench/contrib/chat/common/automations/schedule.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatAgentLocation } from '../../../../workbench/contrib/chat/common/constants.js';
@@ -220,7 +220,7 @@ export interface IFormState {
 	sessionTypeId: string | undefined;
 	isolationMode: string | undefined;
 	branch: string | undefined;
-	enabled: boolean;
+	readonly enabled: boolean;
 	endDate: string | undefined;
 }
 
@@ -246,22 +246,6 @@ export function getAutomationDialogProviders(automationService: IAutomationServi
 		}
 		return [providerId];
 	});
-}
-
-/** Omits unchanged authority-sensitive fields so stale forms cannot re-enable expired automations. */
-export function buildChangedAutomationFields(
-	formEnabled: boolean,
-	formEndDate: string | undefined,
-	existing: Pick<IAutomationDescriptor, 'enabled' | 'disableConditions'>,
-): Pick<IUpdateAutomationOptions, 'enabled' | 'disableConditions'> {
-	const fields: { enabled?: boolean; disableConditions?: AutomationAfterDateCondition[] } = {};
-	if (formEnabled !== existing.enabled) {
-		fields.enabled = formEnabled;
-	}
-	if (formEndDate !== getAutomationAfterDate(existing.disableConditions)) {
-		fields.disableConditions = buildAutomationDisableConditions(formEndDate);
-	}
-	return fields;
 }
 
 export function buildAutomationDisableConditions(endDate: string | undefined): AutomationAfterDateCondition[] {
@@ -1581,23 +1565,6 @@ export function renderForm(
 	unitSelect.render(unitContainer);
 	const durationHint = DOM.append(advancedSettings, $('span.automation-form-hint.automation-form-duration-hint', { id: 'automation-duration-hint' }));
 	amountInput.inputElement.setAttribute('aria-describedby', `${endDateError.id} ${durationHint.id}`);
-	const refreshEndDate = (): string | undefined => {
-		if (durationChanged) {
-			amountInput.inputElement.min = '1';
-			const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
-			if (unit !== 'never' && date === undefined) {
-				durationHint.textContent = '';
-				DOM.hide(durationHint);
-				return localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
-			}
-			state.endDate = date;
-		}
-		durationHint.textContent = state.endDate === undefined
-			? ''
-			: localize('automation.form.duration.estimatedEndDate', "Estimated end date: {0}", new Date(state.endDate).toLocaleString());
-		DOM.setVisibility(state.endDate !== undefined, durationHint);
-		return undefined;
-	};
 	disposables.add(amountInput.onDidChange(() => {
 		decrease.enabled = amountInput.inputElement.valueAsNumber > 1;
 		durationChanged = true;
@@ -1614,8 +1581,25 @@ export function renderForm(
 		id: 'automation-conditions-warning', role: 'status', 'aria-live': 'polite', 'aria-atomic': 'true',
 	}));
 	advancedSettingsSummary.setAttribute('aria-describedby', `${endDateError.id} ${conditionsWarning.id}`);
+	const initialEndDate = getAutomationAfterDate(initialDisableConditions);
 	const refreshDisableConditionsWarning = () => {
-		validation.endDateError = refreshEndDate() ?? getAutomationEndDateError(state.endDate, getAutomationAfterDate(initialDisableConditions));
+		let durationError: string | undefined;
+		if (durationChanged) {
+			amountInput.inputElement.min = '1';
+			const date = unit === 'never' ? undefined : getAutomationDurationEndDate(amountInput.inputElement.valueAsNumber, unit);
+			if (unit !== 'never' && date === undefined) {
+				durationError = localize('automation.form.duration.invalid', "Enter a positive whole number that produces an end date before year 10000.");
+			} else {
+				state.endDate = date;
+			}
+		}
+		durationHint.textContent = durationError || state.endDate === undefined
+			? ''
+			: localize('automation.form.duration.estimatedEndDate', "Estimated end date: {0}", new Date(state.endDate).toLocaleString(undefined, {
+				year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit',
+			}));
+		DOM.setVisibility(!!durationHint.textContent, durationHint);
+		validation.endDateError = durationError ?? getAutomationEndDateError(state.endDate, initialEndDate);
 		endDateError.textContent = validation.endDateError ?? '';
 		amountInput.inputElement.setAttribute('aria-invalid', String(!!validation.endDateError));
 		DOM.setVisibility(!!validation.endDateError, endDateError);
