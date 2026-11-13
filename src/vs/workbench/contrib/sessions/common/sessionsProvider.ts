@@ -27,6 +27,18 @@ import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinit
 /**
  * Event fired when sessions change within a provider.
  */
+/**
+ * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: see
+ * `getSessionsInScopeFolders`. With no folders, it lists every session.
+ */
+export interface ISessionsListingScope {
+	readonly folders: IObservable<readonly URI[]>;
+	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
+	readonly repositories: IObservable<readonly URI[]>;
+	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
+	readonly gitHubRepositories?: IObservable<readonly string[]>;
+}
+
 export interface ISessionChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
@@ -396,6 +408,20 @@ export interface ISessionsProvider {
 	 */
 	getSessions(): ISession[];
 
+	/**
+	 * Every session known to the provider, also those its listing scope hides from {@link getSessions}, such as the
+	 * sessions of other folders in an editor window. For looking a session up, not for listing sessions. Without it,
+	 * {@link getSessions} lists every session.
+	 */
+	getAllSessions?(): ISession[];
+
+	/**
+	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
+	 * of an editor window's folders; {@link getAllSessions} still finds every session. Without it, the provider lists every
+	 * session also where a window scopes its listing.
+	 */
+	setListingScope?(scope: ISessionsListingScope): void;
+
 	/** Returns an already acquired execution provider without doing work during catalog reads. */
 	getSessionProvider?(sessionId: string): ISessionsProvider | undefined;
 
@@ -409,6 +435,12 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Event that fires when any of its sessions changes, also one its listing scope hides: see {@link getAllSessions}.
+	 * Without it, {@link onDidChangeSessions} reports every change.
+	 */
+	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
 
 	/**
 	 * Fires when a chat moved between this provider's sessions, after both

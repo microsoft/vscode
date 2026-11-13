@@ -498,6 +498,22 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
+	test('lists the sessions as their providers list them, and finds by resource also those a listing scope hides', () => {
+		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
+		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
+		const scoped = new class extends TestSessionsProvider {
+			override readonly id = 'scoped';
+			override getAllSessions(): ISession[] { return [listed, hidden]; }
+		}(listed);
+		const { service } = createSessionsManagementService(listed, disposables, [scoped]);
+
+		assert.deepStrictEqual({
+			listed: service.getSessions().map(session => session.sessionId),
+			all: service.getAllSessions().map(session => session.sessionId),
+			found: service.getSession(hidden.resource)?.sessionId,
+		}, { listed: ['listed'], all: ['listed', 'hidden'], found: 'hidden' });
+	});
+
 	suite('session grid integration', () => {
 		function created(id: string): ISession {
 			const chat: IChat = { ...stubChat, resource: URI.parse(`test:///${id}/chat`), status: constObservable(SessionStatus.Completed) };
@@ -2724,6 +2740,26 @@ suite('SessionsManagementService', () => {
 				}
 			}(providers);
 		}
+
+		test('without a listing scope, the changes of all sessions are those of the listed sessions', () => {
+			const first = stubSession({ sessionId: 'first', providerId: 'test' });
+			const second = stubSession({ sessionId: 'second', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+			}(first);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(first, disposables, providersService);
+			const listed: ISessionChangeEvent[] = [];
+			const all: ISessionChangeEvent[] = [];
+			disposables.add(service.onDidChangeSessions(e => listed.push(e)));
+			disposables.add(service.onDidChangeAllSessions(e => all.push(e)));
+
+			disposables.add(providersService.registerProvider(provider));
+			onDidChangeSessions.fire({ added: [second], removed: [first], changed: [] });
+
+			assert.deepStrictEqual({ all, count: listed.length, sessions: service.getAllSessions().map(session => session.sessionId) }, { all: listed, count: 2, sessions: service.getSessions().map(session => session.sessionId) });
+		});
 
 		test('announces cached sessions when a provider registers', () => {
 			const session = stubSession({ sessionId: 'cached', providerId: 'test' });
