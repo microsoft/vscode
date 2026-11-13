@@ -16,7 +16,7 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetViewContext, IQuickChatService } from '../../../browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetViewContext, IQuickChatService, IChatViewHostDelegate } from '../../../browser/chat.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatVariablesService } from '../../../browser/attachments/chatVariables.js';
 import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
@@ -132,6 +132,34 @@ suite('ChatWidgetService', () => {
 				'openSession test:/session preserveFocus=true',
 			],
 			afterDispose: undefined,
+		});
+	});
+
+	test('the last delegate set replaces the Chat view; disposing an earlier one leaves it, and disposing it restores the Chat view', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [] }));
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}));
+		instantiationService.stub(IQuickChatService, upcastPartial<IQuickChatService>({ sessionResource: undefined }));
+		instantiationService.stub(ILayoutService, {});
+		instantiationService.stub(IEditorService, {});
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
+		instantiationService.stub(ILogService, new NullLogService());
+		const service = store.add(instantiationService.createInstance(ChatWidgetService));
+		const delegate = (): IChatViewHostDelegate => ({ reveal: async () => undefined, openSession: async () => undefined, toggle: async () => { }, newSession: async () => undefined });
+		const first = delegate();
+		const second = delegate();
+		const name = () => service.chatViewHostDelegate === first ? 'first' : service.chatViewHostDelegate === second ? 'second' : 'none';
+
+		const firstRegistration = service.setChatViewHostDelegate(first);
+		const afterFirst = name();
+		const secondRegistration = service.setChatViewHostDelegate(second);
+		const afterSecond = name();
+		firstRegistration.dispose();
+		const afterFirstDisposed = name();
+		secondRegistration.dispose();
+
+		assert.deepStrictEqual({ afterFirst, afterSecond, afterFirstDisposed, afterSecondDisposed: name() }, {
+			afterFirst: 'first', afterSecond: 'second', afterFirstDisposed: 'second', afterSecondDisposed: 'none',
 		});
 	});
 

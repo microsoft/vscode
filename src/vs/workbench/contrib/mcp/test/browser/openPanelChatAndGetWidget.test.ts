@@ -13,11 +13,11 @@ suite('openPanelChatAndGetWidget', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createChatWidgetService(delegate: IChatViewHostDelegate | undefined, first: IChatWidget, shown: IChatWidget): IChatWidgetService {
+	function createChatWidgetService(delegate: IChatViewHostDelegate | undefined, first: IChatWidget, shown: IChatWidget | undefined): IChatWidgetService {
 		return upcastPartial<IChatWidgetService>({
 			chatViewHostDelegate: delegate,
 			revealChatView: async () => shown,
-			getWidgetsByLocations: () => [first, shown],
+			getWidgetsByLocations: () => shown ? [first, shown] : [first],
 		});
 	}
 
@@ -33,5 +33,11 @@ suite('openPanelChatAndGetWidget', () => {
 		const shown = upcastPartial<IChatWidget>({});
 
 		assert.strictEqual(await openPanelChatAndGetWidget(createChatWidgetService(upcastPartial<IChatViewHostDelegate>({}), older, shown)), shown);
+	});
+
+	test('returns no chat widget when what replaces the Chat view shows none, rather than another chat widget, such as an older chat editor', async () => {
+		const older = upcastPartial<IChatWidget>({});
+
+		assert.strictEqual(await openPanelChatAndGetWidget(createChatWidgetService(upcastPartial<IChatViewHostDelegate>({}), older, undefined)), undefined);
 	});
 });

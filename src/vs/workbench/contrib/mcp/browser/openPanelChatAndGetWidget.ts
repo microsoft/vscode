@@ -11,8 +11,8 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export async function openPanelChatAndGetWidget(chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
 	const revealed = await chatService.revealChatView(false);
-	// What replaces the Chat view returns the widget it shows, such as its active chat: not just any chat widget
-	if (revealed && chatService.chatViewHostDelegate) {
+	// What replaces the Chat view decides which widget it shows, such as its active chat, or none: not just any chat widget
+	if (chatService.chatViewHostDelegate) {
 		return revealed;
 	}
 	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Chat);
