@@ -219,7 +219,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Judge model; written in the clear only for catalog models, otherwise hashed by the runtime." },
 		"model_selection_reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why the judge model was chosen, such as preferred_available or preferred_not_offered." },
 		"reasoning_effort": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Reasoning effort of the judge's model call." },
-		"interaction_ids": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Task rows only: comma-separated runtime interactions the task's turns ran under, capped at 64; joins task cost to per-call usage." },
+		"interaction_ids": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Task rows only: comma-separated runtime interactions the task's turns ran under, capped at 64; joins with interaction_id on copilotSdk/response.success to map the task to Agent Host turns." },
 		"interaction_ids_truncated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Task rows only: whether interaction_ids stopped at its cap." },
 		"delegated_interaction_ids": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Task rows only: comma-separated runtime interactions the task's sub-agents ran under, capped at 64." },
 		"delegated_interaction_ids_truncated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Task rows only: whether delegated_interaction_ids stopped at its cap." },
@@ -401,65 +401,6 @@ type ModelCallTurnCorrelatedClassification = {
 		"delegated_interaction_count": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of ids in delegated_interaction_ids.", "isMeasurement": true },
 		"task_duration_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Wall-clock time from the opening message to task_complete.", "isMeasurement": true },
 		"follow_up_delay_ms": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Time from task_complete to the follow-up message.", "isMeasurement": true }
-	}
-*/
-
-/* __GDPR__
-	"copilotSdk/assistant_usage": {
-		"owner": "bhavyaus",
-		"comment": "Per-call model usage and AI-credit cost from the Copilot runtime, forwarded by the SDK. Joined to task_classification task rows through interaction_id to price tasks. Contains token counts, durations, and opaque identifiers only.",
-		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
-		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
-		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction the row belongs to; joins with interaction_id on other forwarded events for that interaction." },
-		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
-		"unique_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Runtime-generated identifier for this telemetry envelope." },
-		"event_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session event the usage row was derived from." },
-		"api_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Opaque identifier of the model call." },
-		"provider_call_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Provider identifier of the model call." },
-		"service_request_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Copilot service identifier of the model call." },
-		"api_endpoint": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model API endpoint family used for the call." },
-		"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Model that served the call; hashed by the runtime unless it is a catalog model." },
-		"initiator": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Who made the call, such as the root agent, a sub-agent, or a detached sub-agent; a sub-agent's calls carry its parent's interaction_id." },
-		"interaction_type": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Bounded kind of call, such as conversation-agent or conversation-compaction." },
-		"reasoning_effort": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Reasoning effort of the call." },
-		"finish_reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Why the model stopped generating." },
-		"content_filter_triggered": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a content filter was triggered." },
-		"cache_policy_status": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-cache policy status for the call." },
-		"is_auto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether Auto model selection served the call." },
-		"is_byok": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether bring-your-own-key authentication served the call." },
-		"total_nano_aiu": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "AI credit cost of the call in nano AI units; absent when unreported. Summed per interaction to price a task.", "isMeasurement": true },
-		"cost": { "classification": "SystemMetaData", "purpose": "BusinessInsight", "comment": "Cost value the runtime reports for the call.", "isMeasurement": true },
-		"input_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens of the call.", "isMeasurement": true },
-		"input_tokens_uncached": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens not read from cache.", "isMeasurement": true },
-		"cache_read_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens read from the prompt cache.", "isMeasurement": true },
-		"cache_write_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens written to the prompt cache.", "isMeasurement": true },
-		"cache_write_5m_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Input tokens written to the five-minute prompt cache.", "isMeasurement": true },
-		"output_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Output tokens of the call.", "isMeasurement": true },
-		"reasoning_tokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Reasoning tokens of the call.", "isMeasurement": true },
-		"cache_policy_ttl_seconds": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Prompt-cache time to live in seconds.", "isMeasurement": true },
-		"duration": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Duration of the call in milliseconds.", "isMeasurement": true },
-		"ttft_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to first token in milliseconds.", "isMeasurement": true },
-		"output_ttft_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Time to first output token in milliseconds.", "isMeasurement": true },
-		"inter_token_latency_ms": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Mean latency between output tokens in milliseconds.", "isMeasurement": true }
-	}
-*/
-
-/* __GDPR__
-	"copilotSdk/user_message": {
-		"owner": "bhavyaus",
-		"comment": "Records a user message's interaction and size so model calls can be attributed to tasks, including autopilot continuations. Contains no message text.",
-		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
-		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
-		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction the row belongs to; joins with interaction_id on other forwarded events for that interaction." },
-		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Identifier that correlates events in an engagement." },
-		"unique_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Runtime-generated identifier for this telemetry envelope." },
-		"event_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session event of the user message." },
-		"turn_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime turn the message opened." },
-		"delivery": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "How the message was delivered, such as immediate or queued." },
-		"has_attachments": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the message had attachments." },
-		"attachment_count": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Number of attachments.", "isMeasurement": true },
-		"blob_attachment_total_bytes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Total size of binary attachments in bytes.", "isMeasurement": true },
-		"content_length": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Length of the message; the text itself is not collected.", "isMeasurement": true }
 	}
 */
 
