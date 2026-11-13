@@ -9,6 +9,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -100,8 +101,20 @@ registerAction2(class extends Action2 {
 		if (!parsed.parsed) {
 			return;
 		}
-		if (!await confirmRemoteAgentHostConnection(parsed.parsed.address, dialogService, storageService)) {
-			return;
+		const confirmationDisposables = new DisposableStore();
+		const cancellation = confirmationDisposables.add(new CancellationTokenSource());
+		confirmationDisposables.add(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) && configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === false) {
+				cancellation.cancel();
+			}
+		}));
+		try {
+			if (configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === false
+				|| !await confirmRemoteAgentHostConnection(parsed.parsed.address, dialogService, storageService, cancellation.token)) {
+				return;
+			}
+		} finally {
+			confirmationDisposables.dispose();
 		}
 
 		// Prompt for display name
@@ -129,6 +142,10 @@ registerAction2(class extends Action2 {
 					address: parsed.parsed.address,
 				},
 			});
+			const connection = remoteAgentHostService.connections.find(connection => connection.address === parsed.parsed.address);
+			if (connection?.status.kind === 'disconnected' && !remoteAgentHostService.pendingConnections.some(connection => connection.address === parsed.parsed.address)) {
+				remoteAgentHostService.reconnect(parsed.parsed.address, true);
+			}
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));

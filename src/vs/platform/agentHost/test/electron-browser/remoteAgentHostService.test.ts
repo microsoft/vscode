@@ -34,6 +34,9 @@ import type { AgentInfo } from '../../common/state/sessionState.js';
 import type { AuthenticateParams } from '../../common/agent.js';
 import { IDialogService, type IConfirmation, type IConfirmationResult } from '../../../dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../dialogs/test/common/testDialogService.js';
+import { confirmRemoteAgentHostConnection } from '../../common/remoteAgentHostWebSocket.js';
+import { INotificationService, NoOpNotification, type IPromptChoice, type NotificationMessage, Severity } from '../../../notification/common/notification.js';
+import { TestNotificationService } from '../../../notification/test/common/testNotificationService.js';
 
 interface IRemoteAgentHostServiceTestAccess {
 	readonly _reconnectAttempts: Map<string, number>;
@@ -325,8 +328,9 @@ suite('RemoteAgentHostService', () => {
 	let storageService: TestStorageService;
 	let resolveAuthentication: (address: string, agents: readonly AgentInfo[]) => Promise<readonly AuthenticateParams[]>;
 	let createdClientOptions: (IAgentHostProtocolClientOptions | undefined)[];
+	let notifications: { choices: IPromptChoice[]; closed: boolean }[];
 
-	setup(() => {
+	setup(async () => {
 		configService = new TestConfigurationService();
 		disposables.add(toDisposable(() => configService.dispose()));
 
@@ -334,10 +338,20 @@ suite('RemoteAgentHostService', () => {
 		createdClientInfos = [];
 		createdClientOptions = [];
 		resolveAuthentication = async () => [];
+		notifications = [];
 
 		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IDialogService, new TestDialogService({ confirmed: true }));
+		instantiationService.stub(INotificationService, new class extends TestNotificationService {
+			override prompt(_severity: Severity, _message: NotificationMessage, choices: IPromptChoice[]) {
+				const notification = { choices, closed: false };
+				notifications.push(notification);
+				return new class extends NoOpNotification {
+					override close(): void { notification.closed = true; }
+				}();
+			}
+		}());
 		instantiationService.stub(IEnvironmentService, { logsHome: URI.file('/logs') } as Partial<IEnvironmentService>);
 		instantiationService.stub(IConfigurationService, configService as Partial<IConfigurationService>);
 		instantiationService.stub(IAgentHostAdvertisedAuthenticationResolver, {
@@ -346,6 +360,15 @@ suite('RemoteAgentHostService', () => {
 		});
 		storageService = disposables.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
+		// Unrelated connection tests use hosts the user has already approved.
+		for (const address of [
+			'host1:8080', 'host2:8080', 'host2:9090', 'host:8080', 'bad:9999', 'fast-host:1234',
+			'initial:8080', 'updated:8080', 'user:8080', 'workspace:8080', 'posix:8080', 'windows:8080',
+			'waiters.example:8080', 'rejected.example:8081', 'closed.example:8081', 'transient.example:8081',
+		]) {
+			await confirmRemoteAgentHostConnection(address, new TestDialogService({ confirmed: true }), storageService);
+		}
+		storageService.writeCalls = 0;
 		registeredFormatters = [];
 		instantiationService.stub(ILabelService, {
 			registerFormatter(formatter: ResourceLabelFormatter) {
@@ -754,6 +777,8 @@ suite('RemoteAgentHostService', () => {
 					configService.setWorkspaceEntries([{ address, name: 'Configured host' }]);
 				}
 				await timeout(0);
+				service.reconnect(address, true);
+				await timeout(0);
 				const beforeConfirmation = { clients: createdClients.length, prompts: prompts.length };
 				await confirmation.complete({ confirmed });
 				await timeout(0);
@@ -799,6 +824,8 @@ suite('RemoteAgentHostService', () => {
 			configService.setRawEntries([{ address, name: 'Host' }]);
 			service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
 			await timeout(0);
+			service.reconnect(address, true);
+			await timeout(0);
 		}
 		const saved = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).map(key => [key, storageService.get(key, StorageScope.APPLICATION)]);
 		assert.deepStrictEqual({
@@ -832,6 +859,9 @@ suite('RemoteAgentHostService', () => {
 			{ address: 'host.example:8080/two', name: 'Two' },
 		]);
 		await timeout(0);
+		service.reconnect('host.example:8080/one', true);
+		service.reconnect('host.example:8080/two', true);
+		await timeout(0);
 		const pending = { clients: createdClients.length, prompts };
 		await confirmation.complete({ confirmed: false });
 		await timeout(0);
@@ -864,6 +894,8 @@ suite('RemoteAgentHostService', () => {
 		for (const address of addresses) {
 			configService.setRawEntries([{ address, name: 'Host' }]);
 			await timeout(0);
+			service.reconnect(address, true);
+			await timeout(0);
 		}
 		assert.deepStrictEqual({ prompts: prompts.map(prompt => prompt.message), clients: createdClients.length }, {
 			prompts: [
@@ -872,6 +904,139 @@ suite('RemoteAgentHostService', () => {
 				'Connect to \'ws://[::ffff:c000:201]:8080\' without encryption?',
 			],
 			clients: addresses.length,
+		});
+	});
+
+	for (const window of ['agents', 'editor'] as const) {
+		test(`background plaintext ${window} hosts offer Connect and Retry without opening a modal`, () => runWithFakedTimers({}, async () => {
+			const confirmation = new DeferredPromise<IConfirmationResult>();
+			let prompts = 0;
+			instantiationService.stub(IDialogService, new class extends TestDialogService {
+				override confirm(): Promise<IConfirmationResult> {
+					return ++prompts === 1 ? confirmation.p : Promise.resolve({ confirmed: true });
+				}
+			}());
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(window === 'agents' ? AgentsWindowRemoteAgentHostService : EditorWindowRemoteAgentHostService));
+			const address = 'background.example:8080';
+			if (window === 'agents') {
+				configService.setRawEntries([{ address, name: 'Host' }]);
+			} else {
+				configService.setWorkspaceEntries([{ address, name: 'Host' }]);
+			}
+			await timeout(0);
+			const background = { prompts, clients: createdClients.length, actions: notifications.flatMap(notification => notification.choices.map(choice => choice.label)) };
+			notifications[0]?.choices[0]?.run();
+			await timeout(0);
+			const interactive = { prompts, clients: createdClients.length };
+			await confirmation.complete({ confirmed: false });
+			await timeout(10_000);
+			const cancelled = { clients: createdClients.length, actions: notifications.flatMap(notification => notification.choices.map(choice => choice.label)) };
+			notifications[1]?.choices[0]?.run();
+			await timeout(0);
+			assert.deepStrictEqual({ background, interactive, cancelled, retried: { prompts, clients: createdClients.length } }, {
+				background: { prompts: 0, clients: 0, actions: ['Connect'] },
+				interactive: { prompts: 1, clients: 0 },
+				cancelled: { clients: 0, actions: ['Connect', 'Retry'] },
+				retried: { prompts: 2, clients: 1 },
+			});
+		}));
+	}
+
+	for (const end of ['removed', 'disabled', 'disposed'] as const) {
+		test(`abandoned plaintext confirmation is cancelled and cannot save approval when ${end}`, async () => {
+			const confirmation = new DeferredPromise<IConfirmationResult>();
+			const prompts: IConfirmation[] = [];
+			instantiationService.stub(IDialogService, new class extends TestDialogService {
+				override confirm(options: IConfirmation): Promise<IConfirmationResult> {
+					prompts.push(options);
+					return confirmation.p;
+				}
+			}());
+			service.dispose();
+			service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+			const address = 'abandoned.example:8080';
+			configService.setRawEntries([{ address, name: 'Host' }]);
+			await timeout(0);
+			service.reconnect(address, true);
+			await timeout(0);
+			if (end === 'removed') {
+				configService.setRawEntries([]);
+			} else if (end === 'disabled') {
+				configService.setEnabled(false);
+			} else {
+				service.dispose();
+			}
+			const cancelled = prompts[0]?.token?.isCancellationRequested;
+			await confirmation.complete({ confirmed: true });
+			await timeout(0);
+			const abandoned = { clients: createdClients.length, storedApprovals: storageService.writeCalls };
+			service.dispose();
+			configService.setRawEntries([]);
+			configService.setEnabled(true);
+			service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+			configService.setRawEntries([{ address, name: 'Host' }]);
+			await timeout(0);
+			service.reconnect(address, true);
+			await timeout(0);
+			assert.deepStrictEqual({ cancelled, abandoned, prompts: prompts.length }, {
+				cancelled: true, abandoned: { clients: 0, storedApprovals: 0 }, prompts: 2,
+			});
+		});
+	}
+
+	test('a shared plaintext dialog stays alive until its last connection request is removed', async () => {
+		const confirmation = new DeferredPromise<IConfirmationResult>();
+		const prompts: IConfirmation[] = [];
+		instantiationService.stub(IDialogService, new class extends TestDialogService {
+			override confirm(options: IConfirmation): Promise<IConfirmationResult> {
+				prompts.push(options);
+				return confirmation.p;
+			}
+		}());
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+		const first = { address: 'shared.example:8080/one', name: 'One' };
+		const second = { address: 'shared.example:8080/two', name: 'Two' };
+		configService.setRawEntries([first, second]);
+		await timeout(0);
+		service.reconnect(first.address, true);
+		service.reconnect(second.address, true);
+		await timeout(0);
+		configService.setRawEntries([second]);
+		const afterFirst = prompts[0]?.token?.isCancellationRequested;
+		configService.setRawEntries([]);
+		const afterLast = prompts[0]?.token?.isCancellationRequested;
+		await confirmation.complete({ confirmed: true });
+		await timeout(0);
+		assert.deepStrictEqual({ prompts: prompts.length, afterFirst, afterLast, clients: createdClients.length, writes: storageService.writeCalls }, {
+			prompts: 1, afterFirst: false, afterLast: true, clients: 0, writes: 0,
+		});
+	});
+
+	test('removing a pending-only connection wakes connection observers', async () => {
+		const confirmation = new DeferredPromise<IConfirmationResult>();
+		instantiationService.stub(IDialogService, new class extends TestDialogService {
+			override confirm(): Promise<IConfirmationResult> { return confirmation.p; }
+		}());
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(AgentsWindowRemoteAgentHostService));
+		configService.setRawEntries([{ address: 'pending.example:8080', name: 'Host' }]);
+		await timeout(0);
+		service.reconnect('pending.example:8080', true);
+		await timeout(0);
+		const before = { entries: service.connections.length, pending: service.pendingConnections.length };
+		const observed: object[] = [];
+		disposables.add(service.onDidChangeConnections(() => observed.push({
+			configured: service.configuredEntries.length, pending: service.pendingConnections.length,
+		})));
+		configService.setRawEntries([]);
+		await timeout(0);
+		const removal = [...observed];
+		await confirmation.complete({ confirmed: false });
+		assert.deepStrictEqual({ before, removal }, {
+			before: { entries: 0, pending: 1 },
+			removal: [{ configured: 0, pending: 0 }],
 		});
 	});
 
@@ -2574,6 +2739,7 @@ suite('RemoteAgentHostService', () => {
 
 	suite('display names', () => {
 		test('delegates inventory-owned labels without writing global overrides or connecting', () => {
+			const initialMachineKeys = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE);
 			const name = observableValue<string | undefined>('name', undefined);
 			const registration = disposables.add(service.registerDisplayName('cloudsandbox:environment', name, value => name.set(value, undefined)));
 			service.setDisplayName('cloudsandbox:environment', '  Profile Label  ');
@@ -2584,10 +2750,11 @@ suite('RemoteAgentHostService', () => {
 			assert.deepStrictEqual({
 				renamed, restored, removed: service.getDisplayNameOverride('cloudsandbox:environment'),
 				machineKeys: storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE), createdClients: createdClients.length,
-			}, { renamed: 'Profile Label', restored: undefined, removed: undefined, machineKeys: [], createdClients: 0 });
+			}, { renamed: 'Profile Label', restored: undefined, removed: undefined, machineKeys: initialMachineKeys, createdClients: 0 });
 		});
 
 		test('persists normalized overrides only in this client without changing connection settings', () => {
+			const initialMachineKeyCount = storageService.keys(StorageScope.APPLICATION, StorageTarget.MACHINE).length;
 			const addresses = ['ws://host:8080', 'wss://host:8080', 'ssh:my-host', 'me@host:22', 'tunnel:my-tunnel', 'wsl:Ubuntu', 'devcontainer:repo'];
 			for (const address of addresses) {
 				service.setDisplayName(address, `  My ${address}  `);
@@ -2608,7 +2775,7 @@ suite('RemoteAgentHostService', () => {
 				names: addresses.map(address => `My ${address}`),
 				normalizedName: 'My ws://host:8080',
 				otherClientNames: addresses.map(() => undefined),
-				machineKeys: addresses.length,
+				machineKeys: initialMachineKeyCount + addresses.length,
 				syncedKeys: [],
 				settingsWrites: 0,
 				createdClients: 0,

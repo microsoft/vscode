@@ -19,7 +19,7 @@ import { GitHubEnvironmentsAvailableContext, GitHubEnvironmentsEnabledSettingId 
 import { ISSHRemoteAgentHostService, SSHAuthMethod, type ISSHAgentHostConfig, type SSHAgentHostConnectionRequest } from '../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { MockKeybindingService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
@@ -28,7 +28,7 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { connectWithProgress } from '../../browser/remoteAgentHostActions.js';
 import { RemoteAgentHostCommandIds } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/remoteAgentHostCommandIds.js';
 import { INotificationTelemetrySource } from '../../../../../../platform/notification/common/notificationTelemetry.js';
-import { InMemoryStorageService, IStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IDialogService, type IConfirmation, type IConfirmationResult } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
 import { NotificationService } from '../../../../../../workbench/services/notification/common/notificationService.js';
@@ -101,6 +101,8 @@ suite('Remote Agent Host actions', () => {
 			instantiation.stub(IConfigurationService, configuration);
 			instantiation.stub(INotificationService, new TestNotificationService());
 			instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+				override readonly connections = [];
+				override readonly pendingConnections = [];
 				override async waitForConnection(address: string) {
 					connections.push(address);
 					return { address, name: 'Test host', status: RemoteAgentHostConnectionStatus.connected };
@@ -131,6 +133,100 @@ suite('Remote Agent Host actions', () => {
 			beforeConfirmation: warned ? [{ writes: 0, connections: 0 }] : [],
 			warnings: warned ? ['&&Connect Anyway'] : [],
 		})));
+	});
+
+	test('Add retries an existing disconnected host but preserves connected and pending hosts', async () => {
+		const results: object[] = [];
+		for (const state of ['disconnected', 'connected', 'pending'] as const) {
+			const instantiation = store.add(new TestInstantiationService());
+			const address = 'host.example:8080';
+			const configuration = new TestConfigurationService({
+				[RemoteAgentHostsSettingId]: [{ address, name: 'Host' }],
+			});
+			store.add(configuration.onDidChangeConfigurationEmitter);
+			instantiation.stub(IConfigurationService, configuration);
+			instantiation.stub(IStorageService, store.add(new InMemoryStorageService()));
+			instantiation.stub(IDialogService, new TestDialogService({ confirmed: true }));
+			const errors: string[] = [];
+			instantiation.stub(INotificationService, new class extends TestNotificationService {
+				override error(message: Parameters<TestNotificationService['error']>[0]) {
+					errors.push(String(message));
+					return super.error(message);
+				}
+			}());
+			const reconnects: (boolean | undefined)[] = [];
+			instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+				override readonly connections = [{ address, name: 'Host', status: state === 'connected' ? RemoteAgentHostConnectionStatus.connected : RemoteAgentHostConnectionStatus.disconnected }];
+				override readonly pendingConnections = state === 'pending' ? [{ address, startedAt: 0, userInitiated: false }] : [];
+				override reconnect(_address: string, userInitiated?: boolean) { reconnects.push(userInitiated); }
+				override async waitForConnection() {
+					if (state === 'disconnected' && !reconnects.length) {
+						throw new CancellationError();
+					}
+					return { address, name: 'Host', status: RemoteAgentHostConnectionStatus.connected };
+				}
+			}());
+			let inputs = 0;
+			instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+				override async input(): Promise<string> { return inputs++ === 0 ? address : 'Host'; }
+			}());
+			await instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.addRemoteAgentHost)!.handler(accessor));
+			results.push({ state, reconnects, errors });
+		}
+		assert.deepStrictEqual(results, [
+			{ state: 'disconnected', reconnects: [true], errors: [] },
+			{ state: 'connected', reconnects: [], errors: [] },
+			{ state: 'pending', reconnects: [], errors: [] },
+		]);
+	});
+
+	test('Add cancels its confirmation without saving approval when remote hosts are disabled', async () => {
+		const instantiation = store.add(new TestInstantiationService());
+		const storage = store.add(new InMemoryStorageService());
+		const writes: string[] = [];
+		const configuration = new class extends TestConfigurationService {
+			override async updateValue(key: string): Promise<void> { writes.push(key); }
+		}({ [RemoteAgentHostsEnabledSettingId]: true, [RemoteAgentHostsSettingId]: [] });
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		instantiation.stub(IStorageService, storage);
+		instantiation.stub(INotificationService, new TestNotificationService());
+		instantiation.stub(IRemoteAgentHostService, new class extends mock<IRemoteAgentHostService>() {
+			override readonly connections = [];
+			override readonly pendingConnections = [];
+			override async waitForConnection(address: string) {
+				return { address, name: 'Host', status: RemoteAgentHostConnectionStatus.connected };
+			}
+		}());
+		const started = new DeferredPromise<void>();
+		const confirmation = new DeferredPromise<IConfirmationResult>();
+		let options: IConfirmation | undefined;
+		instantiation.stub(IDialogService, new class extends TestDialogService {
+			override confirm(value: IConfirmation): Promise<IConfirmationResult> {
+				options = value;
+				void started.complete();
+				return confirmation.p;
+			}
+		}());
+		let inputs = 0;
+		instantiation.stub(IQuickInputService, new class extends mock<IQuickInputService>() {
+			override async input(): Promise<string> { return inputs++ === 0 ? 'host.example:8080' : 'Host'; }
+		}());
+		const running = instantiation.invokeFunction(accessor => CommandsRegistry.getCommand(RemoteAgentHostCommandIds.addRemoteAgentHost)!.handler(accessor));
+		await started.p;
+		await configuration.setUserConfiguration(RemoteAgentHostsEnabledSettingId, false);
+		configuration.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([RemoteAgentHostsEnabledSettingId]),
+			change: { keys: [RemoteAgentHostsEnabledSettingId], overrides: [] },
+			affectsConfiguration: key => key === RemoteAgentHostsEnabledSettingId,
+		});
+		const cancelled = options?.token?.isCancellationRequested;
+		await confirmation.complete({ confirmed: true });
+		await running;
+		assert.deepStrictEqual({ cancelled, writes, storedKeys: storage.keys(StorageScope.APPLICATION, StorageTarget.MACHINE) }, {
+			cancelled: true, writes: [], storedKeys: [],
+		});
 	});
 
 	test('Dev Tunnels uses the standard remote icon', () => {

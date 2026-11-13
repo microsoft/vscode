@@ -2170,6 +2170,7 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			getChannel: () => asChannel(mainService),
 		} as Partial<ISharedProcessService>);
 
+		instantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
 		remoteAgentHostService = disposables.add(instantiationService.createInstance(EditorWindowRemoteAgentHostService));
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
 		instantiationService.stub(ISSHRelayClientFactory, {
@@ -2184,7 +2185,6 @@ suite('SSHRemoteAgentHostService lifecycle (renderer)', () => {
 			},
 		} as Partial<ISSHRelayClientFactory>);
 		instantiationService.stub(IQuickInputService, {} as Partial<IQuickInputService>);
-		instantiationService.stub(INotificationService, new CapturingNotificationService() as Partial<INotificationService>);
 		instantiationService.stub(IRemoteAgentHostLocationPreferenceService, disposables.add(new TestRemoteAgentHostLocationPreferenceService()) as Partial<IRemoteAgentHostLocationPreferenceService>);
 		instantiationService.stub(IDialogService, { prompt: (() => { throw new Error('unexpected prompt'); }) as unknown as IDialogService['prompt'] } as Partial<IDialogService>);
 		instantiationService.stub(IProductService, { _serviceBrand: undefined, nameShort: 'Test Product' } as IProductService);

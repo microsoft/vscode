@@ -9,6 +9,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { localize } from '../../../nls.js';
 import { CancellationError, isCancellationError } from '../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
@@ -19,6 +20,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILabelService } from '../../label/common/label.js';
 import { ILogService } from '../../log/common/log.js';
 import { IDialogService } from '../../dialogs/common/dialogs.js';
+import { INotificationService, Severity } from '../../notification/common/notification.js';
 import { observableConfigValue } from '../../observable/common/platformObservableUtils.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -55,7 +57,7 @@ import { ConnectionDiagnosticBuffer, ConnectionDiagnosticOperation, type Connect
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
 import { AgentHostAuthenticationPendingError, IAgentHostAdvertisedAuthenticationResolver } from '../common/agentHostAdvertisedAuthentication.js';
-import { confirmRemoteAgentHostConnection } from '../common/remoteAgentHostWebSocket.js';
+import { confirmRemoteAgentHostConnection, RemoteAgentHostConnectionConfirmationRequiredError, requiresRemoteAgentHostConnectionConfirmation } from '../common/remoteAgentHostWebSocket.js';
 import { PathStyle } from '../common/state/protocol/common/commands.js';
 
 const DISPLAY_NAME_STORAGE_PREFIX = 'remoteAgentHost.displayName.';
@@ -82,6 +84,8 @@ interface IConnectionEntry {
 }
 
 interface IPendingConnectionAttempt {
+	readonly disposables: DisposableStore;
+	readonly cancellation: CancellationTokenSource;
 	readonly promise: Promise<void>;
 	readonly info: IRemoteAgentHostPendingConnection;
 	readonly observer?: RemoteAgentHostConnectionObserver;
@@ -131,13 +135,16 @@ class WebSocketConnectionFactory extends Disposable implements IRemoteAgentHostC
 		this.entries = derived(this, reader => parseWebSocketRemoteAgentHostEntries(rawEntries.read(reader)));
 	}
 
-	async createConnection(entry: IRemoteAgentHostEntry, _options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
+	async createConnection(entry: IRemoteAgentHostEntry, options: IRemoteAgentHostConnectOptions): Promise<IRemoteAgentHostCreatedConnection> {
 		if (entry.connection.type !== RemoteAgentHostEntryType.WebSocket) {
 			throw new Error(`WebSocket factory cannot create a ${entry.connection.type} connection.`);
 		}
 
 		const address = entry.connection.address;
-		if (!await confirmRemoteAgentHostConnection(address, this._dialogService, this._storageService) || this._store.isDisposed) {
+		if (!options.userInitiated && requiresRemoteAgentHostConnectionConfirmation(address, this._storageService)) {
+			throw new RemoteAgentHostConnectionConfirmationRequiredError();
+		}
+		if (!await confirmRemoteAgentHostConnection(address, this._dialogService, this._storageService, options.token) || this._store.isDisposed) {
 			throw new CancellationError();
 		}
 		const ahpLoggingEnabled = !!this._configurationService.getValue<boolean>(AgentHostAhpJsonlLoggingSettingId);
@@ -255,6 +262,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		@ILogService private readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@INotificationService private readonly _notificationService: INotificationService,
 	) {
 		super();
 
@@ -581,6 +589,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const pending = this._pendingConnects.get(address);
 		if (pending) {
 			this._pendingConnects.delete(address);
+			pending.cancellation.cancel();
+			pending.disposables.dispose();
 			pending.observer?.('disposed');
 			this._rejectPendingConnectionWait(address, new CancellationError());
 			this._onDidChangePendingConnections.fire();
@@ -591,6 +601,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			entry.observer?.('disposed');
 			disposeEntry(entry);
 			this._rejectPendingConnectionWait(address, new Error(`Connection closed: ${address}`));
+			this._onDidChangeConnections.fire();
+		} else if (pending) {
 			this._onDidChangeConnections.fire();
 		}
 		this._disposeRetainedReconnectEntry(address, true);
@@ -723,11 +735,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 
 		this._failedReconnects.delete(address);
 		const pendingConnect = new DeferredPromise<void>();
+		const disposables = new DisposableStore();
+		const cancellation = disposables.add(new CancellationTokenSource());
 		const factory = this._connectionFactories.get(entryToCreate.connection.type);
 		const userInitiated = factory?.getPendingConnectionInitiation?.(entryToCreate) ?? options.userInitiated;
 		const observer = factory?.getConnectionObserver?.(entryToCreate);
 		const previousError = !userInitiated ? this._entries.get(address)?.lastConnectionError : undefined;
-		const attempt = { promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError };
+		const attempt = { disposables, cancellation, promise: pendingConnect.p, info: { address, startedAt: Date.now(), userInitiated }, observer, previousError, showError: userInitiated || !!previousError };
 		this._pendingConnects.set(address, attempt);
 		observer?.('connecting');
 		this._onDidChangePendingConnections.fire();
@@ -738,6 +752,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 				this._logService.error(`[RemoteAgentHost] Unexpected error connecting to ${address}`, err);
 				observer?.(isCancellationError(err) ? 'disposed' : 'failed');
 			} finally {
+				disposables.dispose();
 				if (this._pendingConnects.get(address) === attempt) {
 					this._pendingConnects.delete(address);
 					this._onDidChangePendingConnections.fire();
@@ -789,7 +804,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const onDiagnostic: ConnectionDiagnosticObserver = event => this._diagnostics.record(address, { ...event, attemptId });
 		const diagnostic = new ConnectionDiagnosticOperation(onDiagnostic, `factory.${entryToCreate.connection.type}`, `userInitiated=${options.userInitiated}`);
 		try {
-			createdConnection = await factory.createConnection(entryToCreate, { ...options, onDiagnostic });
+			createdConnection = await factory.createConnection(entryToCreate, { ...options, token: attempt.cancellation.token, onDiagnostic });
 			diagnostic.succeeded(`clientId=${createdConnection.connection.clientId}`);
 		} catch (err) {
 			diagnostic.failed(err);
@@ -805,14 +820,15 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			if (isTerminalConnectError(err)) {
 				this._failedReconnects.set(address, err instanceof Error ? err : new Error(toErrorMessage(err)));
 			}
-			this._entries.set(address, {
+			const entry: IConnectionEntry = {
 				store: new DisposableStore(),
 				observer,
 				connected: false,
 				status: RemoteAgentHostConnectionStatus.disconnectedBecause(disconnectReason),
-				lastConnectionError: attempt.showError && !isCancellationError(err) ? toErrorMessage(err) : undefined,
+				lastConnectionError: (attempt.showError || err instanceof RemoteAgentHostConnectionConfirmationRequiredError) && !isCancellationError(err) ? toErrorMessage(err) : undefined,
 				reconnectTransfersTransportOwnership: false,
-			});
+			};
+			this._entries.set(address, entry);
 			this._rejectPendingConnectionWait(address, err);
 			// Clear the in-flight marker before notifying. A consumer may dial again
 			// from this notification — an automatic start does — and `reconnect`
@@ -822,6 +838,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			// `_connectTo` clears by identity, so a fresh dial started here survives.
 			this._pendingConnects.delete(address);
 			this._onDidChangePendingConnections.fire();
+			if (err instanceof RemoteAgentHostConnectionConfirmationRequiredError
+				|| isCancellationError(err) && entryToCreate.connection.type === RemoteAgentHostEntryType.WebSocket && requiresRemoteAgentHostConnectionConfirmation(address, this._storageService)) {
+				const notification = this._notificationService.prompt(Severity.Warning,
+					localize('remoteAgentHost.reviewUnencryptedConnection', "Remote agent host '{0}' uses an unencrypted connection. Review the warning before connecting.", entryToCreate.name),
+					[{
+						label: isCancellationError(err) ? localize('remoteAgentHost.retryConnection', "Retry") : localize('remoteAgentHost.connect', "Connect"),
+						run: () => {
+							if (this._entries.get(address) === entry && this._remoteAgentHostsEnabled.get()) {
+								this.reconnect(address, true);
+							}
+						},
+					}]);
+				entry.store.add(toDisposable(() => notification.close()));
+			}
 			// Nothing else reports this failure: no entry was created, so consumers
 			// only learn the address became unavailable from this notification.
 			this._onDidChangeConnections.fire();
@@ -1229,6 +1259,8 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		this._reconnectTimeouts.clear();
 		this._reconnectAttempts.clear();
 		for (const pending of this._pendingConnects.values()) {
+			pending.cancellation.cancel();
+			pending.disposables.dispose();
 			pending.observer?.('disposed');
 		}
 		this._pendingConnects.clear();
@@ -1277,7 +1309,8 @@ export class AgentsWindowRemoteAgentHostService extends RemoteAgentHostService {
 		@ILogService logService: ILogService,
 		@ILabelService labelService: ILabelService,
 		@IStorageService storageService: IStorageService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(configurationService, instantiationService, logService, labelService, storageService);
+		super(configurationService, instantiationService, logService, labelService, storageService, notificationService);
 	}
 }
