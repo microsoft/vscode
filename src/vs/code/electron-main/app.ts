@@ -59,6 +59,7 @@ import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.
 import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../platform/instantiation/common/serviceCollection.js';
 import { ProcessMainService } from '../../platform/process/electron-main/processMainService.js';
+import { ProcessMemoryTelemetry } from '../../platform/process/electron-main/processMemoryTelemetry.js';
 import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from '../../platform/keyboardLayout/electron-main/keyboardLayoutMainService.js';
 import { ILaunchMainService, LaunchMainService } from '../../platform/launch/electron-main/launchMainService.js';
 import { ILifecycleMainService, LifecycleMainPhase, ShutdownReason } from '../../platform/lifecycle/electron-main/lifecycleMainService.js';
@@ -131,6 +132,7 @@ import { LoggerChannel } from '../../platform/log/electron-main/logIpc.js';
 import { ILoggerMainService } from '../../platform/log/electron-main/loggerService.js';
 import { IInitialProtocolUrls, IProtocolUrl } from '../../platform/url/electron-main/url.js';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from '../../platform/utilityProcess/electron-main/utilityProcessWorkerMainService.js';
+import { UtilityProcess } from '../../platform/utilityProcess/electron-main/utilityProcess.js';
 import { ipcUtilityProcessWorkerChannelName } from '../../platform/utilityProcess/common/utilityProcessWorkerService.js';
 import { ILocalPtyService, LocalReconnectConstants, TerminalIpcChannels, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { createLocalPtyChannel } from '../../platform/terminal/common/localPtyChannel.js';
@@ -1762,6 +1764,12 @@ export class CodeApplication extends Disposable {
 				return typeof customApp.getGPULogMessages === 'function' ? customApp.getGPULogMessages() : [];
 			}));
 		}
+
+		// Memory telemetry of all processes except windows, which report their own
+		this._register(instantiationService.createInstance(ProcessMemoryTelemetry, {
+			getAppMetrics: () => app.getAppMetrics(),
+			getUtilityProcesses: () => UtilityProcess.getAll()
+		}));
 
 		{
 			interface NetworkProcessLaunchedDetails {

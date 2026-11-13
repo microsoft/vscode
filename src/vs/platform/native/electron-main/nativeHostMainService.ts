@@ -27,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IProcessMemory, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -1142,6 +1142,16 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async getProcessId(windowId: number | undefined): Promise<number | undefined> {
 		const window = this.windowById(undefined, windowId);
 		return window?.win?.webContents.getOSProcessId();
+	}
+
+	async getProcessMemory(windowId: number | undefined): Promise<IProcessMemory | undefined> {
+		const pid = this.windowById(undefined, windowId)?.win?.webContents.getOSProcessId();
+		if (!pid || this.lifecycleMainService.quitRequested) {
+			return undefined;
+		}
+
+		const memory = app.getAppMetrics().find(metric => metric.pid === pid)?.memory;
+		return memory ? { workingSetSize: memory.workingSetSize, peakWorkingSetSize: memory.peakWorkingSetSize, privateBytes: memory.privateBytes } : undefined;
 	}
 
 	async killProcess(windowId: number | undefined, pid: number, code: string): Promise<void> {

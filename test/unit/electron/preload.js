@@ -72,6 +72,14 @@
 				return process.getProcessMemoryInfo();
 			},
 
+			getHeapStatistics() {
+				return process.getHeapStatistics();
+			},
+
+			getBlinkMemoryInfo() {
+				return process.getBlinkMemoryInfo();
+			},
+
 			on(type, callback) {
 				// @ts-ignore
 				process.on(type, callback);
