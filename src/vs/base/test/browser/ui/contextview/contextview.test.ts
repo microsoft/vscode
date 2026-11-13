@@ -38,9 +38,9 @@ function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visibl
  */
 function alignedPosition(value: number): number {
 	const dpr = mainWindow.devicePixelRatio;
-	// Snap to 1/64 CSS pixel to absorb float error in dividing by the ratio, so a position at a half CSS pixel, such as
-	// device pixel 566 at a ratio of 0.800000011920929 (707.49999), rounds like the rendered 707.5 does
-	return Math.round(Math.round(Math.round(value * dpr) / dpr * 64) / 64);
+	// Client rects are float32, so round the float32 position: at a ratio of 0.800000011920929, device pixel 566 is 707.49999,
+	// which is read back as 707.5 and rounds up, while at about 0.67 device pixel 135 is read back as 201.4925 and rounds down
+	return Math.round(Math.fround(Math.round(value * dpr) / dpr));
 }
 
 suite('ContextView', () => {
@@ -530,6 +530,14 @@ suite('ContextView', () => {
 		const belowAnchor = align({ top: 200.5, left: 10 }, { width: 100, height: 399 }, { top: 190, left: 10, width: 1, height: 10.5 }, { renderedSize: { width: 100, height: 399.4 } });
 		// Placed above the anchor by its layout height, so it rounds the end of its rendered height to the nearest device pixel
 		const aboveAnchor = align({ top: 300.5, left: 10 }, { width: 100, height: 200 }, { top: 500.5, left: 10, width: 1, height: 10 }, { renderedSize: { width: 100, height: 200.33 }, devicePixelRatio: 1.5 });
+		// Rendered taller than laid out above the anchor, so its rendered end is past the anchor: it ends at the anchor's painted top instead
+		const tallerAboveAnchor = align({ top: 100.25, left: 10 }, { width: 100, height: 50 }, { top: 150.25, left: 10, width: 1, height: 10 }, { renderedSize: { width: 100, height: 50.375 }, devicePixelRatio: 1 });
+		// The same above an anchor on a whole device pixel, where the view also starts on one
+		const tallerAboveAlignedAnchor = align({ top: 100, left: 10 }, { width: 100, height: 50 }, { top: 150, left: 10, width: 1, height: 10 }, { renderedSize: { width: 100, height: 50.375 }, devicePixelRatio: 2 });
+		// Above an anchor at the viewport's top, where ending at the anchor's painted top would move the view past the viewport, so it stays
+		const tallerAboveAnchorAtViewportStart = align({ top: 0.4, left: 10 }, { width: 100, height: 50 }, { top: 50.4, left: 10, width: 1, height: 10 }, { renderedSize: { width: 100, height: 50.6 }, devicePixelRatio: 1 });
+		// Rendered wider than laid out in line with the anchor's end, so it ends at the anchor's painted end
+		const widerAtAnchorEnd = align({ top: 200, left: 100.25 }, { width: 50, height: 100 }, { top: 190, left: 0, width: 150.25, height: 10 }, { renderedSize: { width: 50.375, height: 100 }, devicePixelRatio: 1 });
 		// A view over its anchor whose rendered bottom is 0.15px from the viewport's, where the nearest device pixel would overflow it
 		const atViewportEnd = align({ top: 474.8, left: 10 }, { width: 125, height: 125 }, { top: 400, left: 0, width: 1002, height: 200 }, { renderedSize: { width: 125, height: 125.05 } });
 		// Pushed below the titlebar band beside an anchor that spans it, where the nearest device pixel is inside the band
@@ -543,6 +551,10 @@ suite('ContextView', () => {
 		assert.deepStrictEqual({
 			belowAnchor,
 			aboveAnchor,
+			tallerAboveAnchor: { ...tallerAboveAnchor, paintedBottom: Math.round(tallerAboveAnchor.top + 50.375) },
+			tallerAboveAlignedAnchor: { ...tallerAboveAlignedAnchor, paintedBottomDevicePixel: Math.round((tallerAboveAlignedAnchor.top + 50.375) * 2) },
+			tallerAboveAnchorAtViewportStart,
+			widerAtAnchorEnd: { ...widerAtAnchorEnd, paintedRight: Math.round(widerAtAnchorEnd.left + 50.375) },
 			atViewportEnd: { ...atViewportEnd, renderedBottom: round(atViewportEnd.top + 125.05) },
 			belowBand: align(pushed, square, tallAnchor, { titlebarAreaRect: band }),
 			withoutBand: align(pushed, square, tallAnchor),
@@ -550,6 +562,10 @@ suite('ContextView', () => {
 		}, {
 			belowAnchor: { top: 200.5, left: 9.848 },
 			aboveAnchor: { top: 300.667, left: 10 },
+			tallerAboveAnchor: { top: 100, left: 10, paintedBottom: 150 },
+			tallerAboveAlignedAnchor: { top: 99.5, left: 10, paintedBottomDevicePixel: 300 },
+			tallerAboveAnchorAtViewportStart: { top: 0.4, left: 10 },
+			widerAtAnchorEnd: { top: 200, left: 100, paintedRight: 150 },
 			atViewportEnd: { top: 474.242, left: 9.848, renderedBottom: 599.292 },
 			belowBand: { top: 32, left: 9.848 },
 			withoutBand: { top: 31.818, left: 9.848 },

@@ -931,12 +931,13 @@ export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixe
 
 /**
  * Returns how far, in CSS pixels, to move a client position so that it lands on a whole device
- * pixel, rounding as {@link alignToDevicePixels} does. `size` is the rendered size of the element,
- * which `'nearestEnd'` rounds from. Offsets within Chromium's layout precision are returned as 0,
- * and `'nearestEnd'` leaves a position already on a whole device pixel in place, so repeated calls
- * are stable.
+ * pixel, rounding as {@link alignToDevicePixels} does. `size` is the rendered size of the element.
+ * `'nearestEnd'` moves the element so that its far edge paints at the device pixel nearest to `end`,
+ * by default where that edge is rendered. Offsets within Chromium's layout precision are returned as
+ * 0, and without an `end`, `'nearestEnd'` leaves a position already on a whole device pixel in place,
+ * so repeated calls on a measured element are stable.
  */
-export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest', size = 0): number {
+export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest', size = 0, end?: number): number {
 	if (rounding === 'none') {
 		return 0;
 	}
@@ -945,15 +946,16 @@ export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio
 	const tolerance = Math.max(devicePixelRatio, 1) / 64 * 1.05;
 	const device = position * devicePixelRatio;
 	// An aligned start already paints the far edge its rounded size further on. Recomputing that edge from a start floored just short of
-	// its device pixel can round it a device pixel earlier, and so move an aligned element again.
-	if (rounding === 'nearestEnd' && Math.abs(Math.round(device) - device) <= tolerance) {
+	// its device pixel can round it a device pixel earlier, and so move an aligned element again. An explicit `end` is not read back, so
+	// it is always targeted.
+	if (rounding === 'nearestEnd' && end === undefined && Math.abs(Math.round(device) - device) <= tolerance) {
 		return 0;
 	}
 	let target: number;
 	switch (rounding) {
 		case 'start': target = Math.floor(device + tolerance); break;
 		case 'end': target = Math.ceil(device - tolerance); break;
-		case 'nearestEnd': target = Math.round((position + size) * devicePixelRatio) - Math.round(size * devicePixelRatio); break;
+		case 'nearestEnd': target = Math.round((end ?? position + size) * devicePixelRatio) - Math.round(size * devicePixelRatio); break;
 		default: target = Math.round(device); break;
 	}
 	return Math.abs(target - device) <= tolerance ? 0 : (target - device) / devicePixelRatio;

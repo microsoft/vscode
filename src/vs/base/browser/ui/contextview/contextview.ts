@@ -227,8 +227,9 @@ export interface IContextViewProvider {
  * Returns how far, in rendered CSS pixels, to move a view on one axis so that it starts on a whole
  * device pixel. Chromium paints the edges of an element at the device pixels nearest to them, so
  * the view rounds the edge that faces its anchor to the nearest device pixel: the end when the view
- * is before the anchor or lines up with the anchor's end, otherwise the start. It then meets the
- * anchor's painted edge as it did unaligned, neither covering the anchor nor leaving a gap.
+ * is before the anchor or lines up with the anchor's end, otherwise the start. When the view was laid
+ * out to end at the anchor's edge, its end paints at that edge's device pixel even if its rendered
+ * size differs from its layout size, so it neither covers the anchor nor leaves a gap.
  *
  * If that would move the view past the viewport, a view that lines up with its anchor instead rounds
  * the other way, and a view beside its anchor, which would move over the anchor, stays unaligned.
@@ -246,8 +247,10 @@ function getViewDevicePixelAlignmentOffset(start: number, size: number, anchorSt
 	if (!beside) {
 		roundings.push('start', 'end');
 	}
+	const anchorEdge = before ? anchorStart : anchorStart + anchorSize;
+	const anchorEnd = Math.abs(start + size - anchorEdge) <= epsilon ? anchorEdge - start + renderedStart : undefined;
 	for (const rounding of roundings) {
-		const offset = DOM.getDevicePixelAlignmentOffset(renderedStart, devicePixelRatio, rounding, renderedSize);
+		const offset = DOM.getDevicePixelAlignmentOffset(renderedStart, devicePixelRatio, rounding, renderedSize, anchorEnd);
 		// Allows for floating-point error when a move lands exactly on the viewport's edge
 		if ((offset >= 0 || renderedStart + offset >= -0.001) && (offset <= 0 || renderedStart + renderedSize + offset <= viewportSize + 0.001)) {
 			return offset;
