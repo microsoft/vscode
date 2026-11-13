@@ -127,7 +127,7 @@ import { IByokLmBridgeRegistry } from '../byokLmBridgeRegistry.js';
 import { IByokLmProxyService } from './byokLmProxyService.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, type IAgentHostWorktreeResumeService, SessionWorkingDirectoryMissingError } from '../shared/worktreeIsolation.js';
 import { buildSessionEventLogFromTurns, IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY, serializeImportedToolCalls, serializeImportedTurnDurations } from './buildSessionEvents.js';
-import { CopilotAgentSession, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
+import { CopilotAgentSession, CopilotProjectExtensionRevocationError, type ICopilotCanvasHandoff, type ICopilotWorkingDirectoryChangeTransaction } from './copilotAgentSession.js';
 import { CopilotSandboxCertificate } from './copilotSandboxCertificate.js';
 import { readCopilotSessionMetadataEvents, toCopilotSessionMetadataEvent } from './copilotSessionMetadataEvents.js';
 import { deferCopilotSdkExecution, getDeferredCopilotSdkExecution } from './copilotSessionExecutionMarker.js';
@@ -690,6 +690,15 @@ interface IWorkingDirectoryChangeTransactionOptions {
 /** Stable empty host-customization snapshot used before the host publishes one. */
 const NO_HOST_CUSTOMIZATIONS: readonly Customization[] = Object.freeze([]);
 const CHAT_QUEUE_STALL_WARNING_MS = 60_000;
+/** How long a session that couldn't confirm a workspace trust revocation gets to stop before the runtime that ran it stops. */
+const PROJECT_EXTENSION_REVOCATION_TEARDOWN_TIMEOUT_MS = 30_000;
+
+/** The Copilot runtime a session ran on, so escalation stops that runtime and not one that replaced it. */
+interface ICopilotSessionRuntimeOwner {
+	readonly sessionId: string;
+	readonly chatKey: string;
+	readonly client: CopilotSessionLaunchPlan['client'];
+}
 const EXTENSION_RECONCILIATION_LIFECYCLE_FAILED = 'extension_reconciliation_lifecycle_failed';
 
 class IncompleteCopilotSessionMarkerError extends Error { }
@@ -1392,6 +1401,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * {@link _requestClientRestart}; drained by {@link _applyPendingClientRestart}.
 	 */
 	private readonly _pendingClientRestartReasons = new Set<string>();
+	/** Runtimes that may still run a canvas session whose teardown they didn't confirm, by client. */
+	private readonly _runtimesWithUnconfirmedTeardown = new Map<CopilotSessionLaunchPlan['client'], ICopilotSessionRuntimeOwner>();
 	private _pendingClientRestartWaiter: DeferredPromise<void> | undefined;
 	private _closedConnectionRecovery: { readonly clientFailureId: string; readonly promise: Promise<ICopilotClosedConnectionRecoveryResult> } | undefined;
 	private readonly _authenticationSequencer = new Sequencer();
@@ -2422,6 +2433,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 				);
 			});
 		}
+		if (this._allLiveSessions().some(session => session.requiresRestartAfterProjectExtensionRevocation)) {
+			queueMicrotask(() => {
+				for (const session of this._allLiveSessions()) {
+					if (session.requiresRestartAfterProjectExtensionRevocation) {
+						void this._restartIdleSessionAfterUnconfirmedRevocation(session);
+					}
+				}
+			});
+		}
 		if (this._pendingClientRestartReasons.size === 0) {
 			return;
 		}
@@ -2462,19 +2482,144 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * queued operation on that chat.
 	 */
 	private _scheduleTelemetryRevokedSessionDisposal(session: CopilotAgentSession): Promise<void> {
-		if (this._shutdownPromise || !session.requiresRestartAfterTelemetryRevocation || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents) {
-			return Promise.resolve();
+		return this._disposeSessionWhenIdle(session, 'disposeTelemetryRevokedSession', () => session.requiresRestartAfterTelemetryRevocation)
+			.then(() => undefined, error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
+	}
+
+	/**
+	 * Tears down `session` through its chat sequencer once it has no active turn or subagent while `required` holds,
+	 * handing its canvases to the runtime that next resumes the chat. Resolves to whether the SDK session confirmed it
+	 * was destroyed, or `undefined` when nothing was torn down.
+	 */
+	private _disposeSessionWhenIdle(session: CopilotAgentSession, operation: string, required: () => boolean): Promise<boolean | undefined> {
+		if (this._shutdownPromise || !required() || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents) {
+			return Promise.resolve(undefined);
 		}
-		return this._queueChat(session.sessionId, session.sessionId, 'disposeTelemetryRevokedSession', async () => {
-			if (this._shutdownPromise || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
-				return;
+		return this._queueChat(session.sessionId, session.sessionId, operation, async () => {
+			if (this._shutdownPromise || !required() || session.isDisposed || session.hasActiveTurn || session.hasActiveSubagents || this._findSessionBySdkId(session.sessionId) !== session) {
+				return undefined;
 			}
 			const canvasHandoff = session.takeCanvasProjection();
 			if (canvasHandoff) {
 				this._canvasHandoffs.set(session.chatChannelUri, canvasHandoff);
 			}
-			await this._destroyLiveSession(session, true);
-		}).catch(error => this._logService.warn(`[Copilot:${session.sessionId}] Failed to dispose telemetry-revoked session`, error));
+			return this._destroyLiveSession(session, true);
+		});
+	}
+
+	/**
+	 * Restarts `session`, which couldn't confirm that an extension whose workspace trust was revoked stopped, once it is
+	 * idle: now if it is, otherwise after its turn and subagents end ({@link _onChatTurnEnded}), or before its next send.
+	 */
+	private _restartSessionAfterUnconfirmedRevocation(session: CopilotAgentSession): void {
+		session.markProjectExtensionRevocationRequiresRestart();
+		void this._restartIdleSessionAfterUnconfirmedRevocation(session);
+	}
+
+	private async _restartIdleSessionAfterUnconfirmedRevocation(session: CopilotAgentSession): Promise<void> {
+		try {
+			await this._disposeSessionWhenIdle(session, 'disposeTrustRevokedSession', () => session.requiresRestartAfterProjectExtensionRevocation);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${session.sessionId}] Failed to restart a session after a workspace trust revocation it couldn't confirm`, error);
+		}
+	}
+
+	private _runtimeOwnerOf(session: CopilotAgentSession): ICopilotSessionRuntimeOwner {
+		return { sessionId: session.sessionId, chatKey: session.chatChannelUri.toString(), client: session.runtimeClient };
+	}
+
+	/** The scoped runtime `owner` names, while it is still its chat's. */
+	private _scopedRuntimeOf(owner: ICopilotSessionRuntimeOwner): ScopedCopilotClient | undefined {
+		const scoped = this._scopedClients.get(owner.chatKey);
+		return scoped?.client === owner.client ? scoped : undefined;
+	}
+
+	private _isRunningRuntime(owner: ICopilotSessionRuntimeOwner): boolean {
+		return !!this._scopedRuntimeOf(owner) || owner.client === this._client;
+	}
+
+	/**
+	 * Stops `owner`, the runtime that ran a session that didn't confirm it stopped while an extension whose workspace trust
+	 * was revoked may still run there, so the obligation can't rest on that session anymore. A chat's own scoped runtime
+	 * stops now, as it serves only that chat, and this resolves once it has, so the chat can't resume the session on a new
+	 * runtime while this one may still hold it; the shared one restarts once no chat has in-flight work. Either stops every
+	 * extension process it ran. A runtime already replaced was stopped with its replacement.
+	 */
+	private async _restartRuntimeAfterUnconfirmedRevocation(owner: ICopilotSessionRuntimeOwner): Promise<void> {
+		const scoped = this._scopedRuntimeOf(owner);
+		if (scoped) {
+			this._logService.error(`[Copilot:${owner.sessionId}] Stopping this chat's Copilot runtime: the session didn't confirm it stopped, and an extension whose workspace trust was revoked may still run`);
+			try {
+				await scoped.stop();
+			} catch (error) {
+				this._logService.error(`[Copilot:${owner.sessionId}] Failed to stop the Copilot runtime of a session with an unconfirmed workspace trust revocation`, error);
+			}
+			if (this._scopedClients.get(owner.chatKey) === scoped) {
+				this._scopedClients.deleteAndDispose(owner.chatKey);
+			}
+			this._runtimesWithUnconfirmedTeardown.delete(owner.client);
+			return;
+		}
+		if (owner.client !== this._client) {
+			this._runtimesWithUnconfirmedTeardown.delete(owner.client);
+			return;
+		}
+		this._logService.error(`[Copilot:${owner.sessionId}] Restarting the Copilot runtime once no chat has in-flight work: the session didn't confirm it stopped, and an extension whose workspace trust was revoked may still run`);
+		this._requestClientRestart('workspace trust revocation not confirmed').then(accepted => {
+			if (!accepted) {
+				this._logService.warn(`[Copilot:${owner.sessionId}] The Copilot runtime that ran a session with an unconfirmed workspace trust revocation is no longer running`);
+			}
+		}, error => this._logService.error('[Copilot] Failed to request a CopilotClient restart after a workspace trust revocation', error));
+	}
+
+	/**
+	 * Records the runtime of a canvas session whose teardown it didn't confirm: the runtime may still run that session's
+	 * extensions, which the host no longer tracks, so it can't confirm they stop when trust contracts.
+	 */
+	private _noteRuntimeWithUnconfirmedTeardown(owner: ICopilotSessionRuntimeOwner): void {
+		for (const [client, recorded] of this._runtimesWithUnconfirmedTeardown) {
+			if (!this._isRunningRuntime(recorded)) {
+				this._runtimesWithUnconfirmedTeardown.delete(client);
+			}
+		}
+		if (this._isRunningRuntime(owner)) {
+			this._runtimesWithUnconfirmedTeardown.set(owner.client, owner);
+		}
+	}
+
+	/**
+	 * Stops each runtime with a session teardown it didn't confirm, once trust contracts. A live session on a chat's own
+	 * scoped runtime stops it when that session is torn down, as for a session that can't confirm a revocation itself;
+	 * otherwise it stops in the queue of the session it ran, so resuming that session can't acquire it while it stops.
+	 */
+	private _stopRuntimesWithUnconfirmedTeardown(): void {
+		for (const [client, recorded] of [...this._runtimesWithUnconfirmedTeardown]) {
+			if (!this._isRunningRuntime(recorded)) {
+				this._runtimesWithUnconfirmedTeardown.delete(client);
+			} else if (!this._scopedRuntimeOf(recorded)) {
+				void this._restartRuntimeAfterUnconfirmedRevocation(recorded);
+			} else if (!this._restartLiveSessionsOnRuntime(recorded)) {
+				this._queueChat(recorded.sessionId, recorded.sessionId, 'stopTrustRevokedRuntime', () => this._stopScopedRuntimeWithUnconfirmedTeardown(recorded))
+					.catch(error => this._logService.error(`[Copilot:${recorded.sessionId}] Failed to stop a Copilot runtime with an unconfirmed session teardown after workspace trust contracted`, error));
+			}
+		}
+	}
+
+	/** Flags the live sessions on `recorded`'s runtime, whose teardown then stops it; returns whether there were any. */
+	private _restartLiveSessionsOnRuntime(recorded: ICopilotSessionRuntimeOwner): boolean {
+		const live = this._allLiveSessions().filter(session => session.runtimeClient === recorded.client);
+		for (const session of live) {
+			this._restartSessionAfterUnconfirmedRevocation(session);
+		}
+		return live.length > 0;
+	}
+
+	private async _stopScopedRuntimeWithUnconfirmedTeardown(recorded: ICopilotSessionRuntimeOwner): Promise<void> {
+		// A session may have resumed on it meanwhile.
+		if (this._scopedRuntimeOf(recorded) && this._restartLiveSessionsOnRuntime(recorded)) {
+			return;
+		}
+		await this._restartRuntimeAfterUnconfirmedRevocation(recorded);
 	}
 
 	private async _disposeIdleTelemetryRevokedSessions(): Promise<void> {
@@ -2648,6 +2793,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void> {
 		const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(change);
+		// Swept together with the live sessions below: a session whose teardown fails meanwhile is either recorded by now
+		// or still live, where its reconciliation hands the revocation to that teardown.
+		if (change.contracted) {
+			this._stopRuntimesWithUnconfirmedTeardown();
+		}
 		if (!reconciliation.expanded && reconciliation.revokedExtensionNames.size === 0) {
 			return;
 		}
@@ -2658,6 +2808,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
 				} catch (error) {
 					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after workspace trust changed`, error);
+					if (error instanceof CopilotProjectExtensionRevocationError) {
+						this._restartSessionAfterUnconfirmedRevocation(session);
+					}
 				}
 			}));
 	}
@@ -8584,7 +8737,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					: raceCancellationError(activeClient.snapshot(context.chatKey, anchor, selectedAgentUri), waitToken),
 		]);
 		const primaryDirectoryChanged = !!storedWorkingDirectory && !isEqual(entry.workingDirectory, storedWorkingDirectory);
-		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && !entry.requiresRestartAfterTelemetryRevocation && activeClient && currentSnapshot
+		const structuralRestartReason = !entry.requiresRestartAfterWorkingDirectoryChange && !entry.requiresRestartAfterModelChange && !entry.requiresRestartAfterTelemetryRevocation && !entry.requiresRestartAfterProjectExtensionRevocation && activeClient && currentSnapshot
 			? await raceCancellationError(activeClient.getRestartReason(entry.appliedSnapshot, context.chatKey, currentSnapshot, anchor), waitToken)
 			: undefined;
 		const currentDisabledRootMcpServers = currentSnapshot
@@ -8598,6 +8751,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			?? (primaryDirectoryChanged ? 'primaryDirectoryChanged' : undefined)
 			?? (entry.requiresRestartAfterModelChange ? 'hydraFusionModelChanged' : undefined)
 			?? (entry.requiresRestartAfterTelemetryRevocation ? 'telemetryRevoked' : undefined)
+			?? (entry.requiresRestartAfterProjectExtensionRevocation ? 'projectExtensionTrustRevoked' : undefined)
 			?? (rootsChanged ? 'additionalDirectoriesChanged' : undefined)
 			?? structuralRestartReason
 			?? (disabledRootMcpServersChanged ? 'disabledRootMcpServersChanged' : undefined)
@@ -11053,18 +11207,49 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._registerUnboundSession(agentSession, activeClient);
 	}
 
-	private async _destroyLiveSession(chatSession: CopilotAgentSession, preserveRouting = false): Promise<void> {
+	/**
+	 * Destroys the SDK session and drops `chatSession`; resolves to whether the SDK session confirmed it was destroyed.
+	 * Whichever teardown runs, a session that couldn't confirm a workspace trust revocation must be destroyed by a
+	 * deadline, or the runtime that ran it stops. It may conclude that only while this waits for its in-flight trust
+	 * reconciliation, or past the deadline, while a trust change reaches it as it retires; either stops the wait.
+	 */
+	private async _destroyLiveSession(chatSession: CopilotAgentSession, preserveRouting = false): Promise<boolean> {
+		const destruction = (async () => {
+			try {
+				await chatSession.destroySession();
+				return true;
+			} catch (error) {
+				this._logService.warn(`[Copilot:${chatSession.sessionId}] Failed to destroy session before cleanup: ${error instanceof Error ? error.message : String(error)}`);
+				return false;
+			}
+		})();
+		const deadline = timeout(PROJECT_EXTENSION_REVOCATION_TEARDOWN_TIMEOUT_MS);
+		let destroyed: boolean;
 		try {
-			await chatSession.destroySession();
-		} catch (error) {
-			this._logService.warn(`[Copilot:${chatSession.sessionId}] Failed to destroy session before cleanup: ${error instanceof Error ? error.message : String(error)}`);
+			destroyed = await Promise.race([destruction, deadline.then(() => Promise.race([destruction, chatSession.whenProjectExtensionRevocationRequiresRestart.then(() => false)]))]);
+		} finally {
+			deadline.cancel();
 		}
-		const chatChannelUri = chatSession.chatChannelUri;
-		if (!preserveRouting && chatChannelUri && this._chatBackings.get(chatChannelUri.toString())?.sdkSessionId === chatSession.sessionId) {
-			this._invalidateCanvasContinuity(chatChannelUri, true);
-			this._chatBackings.delete(chatChannelUri.toString());
+		// Recorded before the session is dropped: releasing its launch admission may end its own exemption, a contraction
+		// that must already find the runtime.
+		if (!destroyed && !chatSession.requiresRestartAfterProjectExtensionRevocation && chatSession.canvasRuntimeEnabled) {
+			this._noteRuntimeWithUnconfirmedTeardown(this._runtimeOwnerOf(chatSession));
 		}
-		this._chatEntriesBySdkId.deleteAndDispose(chatSession.sessionId);
+		// A replacement may have registered under the same SDK session id meanwhile; its entry and routing are not this session's.
+		const current = this._chatEntriesBySdkId.get(chatSession.sessionId);
+		if (!current || current.chatSession === chatSession) {
+			const chatChannelUri = chatSession.chatChannelUri;
+			if (!preserveRouting && chatChannelUri && this._chatBackings.get(chatChannelUri.toString())?.sdkSessionId === chatSession.sessionId) {
+				this._invalidateCanvasContinuity(chatChannelUri, true);
+				this._chatBackings.delete(chatChannelUri.toString());
+			}
+			this._chatEntriesBySdkId.deleteAndDispose(chatSession.sessionId);
+		}
+		// A runtime with a session teardown it didn't confirm stops even when this one's teardown succeeded.
+		if (chatSession.requiresRestartAfterProjectExtensionRevocation && (!destroyed || this._runtimesWithUnconfirmedTeardown.has(chatSession.runtimeClient))) {
+			await this._restartRuntimeAfterUnconfirmedRevocation(this._runtimeOwnerOf(chatSession));
+		}
+		return destroyed;
 	}
 
 	private _allLiveSessions(): CopilotAgentSession[] {
@@ -11097,8 +11282,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session.canvasRuntimeEnabled && changeDuringInitialization) {
 				reconciledTrustState = this._projectExtensionLaunchPolicy.trustState;
 				const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(changeDuringInitialization);
-				// It throws only when a revocation fails: an extension that may run without trust fails the session.
-				await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+				try {
+					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
+				} catch (error) {
+					// It throws only when a revocation fails: an extension that may run without trust fails the session. Its caller
+					// then disposes it, which disconnects the runtime only on a best-effort basis, so it is destroyed here.
+					if (error instanceof CopilotProjectExtensionRevocationError) {
+						session.markProjectExtensionRevocationRequiresRestart();
+						await this._destroyLiveSession(session, true);
+					}
+					throw error;
+				}
 			}
 			await beforeRegistration?.();
 			if (session.hasPendingConnectorRefresh) {
@@ -11116,6 +11310,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 					await session.reconcileProjectExtensionsAfterTrustChange(await this._projectExtensionLaunchPolicy.reconciliationFor(changeBeforeRegistration));
 				} catch (error) {
 					this._logService.error(`[Copilot:${session.sessionId}] Failed to reconcile project extensions after registration`, error);
+					if (error instanceof CopilotProjectExtensionRevocationError) {
+						// The caller is about to use this session, and a session it just created has no restart reason to check.
+						// Initialization already holds the chat's queue, so it destroys the session directly.
+						session.markProjectExtensionRevocationRequiresRestart();
+						await this._destroyLiveSession(session, true);
+						throw error;
+					}
 				}
 			}
 		} finally {

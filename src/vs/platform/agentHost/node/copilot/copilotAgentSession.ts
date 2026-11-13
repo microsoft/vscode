@@ -657,6 +657,32 @@ function isCopilotSdkToolOutputTempFile(filePath: string, tmpDir: string): boole
 const realpath = promisify(fsRealpath);
 // A non-settling control RPC must not permanently block the per-chat sequencer.
 const CONTROL_PLANE_RPC_TIMEOUT_MS = 30_000;
+/** How often, and how many times, to list extensions while a revoked name's relaunch is still starting without a process. */
+const PROJECT_EXTENSION_SETTLE_POLL_MS = 100;
+const PROJECT_EXTENSION_SETTLE_POLLS = 10;
+
+/** A live extension and, while it runs, its process. */
+interface ICopilotRuntimeExtension extends IAgentExtensionInfo {
+	readonly pid?: number;
+}
+
+/** A live extension inventory; `complete` is false when the runtime reported a row this host couldn't read. */
+interface ICopilotRuntimeExtensionInventory {
+	readonly extensions: readonly ICopilotRuntimeExtension[];
+	readonly complete: boolean;
+}
+
+/** A session couldn't confirm that the project extensions whose workspace trust was revoked stopped. */
+export class CopilotProjectExtensionRevocationError extends Error {
+	constructor(revokedExtensionNames: ReadonlySet<string>, cause: unknown) {
+		super(`Couldn't confirm that project extensions whose workspace trust was revoked (${[...revokedExtensionNames].join(', ')}) stopped: ${getErrorMessage(cause)}`);
+		this.name = 'CopilotProjectExtensionRevocationError';
+	}
+}
+
+function isActiveProjectExtension(extension: ICopilotRuntimeExtension): boolean {
+	return extension.source === 'project' && (extension.status === 'running' || extension.status === 'starting');
+}
 const CONNECTOR_REFRESH_TIMEOUT_MS = 60_000;
 /** Bounds the Connector status read that classifies a server published Connector state does not know, so a token never waits on it for long. */
 const CONNECTOR_OWNERSHIP_LOOKUP_TIMEOUT_MS = 10_000;
@@ -1964,6 +1990,7 @@ export class CopilotAgentSession extends Disposable {
 	private _requiresRestartAfterWorkingDirectoryChange = false;
 	private _requiresRestartAfterModelChange = false;
 	private _requiresRestartAfterTelemetryRevocation = false;
+	private readonly _projectExtensionRevocationRequiresRestart = new DeferredPromise<void>();
 	private readonly _slashCommandProvider: CopilotSlashCommandProvider;
 	/** Last agent mode pushed to the SDK via {@link applyMode}, to elide redundant `rpc.mode.set` calls. */
 	private _lastAppliedMode: CopilotSdkMode | undefined;
@@ -4322,6 +4349,25 @@ export class CopilotAgentSession extends Disposable {
 		this._requiresRestartAfterTelemetryRevocation = true;
 	}
 
+	/** Set when this session couldn't confirm that an extension whose workspace trust was revoked stopped. */
+	get requiresRestartAfterProjectExtensionRevocation(): boolean {
+		return this._projectExtensionRevocationRequiresRestart.isSettled;
+	}
+
+	/** Resolves once {@link requiresRestartAfterProjectExtensionRevocation} is set, which may happen while the session is torn down. */
+	get whenProjectExtensionRevocationRequiresRestart(): Promise<void> {
+		return this._projectExtensionRevocationRequiresRestart.p;
+	}
+
+	markProjectExtensionRevocationRequiresRestart(): void {
+		void this._projectExtensionRevocationRequiresRestart.complete();
+	}
+
+	/** The Copilot runtime this session runs on. */
+	get runtimeClient(): CopilotSessionLaunchPlan['client'] {
+		return this._launchPlan.client;
+	}
+
 	get requiresMcpLaunchConfigurationRefresh(): boolean {
 		this._markMcpLaunchConfigurationDirty();
 		return this._mcpLaunchConfigurationDirty;
@@ -5165,21 +5211,24 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	async listExtensions(): Promise<readonly IAgentExtensionInfo[]> {
-		return this._listExtensions(this._wrapper);
+		const { extensions } = await this._listRuntimeExtensions(this._wrapper);
+		return extensions.map(({ id, name, source, status }) => ({ id, name, source, status }));
 	}
 
-	private async _listExtensions(wrapper: CopilotSessionWrapper): Promise<readonly IAgentExtensionInfo[]> {
+	private async _listRuntimeExtensions(wrapper: CopilotSessionWrapper): Promise<ICopilotRuntimeExtensionInventory> {
 		const result = await this._awaitControlPlaneRpc('rpc.extensions.list', wrapper.session.rpc.extensions.list());
 		if (!result || !Array.isArray(result.extensions)) {
 			throw new Error('Copilot returned an invalid live extension inventory.');
 		}
-		return result.extensions.flatMap((extension, index) => {
+		let complete = true;
+		const extensions = result.extensions.flatMap((extension, index): ICopilotRuntimeExtension[] => {
 			if (!extension || typeof extension !== 'object'
 				|| typeof extension.id !== 'string' || !extension.id
 				|| typeof extension.name !== 'string' || !extension.name
 				|| typeof extension.source !== 'string'
 				|| typeof extension.status !== 'string') {
 				this._logService.warn(`[Copilot:${this.sessionId}] Ignoring invalid live extension inventory entry at index ${index}`);
+				complete = false;
 				return [];
 			}
 			const source = this._canvasExtensionSource(extension.source);
@@ -5195,8 +5244,10 @@ export class CopilotAgentSession extends Disposable {
 				name: extension.name,
 				source,
 				status: this._extensionStatus(extension.status),
+				...(typeof extension.pid === 'number' ? { pid: extension.pid } : {}),
 			}];
 		});
+		return { extensions, complete };
 	}
 
 	async openCanvas(request: IAgentCanvasOpenRequest): Promise<void> {
@@ -6625,49 +6676,52 @@ export class CopilotAgentSession extends Disposable {
 	private async _reconcileProjectExtensionsAfterTrustChange(reconciliation: ICopilotProjectExtensionTrustReconciliation, wrapper: CopilotSessionWrapper): Promise<void> {
 		// Configuration refresh resumes the same SDK session in a new runtime, which RPCs addressed to this one would reach.
 		const isCurrent = () => !this._store.isDisposed && !this._retiring && this._wrapper === wrapper && wrapper.lifecycleState === 'active';
-		const listProjectExtensions = async () => (await this._listExtensions(wrapper)).filter(extension => extension.source === 'project');
+		const revokedNames = reconciliation.revokedExtensionNames;
+		// A revocation the session can't finish because it retires falls to the teardown retiring it, which must then
+		// confirm the runtime stopped.
+		const leaveRevocationToTeardown = () => {
+			if (revokedNames.size > 0) {
+				this.markProjectExtensionRevocationRequiresRestart();
+			}
+		};
 		if (!isCurrent()) {
+			leaveRevocationToTeardown();
 			return;
 		}
-		let projectExtensions: readonly IAgentExtensionInfo[];
+		let inventory: ICopilotRuntimeExtensionInventory;
 		try {
-			projectExtensions = await listProjectExtensions();
+			inventory = await this._listRuntimeExtensions(wrapper);
 		} catch (error) {
 			if (!isCurrent()) {
+				leaveRevocationToTeardown();
 				return;
 			}
 			// Without the inventory, a revoked extension may still run here.
-			if (reconciliation.revokedExtensionNames.size > 0) {
-				throw error;
+			if (revokedNames.size > 0) {
+				throw new CopilotProjectExtensionRevocationError(revokedNames, error);
 			}
 			this._logService.warn(`[Copilot:${this.sessionId}] Skipping the retry of refused project extensions after workspace trust expanded: ${getErrorMessage(error)}`);
 			return;
 		}
 		if (!isCurrent()) {
+			leaveRevocationToTeardown();
 			return;
 		}
 		// The runtime names a project extension after its folder, as the policy recorded its revoked launch.
-		const revoked = projectExtensions.filter(extension => (extension.status === 'running' || extension.status === 'starting') && reconciliation.revokedExtensionNames.has(extension.name));
-		if (revoked.length) {
-			this._logService.info(`[Copilot:${this.sessionId}] Reloading extensions after workspace trust was revoked for ${revoked.map(extension => extension.id).join(', ')}`);
-			this._recordRuntimeMutation('extensionsReload');
-			await this._awaitControlPlaneRpc('rpc.extensions.reload', wrapper.session.rpc.extensions.reload());
+		const revoked = inventory.extensions.filter(extension => isActiveProjectExtension(extension) && revokedNames.has(extension.name));
+		// A row this host couldn't read may be a revoked extension.
+		if (revoked.length || (revokedNames.size > 0 && !inventory.complete)) {
+			const confirmed = await this._stopRevokedProjectExtensions(revoked, inventory.complete, revokedNames, wrapper, isCurrent);
+			if (!confirmed) {
+				leaveRevocationToTeardown();
+				return;
+			}
 			if (!reconciliation.expanded || !isCurrent()) {
 				return;
 			}
-			try {
-				projectExtensions = await listProjectExtensions();
-			} catch (error) {
-				if (isCurrent()) {
-					this._logService.warn(`[Copilot:${this.sessionId}] Skipping the retry of refused project extensions after workspace trust expanded: ${getErrorMessage(error)}`);
-				}
-				return;
-			}
-			if (!isCurrent()) {
-				return;
-			}
+			inventory = confirmed;
 		}
-		if (!reconciliation.expanded || !projectExtensions.some(extension => extension.status === 'failed')) {
+		if (!reconciliation.expanded || !inventory.extensions.some(extension => extension.source === 'project' && extension.status === 'failed')) {
 			return;
 		}
 		// Host-only and not persisted: it retries refused launches under the session's current enablement, and leaves
@@ -6679,6 +6733,80 @@ export class CopilotAgentSession extends Disposable {
 			// The runtime also reports extensions the launch provider still refuses as a failure; they stay refused.
 			if (isCurrent()) {
 				this._logService.warn(`[Copilot:${this.sessionId}] Retrying refused project extensions after workspace trust expanded did not complete: ${getErrorMessage(error)}`);
+			}
+		}
+	}
+
+	/**
+	 * Reloads extensions to stop `revoked`, the running project extensions whose workspace trust was revoked, and confirms
+	 * that none of their processes still runs in a complete inventory: a same-named extension that trust still covers
+	 * relaunches in a new process. `revokedComplete` is false when the inventory `revoked` came from had a row this host
+	 * couldn't read. Retries the reload once, then throws. Returns the confirming inventory, or `undefined` once the
+	 * session retires, as its teardown stops the runtime.
+	 */
+	private async _stopRevokedProjectExtensions(revoked: readonly ICopilotRuntimeExtension[], revokedComplete: boolean, revokedNames: ReadonlySet<string>, wrapper: CopilotSessionWrapper, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
+		const revokedPids = new Set(revoked.flatMap(extension => extension.pid === undefined ? [] : [extension.pid]));
+		// Without its process, or its row, only a reload that succeeded shows a revoked extension stopped: a later process
+		// could be the same one.
+		const hasUnidentified = !revokedComplete || revoked.some(extension => extension.pid === undefined);
+		let failure: unknown;
+		for (let attempt = 0; attempt < 2; attempt++) {
+			if (!isCurrent()) {
+				return undefined;
+			}
+			this._logService.info(`[Copilot:${this.sessionId}] Reloading extensions after workspace trust was revoked for ${[...revokedNames].join(', ')}`);
+			this._recordRuntimeMutation('extensionsReload');
+			let reloaded = true;
+			try {
+				await this._awaitControlPlaneRpc('rpc.extensions.reload', wrapper.session.rpc.extensions.reload());
+			} catch (error) {
+				reloaded = false;
+				failure = error;
+				this._logService.warn(`[Copilot:${this.sessionId}] Reloading extensions after workspace trust was revoked failed; checking whether they stopped: ${getErrorMessage(error)}`);
+			}
+			if (!isCurrent()) {
+				return undefined;
+			}
+			let inventory: ICopilotRuntimeExtensionInventory | undefined;
+			try {
+				inventory = await this._settledRuntimeExtensions(wrapper, revokedNames, isCurrent);
+			} catch (error) {
+				failure = error;
+				continue;
+			}
+			if (!inventory) {
+				return undefined;
+			}
+			// A same-named extension that trust still covers relaunches in a new process; one without a process can't be told apart.
+			const runsRevoked = (extension: ICopilotRuntimeExtension) => (extension.status === 'running' || extension.status === 'starting')
+				&& (extension.pid === undefined ? extension.source === 'project' && revokedNames.has(extension.name) : revokedPids.has(extension.pid));
+			const stillRunning = inventory.extensions.filter(runsRevoked);
+			if (inventory.complete && stillRunning.length === 0 && (reloaded || !hasUnidentified)) {
+				return inventory;
+			}
+			if (!inventory.complete) {
+				failure = new Error('the runtime reported an extension this host could not read');
+			} else if (stillRunning.length) {
+				failure = new Error(`${stillRunning.map(extension => extension.id).join(', ')} still running`);
+			}
+		}
+		throw new CopilotProjectExtensionRevocationError(revokedNames, failure);
+	}
+
+	/** Lists extensions, briefly waiting while one with a revoked name is starting without a process to tell which it is. */
+	private async _settledRuntimeExtensions(wrapper: CopilotSessionWrapper, revokedNames: ReadonlySet<string>, isCurrent: () => boolean): Promise<ICopilotRuntimeExtensionInventory | undefined> {
+		for (let poll = 1; ; poll++) {
+			const inventory = await this._listRuntimeExtensions(wrapper);
+			if (!isCurrent()) {
+				return undefined;
+			}
+			const unidentified = inventory.extensions.some(extension => extension.source === 'project' && extension.status === 'starting' && extension.pid === undefined && revokedNames.has(extension.name));
+			if (!unidentified || poll >= PROJECT_EXTENSION_SETTLE_POLLS) {
+				return inventory;
+			}
+			await timeout(PROJECT_EXTENSION_SETTLE_POLL_MS);
+			if (!isCurrent()) {
+				return undefined;
 			}
 		}
 	}
