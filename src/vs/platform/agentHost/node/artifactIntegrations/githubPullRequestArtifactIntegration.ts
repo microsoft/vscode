@@ -30,7 +30,7 @@ import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequi
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
 import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
 import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredReason } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
 import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { IAgentHostGitHubService } from '../agentHostGitHubService.js';
@@ -392,7 +392,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	/** What the last conclusive checkout probe was based on and when; the same inputs give the same answer until the checkout changes, which a Git state refresh reports. */
 	private lastWorkspaceProbe: string | undefined;
 	private lastWorkspaceProbeAt = 0;
-	/** Counts the announced Git state refreshes of the session, so that a probe that started before one is not taken for current. */
+	/** Counts the announced Git state refreshes and the turn ends of the session, so that a probe that started before one is not taken for current. */
 	private gitRefreshGeneration = 0;
 	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
@@ -418,14 +418,17 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	) {
 		super();
 		const sessionGitRefreshes = Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session);
+		// An agent may have changed a checkout nobody watches during its turn.
+		const sessionTurnEnds = Event.filter(stateManager.onDidEmitEnvelope, envelope => envelope.action.type === ActionType.ChatTurnComplete && stateManager.getChatOwner(envelope.channel) === context.session);
 		this.hostChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			Event.filter(events.onDidChange, event => event.channel === context.session || stateManager.getChatOwner(event.channel) === context.session),
 			sessionGitRefreshes,
+			sessionTurnEnds,
 			configuration.onDidRootConfigChange,
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
 		const refreshWorkspace = this._register(new RunOnceScheduler(() => { void this.refreshWorkspaces(); }, 50));
-		this._register(sessionGitRefreshes(() => { this.gitRefreshGeneration++; }));
+		this._register(Event.any<unknown>(sessionGitRefreshes, sessionTurnEnds)(() => { this.gitRefreshGeneration++; }));
 		this._register(autorun(reader => this.pruneResolvedThreads(resource.snapshot.read(reader).reviewThreads)));
 		this._register(autorun(reader => {
 			resource.snapshot.read(reader);

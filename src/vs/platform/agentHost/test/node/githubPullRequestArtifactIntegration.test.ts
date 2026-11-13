@@ -33,9 +33,9 @@ import { IAgentHostGitStateService } from '../../common/agentHostGitStateService
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -820,7 +820,7 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
-	test('probes the checkout once for unchanged inputs and again when a Git state refresh observed a change', () => run(async store => {
+	test('probes the checkout once for unchanged inputs and again after a Git state refresh or a turn end', () => run(async store => {
 		const open = itemActionSnapshot();
 		const f = await fixture(store, open);
 		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
@@ -834,8 +834,12 @@ suite('GitHub pull request artifact integration', () => {
 		const afterEvents = f.checkoutRequests.length - initial;
 		f.refreshGitState();
 		await timeout(100);
+		const afterGitRefresh = f.checkoutRequests.length - initial;
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message: { text: 'Fix it', origin: { kind: MessageKind.User } } });
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		await timeout(100);
 
-		assert.deepStrictEqual({ afterEvents, afterGitRefresh: f.checkoutRequests.length - initial }, { afterEvents: 0, afterGitRefresh: 1 });
+		assert.deepStrictEqual({ afterEvents, afterGitRefresh, afterTurnEnd: f.checkoutRequests.length - initial }, { afterEvents: 0, afterGitRefresh: 1, afterTurnEnd: 2 });
 	}));
 
 	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
