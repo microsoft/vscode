@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import * as sinon from 'sinon';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -14,7 +15,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { CustomizationMarketplaceConfiguration } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { INotification, INotificationHandle, INotificationService, Severity } from '../../../../../../platform/notification/common/notification.js';
@@ -309,6 +310,8 @@ suite('InstallFromSourceAction', () => {
 
 suite('ManagePluginMarketplacesAction', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	teardown(() => sinon.restore());
 
 	class UpdatingConfigurationService extends TestConfigurationService {
 		readonly updates: { key: string; value: unknown }[] = [];
@@ -1308,29 +1311,52 @@ suite('ManagePluginMarketplacesAction', () => {
 		}
 	}
 
-	test('hides the default marketplace from management when the public feed replaces it', async () => {
+	test('keeps the configured default marketplace visible and nonremovable across feed toggles', async () => {
 		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
 			[ChatConfiguration.ExtraMarketplaces]: {},
 			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
-			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: true,
 		}, true);
-		await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+		sinon.stub(fixture.configurationService, 'inspect').withArgs(ChatConfiguration.PluginMarketplaces).returns({
+			value: [marketplace.rawValue],
+			defaultValue: [marketplace.rawValue],
+		});
+		const actual = [];
+		for (const enabled of [false, true, false]) {
+			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);
+			fixture.quickInputService.pickIds.push(marketplace.canonicalId, 'showPlugins');
+			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
+			actual.push({
+				marketplaces: fixture.quickInputService.picks.at(-1)!
+					.filter(pick => pick.id === marketplace.canonicalId)
+					.map(pick => ({ id: pick.id, description: pick.description, buttons: pick.buttons })),
+				actions: fixture.quickInputService.quickPickSnapshots.at(-1),
+				command: fixture.commands.at(-1),
+			});
+		}
 
 		assert.deepStrictEqual({
-			items: fixture.quickInputService.pickSnapshots[0],
+			actual,
 			configurationUpdates: fixture.configurationService.updates,
 		}, {
-			items: [
-				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
-				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
-			],
+			actual: [false, true, false].map(enabled => ({
+				marketplaces: [{ id: marketplace.canonicalId, description: 'Default', buttons: undefined }],
+				actions: [{ id: 'showPlugins', label: 'Browse', type: 'item' }],
+				command: {
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					args: [{
+						section: AICustomizationManagementSection.Plugins,
+						searchQuery: '',
+						sourceId: enabled ? CustomizationMarketplaceSources.AgentFinderPublicFeed.id : getPluginCustomizationMarketplaceSourceId(marketplace),
+					}],
+				},
+			})),
 			configurationUpdates: [],
 		});
 	});
 
-	test('keeps the hidden default marketplace in add validation', async () => {
+	test('keeps the default marketplace in add validation with the public feed enabled', async () => {
 		const marketplace = parseMarketplaceReference('github/awesome-copilot#marketplace')!;
 		const fixture = createFixture({
 			[ChatConfiguration.PluginMarketplaces]: [marketplace.rawValue],
@@ -1352,6 +1378,8 @@ suite('ManagePluginMarketplacesAction', () => {
 			items: [
 				{ id: 'addMarketplace', label: '$(add) Add Marketplace...', type: 'item' },
 				{ id: 'browseMarketplaces', label: 'Browse All Marketplaces', type: 'item' },
+				{ id: undefined, label: 'Configured Marketplaces', type: 'separator' },
+				{ id: marketplace.canonicalId, label: marketplace.displayLabel, type: 'item' },
 			],
 			validation: [{
 				phase: 'accept',
@@ -1363,7 +1391,7 @@ suite('ManagePluginMarketplacesAction', () => {
 		});
 	});
 
-	test('filters provider Awesome Copilot from management when toggling the feed', async () => {
+	test('keeps provider Awesome Copilot visible and nonremovable across feed toggles', async () => {
 		const marketplaces = ['awesome-copilot', 'team-plugins'].map(name => ({
 			name, source: `GitHub: github/${name}`, isDefault: name === 'awesome-copilot', managed: false, available: true,
 		}));
@@ -1382,15 +1410,34 @@ suite('ManagePluginMarketplacesAction', () => {
 		const actual = [];
 		for (const enabled of [false, true, false]) {
 			await fixture.configurationService.setUserConfiguration(CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled, enabled);
+			fixture.quickInputService.pickIds.push('awesome-copilot', 'browsePlugins');
 			await fixture.instantiationService.invokeFunction(accessor => new ManagePluginMarketplacesAction().run(accessor));
-			actual.push(fixture.quickInputService.pickSnapshots.at(-1)!
-				.filter(pick => marketplaces.some(marketplace => marketplace.name === pick.id)).map(pick => pick.id));
+			actual.push({
+				marketplaces: fixture.quickInputService.picks.at(-1)!
+					.filter(pick => marketplaces.some(marketplace => marketplace.name === pick.id))
+					.map(pick => ({ id: pick.id, description: pick.description, buttons: pick.buttons?.map(button => button.tooltip) })),
+				actions: fixture.quickInputService.quickPickSnapshots.at(-1),
+				command: fixture.commands.at(-1),
+			});
 		}
-		assert.deepStrictEqual(actual, [
-			['awesome-copilot', 'team-plugins'],
-			['team-plugins'],
-			['awesome-copilot', 'team-plugins'],
-		]);
+		assert.deepStrictEqual(actual, [false, true, false].map(() => ({
+			marketplaces: [
+				{ id: 'awesome-copilot', description: 'Default', buttons: undefined },
+				{ id: 'team-plugins', description: undefined, buttons: ['Remove Marketplace'] },
+			],
+			actions: [
+				{ id: 'browsePlugins', label: 'Browse', type: 'item' },
+				{ id: 'refreshMarketplace', label: 'Refresh Marketplace', type: 'item' },
+			],
+			command: {
+				id: AICustomizationManagementCommands.OpenMarketplace,
+				args: [{
+					section: AICustomizationManagementSection.Plugins,
+					searchQuery: '',
+					sourceId: getProviderMarketplaceSourceId('awesome-copilot'),
+				}],
+			},
+		})));
 	});
 
 	test('shows plugins from the default marketplace using its configured source under strict policy', async () => {
