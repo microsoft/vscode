@@ -89,7 +89,8 @@ import { ISessionSectionOrderService, SessionSectionOrderService } from '../../.
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { ITestSessionWithChat, navigationServiceOf, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -784,11 +785,13 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 			reg.defineInstance(IFixtureAgentSessionsService, {
 				model: { observeSession: () => constObservable(undefined) },
 			});
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+			const sessionsService = new class extends mock<ISessionsService>() {
 				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable(visibleSessions);
 				override readonly slotPanes = testGridPanes(this.gridShown);
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(undefined);
-			}());
+			}();
+			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(ISessionsNavigationService, navigationServiceOf(sessionsService));
 			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.define(ISessionHost, MainWindowSessionHost);
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
