@@ -224,9 +224,18 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	 * only the folder's effective `uri` changes.
 	 * `options.trusted` is the trust of the destination, which is applied before its settings are loaded
 	 * so that restricted settings are never applied while the destination is untrusted.
+	 * `options.isCurrent` is checked when the queued switch starts: a stale switch is skipped.
+	 * Resolves to whether the switch was not skipped.
 	 */
-	public setFolderLocation(location: URI, options?: { readonly trusted?: boolean }): Promise<void> {
-		return this.workspaceEditingQueue.queue(() => this.doSetFolderLocation(location, options?.trusted));
+	public setFolderLocation(location: URI, options?: { readonly trusted?: boolean; readonly isCurrent?: () => boolean }): Promise<boolean> {
+		let applied = false;
+		return this.workspaceEditingQueue.queue(async () => {
+			if (options?.isCurrent && !options.isCurrent()) {
+				return;
+			}
+			await this.doSetFolderLocation(location, options?.trusted);
+			applied = true;
+		}).then(() => applied);
 	}
 
 	private async doSetFolderLocation(location: URI, trusted: boolean | undefined): Promise<void> {
