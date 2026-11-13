@@ -60,7 +60,25 @@ When effective (resolved across all channels, MDM first), only a fresh successfu
 
 ## Governance presence and third-party harnesses
 
-`IPolicyData.managedSettingsActive` is `true` when any channel supplies managed governance, independent of which keys VS Code declares. `thirdPartyAgentEnabledValue` (used by `Claude3PIntegration`/`Codex3PIntegration`) forces those harnesses off when preview features are disabled, governance is active, or `vscode.temporaryAllowLocalHarness` is `false`, because managed settings never reach Claude or Codex. `vscode.temporaryAllowLocalHarness` itself never counts as governance; empty or control-only server responses clear a cached governance flag.
+`IPolicyData.managedSettingsActive` is `true` when any channel supplies managed governance, independent of which keys VS Code declares. `thirdPartyAgentEnabledValue(harness)` (used by `Claude3PIntegration`/`Codex3PIntegration`) forces those harnesses off when preview features are disabled, governance is active, or `vscode.temporaryAllowLocalHarness` is `false`, because managed settings never reach Claude or Codex. The harness permissions `vscode.temporaryAllowLocalHarness` and `vscode.allowedHarnesses` never count as governance; empty or control-only server responses clear a cached governance flag.
+
+### Permitting Claude and Codex: `vscode.allowedHarnesses`
+
+An administrator who accepts that boundary can permit one or both third-party harnesses while keeping managed settings for Copilot:
+
+```json
+{ "vscode": { "allowedHarnesses": ["claude", "codex"] } }
+```
+
+- The list covers only `claude` and `codex`. Copilot and Local are unaffected.
+- Absent, governance presence disables both, as before. A present list replaces that block: it permits the harnesses it names and denies the others, so `[]` denies both, with or without other managed settings.
+- A permitted harness is exempt from the presence block only. The callback returns `undefined`, never `true`, so user settings, rollout defaults, editor preferences, and SDK availability still decide whether it is offered, and device policy, account and AI gates, the preview-features restriction, and `vscode.temporaryAllowLocalHarness: false` still deny it.
+- **Permitting a harness does not govern it.** Claude and Codex do not receive or enforce Copilot runtime managed settings (permissions, sandbox, MCP and plugin controls, telemetry). The list records that the administrator accepts this; it does not extend enforcement.
+- IDs are exact lowercase. Entries that are not one of those IDs are ignored instead of invalidating the list, so a list can name a harness that only newer clients know without older clients denying `claude` and `codex`. A list with no recognized entry therefore denies both, like `[]`: `["Claude"]` permits nothing. Duplicates are harmless.
+- A value that is not an array is invalid and permits nothing. An invalid value and ignored entries each log one warning naming the key but not the value.
+- The list is one structured key, so the highest-precedence channel that supplies it wins outright: lists are never unioned, and an invalid value still masks a weaker channel's list. Server and file carry the array; native MDM carries it as a JSON string.
+
+Server delivery depends on the shared managed-settings schema declaring the key. Check that before relying on the server channel; the file and native MDM channels do not depend on it.
 
 ## Diagnostics
 
