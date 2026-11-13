@@ -109,6 +109,7 @@ import { ChatQuestionCarouselPart } from './chatContentParts/chatQuestionCarouse
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
 import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
+import { getChatNativeComponentsRenderer, IChatNativeComponentsRenderer } from './chatContentParts/chatNativeComponents.js';
 import { ChatMcpAuthenticationContentPart } from './chatContentParts/chatMcpAuthenticationContentPart.js';
 import { ChatMcpServersStartingContentPart } from './chatContentParts/chatMcpServersStartingContentPart.js';
 import { ChatDisabledClaudeHooksContentPart } from './chatContentParts/chatDisabledClaudeHooksContentPart.js';
@@ -159,6 +160,8 @@ export interface IChatListItemTemplate {
 	renderedReadOnly?: boolean;
 	renderedInputRequests?: boolean;
 	renderedHtmlPreviews?: boolean;
+	/** The native components renderer the template was rendered with, if native components were on. */
+	renderedNativeComponents?: IChatNativeComponentsRenderer;
 	renderedPersistentProgress?: boolean;
 	renderedStickyProgress?: boolean;
 	/** The persistent progress verbosity the template was rendered with, if persistent progress was on. */
@@ -1960,6 +1963,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedReadOnly = undefined;
 		templateData.renderedInputRequests = undefined;
 		templateData.renderedHtmlPreviews = undefined;
+		templateData.renderedNativeComponents = undefined;
 		templateData.renderedPersistentProgress = undefined;
 		templateData.renderedStickyProgress = undefined;
 		templateData.renderedProgressVerbosity = undefined;
@@ -1982,10 +1986,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const readOnly = !!this.rendererOptions.readOnly;
 		const renderInputRequests = this.rendererOptions.renderInputRequests !== false;
 		const renderHtmlPreviews = !!this.rendererOptions.renderHtmlPreviews && this.configService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled) === true;
+		const nativeComponents = this.rendererOptions.renderNativeComponents ? getChatNativeComponentsRenderer(this.configService) : undefined;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
 		const stickyProgress = this.isStickyProgressEnabled();
 		const progressVerbosity = persistentProgress ? this.getPersistentProgressVerbosity() : undefined;
-		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedInputRequests !== renderInputRequests || templateData.renderedHtmlPreviews !== renderHtmlPreviews || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedStickyProgress !== stickyProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
+		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedInputRequests !== renderInputRequests || templateData.renderedHtmlPreviews !== renderHtmlPreviews || templateData.renderedNativeComponents !== nativeComponents || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedStickyProgress !== stickyProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
 			this.traceLayout('renderChatTreeItem', () => `Rendering a different element or presentation state into the template, index=${index}`, index);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
@@ -1999,6 +2004,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.renderedReadOnly = readOnly;
 		templateData.renderedInputRequests = renderInputRequests;
 		templateData.renderedHtmlPreviews = renderHtmlPreviews;
+		templateData.renderedNativeComponents = nativeComponents;
 		templateData.renderedPersistentProgress = persistentProgress;
 		templateData.renderedStickyProgress = stickyProgress;
 		templateData.renderedProgressVerbosity = progressVerbosity;
@@ -3145,9 +3151,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const otherVariables = variables.filter(variable => !isExplicitFileOrImageVariableEntry(variable) && !isPasteVariableEntry(variable));
 		const isStickyAndEditing = !element.confirmation && isStickyScrollRow && element.id === this.viewModel?.editing?.id;
 		if (!element.confirmation && !isStickyAndEditing) {
-			const requestMarkdown = isStickyScrollRow && requestSummary ? requestSummary : this.getRequestMarkdown(element, explicitFileOrImageVariables, new Set(inlineAttachments.keys()));
+			const requestMarkdown = isStickyScrollRow && requestSummary ? new MarkdownString(requestSummary) : this.getRequestMarkdown(element, explicitFileOrImageVariables, new Set(inlineAttachments.keys()));
 			if (requestMarkdown) {
-				content = [{ content: new MarkdownString(requestMarkdown), kind: 'markdownContent' }];
+				content = [{ content: requestMarkdown, kind: 'markdownContent' }];
 			}
 
 			if (this.rendererOptions.renderStyle === 'minimal' && !element.isComplete) {
@@ -3398,14 +3404,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	 * @param inlineAttachmentParts The parts of the request whose attachments are
 	 * shown as pills inline with its text, see {@link getInlineRequestAttachments}.
 	 */
-	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): string | undefined {
+	private getRequestMarkdown(element: IChatRequestViewModel, explicitFileOrImageVariables = element.variables.filter(isExplicitFileOrImageVariableEntry), inlineAttachmentParts?: ReadonlySet<number>): MarkdownString | undefined {
 		const markdown = isChatFollowup(element.message)
-			? element.message.message
+			? new MarkdownString(element.message.message)
 			: this.markdownDecorationsRenderer.convertParsedRequestToMarkdown(element.sessionResource, this.getRenderedRequestMessage(element.message, element.variables), inlineAttachmentParts);
 		const attachmentSummary = !element.messageText.trim() && !explicitFileOrImageVariables.length
 			? getExplicitFileOrImageAttachmentSummary(element.variables)
 			: undefined;
-		return markdown.trim() ? markdown : attachmentSummary;
+		return markdown.value.trim() ? markdown : attachmentSummary ? new MarkdownString(attachmentSummary) : undefined;
 	}
 
 	/**
@@ -3466,7 +3472,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return cached.hasContent;
 		}
 
-		const content = isEditing ? editingValue : this.getRequestMarkdown(element);
+		const content = isEditing ? editingValue : this.getRequestMarkdown(element)?.value;
 		const variables = element.variables;
 		const hasContent = !!content?.trim();
 		this.stickyScrollRequestContentById.set(element.id, { contentKey, content, variables, isEditing, hasContent });
@@ -6313,6 +6319,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), {
 			codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions,
 			renderHtmlPreviews: templateData.renderedHtmlPreviews,
+			nativeComponents: templateData.renderedNativeComponents,
 			renderInlineAttachment: isRequestVM(element) ? this.createInlineRequestAttachmentRenderer(element) : undefined,
 		});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));

@@ -5716,8 +5716,8 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
 			if (this.visible) {
-				// Move and reveal operations depend on concrete deltas being rendered synchronously.
-				if (e.added.length || e.removed.length || e.changed.length) {
+				// Additions and removals stay synchronous for move/reveal; lazy metadata changes must not reenter row rendering.
+				if (e.added.length || e.removed.length) {
 					this.refresh();
 				} else {
 					this.scheduleListUpdate(true);
@@ -7487,7 +7487,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		let succeeded = false;
 		let updates = 0;
 		const tryReveal = () => {
-			if (!succeeded || !target || store.isDisposed) {
+			if (!succeeded || !target || store.isDisposed || this.refreshPending) {
 				return;
 			}
 			if (this.revealMoved(target.sessionId, target.chat) || ++updates > 5) {

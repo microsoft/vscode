@@ -14084,9 +14084,8 @@ export class AgentService extends Disposable implements IAgentService {
 			return true;
 		}
 		if (attachment.type === MessageAttachmentKind.Resource) {
-			// Don't try to fetch directories or already-rewritten attachments
-			// (whose URIs already point under our session attachments folder).
-			if (attachment.displayKind === 'directory') {
+			// Skill resources identify invocations, not file context to snapshot.
+			if (attachment.displayKind === 'directory' || attachment.displayKind === 'skill') {
 				return false;
 			}
 			if (this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoots)) {
@@ -14107,6 +14106,7 @@ export class AgentService extends Disposable implements IAgentService {
 	private _isUntaggedSnapshotResource(attachment: MessageAttachment, attachmentsRoots: readonly URI[]): boolean {
 		return attachment.type === MessageAttachmentKind.Resource
 			&& attachment.displayKind !== 'directory'
+			&& attachment.displayKind !== 'skill'
 			&& this._isUnderAttachmentsRoot(attachment.uri, attachmentsRoots)
 			&& !isHostSnapshotAttachment(attachment);
 	}

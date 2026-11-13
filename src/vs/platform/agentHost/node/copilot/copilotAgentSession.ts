@@ -7285,7 +7285,7 @@ export class CopilotAgentSession extends Disposable {
 		if (attachment.type === MessageAttachmentKind.EmbeddedResource) {
 			return { type: 'blob' as const, data: attachment.data, mimeType: attachment.contentType, displayName: attachment.label };
 		}
-		if (attachment.type !== MessageAttachmentKind.Resource) {
+		if (attachment.type !== MessageAttachmentKind.Resource || attachment.displayKind === 'skill') {
 			return undefined;
 		}
 		const uri = URI.parse(attachment.uri);
