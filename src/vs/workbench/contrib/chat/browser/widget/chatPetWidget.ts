@@ -1521,6 +1521,8 @@ export class ChatPetWidget extends Disposable {
 	private readonly _subagentPetResizeScheduler = this._register(new RunOnceScheduler(() => this._reconcileSubagentPetResize(), 16));
 	/** Overlay layer containing subagent pets. */
 	private readonly _subagentPetLayer: HTMLElement;
+	/** Shared widget services, initialized when the first subagent pet appears. */
+	private _subagentPetHost: SubagentPetHost | undefined;
 	private parent: HTMLElement;
 	private dragBounds: HTMLElement;
 	private movementBounds: HTMLElement;
@@ -3304,8 +3306,23 @@ export class ChatPetWidget extends Disposable {
 				continue;
 			}
 			added = true;
+			const { left, top } = this._getSubagentPetLanding(CHAT_PET_DISPLAY_SIZE * 0.5 * this._scale);
+			const subagentPet = this._subagentPetEffects.add(new SubagentPet(this._getSubagentPetHost(), left, top));
+			this._subagentPets.set(id, subagentPet);
+		}
+		if (added || removed) {
+			this._scheduleSubagentPetResize();
+		}
+		if (removed) {
+			this._settleSubagentPets();
+		}
+	}
+
+	/** Creates the shared subagent pet host on first use. */
+	private _getSubagentPetHost(): SubagentPetHost {
+		if (!this._subagentPetHost) {
 			const widget = this;
-			const host: SubagentPetHost = {
+			this._subagentPetHost = {
 				layer: this._subagentPetLayer,
 				overlay: this._overlay,
 				eyes: this._eyes,
@@ -3324,16 +3341,8 @@ export class ChatPetWidget extends Disposable {
 				scheduleResize: () => this._scheduleSubagentPetResize(),
 				startAnimation: (source, sprite, animation, onComplete, reverse, onFrame, renderFrame) => this._startSpriteAnimation(source, sprite, animation, onComplete, reverse, onFrame, undefined, undefined, renderFrame),
 			};
-			const { left, top } = this._getSubagentPetLanding(CHAT_PET_DISPLAY_SIZE * 0.5 * this._scale);
-			const subagentPet = this._subagentPetEffects.add(new SubagentPet(host, left, top));
-			this._subagentPets.set(id, subagentPet);
 		}
-		if (added || removed) {
-			this._scheduleSubagentPetResize();
-		}
-		if (removed) {
-			this._settleSubagentPets();
-		}
+		return this._subagentPetHost;
 	}
 
 	/** Settle each column from the bottom up so remaining subagent pets can support those above them. */
