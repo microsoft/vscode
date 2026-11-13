@@ -16,6 +16,7 @@ import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTr
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
@@ -104,6 +105,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		this._pullRequestAssociationResolver = this._register(new AgentHostPullRequestAssociationResolver(this._gitService, _gitHubService, this._logService));
 		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._announcedGitStateRefreshes.delete(envelope.action.chat);
+				this._forcedGitStateRefreshes.delete(envelope.action.chat);
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
@@ -554,24 +561,25 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 	/**
 	 * Chats working in the same folder refresh independently. Those refreshing while a read of the folder is in
-	 * flight share it, unless one of them knows the checkout just changed, which an earlier read may not reflect.
+	 * flight share it. A forced refresh knows the checkout just changed, which a read that started earlier may not
+	 * reflect, so it only shares a read another forced refresh started.
 	 */
 	private _readGitState(workingDirectory: URI, baseBranchName: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
 		const key = `${workingDirectory.toString()}\0${baseBranchName ?? ''}`;
-		const inFlight = fresh ? undefined : this._gitStateReads.get(key);
+		const freshKey = `${key}\0fresh`;
+		const inFlight = this._gitStateReads.get(freshKey) ?? (fresh ? undefined : this._gitStateReads.get(key));
 		if (inFlight) {
 			return inFlight;
 		}
 		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchName);
-		if (!fresh) {
-			this._gitStateReads.set(key, read);
-			const clear = () => {
-				if (this._gitStateReads.get(key) === read) {
-					this._gitStateReads.delete(key);
-				}
-			};
-			read.then(clear, clear);
-		}
+		const readKey = fresh ? freshKey : key;
+		this._gitStateReads.set(readKey, read);
+		const clear = () => {
+			if (this._gitStateReads.get(readKey) === read) {
+				this._gitStateReads.delete(readKey);
+			}
+		};
+		read.then(clear, clear);
 		return read;
 	}
 

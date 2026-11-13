@@ -657,7 +657,6 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		const isChat = isAhpChatChannel(key);
 		const session = isChat ? this._chatOwnership.getChatOwner(key) : key;
 		const branchOwners = new Set<string>();
-		const refreshSources = new Set<string>();
 		// Session Git refreshes can complete after SessionReady, so refresh the
 		// chat catalogues that own the selectable changesets.
 		if (isChat) {
@@ -665,21 +664,17 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			const branchResource = this._stateManager.getChatState(key)?.changesets
 				?.find(changeset => parseChangesetUri(changeset.uriTemplate)?.kind === ChangesetKind.Branch)?.uriTemplate;
 			branchOwners.add(parseChangesetUri(branchResource ?? '')?.ownerUri ?? resolveBranchChangesetScopeForSource(this._stateManager, key).ownerUri);
-			refreshSources.add(key);
 		} else {
 			this._refreshChangesetCatalogs(key);
 			// The session's folder is the one of its default chat and of the chats without folders of their own.
 			const defaultChat = this._chatOwnership.getDefaultChat(key);
+			branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, key).ownerUri);
 			for (const source of [
 				...(defaultChat !== undefined ? [defaultChat] : []),
 				...this._stateManager.getSessionState(key)?.chats
 					.filter(chat => chat.workingDirectories === undefined && chat.origin?.kind !== ChatOriginKind.Tool)
 					.map(chat => chat.resource) ?? [],
 			]) {
-				refreshSources.add(source);
-			}
-			branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, key).ownerUri);
-			for (const source of refreshSources) {
 				branchOwners.add(resolveBranchChangesetScopeForSource(this._stateManager, source).ownerUri);
 			}
 		}
@@ -688,11 +683,11 @@ export class AgentHostChangesetCoordinator extends Disposable {
 			&& this._changesetSubscriptions.getSessionSubscriptions(session).has(session)
 			&& getSummaryChangesetKind(this._stateManager.getSessionState(session)?.config?.values) === ChangesetKind.Branch;
 		if (hasBranchSummary) {
-			this._reconcileBranchSummaryResources(session, refreshSources);
+			this._reconcileBranchSummaryResources(session);
 		}
 		const summaryOwners = new Set([...(session !== undefined ? this._branchSummaryResources.get(session)?.values() : undefined) ?? []].map(resource => resource.owner));
 		for (const owner of branchOwners) {
-			if (!summaryOwners.has(owner) && this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
+			if (summaryOwners.has(owner) || this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
 				this._changesets.refreshBranchChangeset(owner);
 			}
 		}

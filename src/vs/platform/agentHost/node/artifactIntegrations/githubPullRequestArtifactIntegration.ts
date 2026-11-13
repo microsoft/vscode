@@ -44,6 +44,8 @@ const resolvedThreadReadLag = 30_000;
 const reviewThreadIcon: ArtifactIcon = { id: 'comment-discussion', colorId: 'editorWarning.foreground' };
 const checkStateOrder = { pending: 0, failed: 1, skipped: 2, passed: 3 };
 const automationPollInterval = 60_000;
+/** How long a checkout probe stands when no Git state refresh reports a change, for a chat whose folder nobody watches. */
+const workspaceProbeMaxAge = 30_000;
 const unchangedRepairCooldown = 10 * 60_000;
 const undispatchedRetryDelay = 30_000;
 
@@ -387,9 +389,9 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	readonly actions: readonly ArtifactAction[];
 	private readonly workspaces = observableValueOpts<Readonly<Record<string, WorkspaceState>>>({ owner: this, equalsFn: structuralEquals }, {});
 	private workspaceRevision = 0;
-	private gitRefreshes = 0;
-	/** What the last conclusive checkout probe was based on; the same inputs give the same answer. */
+	/** What the last conclusive checkout probe was based on and when; the same inputs give the same answer until the checkout changes, which a Git state refresh reports. */
 	private lastWorkspaceProbe: string | undefined;
+	private lastWorkspaceProbeAt = 0;
 	private probingWorkspace: string | undefined;
 	private readonly automationError = observableValue<string | undefined>(this, undefined);
 	/** Threads resolved from their details row, by resolution time, hidden until GitHub's thread list reflects it. */
@@ -410,17 +412,18 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		private readonly configuration: IAgentConfigurationService,
 		events: AgentHostArtifactEventService,
 		private readonly logService: ILogService,
-		private readonly gitState: IAgentHostGitStateService,
+		gitState: IAgentHostGitStateService,
 	) {
 		super();
+		const sessionGitRefreshes = Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session);
 		this.hostChanges = observableSignalFromEvent(this, Event.any<unknown>(
 			Event.filter(events.onDidChange, event => event.channel === context.session || stateManager.getChatOwner(event.channel) === context.session),
-			// A checkout that Git state refreshes observed to change is probed again.
-			Event.map(Event.filter(gitState.onDidRefreshSessionGitState, key => key === context.session || stateManager.getChatOwner(key) === context.session), () => { this.gitRefreshes++; }),
+			sessionGitRefreshes,
 			configuration.onDidRootConfigChange,
 			Event.filter(configuration.onDidSessionConfigChange, event => event.session === context.session),
 		));
 		const refreshWorkspace = this._register(new RunOnceScheduler(() => { void this.refreshWorkspaces(); }, 50));
+		this._register(sessionGitRefreshes(() => { this.lastWorkspaceProbe = undefined; }));
 		this._register(autorun(reader => this.pruneResolvedThreads(resource.snapshot.read(reader).reviewThreads)));
 		this._register(autorun(reader => {
 			resource.snapshot.read(reader);
@@ -851,8 +854,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			return;
 		}
 		const directories = this.configuration.getEffectiveWorkingDirectories(chat);
-		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner, this.gitRefreshes]);
-		if (probe === this.lastWorkspaceProbe || probe === this.probingWorkspace) {
+		const probe = JSON.stringify([chat, directories, core.headRef, core.headSha, core.repositoryNameWithOwner, core.headRepositoryNameWithOwner]);
+		if ((probe === this.lastWorkspaceProbe && Date.now() - this.lastWorkspaceProbeAt < workspaceProbeMaxAge) || probe === this.probingWorkspace) {
 			return;
 		}
 		const revision = ++this.workspaceRevision;
@@ -861,9 +864,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		let conclusive = false;
 		const workspaces: Record<string, WorkspaceState> = {};
 		try {
-			// The Git state the host keeps already says when a chat in a single folder is on another branch.
-			const knownBranch = directories?.length === 1 ? this.gitState.getSessionGitState?.(chat)?.branchName : undefined;
-			const checkout = knownBranch !== undefined && knownBranch !== core.headRef ? undefined : await this.checkout(chat, core);
+			const checkout = await this.checkout(chat, core);
 			workspaces[chat] = checkout ? { kind: 'ready', checkout } : { kind: 'missing' };
 			conclusive = true;
 		} catch (error) {
@@ -879,6 +880,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			this.automationError.set(undefined, undefined);
 			if (conclusive) {
 				this.lastWorkspaceProbe = probe;
+				this.lastWorkspaceProbeAt = Date.now();
 			}
 		}
 	}

@@ -162,7 +162,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	/** Shared diff compute service for calculating line-level diffs in a worker thread. */
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
-	private readonly _diffComputationSequencer = new SequencerByKey<string>();
+	protected readonly _diffComputationSequencer = new SequencerByKey<string>();
 	/** Listeners and database references of the static changeset computations in flight, released when the service is disposed. */
 	private readonly _staticComputeResources = this._register(new DisposableStore());
 	/** Per-owner debounce timers for mid-turn Session Changes computation. */
@@ -191,6 +191,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	private readonly _branchDiffFingerprints = new Map<ProtocolURI, string>();
 	/** Counts the forced refreshes of each Branch changeset owner, so that a computation already running when one arrives does not record its fingerprint. */
 	private readonly _branchForcedRefreshes = new Map<ProtocolURI, number>();
+	/** The diffs of each repository of a multi-folder Branch changeset owner with the fingerprint they were computed at, so that a change in one repository does not diff the others. */
+	private readonly _branchRepositoryDiffs = new Map<ProtocolURI, ReadonlyMap<string, { readonly fingerprint: string; readonly diffs: readonly ISessionFileDiff[] }>>();
 	private readonly _uncommittedRootObservers = this._register(new DisposableMap<ProtocolURI>());
 	private readonly _branchChangesetOwners = new Map<ProtocolURI, ProtocolURI>();
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
@@ -508,6 +510,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._failedBranchOwners.delete(branchChangesetOwner);
 		if (options?.force) {
 			this._branchDiffFingerprints.delete(branchChangesetOwner);
+			this._branchRepositoryDiffs.delete(branchChangesetOwner);
 			this._branchForcedRefreshes.set(branchChangesetOwner, (this._branchForcedRefreshes.get(branchChangesetOwner) ?? 0) + 1);
 		}
 		this._scheduleStaticRecompute(branchChangesetOwner, 'branch');
@@ -1443,7 +1446,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		}
 	}
 
-	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, workingDirectories: readonly string[]): Promise<BranchDiffResult> {
+	private async _computeMultiFolderBranchDiffs(session: ProtocolURI, workingDirectories: readonly string[], repositoryFingerprints?: ReadonlyMap<string, string>): Promise<BranchDiffResult> {
 		let gitRepositories: URI[];
 		try {
 			({ gitRepositories } = await resolveSessionRepositories(workingDirectories.map(directory => URI.parse(directory)), this._gitService));
@@ -1463,14 +1466,30 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return { kind: 'failed' };
 		}
 		const limiter = new Limiter<readonly ISessionFileDiff[] | undefined>(MAX_DIFF_REPOSITORY_CONCURRENCY);
+		const previousDiffs = this._branchRepositoryDiffs.get(session);
+		const forcedRefreshes = this._branchForcedRefreshes.get(session);
+		const computedDiffs = new Map<string, { readonly fingerprint: string; readonly diffs: readonly ISessionFileDiff[] }>();
 		const perRepoDiffs = await Promises.settled(gitRepositories.map(repoRoot => limiter.queue(async () => {
 			try {
-				return await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch });
+				const fingerprint = repositoryFingerprints?.get(repoRoot.toString()) ?? await this._gitService.getBranchDiffFingerprint?.(repoRoot, baseBranch);
+				const previous = previousDiffs?.get(repoRoot.toString());
+				if (fingerprint !== undefined && previous?.fingerprint === fingerprint) {
+					computedDiffs.set(repoRoot.toString(), previous);
+					return previous.diffs;
+				}
+				const diffs = await this._gitService.computeSessionFileDiffs(repoRoot, { sessionUri: session, baseBranch });
+				if (diffs && fingerprint !== undefined) {
+					computedDiffs.set(repoRoot.toString(), { fingerprint, diffs });
+				}
+				return diffs;
 			} catch (err) {
 				this._logService.warn(`[AgentHostChangesetService] Branch git diff computation failed for ${session} in ${repoRoot.toString()}`, err);
 				return undefined;
 			}
 		}))).finally(() => limiter.dispose());
+		if (forcedRefreshes === this._branchForcedRefreshes.get(session)) {
+			this._branchRepositoryDiffs.set(session, computedDiffs);
+		}
 		if (perRepoDiffs.some(diffs => diffs === undefined)) {
 			return { kind: 'failed' };
 		}
@@ -1725,6 +1744,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._failedBranchOwners.delete(owner);
 		this._branchDiffFingerprints.delete(owner);
 		this._branchForcedRefreshes.delete(owner);
+		this._branchRepositoryDiffs.delete(owner);
 		this._uncommittedRootObservers.deleteAndDispose(owner);
 		for (const [key, scheduled] of this._scheduledStaticRecomputes) {
 			if (key.startsWith(`${owner}\u0000`)) {
@@ -2048,9 +2068,8 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * what each repository's {@link IAgentHostGitService.getBranchDiffFingerprint} reports. `undefined` when
 	 * they cannot all be determined cheaply, in which case the changeset must be computed.
 	 */
-	private async _computeBranchFingerprint(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): Promise<string | undefined> {
-		const getFingerprint = this._gitService.getBranchDiffFingerprint?.bind(this._gitService);
-		if (!getFingerprint || !workingDirectories?.length) {
+	private async _computeBranchFingerprint(owner: ProtocolURI, workingDirectories: readonly string[] | undefined): Promise<{ readonly fingerprint: string; readonly repositories: ReadonlyMap<string, string> } | undefined> {
+		if (!workingDirectories?.length) {
 			return undefined;
 		}
 		try {
@@ -2061,8 +2080,14 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (!directories.length) {
 				return undefined;
 			}
-			const fingerprints = await Promise.all(directories.map(directory => getFingerprint(directory, baseBranch)));
-			return fingerprints.some(fingerprint => fingerprint === undefined) ? undefined : JSON.stringify([workingDirectories, baseBranch, fingerprints]);
+			const fingerprints = await Promise.all(directories.map(directory => this._gitService.getBranchDiffFingerprint?.(directory, baseBranch)));
+			if (fingerprints.some(fingerprint => fingerprint === undefined)) {
+				return undefined;
+			}
+			return {
+				fingerprint: JSON.stringify([workingDirectories, baseBranch, fingerprints]),
+				repositories: new Map(directories.map((directory, index) => [directory.toString(), fingerprints[index]!])),
+			};
 		} catch (err) {
 			this._logService.debug(`[AgentHostChangesetService] Could not fingerprint the branch changeset of ${owner}`, err);
 			return undefined;
@@ -2127,12 +2152,16 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			return;
 		}
 		let branchFingerprint: string | undefined;
+		let repositoryFingerprints: ReadonlyMap<string, string> | undefined;
 		const forcedRefreshes = this._branchForcedRefreshes.get(session);
 		if (kind === ChangesetKind.Branch) {
-			branchFingerprint = await this._computeBranchFingerprint(session, workingDirectories);
+			const fingerprinted = await this._computeBranchFingerprint(session, workingDirectories);
+			branchFingerprint = fingerprinted?.fingerprint;
+			repositoryFingerprints = fingerprinted?.repositories;
 			const published = this._stateManager.getChangesetState(changesetUri);
 			const reusable = published?.status === ChangesetStatus.Ready ? published : statusBeforeRefresh?.status === ChangesetStatus.Ready ? statusBeforeRefresh : undefined;
-			if (branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
+			// A computation asked to report telemetry, as at the end of a turn, runs even when nothing changed.
+			if (provider === undefined && branchFingerprint !== undefined && reusable && branchFingerprint === this._branchDiffFingerprints.get(session)) {
 				this._logService.trace(`[AgentHostChangesetService] Branch changeset of ${session} is current; skipping its computation`);
 				this._restoreStaticChangesetStatus(changesetUri, reusable);
 				return;
@@ -2202,7 +2231,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			let diffs: readonly ISessionFileDiff[] | undefined;
 			let incrementalTrackerBaseline = false;
 			if (kind === 'branch' && isMultiRootSession(workingDirectories)) {
-				branchResult = await this._computeMultiFolderBranchDiffs(session, workingDirectories!);
+				branchResult = await this._computeMultiFolderBranchDiffs(session, workingDirectories!, repositoryFingerprints);
 				diffs = branchResult.kind === 'ready' ? branchResult.diffs : undefined;
 			} else if (kind === 'branch') {
 				branchResult = await this._computeBranchDiffs(session, workingDirectories?.[0]);

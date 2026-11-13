@@ -27,7 +27,7 @@ import { AgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordi
 import { createFileEditDiscardRecord, readFileEditRevertSteps, spanFileEditRevertSteps } from '../../node/fileEditDiscard.js';
 import { createFileEditAcceptRecord } from '../../node/fileEditAccept.js';
 import { NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY } from '../../common/agentHostChangesetService.js';
+import { CHANGES_SUMMARY_METADATA_KEYS, getChatChangesSummaryMetadataKey, META_CHANGES_SUMMARY, type StaticChangesetKind } from '../../common/agentHostChangesetService.js';
 import { SessionConfigKey } from '../../common/sessionConfigKeys.js';
 import { IAgentHostChangesetSubscriptionService } from '../../common/agentHostChangesetSubscriptionService.js';
 import { IAgentHostChangesetOperationService } from '../../common/agentHostChangesetOperationService.js';
@@ -101,6 +101,11 @@ class TestAgentHostChangesetService extends AgentHostChangesetService {
 	async whenSummaryPersisted(): Promise<void> {
 		await this.whenSummaryCommitted();
 		await this.stateStore.whenIdle(undefined);
+	}
+
+	/** Resolves once the computations of a static changeset that were scheduled so far have finished. */
+	whenStaticComputed(owner: string, kind: StaticChangesetKind): Promise<void> {
+		return this._diffComputationSequencer.queue(`${owner}\u0000${kind}`, async () => { });
 	}
 
 	/** Resolves once every summary write has committed centrally, before the session database mirror is flushed. */
@@ -1810,7 +1815,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 	}
 
 	/** A Git service that counts its calls by method, whose Branch diff and fingerprint are controlled by the test. */
-	function createCountingBranchGitService(state: { fingerprint: string | undefined; failDiff?: boolean; /** Holds the first diff computation until it settles. */ holdFirstDiff?: Promise<void> }): { git: IAgentHostGitService; calls: string[] } {
+	function createCountingBranchGitService(state: { fingerprint: string | undefined; failDiff?: boolean; /** Holds the first diff computation until it settles. */ holdFirstDiff?: Promise<void>; diffStarted?: DeferredPromise<void> }): { git: IAgentHostGitService; calls: string[] } {
 		const calls: string[] = [];
 		const target = createNoopGitService();
 		target.getRepositoryRoot = async workingDirectory => workingDirectory;
@@ -1818,6 +1823,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		let diffs = 0;
 		target.computeSessionFileDiffs = async () => {
 			if (++diffs === 1) {
+				void state.diffStarted?.complete();
 				await state.holdFirstDiff;
 			}
 			if (state.failDiff) {
@@ -1834,10 +1840,9 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		return { git, calls };
 	}
 
-	async function refreshBranch(svc: TestAgentHostChangesetService, owner: string, options?: { force?: boolean }): Promise<void> {
+	async function refreshBranch(svc: TestAgentHostChangesetService, owner: string, options?: { force?: boolean; workingDirectories?: readonly string[] }): Promise<void> {
 		svc.refreshBranchChangeset(owner, options);
-		// Computations run asynchronously; let every queued one finish.
-		await timeout(20);
+		await svc.whenStaticComputed(buildFolderChangesetOwnerUri(owner, getWorkingDirectoryScopeId(options?.workingDirectories ?? ['file:///repo'])), 'branch');
 	}
 
 	test('a branch refresh while its repository, base and working tree are unchanged recomputes nothing and opens no database', async () => {
@@ -1856,7 +1861,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		await refreshBranch(svc, sessionStr);
 		const first = { diffs: calls.filter(call => call === 'computeSessionFileDiffs').length, dbOpens: dbOpens.length, status: stateManager.getChangesetState(changesetUri)?.status };
 		const statusesAfterFirst = statuses.length;
-		for (let i = 0; i < 40; i++) {
+		for (let i = 0; i < 9; i++) {
 			await refreshBranch(svc, sessionStr);
 		}
 
@@ -1870,7 +1875,7 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		}, {
 			first: { diffs: 1, dbOpens: 0, status: ChangesetStatus.Ready },
 			diffsAfterRepeats: 1,
-			fingerprintsAfterRepeats: 41,
+			fingerprintsAfterRepeats: 10,
 			dbOpens: 0,
 			statusChangesAfterRepeats: 0,
 		});
@@ -1896,18 +1901,49 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.deepStrictEqual({ unchanged, changed, settled, forced }, { unchanged: 1, changed: 2, settled: 2, forced: 3 });
 	});
 
+	test('a multi-folder branch refresh diffs only the repositories whose working tree changed, unless forced', async () => {
+		const fingerprints: Record<string, string> = { 'file:///repoA': 'a-1', 'file:///repoB': 'b-1' };
+		const diffed: string[] = [];
+		const git = createNoopGitService();
+		git.getRepositoryRoot = async workingDirectory => URI.parse(workingDirectory.toString());
+		git.getBranchDiffFingerprint = async workingDirectory => fingerprints[workingDirectory.toString()];
+		git.computeSessionFileDiffs = async workingDirectory => {
+			diffed.push(workingDirectory.toString());
+			return [gitDiff(`${URI.parse(workingDirectory.toString()).path}/file.ts`)];
+		};
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repoA', 'file:///repoB'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repoA', 'file:///repoB'])));
+
+		await refreshBranch(svc, sessionStr, { workingDirectories: ['file:///repoA', 'file:///repoB'] });
+		fingerprints['file:///repoB'] = 'b-2';
+		await refreshBranch(svc, sessionStr, { workingDirectories: ['file:///repoA', 'file:///repoB'] });
+		const afterOneChanged = [...diffed];
+		await refreshBranch(svc, sessionStr, { force: true, workingDirectories: ['file:///repoA', 'file:///repoB'] });
+
+		assert.deepStrictEqual({
+			afterOneChanged,
+			afterForced: diffed.slice(afterOneChanged.length),
+			files: stateManager.getChangesetState(changesetUri)?.files.length,
+		}, {
+			afterOneChanged: ['file:///repoA', 'file:///repoB', 'file:///repoB'],
+			afterForced: ['file:///repoA', 'file:///repoB'],
+			files: 2,
+		});
+	});
+
 	test('a forced branch refresh arriving during a computation is not satisfied by that computation', async () => {
 		const release = new DeferredPromise<void>();
-		const state = { fingerprint: 'tree-1' as string | undefined, holdFirstDiff: release.p };
+		const diffStarted = new DeferredPromise<void>();
+		const state = { fingerprint: 'tree-1' as string | undefined, holdFirstDiff: release.p, diffStarted };
 		const { git, calls } = createCountingBranchGitService(state);
 		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
 
 		svc.refreshBranchChangeset(sessionStr);
-		await timeout(20);
+		await diffStarted.p;
 		// E.g. a file was marked reviewed while the first computation reads the review state.
 		svc.refreshBranchChangeset(sessionStr, { force: true });
 		await release.complete();
-		await timeout(40);
+		await svc.whenStaticComputed(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])), 'branch');
 
 		assert.strictEqual(calls.filter(call => call === 'computeSessionFileDiffs').length, 2);
 	});

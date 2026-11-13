@@ -903,7 +903,7 @@ suite('AgentHostGitStateService', () => {
 		assert.strictEqual(h.runEvents.length - before, 1);
 	}));
 
-	test('chats of one folder refreshing together share one read of its Git state, unless one was forced', async () => {
+	test('chats of one folder refreshing together share one read of its Git state; forced refreshes share a read only with each other', async () => {
 		const h = createHarness();
 		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
 		const addChats = (prefix: string) => Array.from({ length: 12 }, (_, index) => {
@@ -931,7 +931,7 @@ suite('AgentHostGitStateService', () => {
 
 		h.service.dispose();
 		await Promise.all(refreshes);
-		assert.deepStrictEqual({ sharedReads, forcedReads }, { sharedReads: 1, forcedReads: forced.length });
+		assert.deepStrictEqual({ sharedReads, forcedReads }, { sharedReads: 1, forcedReads: 1 });
 	});
 
 	test('keeps default-chat Git state when the Git probe fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

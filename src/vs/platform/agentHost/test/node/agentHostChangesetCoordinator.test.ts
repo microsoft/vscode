@@ -1860,6 +1860,25 @@ suite('ChangesetSessionCoordinator', () => {
 		});
 	});
 
+	test('a Git refresh of a side chat working in the folder of its parent chat refreshes that folder', async () => {
+		const environment = createEnvironment();
+		const session = AgentSession.uri('mock', 'side-chat-refresh').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const side = buildChatUri(session, 'side');
+		createSession(environment.stateManager, session, 'file:///shared');
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///shared' });
+		environment.stateManager.addChat(session, side, creationTimeChatStorageResource(session, side, defaultChat), {
+			origin: { kind: ChatOriginKind.SideChat, chat: defaultChat, turnId: 'turn' },
+		});
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		environment.changesets.clearRefreshes();
+
+		await environment.gitStateService.refreshSessionGitState(side);
+
+		assert.deepStrictEqual(environment.changesets.branchRefreshes, [buildBranchChangesetOwner(session, ['file:///shared'])]);
+	});
+
 	test('a Git refresh of the session recomputes only the folder of the session', async () => {
 		const environment = createEnvironment();
 		const session = AgentSession.uri('mock', 'many-worktrees-session').toString();
