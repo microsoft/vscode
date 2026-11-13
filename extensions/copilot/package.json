@@ -6851,7 +6851,7 @@
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2",
     "@vscode/test-web": "^0.0.81",
-    "@vscode/vsce": "3.6.0",
+    "@vscode/vsce": "4.1.1",
     "chalk": "^4.1.2",
     "copyfiles": "^2.4.1",
     "csv-parse": "^6.0.0",

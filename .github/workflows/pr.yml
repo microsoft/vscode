@@ -739,6 +739,9 @@ jobs:
       - name: Setup pnpm
         uses: ./.github/actions/setup-pnpm
 
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
+
       # Same commands as the Copilot jobs of pr-pnpm-store.yml.
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter vscode-eslint-plugin-local --filter copilot-chat --filter @vscode/chat-lib
@@ -1005,6 +1008,9 @@ jobs:
         with:
           # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
           clean: ${{ steps.image.outputs.used != 'true' }}
+
+      - name: Install system packages
+        uses: ./.github/actions/install-linux-packages
 
       - name: Test chat-lib
         uses: ./.github/actions/test-chat-lib

@@ -22,7 +22,7 @@ suite('dependencies', () => {
 		const folder = path.join(root, 'remote');
 		const distroFolder = path.join(root, '.build', 'distro', 'npm', 'remote');
 		fs.mkdirSync(distroFolder, { recursive: true });
-		fs.writeFileSync(path.join(distroFolder, 'package.json'), JSON.stringify({ dependencies: { 'vsda': '1.0.0', '@vscode/vsce-sign': '2.1.0', 'not-mixed-in': '1.0.0' } }));
+		fs.writeFileSync(path.join(distroFolder, 'package.json'), JSON.stringify({ dependencies: { 'vsda': '1.0.0', '@vscode/vsce-sign': '2.1.1', 'not-mixed-in': '1.0.0' } }));
 		for (const name of ['vsda', '@vscode/vsce-sign', 'other']) {
 			fs.mkdirSync(path.join(folder, 'node_modules', name), { recursive: true });
 		}

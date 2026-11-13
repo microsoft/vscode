@@ -19,7 +19,7 @@ pmOnFail: download
 skills:
   dirs: []
 allowBuilds:
-  '@vscode/vsce-sign@2.1.0': true
+  '@vscode/vsce-sign@2.1.1': true
   esbuild@0.27.2: true
   fsevents@2.3.3: true
   keytar@7.9.0: true
