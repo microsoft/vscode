@@ -91,9 +91,9 @@ suite('BrowserViewInspector', () => {
 
 	const iframeTarget: CDPTargetInfo = { targetId: 'child', type: 'iframe', title: '', url: '', attached: true, canAccessOpener: false };
 
-	function createFrame(state = { detached: false }) {
+	function createFrame() {
 		return new class extends mock<Electron.WebFrameMain>() {
-			override get detached() { return state.detached; }
+			override detached = false;
 			override readonly url = 'https://example.com';
 			override readonly ipc = new EventEmitter() as Electron.IpcMain;
 			override isDestroyed() { return false; }
@@ -257,10 +257,8 @@ suite('BrowserViewInspector', () => {
 
 	test('retires pending preloads of removed frames and superseded tokens before attachment', async () => {
 		const { inspector, main, child, targets, webContents } = createInspector();
-		const mainState = { detached: false };
-		const iframeState = { detached: false };
-		const mainFrame = createFrame(mainState);
-		const iframe = createFrame(iframeState);
+		const mainFrame = createFrame();
+		const iframe = createFrame();
 		const liveIframe = createFrame();
 		main.tokens.set('main-context', 'main-token-2');
 		child.tokens.set('iframe-context', 'live-token');
@@ -269,7 +267,7 @@ suite('BrowserViewInspector', () => {
 		webContents.emit('ipc-message', { senderFrame: mainFrame }, 'vscode:browserView:preloadReady', 'main-token-2');
 		webContents.emit('ipc-message', { senderFrame: iframe }, 'vscode:browserView:preloadReady', 'removed-token');
 		webContents.emit('ipc-message', { senderFrame: liveIframe }, 'vscode:browserView:preloadReady', 'live-token');
-		iframeState.detached = true;
+		iframe.detached = true;
 		webContents.emit('did-navigate');
 
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained state without exposing test-only API.
