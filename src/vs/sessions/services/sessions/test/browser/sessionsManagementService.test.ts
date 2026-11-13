@@ -83,6 +83,7 @@ import { DraggedSessionIdentifier, fillSessionChatDragData, getSessionChatDragDa
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { SessionActivatingActionRunner } from '../../../../../workbench/contrib/sessions/browser/sessionActionRunner.js';
+import { navigationServiceOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { SessionHostService } from '../../../../../workbench/contrib/sessions/browser/sessionHostService.js';
 import { createMainWindowInstantiationService, getMainWindowHost, ISessionHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -816,7 +817,7 @@ suite('SessionsManagementService', () => {
 			const a = created('a');
 			const b = created('b');
 			const { view } = harness([a, b]);
-			const sessionHostService = disposables.add(new SessionHostService(view, upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
+			const sessionHostService = disposables.add(new SessionHostService(navigationServiceOf(view), upcastPartial<IEditorGroupsService>({ getGroup: () => undefined })));
 			// Resolved as the main window's UI resolves it: through the main window's instantiation service.
 			// Strict, as the workbench's: it rejects a service it does not know.
 			const root = disposables.add(new InstantiationService(new ServiceCollection([ISessionsService, view], [ISessionHostService, sessionHostService]), true));

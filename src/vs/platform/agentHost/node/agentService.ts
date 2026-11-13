@@ -6981,7 +6981,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.retryManagedPlugins(session, chat);
 	}
 
-	listPluginMarketplaces(providerId: AgentProvider, session: URI, chat?: URI) {
+	listPluginMarketplaces(providerId: AgentProvider, session?: URI, chat?: URI) {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.listPluginMarketplaces) {
 			throw new Error(`Plugin marketplace inventory is unavailable for provider '${providerId}'.`);
@@ -6989,7 +6989,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.listPluginMarketplaces(session, chat);
 	}
 
-	addPluginMarketplace(providerId: AgentProvider, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(providerId: AgentProvider, session: URI | undefined, source: string, chat?: URI) {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.addPluginMarketplace) {
 			throw new Error(`Plugin marketplace registration is unavailable for provider '${providerId}'.`);
@@ -6997,7 +6997,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return provider.addPluginMarketplace(session, source, chat);
 	}
 
-	browsePluginMarketplace(providerId: AgentProvider, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(providerId: AgentProvider, session: URI | undefined, name: string, chat?: URI) {
 		const provider = this._providerService.getProvider(providerId);
 		if (!provider?.browsePluginMarketplace) {
 			throw new Error(`Plugin marketplace browse is unavailable for provider '${providerId}'.`);

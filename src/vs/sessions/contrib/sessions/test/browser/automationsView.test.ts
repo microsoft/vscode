@@ -93,7 +93,7 @@ import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING }
 import { TestCommandService } from './sessionsListTestUtils.js';
 import { TestDataTelemetryService } from '../../../../../platform/telemetry/test/common/testTelemetryService.js';
 import { stubSessionsHostLayout } from '../../../../test/browser/sessionsHostLayoutTestUtils.js';
-import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 
 const AUTOMATION_ID = 'automation-1';
@@ -834,7 +834,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IContextMenuService, contextMenuService);
 		instantiationService.stub(IDialogService, dialogService);
 		instantiationService.stub(IAutomationRunner, runner);
-		instantiationService.stub(ISessionsService, sessionsService);
+		stubSessionsService(instantiationService, sessionsService);
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);

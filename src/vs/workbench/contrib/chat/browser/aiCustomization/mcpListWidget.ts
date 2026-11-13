@@ -15,7 +15,7 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -88,7 +88,7 @@ import { ActiveSessionMcpServerMatcher, type AgentHostMcpServer, getRuntimeServe
 import { getConnectorActionLabel } from './connectorPresentation.js';
 import { ICopilotConnector, ICopilotConnectorsService, IConnectedCopilotConnectorMcpServer } from './copilotConnectorsService.js';
 import { CustomizationGroupHeaderRenderer, CUSTOMIZATION_GROUP_HEADER_HEIGHT, CUSTOMIZATION_GROUP_HEADER_HEIGHT_WITH_SEPARATOR, getCustomizationGroupAriaLabel, ICustomizationGroupHeaderEntry } from './customizationGroupHeaderRenderer.js';
-import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup, isCustomizationTreeEntryVisible } from './customizationTree.js';
 import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
@@ -2123,6 +2123,8 @@ export class McpListWidget extends Disposable {
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IMcpSectionEntry>[] = [];
+	/** Groups the user collapsed, restored whenever the tree is re-rendered without a search. */
+	private readonly collapsedGroups = new Set<string>();
 	private gallerySnapshotFailed = false;
 	private gallerySnapshotLoading = false;
 	private gallerySearchLoading = false;
@@ -2491,8 +2493,18 @@ export class McpListWidget extends Disposable {
 			itemRenderer.setFocusedRowKey(entry && entry.type !== 'group-header' && entry.type !== 'marketplace-item' ? getMcpRowKey(entry) : undefined);
 			marketplaceRenderer.setFocusedServerId(entry?.type === 'marketplace-item' ? entry.server.id : undefined);
 		}));
+		this._register(this.list.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (entry?.type === 'group-header' && !this.searchQuery.trim()) {
+				if (event.node.collapsed) {
+					this.collapsedGroups.add(entry.group);
+				} else {
+					this.collapsedGroups.delete(entry.group);
+				}
+			}
+		}));
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IMcpSectionEntry>(this.list, this.getVisibleMcpEntries(), entry => entry.type !== 'group-header');
+			focusFirstCustomizationTreeItem<IMcpSectionEntry>(this.list, this.getVisibleMcpEntries(), entry => entry.type !== 'group-header', entry => isCustomizationTreeEntryVisible(this.list, entry));
 		}));
 
 		// Listen to MCP service changes
@@ -3144,13 +3156,13 @@ export class McpListWidget extends Disposable {
 
 		this.cardScrollableNode.style.display = 'none';
 		this.cardDisposables.clear();
+		const isFiltering = !!this.searchQuery.trim();
 		const children: IObjectTreeElement<IMcpSectionEntry>[] = this.currentTreeGroups.map(group => ({
 			element: group.element,
 			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			collapsed: !isFiltering && this.collapsedGroups.has(group.id),
 			children: group.children.map(element => ({ element })),
 		}));
-		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateMcpTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.count, 0));
 	}
@@ -3861,7 +3873,8 @@ export class McpListWidget extends Disposable {
 	 * Focuses the list.
 	 */
 	focus(): void {
-		const firstItem = this.getVisibleMcpEntries().find(entry => entry.type !== 'group-header');
+		const entries = this.getVisibleMcpEntries();
+		const firstItem = entries.find(entry => entry.type !== 'group-header' && isCustomizationTreeEntryVisible(this.list, entry)) ?? entries[0];
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 			this.list.domFocus();

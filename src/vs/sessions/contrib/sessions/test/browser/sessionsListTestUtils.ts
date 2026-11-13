@@ -38,7 +38,7 @@ import { IChat, ISession, ISessionCapabilities, ISessionChangesSummary, SessionS
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { IDeleteChatOptions } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 const ITestAgentSessionsService = createDecorator<object>('agentSessions');
 
@@ -60,6 +60,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	}
 	override readonly onDidChangeSessions = Event.None;
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidReplaceSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
@@ -343,7 +344,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	instantiationService.stub(ISessionsManagementService, managementService);
 	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation(new class extends mock<IPinnedCanvasService>() { }()));
 	instantiationService.stub(ICommandService, commandService);
-	instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+	stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
 		override readonly slotPanes = testGridPanes(this.gridShown);
 		readonly activeSession = options.activeSession ?? constObservable<ITestSessionWithChat | undefined>(undefined);

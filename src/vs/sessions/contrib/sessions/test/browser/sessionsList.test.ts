@@ -120,7 +120,7 @@ import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test
 import { getInboxWorkspaceFilter, getSessionEnvironments } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { getSessionInboxSection, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
-import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, ITestShownChat, stubSessionHosts, testGridPanes, stubSessionsService } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
@@ -1000,7 +1000,7 @@ suite('Sessions - SessionsList', () => {
 				instantiationService.stub(ICustomViewService, new class extends mock<ICustomViewService>() {
 					override readonly activeCustomView = activeCustomView;
 				});
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
 					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -5370,30 +5370,68 @@ suite('Sessions - SessionsList', () => {
 			]);
 		});
 
-		test('inbox keeps a completed parent available while a child works, except when explicitly triaged', () => {
+		for (const workingChat of ['main', 'child'] as const) {
+			test(`inbox keeps sessions in Working while the ${workingChat} chat runs, except when explicitly triaged`, () => {
+				const sections = [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(otherStatus => {
+					const built = buildTestSession({
+						id: 'parent', title: 'Parent',
+						status: otherStatus === SessionStatus.NeedsInput ? SessionStatus.NeedsInput : SessionStatus.InProgress,
+						mainChatStatus: workingChat === 'main' ? SessionStatus.InProgress : otherStatus,
+						chats: [{ id: 'child', title: 'Child', status: workingChat === 'child' ? SessionStatus.InProgress : otherStatus }],
+					});
+					const working = [undefined, InboxTab.ReadyForYou, InboxTab.Working, InboxTab.ReadyToMerge].map(tab =>
+						getSessionInboxSection(built.session, undefined, undefined, tab === undefined ? undefined : {
+							tab, priority: InboxNotificationPriority.Now, notificationIds: ['notification'], isHistoricalCompletion: false,
+						}));
+					const held = getSessionInboxSection(built.session, { kind: 'hold' });
+					const done = getSessionInboxSection(built.session, { kind: 'done', activity: '' });
+					built.mainChat.status.set(SessionStatus.Completed, undefined);
+					built.chats.get('child')!.status.set(otherStatus, undefined);
+					built.status.set(otherStatus, undefined);
+					return { working, held, done, stopped: getSessionInboxSection(built.session) };
+				});
+				assert.deepStrictEqual(sections, [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(() => ({
+					working: Array(4).fill(SessionInboxSection.Working),
+					held: SessionInboxSection.OnHold,
+					done: SessionInboxSection.Done,
+					stopped: SessionInboxSection.ReadyForYou,
+				})));
+			});
+		}
+
+		test('inbox follows child activity while the parent remains waiting for input', async () => {
 			const built = buildTestSession({
-				id: 'parent', title: 'Parent', status: SessionStatus.InProgress, mainChatStatus: SessionStatus.Completed,
-				chats: [{ id: 'child', title: 'Child', status: SessionStatus.InProgress }],
+				id: 'parent', title: 'Parent', status: SessionStatus.NeedsInput,
+				chats: [{ id: 'child', title: 'Child', status: SessionStatus.Completed }],
 			});
-			const attention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false };
-			const completedParent = getSessionInboxSection(built.session, undefined, undefined, attention);
-			const held = getSessionInboxSection(built.session, { kind: 'hold' }, undefined, attention);
-			built.mainChat.status.set(SessionStatus.InProgress, undefined);
-			const bothWorking = getSessionInboxSection(built.session, undefined, undefined, attention);
-			built.mainChat.status.set(SessionStatus.Completed, undefined);
-			built.mainChat.isArchived.set(true, undefined);
-			assert.deepStrictEqual({ completedParent, held, bothWorking, archivedParent: getSessionInboxSection(built.session, undefined, undefined, attention) }, {
-				completedParent: SessionInboxSection.ReadyForYou, held: SessionInboxSection.OnHold,
-				bothWorking: SessionInboxSection.Working, archivedParent: SessionInboxSection.Working,
+			const harness = createListHarness(disposables, [built.session]);
+			harness.instantiationService.stub(ISessionAttentionService, {
+				sessionAttention: constObservable(new Map<string, IInboxSessionAttention>([[built.session.sessionId, {
+					tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: ['needsInput'], isHistoricalCompletion: false,
+				}]])),
+				acquireSessionAttention: () => toDisposable(() => { }),
 			});
+			const model = disposables.add(harness.instantiationService.createInstance(SessionsListModelService));
+			harness.instantiationService.stub(ISessionsListModelService, model);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Inbox, sorting: () => SessionsSorting.Updated, onSessionOpen: () => { },
+			}));
+			list.layout(600, 400);
+			const sections = () => list.getTreeSnapshot().flatMap(node => node.type === 'section'
+				? node.children.flatMap(child => child.type === 'session' ? [node.id] : []) : []);
+			assert.deepStrictEqual(sections(), [SessionInboxSection.ReadyForYou]);
+			built.chats.get('child')!.status.set(SessionStatus.InProgress, undefined);
+			await retry(async () => assert.deepStrictEqual(sections(), [SessionInboxSection.Working]), 10, 100);
+			built.chats.get('child')!.status.set(SessionStatus.Completed, undefined);
+			await retry(async () => assert.deepStrictEqual(sections(), [SessionInboxSection.ReadyForYou]), 10, 100);
 		});
 
 		for (const excludedChat of ['tool', 'hidden', 'archived'] as const) {
-			test(`inbox ignores ${excludedChat} chats when deciding whether a running session needs attention`, () => {
+			test(`inbox ignores ${excludedChat} chats when deciding whether a session is working`, () => {
 				const built = buildTestSession({
-					id: 'parent', title: 'Parent', status: SessionStatus.InProgress,
+					id: 'parent', title: 'Parent',
 					chats: [{
-						id: 'child', title: 'Child', status: SessionStatus.Completed,
+						id: 'child', title: 'Child', status: SessionStatus.InProgress,
 						interactivity: excludedChat === 'hidden' ? ChatInteractivity.Hidden : ChatInteractivity.Full,
 						isArchived: excludedChat === 'archived',
 					}],
@@ -5406,19 +5444,11 @@ suite('Sessions - SessionsList', () => {
 						origin: excludedChat === 'tool' ? { kind: ChatOriginKind.Tool } : undefined,
 					}]),
 				};
-				const attention: IInboxSessionAttention = { tab: InboxTab.Working, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false };
-				const sections = [SessionStatus.Completed, SessionStatus.NeedsInput, SessionStatus.Error].map(status => {
-					child.status.set(status, undefined);
-					return [
-						getSessionInboxSection(session),
-						getSessionInboxSection(session, undefined, undefined, attention),
-					];
-				});
-				assert.deepStrictEqual(sections, [
-					[SessionInboxSection.Working, SessionInboxSection.Working],
-					[SessionInboxSection.Working, SessionInboxSection.Working],
-					[SessionInboxSection.Working, SessionInboxSection.Working],
-				]);
+				const attention: IInboxSessionAttention = { tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: false };
+				assert.deepStrictEqual([
+					getSessionInboxSection(session),
+					getSessionInboxSection(session, undefined, undefined, attention),
+				], [SessionInboxSection.ReadyForYou, SessionInboxSection.ReadyForYou]);
 			});
 		}
 
@@ -11687,7 +11717,7 @@ suite('Sessions - SessionsList', () => {
 			const multiFolderSession = withChanges(createMultiFolderSession([first, second], [undefined, [second]]));
 			const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 			const multiFolderContainer = renderSessionChatsList(multiFolderSession, undefined, false, true, false, instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = activeSession;
 					readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -11748,7 +11778,7 @@ suite('Sessions - SessionsList', () => {
 				const activeSession = observableValue<ITestSessionWithChat | undefined>('active-session', undefined);
 				const hovers = new Map<HTMLElement, () => IDelayedHoverOptions>();
 				const { container } = renderSessionChatsList(session, undefined, false, true, compact, instantiationService => {
-					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 						readonly activeSession = activeSession;
 						readonly gridShown = constObservable<readonly ITestSessionWithChat[]>([]);
 						override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13529,7 +13559,7 @@ suite('Sessions - SessionsList', () => {
 			const other = createTestSession('Other').session;
 			const inGrid = (session: ISession, sticky: boolean) => upcastPartial<ITestSessionWithChat>({ ...session, sticky: constObservable(sticky) });
 			const harness = createListHarness(disposables, [pinned, other], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(undefined);
 					readonly gridShown = constObservable([inGrid(pinned, true), inGrid(other, false)]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13557,7 +13587,7 @@ suite('Sessions - SessionsList', () => {
 				const sticky = observableValue('sticky', true);
 				const gridSession = upcastPartial<ITestSessionWithChat>({ ...session, sticky });
 				const harness = createListHarness(disposables, [session], instantiationService => {
-					instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+					stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 						readonly activeSession = constObservable(undefined);
 						readonly gridShown = constObservable([gridSession]);
 						override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13623,7 +13653,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, first, second, side]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13721,7 +13751,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, peer]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -13756,7 +13786,7 @@ suite('Sessions - SessionsList', () => {
 				visibleChatTabs: constObservable([main, peer]),
 			});
 			const harness = createListHarness(disposables, [session], instantiationService => {
-				instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 					readonly activeSession = constObservable(activeSession);
 					readonly gridShown = constObservable([activeSession]);
 					override readonly slotPanes = testGridPanes(this.gridShown);
@@ -14120,7 +14150,7 @@ suite('Sessions - SessionsList', () => {
 				});
 				const harness = createListHarness(disposables, [session, other], instantiationService => {
 					if (activePeer) {
-						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
 							readonly gridShown = constObservable([activeSession]);
 							override readonly slotPanes = testGridPanes(this.gridShown);
@@ -15678,7 +15708,7 @@ suite('Sessions - SessionsList', () => {
 						visibleChatTabs: session.chats,
 					}) : undefined;
 					const harness = createListHarness(disposables, [session], instantiationService => {
-						instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+						stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 							readonly activeSession = constObservable(activeSession);
 							readonly gridShown = constObservable(activeSession ? [activeSession] : []);
 							override readonly slotPanes = testGridPanes(this.gridShown);

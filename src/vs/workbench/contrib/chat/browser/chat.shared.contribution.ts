@@ -235,6 +235,7 @@ import { ChatPasteTargetService } from './attachments/chatPasteTargetService.js'
 import { ChatVariablesService } from './attachments/chatVariables.js';
 import { ChatImageCarouselService, IChatImageCarouselService } from './chatImageCarouselService.js';
 import { EditorChatUsageContribution } from './editorChatUsage.contribution.js';
+import { ChatDailyUsageContribution } from './chatDailyUsage.contribution.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
 import { ChatPetAchievementsAccessibilityHelp, ChatPetContextContribution, ChatPetCustomizationAchievementContribution, ChatPetEditingAchievementContribution } from './chatPetAchievements.contribution.js';
@@ -3374,6 +3375,7 @@ Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEdit
 
 registerWorkbenchContribution2(CopilotTelemetryContribution.ID, CopilotTelemetryContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(EditorChatUsageContribution.ID, EditorChatUsageContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatDailyUsageContribution.ID, ChatDailyUsageContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSpeechToTextInitContribution.ID, ChatSpeechToTextInitContribution, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatResolverContribution.ID, ChatResolverContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatDebugResolverContribution.ID, ChatDebugResolverContribution, WorkbenchPhase.BlockStartup);
