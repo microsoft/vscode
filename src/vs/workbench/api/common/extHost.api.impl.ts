@@ -109,6 +109,7 @@ import { IExtHostTerminalShellIntegration } from './extHostTerminalShellIntegrat
 import { IExtHostTesting } from './extHostTesting.js';
 import { ExtHostEditors } from './extHostTextEditors.js';
 import { ExtHostTheming } from './extHostTheming.js';
+import { ExtHostWindowLayouts } from './extHostWindowLayouts.js';
 import { ExtHostTimeline } from './extHostTimeline.js';
 import { ExtHostTreeViews } from './extHostTreeViews.js';
 import { IExtHostTunnelService } from './extHostTunnelService.js';
@@ -244,6 +245,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostComment = rpcProtocol.set(ExtHostContext.ExtHostComments, createExtHostComments(rpcProtocol, extHostCommands, extHostDocuments));
 	const extHostLabelService = rpcProtocol.set(ExtHostContext.ExtHostLabelService, new ExtHostLabelService(rpcProtocol));
 	const extHostTheming = rpcProtocol.set(ExtHostContext.ExtHostTheming, new ExtHostTheming(rpcProtocol));
+	const extHostWindowLayouts = rpcProtocol.set(ExtHostContext.ExtHostWindowLayouts, new ExtHostWindowLayouts(rpcProtocol));
 	const extHostTimeline = rpcProtocol.set(ExtHostContext.ExtHostTimeline, new ExtHostTimeline(rpcProtocol, extHostCommands));
 	const extHostChatArtifactIntegrations = rpcProtocol.set(ExtHostContext.ExtHostChatArtifactIntegrations, new ExtHostChatArtifactIntegrations(rpcProtocol, extHostLogService));
 	const extHostWebviews = rpcProtocol.set(ExtHostContext.ExtHostWebviews, new ExtHostWebviews(rpcProtocol, initData.remote, extHostWorkspace, extHostLogService, extHostApiDeprecation));
@@ -1027,6 +1029,18 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeActiveColorTheme(listener, thisArg?, disposables?) {
 				return _asExtensionEvent(extHostTheming.onDidChangeActiveColorTheme)(listener, thisArg, disposables);
+			},
+			get activeLayout(): vscode.WindowLayout {
+				checkProposedApiEnabled(extension, 'windowLayouts');
+				return extHostWindowLayouts.activeLayout;
+			},
+			onDidChangeActiveLayout(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'windowLayouts');
+				return _asExtensionEvent(extHostWindowLayouts.onDidChangeActiveLayout)(listener, thisArg, disposables);
+			},
+			switchLayout(id: string): Thenable<vscode.WindowLayoutSwitch> {
+				checkProposedApiEnabled(extension, 'windowLayouts');
+				return extHostWindowLayouts.switchLayout(extension, id);
 			},
 			registerWebviewViewProvider(viewId: string, provider: vscode.WebviewViewProvider, options?: {
 				webviewOptions?: {

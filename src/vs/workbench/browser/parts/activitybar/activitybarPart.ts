@@ -29,6 +29,7 @@ import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { GestureEvent } from '../../../../base/browser/touch.js';
 import { IPaneCompositePart } from '../paneCompositePart.js';
+import { IPaneCompositeArrangement } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from '../paneCompositeBar.js';
 import { GlobalCompositeBar } from '../globalCompositeBar.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
@@ -317,6 +318,10 @@ export class ActivitybarPart extends Part {
 
 	getPaneCompositeIds(): string[] {
 		return this.compositeBar.value?.getPaneCompositeIds() ?? [];
+	}
+
+	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
+		this.compositeBar.value?.arrangePaneComposites(arrangement);
 	}
 
 	focus(): void {

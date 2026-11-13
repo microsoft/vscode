@@ -100,6 +100,7 @@ class StubPaneCompositePart implements IPaneCompositePart {
 	getPinnedPaneCompositeIds(): string[] { return []; }
 	getVisiblePaneCompositeIds(): string[] { return []; }
 	getPaneCompositeIds(): string[] { return []; }
+	arrangePaneComposites(): void { }
 	layout(): void { }
 	dispose(): void { }
 }

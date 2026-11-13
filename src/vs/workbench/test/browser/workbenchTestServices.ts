@@ -174,7 +174,7 @@ import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Po
 import { ISharedLayoutStateService, SharedLayoutStateService } from '../../services/layout/common/sharedLayoutState.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
 import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
-import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { IPaneCompositeArrangement, IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
 import { ICopilotHomeService } from '../../../platform/environment/common/copilotHome.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
@@ -794,6 +794,10 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
+	arrangePaneComposites(viewContainerLocation: ViewContainerLocation, arrangement: IPaneCompositeArrangement): void {
+		this.getPartByLocation(viewContainerLocation).arrangePaneComposites(arrangement);
+	}
+
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertReturnsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -831,6 +835,7 @@ export class TestSideBarPart implements IPaneCompositePart {
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
 	getPaneCompositeIds() { return []; }
+	arrangePaneComposites(): void { }
 	layout(width: number, height: number, top: number, left: number): void { }
 }
 
@@ -854,6 +859,7 @@ export class TestPanelPart implements IPaneCompositePart {
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
 	getPaneCompositeIds() { return []; }
+	arrangePaneComposites(): void { }
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }

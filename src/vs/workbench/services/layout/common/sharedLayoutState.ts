@@ -56,6 +56,12 @@ export interface ISharedLayoutStateService {
 	getState(): IStringDictionary<string | null>;
 
 	/**
+	 * Returns the shared values of all keys in use in this window, also while this
+	 * window uses a local copy. Keys without a value are `null`.
+	 */
+	getSharedState(): IStringDictionary<string | null>;
+
+	/**
 	 * Uses the given state as local copy instead of the shared state. A key that
 	 * is `null` in the given state has no value in the local copy. Pass `undefined`
 	 * to use the shared state again.
@@ -134,6 +140,14 @@ export class SharedLayoutStateService extends Disposable implements ISharedLayou
 		const state: IStringDictionary<string | null> = {};
 		for (const key of this.getKeys()) {
 			state[key] = this.getValue(key) ?? null;
+		}
+		return state;
+	}
+
+	getSharedState(): IStringDictionary<string | null> {
+		const state: IStringDictionary<string | null> = {};
+		for (const key of this.getKeys()) {
+			state[key] = this.storageService.get(key, StorageScope.PROFILE) ?? null;
 		}
 		return state;
 	}

@@ -7,29 +7,49 @@ import { Sequencer } from '../../../../base/common/async.js';
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { equals } from '../../../../base/common/objects.js';
+import { equals, mixin } from '../../../../base/common/objects.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { getLayoutOverridableSettings, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
-import { DEFAULT_NAMED_LAYOUT_ID, INamedLayout, INamedLayoutParticipant, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
+import { getLayoutOverridableSettings, isLayoutOverridableSetting, IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
+import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, INamedLayoutsService, NAMED_LAYOUTS_ENABLED_SETTING } from './namedLayouts.js';
 
 interface IStoredNamedLayout {
 	readonly id: string;
 	readonly name: string;
 	readonly settings: IStringDictionary<unknown>;
 	readonly state: IStringDictionary<unknown>;
+
+	/**
+	 * Set for the saved changes of a layout contributed by an extension.
+	 */
+	readonly contribution?: IStoredNamedLayoutContribution;
+}
+
+interface IStoredNamedLayoutContribution {
+	readonly extensionId: string;
+	readonly id: string;
 }
 
 function isStoredNamedLayout(candidate: unknown): candidate is IStoredNamedLayout {
-	return isObject(candidate)
-		&& isString((candidate as IStoredNamedLayout).id)
-		&& isString((candidate as IStoredNamedLayout).name)
-		&& isObject((candidate as IStoredNamedLayout).settings)
-		&& isObject((candidate as IStoredNamedLayout).state);
+	if (!isObject(candidate)) {
+		return false;
+	}
+
+	const { id, name, settings, state, contribution } = candidate as IStoredNamedLayout;
+	return isString(id)
+		&& isString(name)
+		&& isObject(settings)
+		&& isObject(state)
+		&& (contribution === undefined || (isObject(contribution) && isString(contribution.extensionId) && isString(contribution.id)));
+}
+
+function getContributedLayoutId(extensionId: string, id: string): string {
+	return `${ExtensionIdentifier.toKey(extensionId)}/${id}`;
 }
 
 /**
@@ -42,6 +62,10 @@ function isStoredNamedLayout(candidate: unknown): candidate is IStoredNamedLayou
  * of the participants is captured whenever the storage is saved and before
  * another layout is applied. If two windows use the same named layout, the
  * window that saves last wins.
+ *
+ * A layout contributed by an extension starts from its definition the first
+ * time it becomes active. Its changes are then saved like the changes of other
+ * named layouts, in a stored layout that refers to the contribution.
  */
 export class NamedLayoutsService extends Disposable implements INamedLayoutsService {
 
@@ -62,8 +86,16 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 	private readonly sequencer = new Sequencer();
 
 	private storedLayouts: IStoredNamedLayout[];
-	private _activeLayout: INamedLayout;
+	private activeLayoutId: string;
 	private isApplying = false;
+
+	private contributedLayouts = new Map<string, IContributedNamedLayout>();
+
+	/**
+	 * Whether the layouts that extensions contribute are known. Until then a stored
+	 * layout that refers to a contribution represents the contributed layout.
+	 */
+	private contributedLayoutsKnown = false;
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -73,7 +105,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		super();
 
 		this.storedLayouts = this.loadLayouts();
-		this._activeLayout = this.restoreActiveLayout();
+		this.activeLayoutId = this.restoreActiveLayout();
 
 		this._register(this.storageService.onWillSaveState(() => this.saveActiveLayout()));
 		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, NamedLayoutsService.LAYOUTS_STORAGE_KEY, this._store)(() => this.onDidChangeStoredLayouts()));
@@ -86,13 +118,18 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 	get layouts(): readonly INamedLayout[] {
 		const namedLayouts = this.storedLayouts
+			.filter(layout => !layout.contribution)
 			.map(({ id, name }) => ({ id, name }))
 			.sort((a, b) => a.name.localeCompare(b.name));
-		return [this.defaultLayout, ...namedLayouts];
+		const contributedLayouts = [...this.contributedLayouts.keys()]
+			.map(id => this.getLayout(id))
+			.filter((layout): layout is INamedLayout => !!layout)
+			.sort((a, b) => (a.contribution?.extensionName ?? '').localeCompare(b.contribution?.extensionName ?? '') || a.name.localeCompare(b.name));
+		return [this.defaultLayout, ...namedLayouts, ...contributedLayouts];
 	}
 
 	get activeLayout(): INamedLayout {
-		return this._activeLayout;
+		return this.getLayout(this.activeLayoutId) ?? this.defaultLayout;
 	}
 
 	registerParticipant(participant: INamedLayoutParticipant): IDisposable {
@@ -108,7 +145,7 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		if (participant.applyDefault) {
 			this.sequencer.queue(async () => {
 				if (this.participants.includes(participant)) {
-					await this.applyLayoutState(this.getStoredLayout(this._activeLayout.id), [participant]);
+					await this.applyLayoutState(this.getStoredLayout(this.activeLayoutId), [participant]);
 				}
 			}).catch(error => this.logService.error(`[named layouts] Failed to restore the state of participant '${participant.id}'.`, error));
 		}
@@ -135,28 +172,23 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 
 			// A new layout defines all layout overridable settings so that
 			// changing any of them while the layout is active updates the layout
-			const settings: IStringDictionary<unknown> = {};
-			for (const key of getLayoutOverridableSettings()) {
-				settings[key] = this.configurationService.getValue(key);
-			}
-
-			const layout: IStoredNamedLayout = { id: generateUuid(), name: layoutName, settings, state: this.captureState() };
+			const layout: IStoredNamedLayout = { id: generateUuid(), name: layoutName, settings: this.captureSettings(), state: this.captureState() };
 			this.storedLayouts = [...this.storedLayouts, layout];
 			this.storeLayouts();
 
 			this.configurationService.setLayoutConfiguration(layout.settings);
-			this.setActiveLayout(layout);
+			this.setActiveLayout(layout.id);
 			this._onDidChangeLayouts.fire();
 
 			// Participants that share their state with the default layout switch to a local copy
 			await this.applyLayoutState(layout, this.participants.filter(participant => participant.applyDefault));
 
-			return this._activeLayout;
+			return this.activeLayout;
 		});
 	}
 
 	switchLayout(layout: INamedLayout): Promise<void> {
-		return this.sequencer.queue(() => this.doSwitchLayout(layout, true));
+		return this.sequencer.queue(() => this.doSwitchLayout(layout.id, true));
 	}
 
 	deleteLayout(layout: INamedLayout): Promise<void> {
@@ -164,46 +196,160 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 			if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
 				throw new Error('The default layout cannot be deleted.');
 			}
-
-			// No need to save the layout that is about to be deleted
-			if (this._activeLayout.id === layout.id) {
-				await this.doSwitchLayout(this.defaultLayout, false);
+			if (this.contributedLayouts.has(layout.id) || this.getStoredLayout(layout.id)?.contribution) {
+				throw new Error('A layout contributed by an extension cannot be deleted.');
 			}
 
-			const storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== layout.id);
-			if (storedLayouts.length !== this.storedLayouts.length) {
-				this.storedLayouts = storedLayouts;
-				this.storeLayouts();
+			// No need to save the layout that is about to be deleted
+			if (this.activeLayoutId === layout.id) {
+				await this.doSwitchLayout(DEFAULT_NAMED_LAYOUT_ID, false);
+			}
+
+			if (this.removeStoredLayout(layout.id)) {
 				this._onDidChangeLayouts.fire();
 			}
 		});
 	}
 
+	resetLayout(layout: INamedLayout): Promise<void> {
+		return this.sequencer.queue(async () => {
+			const contributedLayout = this.contributedLayouts.get(layout.id);
+			if (!contributedLayout) {
+				throw new Error(`Unknown contributed layout '${layout.id}'.`);
+			}
+
+			this.removeStoredLayout(layout.id);
+			if (this.activeLayoutId === layout.id) {
+				await this.applyContributedLayout(layout.id, contributedLayout);
+			} else {
+				this._onDidChangeLayouts.fire();
+			}
+		});
+	}
+
+	setContributedLayouts(layouts: readonly IContributedNamedLayout[]): void {
+		this.contributedLayouts = new Map(layouts.map(layout => [getContributedLayoutId(layout.extensionId, layout.id), layout]));
+		this.contributedLayoutsKnown = true;
+		this._onDidChangeLayouts.fire();
+
+		// Switch to the default layout if the extension that contributes the active
+		// layout is no longer installed or no longer contributes it. Its saved changes
+		// are kept in case the extension contributes it again.
+		if (this.getStoredLayout(this.activeLayoutId)?.contribution && !this.contributedLayouts.has(this.activeLayoutId)) {
+			this.queueSwitchToDefaultLayout(true);
+		}
+	}
+
+	captureDefinition(): INamedLayoutDefinition {
+		const settings: IStringDictionary<unknown> = {};
+		for (const key of getLayoutOverridableSettings()) {
+			const value = this.configurationService.getValue(key);
+			if (!equals(value, this.configurationService.inspect(key).defaultValue)) {
+				settings[key] = value;
+			}
+		}
+
+		const definition: INamedLayoutDefinition = Object.keys(settings).length ? { settings } : {};
+		for (const participant of this.participants) {
+			try {
+				const participantDefinition = participant.captureDefinition?.();
+				if (participantDefinition) {
+					mixin(definition, participantDefinition, true);
+				}
+			} catch (error) {
+				this.logService.error(`[named layouts] Failed to describe the state of participant '${participant.id}'.`, error);
+			}
+		}
+		return definition;
+	}
+
 	/**
 	 * Must only be called from a task of the sequencer.
 	 */
-	private async doSwitchLayout(layout: INamedLayout, saveOutgoingLayout: boolean): Promise<void> {
-		if (layout.id === this._activeLayout.id) {
+	private async doSwitchLayout(layoutId: string, saveOutgoingLayout: boolean): Promise<void> {
+		if (layoutId === this.activeLayoutId) {
 			return;
 		}
 
-		const storedLayout = layout.id === DEFAULT_NAMED_LAYOUT_ID ? undefined : this.getStoredLayout(layout.id);
-		if (layout.id !== DEFAULT_NAMED_LAYOUT_ID && !storedLayout) {
-			throw new Error(`Unknown named layout '${layout.id}'.`);
+		const contributedLayout = this.contributedLayouts.get(layoutId);
+		const storedLayout = layoutId === DEFAULT_NAMED_LAYOUT_ID ? undefined : this.getStoredLayout(layoutId);
+		if (layoutId !== DEFAULT_NAMED_LAYOUT_ID && !contributedLayout && (!storedLayout || storedLayout.contribution)) {
+			throw new Error(`Unknown named layout '${layoutId}'.`);
 		}
 
 		if (saveOutgoingLayout) {
 			this.saveOutgoingLayout();
 		}
 
+		if (contributedLayout && !storedLayout) {
+			await this.applyContributedLayout(layoutId, contributedLayout);
+			return;
+		}
+
 		// Apply settings first because participants may depend on them
 		this.configurationService.setLayoutConfiguration(storedLayout?.settings ?? {});
-		this.setActiveLayout(storedLayout ?? this.defaultLayout);
+		this.setActiveLayout(storedLayout?.id ?? DEFAULT_NAMED_LAYOUT_ID);
 		await this.applyLayoutState(storedLayout, [...this.participants]);
 	}
 
+	/**
+	 * Applies the definition of a contributed layout that has no saved changes and
+	 * saves the result as the changes of the layout. Must only be called from a task
+	 * of the sequencer.
+	 */
+	private async applyContributedLayout(layoutId: string, contributedLayout: IContributedNamedLayout): Promise<void> {
+		const { definition } = contributedLayout;
+
+		// Settings the definition does not specify have the values of the default layout.
+		// The layout defines all layout overridable settings so that changing any of them
+		// while the layout is active updates the layout
+		this.configurationService.setLayoutConfiguration({});
+		const settings = this.captureSettings();
+		for (const [key, value] of Object.entries(definition.settings ?? {})) {
+			if (isLayoutOverridableSetting(key)) {
+				settings[key] = value;
+			}
+		}
+		this.configurationService.setLayoutConfiguration(settings);
+		this.setActiveLayout(layoutId);
+
+		const defaultState = this.loadDefaultLayoutState();
+		this.isApplying = true;
+		try {
+			for (const participant of [...this.participants]) {
+				try {
+					if (participant.applyDefinition) {
+						await participant.applyDefinition(definition, defaultState[participant.id]);
+					} else if (participant.applyDefault) {
+						await participant.applyDefault();
+					} else if (defaultState[participant.id] !== undefined) {
+						await participant.apply(defaultState[participant.id]);
+					}
+				} catch (error) {
+					this.logService.error(`[named layouts] Failed to apply the definition of layout '${layoutId}' to participant '${participant.id}'.`, error);
+				}
+			}
+		} finally {
+			this.isApplying = false;
+		}
+
+		const layout: IStoredNamedLayout = {
+			id: layoutId,
+			name: contributedLayout.label,
+			settings,
+			state: this.captureState(),
+			contribution: { extensionId: contributedLayout.extensionId, id: contributedLayout.id }
+		};
+		this.storedLayouts = [...this.storedLayouts, layout];
+		this.storeLayouts();
+		this._onDidChangeLayouts.fire();
+
+		// Participants that share their state with the default layout switch to a local copy
+		await this.applyLayoutState(layout, this.participants.filter(participant => participant.applyDefault && !participant.applyDefinition));
+	}
+
 	private queueSwitchToDefaultLayout(saveOutgoingLayout: boolean): void {
-		this.sequencer.queue(() => this.doSwitchLayout(this.defaultLayout, saveOutgoingLayout))
+		this.sequencer.queue(() => this.doSwitchLayout(DEFAULT_NAMED_LAYOUT_ID, saveOutgoingLayout))
 			.catch(error => this.logService.error('[named layouts] Failed to switch to the default layout.', error));
 	}
 
@@ -211,12 +357,37 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		return this.configurationService.getValue<boolean>(NAMED_LAYOUTS_ENABLED_SETTING) === true;
 	}
 
-	private restoreActiveLayout(): INamedLayout {
+	private getLayout(layoutId: string): INamedLayout | undefined {
+		if (layoutId === DEFAULT_NAMED_LAYOUT_ID) {
+			return this.defaultLayout;
+		}
+
+		const storedLayout = this.getStoredLayout(layoutId);
+		const contributedLayout = this.contributedLayouts.get(layoutId);
+		if (contributedLayout) {
+			const { extensionId, extensionName, id, label } = contributedLayout;
+			return { id: layoutId, name: label, contribution: { extensionId, extensionName, id, canReset: !!storedLayout } };
+		}
+
+		if (!storedLayout) {
+			return undefined;
+		}
+
+		if (storedLayout.contribution) {
+			// Until the contributed layouts are known, the saved changes represent the layout
+			const { extensionId, id } = storedLayout.contribution;
+			return this.contributedLayoutsKnown ? undefined : { id: layoutId, name: storedLayout.name, contribution: { extensionId, extensionName: extensionId, id, canReset: true } };
+		}
+
+		return { id: storedLayout.id, name: storedLayout.name };
+	}
+
+	private restoreActiveLayout(): string {
 		const activeLayoutId = this.storageService.get(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		const storedLayout = activeLayoutId && this.isEnabled() ? this.getStoredLayout(activeLayoutId) : undefined;
 		if (!storedLayout) {
 			this.storageService.remove(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
-			return this.defaultLayout;
+			return DEFAULT_NAMED_LAYOUT_ID;
 		}
 
 		// The workbench restores the state of the participants itself, participants
@@ -224,23 +395,24 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		// Only the settings of the layout need to be restored here
 		this.configurationService.setLayoutConfiguration(storedLayout.settings);
 
-		return { id: storedLayout.id, name: storedLayout.name };
+		return storedLayout.id;
 	}
 
-	private setActiveLayout(layout: INamedLayout): void {
-		if (layout.id === DEFAULT_NAMED_LAYOUT_ID) {
-			this._activeLayout = this.defaultLayout;
+	private setActiveLayout(layoutId: string): void {
+		if (layoutId === DEFAULT_NAMED_LAYOUT_ID) {
 			this.storageService.remove(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, StorageScope.WORKSPACE);
 		} else {
-			this._activeLayout = { id: layout.id, name: layout.name };
-			this.storageService.store(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, layout.id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+			this.storageService.store(NamedLayoutsService.ACTIVE_LAYOUT_STORAGE_KEY, layoutId, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}
 
-		this._onDidChangeActiveLayout.fire(this._activeLayout);
+		if (this.activeLayoutId !== layoutId) {
+			this.activeLayoutId = layoutId;
+			this._onDidChangeActiveLayout.fire(this.activeLayout);
+		}
 	}
 
 	private saveOutgoingLayout(): void {
-		if (this._activeLayout.id === DEFAULT_NAMED_LAYOUT_ID) {
+		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID) {
 			// The state that the default layout shares with other windows is stored by its owners
 			const state = { ...this.loadDefaultLayoutState(), ...this.captureState(participant => !participant.applyDefault) };
 			this.storageService.store(NamedLayoutsService.DEFAULT_LAYOUT_STATE_STORAGE_KEY, JSON.stringify(state), StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -255,20 +427,37 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		}
 
 		// The workbench persists the state of the default layout itself
-		const activeLayout = this.getStoredLayout(this._activeLayout.id);
-		if (!activeLayout) {
+		const activeLayout = this.getStoredLayout(this.activeLayoutId);
+		const contributedLayout = this.contributedLayouts.get(this.activeLayoutId);
+		if (!activeLayout && !contributedLayout) {
 			return;
 		}
 
+		// The saved changes of an active contributed layout are recreated if another window reset the layout
+		const contribution = activeLayout?.contribution ?? (contributedLayout ? { extensionId: contributedLayout.extensionId, id: contributedLayout.id } : undefined);
 		const updatedLayout: IStoredNamedLayout = {
-			...activeLayout,
+			id: this.activeLayoutId,
+			name: contributedLayout?.label ?? activeLayout?.name ?? this.activeLayoutId,
 			settings: this.configurationService.getLayoutConfiguration(),
-			state: { ...activeLayout.state, ...this.captureState() }
+			state: { ...activeLayout?.state, ...this.captureState() },
+			...(contribution ? { contribution } : {})
 		};
-		if (!equals(updatedLayout, activeLayout)) {
+		if (!activeLayout) {
+			this.storedLayouts = [...this.storedLayouts, updatedLayout];
+			this.storeLayouts();
+			this._onDidChangeLayouts.fire();
+		} else if (!equals(updatedLayout, activeLayout)) {
 			this.storedLayouts = this.storedLayouts.map(candidate => candidate.id === updatedLayout.id ? updatedLayout : candidate);
 			this.storeLayouts();
 		}
+	}
+
+	private captureSettings(): IStringDictionary<unknown> {
+		const settings: IStringDictionary<unknown> = {};
+		for (const key of getLayoutOverridableSettings()) {
+			settings[key] = this.configurationService.getValue(key);
+		}
+		return settings;
 	}
 
 	private captureState(filter: (participant: INamedLayoutParticipant) => boolean = () => true): IStringDictionary<unknown> {
@@ -323,17 +512,36 @@ export class NamedLayoutsService extends Disposable implements INamedLayoutsServ
 		this.storedLayouts = storedLayouts;
 		this._onDidChangeLayouts.fire();
 
+		if (this.activeLayoutId === DEFAULT_NAMED_LAYOUT_ID || this.getStoredLayout(this.activeLayoutId)) {
+			return;
+		}
+
+		// Another window reset the active contributed layout. This window keeps using it.
+		if (this.contributedLayouts.has(this.activeLayoutId)) {
+			this.saveActiveLayout();
+			return;
+		}
+
 		// The active layout was deleted in another window or does not exist in the
 		// profile this window switched to. Restore the default layout including the
 		// state of its participants, so that the next switch does not save the state
 		// of the deleted layout as the state of the default layout.
-		if (this._activeLayout.id !== DEFAULT_NAMED_LAYOUT_ID && !this.getStoredLayout(this._activeLayout.id)) {
-			this.queueSwitchToDefaultLayout(false);
-		}
+		this.queueSwitchToDefaultLayout(false);
 	}
 
 	private getStoredLayout(id: string): IStoredNamedLayout | undefined {
 		return this.storedLayouts.find(layout => layout.id === id);
+	}
+
+	private removeStoredLayout(id: string): boolean {
+		const storedLayouts = this.storedLayouts.filter(candidate => candidate.id !== id);
+		if (storedLayouts.length === this.storedLayouts.length) {
+			return false;
+		}
+
+		this.storedLayouts = storedLayouts;
+		this.storeLayouts();
+		return true;
 	}
 
 	private loadLayouts(): IStoredNamedLayout[] {

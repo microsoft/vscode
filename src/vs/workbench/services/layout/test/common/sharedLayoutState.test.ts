@@ -32,12 +32,14 @@ suite('SharedLayoutStateService', () => {
 		const local = { key: testObject.get('key', ''), empty: testObject.get('empty', 'fallback'), other: testObject.get('other', ''), shared: storageService.get('key', StorageScope.PROFILE) };
 
 		const restored = disposables.add(new SharedLayoutStateService(storageService, new NullLogService())).get('key', '');
+		const sharedState = testObject.getSharedState();
 
 		testObject.setLocalState(undefined);
 
-		assert.deepStrictEqual({ local, restored, key: testObject.get('key', ''), changes }, {
+		assert.deepStrictEqual({ local, restored, sharedState, key: testObject.get('key', ''), changes }, {
 			local: { key: 'local', empty: 'fallback', other: 'not in the local copy', shared: 'changed in another window' },
 			restored: 'local',
+			sharedState: { key: 'changed in another window', empty: 'stored in another window', other: 'not in the local copy' },
 			key: 'changed in another window',
 			changes: ['key', 'key']
 		});

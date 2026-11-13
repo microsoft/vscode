@@ -31,6 +31,7 @@ import { IAction, Separator, SubmenuAction, toAction } from '../../../base/commo
 import { StringSHA1 } from '../../../base/common/hash.js';
 import { GestureEvent } from '../../../base/browser/touch.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
+import { IPaneCompositeArrangement } from '../../services/panecomposite/browser/panecomposite.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
@@ -524,6 +525,22 @@ export class PaneCompositeBar extends Disposable {
 	getPaneCompositeIds(): string[] {
 		return this.compositeBar.getVisibleComposites()
 			.map(v => v.id);
+	}
+
+	arrangePaneComposites({ pinned, order }: IPaneCompositeArrangement): void {
+		const items = this.compositeBar.getCompositeBarItems();
+		const orderedItems = (order ?? [])
+			.map(id => items.find(item => item.id === id))
+			.filter((item, index, array): item is ICompositeBarItem => !!item && array.indexOf(item) === index);
+		const arrangedItems = [...orderedItems, ...items.filter(item => !orderedItems.includes(item))]
+			.map(item => ({ id: item.id, name: item.name, order: item.order, visible: item.visible, pinned: pinned?.get(item.id) ?? item.pinned }));
+
+		if (arrangedItems.every((item, index) => item.id === items[index].id && item.pinned === items[index].pinned)) {
+			return;
+		}
+
+		this.compositeBar.setCompositeBarItems(arrangedItems);
+		this.saveCachedViewContainers();
 	}
 
 	getContextMenuActions(): IAction[] {

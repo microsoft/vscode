@@ -14,7 +14,7 @@ import { PanelPart } from './panel/panelPart.js';
 import { SidebarPart } from './sidebar/sidebarPart.js';
 import { IPaneComposite } from '../../common/panecomposite.js';
 import { ViewContainerLocation } from '../../common/views.js';
-import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
+import { IPaneCompositeArrangement, IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { IPaneCompositePart } from './paneCompositePart.js';
 import { SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
@@ -82,6 +82,10 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 
 	getPaneCompositeIds(viewContainerLocation: ViewContainerLocation): string[] {
 		return this.getPartByLocation(viewContainerLocation).getPaneCompositeIds();
+	}
+
+	arrangePaneComposites(viewContainerLocation: ViewContainerLocation, arrangement: IPaneCompositeArrangement): void {
+		this.getPartByLocation(viewContainerLocation).arrangePaneComposites(arrangement);
 	}
 
 	getProgressIndicator(id: string, viewContainerLocation: ViewContainerLocation): IProgressIndicator | undefined {

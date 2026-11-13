@@ -3793,6 +3793,20 @@ export interface ExtHostThemingShape {
 export interface MainThreadThemingShape extends IDisposable {
 }
 
+export interface WindowLayoutDto {
+	readonly label: string;
+	readonly contribution: { readonly extensionId: string; readonly id: string } | undefined;
+}
+
+export interface ExtHostWindowLayoutsShape {
+	$acceptActiveLayout(layout: WindowLayoutDto): void;
+}
+
+export interface MainThreadWindowLayoutsShape extends IDisposable {
+	$switchLayout(extensionId: string, id: string): Promise<{ readonly token: number; readonly previousLayout: WindowLayoutDto }>;
+	$restoreLayout(token: number): Promise<boolean>;
+}
+
 export interface MainThreadLocalizationShape extends IDisposable {
 	$fetchBuiltInBundleUri(id: string, language: string): Promise<UriComponents | undefined>;
 	$fetchBundleContents(uriComponents: UriComponents): Promise<string>;
@@ -4326,6 +4340,7 @@ export const MainContext = {
 	MainThreadNotebookRenderers: createProxyIdentifier<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
 	MainThreadInteractive: createProxyIdentifier<MainThreadInteractiveShape>('MainThreadInteractive'),
 	MainThreadTheming: createProxyIdentifier<MainThreadThemingShape>('MainThreadTheming'),
+	MainThreadWindowLayouts: createProxyIdentifier<MainThreadWindowLayoutsShape>('MainThreadWindowLayouts'),
 	MainThreadTunnelService: createProxyIdentifier<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadManagedSockets: createProxyIdentifier<MainThreadManagedSocketsShape>('MainThreadManagedSockets'),
 	MainThreadBrowserTunnelProxy: createProxyIdentifier<MainThreadBrowserTunnelProxyShape>('MainThreadBrowserTunnelProxy'),
@@ -4415,6 +4430,7 @@ export const ExtHostContext = {
 	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),
 	ExtHostAiSettingsSearch: createProxyIdentifier<ExtHostAiSettingsSearchShape>('ExtHostAiSettingsSearch'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),
+	ExtHostWindowLayouts: createProxyIdentifier<ExtHostWindowLayoutsShape>('ExtHostWindowLayouts'),
 	ExtHostTunnelService: createProxyIdentifier<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostManagedSockets: createProxyIdentifier<ExtHostManagedSocketsShape>('ExtHostManagedSockets'),
 	ExtHostBrowserTunnelProxy: createProxyIdentifier<ExtHostBrowserTunnelProxyShape>('ExtHostBrowserTunnelProxy'),

@@ -839,27 +839,33 @@ export class NamedLayoutsActivityActionViewItem extends AbstractGlobalActivityAc
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 	) {
 		const layoutsName = localize('layouts', "Layouts");
+		const menu = menuService.createMenu(MenuId.NamedLayoutsActivity, contextKeyService);
+		const getName = () => NamedLayoutsActivityActionViewItem.getSwitcherAction(menu)?.label || layoutsName;
+
+		// The name must be known when the action is created, the item cannot update before it is rendered
 		const action = instantiationService.createInstance(CompositeBarAction, {
 			id: NAMED_LAYOUTS_ACTIVITY_ID,
-			name: layoutsName,
+			name: getName(),
 			classNames: ThemeIcon.asClassNameArray(NamedLayoutsActivityActionViewItem.NAMED_LAYOUTS_ICON)
 		});
 		super(MenuId.NamedLayoutsActivity, action, options, contextMenuActionsProvider, contextMenuAlignmentOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
 		this._register(action);
 
-		this.menu = this._register(menuService.createMenu(MenuId.NamedLayoutsActivity, contextKeyService));
-		const updateName = () => {
-			const name = this.getSwitcherAction()?.label || layoutsName;
+		this.menu = this._register(menu);
+		this._register(this.menu.onDidChange(() => {
+			const name = getName();
 			if (action.compositeBarActionItem.name !== name) {
 				action.compositeBarActionItem = { ...action.compositeBarActionItem, name };
 			}
-		};
-		updateName();
-		this._register(this.menu.onDidChange(() => updateName()));
+		}));
+	}
+
+	private static getSwitcherAction(menu: IMenu): IAction | undefined {
+		return menu.getActions().flatMap(([, actions]) => actions)[0];
 	}
 
 	private getSwitcherAction(): IAction | undefined {
-		return this.menu.getActions().flatMap(([, actions]) => actions)[0];
+		return NamedLayoutsActivityActionViewItem.getSwitcherAction(this.menu);
 	}
 
 	protected override async run(): Promise<void> {

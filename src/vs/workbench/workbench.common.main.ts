@@ -8,6 +8,8 @@
 import '../editor/editor.all.js';
 
 import './api/browser/extensionHost.contribution.js';
+// Not part of the extension host contribution because the Agents window does not support named layouts
+import './api/browser/mainThreadWindowLayouts.js';
 import './browser/workbench.contribution.js';
 import './browser/workbench.zenMode.contribution.js';
 

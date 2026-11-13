@@ -24,6 +24,7 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { IPaneCompositeArrangement } from '../../services/panecomposite/browser/panecomposite.js';
 import { IComposite } from '../../common/composite.js';
 import { localize } from '../../../nls.js';
 import { CompositeDragAndDropObserver, toggleDropEffect } from '../dnd.js';
@@ -104,6 +105,11 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of all view containers following the visual order.
 	 */
 	getPaneCompositeIds(): string[];
+
+	/**
+	 * Pins, unpins and reorders view containers in the bar of the part.
+	 */
+	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void;
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -574,6 +580,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	getPaneCompositeIds(): string[] {
 		return this.paneCompositeBar.value?.getPaneCompositeIds() ?? [];
+	}
+
+	arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
+		this.paneCompositeBar.value?.arrangePaneComposites(arrangement);
 	}
 
 	getActivePaneComposite(): IPaneComposite | undefined {

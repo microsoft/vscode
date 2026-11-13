@@ -24,6 +24,7 @@ import { LayoutPriority } from '../../../../base/browser/ui/grid/grid.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
+import { IPaneCompositeArrangement } from '../../../services/panecomposite/browser/panecomposite.js';
 import { ActivityBarCompositeBar, ActivitybarPart } from '../activitybar/activitybarPart.js';
 import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -311,6 +312,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	override getPaneCompositeIds(): string[] {
 		return this.shouldShowCompositeBar() ? super.getPaneCompositeIds() : this.activityBarPart.getPaneCompositeIds();
+	}
+
+	override arrangePaneComposites(arrangement: IPaneCompositeArrangement): void {
+		if (this.shouldShowCompositeBar()) {
+			super.arrangePaneComposites(arrangement);
+		} else {
+			this.activityBarPart.arrangePaneComposites(arrangement);
+		}
 	}
 
 	async focusActivityBar(): Promise<void> {

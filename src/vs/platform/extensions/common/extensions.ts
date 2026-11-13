@@ -248,6 +248,11 @@ export interface IChatFileContribution {
 	readonly sessionTypes?: readonly string[];
 }
 
+export interface ILayoutContribution {
+	readonly id: string;
+	readonly label: string;
+}
+
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: any;
@@ -284,6 +289,7 @@ export interface IExtensionContributions {
 	readonly languageModelTools?: ReadonlyArray<IToolContribution>;
 	readonly languageModelToolSets?: ReadonlyArray<IToolSetContribution>;
 	readonly mcpServerDefinitionProviders?: ReadonlyArray<IMcpCollectionContribution>;
+	readonly layouts?: ReadonlyArray<ILayoutContribution>;
 }
 
 export interface IExtensionCapabilities {

@@ -14,7 +14,7 @@ import { ILogService, NullLogService } from '../../../../../platform/log/common/
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IStorageService, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
-import { DEFAULT_NAMED_LAYOUT_ID, INamedLayoutParticipant, NAMED_LAYOUTS_ENABLED_SETTING } from '../../common/namedLayouts.js';
+import { DEFAULT_NAMED_LAYOUT_ID, IContributedNamedLayout, INamedLayoutDefinition, INamedLayoutParticipant, NAMED_LAYOUTS_ENABLED_SETTING } from '../../common/namedLayouts.js';
 import { NamedLayoutsService } from '../../common/namedLayoutsService.js';
 
 const LAYOUT_SETTING = 'namedLayoutsTest.setting';
@@ -79,6 +79,17 @@ class TestSharedParticipant implements INamedLayoutParticipant {
 
 	async applyDefault(): Promise<void> {
 		this.localState = undefined;
+	}
+}
+
+/**
+ * A participant that applies the editor orientation of a layout definition
+ * on top of the state of the default layout.
+ */
+class TestDefinitionParticipant extends TestParticipant {
+
+	async applyDefinition(definition: INamedLayoutDefinition, defaultState: unknown): Promise<void> {
+		this.state = `${definition.editor?.orientation} over ${defaultState}`;
 	}
 }
 
@@ -207,6 +218,57 @@ suite('NamedLayoutsService', () => {
 			afterSwitchToDefault: undefined,
 			afterSwitchToDebug: 'debug state',
 			afterRestart: 'debug state'
+		});
+	});
+
+	test('layouts contributed by extensions start from their definition and keep their changes', async () => {
+		const contributedLayout: IContributedNamedLayout = {
+			extensionId: 'Publisher.Extension',
+			extensionName: 'Extension',
+			id: 'debug',
+			label: 'Debugging',
+			definition: { settings: { [LAYOUT_SETTING]: 'contributedValue', 'namedLayoutsTest.unknown': true }, editor: { orientation: 'vertical' } }
+		};
+		const participant = new TestDefinitionParticipant();
+		const testObject = createService(participant);
+		const defaultLayout = testObject.activeLayout;
+		participant.state = 'default state';
+		testObject.setContributedLayouts([contributedLayout]);
+		const layout = testObject.layouts.find(candidate => candidate.contribution)!;
+
+		await testObject.switchLayout(layout);
+		const afterFirstSwitch = { active: testObject.activeLayout, setting: configurationService.getValue(LAYOUT_SETTING), definesUnknownSetting: Object.hasOwn(configurationService.getLayoutConfiguration(), 'namedLayoutsTest.unknown'), state: participant.state };
+
+		// Changes are saved like the changes of other named layouts
+		participant.state = 'changed state';
+		await testObject.switchLayout(defaultLayout);
+		await testObject.switchLayout(layout);
+		const afterSwitchBack = participant.state;
+
+		await testObject.resetLayout(layout);
+		const afterReset = participant.state;
+
+		const deleteError = await testObject.deleteLayout(layout).then(() => undefined, error => error.message);
+
+		// The extension is uninstalled, the saved changes are kept in case it is installed again
+		testObject.setContributedLayouts([]);
+		await testObject.switchLayout(defaultLayout); // queued after the switch triggered by the removal
+		const afterUninstall = { layouts: testObject.layouts.map(candidate => candidate.name), active: testObject.activeLayout.id, setting: configurationService.getValue(LAYOUT_SETTING), state: participant.state };
+		testObject.setContributedLayouts([contributedLayout]);
+		const afterReinstall = testObject.layouts.map(candidate => ({ name: candidate.name, canReset: candidate.contribution?.canReset }));
+
+		assert.deepStrictEqual({ afterFirstSwitch, afterSwitchBack, afterReset, deleteError, afterUninstall, afterReinstall }, {
+			afterFirstSwitch: {
+				active: { id: 'publisher.extension/debug', name: 'Debugging', contribution: { extensionId: 'Publisher.Extension', extensionName: 'Extension', id: 'debug', canReset: true } },
+				setting: 'contributedValue',
+				definesUnknownSetting: false,
+				state: 'vertical over default state'
+			},
+			afterSwitchBack: 'changed state',
+			afterReset: 'vertical over default state',
+			deleteError: 'A layout contributed by an extension cannot be deleted.',
+			afterUninstall: { layouts: ['Default'], active: DEFAULT_NAMED_LAYOUT_ID, setting: 'userValue', state: 'default state' },
+			afterReinstall: [{ name: 'Default', canReset: undefined }, { name: 'Debugging', canReset: true }]
 		});
 	});
 });
