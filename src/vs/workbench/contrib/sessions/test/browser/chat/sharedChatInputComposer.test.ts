@@ -34,6 +34,7 @@ import { IEditorGroupsService } from '../../../../../services/editor/common/edit
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IQuickChatService } from '../../../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { ChatWidgetService } from '../../../../chat/browser/widget/chatWidgetService.js';
 import { ChatInputPart } from '../../../../chat/browser/widget/input/chatInputPart.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
@@ -434,6 +435,7 @@ suite('SharedChatInputComposer', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatViewHostService, {});
 		const widgets = store.add(instantiationService.createInstance(ChatWidgetService));
 		// As a chat widget does: focusing its input counts as its focus.
 		const createWidget = () => {
