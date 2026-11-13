@@ -93,10 +93,7 @@ export class WorkbenchGitHubCredentialProvider extends Disposable implements IGi
 			throw new GitHubRequestError(localize('githubGrantUnavailable', "The selected GitHub session or permissions are no longer available."), 'authentication');
 		}
 		const issuer = session.authorizationServer?.toString();
-		if (issuer !== undefined) {
-			normalizeReadApiBaseUri(issuer);
-		}
-		const endpoints = deriveGitHubEndpoints(issuer);
+		const endpoints = deriveGitHubEndpoints(issuer === undefined ? undefined : normalizeReadApiBaseUri(issuer));
 		if (authorization.providerId === 'github' ? endpoints.enterpriseHost !== undefined : !issuer || endpoints.enterpriseHost === undefined) {
 			throw new GitHubRequestError(localize('githubEndpointUnavailable', "The selected GitHub session does not identify a matching GitHub endpoint."), 'authentication');
 		}
