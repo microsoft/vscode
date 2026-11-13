@@ -150,6 +150,16 @@ export function isSessionEnvironmentPickerEnabled(configurationService: IConfigu
 		&& configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING) === true;
 }
 
+/**
+ * Whether focus is in an input, a textarea or an editor. A workspace selection the user didn't make, such as
+ * the folder handoff of an Agents window that finishes during startup, must not move focus away from there, or
+ * the rest of what the user types, for example an SSH password in a quick input, lands in the composer.
+ */
+function isTypingInEditableElement(): boolean {
+	const activeElement = dom.getActiveElement();
+	return !!activeElement && dom.isEditableElement(activeElement);
+}
+
 export class NewChatWidget extends Disposable {
 
 	private readonly _usage: AgentsWindowUsage;
@@ -695,7 +705,7 @@ export class NewChatWidget extends Disposable {
 			}
 		}));
 
-		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri)));
+		this._register(this._workspacePicker.onDidSelectWorkspace(folderUri => this._handleWorkspaceSelection(folderUri, this._workspacePicker.selectionSnapshot.origin !== WorkspaceSelectionOrigin.User)));
 		this._register(this._workspacePicker.onDidSelectWorkspaceMode(({ folderUri, preferDevContainer }) => {
 			const environment = this._environment.get();
 			this._preferredDevContainerFolderUri = preferDevContainer || environment?.kind === 'container' ? folderUri : undefined;
@@ -2988,7 +2998,10 @@ export class NewChatWidget extends Disposable {
 		this._newChatInput.focus();
 	}
 
-	private async _handleWorkspaceSelection(folderUri: URI | undefined): Promise<void> {
+	/**
+	 * @param notByUser The selection was not made by the user, for example the folder handoff of an Agents window.
+	 */
+	private async _handleWorkspaceSelection(folderUri: URI | undefined, notByUser?: boolean): Promise<void> {
 		const host = this._draftHost;
 		if (host?.setRequestedTarget) {
 			// In a Dev Container only as the user picked it, in the environment the folder was picked in.
@@ -2997,7 +3010,7 @@ export class NewChatWidget extends Disposable {
 		if (!this._isCurrentWorkspaceSelection(folderUri)) {
 			await this._onWorkspaceSelected(folderUri);
 		}
-		if (folderUri || !this._workspaceOptOutEnabled.get()) {
+		if ((folderUri || !this._workspaceOptOutEnabled.get()) && !(notByUser && isTypingInEditableElement())) {
 			this._newChatInput.focus();
 		}
 	}

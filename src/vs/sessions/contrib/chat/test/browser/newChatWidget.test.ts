@@ -537,7 +537,7 @@ const getNoWorkspaceOption = Reflect.get(NewChatWidget.prototype, '_getNoWorkspa
 const getWorkspaceRoots = Reflect.get(NewChatWidget.prototype, '_getWorkspaceRoots') as (this: IWorkspaceRootsHarness, session: ISession) => readonly URI[];
 const canSendRequestToWorkspace = Reflect.get(NewChatWidget.prototype, '_canSendRequestToWorkspace') as (this: ICanSendRequestToWorkspaceHarness, session: ISession, environment: ISessionCreationEnvironment, reader: IReader) => boolean;
 const restoreNoWorkspaceDraft = Reflect.get(NewChatWidget.prototype, '_restoreNoWorkspaceDraft') as (this: IRestoreNoWorkspaceDraftHarness) => Promise<void>;
-const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined) => Promise<void>;
+const handleWorkspaceSelection = Reflect.get(NewChatWidget.prototype, '_handleWorkspaceSelection') as (this: IHandleWorkspaceSelectionHarness, folderUri: URI | undefined, notByUser?: boolean) => Promise<void>;
 const onWorkspaceSelected = Reflect.get(NewChatWidget.prototype, '_onWorkspaceSelected') as (this: IClearWorkspaceHarness, folderUri: URI | undefined) => Promise<void>;
 const getWorkspaceOptOutTarget = Reflect.get(NewChatWidget.prototype, '_getWorkspaceOptOutTarget') as (
 	this: { readonly sessionsManagementService: Pick<ISessionsManagementService, 'isQuickChatTargetAvailable' | 'getQuickChatSessionTypes'> },
@@ -5669,6 +5669,32 @@ suite('NewChatWidget', () => {
 			beforeResumedTimeout: 'Message sentOpen Session', afterResumedTimeout: '', resource: undefined, preservesHeight: true,
 		});
 	}));
+
+	test('a workspace selection the user did not make leaves focus in the input being typed in', async () => {
+		const input = append(mainWindow.document.body, $('input'));
+		const button = append(mainWindow.document.body, $('button'));
+		disposables.add(toDisposable(() => { input.remove(); button.remove(); }));
+		const run = async (notByUser: boolean, focused: HTMLElement) => {
+			let focusCalls = 0;
+			focused.focus();
+			await handleWorkspaceSelection.call(upcastPartial<IHandleWorkspaceSelectionHarness>({
+				_environment: constObservable(undefined),
+				_workspaceOptOutEnabled: constObservable(false),
+				_newChatInput: { focus: () => focusCalls++ },
+				_isCurrentWorkspaceSelection: () => true,
+			}), URI.file('/handed-off'), notByUser);
+			return focusCalls;
+		};
+		assert.deepStrictEqual({
+			byUserWhileTyping: await run(false, input),
+			notByUserWhileTyping: await run(true, input),
+			notByUserWhileNotTyping: await run(true, button),
+		}, {
+			byUserWhileTyping: 1,
+			notByUserWhileTyping: 0,
+			notByUserWhileNotTyping: 1,
+		});
+	});
 
 	for (const origin of [
 		WorkspaceSelectionOrigin.None, WorkspaceSelectionOrigin.CheckedWorkspace, WorkspaceSelectionOrigin.AgentsRecent,
