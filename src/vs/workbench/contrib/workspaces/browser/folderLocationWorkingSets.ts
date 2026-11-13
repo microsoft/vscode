@@ -24,6 +24,9 @@ interface IStoredWorkingSets {
 
 	/** The location whose editors are in the editor area. */
 	readonly owner?: string;
+
+	/** The editor area may only partially hold the editors of the owner, whose saved working set is authoritative. */
+	readonly partial?: boolean;
 	readonly entries: readonly { readonly key: string; readonly workingSet: IEditorWorkingSet }[];
 }
 
@@ -49,6 +52,13 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	/** The location whose editors are in the editor area. Only changes once they were applied. */
 	private owner: string | undefined;
 
+	/**
+	 * Set when neither restoring a location nor emptying the editor area worked: applying can close
+	 * editors before it fails, so the editor area is no longer a faithful copy of the owner's editors.
+	 * The saved working set of the owner is kept as is until an apply succeeds.
+	 */
+	private partial: boolean;
+
 	private disposed = false;
 
 	constructor(
@@ -66,6 +76,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		const stored = this.load();
 		this.workingSets = stored.entries;
 		this.owner = stored.owner ?? this.getCurrentKey();
+		this.partial = stored.partial;
 		this.deleteOrphans();
 
 		this._register(this.folderLocationService.onDidChangeLocation(() => this.reconcile()));
@@ -83,7 +94,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		// whether anything is left to do is decided once the earlier work has settled.
 		this.sequencer.queue(async () => {
 			const entering = this.getCurrentKey();
-			if (this.disposed || !this.owner || !entering || this.owner === entering) {
+			if (this.disposed || !this.owner || !entering || (this.owner === entering && !this.partial)) {
 				return;
 			}
 			await this.switchWorkingSet(this.owner, entering);
@@ -95,29 +106,34 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		// Save the editors of the location being left. Nothing is saved for an empty editor
 		// area so that the location restores to what it had before the editors were closed.
 		// The editors of the main part and of the windows that are part of working sets count.
-		if (this.editorGroupsService.parts.some(part => !part.isTransient && part.groups.some(group => group.count > 0))) {
+		// The editor area is not saved over the working set of an owner it only partially holds.
+		if (!this.partial && this.editorGroupsService.parts.some(part => !part.isTransient && part.groups.some(group => group.count > 0))) {
 			this.save(leaving, entering);
 		}
 
 		// Apply the editors of the location being entered. The location only owns the editor
 		// area once that worked. When its saved working set cannot be applied, the editors of the
 		// location being left (already saved above) must not stay open: they belong to another
-		// location. The entering location then starts empty and its unusable set is dropped.
+		// location. The entering location then starts empty. Its saved set is kept, because
+		// the failure can be transient: it is replaced when the location is left with editors open.
 		const target = this.workingSets.find(entry => entry.key === entering);
 		if (this.disposed) {
 			return;
 		}
 		if (target && await this.tryApply(target.workingSet)) {
 			this.owner = entering;
+			this.partial = false;
 			this.store();
 			return;
 		}
-		if (await this.tryApply('empty')) {
-			if (target) {
-				this.workingSets = this.workingSets.filter(entry => entry !== target);
-				this.editorGroupsService.deleteWorkingSet(target.workingSet);
-			}
+		if (leaving !== entering && await this.tryApply('empty')) {
 			this.owner = entering;
+			this.partial = false;
+			this.store();
+			return;
+		}
+		if (!this.partial) {
+			this.partial = true;
 			this.store();
 		}
 	}
@@ -164,32 +180,33 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		}
 	}
 
-	private load(): { owner: string | undefined; entries: { key: string; workingSet: IEditorWorkingSet }[] } {
+	private load(): { owner: string | undefined; partial: boolean; entries: { key: string; workingSet: IEditorWorkingSet }[] } {
 		const raw = this.storageService.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!raw) {
-			return { owner: undefined, entries: [] };
+			return { owner: undefined, partial: false, entries: [] };
 		}
 
 		let stored: IStoredWorkingSets | undefined;
 		try {
 			stored = JSON.parse(raw);
 		} catch {
-			return { owner: undefined, entries: [] };
+			return { owner: undefined, partial: false, entries: [] };
 		}
 		if (stored?.version !== 1 || !Array.isArray(stored.entries)) {
-			return { owner: undefined, entries: [] };
+			return { owner: undefined, partial: false, entries: [] };
 		}
 
 		// Drop handles whose editor state no longer exists
 		const existing = new Set(this.editorGroupsService.getWorkingSets().map(workingSet => workingSet.id));
 		return {
 			owner: typeof stored.owner === 'string' ? stored.owner : undefined,
+			partial: stored.partial === true,
 			entries: stored.entries.filter(entry => typeof entry.key === 'string' && existing.has(entry.workingSet?.id)).slice(-FOLDER_LOCATION_MAX_WORKING_SETS)
 		};
 	}
 
 	private store(): void {
-		const stored: IStoredWorkingSets = { version: 1, owner: this.owner, entries: this.workingSets };
+		const stored: IStoredWorkingSets = { version: 1, owner: this.owner, partial: this.partial || undefined, entries: this.workingSets };
 		this.storageService.store(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }

@@ -32,6 +32,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		applyResult: boolean | 'throw' = true;
 		/** When set, only applying a saved working set fails: applying an empty editor area works. */
 		emptyAlwaysWorks = false;
+		/** When set, a failing apply first leaves this content behind, like closing some editors before an editor vetoes. */
+		contentOnFailure: string | undefined;
 		gate: Promise<void> | undefined;
 		auxiliaryEditors = 0;
 
@@ -60,6 +62,9 @@ suite('FolderLocationWorkingSetsContribution', () => {
 				assert.strictEqual(applyOptions?.preserveFocus, true);
 				await area.gate;
 				const result = area.emptyAlwaysWorks && ws === 'empty' ? true : area.applyResult;
+				if (result !== true && area.contentOnFailure !== undefined) {
+					area.content = area.contentOnFailure;
+				}
 				if (result === 'throw') {
 					throw new Error('apply failed');
 				}
@@ -198,12 +203,90 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			await settle();
 
 			assert.deepStrictEqual({ afterFailure, content: fixture.area.content, saved: fixture.area.saved(), owner: fixture.stored().owner }, {
-				afterFailure: { content: '', saved: { [prefix + a]: 'A1' }, owner: p, errors: 1 },
+				afterFailure: { content: '', saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' }, owner: p, errors: 1 },
 				content: 'A1',
-				saved: { [prefix + a]: 'A1' },
+				saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' },
 				owner: a
 			}, `${failure}`);
 		}
+	});
+
+	test('the saved working set of a location that failed to apply is kept until the location is left with editors open, which replaces it', async () => {
+		const fixture = createFixture();
+		fixture.area.content = 'P1';
+		fixture.switchTo(alternate);
+		await settle();
+		fixture.area.content = 'A1';
+
+		fixture.area.applyResult = 'throw';
+		fixture.area.emptyAlwaysWorks = true;
+		fixture.switchTo(primary);
+		await settle();
+		const kept = fixture.area.saved();
+
+		fixture.area.applyResult = true;
+		fixture.area.content = 'P2';
+		fixture.switchTo(alternate);
+		await settle();
+
+		assert.deepStrictEqual({ kept, replaced: fixture.area.saved(), content: fixture.area.content }, {
+			kept: { [prefix + p]: 'P1', [prefix + a]: 'A1' },
+			replaced: { [prefix + p]: 'P2', [prefix + a]: 'A1' },
+			content: 'A1'
+		});
+	});
+
+	test('a partially applied working set never replaces the saved one of the owner, also after a restart', async () => {
+		for (const failure of [false, 'throw'] as const) {
+			const storage = ds.add(new InMemoryStorageService());
+			const area = new EditorArea();
+			const fixture = createFixture({ area, storage });
+			area.content = 'P1';
+			fixture.switchTo(alternate);
+			await settle();
+			area.content = 'A1';
+
+			area.applyResult = failure;
+			area.contentOnFailure = 'PARTIAL';
+			fixture.switchTo(primary);
+			await settle();
+			const afterFailure = { content: area.content, saved: area.saved() };
+
+			area.applyResult = true;
+			fixture.switchTo(URI.file('/work/other'));
+			await settle();
+			const afterNextSwitch = { content: area.content, saved: area.saved() };
+
+			fixture.switchTo(alternate);
+			await settle();
+
+			assert.deepStrictEqual({ afterFailure, afterNextSwitch, content: area.content, saved: area.saved() }, {
+				afterFailure: { content: 'PARTIAL', saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' } },
+				afterNextSwitch: { content: '', saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' } },
+				content: 'A1',
+				saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' }
+			}, `${failure}`);
+		}
+	});
+
+	test('a window that starts with a partially applied editor area restores the saved working set of its location', async () => {
+		const storage = ds.add(new InMemoryStorageService());
+		const area = new EditorArea();
+		const first = createFixture({ area, storage });
+		area.content = 'P1';
+		first.switchTo(alternate);
+		await settle();
+		area.content = 'A1';
+		area.applyResult = false;
+		area.contentOnFailure = 'PARTIAL';
+		first.switchTo(primary);
+		await settle();
+
+		area.applyResult = true;
+		createFixture({ area, storage, folder: alternate });
+		await settle();
+
+		assert.deepStrictEqual({ content: area.content, saved: area.saved() }, { content: 'A1', saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' } });
 	});
 
 	test('when the empty fallback fails as well, the owner stays and the saved working sets survive, also over later switches', async () => {
