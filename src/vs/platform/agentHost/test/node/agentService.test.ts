@@ -4354,6 +4354,7 @@ suite('AgentService (node dispatcher)', () => {
 		gitService.getRepositoryRoot = async () => workingDirectory;
 		gitService.revParse = async () => 'head';
 		gitService.getCurrentBranch = async () => 'feature';
+		gitService.getCurrentBranchName = async () => 'feature';
 		gitService.getHEAD = async () => ({ ref: 'refs/heads/feature', name: 'feature', kind: GitRefType.Head });
 		gitService.getDefaultBranch = async () => ({ name: 'main', startPoint: 'origin/main' });
 		gitService.getDefaultBranch2 = async () => ({
