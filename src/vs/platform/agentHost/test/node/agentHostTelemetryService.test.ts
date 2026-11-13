@@ -4,16 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
+import { bufferToStream, VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
+import type { IRequestContext, IRequestOptions } from '../../../../base/parts/request/common/request.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import type { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLoggerService, NullLogService } from '../../../log/common/log.js';
 import type { IProductService } from '../../../product/common/productService.js';
+import type { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryData, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
@@ -83,10 +87,53 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	}
 }
 
+/** Holds every request until the test completes it, standing in for the network. */
+class PendingRequestService implements IRequestService {
+	declare readonly _serviceBrand: undefined;
+	readonly onDidCompleteRequest = Event.None;
+	readonly bodies: string[] = [];
+	private readonly _responses: DeferredPromise<IRequestContext>[] = [];
+	private readonly _started: DeferredPromise<void>[] = [];
+
+	request(options: IRequestOptions): Promise<IRequestContext> {
+		const index = this.bodies.length;
+		this.bodies.push(String(options.data));
+		this._started[index] ??= new DeferredPromise();
+		this._started[index].complete();
+		this._responses[index] = new DeferredPromise();
+		return this._responses[index].p;
+	}
+
+	/** Resolves once the request with this index has been sent. */
+	started(index: number): Promise<void> {
+		return (this._started[index] ??= new DeferredPromise()).p;
+	}
+
+	respond(index: number): void {
+		this._responses[index].complete({ res: { headers: {}, statusCode: 200 }, stream: bufferToStream(VSBuffer.fromString('')) });
+	}
+
+	async resolveProxy(): Promise<string | undefined> {
+		return undefined;
+	}
+
+	async lookupAuthorization(): Promise<undefined> {
+		return undefined;
+	}
+
+	async lookupKerberosAuthorization(): Promise<string | undefined> {
+		return undefined;
+	}
+
+	async loadCertificates(): Promise<string[]> {
+		return [];
+	}
+}
+
 suite('AgentHostTelemetryService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	async function createFactoryService(telemetryLevelArg: string | undefined, telemetryLevelEnvironment: string | undefined): Promise<IAgentHostTelemetryService> {
+	async function createFactoryService(telemetryLevelArg: string | undefined, telemetryLevelEnvironment: string | undefined, collectorRequestService?: IRequestService): Promise<IAgentHostTelemetryService> {
 		const localDisposables = disposables.add(new DisposableStore());
 		const logService = new NullLogService();
 		const fileService = localDisposables.add(new FileService(logService));
@@ -107,11 +154,14 @@ suite('AgentHostTelemetryService', () => {
 				_serviceBrand: undefined,
 				version: '1.130.0',
 				enableTelemetry: true,
+				// A collector key sends events to the telemetry collector through the request service.
+				...(collectorRequestService ? { aiConfig: { ariaKey: 'test-key' } } : {}),
 			} as IProductService,
 			fileService,
 			loggerService: localDisposables.add(new NullLoggerService()),
 			logService,
 			disposables: localDisposables,
+			requestService: collectorRequestService,
 			readTelemetryLevelEnvironment: () => telemetryLevelEnvironment,
 		});
 	}
@@ -132,6 +182,31 @@ suite('AgentHostTelemetryService', () => {
 			TelemetryLevel.NONE,
 			TelemetryLevel.USAGE,
 		]);
+	});
+
+	test('flush resolves only after every collector request has completed', async () => {
+		const requests = new PendingRequestService();
+		const service = await createFactoryService(undefined, undefined, requests);
+		service.publicLog('agentHost.flushTest.first');
+		let flushed = false;
+		const flush = service.flush().then(() => { flushed = true; });
+		await requests.started(0);
+		// The collector waits for its first request before unloading, then sends this one without waiting.
+		service.publicLog('agentHost.flushTest.second');
+		requests.respond(0);
+		await requests.started(1);
+		await timeout(0);
+		const flushedBeforeLastResponse = flushed;
+		requests.respond(1);
+		await flush;
+
+		assert.deepStrictEqual({
+			flushedBeforeLastResponse,
+			sentEvents: requests.bodies.map(body => ['agentHost.flushTest.first', 'agentHost.flushTest.second'].filter(name => body.includes(name))),
+		}, {
+			flushedBeforeLastResponse: false,
+			sentEvents: [['agentHost.flushTest.first'], ['agentHost.flushTest.second']],
+		});
 	});
 
 	test('logging-only builds do not create restricted network senders', async () => {
