@@ -90,8 +90,8 @@ suite('agentHostAgentPicker', () => {
 			disposables.add(providers.registerProvider(provider));
 			const storage = disposables.add(new TestStorageService());
 			const usage = new AgentsWindowUsage(storage);
-			usage.recordRequest();
-			usage.recordRequest();
+			usage.recordSessionCreated();
+			usage.recordSessionCreated();
 			disposables.add(new AgentHostAgentPickerContribution(
 				new NullActionViewItemService(),
 				focusedSessionHostServiceOf(constObservable(session)),
@@ -119,7 +119,7 @@ suite('agentHostAgentPicker', () => {
 			}), undefined);
 			await frame();
 			const newUser = ready();
-			usage.recordRequest();
+			usage.recordSessionCreated();
 			await frame();
 			const defaultAgent = ready();
 			mode.set({ id: alpha.uri, kind: 'agent' }, undefined);

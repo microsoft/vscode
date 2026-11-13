@@ -50,8 +50,8 @@ const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.regex(SessionProviderIdContext.key, REMOTE_AGENT_HOST_PROVIDER_RE),
 );
 
-/** Agents Window requests a user sends before the custom agents spotlight can show, so it does not overwhelm new users. */
-const AGENT_PICKER_SPOTLIGHT_MIN_REQUESTS = 3;
+/** Session-starting Agents Window requests a user must have sent before the custom agents spotlight shows, so it does not overwhelm new users. */
+const AGENT_PICKER_SPOTLIGHT_MIN_CREATED_SESSIONS = 3;
 
 // -- Agent Host Agent Picker Action --
 
@@ -239,7 +239,7 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 
 		if (environmentService.isSessionsWindow) {
 			const usage = new AgentsWindowUsage(storageService);
-			const hasEnoughRequests = observableFromEvent(this, usage.onDidChangeRequestCount(this._store), () => usage.requestCount >= AGENT_PICKER_SPOTLIGHT_MIN_REQUESTS);
+			const hasEnoughRequests = observableFromEvent(this, usage.onDidChangeCreatedSessionCount(this._store), () => usage.createdSessionCount >= AGENT_PICKER_SPOTLIGHT_MIN_CREATED_SESSIONS);
 			const widgetsChanged = observableSignalFromEvent(this, Event.any(
 				chatWidgetService.onDidAddWidget,
 				chatWidgetService.onDidRemoveWidget,

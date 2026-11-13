@@ -48,7 +48,6 @@ import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from 
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
 import { SessionLinkAttachmentWidgetContribution } from './sessionLinkAttachmentWidget.js';
-import { AgentsWindowRequestUsageContribution } from './agentsWindowRequestUsage.js';
 import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
@@ -410,7 +409,6 @@ registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSession
 registerWorkbenchContribution2(SessionLinkAttachmentWidgetContribution.ID, SessionLinkAttachmentWidgetContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentsWindowRequestUsageContribution.ID, AgentsWindowRequestUsageContribution, WorkbenchPhase.BlockRestore);
 
 // register services
 registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
