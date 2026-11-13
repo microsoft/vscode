@@ -7,7 +7,7 @@ import { raceTimeout, RunOnceScheduler, Sequencer } from '../../../../../base/co
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mapsStrictEqualIgnoreOrder } from '../../../../../base/common/map.js';
 import { autorun, derived, derivedOpts, IObservable, observableSignal, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
@@ -99,6 +99,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 	private _generation = 0;
 	/** Shares another window added whose registration this window's connection has not reported yet. */
 	private readonly _adopted = new Set<string>();
+	private readonly _keepSharingHandlers = new Set<(address: string, environmentId: string) => void>();
 	private readonly _queue = new Sequencer();
 	private readonly _sync = this._register(new RunOnceScheduler(() => {
 		void this._queue.queue(() => this._doSync()).catch(error => this._logService.error('[RemoteGitHubEnvironments] Synchronization failed', error));
@@ -234,6 +235,11 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		return this._queue.queue(() => shared ? this._share(address) : this._unshare(address));
 	}
 
+	registerKeepSharingHandler(handler: (address: string, environmentId: string) => void): IDisposable {
+		this._keepSharingHandlers.add(handler);
+		return toDisposable(() => this._keepSharingHandlers.delete(handler));
+	}
+
 	async confirmDisconnect(address: string, name: string): Promise<boolean> {
 		const share = this.shares.get().get(address);
 		if (!share || share.state === 'unavailable') {
@@ -259,6 +265,15 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 					this._logService.warn('[RemoteGitHubEnvironments] Failed to refresh GitHub environments after keeping a remote shared', error);
 				}
 			});
+			if (share.environmentId !== undefined) {
+				for (const handler of [...this._keepSharingHandlers]) {
+					try {
+						handler(address, share.environmentId);
+					} catch (error) {
+						this._logService.error('[RemoteGitHubEnvironments] Failed to continue sessions through a kept GitHub environment', error);
+					}
+				}
+			}
 			return true;
 		}
 		// Unregistering needs the connection; a slow host must not block the disconnect.

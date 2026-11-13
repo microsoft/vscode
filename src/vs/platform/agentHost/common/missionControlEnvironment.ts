@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -130,6 +131,10 @@ export interface IRemoteGitHubEnvironmentSharingService {
 	 * Resolves to `false` if the user cancels the disconnect.
 	 */
 	confirmDisconnect(address: string, name: string): Promise<boolean>;
+	/**
+	 * Called when the user keeps sharing a remote on disconnect, before the remote disconnects, so that its sessions can continue through its GitHub environment.
+	 */
+	registerKeepSharingHandler(handler: (address: string, environmentId: string) => void): IDisposable;
 }
 
 export interface IMissionControlHost extends IMissionControlEnvironment {

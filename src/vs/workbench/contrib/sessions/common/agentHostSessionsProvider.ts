@@ -20,7 +20,7 @@ import { type CustomizationDisabledReason } from '../../../../platform/agentHost
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
-import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
@@ -201,6 +201,12 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, present on remote providers. Returns `false` while this provider
+	 * does not list that session.
+	 */
+	adoptSession?(from: ISession, backendSession: URI): boolean;
 	/**
 	 * Set when this provider is one member of a larger user-facing host (see
 	 * {@link IAgentHostGroup}). Members share one host filter entry instead of

@@ -224,6 +224,7 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 
 	test('asks whether to keep sharing a shared remote before disconnecting it', async () => {
 		const context = fixture();
+		store.add(context.service.registerKeepSharingHandler((address, environmentId) => context.calls.push(`keep ${address} ${environmentId}`)));
 		context.addRemote('wsl:Ubuntu');
 		const debian = context.addRemote('wsl:Debian');
 		await context.flush();
@@ -252,6 +253,7 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
 				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
 				'refresh environments',
+				'keep wsl:Ubuntu environment-wsl:Ubuntu',
 				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
 				'unregister wsl:Ubuntu account',
 			],

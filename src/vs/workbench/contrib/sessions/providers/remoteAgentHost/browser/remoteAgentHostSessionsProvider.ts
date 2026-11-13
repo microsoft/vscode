@@ -1273,6 +1273,23 @@ export class RemoteAgentHostSessionsProvider extends DevContainerAgentHostSessio
 		}
 	}
 
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, so that open views move to this provider's session.
+	 */
+	adoptSession(from: ISession, backendSession: URI): boolean {
+		if (this._unpublished) {
+			return false;
+		}
+		this._ensureSessionCache();
+		const to = this._sessionCache.get(backendSession.toString());
+		if (!to) {
+			return false;
+		}
+		this._onDidReplaceSession.fire({ from, to });
+		return true;
+	}
+
 	// -- Session-type sync ---------------------------------------------------
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
