@@ -9,7 +9,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, createEditorParts, TestLayoutService } from '../../../../test/browser/workbenchTestServices.js';
-import { GroupsOrder, IEditorGroupsService } from '../../common/editorGroupsService.js';
+import { GroupsOrder, IEditorGroupsService, IModalEditorPart } from '../../common/editorGroupsService.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorFactoryRegistry } from '../../../../common/editor.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -25,13 +25,15 @@ import { findGroup } from '../../common/editorGroupFinder.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { EditorService } from '../../browser/editorService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../platform/storage/common/storage.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { Memento } from '../../../../common/memento.js';
 import { IContextKeyService, IContextKeyServiceTarget } from '../../../../../platform/contextkey/common/contextkey.js';
 import { EditorPartModalVisibleContext } from '../../../../common/contextkeys.js';
 import { CLOSE_MODAL_EDITOR_COMMAND_ID } from '../../../../browser/parts/editor/editorCommands.js';
 import { IWorkbenchLayoutService, Parts } from '../../../layout/browser/layoutService.js';
+import { IAuxiliaryWindowService } from '../../../auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 
 class TestFloatingEditorLayoutService extends TestLayoutService {
 
@@ -826,87 +828,6 @@ suite('Modal Editor Group', () => {
 		await modalPart.close();
 	});
 
-	test('modal editor part starts not maximized', async () => {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, parts);
-
-		const modalPart = await parts.createModalEditorPart();
-
-		assert.strictEqual(modalPart.maximized, false);
-
-		await modalPart.close();
-	});
-
-	test('modal editor part toggleMaximized toggles state', async () => {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, parts);
-
-		const modalPart = await parts.createModalEditorPart();
-
-		assert.strictEqual(modalPart.maximized, false);
-
-		modalPart.toggleMaximized();
-		assert.strictEqual(modalPart.maximized, true);
-
-		modalPart.toggleMaximized();
-		assert.strictEqual(modalPart.maximized, false);
-
-		await modalPart.close();
-	});
-
-	test('modal editor part fires onDidChangeMaximized', async () => {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, parts);
-
-		const modalPart = await parts.createModalEditorPart();
-
-		const events: boolean[] = [];
-		disposables.add(modalPart.onDidChangeMaximized(maximized => events.push(maximized)));
-
-		modalPart.toggleMaximized();
-		modalPart.toggleMaximized();
-
-		assert.deepStrictEqual(events, [true, false]);
-
-		await modalPart.close();
-	});
-
-	test('modal editor part remembers maximized state across instances', async () => {
-		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
-		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const parts = await createEditorParts(instantiationService, disposables);
-		instantiationService.stub(IEditorGroupsService, parts);
-
-		// Open modal and maximize it
-		const modalPart1 = await parts.createModalEditorPart();
-		modalPart1.toggleMaximized();
-		assert.strictEqual(modalPart1.maximized, true);
-		await modalPart1.close();
-
-		// Open a new modal - should remember maximized state
-		const modalPart2 = await parts.createModalEditorPart();
-		assert.strictEqual(modalPart2.maximized, true);
-		await modalPart2.close();
-
-		// Open another modal after un-maximizing
-		const modalPart3 = await parts.createModalEditorPart();
-		assert.strictEqual(modalPart3.maximized, true);
-		modalPart3.toggleMaximized();
-		assert.strictEqual(modalPart3.maximized, false);
-		await modalPart3.close();
-
-		// Should now remember non-maximized state
-		const modalPart4 = await parts.createModalEditorPart();
-		assert.strictEqual(modalPart4.maximized, false);
-		await modalPart4.close();
-	});
-
 	suite('useModal: all', () => {
 
 		test('findGroup creates modal and returns its active group', async () => {
@@ -1090,35 +1011,114 @@ suite('Modal Editor Group', () => {
 		await parts.activeModalEditorPart?.close();
 	});
 
-	test('modal editor part state is remembered on close and reused on next open', async () => {
+	function getModalFrame(modalPart: IModalEditorPart) {
+		const modalElement = modalPart.modalElement as HTMLElement;
+		const frame = modalElement.firstElementChild as HTMLElement;
+
+		return {
+			className: frame.className,
+			left: frame.style.left,
+			top: frame.style.top,
+			width: frame.style.width,
+			height: frame.style.height,
+			sashes: modalElement.getElementsByClassName('monaco-sash').length,
+		};
+	}
+
+	test('modal editor part is centered at a fixed size and cannot be resized', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		const layoutService = instantiationService.get(IWorkbenchLayoutService) as TestLayoutService;
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
+
+		const frames = [];
+		for (const [width, height] of [[1000, 800], [300, 250]]) {
+			layoutService.mainContainerDimension = { width, height };
+			layoutService.mainContainerOffset = { top: 35, quickPickTop: 0 };
+
+			const modalPart = await parts.createModalEditorPart();
+			frames.push(getModalFrame(modalPart));
+			await modalPart.close();
+		}
+
+		assert.deepStrictEqual(frames, [
+			// 85% of the window width and of the height below the title bar, centered
+			{ className: 'modal-editor-frame', left: '75px', top: '74.875px', width: '850px', height: '650.25px', sashes: 0 },
+			// Window smaller than the minimum size: fills the window below the title bar
+			{ className: 'modal-editor-frame', left: '0px', top: '35px', width: '300px', height: '215px', sashes: 0 },
+		]);
+	});
+
+	test('pressing the modal editor header keeps focus in the modal, but not on its buttons', async () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
 
-		// Create maximized modal and close it
-		const modalPart1 = await parts.createModalEditorPart({ maximized: true });
-		await modalPart1.close();
+		const modalPart = await parts.createModalEditorPart();
+		const header = (modalPart.modalElement as HTMLElement).getElementsByClassName('modal-editor-header')[0] as HTMLElement;
+		const press = (target: Element) => {
+			const event = new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true, cancelable: true });
+			target.dispatchEvent(event);
+			return event.defaultPrevented;
+		};
 
-		// Create a new modal — it should restore maximized state
-		const modalPart2 = await parts.createModalEditorPart();
-		assert.strictEqual(modalPart2.maximized, true);
+		assert.deepStrictEqual({
+			title: press(header.getElementsByClassName('modal-editor-title')[0]),
+			button: press(header.getElementsByClassName('monaco-button')[0]),
+		}, { title: true, button: false });
 
-		await modalPart2.close();
+		await modalPart.close();
 	});
 
-	test('modal editor part state restores from profile storage', async () => {
+	test('modal editor part with a sidebar lays it out inside the fixed frame and keeps only the sidebar resizable', async () => {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
-		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const layoutService = instantiationService.get(IWorkbenchLayoutService) as TestLayoutService;
+		layoutService.mainContainerOffset = { top: 35, quickPickTop: 0 };
+		const parts = await createEditorParts(instantiationService, disposables);
+		instantiationService.stub(IEditorGroupsService, parts);
 
-		// Pre-populate storage with modal state and clear memento cache
-		// so the next EditorParts instance reads fresh from storage
+		const results = [];
+		for (const { width, sidebarWidth } of [{ width: 1000, sidebarWidth: 300 }, { width: 1000, sidebarWidth: undefined }, { width: 600, sidebarWidth: undefined }]) {
+			layoutService.mainContainerDimension = { width, height: 800 };
+
+			const layouts: { height: number; width: number }[] = [];
+			const modalPart = await parts.createModalEditorPart({ sidebar: { sidebarWidth, render: (_container, onDidLayout) => onDidLayout(e => layouts.push(e)) } });
+			const header = (modalPart.modalElement as HTMLElement).getElementsByClassName('modal-editor-header')[0] as HTMLElement;
+			const { left, width: frameWidth, sashes } = getModalFrame(modalPart);
+			const sidebarLayout = layouts.at(-1)!;
+			results.push({ left, frameWidth, sashes, sidebarLayoutWidth: sidebarLayout.width, sidebarFillsHeight: sidebarLayout.height === 650.25 - 2 - header.offsetHeight - 16 });
+			await modalPart.close();
+		}
+
+		assert.deepStrictEqual(results, [
+			{ left: '75px', frameWidth: '850px', sashes: 1, sidebarLayoutWidth: 283, sidebarFillsHeight: true },
+			// The sidebar width is remembered across modal instances
+			{ left: '75px', frameWidth: '850px', sashes: 1, sidebarLayoutWidth: 283, sidebarFillsHeight: true },
+			// Too narrow: the frame keeps the minimum width with a sidebar, and the sidebar shrinks to fit the editor
+			{ left: '20px', frameWidth: '560px', sashes: 1, sidebarLayoutWidth: 143, sidebarFillsHeight: true },
+		]);
+	});
+
+	test('modal editor part ignores and drops size, position and maximized state from older versions', async () => {
+		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) }, disposables);
+		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
+		instantiationService.stub(IAuxiliaryWindowService, new class extends mock<IAuxiliaryWindowService>() { override getWindow() { return undefined; } }());
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+		const layoutService = instantiationService.get(IWorkbenchLayoutService) as TestLayoutService;
+		layoutService.mainContainerDimension = { width: 1000, height: 800 };
+		layoutService.mainContainerOffset = { top: 35, quickPickTop: 0 };
+
+		// Pre-populate storage with state written by an older version and clear
+		// the memento cache so the next EditorParts instance reads it fresh
 		storageService.store('memento/workbench.editorParts', JSON.stringify({
 			'editorparts.modalState': {
 				maximized: true,
 				size: { width: 500, height: 400 },
-				position: { left: 100, top: 50 }
+				position: { left: 3, top: 5 },
+				sidebarWidth: 300
 			}
 		}), StorageScope.PROFILE, StorageTarget.MACHINE);
 		Memento.clear(StorageScope.PROFILE);
@@ -1126,11 +1126,21 @@ suite('Modal Editor Group', () => {
 		const parts = await createEditorParts(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, parts);
 
-		// Create modal — it should use state from storage
-		const modalPart = await parts.createModalEditorPart();
-		assert.strictEqual(modalPart.maximized, true);
+		const frames = [];
+		for (let i = 0; i < 2; i++) {
+			const modalPart = await parts.createModalEditorPart();
+			frames.push(getModalFrame(modalPart));
+			await modalPart.close();
+		}
 
-		await modalPart.close();
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		const stored = JSON.parse(storageService.get('memento/workbench.editorParts', StorageScope.PROFILE)!);
+
+		const centered = { className: 'modal-editor-frame', left: '75px', top: '74.875px', width: '850px', height: '650.25px', sashes: 0 };
+		assert.deepStrictEqual({ frames, modalState: stored['editorparts.modalState'] }, {
+			frames: [centered, centered],
+			modalState: { sidebarWidth: 300 }
+		});
 	});
 
 	suite('RequiresModal capability', () => {

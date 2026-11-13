@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -59,10 +59,12 @@ interface IEditorWorkingSetState extends IEditorWorkingSet {
 	readonly auxiliary: IEditorPartsUIState;
 }
 
+/**
+ * Only sidebar state is restored. Older versions also stored `maximized`,
+ * `size` and `position`; those are ignored on read and dropped on next save
+ * because the modal editor is always centered at a fixed size.
+ */
 interface IModalEditorPartState {
-	readonly maximized: boolean;
-	readonly size?: { readonly width: number; readonly height: number };
-	readonly position?: { readonly left: number; readonly top: number };
 	readonly sidebarWidth?: number;
 	readonly sidebarHidden?: boolean;
 }
@@ -110,9 +112,6 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 		const modalState = this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY];
 		if (modalState) {
-			this.modalEditorMaximized = modalState.maximized;
-			this.modalEditorSize = modalState.size;
-			this.modalEditorPosition = modalState.position;
 			this.modalEditorSidebarWidth = modalState.sidebarWidth;
 			this.modalEditorSidebarHidden = modalState.sidebarHidden;
 		}
@@ -258,9 +257,6 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 	private modalEditorPart: IModalEditorPart | undefined;
 	get activeModalEditorPart(): IModalEditorPart | undefined { return this.modalEditorPart; }
 
-	private modalEditorMaximized = false;
-	private modalEditorSize: IDimension | undefined;
-	private modalEditorPosition: { readonly left: number; readonly top: number } | undefined;
 	private modalEditorSidebarWidth: number | undefined;
 	private modalEditorSidebarHidden: boolean | undefined;
 
@@ -300,9 +296,6 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		try {
 			result = await this.instantiationService.createInstance(ModalEditorPart, this).create({
 				...options,
-				maximized: options?.maximized ?? this.modalEditorMaximized,
-				size: options?.size ?? this.modalEditorSize,
-				position: options?.position ?? this.modalEditorPosition,
 				sidebar: options?.sidebar ? {
 					...options.sidebar,
 					sidebarWidth: options.sidebar.sidebarWidth ?? this.modalEditorSidebarWidth,
@@ -321,9 +314,6 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 		// Remember state on dispose to restore when opening next time
 		disposables.add(toDisposable(() => {
-			this.modalEditorMaximized = part.maximized;
-			this.modalEditorSize = part.size;
-			this.modalEditorPosition = part.position;
 			if (part.hasSidebar) {
 				this.modalEditorSidebarWidth = part.sidebarWidth;
 				this.modalEditorSidebarHidden = part.sidebarHidden || undefined;
@@ -656,9 +646,6 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 		// Also capture state from any currently open modal editor part
 		if (this.modalEditorPart) {
-			this.modalEditorMaximized = this.modalEditorPart.maximized;
-			this.modalEditorSize = this.modalEditorPart.size;
-			this.modalEditorPosition = this.modalEditorPart.position;
 			if (this.modalEditorPart.hasSidebar) {
 				this.modalEditorSidebarWidth = this.modalEditorPart.sidebarWidth;
 				this.modalEditorSidebarHidden = this.modalEditorPart.sidebarHidden || undefined;
@@ -666,14 +653,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 
 		// Only persist when there is meaningful state to restore.
-		// When all values are at their defaults (not maximized, no
-		// custom size or position), we delete the key to avoid
-		// storing unnecessary data.
-		if (this.modalEditorMaximized || this.modalEditorSize || this.modalEditorPosition || this.modalEditorSidebarWidth || this.modalEditorSidebarHidden) {
+		// When all values are at their defaults we delete the key
+		// to avoid storing unnecessary data.
+		if (this.modalEditorSidebarWidth || this.modalEditorSidebarHidden) {
 			this.profileMemento[EditorParts.MODAL_EDITOR_STATE_STORAGE_KEY] = {
-				maximized: this.modalEditorMaximized,
-				size: this.modalEditorSize ? { width: this.modalEditorSize.width, height: this.modalEditorSize.height } : undefined,
-				position: this.modalEditorPosition,
 				sidebarWidth: this.modalEditorSidebarWidth,
 				sidebarHidden: this.modalEditorSidebarHidden,
 			};

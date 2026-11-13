@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/modalEditorPart.css';
-import { $, addDisposableListener, append, Dimension, EventHelper, EventType, getWindow, hide, IDimension, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
-import { GlobalPointerMoveMonitor } from '../../../../base/browser/globalPointerMoveMonitor.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, hide, isHTMLElement, setVisibility, show } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar, prepareActions } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -15,7 +14,6 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Orientation, Sash, SashState } from '../../../../base/browser/ui/sash/sash.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -31,7 +29,7 @@ import { IEditorGroupView, IEditorPartsView } from './editor.js';
 import { EditorPart } from './editorPart.js';
 import { IModalEditorPart, GroupActivationReason } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService, USE_MODAL_EDITOR_SETTING, UseModalEditorMode } from '../../../services/editor/common/editorService.js';
-import { EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalMaximizedContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
+import { EditorPartModalCanMoveToEditorAreaContext, EditorPartModalContext, EditorPartModalNavigationContext, EditorPartModalSidebarContext, EditorPartModalSidebarVisibleContext } from '../../../common/contextkeys.js';
 import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, Verbosity } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ResourceLabel } from '../../labels.js';
@@ -40,18 +38,15 @@ import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser
 import { mainWindow } from '../../../../base/browser/window.js';
 import { localize } from '../../../../nls.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
+import { CLOSE_MODAL_EDITOR_COMMAND_ID, MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID, MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID, NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID, NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID, TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID } from './editorCommands.js';
 import { canMoveModalEditorToEditorArea, IModalEditorNavigation, IModalEditorPartOptions, IModalEditorSidebar, isModalEditorOptionsProvider } from '../../../../platform/editor/common/editor.js';
 
 const MODAL_MIN_WIDTH = 400;
 const MODAL_MIN_HEIGHT = 300;
-const MODAL_MAX_DEFAULT_WIDTH = 1400;
-const MODAL_MAX_DEFAULT_HEIGHT = 900;
+const MODAL_SIZE_RATIO = 0.85; // fraction of the window (width) and of the area below the title bar (height)
 const MODAL_BORDER_WIDTH = 1; // 1px border on each side
 const MODAL_BORDER_SIZE = MODAL_BORDER_WIDTH * 2;
 const MODAL_HEADER_HEIGHT = 33; // Fallback only — actual height is measured from the rendered header element to account for the compact-header variant.
-const MODAL_SNAP_THRESHOLD = 20;
-const MODAL_MAXIMIZED_PADDING = 16;
 const MODAL_SIDEBAR_MIN_WIDTH = 160;
 const MODAL_SIDEBAR_DEFAULT_WIDTH = 260;
 const MODAL_SIDEBAR_PADDING = 8; // matches CSS padding on sidebar container
@@ -148,7 +143,6 @@ const defaultModalEditorAllowableCommands = new Set([
 	CLOSE_MODAL_EDITOR_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID,
 	MOVE_MODAL_EDITOR_TO_WINDOW_COMMAND_ID,
-	TOGGLE_MODAL_EDITOR_MAXIMIZED_COMMAND_ID,
 	NAVIGATE_MODAL_EDITOR_PREVIOUS_COMMAND_ID,
 	NAVIGATE_MODAL_EDITOR_NEXT_COMMAND_ID,
 	TOGGLE_MODAL_EDITOR_SIDEBAR_COMMAND_ID,
@@ -240,15 +234,11 @@ export class ModalEditorPart {
 			}
 		}));
 
-		// Resizable wrapper
-		const resizableElement = new ResizableHTMLElement();
-		disposables.add(toDisposable(() => resizableElement.dispose()));
-		resizableElement.domNode.classList.add('modal-editor-resizable');
-		const effectiveMinWidth = MODAL_MIN_WIDTH + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
-		resizableElement.minSize = new Dimension(effectiveMinWidth, MODAL_MIN_HEIGHT);
-		modalElement.appendChild(resizableElement.domNode);
+		// Fixed-size frame, centered and sized in `layoutModal`
+		const frameElement = modalElement.appendChild($('.modal-editor-frame'));
+		const minWidth = MODAL_MIN_WIDTH + (options?.sidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
 
-		const shadowElement = resizableElement.domNode.appendChild($('.modal-editor-shadow'));
+		const shadowElement = frameElement.appendChild($('.modal-editor-shadow'));
 
 		// Editor part container
 		const titleId = 'modal-editor-title';
@@ -280,7 +270,6 @@ export class ModalEditorPart {
 		// Navigation widget
 		const navigationContainer = append(headerElement, $('div.modal-editor-navigation'));
 		hide(navigationContainer);
-		disposables.add(addDisposableListener(navigationContainer, EventType.DBLCLICK, e => EventHelper.stop(e, true)));
 
 		const previousButton = disposables.add(new Button(navigationContainer, { title: localize('previousItem', "Previous") }));
 		previousButton.icon = Codicon.chevronLeft;
@@ -476,13 +465,6 @@ export class ModalEditorPart {
 		};
 		disposables.add(Event.runAndSubscribe(modalEditorService.onDidActiveEditorChange, updateLabel));
 
-		// Handle double-click on header to toggle maximize
-		disposables.add(addDisposableListener(headerElement, EventType.DBLCLICK, e => {
-			EventHelper.stop(e);
-
-			editorPart.handleHeaderDoubleClick();
-		}));
-
 		// Handle right-click on header to open context menu. The context menu
 		// also surfaces the editor actions of the active editor group, mirroring
 		// how the workbench titlebar exposes them when
@@ -516,255 +498,37 @@ export class ModalEditorPart {
 			});
 		}));
 
-		const layout = (sizeChanged: boolean) => {
-			const { width: modalWidth, height: modalHeight } = resizableElement.size;
-			const { top: topPx, left: leftPx } = resizableElement.domNode.style;
-			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
-			const headerHeight = headerElement.offsetHeight;
-
-			editorPart.layout(
-				Math.max(0, modalWidth - MODAL_BORDER_SIZE - sidebarWidth),
-				modalHeight - MODAL_BORDER_SIZE - headerHeight,
-				parseFloat(topPx) + MODAL_BORDER_WIDTH + headerHeight,
-				parseFloat(leftPx) + MODAL_BORDER_WIDTH + sidebarWidth,
-			);
-
-			if (sizeChanged) {
-				sidebarResult?.layout(modalHeight - MODAL_BORDER_SIZE - headerHeight);
-			}
-		};
-
-		// Handle drag on header to move the modal
-		const dragMonitor = disposables.add(new GlobalPointerMoveMonitor());
-		const dragDisposables = disposables.add(new DisposableStore());
-		let didDrag = false;
-		disposables.add(addDisposableListener(headerElement, EventType.POINTER_DOWN, e => {
-			if (editorPart.maximized) {
-				return; // no drag when maximized
-			}
-
-			if (e.button !== 0) {
-				return; // only left button
-			}
-
-			// Ignore if target is a button or action
+		// Keep focus inside the modal when pressing on the header: the header
+		// is not focusable, so the default would move focus to the body
+		disposables.add(addDisposableListener(headerElement, EventType.MOUSE_DOWN, e => {
 			const target = e.target;
-			if (!isHTMLElement(target)) {
-				return;
+			if (isHTMLElement(target) && !target.closest('.monaco-button') && !target.closest('.action-item')) {
+				e.preventDefault();
 			}
-
-			if (target.closest('.monaco-button') || target.closest('.action-item')) {
-				return;
-			}
-
-			// Prevent text selection during drag
-			EventHelper.stop(e, true);
-			dragDisposables.clear();
-
-			headerElement.classList.add('dragging');
-			dragDisposables.add(toDisposable(() => headerElement.classList.remove('dragging')));
-
-			const startX = e.clientX;
-			const startY = e.clientY;
-			const startLeft = parseFloat(resizableElement.domNode.style.left) || 0;
-			const startTop = parseFloat(resizableElement.domNode.style.top) || 0;
-			didDrag = false;
-
-			const onPointerMove = (moveEvent: PointerEvent) => {
-				didDrag = true;
-				EventHelper.stop(moveEvent, true);
-
-				const containerDimension = this.layoutService.mainContainerDimension;
-				const titleBarOffset = this.layoutService.mainContainerOffset.top;
-				const dialogWidth = resizableElement.size.width;
-				const dialogHeight = resizableElement.size.height;
-
-				// Clamp to window bounds
-				const minLeft = 0;
-				const minTop = titleBarOffset;
-				const maxLeft = Math.max(minLeft, containerDimension.width - dialogWidth);
-				const maxTop = Math.max(minTop, containerDimension.height - dialogHeight);
-
-				let newLeft = Math.max(minLeft, Math.min(maxLeft, startLeft + (moveEvent.clientX - startX)));
-				let newTop = Math.max(minTop, Math.min(maxTop, startTop + (moveEvent.clientY - startY)));
-
-				// Snap to center position when close
-				const centerLeft = (containerDimension.width - dialogWidth) / 2;
-				const centerTop = Math.max(titleBarOffset, (containerDimension.height - dialogHeight) / 2);
-
-				if (Math.abs(newLeft - centerLeft) < MODAL_SNAP_THRESHOLD && Math.abs(newTop - centerTop) < MODAL_SNAP_THRESHOLD) {
-					newLeft = centerLeft;
-					newTop = centerTop;
-				}
-
-				resizableElement.domNode.style.left = `${newLeft}px`;
-				resizableElement.domNode.style.top = `${newTop}px`;
-
-				// Update editor part position during drag
-				layout(false);
-			};
-
-			const onStop = () => {
-				dragDisposables.clear();
-
-				if (didDrag) {
-					const currentLeft = parseFloat(resizableElement.domNode.style.left) || 0;
-					const currentTop = parseFloat(resizableElement.domNode.style.top) || 0;
-
-					// Check if snapped to center — if so, clear custom position
-					const containerDimension = this.layoutService.mainContainerDimension;
-					const titleBarOffset = this.layoutService.mainContainerOffset.top;
-					const centerLeft = (containerDimension.width - resizableElement.size.width) / 2;
-					const centerTop = Math.max(titleBarOffset, (containerDimension.height - resizableElement.size.height) / 2);
-
-					if (Math.abs(currentLeft - centerLeft) < 1 && Math.abs(currentTop - centerTop) < 1) {
-						editorPart.position = undefined;
-					} else {
-						editorPart.position = { left: currentLeft, top: currentTop };
-					}
-				}
-			};
-
-			dragMonitor.startMonitoring(headerElement, e.pointerId, e.buttons, onPointerMove, onStop);
 		}));
 
 		// Focus active editor when clicking into the title area with no other click target
 		disposables.add(addDisposableListener(headerElement, EventType.CLICK, e => {
-			const wasDrag = didDrag;
-			didDrag = false;
-			if (wasDrag) {
-				return; // skip focus after drag
-			}
-
 			EventHelper.stop(e);
 
 			editorPart.activeGroup.focus();
 		}));
 
-		// Handle resize from sashes
-		let isResizing = false;
-		let resizeStartLeft = 0;
-		let resizeStartTop = 0;
-		let resizeStartSize = Dimension.None;
-
-		disposables.add(resizableElement.onDidWillResize(() => {
-			isResizing = true;
-			resizeStartLeft = parseFloat(resizableElement.domNode.style.left) || 0;
-			resizeStartTop = parseFloat(resizableElement.domNode.style.top) || 0;
-			resizeStartSize = new Dimension(resizableElement.size.width, resizableElement.size.height);
-		}));
-
-		disposables.add(resizableElement.onDidResize(e => {
-
-			// Clamp position and size to window bounds during active resize
-			// (skip on `done` — values are already correct from prior events,
-			//  and directional flags are not set on the done event)
-			if (!e.done) {
-				const containerDimension = this.layoutService.mainContainerDimension;
-				const titleBarOffset = this.layoutService.mainContainerOffset.top;
-
-				const deltaWidth = e.dimension.width - resizeStartSize.width;
-				const deltaHeight = e.dimension.height - resizeStartSize.height;
-
-				let newLeft = e.west ? resizeStartLeft - deltaWidth : resizeStartLeft;
-				let newTop = e.north ? resizeStartTop - deltaHeight : resizeStartTop;
-				let newWidth = e.dimension.width;
-				let newHeight = e.dimension.height;
-
-				if (newLeft < 0) {
-					newWidth += newLeft;
-					newLeft = 0;
-				}
-				if (newTop < titleBarOffset) {
-					newHeight += newTop - titleBarOffset;
-					newTop = titleBarOffset;
-				}
-				if (newLeft + newWidth > containerDimension.width) {
-					newWidth = containerDimension.width - newLeft;
-				}
-				if (newTop + newHeight > containerDimension.height) {
-					newHeight = containerDimension.height - newTop;
-				}
-
-				// Apply corrected size if it was clamped
-				if (newWidth !== e.dimension.width || newHeight !== e.dimension.height) {
-					resizableElement.layout(newHeight, newWidth);
-				}
-
-				// Adjust position to keep the opposite edge fixed
-				if (e.west) {
-					resizableElement.domNode.style.left = `${newLeft}px`;
-				}
-				if (e.north) {
-					resizableElement.domNode.style.top = `${newTop}px`;
-				}
-			}
-
-			// Update editor part layout during resize
-			layout(true);
-
-			if (e.done) {
-				isResizing = false;
-
-				// Check if size matches the default (from sash double-click reset)
-				const defaultSize = getDefaultSize();
-				const size = resizableElement.size;
-				if (size.width === defaultSize.width && size.height === defaultSize.height) {
-					editorPart.size = undefined;
-					editorPart.position = undefined;
-					layoutModal();
-				} else {
-					editorPart.size = new Dimension(size.width, size.height);
-					editorPart.position = {
-						left: parseFloat(resizableElement.domNode.style.left) || 0,
-						top: parseFloat(resizableElement.domNode.style.top) || 0,
-					};
-				}
-			}
-		}));
-
-		// Compute default (non-custom, non-maximized) modal size
-		const getDefaultSize = (): Dimension => {
-			const containerDimension = this.layoutService.mainContainerDimension;
-			const titleBarOffset = this.layoutService.mainContainerOffset.top;
-			const availableHeight = Math.max(containerDimension.height - titleBarOffset, 0);
-			const targetWidth = containerDimension.width * 0.8;
-			const targetHeight = availableHeight * 0.8;
-			const width = Math.min(targetWidth, MODAL_MAX_DEFAULT_WIDTH, containerDimension.width);
-			const height = Math.min(targetHeight, MODAL_MAX_DEFAULT_HEIGHT, availableHeight);
-
-			return new Dimension(width, height);
-		};
-
-		// Layout the modal editor part
+		// Layout the modal editor part: a fixed fraction of the window, always
+		// centered. It cannot be moved or resized by the user.
 		let isFirstLayout = true;
 		const layoutModal = () => {
-			if (isResizing) {
-				return; // skip layout during interactive resize
-			}
-
 			const containerDimension = this.layoutService.mainContainerDimension;
 			const titleBarOffset = this.layoutService.mainContainerOffset.top;
 			const availableHeight = Math.max(containerDimension.height - titleBarOffset, 0);
 
-			const defaultSize = getDefaultSize();
+			// Never smaller than the minimum size, unless the window itself is smaller
+			const width = Math.min(Math.max(containerDimension.width * MODAL_SIZE_RATIO, minWidth), containerDimension.width);
+			const height = Math.min(Math.max(availableHeight * MODAL_SIZE_RATIO, MODAL_MIN_HEIGHT), availableHeight);
 
-			let width: number;
-			let height: number;
-
-			if (editorPart.maximized) {
-				const verticalPadding = Math.max(titleBarOffset /* keep away from title bar to prevent clipping issues with WCO */, MODAL_MAXIMIZED_PADDING);
-				width = Math.max(containerDimension.width - MODAL_MAXIMIZED_PADDING, 0);
-				height = Math.max(availableHeight - verticalPadding, 0);
-			} else if (editorPart.size) {
-				width = Math.min(editorPart.size.width, containerDimension.width);
-				height = Math.min(editorPart.size.height, availableHeight);
-			} else {
-				width = defaultSize.width;
-				height = defaultSize.height;
-			}
-
-			height = Math.min(height, availableHeight); // Ensure the modal never exceeds available height (below the title bar)
+			// Center in the full window, but clamp to stay below the title bar
+			const left = (containerDimension.width - width) / 2;
+			const top = Math.max(titleBarOffset, (containerDimension.height - height) / 2);
 
 			// On first layout, clamp sidebar width if it would leave the editor too narrow
 			if (isFirstLayout) {
@@ -772,33 +536,24 @@ export class ModalEditorPart {
 				sidebarResult?.clampWidth(width);
 			}
 
-			// Update resizable element size and constraints
-			resizableElement.maxSize = new Dimension(containerDimension.width, availableHeight);
-			resizableElement.preferredSize = defaultSize;
-			resizableElement.layout(height, width);
+			frameElement.style.left = `${left}px`;
+			frameElement.style.top = `${top}px`;
+			frameElement.style.width = `${width}px`;
+			frameElement.style.height = `${height}px`;
 
-			// Enable/disable sashes based on maximized state
-			const canResize = !editorPart.maximized;
-			resizableElement.enableSashes(canResize, canResize, canResize, canResize);
+			const sidebarWidth = sidebarResult?.getWidth() ?? 0;
+			const headerHeight = headerElement.offsetHeight;
+			const contentHeight = height - MODAL_BORDER_SIZE - headerHeight;
 
-			// Position: use custom position if available (clamped to bounds), otherwise center
-			if (!editorPart.maximized && editorPart.position) {
-				const clampedLeft = Math.max(0, Math.min(editorPart.position.left, containerDimension.width - width));
-				const clampedTop = Math.max(titleBarOffset, Math.min(editorPart.position.top, titleBarOffset + availableHeight - height));
-				resizableElement.domNode.style.left = `${clampedLeft}px`;
-				resizableElement.domNode.style.top = `${clampedTop}px`;
-			} else {
-				const left = (containerDimension.width - width) / 2;
-				const top = Math.max(titleBarOffset, (containerDimension.height - height) / 2); // center in full window, but clamp to stay below the title bar
-				resizableElement.domNode.style.left = `${left}px`;
-				resizableElement.domNode.style.top = `${top}px`;
-			}
-
-			layout(true);
+			editorPart.layout(
+				Math.max(0, width - MODAL_BORDER_SIZE - sidebarWidth),
+				contentHeight,
+				top + MODAL_BORDER_WIDTH + headerHeight,
+				left + MODAL_BORDER_WIDTH + sidebarWidth,
+			);
+			sidebarResult?.layout(contentHeight);
 		};
 		disposables.add(Event.runAndSubscribe(this.layoutService.onDidLayoutMainContainer, layoutModal));
-		disposables.add(editorPart.onDidChangeMaximized(() => layoutModal()));
-		disposables.add(editorPart.onDidRequestLayout(() => layoutModal()));
 
 		// Reflect modal-options from the active editor (e.g. compact header)
 		// as classes on the modal block, and re-layout so dimensions account
@@ -928,35 +683,13 @@ export class ModalEditorPart {
 	}
 }
 
-interface IPosition {
-	left: number;
-	top: number;
-}
-
 class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 
 	private readonly _onWillClose = this._register(new Emitter<void>());
 	readonly onWillClose = this._onWillClose.event;
 
-	private readonly _onDidChangeMaximized = this._register(new Emitter<boolean>());
-	readonly onDidChangeMaximized = this._onDidChangeMaximized.event;
-
-	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
-	readonly onDidRequestLayout = this._onDidRequestLayout.event;
-
 	private readonly _onDidChangeNavigation = this._register(new Emitter<IModalEditorNavigation | undefined>());
 	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
-
-	private _maximized: boolean;
-	get maximized(): boolean { return this._maximized; }
-
-	private _size: IDimension | undefined;
-	get size(): IDimension | undefined { return this._size; }
-	set size(value: IDimension | undefined) { this._size = value; }
-
-	private _position: IPosition | undefined;
-	get position(): IPosition | undefined { return this._position; }
-	set position(value: IPosition | undefined) { this._position = value; }
 
 	private _sidebarWidth: number | undefined;
 	get sidebarWidth(): number | undefined { return this._sidebarWidth; }
@@ -972,9 +705,6 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 
 	private readonly _onDidToggleSidebar = this._register(new Emitter<void>());
 	readonly onDidToggleSidebar = this._onDidToggleSidebar.event;
-
-	private savedSize: IDimension | undefined;
-	private savedPosition: IPosition | undefined;
 
 	private _navigation: IModalEditorNavigation | undefined;
 	get navigation(): IModalEditorNavigation | undefined { return this._navigation; }
@@ -999,20 +729,10 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		// Keep a stable component ID so recreating the modal does not grow the global memento cache.
 		super(editorPartsView, 'workbench.parts.modalEditor', localize('modalEditorPart', "Modal Editor Area"), windowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, modalContextKeyService);
 
-		this._maximized = options?.maximized ?? false;
-		this._size = options?.size;
-		this._position = options?.position;
 		this._navigation = options?.navigation;
 		this._hasSidebar = !!options?.sidebar;
 		this._sidebarHidden = options?.sidebar?.sidebarHidden ?? false;
 		this._sidebarWidth = options?.sidebar?.sidebarWidth;
-
-		// When restoring a maximized state with custom layout,
-		// initialize saved state so un-maximize can restore it
-		if (this._maximized) {
-			this.savedSize = this._size;
-			this.savedPosition = this._position;
-		}
 
 		this.enforceModalPartOptions();
 
@@ -1047,50 +767,15 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 	}
 
 	updateOptions(options?: IModalEditorPartOptions): void {
-		if (typeof options?.maximized === 'boolean' && options.maximized !== this._maximized) {
-			this.toggleMaximized();
-		}
-
 		this._navigation = options?.navigation;
 
 		this._onDidChangeNavigation.fire(options?.navigation);
-	}
-
-	toggleMaximized(): void {
-		this._maximized = !this._maximized;
-
-		if (this._maximized) {
-			this.savedSize = this._size;
-			this.savedPosition = this._position;
-		} else {
-			this._size = this.savedSize;
-			this._position = this.savedPosition;
-			this.savedSize = undefined;
-			this.savedPosition = undefined;
-		}
-
-		this._onDidChangeMaximized.fire(this._maximized);
 	}
 
 	toggleSidebar(): void {
 		this._sidebarHidden = !this._sidebarHidden;
 
 		this._onDidToggleSidebar.fire();
-	}
-
-	handleHeaderDoubleClick(): void {
-		if (this._maximized) {
-			// Clear saved state so that toggleMaximized restores to default
-			this.savedSize = undefined;
-			this.savedPosition = undefined;
-			this.toggleMaximized();
-		} else if (this._size) {
-			this._size = undefined;
-			this._position = undefined;
-			this._onDidRequestLayout.fire();
-		} else {
-			this.toggleMaximized(); // maximize
-		}
 	}
 
 	protected override handleContextKeys(): void {
@@ -1103,10 +788,6 @@ class ModalEditorPartImpl extends EditorPart implements IModalEditorPart {
 		// focus.
 		const isModalEditorPartContext = EditorPartModalContext.bindTo(this.modalContextKeyService);
 		isModalEditorPartContext.set(true);
-
-		const isMaximizedContext = EditorPartModalMaximizedContext.bindTo(this.modalContextKeyService);
-		isMaximizedContext.set(this._maximized);
-		this._register(this.onDidChangeMaximized(maximized => isMaximizedContext.set(maximized)));
 
 		const hasNavigationContext = EditorPartModalNavigationContext.bindTo(this.modalContextKeyService);
 		hasNavigationContext.set(!!this._navigation && this._navigation.total > 1);

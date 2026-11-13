@@ -16,7 +16,7 @@
 	overflow: hidden;
 	background: rgba(0, 0, 0, 0.5);
 
-	.modal-editor-resizable {
+	.modal-editor-frame {
 		position: absolute;
 	}
 
@@ -94,9 +94,6 @@
 	background-color: var(--vscode-titleBar-activeBackground);
 	border-bottom: 1px solid var(--vscode-titleBar-border, transparent);
 
-	&.dragging {
-		cursor: grabbing;
-	}
 	/* Modal Editor Sidebar Toggle */
 	.modal-editor-sidebar-toggle {
 		grid-column: 1;

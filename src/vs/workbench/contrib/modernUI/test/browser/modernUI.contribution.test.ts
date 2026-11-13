@@ -3021,9 +3021,9 @@ suite('ModernUIContribution', () => {
 
 		const workbenchSash = appendElement(root, 'monaco-sash vertical');
 		const modal = appendElement(root, 'monaco-modal-editor-block');
-		const resizable = appendElement(modal, 'modal-editor-resizable');
-		const verticalSash = appendElement(resizable, 'monaco-sash vertical');
-		const horizontalSash = appendElement(resizable, 'monaco-sash horizontal');
+		const frame = appendElement(modal, 'modal-editor-frame');
+		const verticalSash = appendElement(frame, 'monaco-sash vertical');
+		const horizontalSash = appendElement(frame, 'monaco-sash horizontal');
 		const sashes = [verticalSash, horizontalSash];
 		const targetWindow = getWindow(root);
 		const restingGrips = sashes.map(sash => targetWindow.getComputedStyle(sash, '::after').content);
