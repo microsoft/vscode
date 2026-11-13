@@ -46,7 +46,7 @@ import { ISessionComparison, SessionComparisonParticipantRole } from '../../../.
 import type { SessionView } from '../../../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
+import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { createListHarness, createSession, createTestSession, TestCommandService, TestSessionsManagementService } from './sessionsListTestUtils.js';
 import { ISessionChatMoveTarget, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionMoveRefusedError } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';

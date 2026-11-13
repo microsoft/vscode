@@ -40,7 +40,7 @@ import { SessionView } from '../../../../../workbench/contrib/sessions/browser/p
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../browser/views/sessionsViewActions.js';
+import { ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';

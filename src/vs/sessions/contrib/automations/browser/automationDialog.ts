@@ -81,7 +81,7 @@ import { AutomationInputCompletions } from './automationInputCompletions.js';
 import { AutomationTriggerEditor, IAutomationTriggerFormState } from './automationTriggerEditor.js';
 import { AutomationCronInput } from './automationCronInput.js';
 import { NewChatModelPickerService, INewChatModelPickerService } from '../../../../workbench/contrib/sessions/browser/chat/newChatModelPicker.js';
-import { createNewSessionControlToolbar } from '../../chat/browser/newSessionConfigToolbars.js';
+import { createNewSessionControlToolbar } from '../../../../workbench/contrib/sessions/browser/chat/newSessionConfigToolbars.js';
 import { ISessionModelSelection, SessionModelSelection } from '../../../../workbench/contrib/sessions/browser/chat/sessionModelSelection.js';
 import { createSessionHostServices, getMainWindowHost, ISessionHostService, SessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
 import { setHostSessionContextKeys } from '../../../../workbench/contrib/sessions/common/sessionContextKeys.js';
