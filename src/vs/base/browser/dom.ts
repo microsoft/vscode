@@ -876,9 +876,12 @@ export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 /**
  * How {@link alignToDevicePixels} rounds each axis: `'start'` rounds up or to the left, `'end'` down
  * or to the right, `'nearest'` (the default) to the nearest device pixel, and `'none'` leaves the
- * axis unchanged.
+ * axis unchanged. `'nearestEnd'` moves the element so that its far edge, which Chromium paints at
+ * the start plus the size rounded to device pixels, lands on the device pixel nearest to it. Like
+ * `'nearest'` for the near edge, that is where Chromium paints the edge of an element ending at the
+ * same position, so an element meeting another one keeps meeting it.
  */
-export type DevicePixelRounding = 'start' | 'end' | 'nearest' | 'none';
+export type DevicePixelRounding = 'start' | 'end' | 'nearest' | 'nearestEnd' | 'none';
 
 export interface IDevicePixelAlignment {
 	readonly horizontal?: DevicePixelRounding;
@@ -901,23 +904,29 @@ export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixe
 	const devicePixelRatio = targetWindow.devicePixelRatio;
 	const zoom = getEffectiveZoom(element);
 	const rect = element.getBoundingClientRect();
-	alignInset(element, 'left', 'right', getDevicePixelAlignmentOffset(rect.left, devicePixelRatio, direction.horizontal) / zoom);
-	alignInset(element, 'top', 'bottom', getDevicePixelAlignmentOffset(rect.top, devicePixelRatio, direction.vertical) / zoom);
+	alignInset(element, 'left', 'right', getDevicePixelAlignmentOffset(rect.left, devicePixelRatio, direction.horizontal, rect.width) / zoom);
+	alignInset(element, 'top', 'bottom', getDevicePixelAlignmentOffset(rect.top, devicePixelRatio, direction.vertical, rect.height) / zoom);
 }
 
 /**
  * Returns how far, in CSS pixels, to move a client position so that it lands on a whole device
- * pixel, rounding as {@link alignToDevicePixels} does. Offsets within Chromium's layout precision
- * are returned as 0.
+ * pixel, rounding as {@link alignToDevicePixels} does. `size` is the rendered size of the element,
+ * which `'nearestEnd'` rounds from. Offsets within Chromium's layout precision are returned as 0.
  */
-export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest'): number {
+export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest', size = 0): number {
 	if (rounding === 'none') {
 		return 0;
 	}
 	// Chromium floors positions to 1/64 CSS pixel, so a whole device pixel can only be reached to within that
 	const tolerance = devicePixelRatio / 64 * 1.05;
 	const device = position * devicePixelRatio;
-	const target = rounding === 'start' ? Math.floor(device + tolerance) : rounding === 'end' ? Math.ceil(device - tolerance) : Math.round(device);
+	let target: number;
+	switch (rounding) {
+		case 'start': target = Math.floor(device + tolerance); break;
+		case 'end': target = Math.ceil(device - tolerance); break;
+		case 'nearestEnd': target = Math.round((position + size) * devicePixelRatio) - Math.round(size * devicePixelRatio); break;
+		default: target = Math.round(device); break;
+	}
 	return Math.abs(target - device) <= tolerance ? 0 : (target - device) / devicePixelRatio;
 }
 

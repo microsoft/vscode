@@ -1056,11 +1056,10 @@ export class MenuBar extends Disposable {
 		};
 
 		const menuWidget = this.menuDisposables.add(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
-		// Round away from the title so that aligning never moves the menu over it
-		const compactMode = this.options.compactMode;
+		// Round the edge that meets the title to the device pixel the title's edge is painted at, so the menu neither covers the title nor leaves a gap
 		DOM.alignToDevicePixels(menuHolder, {
-			horizontal: compactMode?.horizontal === HorizontalDirection.Right ? 'end' : compactMode?.horizontal === HorizontalDirection.Left ? 'start' : 'nearest',
-			vertical: compactMode ? 'nearest' : 'end'
+			horizontal: this.options.compactMode?.horizontal === HorizontalDirection.Left ? 'nearestEnd' : 'nearest',
+			vertical: 'nearest'
 		});
 		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;

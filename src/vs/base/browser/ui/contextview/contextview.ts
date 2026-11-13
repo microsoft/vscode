@@ -224,28 +224,36 @@ export interface IContextViewProvider {
 }
 
 /**
- * Chooses how to align a view to device pixels on one axis. A view beside its anchor rounds away
- * from it, so that aligning never moves the view over the anchor; a view that lines up with its
- * anchor rounds to the nearest device pixel. Either way the view only moves toward a viewport edge
- * when it has at least a device pixel of room there, and is left unaligned otherwise.
+ * Returns how far, in rendered CSS pixels, to move a view on one axis so that it starts on a whole
+ * device pixel. Chromium paints the edges of an element at the device pixels nearest to them, so
+ * the view rounds the edge that faces its anchor to the nearest device pixel: the end when the view
+ * is before the anchor or lines up with the anchor's end, otherwise the start. It then meets the
+ * anchor's painted edge as it did unaligned, neither covering the anchor nor leaving a gap.
+ *
+ * If that would move the view past the viewport, a view that lines up with its anchor instead rounds
+ * the other way, and a view beside its anchor, which would move over the anchor, stays unaligned.
  *
  * `start`, `size`, `anchorStart` and `anchorSize` decide the side of the anchor the view was placed
- * on, so they are in the coordinates and layout size the view was placed with. `roomBefore` and
- * `roomAfter` are the rendered distances between the view and the viewport edges.
+ * on, so they are in the coordinates and layout size the view was placed with. `renderedStart` and
+ * `renderedSize` are where the view is rendered, relative to the viewport, which is `viewportSize`.
  */
-export function getDevicePixelRounding(start: number, size: number, anchorStart: number, anchorSize: number, roomBefore: number, roomAfter: number, devicePixelRatio: number): DOM.DevicePixelRounding {
+function getViewDevicePixelAlignmentOffset(start: number, size: number, anchorStart: number, anchorSize: number, renderedStart: number, renderedSize: number, viewportSize: number, devicePixelRatio: number): number {
 	const epsilon = 0.01;
-	const devicePixel = 1 / devicePixelRatio;
-	if (start + size <= anchorStart + epsilon) {
-		return roomBefore >= devicePixel ? 'start' : 'none';
+	const before = start + size <= anchorStart + epsilon;
+	const beside = before || start + epsilon >= anchorStart + anchorSize;
+	const endsWithAnchor = Math.abs(start + size - (anchorStart + anchorSize)) <= epsilon && Math.abs(start - anchorStart) > epsilon;
+	const roundings: DOM.DevicePixelRounding[] = [before || (!beside && endsWithAnchor) ? 'nearestEnd' : 'nearest'];
+	if (!beside) {
+		roundings.push('start', 'end');
 	}
-	if (start + epsilon >= anchorStart + anchorSize) {
-		return roomAfter >= devicePixel ? 'end' : 'none';
+	for (const rounding of roundings) {
+		const offset = DOM.getDevicePixelAlignmentOffset(renderedStart, devicePixelRatio, rounding, renderedSize);
+		// Allows for floating-point error when a move lands exactly on the viewport's edge
+		if ((offset >= 0 || renderedStart + offset >= -0.001) && (offset <= 0 || renderedStart + renderedSize + offset <= viewportSize + 0.001)) {
+			return offset;
+		}
 	}
-	if (roomAfter < devicePixel) {
-		return roomBefore >= devicePixel ? 'start' : 'none';
-	}
-	return roomBefore < devicePixel ? 'end' : 'nearest';
+	return 0;
 }
 
 /**
@@ -259,7 +267,7 @@ export function getDevicePixelRounding(start: number, size: number, anchorStart:
  * @param position The laid-out position, in the coordinate space of `viewport` and `origin`.
  * @param layoutSize The size the view was laid out with, which decides the side of the anchor it is on.
  * @param renderedSize The rendered border-box size of the view.
- * @param anchor The rect the view is anchored to, which decides the rounding direction per axis.
+ * @param anchor The rect the view is anchored to, which decides the edge of the view rounded on each axis.
  * @param viewport The visible area of the page, which the aligned view must stay inside.
  * @param origin Where the view is placed when its `top` and `left` are 0.
  * @param zoom The CSS zoom applied to the view.
@@ -271,9 +279,8 @@ export function alignViewToDevicePixels(position: IWindowControlsOverlayPosition
 	// Equal to `originStart + (start - originStart) * zoom`, but exactly `start` when unzoomed
 	const render = (start: number, originStart: number) => start + (start - originStart) * (zoom - 1);
 	const align = (start: number, viewLayoutSize: number, viewRenderedSize: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, originStart: number) => {
-		const rendered = render(start, originStart);
-		const rounding = getDevicePixelRounding(start, viewLayoutSize, anchorStart, anchorSize, rendered - viewportStart, viewportStart + viewportSize - (rendered + viewRenderedSize), devicePixelRatio);
-		return start + DOM.getDevicePixelAlignmentOffset(rendered - viewportStart, devicePixelRatio, rounding) / zoom;
+		const renderedStart = render(start, originStart) - viewportStart;
+		return start + getViewDevicePixelAlignmentOffset(start, viewLayoutSize, anchorStart, anchorSize, renderedStart, viewRenderedSize, viewportSize, devicePixelRatio) / zoom;
 	};
 	const aligned = {
 		top: align(position.top, layoutSize.height, renderedSize.height, anchor.top, anchor.height, viewport.top, viewport.height, origin.top),

@@ -110,9 +110,10 @@ suite('Menubar', () => {
 			titlebar.style.position = 'fixed';
 			titlebar.style.width = '400px';
 			titlebar.style.zoom = `${titleZoom}`;
-			// The 30px title ends at y.2, which rounds up over the title when rounded to the nearest device pixel
-			titlebar.style.left = '10.2px';
-			titlebar.style.top = '20.2px';
+			// The 30px title ends at y.125, where rounding away from the title would leave a device pixel gap below at DPR 1
+			// and 2. Whole 1/64 pixels keep it at least an eighth of a device pixel from a rounding tie at common DPRs.
+			titlebar.style.left = '10.125px';
+			titlebar.style.top = '20.125px';
 			const menubarContainer = titlebar.appendChild($('.menubar-container'));
 			const menubar = new MenuBar(menubarContainer, { enableMnemonics: true, visibility: 'visible' }, unthemedMenuStyles);
 			try {
@@ -133,12 +134,12 @@ suite('Menubar', () => {
 				const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
 				const rect = holder.getBoundingClientRect();
 				// Where the menubar placed the holder before alignment: the title's bottom, scaled by the title's zoom.
-				// Aligning must round down, away from the title, never up over it.
+				// Aligning must keep the holder's top at the device pixel the title's bottom is painted at, neither covering the title nor leaving a gap.
 				const unalignedTop = getTitleDivFromButtonDiv(button)!.getBoundingClientRect().bottom * titleZoom;
 				result[name] = {
 					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
 					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
-					notMovedUp: rect.top >= unalignedTop - 0.01
+					meetsTitle: Math.round(rect.top * dpr) === Math.round(unalignedTop * dpr)
 				};
 				menubar.blur();
 			} finally {
@@ -149,8 +150,8 @@ suite('Menubar', () => {
 		}
 
 		assert.deepStrictEqual(result, {
-			plain: { aligned: true, horizontalInset: 'left', notMovedUp: true },
-			counterZoomed: { aligned: true, horizontalInset: 'left', notMovedUp: true }
+			plain: { aligned: true, horizontalInset: 'left', meetsTitle: true },
+			counterZoomed: { aligned: true, horizontalInset: 'left', meetsTitle: true }
 		});
 	});
 
@@ -249,8 +250,9 @@ suite('Menubar', () => {
 			const style = compactContainer.appendChild($('style'));
 			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; }';
 			compactContainer.style.position = 'fixed';
-			// x.2 rounds toward the menu button when rounded to the nearest device pixel at DPR 1 or 2
-			compactContainer.style.left = '10.2px';
+			// Rounding away from the menu button would leave a device pixel gap from it at DPR 1 and 2. Whole 1/64 pixels keep
+			// both edges of the 16px button at least an eighth of a device pixel from a rounding tie at common DPRs.
+			compactContainer.style.left = '10.6875px';
 			compactContainer.style.top = '20.7px';
 			const dpr = getWindow(compactContainer).devicePixelRatio;
 			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
@@ -273,23 +275,25 @@ suite('Menubar', () => {
 				assert.ok(holder);
 				const rect = holder.getBoundingClientRect();
 				const button = compactContainer.getBoundingClientRect();
-				// Where the menubar placed the holder before alignment. Left-expanding menus use the integer innerWidth, which
-				// at fractional DPRs can already overlap the title by less than a pixel; aligning must not move it further.
+				// Where the menubar placed the holder's edge facing the title before alignment. Left-expanding menus use the
+				// integer innerWidth, which at fractional DPRs can already overlap the title by less than a pixel. Aligning must
+				// keep that edge at the device pixel it was painted at, neither covering the title further nor leaving a gap.
 				const unaligned = horizontal === HorizontalDirection.Right
 					? button.left + compactContainer.clientWidth
 					: getWindow(holder).visualViewport!.width - getWindow(holder).innerWidth + button.left;
+				const paintedFacingEdge = horizontal === HorizontalDirection.Right ? Math.round(rect.left * dpr) : Math.round(rect.left * dpr) + Math.round(rect.width * dpr);
 				result[name] = {
 					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
 					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
-					notMovedTowardTitle: horizontal === HorizontalDirection.Right ? rect.left >= unaligned - 0.01 : rect.right <= unaligned + 0.01
+					meetsTitle: paintedFacingEdge === Math.round(unaligned * dpr)
 				};
 				menubar.blur();
 				menubar.dispose();
 			}
 
 			assert.deepStrictEqual(result, {
-				expandsRight: { aligned: true, horizontalInset: 'left', notMovedTowardTitle: true },
-				expandsLeft: { aligned: true, horizontalInset: 'right', notMovedTowardTitle: true }
+				expandsRight: { aligned: true, horizontalInset: 'left', meetsTitle: true },
+				expandsLeft: { aligned: true, horizontalInset: 'right', meetsTitle: true }
 			});
 		});
 	});

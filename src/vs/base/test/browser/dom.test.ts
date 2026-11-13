@@ -843,13 +843,30 @@ suite('dom', () => {
 			};
 			const upLeft = position({ horizontal: 'start', vertical: 'start' });
 			const downRight = position({ horizontal: 'end', vertical: 'end' });
+			// Starts 0.6 and is sized 0.6 device pixels past whole ones, so rounding its far edge moves it toward the start,
+			// while rounding its near edge would move it toward the end
+			const sized = createPositioned(host, { left: '10px', top: '20px' });
+			sized.style.left = `${parseFloat(sized.style.left) + 0.1 / dpr}px`;
+			sized.style.top = `${parseFloat(sized.style.top) + 0.1 / dpr}px`;
+			sized.style.width = `${(Math.floor(50 * dpr) + 0.6) / dpr}px`;
+			sized.style.height = `${(Math.floor(20 * dpr) + 0.6) / dpr}px`;
+			const before = sized.getBoundingClientRect();
+			alignToDevicePixels(sized, { horizontal: 'nearestEnd', vertical: 'nearestEnd' });
+			const after = sized.getBoundingClientRect();
+			const paintedEnd = (start: number, size: number) => Math.round(start * dpr) + Math.round(size * dpr);
 
 			assert.deepStrictEqual({
 				upLeft: upLeft.after.map((value, i) => near(value, Math.floor(upLeft.before[i]))),
 				downRight: downRight.after.map((value, i) => near(value, Math.ceil(downRight.before[i]))),
+				nearestEnd: {
+					aligned: isDeviceAligned(sized),
+					endsWhereUnaligned: [paintedEnd(after.left, after.width) === Math.round(before.right * dpr), paintedEnd(after.top, after.height) === Math.round(before.bottom * dpr)],
+					movedTowardStart: [after.left < before.left, after.top < before.top]
+				}
 			}, {
 				upLeft: [true, true],
 				downRight: [true, true],
+				nearestEnd: { aligned: true, endsWhereUnaligned: [true, true], movedTowardStart: [true, true] }
 			});
 		});
 	});
