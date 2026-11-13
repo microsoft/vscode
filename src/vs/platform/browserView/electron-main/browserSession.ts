@@ -447,8 +447,9 @@ export class BrowserSession {
 	 * through the file service of a window connected to that remote.
 	 */
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
-		const path = authorizeRemoteFilePath(BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority)), uri);
-		if (path === undefined) {
+		const access = BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority));
+		const path = authorizeRemoteFilePath(access, uri);
+		if (!access || path === undefined) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}
 
@@ -462,7 +463,7 @@ export class BrowserSession {
 			path,
 			scheme: Schemas.vscodeManagedRemoteResource,
 			authority: `window:${window.id}`,
-			query: new URLSearchParams({ authority, scheme: trusted.scheme }).toString(),
+			query: new URLSearchParams({ authority, scheme: access.scheme }).toString(),
 			fragment: ''
 		}));
 	}
