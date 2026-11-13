@@ -326,7 +326,7 @@ suite('Artifact Integration Groups', () => {
 		f.members.set([...f.members.get(), f.member(snapshot('3', { groupLabel: 'Experiments' }))], undefined);
 		f.button().click();
 		const details = f.rows()[2].querySelector<HTMLElement>('.artifact-group-row-status')!;
-		const described = { statuses: f.describeRow(f.rows()[2]).statuses, label: details.getAttribute('aria-label'), icon: !!details.querySelector('.codicon-chevron-down') };
+		const described = { statuses: f.describeRow(f.rows()[2]).statuses, label: details.getAttribute('aria-label'), icon: !!details.querySelector('.codicon-info') };
 		details.click();
 		assert.deepStrictEqual({ described, open: !!f.dropdown(), ran: f.ran, toggles: f.toggles }, {
 			described: { statuses: [''], label: 'Show artifact details: Experiment 3 is running', icon: true },
