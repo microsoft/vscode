@@ -37,6 +37,11 @@ compressed-size limits. The build examines transitive bundle inputs, not only
 the entry's direct imports. An unknown contribution or unpackaged dependency
 fails the build independently of the size checks.
 
+Native screenshot capture and image editing are excluded from the package.
+The selecting entry supplies these capabilities rather than requiring an
+unsupported mobile service. Browser screenshot capture, ordinary image
+attachments, and image previews remain shared.
+
 The ordinary entry's repository, list, Configure Session and edit presentation
 implementations and clipboard registration are also rejected. The mobile entry
 selects its own implementations; their shared contracts and behavior remain

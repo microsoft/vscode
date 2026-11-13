@@ -34,6 +34,8 @@ View factories receive the owning host's instantiation service for each view. Mo
 
 `IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation; the experimental entry selects edit rows and mobile overlays. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
 
+`IChatAttachmentWidgetRegistry` supplies optional image editing to both attachment widgets and their carousel previews. The regular registry supplies native editing when supported; the mobile entry selects the shared registry without that capability. The editor must be available when the registry is constructed, before restored attachments first render, rather than installed by a later contribution. Each entry also registers its screenshot context item: browser capture uses the shared host service without requiring native screenshot tooling. Ordinary image attachments and previews remain shared.
+
 ## Isolated web composition
 
 The experimental `agents.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. Ordinary production build targets do not include this entry; its opt-in [isolated package](../../../build/next/MOBILE.md) has separate assets and localization.

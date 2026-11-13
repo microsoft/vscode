@@ -2,15 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { getWindow } from '../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isElectron } from '../../../../../base/common/platform.js';
-import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { agentHostAuthority } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -49,7 +46,6 @@ import { getChatSessionType } from '../../common/model/chatUri.js';
 import { buildHostLocalEventsPath } from '../copilotCliEventsUri.js';
 import { IGitService } from '../../../git/common/gitService.js';
 import { getGitHubRemoteInfo } from '../../../git/common/utils.js';
-import { getScreenshotToolImageData, IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolMode, ScreenshotToolOutcome } from '../../../screenshotTool/browser/screenshotTool.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { basename, isEqual } from '../../../../../base/common/resources.js';
 
@@ -114,7 +110,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(FileContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ChatInstructionsPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'issue')));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(GitHubContextValuePick, 'pullRequest')));
@@ -552,35 +547,25 @@ export class ScreenshotContextValuePick implements IChatContextValueItem {
 
 	constructor(
 		@IHostService private readonly _hostService: IHostService,
-		@IScreenshotToolService private readonly _screenshotToolService: IScreenshotToolService,
 	) { }
 
 	async isEnabled(widget: IChatWidget) {
 		return !!widget.attachmentCapabilities.supportsImageAttachments && !!widget.input.selectedLanguageModel.get()?.metadata.capabilities?.vision;
 	}
 
-	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
-		if (!this._screenshotToolService.isSupported) {
-			const blob = await this._hostService.getScreenshot();
-			return blob && convertBufferToScreenshotVariable(blob);
-		}
-		const stopWatch = StopWatch.create(false);
-		const result = await this._screenshotToolService.capture(getWindow(widget.domNode));
-		widget.focusInput();
-		if (result.kind !== 'captured') {
-			this._logCapture(result.kind, result.mode, stopWatch);
-			return undefined;
-		}
-		const { data, mimeType } = getScreenshotToolImageData(result.image);
-		this._logCapture('attached', result.mode, stopWatch);
-		// Each capture gets its own id, so a second screenshot is not dropped as a duplicate of the first, and can be edited on its own.
-		const entry = { ...convertBufferToScreenshotVariable(data, mimeType), id: generateUuid() };
-		this._screenshotToolService.registerEditableAttachment(entry, { original: result.image, annotationState: undefined });
-		return entry;
+	async asAttachment(_widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
+		const blob = await this._hostService.getScreenshot();
+		return blob && convertBufferToScreenshotVariable(blob);
 	}
+}
 
-	private _logCapture(outcome: ScreenshotToolOutcome, mode: ScreenshotToolMode, stopWatch: StopWatch): void {
-		this._screenshotToolService.logCapture({ entryPoint: ScreenshotToolEntryPoint.ChatAddContext, outcome, mode, durationMs: stopWatch.elapsed() });
+export class BrowserScreenshotContextContribution extends Disposable {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatContextPickService contextPickService: IChatContextPickService,
+	) {
+		super();
+		this._register(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
 	}
 }
 
