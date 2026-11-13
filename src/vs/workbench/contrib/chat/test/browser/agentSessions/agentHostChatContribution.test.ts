@@ -2745,7 +2745,8 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		const usageCases = [
-			{ name: 'VS Code zero turn cost', meta: { cost: 0 }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'VS Code zero turn cost', meta: { copilotUsage: { totalNanoAiu: 0 } }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'VS Code model multiplier is not measured credits', meta: { cost: 2 }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 			{
 				name: 'VS Code credits, quota and context attribution', meta: {
 					copilotUsage: { totalNanoAiu: 2_000_000_000, sessionTotalNanoAiu: 4_000_000_000 },
@@ -2757,7 +2758,7 @@ suite('AgentHostChatContribution', () => {
 				]
 			},
 			{ name: 'Copilot D latest-call diagnostics', meta: { 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: { cost: 0.5, duration: 12 }, attribution: undefined },
-			{ name: 'mixed usage preserves VS Code turn cost', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: 0, sessionCredits: undefined, latest: undefined, attribution: undefined },
+			{ name: 'mixed usage does not promote model multipliers to credits', meta: { cost: 0, 'copilot.usageDetail': { cost: 0.5, duration: 12 } }, credits: undefined, sessionCredits: undefined, latest: undefined, attribution: undefined },
 		];
 		for (const entry of usageCases) {
 			test(`${entry.name} reaches Chat usage through the live handler`, async () => {
@@ -10395,7 +10396,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10443,7 +10444,7 @@ suite('AgentHostChatContribution', () => {
 				const { turnPromise, session, turnId, fire, collected } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 					userSelectedModelId: 'agent-host-copilot:hydrafusion', cancellationToken: cts.token,
 				});
-				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } } } as ChatAction);
+				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } } } as ChatAction);
 				if (cancelled) {
 					cts.cancel();
 				} else {
@@ -10467,7 +10468,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { userSelectedModelId: 'agent-host-copilot:hydrafusion' });
-				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { cost } } } as ChatAction);
+				fire({ type: 'chat/usage', session, turnId, usage: { model: 'gpt-5.6-sol', inputTokens: 100, _meta: cost === undefined ? {} : { copilotUsage: { totalNanoAiu: cost * 1_000_000_000 } } } } as ChatAction);
 				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 				assert.strictEqual((await turnPromise).details, cost === undefined ? 'HydraFusion Preview · 2x' : 'HydraFusion Preview • 2 credits');
 			}));
@@ -10479,7 +10480,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'openrouter/amazon/nova-micro-v1', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10493,7 +10494,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'customendpoint/custom-model', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'customendpoint/custom-model', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10511,7 +10512,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { cancellationToken: cts.token });
 
 			// Usage (credits) accumulated before the user interrupts the turn.
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 1.5 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } } } as ChatAction);
 
 			// User cancels mid-flight before the turn reaches a terminal state.
 			cts.cancel();
@@ -10529,7 +10530,7 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { cost: 0 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 0 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10547,8 +10548,8 @@ suite('AgentHostChatContribution', () => {
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { cost: 1 } } } as ChatAction);
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 100, model: 'claude-sonnet-4-6', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10573,7 +10574,7 @@ suite('AgentHostChatContribution', () => {
 			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables,
 				{ userSelectedModelId: 'agent-host-copilot:auto' });
 
-			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { cost: 1 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'raptor-mini', _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } } } as ChatAction);
 			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
 
 			const result = await turnPromise;
@@ -10607,7 +10608,7 @@ suite('AgentHostChatContribution', () => {
 			// Parent turn reports its own usage. For hosts that fold subagent usage
 			// into the parent turn aggregate, this value already includes the subagent;
 			// the client emits it as-is and never re-adds subagent credits itself.
-			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { cost: 2.0 } } } as ChatAction);
+			fire({ type: 'chat/usage', session, turnId, usage: { inputTokens: 500, outputTokens: 100, model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } } } as ChatAction);
 
 			// Spawn a subagent tool call.
 			const parentToolCallId = 'tc-sub-cost';
@@ -10648,7 +10649,7 @@ suite('AgentHostChatContribution', () => {
 			} as ChatAction);
 			fireChild({
 				type: 'chat/usage', session: childSessionUri, turnId: childTurnId,
-				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { cost: 5.0 } },
+				usage: { inputTokens: 800, outputTokens: 200, model: 'openrouter/amazon/nova-micro-v1', _meta: { copilotUsage: { totalNanoAiu: 5_000_000_000 } } },
 			} as ChatAction);
 
 			await timeout(50);
@@ -14557,7 +14558,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider });
 				const sessionUri = AgentSession.uri(provider, 'sess-fusion-footers');
-				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } };
 				const fusionMessage = { text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: 'hydrafusion' } } as const;
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
@@ -14606,7 +14607,7 @@ suite('AgentHostChatContribution', () => {
 				]);
 				const { sessionHandler, agentHostService } = createContribution(disposables, { languageModels, provider: 'copilotcli' });
 				const sessionUri = AgentSession.uri('copilotcli', 'sess-fusion-footers');
-				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { cost: 15.5 } };
+				const usage = { model: 'gpt-5.6-sol', inputTokens: 100, outputTokens: 20, _meta: { copilotUsage: { totalNanoAiu: 15_500_000_000 } } };
 				const message = (model: string) => ({ text: 'Fusion request', origin: { kind: MessageKind.User }, model: { id: model } } as const);
 				agentHostService.sessionStates.set(sessionUri.toString(), {
 					...createSessionState({
@@ -14645,7 +14646,7 @@ suite('AgentHostChatContribution', () => {
 						id: 'turn-1',
 						message: { text: 'Q1', origin: { kind: MessageKind.User } },
 						responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'A1' }],
-						usage: { model: 'opus-4.7', _meta: { cost: 1.5 } },
+						usage: { model: 'opus-4.7', _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 						state: TurnState.Complete,
 					},
 					{
@@ -14661,7 +14662,7 @@ suite('AgentHostChatContribution', () => {
 					startedAt: '2025-01-01T00:00:00.000Z',
 					message: { text: 'Q3', origin: { kind: MessageKind.User }, model: { id: 'sonnet-4.6', config: { reasoningEffort: 'max' } } },
 					responseParts: [],
-					usage: { _meta: { cost: 1 } },
+					usage: { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } },
 				},
 			});
 
@@ -15375,12 +15376,12 @@ suite('AgentHostChatContribution', () => {
 					childState.turns[0] = {
 						...childState.turns[0],
 						startedAt: new Date(startedAt).toISOString(), duration: 40_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } },
 					};
 					childState.turns.push({
 						...childState.turns[0], id: 'followup',
 						startedAt: new Date(startedAt + 60_000).toISOString(), duration: 23_000,
-						usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 0.25 } },
+						usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } },
 					});
 					const { session, pills } = await scenario.open();
 					const pill = pills.find(part => part.toolCallId === 'launch-1');
@@ -15407,7 +15408,7 @@ suite('AgentHostChatContribution', () => {
 							turns: [{
 								...childState.turns[0], id: 'earlier',
 								startedAt: new Date(startedAt - 10_000).toISOString(), duration: 10_000,
-								usage: { inputTokens: 30, outputTokens: 15, _meta: { cost: 1.25 } },
+								usage: { inputTokens: 30, outputTokens: 15, _meta: { copilotUsage: { totalNanoAiu: 1_250_000_000 } } },
 							}],
 						},
 						serverSeq: 100, origin: undefined,
@@ -15442,7 +15443,7 @@ suite('AgentHostChatContribution', () => {
 					childState.turns[0] = {
 						...childState.turns[0],
 						...(duration !== undefined ? { startedAt: children[0].modifiedAt, duration } : {}),
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } },
 					};
 					const childResource = getSubagentEditorResource({ chatResource: child, parentSessionResource: resource.toString() });
 					assert.ok(childResource);
@@ -15471,7 +15472,7 @@ suite('AgentHostChatContribution', () => {
 					const startedAt = Date.parse(children[0].modifiedAt);
 					const latestTurn: Turn = {
 						...childState.turns[0], startedAt: new Date(startedAt).toISOString(), duration: 20_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } },
 					};
 					const tail = { ...childState, turns: [latestTurn], turnsNextCursor: 'older' };
 					agentHostService.chatStates.set(child, tail);
@@ -15490,7 +15491,7 @@ suite('AgentHostChatContribution', () => {
 							type: ActionType.ChatTurnsLoaded,
 							turns: [{
 								...latestTurn, id: 'earlier', startedAt: new Date(startedAt - 60_000).toISOString(), duration: 30_000,
-								usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: 1.5 } },
+								usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } },
 							}],
 							turnsNextCursor: hasMoreHistory ? 'oldest' : undefined,
 						},
@@ -15527,7 +15528,7 @@ suite('AgentHostChatContribution', () => {
 					assert.ok(childState);
 					childState.turns[0] = {
 						...childState.turns[0], startedAt: children[0].modifiedAt, duration: 40_000,
-						usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } },
+						usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } },
 					};
 					const { pills } = await scenario.open();
 					const presentation = () => {
@@ -15543,7 +15544,7 @@ suite('AgentHostChatContribution', () => {
 						...childState,
 						turns: childState.turns.map(turn => ({
 							...turn,
-							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { cost: restoredCredits } },
+							usage: restoredCredits === undefined ? undefined : { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: restoredCredits * 1_000_000_000 } } },
 						})),
 					});
 					const reopened = disposables.add(await sessionHandler.provideChatSessionContent(childResource, CancellationToken.None));
@@ -15853,8 +15854,8 @@ suite('AgentHostChatContribution', () => {
 					for (const [index, child] of children.entries()) {
 						const state = agentHostService.chatStates.get(child.resource);
 						assert.ok(state?.activeTurn);
-						state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: index === 0 ? 0.5 : 0.75 } };
-						state.activeTurn.usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.25 } };
+						state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: index === 0 ? 500_000_000 : 750_000_000 } } };
+						state.activeTurn.usage = { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 250_000_000 } } };
 					}
 					const { pills } = await scenario.open();
 					const credits = () => pills.filter(part => part.toolSpecificData?.kind === 'subagent')
@@ -15863,7 +15864,7 @@ suite('AgentHostChatContribution', () => {
 					let sequence = 100;
 					const fireChild = (chat: string, action: AgentHostChatAction) => agentHostService.fireAction({ channel: chat, action, serverSeq: sequence++, origin: undefined });
 					for (const [index, child] of children.entries()) {
-						fireChild(child.resource, { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 20, outputTokens: 10, _meta: { cost: index + 2 } } });
+						fireChild(child.resource, { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 20, outputTokens: 10, _meta: { copilotUsage: { totalNanoAiu: (index + 2) * 1_000_000_000 } } } });
 						fire({ type: ActionType.SessionChatUpdated, chat: child.resource, changes: { status: SessionStatus.Idle } });
 						fireChild(child.resource, chatTurnComplete('child-turn', 40000));
 					}
@@ -15885,7 +15886,7 @@ suite('AgentHostChatContribution', () => {
 					assert.ok(previous);
 					agentHostService.chatStates.set(child, { ...previous, activeTurn: createActiveTurn('followup', { text: 'Continue', origin: { kind: MessageKind.User } }, '2026-10-19T00:01:00.000Z') });
 					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.InProgress, modifiedAt: '2026-10-19T00:01:00.000Z' } });
-					fireChild(child, { type: ActionType.ChatUsage, turnId: 'followup', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 0.5 } } });
+					fireChild(child, { type: ActionType.ChatUsage, turnId: 'followup', usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 500_000_000 } } } });
 					fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle, modifiedAt: '2026-10-19T00:01:10.000Z' } });
 					fireChild(child, chatTurnComplete('followup', 10000));
 					await timeout(0);
@@ -15908,7 +15909,7 @@ suite('AgentHostChatContribution', () => {
 				const state = agentHostService.chatStates.get(child);
 				assert.ok(state);
 				state.activeTurn = undefined;
-				state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } };
+				state.turns[0].usage = { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } };
 				await scenario.open();
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });
 				await timeout(0);
@@ -15933,7 +15934,7 @@ suite('AgentHostChatContribution', () => {
 				const child = children[0].resource;
 				agentHostService.fireAction({
 					channel: child,
-					action: { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 10, outputTokens: 5, _meta: { cost: 2.5 } } },
+					action: { type: ActionType.ChatUsage, turnId: 'child-turn', usage: { inputTokens: 10, outputTokens: 5, _meta: { copilotUsage: { totalNanoAiu: 2_500_000_000 } } } },
 					serverSeq: 99, origin: undefined,
 				});
 				fire({ type: ActionType.SessionChatUpdated, chat: child, changes: { status: SessionStatus.Idle } });

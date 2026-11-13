@@ -1015,10 +1015,7 @@ function getCopilotCredits(usage: UsageInfo | undefined): number | undefined {
 	if (typeof totalNanoAiu === 'number' && totalNanoAiu >= 0) {
 		return totalNanoAiu / 1_000_000_000;
 	}
-	const cost = meta?.cost;
-	return typeof cost === 'number' && cost >= 0
-		? cost
-		: undefined;
+	return undefined;
 }
 
 /**

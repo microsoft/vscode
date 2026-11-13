@@ -1567,7 +1567,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('Fusion footer identification is per-turn, including restored events without a selected model', () => {
-			const usage = { model: 'gpt-5', _meta: { cost: 0 } };
+			const usage = { model: 'gpt-5', _meta: { copilotUsage: { totalNanoAiu: 0 } } };
 			const turns = [
 				createTurn({ message: { ...message('Before usage'), model: { id: 'hydrafusion' } } }),
 				createTurn({
@@ -6083,13 +6083,21 @@ suite('stateToProgressAdapter', () => {
 
 		const auto = { name: 'Auto' };
 
+		test('does not present a model multiplier as measured credits', () => {
+			assert.deepStrictEqual([
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model', pricing: '2x' }, undefined, { _meta: { cost: 2 } }),
+				formatTurnResponseDetails({ name: 'Model' }, undefined, { _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0 } } }),
+			], ['Model', 'Model · 2x', 'Model • 0 credits']);
+		});
+
 		test('appends the billed model id when one is supplied', () => {
 			// A pick whose billed model is unregistered (e.g. "Auto" billed as "raptor-mini") shows "Auto (raptor-mini)".
 			const result = {
 				resolvedModel: formatTurnResponseDetails(auto, 'raptor-mini', undefined),
 				withPricing: formatTurnResponseDetails({ ...auto, pricing: '0x' }, 'raptor-mini', undefined),
-				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 2 } }),
-				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { cost: 1 } }),
+				withCredits: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
+				oneCredit: formatTurnResponseDetails(auto, 'raptor-mini', { _meta: { copilotUsage: { totalNanoAiu: 1_000_000_000 } } }),
 				noBilledModel: formatTurnResponseDetails(auto, undefined, undefined),
 			};
 
@@ -6106,7 +6114,7 @@ suite('stateToProgressAdapter', () => {
 			const sonnet = { name: 'Claude Sonnet 4.5', pricing: '1x' };
 			const result = {
 				concrete: formatTurnResponseDetails(sonnet, undefined, undefined),
-				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { cost: 2 } }),
+				concreteWithCredits: formatTurnResponseDetails(sonnet, undefined, { _meta: { copilotUsage: { totalNanoAiu: 2_000_000_000 } } }),
 				unknown: formatTurnResponseDetails(undefined, 'raptor-mini', { _meta: { cost: 2 } }),
 			};
 
@@ -6135,6 +6143,16 @@ suite('stateToProgressAdapter', () => {
 	});
 
 	suite('usageInfoToChatUsage', () => {
+		test('reports measured credits without model multipliers', () => {
+			assert.deepStrictEqual([
+				usageInfoToChatUsage({ _meta: { cost: 0 } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2 } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 0 } } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { cost: 2, copilotUsage: { totalNanoAiu: 1_500_000_000 } } })?.copilotCredits,
+				usageInfoToChatUsage({ _meta: { copilotUsage: { totalNanoAiu: 1_500_000_000 } } })?.copilotCredits,
+			], [undefined, undefined, 0, 1.5, 1.5]);
+		});
+
 		test('carries whole-turn per-model token totals and resolves display names', () => {
 			const turnTokenTotals = [{ model: 'claude-opus-4.8', inputTokens: 110, cachedTokens: 4, outputTokens: 220 }];
 
