@@ -152,6 +152,7 @@ import { CopilotVirtualSessionFs, createCopilotVirtualSessionFsConfig } from './
 import { CopilotSessionLauncher, type CopilotChatSurface, getInlineChatFusionAutoTier, AutoTierConfigKey, ContextSizeConfigKey, CopilotAutoTierConfigKey, CopilotReasoningEffortConfigKey, ThinkingLevelConfigKey, getCopilotContextTier, getCopilotCustomAgents, getCopilotAgentSelection, getCopilotAgentSelectionName, getLocalModelSelectionId, isCopilotReasoningEffort, isCopilotSessionTelemetryEnabled, resolveCopilotAutoTier, resolveCopilotReasoningEffort, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotAppliedCustomizations } from './copilotSessionLauncher.js';
 import { createLocalModelRowMeta } from '../../common/meta/localModelStatus.js';
 import { errorCodeForLog, originsOnlyForLog } from '../../common/logRedaction.js';
+import { isLoopbackHost } from '../../../remote/common/remoteHosts.js';
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
@@ -352,6 +353,15 @@ function getNativeKerberosPrincipal(spn: string): string {
 
 /** The PAC entry types the Copilot runtime understands. It skips the SOCKS ones. */
 const RUNTIME_PAC_TYPES = new Set(['DIRECT', 'PROXY', 'HTTP', 'HTTPS', 'SOCKS', 'SOCKS4', 'SOCKS5']);
+
+/** Whether `url` parses and targets this machine's loopback interface. */
+function isLoopbackUrl(url: string): boolean {
+	try {
+		return isLoopbackHost(new URL(url).hostname);
+	} catch {
+		return false;
+	}
+}
 
 /**
  * The entries of a PAC-style proxy list, such as `PROXY proxy:8080; DIRECT`, whose type the Copilot runtime understands.
@@ -10754,8 +10764,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * disabled. It does so too for a proxy environment variable with credentials, which a PAC-style list cannot carry:
 	 * the runtime reads that proxy, credentials included, from the environment it inherits. The credentials of the
 	 * `http.proxy` setting answer the runtime's Basic challenges instead (see {@link _lookupBasicCredentials}).
+	 *
+	 * Loopback requests always go `DIRECT`, whatever the proxy settings and `NO_PROXY` say: they reach this agent host's
+	 * own local endpoints, such as the BYOK proxy, which no proxy can serve. `undefined` would not do, since the runtime
+	 * would then apply the proxy environment variables it inherits.
 	 */
 	private async _resolveRuntimeProxy(url: string): Promise<string | undefined> {
+		if (isLoopbackUrl(url)) {
+			this._logService.debug(`[Copilot] Resolved the Copilot runtime's proxy for ${originsOnlyForLog(url)}: DIRECT for a loopback address`);
+			return 'DIRECT';
+		}
 		const { url: proxyUrl, result, source } = await this._proxyResolver.resolveProxyByURL(url);
 		const fromClient = source === 'system' || source === 'system_cached' || source === 'fallback';
 		const fromEnvironmentWithCredentials = source === 'env' && hasProxyCredentials(proxyUrl);
@@ -10786,7 +10804,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _createCopilotCliEnvironment(skillCharBudget = this._getSkillCharBudget(), omitAmbientAuthentication = false, proxyState = this._readCopilotProxyState(), executionSubagent = this._isExecutionSubagentEnabled(), executionSubagentModel = this._getExecutionSubagentModel()): Record<string, string | undefined> {
 		// Proxies and their credentials reach the runtime through its network callbacks: proxy environment variables would
 		// also apply to the tools it runs, which may need a different proxy or none, for example for intranet hosts. The
-		// proxy environment variables this agent host inherits pass through unchanged.
+		// proxy environment variables this agent host inherits pass through, with the loopback hosts added to `NO_PROXY`.
 		const { kerberosSpn } = proxyState;
 		const env = createCopilotCliEnvironment(
 			process.env,

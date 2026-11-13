@@ -77,7 +77,29 @@ export function createCopilotCliEnvironment(environment: NodeJS.ProcessEnv = pro
 	for (const flag of RUNTIME_LOCAL_MODEL_FLAG_KEYS) {
 		env[flag] = 'false';
 	}
+	if (!normalizedOmittedKeys.has(isWindows ? 'no_proxy' : 'NO_PROXY')) {
+		addLoopbackToNoProxy(env);
+	}
 	return env;
+}
+
+/** Hosts the Copilot runtime must always reach without a proxy, such as the agent host's BYOK proxy on `127.0.0.1`. */
+const LOOPBACK_NO_PROXY_HOSTS = ['localhost', '127.0.0.1', '::1'];
+
+/**
+ * Exempts the loopback hosts from the proxy environment variables the runtime inherits. The runtime's model inference
+ * reads them directly, so without this a `HTTP_PROXY` with no matching `NO_PROXY` sends requests for the agent host's
+ * own local endpoints to a proxy, which cannot serve them. Entries the user configured are kept, in every casing of the
+ * variable already present, so neither casing loses them for programs that prefer the other.
+ */
+function addLoopbackToNoProxy(env: Record<string, string | undefined>): void {
+	const existingKeys = Object.keys(env).filter(key => key.toUpperCase() === 'NO_PROXY' && env[key] !== undefined);
+	const keys = existingKeys.length ? existingKeys : isWindows ? ['NO_PROXY'] : ['NO_PROXY', 'no_proxy'];
+	for (const key of keys) {
+		const entries = (env[key] ?? '').split(',').map(entry => entry.trim()).filter(entry => entry.length > 0);
+		const present = new Set(entries.map(entry => entry.toLowerCase()));
+		env[key] = [...entries, ...LOOPBACK_NO_PROXY_HOSTS.filter(host => !present.has(host))].join(',');
+	}
 }
 
 /** Temporary host-tool lookup workaround pending the planned upstream fix in https://github.com/microsoft/mxc/issues/1545; remove once the bundled runtime includes it.

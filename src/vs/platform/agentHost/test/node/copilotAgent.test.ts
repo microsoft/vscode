@@ -15030,9 +15030,26 @@ suite('CopilotAgent', () => {
 					https_proxy: undefined,
 					HTTP_PROXY: undefined,
 					http_proxy: undefined,
-					NO_PROXY: 'intranet.example',
+					NO_PROXY: 'intranet.example,localhost,127.0.0.1,::1',
 					no_proxy: undefined,
 				},
+			});
+		});
+
+		test('exempts the loopback hosts from the proxy environment variables the Copilot runtime inherits', () => {
+			const noProxy = (environment: NodeJS.ProcessEnv) => {
+				const env = createCopilotCliEnvironment(environment);
+				return Object.fromEntries(Object.keys(env).filter(key => key.toUpperCase() === 'NO_PROXY').sort().map(key => [key, env[key]]));
+			};
+
+			assert.deepStrictEqual({
+				unset: noProxy({ HTTPS_PROXY: 'http://proxy.example:8080' }),
+				userEntries: noProxy({ NO_PROXY: ' intranet.example, LOCALHOST ,,' }),
+				allLoopback: noProxy({ NO_PROXY: 'localhost,127.0.0.1,::1' }),
+			}, {
+				unset: isWindows ? { NO_PROXY: 'localhost,127.0.0.1,::1' } : { NO_PROXY: 'localhost,127.0.0.1,::1', no_proxy: 'localhost,127.0.0.1,::1' },
+				userEntries: { NO_PROXY: 'intranet.example,LOCALHOST,127.0.0.1,::1' },
+				allLoopback: { NO_PROXY: 'localhost,127.0.0.1,::1' },
 			});
 		});
 		(process.platform === 'win32' ? test : test.skip)('omits environment keys case-insensitively on Windows', () => {
@@ -15340,6 +15357,36 @@ suite('CopilotAgent', () => {
 			});
 		});
 
+		test('sends the Copilot runtime\'s loopback requests, such as to the BYOK proxy, direct whatever the proxy configuration', async () => {
+			const proxyResolver = new TestProxyResolver();
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]), proxyResolver });
+			afterTest(() => disposeAgent(agent));
+			await agent.listChatsToMigrate();
+			const resolveProxy = getCreatedClientOptions(agent).at(-1)?.network?.resolveProxy;
+			const signal = new AbortController().signal;
+			const answer = (url: string, info: ResolvedProxyInfo) => {
+				proxyResolver.resolvedProxyInfo = info;
+				return resolveProxy?.({ url }, signal);
+			};
+			const environment: ResolvedProxyInfo = { url: 'http://env-proxy.example:3128', type: 'PROXY', source: 'env', result: 'PROXY env-proxy.example:3128' };
+			const environmentWithCredentials: ResolvedProxyInfo = { url: 'http://user@env-proxy.example:3128', type: 'PROXY', source: 'env', result: 'PROXY env-proxy.example:3128' };
+			const setting: ResolvedProxyInfo = { url: 'https://secure-proxy.example', type: 'HTTPS', source: 'setting', result: 'HTTPS secure-proxy.example:443' };
+
+			assert.deepStrictEqual({
+				byokProxy: await answer('http://127.0.0.1:54321/v/customendpoint/responses', environment),
+				byokProxyWithCredentials: await answer('http://127.0.0.1:54321/v/customendpoint/responses', environmentWithCredentials),
+				localhost: await answer('http://localhost:11434/v1/responses', setting),
+				ipv6: await answer('http://[::1]:11434/v1/responses', environment),
+				remote: await answer('http://intranet.example:11434/v1/responses', environment),
+			}, {
+				byokProxy: 'DIRECT',
+				byokProxyWithCredentials: 'DIRECT',
+				localhost: 'DIRECT',
+				ipv6: 'DIRECT',
+				remote: 'PROXY env-proxy.example:3128',
+			});
+		});
+
 		test('authenticates the Copilot runtime with this machine\'s ticket for the principal it requests, or a client\'s', async () => {
 			const proxyResolver = new TestProxyResolver();
 			const { agent } = createTestAgentContext(disposables, {
@@ -15573,7 +15620,7 @@ suite('CopilotAgent', () => {
 			}, {
 				startCallCount: 1,
 				stopCallCount: 0,
-				proxyEnvironment: { HTTPS_PROXY: 'http://ambient-proxy.example:8080', HTTP_PROXY: undefined, NO_PROXY: undefined },
+				proxyEnvironment: { HTTPS_PROXY: 'http://ambient-proxy.example:8080', HTTP_PROXY: undefined, NO_PROXY: 'localhost,127.0.0.1,::1' },
 			});
 		});
 		test('forwards the configured Kerberos proxy SPN to the Copilot runtime', async () => {
