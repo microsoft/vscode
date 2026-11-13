@@ -367,7 +367,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			}
 			if (isChatWindowComposerResource(resource)) {
 				claimed.push(resource);
-				const restored = await this.composers.restore(resource, session => this.openChat(session, undefined), this._windowFolders);
+				const restored = await this.composers.restore(resource, session => this.openChat(session, undefined), { allowedFolders: this._windowFolders });
 				if (restored?.kind === 'composer') {
 					chats.push(this._addChat(resource, restored.composer));
 				} else if (restored?.kind === 'session') {

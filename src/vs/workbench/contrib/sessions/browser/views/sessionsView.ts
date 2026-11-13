@@ -216,7 +216,7 @@ export class SessionsView extends ViewPane {
 	private readonly scoped: IObservable<boolean> | undefined;
 
 	constructor(
-		options: IViewPaneOptions,
+		options: ISessionsViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
