@@ -116,7 +116,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 				['microsoft', undefined, { authorizationServer: URI.parse(copilotEntraAuthorizationServer) }, true],
 				['microsoft', ['User.Read'], { account: selected.account, authorizationServer: URI.parse(copilotEntraAuthorizationServer), silent: true }, true],
 			],
-			credential: { resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }) },
+			credential: { resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id }) },
 		});
 	});
 
@@ -139,7 +139,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const credential = await f.resolve();
 		assert.deepStrictEqual({ token: credential?.token, provider: credential?._meta }, {
 			token: other.accessToken,
-			provider: authenticationAccountMeta({ providerId: 'microsoft', accountId: other.account.id, label: other.account.label }),
+			provider: authenticationAccountMeta({ providerId: 'microsoft', accountId: other.account.id }),
 		});
 	});
 
@@ -279,7 +279,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		}, {
 			signedIn: true,
 			created: [['microsoft', ['User.Read'], { account: selected.account, authorizationServer: URI.parse(copilotEntraAuthorizationServer) }]],
-			forwarded: [{ resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id, label: selected.account.label }) }],
+			forwarded: [{ resource: resource.resource, scopes: ['User.Read'], token: selected.accessToken, _meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: selected.account.id }) }],
 		});
 	});
 
@@ -315,7 +315,7 @@ suite('Agent Host Microsoft credential acquisition', () => {
 		const f = fixture();
 		f.authentication.sessions = [{ ...selected, account: { ...selected.account, id: 'opaque-account' } }];
 		const result = await f.resolve();
-		assert.deepStrictEqual(result?._meta, authenticationAccountMeta({ providerId: 'microsoft', accountId: 'opaque-account', label: selected.account.label }));
+		assert.deepStrictEqual(result?._meta, authenticationAccountMeta({ providerId: 'microsoft', accountId: 'opaque-account' }));
 	});
 
 	test('same-token deduplication retains the replacement session identity for sign-out', async () => {

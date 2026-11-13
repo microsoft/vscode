@@ -23,6 +23,7 @@ class TestRestrictedTelemetry implements IAgentHostRestrictedTelemetry {
 	readonly events: ICapturedEvent[] = [];
 
 	sendGHTelemetryEvent(): void { }
+	sendGHTelemetryEventForContext(): void { }
 	sendEnhancedGHTelemetryEvent(eventName: string, properties?: TelemetryProps, measurements?: TelemetryMeasurements): void {
 		this.events.push({ destination: 'enhancedGH', eventName, properties, measurements });
 	}

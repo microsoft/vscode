@@ -56,6 +56,9 @@ interface IResponsesInputItem {
 	readonly arguments?: string;
 	readonly input?: string;
 	readonly output?: string | IResponsesContentPart[];
+	readonly reasoning?: {
+		readonly effort?: string;
+	};
 }
 
 interface IResponsesTool {
@@ -244,13 +247,35 @@ function toBridgeTools(tools: IResponsesTool[] | undefined): IByokLmTool[] | und
 	});
 }
 
+/**
+ * The reasoning effort in force for the response to {@link body}. The Copilot
+ * runtime changes effort mid-conversation by replaying a `configuration_update`
+ * input item where the change happened, and leaves the request-level
+ * `reasoning.effort` at its original value so the prompt prefix stays
+ * cacheable. An update applies until a later one overrides it.
+ */
+export function effectiveReasoningEffort(body: IResponsesRequest): string | undefined {
+	let effort = body.reasoning?.effort;
+	if (Array.isArray(body.input)) {
+		for (const item of body.input) {
+			if (item.type === 'configuration_update' && typeof item.reasoning?.effort === 'string') {
+				effort = item.reasoning.effort;
+			}
+		}
+	}
+	return effort;
+}
+
 export function responsesRequestToBridge(vendor: string, body: IResponsesRequest): IByokLmChatRequest {
 	const modelId = requiredString(body.model, 'model');
 	let input: IByokLmInputItem[];
 	if (typeof body.input === 'string') {
 		input = [{ type: 'message', role: 'user', content: [{ type: 'text', text: body.input }] }];
 	} else if (Array.isArray(body.input)) {
-		input = body.input.map(toBridgeInputItem);
+		// A `configuration_update` carries request settings rather than
+		// conversation content, so it is applied through
+		// `effectiveReasoningEffort` and left out of the model's history.
+		input = body.input.flatMap((item, index) => item.type === 'configuration_update' ? [] : [toBridgeInputItem(item, index)]);
 	} else {
 		input = [];
 	}
@@ -273,7 +298,7 @@ export function responsesRequestToBridge(vendor: string, body: IResponsesRequest
 		input,
 		tools: toBridgeTools(body.tools),
 		previousResponseId: body.previous_response_id,
-		reasoningEffort: body.reasoning?.effort,
+		reasoningEffort: effectiveReasoningEffort(body),
 		modelOptions: Object.keys(modelOptions).length ? modelOptions : undefined,
 	};
 }

@@ -768,6 +768,7 @@ export class AgentHostSessionTitleController extends Disposable implements IAgen
 			const rawTitle = await utilityModelService.chatCompletion(prompt.modelContext, {
 				messages: this._buildTitlePrompt(titlePromptContent, prompt),
 				maxTokens: MAX_TITLE_TOKENS,
+				telemetry: { source: 'title' },
 			}, {
 				signal: abortController.signal,
 			});

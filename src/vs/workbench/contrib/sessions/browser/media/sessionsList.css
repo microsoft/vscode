@@ -1443,7 +1443,7 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
-		color: var(--session-group-foreground, inherit);
+		color: var(--session-group-interaction-foreground, var(--session-group-foreground, inherit));
 	}
 
 	.session-section-icon {
@@ -1553,17 +1553,30 @@
 .sessions-list-control {
 	.monaco-list-row:is(:hover, .hovered) .session-section .session-section-label,
 	.monaco-list-row.focused .session-section .session-section-label {
-		color: var(--session-group-hover-foreground, var(--vscode-strongForeground));
+		color: var(--session-group-interaction-foreground, var(--session-group-hover-foreground, var(--vscode-strongForeground)));
+	}
+
+	.monaco-list .monaco-list-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-focus-foreground);
+	}
+
+	.monaco-list .monaco-list-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-inactive-selection-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.focused .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.focused .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-focus-foreground);
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-section-label,
+	.monaco-list.sticky-scroll-focused .monaco-tree-sticky-row.selected .session-section-label {
+		--session-group-interaction-foreground: var(--session-group-selection-foreground);
 	}
 
 	.monaco-list-row:is(:hover, .hovered) .session-show-more-folders .session-show-more-label,
 	.monaco-list-row.focused .session-show-more-folders .session-show-more-label {
 		color: var(--vscode-strongForeground);
-	}
-
-	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored,
-	.monaco-list .monaco-list-row:is(.selected, .focused) .session-section.session-group-colored .session-section-label {
-		color: inherit;
 	}
 
 	&.session-section-focus-from-pointer {

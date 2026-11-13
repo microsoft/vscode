@@ -4,7 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
+import { LocalMcpServerScope } from '../../../../../services/mcp/common/mcpWorkbenchManagementService.js';
 import { CustomizationType, type PluginCustomization } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { withCustomizationDiscoveryMeta } from '../../../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
 import { CustomizationToggle } from '../../../browser/aiCustomization/customizationToggle.js';
@@ -61,6 +64,40 @@ suite('toolsListWidget', () => {
 			getPluginToolsGroup(plugin('builtin')),
 			getPluginToolsGroup(plugin('future-source')),
 		], ['user', 'user', 'workspace', 'application', 'user']);
+	});
+
+	test('groups client-bundled servers by their VS Code configuration, not the bundle plugin', () => {
+		const webApp = URI.file('/workspace/web-app');
+		const api = URI.file('/workspace/api');
+		const bundlePlugin = { type: CustomizationType.Plugin, id: 'bundle', uri: 'vscode-synced-customization:/standalone', name: 'VS Code Standalone Customizations' } as PluginCustomization;
+		const bundled = (name: string) => ({ id: `session/${name}`, name, pluginId: 'bundle', isPluginProvided: true, isClientBundled: true, source: 'plugin', sourcePluginName: bundlePlugin.name, sourceUri: URI.file('/bundle/.mcp.json') });
+		const grouped = (ToolsListWidget.prototype as unknown as {
+			_computeConnectedEntriesByScope(this: object, query: string): Map<string, { label: string; description?: string }[]>;
+		})._computeConnectedEntriesByScope.call({
+			_workspaceContextService: { getWorkspace: () => ({ folders: [{ uri: webApp, name: 'web-app' }, { uri: api, name: 'api' }] }) },
+			_connectedPlugins: [bundlePlugin],
+			_connectedServers: [
+				bundled('playwright'),
+				bundled('acme-docs'),
+				{ id: 'session/host-only', name: 'host-only', source: 'workspace', sourceUri: URI.joinPath(api, '.mcp.json') },
+			],
+			_mcpWorkbenchService: { local: [{ id: 'playwright-id', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource: URI.joinPath(webApp, '.vscode', 'mcp.json') } }] },
+			_mcpService: { servers: { get: () => [{ definition: { id: 'acme-docs-id', label: 'acme-docs' }, collection: { id: 'acme' }, readDefinitions: () => ({ get: () => ({}) }) }] } },
+			_mcpRegistry: { collections: { get: () => [{ id: 'acme', source: new ExtensionIdentifier('acme.acme-chat-kit') }] } },
+			_labelService: { getUriLabel: (uri: URI) => uri.path.slice('/workspace/'.length) },
+			_agentPluginService: { plugins: { get: () => [] } },
+			_extensionsWorkbenchService: { local: [{ identifier: { id: 'acme.acme-chat-kit' }, displayName: 'Acme Chat Kit' }] },
+			_getHostServerSource: () => ({ label: 'host source' }),
+			_computeConnectedServerEntries: (server: { name: string }, source: { label: string } | undefined) => [{ label: server.name, description: source?.label }],
+		}, '');
+
+		assert.deepStrictEqual(Object.fromEntries([...grouped].map(([key, entries]) => [key, entries.map(entry => `${entry.label}: ${entry.description}`)])), {
+			user: ['acme-docs: Extension: Acme Chat Kit'],
+			[`workspace:${webApp.toString()}`]: ['playwright: web-app/.vscode/mcp.json'],
+			[`workspace:${api.toString()}`]: ['host-only: host source'],
+			workspace: [],
+			application: [],
+		});
 	});
 
 	test('search treats dashes and spaces as equivalent separators with highlights', () => {

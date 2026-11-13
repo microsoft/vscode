@@ -60,5 +60,5 @@ export interface CanvasState {
 	 * Source URIs MUST be redacted from diagnostic logs and MUST NOT be reused
 	 * from persisted state after a provider or host restart.
 	 */
-	url?: URI;
+	uri?: URI;
 }

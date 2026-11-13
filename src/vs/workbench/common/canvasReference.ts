@@ -23,6 +23,12 @@ export interface ICanvasOwner {
 	readonly chat: URI;
 }
 
+/** Options for opening a new canvas of a registered canvas type. */
+export interface ICanvasOpenOptions {
+	/** Asks the user again about the canvas's extension after they declined it, which starts a new runtime for the chat. */
+	readonly retryDeniedConsent?: boolean;
+}
+
 export interface ICanvasReference extends ICanvasOwner {
 	readonly canvas: URI;
 }

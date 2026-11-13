@@ -15,15 +15,16 @@ import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry,
  * Partial replacement of editable {@link AutomationDefinition} fields.
  *
  * Omitted fields are unchanged. Supplied arrays and objects replace their
- * corresponding values in full; they are not merged recursively.
+ * corresponding values in full; they are not merged recursively. Runtime
+ * decoders MUST preserve unrecognized members on these replacement objects
+ * and their nested objects (annotated `@preserveUnknownMembers`) and re-encode
+ * them, so editing known fields does not erase fields from newer versions.
  *
  * @category Automation Actions
  */
 export interface AutomationDefinitionPatch {
 	/** Replacement {@link AutomationDefinition.title}. */
 	title?: string;
-	/** Replacement {@link AutomationDefinition.purpose}. */
-	purpose?: 'scheduledChat';
 	/** Replacement {@link AutomationDefinition.message}. */
 	message?: Message;
 	/**
@@ -106,8 +107,6 @@ export interface AutomationUpdateRequestedAction {
 	resource: URI;
 	/** Editable {@link AutomationDefinition} fields to replace. */
 	changes: AutomationDefinitionPatch;
-	/** Reject the entire update if the current definition modification timestamp differs. */
-	expectedModifiedAt?: string;
 }
 
 /**

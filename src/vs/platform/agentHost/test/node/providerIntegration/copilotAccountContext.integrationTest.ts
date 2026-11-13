@@ -124,14 +124,14 @@ suite('Copilot account context native SDK', () => {
 			}();
 			const discovery: AuthenticateParams = {
 				resource: copilotEntraDiscoveryResource, scopes: ['User.Read'], token: 'synthetic-identity-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
 			};
 			const challenged = waitForState(accounts.authentication!.authenticationRequired, requirement => requirement?.resource.resource === copilotEntraResources.get(copilotEntraM365Audience));
 			const discovering = authentication.authenticate(discovery, [provider]);
 			await challenged;
 			assert.deepStrictEqual(await authentication.authenticate({
 				resource: copilotEntraResources.get(copilotEntraM365Audience)!, scopes: [`${copilotEntraM365Audience}/.default`], token: 'synthetic-m365-token',
-				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId, label: 'fixture@example.test' }),
+				_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId }),
 			}, [provider]), { authenticated: true });
 			assert.deepStrictEqual(await discovering, { authenticated: true });
 			const context = accounts.requireReady();

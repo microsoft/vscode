@@ -42,11 +42,22 @@ export interface IRecordedPullRequestAssociationResult {
 	readonly unmatched: readonly string[];
 }
 
+/** Options for {@link IAgentHostGitStateService.refreshSessionGitState}. */
+export interface IRefreshSessionGitStateOptions {
+	/**
+	 * Announce the refresh through {@link IAgentHostGitStateService.onDidRefreshSessionGitState} even when the
+	 * refreshed state equals the previous one. Set it when the checkout changed in ways the state does not
+	 * describe, such as edits to files that were already modified, or after a Git operation.
+	 */
+	readonly force?: boolean;
+}
+
 export interface IAgentHostGitStateService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fires when the git state for a session is refreshed.
+	 * Fires when a refresh of the git state of a session or chat observed a change, was its first, or was forced
+	 * (see {@link IRefreshSessionGitStateOptions.force}). A refresh that finds nothing new does not fire it.
 	 */
 	readonly onDidRefreshSessionGitState: Event<string>;
 
@@ -58,7 +69,7 @@ export interface IAgentHostGitStateService {
 	 * @param sessionKey The key of the session for which to refresh the git state.
 	 * @param workingDirectory Optional working directory override; when omitted, the session summary's working directory is used.
 	 */
-	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource): Promise<void>;
+	refreshSessionGitState(sessionKey: string, workingDirectory?: URI, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void>;
 
 	/** Returns the latest live or restored Git state for a session or folder-scoped chat. */
 	readonly getSessionGitState?: (sessionKey: string) => ISessionGitState | undefined;

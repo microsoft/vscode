@@ -8,6 +8,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { enumerateLocalCustomizationsForHarness } from '../../../browser/agentSessions/agentHost/agentHostLocalCustomizations.js';
 import { AICustomizationSources, BUILTIN_STORAGE } from '../../../common/aiCustomizationWorkspaceService.js';
@@ -62,6 +63,7 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 			source: AICustomizationSources.builtin,
 			pluginUri: undefined,
 			extensionId: undefined,
+			extensionLabel: undefined,
 			disabled: false,
 		}]);
 	});
@@ -71,16 +73,16 @@ suite('enumerateLocalCustomizationsForHarness', () => {
 		const builtinSkill = URI.file('/builtin/merge/SKILL.md');
 		const workspaceAgent = URI.file('/workspace/.github/agents/local.agent.md');
 		const promptsService = makePromptsService(new Map([
-			[`${PromptsType.agent}/${PromptsStorage.extension}`, [makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension)]],
+			[`${PromptsType.agent}/${PromptsStorage.extension}`, [{ ...makePromptPath(extensionAgent, PromptsType.agent, PromptsStorage.extension), extension: { identifier: new ExtensionIdentifier('acme.acme-chat-kit'), displayName: 'Acme Chat Kit' } } as IPromptPath]],
 			[`${PromptsType.agent}/${PromptsStorage.local}`, [makePromptPath(workspaceAgent, PromptsType.agent, PromptsStorage.local)]],
 			[`${PromptsType.skill}/${BUILTIN_STORAGE}`, [makePromptPath(builtinSkill, PromptsType.skill, BUILTIN_STORAGE as unknown as PromptsStorage)]],
 		]));
 
 		const result = await enumerateLocalCustomizationsForHarness(promptsService, new FakeSyncProvider(), SessionType.CopilotCLI, CancellationToken.None, undefined);
 
-		assert.deepStrictEqual(result.map((e: { uri: URI; type: PromptsType; source: unknown; disabled: boolean }) => ({ uri: e.uri.toString(), type: e.type, source: e.source, disabled: e.disabled })), [
-			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, disabled: false },
-			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, disabled: false },
+		assert.deepStrictEqual(result.map(e => ({ uri: e.uri.toString(), type: e.type, source: e.source, extensionLabel: e.extensionLabel, disabled: e.disabled })), [
+			{ uri: extensionAgent.toString(), type: PromptsType.agent, source: AICustomizationSources.extension, extensionLabel: 'Acme Chat Kit', disabled: false },
+			{ uri: builtinSkill.toString(), type: PromptsType.skill, source: AICustomizationSources.builtin, extensionLabel: undefined, disabled: false },
 		]);
 	});
 

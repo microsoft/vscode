@@ -381,6 +381,9 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly disposed: boolean;
 
+	/** Whether the active editor is still being opened. */
+	readonly isOpeningEditor: boolean;
+
 	setActive(isActive: boolean): void;
 
 	notifyIndexChanged(newIndex: number): void;

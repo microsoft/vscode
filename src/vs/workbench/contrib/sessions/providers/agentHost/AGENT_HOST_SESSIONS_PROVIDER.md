@@ -10,7 +10,7 @@ Remote connection-specific behavior is specified in [REMOTE_AGENT_HOST_SESSIONS_
 
 ## Protocol compatibility
 
-Clients offer the released compatibility baselines from [the generated AHP registry](../../../../../platform/agentHost/common/state/protocol/version/registry.ts), independently of its development version, plus VS Code's wire-compatible `0.10.0` alias. Hosts select the highest exact client-offered version within `>=1.0.0 <2.0.0` or `>=0.9.0 <0.10.0`, or the exact `0.10.0` alias. Client offers and unsupported-version errors list `1.0.0`, `0.10.0`, and `0.9.0` in descending order; malformed offers fail with Invalid Params.
+Clients offer the released compatibility baselines from [the generated AHP registry](../../../../../platform/agentHost/common/state/protocol/version/registry.ts), independently of its development version, plus VS Code's wire-compatible `0.10.0` alias. Hosts select the highest exact client-offered version within `>=1.0.0 <2.0.0` or `>=0.9.0 <0.10.0`, or the exact `0.10.0` alias. Base client offers and unsupported-version errors list `1.0.0`, `0.10.0`, and `0.9.0` in descending order; clients with multi-provider chats enabled additionally offer `1.1.0`. Malformed offers fail with Invalid Params.
 
 Current chat summaries encode archiving in `SessionStatus.IsArchived`. The shared adapter also recognizes a boolean `archived` flag from AHP 0.9 hosts without adding that legacy field to the generated protocol types.
 

@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { agentHostConnectionKinds } from '../../../../../../platform/agentHost/test/common/testAgentHostResourceUriMappers.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { buildAnnotationsUri } from '../../../../../../platform/agentHost/common/annotationsUri.js';
 import { toAgentHostClientCustomization } from '../../../../../../workbench/contrib/chat/common/agentHostSessionCustomizations.js';
 import { getAgentHostChatId } from '../../../../../../platform/agentHost/common/agentHostChatIdentity.js';
 import { agentModelConfigurationReportKey } from '../../../../../../platform/agentHost/common/agentModelConfiguration.js';
@@ -27,13 +28,13 @@ import { extUriIgnorePathCase, isEqual } from '../../../../../../base/common/res
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
+import { AgentSession, CODEX_AGENT_PROVIDER_ID, type IAgentCanvasCloseRequest, type IAgentCanvasInfo, type IAgentCanvasOpenRequest, type AgentCanvasOpenResult, type IAgentCreateChatRequestOptions, type IAgentCreateChatWorkspace, type IAgentCreateSessionConfig, type IAgentSessionConfigCompletionsParams, type IAgentSessionMetadata } from '../../../../../../platform/agentHost/common/agent.js';
 import { ChatProvidersConfigKey, ChatProvidersSettingId } from '../../../../../../platform/agentHost/common/agentHostChatProviders.js';
 import { agentSdkSetupStatusKey } from '../../../../../../platform/agentHost/common/agentSdkSetup.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { AgentHostCodexAgentEnabledSettingId, AgentHostPrewarmSessionsSettingId, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostExtensionInitializeResultMeta } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
-import { AgentHostAutonomousAutomationsCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { AgentHostAutonomousAutomationsCapabilityMetaKey, agentHostAutomationSessionOrigin } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { AgentHostCreateChatWorkspaceCapabilityMetaKey } from '../../../../../../platform/agentHost/common/meta/agentHostCreateChatWorkspaceMeta.js';
 import { CODEX_ACCOUNT_META_KEY } from '../../../../../../platform/agentHost/common/codexAccount.js';
 import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -222,8 +223,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.canvasListRequests.push({ session, chat });
 		return this.canvasDefinitions;
 	}
-	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<void> {
+	override async openSessionCanvas(session: URI, request: IAgentCanvasOpenRequest, chat: URI): Promise<AgentCanvasOpenResult> {
 		this.canvasOpenRequests.push({ session, chat, request });
+		return { kind: 'opened' };
 	}
 	override async closeSessionCanvas(session: URI, request: IAgentCanvasCloseRequest, chat: URI): Promise<void> {
 		this.canvasCloseRequests.push({ session, chat, request });
@@ -967,7 +969,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 	});
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { resource?: URI; provider?: string; title?: string; listsMintedDefaultChat?: boolean; annotations?: SessionState['annotations'] | null; status?: ProtocolSessionStatus; project?: { uri: string; displayName: string }; workingDirectory?: string; workingDirectories?: readonly string[]; changes?: ChangesSummary; workspaceless?: boolean; createdAt?: string; modifiedAt?: string }): void {
 	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = opts?.resource ?? AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -983,6 +985,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			project: opts?.project,
 			workingDirectories: opts?.workingDirectories ? [...opts.workingDirectories] : (opts?.workingDirectory ? [opts.workingDirectory] : undefined),
 			changes: opts?.changes,
+			...(opts?.annotations !== null ? { annotations: opts?.annotations ?? { resource: buildAnnotationsUri(sessionUri.toString()), annotationCount: 0, entryCount: 0 } } : {}),
 			// A VS Code host lists and advertises the default chat it minted.
 			...(opts?.listsMintedDefaultChat !== false ? {
 				chats: [{ resource: buildDefaultChatUri(sessionUri), title: opts?.title ?? `Session ${rawId}`, status: opts?.status ?? ProtocolSessionStatus.Idle }],
@@ -1397,14 +1400,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const publicationsBeforeRegistryRepublish = canvasPublicationCount;
 		agentHost.setChatState(chat, { ...chatState, canvases: [{ resource }] });
 		const registryRepublishCount = canvasPublicationCount - publicationsBeforeRegistryRepublish;
-		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' };
 		agentHost.setCanvasState(resource, canvas);
 		const ready = read();
-		agentHost.setCanvasState(resource, { ...canvas, title: 'Updated', url: 'https://example.test/replaced' });
+		agentHost.setCanvasState(resource, { ...canvas, title: 'Updated', uri: 'https://example.test/replaced' });
 		const updated = read();
 		agentHost.setCanvasState(resource, new Error('Channel unavailable'));
 		const unavailable = read();
-		agentHost.setCanvasState(resource, { ...canvas, url: 'http:relative' });
+		agentHost.setCanvasState(resource, { ...canvas, uri: 'http:relative' });
 		const unsupported = read();
 		agentHost.setChatState(chat, { ...chatState, canvases: [] });
 		const removed = read();
@@ -1423,7 +1426,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			supportsCanvases: true,
 			pending: [{ resource, instanceId: undefined, source: undefined }],
 			registryRepublishCount: 1,
-			ready: [{ resource, instanceId: 'preview', source: canvas.url }],
+			ready: [{ resource, instanceId: 'preview', source: canvas.uri }],
 			updated: [{ resource, instanceId: 'preview', source: 'https://example.test/replaced' }],
 			unavailable: [{ resource, instanceId: undefined, source: undefined }],
 			unsupported: [{ resource, instanceId: 'preview', source: undefined }],
@@ -1435,7 +1438,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const active = read();
 		activeSession.set(undefined, undefined);
 		assert.deepStrictEqual({ active, inactive: read() }, {
-			active: [{ resource, instanceId: 'preview', source: canvas.url }], inactive: undefined,
+			active: [{ resource, instanceId: 'preview', source: canvas.uri }], inactive: undefined,
 		});
 	});
 
@@ -1456,7 +1459,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			activeClients: [], chats: [mainSummary, peerSummary], defaultChat: main.toString(),
 		});
 		agentHost.setChatState(peer.toString(), { ...peerSummary, turns: [], canvases: [{ resource }] });
-		agentHost.setCanvasState(resource, { instanceId: 'peer', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/peer' });
+		agentHost.setCanvasState(resource, { instanceId: 'peer', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/peer' });
 		const chat = session.chats.get().find(chat => chat !== session.mainChat.get())!;
 		disposables.add(autorun(reader => chat.canvases?.read(reader)));
 		const read = () => chat.canvases?.get()?.map(canvas => canvas.resource.toString());
@@ -1489,7 +1492,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const reference = provider.observeCanvas(session.sessionId, session.mainChat.get().resource, URI.parse(resource));
 		const pending = read(reference.object.get());
-		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', url: 'https://example.test/plan' });
+		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', uri: 'https://example.test/plan' });
 		const live = read(reference.object.get());
 		agentHost.setCanvasState(resource, new Error('Canvas closed'));
 		const unavailable = read(reference.object.get());
@@ -1516,7 +1519,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const resource = 'ahp-canvas:/pinned-chat-owner/plan';
 		const summary: ChatSummary = { resource: chat, title: 'Main', status: ProtocolSessionStatus.Idle, modifiedAt: new Date(0).toISOString() };
 		agentHost.setChatState(chat, { ...summary, turns: [], canvases: [{ resource }] });
-		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', url: 'https://example.test/plan' });
+		agentHost.setCanvasState(resource, { instanceId: 'plan', extensionId: 'user:plan', canvasId: 'plan', title: 'Plan', uri: 'https://example.test/plan' });
 		const read = (canvases: readonly ISessionCanvas[] | undefined) => canvases?.map(canvas => ({ resource: canvas.resource.toString(), instanceId: canvas.instanceId }));
 
 		const reference = provider.observeChatCanvases(session.sessionId, session.mainChat.get().resource);
@@ -1941,6 +1944,130 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}
 
+	test('feedback follows advertised annotation resources and gracefully handles their absence', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
+		const resource = URI.parse('ahp-session:/opaque-session');
+		const annotations = { resource: 'ahp-annotations://another-host/reviews?scope=one', annotationCount: 0, entryCount: 0 };
+		const metadata = { ...createSession('opaque-session'), session: resource, provider: 'copilotcli' };
+		agentHost.addSession({ ...metadata, annotations });
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await provider.refreshForTest();
+		const session = provider.getSessions()[0];
+		const initial = provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		const replacement = { ...annotations, resource: 'ahp-annotations:/unrelated-identifier' };
+		agentHost.fireNotification({ channel: 'ahp-root://', type: NotificationType.SessionSummaryChanged, session: resource.toString(), changes: { annotations: replacement } });
+		const updated = provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		const observed: (string | undefined)[] = [];
+		disposables.add(provider.onDidChangeSessions(event => {
+			if (event.changed.includes(session)) {
+				observed.push(provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString());
+			}
+		}));
+		agentHost.addSession(metadata);
+		await provider.refreshForTest();
+		const removed = provider.getFeedbackAnnotationsChannel(session.sessionId);
+		fireSessionAdded(agentHost, 'no-annotations', { resource: URI.parse('ahp-session:/no-annotations'), annotations: null });
+		const absent = provider.getFeedbackAnnotationsChannel(provider.getSessions().find(candidate => candidate !== session)!.sessionId);
+		assert.deepStrictEqual({ initial, updated, removed, absent, observed }, { initial: URI.parse(annotations.resource).toString(), updated: URI.parse(replacement.resource).toString(), removed: undefined, absent: undefined, observed: [undefined] });
+	}));
+
+	for (const source of ['list refresh', 'state hydration'] as const) {
+		test(`feedback observers see annotations advertised late by ${source}`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			const metadata = createSession('late-annotations', { summary: 'Saved', status: ProtocolSessionStatus.Idle });
+			agentHost.addSession(metadata);
+			const provider = createRefreshableProvider(disposables, agentHost);
+			await provider.refreshForTest();
+			const session = provider.getSessions()[0];
+			provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+			const observed = new Set<string | undefined>();
+			disposables.add(provider.onDidChangeSessions(event => {
+				if (event.changed.includes(session)) {
+					observed.add(provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString());
+				}
+			}));
+			const annotations = { resource: 'ahp-annotations://another-host/late', annotationCount: 0, entryCount: 0 };
+			if (source === 'list refresh') {
+				agentHost.addSession({ ...metadata, annotations });
+				await provider.refreshForTest();
+			} else {
+				agentHost.setSessionState('late-annotations', 'copilotcli', {
+					provider: 'copilotcli', title: 'Saved', status: ProtocolSessionStatus.Idle,
+					lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [], annotations,
+				});
+			}
+			assert.deepStrictEqual({
+				channel: provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString(),
+				observed: [...observed],
+			}, { channel: annotations.resource, observed: [annotations.resource] });
+		}));
+	}
+
+	test('feedback state hydration preserves newer catalogue resources until annotations change', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.initializeResult.set({ ...agentHost.initializeResult.get(), _meta: undefined }, undefined);
+		const annotations = { resource: 'ahp-annotations://another-host/original', annotationCount: 0, entryCount: 0 };
+		agentHost.addSession({ ...createSession('annotations-hydration', { summary: 'Saved', status: ProtocolSessionStatus.Idle }), annotations });
+		const provider = createRefreshableProvider(disposables, agentHost);
+		await provider.refreshForTest();
+		const session = provider.getSessions()[0];
+		provider.getSessionConfig(session.sessionId, session.mainChat.get().resource);
+		const state: SessionState = {
+			provider: 'copilotcli', title: 'Saved', status: ProtocolSessionStatus.Idle,
+			lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+		};
+		const channel = () => provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', state);
+		const firstOmitted = channel();
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', { ...state, annotations });
+		const replacement = { ...annotations, resource: 'ahp-annotations://another-host/catalogue' };
+		fireSessionSummaryChanged(agentHost, 'annotations-hydration', { annotations: replacement });
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', { ...state, annotations: { ...annotations }, activity: 'Continuing' });
+		const unchangedSnapshot = channel();
+		const observed: (string | undefined)[] = [];
+		disposables.add(provider.onDidChangeSessions(event => {
+			if (event.changed.includes(session)) {
+				observed.push(channel());
+			}
+		}));
+		const changed = { ...annotations, resource: 'ahp-annotations://another-host/state' };
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', { ...state, annotations: changed });
+		agentHost.setSessionState('annotations-hydration', 'copilotcli', state);
+		assert.deepStrictEqual({
+			firstOmitted, unchangedSnapshot, observed, removed: channel(),
+		}, {
+			firstOmitted: annotations.resource, unchangedSnapshot: replacement.resource, observed: [changed.resource, undefined], removed: undefined,
+		});
+	}));
+
+	for (const identity of ['initialize metadata', 'root hostBuild', 'unmarked'] as const) {
+		test(`feedback falls back to the pre-sync annotations suffix only for a native host (${identity})`, () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+			agentHost.initializeResult.set({
+				...agentHost.initializeResult.get(),
+				protocolVersion: '1.1.0',
+				_meta: identity === 'initialize metadata' ? JSON.parse('{"vscode.agentHost":true}') : undefined,
+			}, undefined);
+			if (identity === 'root hostBuild') {
+				const root = agentHost.rootState.value;
+				assert.ok(root && !(root instanceof Error));
+				agentHost.setRootState({ ...root, _meta: JSON.parse('{"hostBuild":{"version":"1.135.0-insider"}}') });
+			}
+			const provider = createRefreshableProvider(disposables, agentHost);
+			await provider.refreshForTest();
+			agentHost.fireNotification(JSON.parse('{"channel":"ahp-root://","type":"root/sessionAdded","summary":{"resource":"copilotcli:/pre-sync-feedback","provider":"copilotcli","title":"Pre-sync feedback","status":1,"createdAt":"2026-11-13T00:00:00Z","modifiedAt":"2026-11-13T00:00:00Z","chats":[]}}'));
+			const session = provider.getSessions()[0];
+			const resolve = () => provider.getFeedbackAnnotationsChannel(session.sessionId)?.annotationsUri.toString();
+			const legacy = resolve();
+			const advertised: (string | undefined)[] = [];
+			for (const resource of ['review-store://elsewhere/opaque?generation=2', 'copilotcli:/another-session/annotations']) {
+				fireSessionSummaryChanged(agentHost, 'pre-sync-feedback', { annotations: { resource, annotationCount: 0, entryCount: 0 } });
+				advertised.push(resolve());
+			}
+			assert.deepStrictEqual({ legacy, advertised }, {
+				legacy: identity === 'unmarked' ? undefined : 'copilotcli:/pre-sync-feedback/annotations',
+				advertised: ['review-store://elsewhere/opaque?generation=2', 'copilotcli:/another-session/annotations'].map(resource => URI.parse(resource).toString()),
+			});
+		}));
+	}
+
 	for (const agentProvider of ['claude', 'codex']) {
 		for (const initiallyBlocked of [false, true]) {
 			test(`policy-disabled ${agentProvider} history suspends changeset and feedback access (cold=${initiallyBlocked})`, () => {
@@ -1960,6 +2087,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 				agentHost.setSessionState('policy-changes', agentProvider, {
 					provider: agentProvider, title: 'Saved', status: ProtocolSessionStatus.Idle,
 					lifecycle: SessionLifecycle.Ready, activeClients: [], chats: [],
+					annotations: { resource: buildAnnotationsUri(backend), annotationCount: 0, entryCount: 0 },
 				});
 				agentHost.setChatState(chatUri, {
 					resource: chatUri, title: '', status: ProtocolSessionStatus.Idle,
@@ -6117,7 +6245,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const storageService = disposables.add(new InMemoryStorageService());
 		await persistCachedSessions(disposables, storageService, [
 			{ ...createSession('cached-run', { summary: 'Cached run' }), origin: automationOrigin },
-			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: { ...automationOrigin, purpose: 'scheduledChat' } },
+			{ ...createSession('cached-scheduled', { summary: 'Cached scheduled chat' }), origin: agentHostAutomationSessionOrigin(automationOrigin.automation, automationOrigin.run, true) },
 			createSession('cached-plain', { summary: 'Cached plain' }),
 		]);
 		const nextHost = new MockAgentHostService();

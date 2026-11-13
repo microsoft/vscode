@@ -231,7 +231,8 @@ export interface INativeAppWindow {
 	readonly iconDataUrl?: string;
 
 	/**
-	 * Where the window shows on screen, in the coordinates of Electron's `screen`, where the platform tells: macOS does.
+	 * Where the window is, in the coordinates of Electron's `screen`, even when the screen doesn't show it, where the
+	 * platform tells: macOS does.
 	 */
 	readonly bounds?: IRectangle;
 }
@@ -441,8 +442,10 @@ export interface ICommonNativeHostService {
 
 	/**
 	 * Lists the windows of other applications, front to back, so that the first one is the window that the user is
-	 * looking at, or the one that they left for VS Code. The windows of VS Code are left out, except from the window
-	 * picker of Wayland sessions, which lists every window and identifies none of them.
+	 * looking at, or the one that they left for VS Code. On macOS, the windows that the screen doesn't show, on other
+	 * Spaces, minimized or of hidden applications, come after the windows on screen that a capture can take. The windows
+	 * of VS Code are left out, except from the window picker of Wayland sessions, which lists every window and
+	 * identifies none of them.
 	 *
 	 * Without `interactive`, this never shows system UI: it reports `permissionRequired` instead of asking for the Screen
 	 * Recording permission on macOS, and `systemPicker` instead of showing the window picker of Wayland sessions. Only set

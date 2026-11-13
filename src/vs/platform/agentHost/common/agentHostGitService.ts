@@ -407,6 +407,19 @@ export interface IAgentHostGitService {
 	 * diff here) and the review service, so both agree on the exact baseline.
 	 */
 	resolveBranchBaselineCommit(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
+	/**
+	 * Returns a token that is equal across calls exactly while the Branch Changes of `workingDirectory` against
+	 * `baseBranch` stay the same: it covers HEAD, the merge base, and the paths `git status` reports together with their
+	 * on-disk size and modification time, so editing an already modified file changes it. It is much cheaper than
+	 * computing the diff. `undefined` when it cannot be determined, in which case callers must compute the diff.
+	 */
+	getBranchDiffFingerprint?(workingDirectory: URI, baseBranch?: string): Promise<string | undefined>;
+	/**
+	 * Whether any of `resources`, which changed under the repository of `workingDirectory`, can affect what Git reports: it is
+	 * tracked, not ignored, or inside the `.git` directory. `false` when all of them are ignored, such as build output.
+	 * `undefined` when that cannot be determined, in which case callers must assume they matter.
+	 */
+	hasUnignoredPaths?(workingDirectory: URI, resources: readonly URI[]): Promise<boolean | undefined>;
 
 	/**
 	 * Reads a single git blob via `git show <ref>:<repoRelativePath>` from

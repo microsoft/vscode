@@ -21,7 +21,7 @@ import type { IRequestService } from '../../../request/common/request.js';
 import { ITelemetryData, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
 import { CapturingTelemetryService } from '../../../telemetry/test/common/testTelemetryService.js';
 import { AgentHostTelemetryLevelConfigKey, telemetryLevelToAgentHostConfigValue } from '../../common/agentHostSchema.js';
-import { AgentHostRestrictedTelemetrySender, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
+import { AgentHostRestrictedTelemetrySender, IAgentHostGitHubTelemetryContext, IAgentHostRestrictedTelemetry, IAgentHostInternalTelemetryContext, IAgentHostRestrictedTelemetryContext, TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 import { AgentHostTelemetryService, createAgentHostTelemetryService, type IAgentHostTelemetryService, updateAgentHostTelemetryLevelFromConfig } from '../../node/agentHostTelemetryService.js';
 import { AgentHostInternalTelemetrySender } from '../../node/agentHostMicrosoftTelemetry.js';
 
@@ -52,6 +52,9 @@ class TestRestrictedSink implements IAgentHostRestrictedTelemetry {
 	readonly commonProperties: Record<string, string | boolean> = {};
 
 	sendGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
+		this.standard.push(eventName);
+	}
+	sendGHTelemetryEventForContext(_context: IAgentHostGitHubTelemetryContext, eventName: string, _properties?: TelemetryProps): void {
 		this.standard.push(eventName);
 	}
 	sendEnhancedGHTelemetryEvent(eventName: string, _properties?: TelemetryProps): void {
