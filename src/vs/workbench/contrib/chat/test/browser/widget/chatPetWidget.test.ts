@@ -2871,12 +2871,28 @@ suite('ChatPetWidget', () => {
 		}();
 		widget.setHost({ ...firstHost, model: constObservable(model) });
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 2);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Verify streamed updates do not reconcile unchanged pets.
+		const updateSubagentPets = sinon.spy(widget['_updateSubagentPets']);
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Observe reconciliation without exposing a test-only API.
+		widget['_updateSubagentPets'] = updateSubagentPets;
 		reads[0] = 0;
 		changes[1].fire({ reason: 'other' });
 		assert.strictEqual(reads[0], 0);
+		assert.ok(updateSubagentPets.notCalled);
 		tools[0].toolSpecificData = { kind: 'subagent', isActive: false };
 		changes[0].fire({ reason: 'other' });
 		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 1);
+	});
+
+	test('subagent pets react to tool metadata notifications without a response event', () => {
+		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
+		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
+		tool.toolSpecificData = { kind: 'subagent', isActive: true };
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 1);
+		tool.toolSpecificData = { kind: 'subagent', isActive: false };
+		tool.notifyToolSpecificDataChanged();
+		assert.strictEqual(overlay.querySelectorAll('.chat-subagent-pet').length, 0);
 	});
 
 	test('subagent pets fill available slots without replacing active pets', async () => {

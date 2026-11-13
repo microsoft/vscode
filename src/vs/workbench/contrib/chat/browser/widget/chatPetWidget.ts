@@ -1499,10 +1499,10 @@ class SubagentPet extends Disposable {
 
 	/** Advances relocation from disappearance to reappearance and landing. */
 	private _advanceRespawn(): void {
-		const overlay = this._host.overlay.getBoundingClientRect();
-		const input = this._host.getDragBounds();
 		const size = getSubagentPetSize(this._host.scale);
 		if (this._respawnPhase === 'despawning') {
+			const overlay = this._host.overlay.getBoundingClientRect();
+			const input = this._host.getDragBounds();
 			this._respawnPhase = 'respawning';
 			this._left = Math.max(input.left - overlay.left, Math.min(this._left, input.right - overlay.left - size));
 			this._top = this._host.getMovementBounds().top - overlay.top;
@@ -2177,11 +2177,27 @@ export class ChatPetWidget extends Disposable {
 							continue;
 						}
 						part.toolSpecificDataKind.read(responseReader);
-						part.state.read(responseReader);
 						const data = part.toolSpecificData;
+						if (data?.kind === 'subagent') {
+							// Metadata updates also notify through the tool state.
+							part.state.read(responseReader);
+						}
 						if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, responseReader))) {
 							responseSubagentIds.add(JSON.stringify([request.id, part.toolCallId]));
 						}
+					}
+					// Skip pet updates when a streamed response leaves the active subagents unchanged.
+					let changed = responseSubagentIds.size !== previousResponseSubagentIds.size;
+					if (!changed) {
+						for (const id of responseSubagentIds) {
+							if (!previousResponseSubagentIds.has(id)) {
+								changed = true;
+								break;
+							}
+						}
+					}
+					if (!changed) {
+						return;
 					}
 					for (const id of previousResponseSubagentIds) {
 						activeSubagentIds.delete(id);
@@ -3324,7 +3340,7 @@ export class ChatPetWidget extends Disposable {
 		if (added || removed) {
 			this._scheduleSubagentPetResize();
 		}
-		if (removed) {
+		if (removed && this._subagentPets.size) {
 			this._settleSubagentPets();
 		}
 	}
@@ -3361,11 +3377,12 @@ export class ChatPetWidget extends Disposable {
 		const overlay = this._overlay.getBoundingClientRect();
 		const platforms = this._getPlatforms();
 		const floor = platformChanged ? this.movementBounds.getBoundingClientRect().bottom : Math.min(this.dragBounds.getBoundingClientRect().top, this.movementBounds.getBoundingClientRect().bottom);
+		const size = getSubagentPetSize(this._scale);
 		const subagentPets = [...this._subagentPets.values()].filter(subagentPet => !subagentPet.isRespawning()).map(subagentPet => ({
 			subagentPet,
 			left: subagentPet.left,
 			top: subagentPet.top,
-			size: getSubagentPetSize(this._scale),
+			size,
 		})).sort((a, b) => b.top - a.top);
 		for (const [index, entry] of subagentPets.entries()) {
 			const landing = getChatPetFallTarget(overlay.left + entry.left, overlay.top + entry.top - POSITION_EPSILON, entry.size, entry.size, platforms, floor);
