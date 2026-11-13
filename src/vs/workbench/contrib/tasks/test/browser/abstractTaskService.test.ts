@@ -10,12 +10,87 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { AbstractTaskService } from '../../browser/abstractTaskService.js';
+import { ProblemMatcherRegistry } from '../../common/problemMatcher.js';
 import { ITaskProvider, IWorkspaceFolderTaskResult } from '../../common/taskService.js';
-import { ContributedTask, ITaskSet, JsonSchemaVersion, Task, TaskScope, TaskSourceKind } from '../../common/tasks.js';
+import { ITaskSummary, TaskExecuteKind } from '../../common/taskSystem.js';
+import { ContributedTask, ITaskSet, JsonSchemaVersion, Task, TaskRunSource, TaskScope, TaskSourceKind } from '../../common/tasks.js';
+import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 
 suite('AbstractTaskService', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	teardown(() => sinon.restore());
+
+	for (const runSource of [TaskRunSource.System, TaskRunSource.Reconnect]) {
+		for (const preparation of ['save', 'matchers'] as const) {
+			test(`does not dispatch ${runSource} tasks when trust is revoked during ${preparation}`, async () => {
+				const trust = store.add(new TestWorkspaceTrustManagementService());
+				const pending = new DeferredPromise<void>();
+				const entered = new DeferredPromise<void>();
+				const pause = async () => {
+					await entered.complete();
+					await pending.p;
+				};
+				sinon.stub(ProblemMatcherRegistry, 'onReady').callsFake(preparation === 'matchers' ? pause : async () => { });
+				const launches: string[] = [];
+				const errors: Error[] = [];
+				const task = new ContributedTask('test', {
+					kind: TaskSourceKind.Extension, label: 'test', extension: 'test', scope: TaskScope.Workspace, workspaceFolder: undefined
+				}, 'test', 'test', { type: 'test', _key: 'test' }, {}, false, {}, {});
+				const dispatch = (kind: string) => {
+					launches.push(kind);
+					return { kind: TaskExecuteKind.Started, task, promise: Promise.resolve({ exitCode: 0 }) };
+				};
+				const service = Object.assign(Object.create(AbstractTaskService.prototype), {
+					_workspaceTrustManagementService: trust,
+					_trust: async () => trust.isWorkspaceTrusted(),
+					_createResolver: () => ({}),
+					_saveBeforeRun: async () => {
+						if (preparation === 'save') {
+							await pause();
+						}
+						return false;
+					},
+					_getTaskSystem: () => ({
+						run: () => dispatch('run'),
+						reconnect: () => dispatch('reconnect')
+					}),
+					_handleExecuteResult: async (result: { promise: Promise<ITaskSummary> }) => result.promise,
+					_handleError: (error: Error) => errors.push(error)
+				}) as AbstractTaskService;
+				const execution = service.run(task, undefined, runSource);
+				const rejected = assert.rejects(execution, /workspace is no longer trusted/);
+				await entered.p;
+				await trust.setWorkspaceTrust(false);
+				await pending.complete();
+				await rejected;
+				assert.deepStrictEqual({ launches, errors: errors.length }, { launches: [], errors: 1 });
+			});
+		}
+	}
+
+	test('dispatches tasks normally while workspace trust is retained', async () => {
+		const trust = store.add(new TestWorkspaceTrustManagementService());
+		sinon.stub(ProblemMatcherRegistry, 'onReady').resolves();
+		const task = new ContributedTask('test', {
+			kind: TaskSourceKind.Extension, label: 'test', extension: 'test', scope: TaskScope.Workspace, workspaceFolder: undefined
+		}, 'test', 'test', { type: 'test', _key: 'test' }, {}, false, {}, {});
+		const launches: Task[] = [];
+		const service = Object.assign(Object.create(AbstractTaskService.prototype), {
+			_workspaceTrustManagementService: trust,
+			_trust: async () => true,
+			_createResolver: () => ({}),
+			_saveBeforeRun: async () => false,
+			_getTaskSystem: () => ({
+				run: (task: Task) => {
+					launches.push(task);
+					return { kind: TaskExecuteKind.Started, task, promise: Promise.resolve({ exitCode: 0 }) };
+				}
+			}),
+			_handleExecuteResult: async (result: { promise: Promise<ITaskSummary> }) => result.promise
+		}) as AbstractTaskService;
+		assert.deepStrictEqual({ result: await service.run(task), launches }, { result: { exitCode: 0 }, launches: [task] });
+	});
 
 	for (const settlement of ['reject', 'resolve'] as const) {
 		test(`counts a timed-out provider only once when it later ${settlement}s`, async () => {
