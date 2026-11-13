@@ -15074,10 +15074,13 @@ suite('AgentService (node dispatcher)', () => {
 				renamed: renamed?.title,
 				directories: [renamed?.workingDirectories, metadata?.workingDirectories],
 				notified: additions.some(notification => notification.summary.resource === session.toString()),
+				annotations: additions.find(notification => notification.summary.resource === session.toString())?.summary.annotations,
 				materialized: !!getStateManager(svc).getSessionState(session.toString()),
 			}, {
 				initial: 'Initial title', external: true, recency: new Date(now + 60_000).toISOString(), renamed: 'Renamed',
-				directories: [['file:///new-project'], ['file:///moved-project']], notified: true, materialized: false,
+				directories: [['file:///new-project'], ['file:///moved-project']], notified: true,
+				annotations: { resource: buildAnnotationsUri(session.toString()), annotationCount: 0, entryCount: 0 },
+				materialized: false,
 			});
 		});
 

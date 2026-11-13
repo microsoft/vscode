@@ -904,6 +904,39 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
+	test('annotation mutations update the announced summary without restoring an evicted session', () => {
+		const session = 'ahp-session:/evicted-annotations';
+		const resource = buildAnnotationsUri(session);
+		manager.createSession(makeSessionSummary(session));
+		manager.removeSession(session);
+		const notifications: INotification[] = [];
+		disposables.add(manager.onDidEmitNotification(notification => notifications.push(notification)));
+		const annotation = {
+			id: 'review', origin: { session }, resource: 'file:///workspace/file.ts', resolved: false,
+			entries: [{ id: 'comment', text: 'Review this' }, { id: 'reply', text: 'On it' }],
+		};
+
+		manager.dispatchServerAction(resource, { type: ActionType.AnnotationsSet, annotation });
+		const added = manager.getSurfacedSessionSummary(session)?.annotations;
+		manager.dispatchServerAction(resource, { type: ActionType.AnnotationsRemoved, annotationId: annotation.id });
+		manager.flushPendingSessionSummaries();
+
+		assert.deepStrictEqual({
+			added,
+			removed: manager.getSurfacedSessionSummary(session)?.annotations,
+			session: manager.getSessionState(session),
+			notifications,
+		}, {
+			added: { resource, annotationCount: 1, entryCount: 2 },
+			removed: { resource, annotationCount: 0, entryCount: 0 },
+			session: undefined,
+			notifications: [1, 0].map(annotationCount => ({
+				type: NotificationType.SessionSummaryChanged, channel: ROOT_STATE_URI, session,
+				changes: { annotations: { resource, annotationCount, entryCount: annotationCount * 2 } },
+			})),
+		});
+	});
+
 	for (const owner of [sessionUri, 'ahp-session:/annotations-cleanup']) {
 		test(`deleteSession clears parent and subagent annotations (${owner})`, () => {
 			const subagent = buildSubagentSessionUri(owner, 'tool-call');

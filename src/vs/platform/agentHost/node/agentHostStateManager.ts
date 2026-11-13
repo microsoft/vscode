@@ -2750,10 +2750,13 @@ export class AgentHostStateManager extends Disposable {
 	}
 
 	private _updateAnnotationsSummary(session: URI): void {
+		const annotations = this.getAnnotationsSummary(session);
 		const entry = this._sessionStates.get(session);
 		if (entry) {
-			entry.state = { ...entry.state, annotations: this.getAnnotationsSummary(session) };
+			entry.state = { ...entry.state, annotations };
 			this._summaryNotifier.markDirty(session);
+		} else if (!structuralEquals(this._summaryNotifier.getAnnounced(session)?.annotations, annotations)) {
+			this._summaryNotifier.applyAnnouncedChanges(session, { annotations });
 		}
 	}
 

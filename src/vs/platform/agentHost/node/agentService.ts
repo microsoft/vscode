@@ -6449,6 +6449,7 @@ export class AgentService extends Disposable implements IAgentService {
 			modifiedAt: new Date(meta.modifiedTime).toISOString(),
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			workingDirectories: meta.workingDirectories?.map(d => d.toString()),
+			annotations: this._stateManager.getAnnotationsSummary(meta.session.toString()),
 			...(defaultChat ? { defaultChat, chats: [{ resource: defaultChat, title: meta.summary ?? '' }] } : {}),
 			_meta: meta._meta,
 		};

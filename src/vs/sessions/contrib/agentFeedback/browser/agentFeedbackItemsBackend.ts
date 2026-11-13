@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
-import { getComparisonKey } from '../../../../base/common/resources.js';
+import { getComparisonKey, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
@@ -381,7 +381,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 
 		// Release a deleted session's subscription and its cached feedback.
 		this._register(this._sessionsManagementService.onDidDeleteSession(session => this._releaseChannel(session.resource)));
-		// Rebind held subscriptions to the provider's current connection, and
+		// Rebind held subscriptions to the provider's current connection and resource, and
 		// resume those of visible sessions whose channel became available again.
 		this._register(this._sessionsManagementService.onDidChangeSessions(() => {
 			for (const [key, resource] of this._sessionResourceByKey) {
@@ -692,10 +692,14 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (existing) {
 			// A remote host can reconnect as a new client, leaving the old connection dead.
 			const current = existing.provider.getFeedbackAnnotationsChannel(existing.sessionId);
-			if (current?.connection === existing.connection) {
+			if (current?.connection === existing.connection && isEqual(current.annotationsUri, existing.annotationsUri)) {
 				return existing;
 			}
 			this._suspendChannel(sessionResource);
+			if (current && !isEqual(current.annotationsUri, existing.annotationsUri)) {
+				this._cacheBySession.delete(key);
+				this._signatureBySession.delete(key);
+			}
 			if (!current) {
 				return undefined;
 			}

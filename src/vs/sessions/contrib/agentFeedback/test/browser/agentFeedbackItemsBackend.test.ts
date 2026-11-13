@@ -67,7 +67,9 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 			override readonly providerId = 'agenthost-test';
 			override readonly sessionId = `s${i + 1}`;
 		}());
-		const annotationsUri = (session: ISession) => URI.parse(`test:/${session.sessionId}/annotations`);
+		const annotationResources = new Map<string, URI>();
+		const annotationsUri = (session: ISession) => annotationResources.get(session.sessionId) ?? URI.parse(`test:/${session.sessionId}/annotations`);
+		const changes = store.add(new Emitter<ISessionsChangeEvent>());
 		const hostState = new Map<string, AnnotationsState>();
 		// Channels subscribed on the host.
 		const open = new Set<string>();
@@ -84,6 +86,11 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const host = {
 			connected: true,
 			open,
+			dispatched: [] as string[],
+			replaceAnnotationsResource: (session: ISession, resource: URI) => {
+				annotationResources.set(session.sessionId, resource);
+				changes.fire({ added: [], changed: [session], removed: [] });
+			},
 			/** Feedback texts the host holds for the session. */
 			items: (session: ISession) => hostState.get(annotationsUri(session).toString())?.annotations.map(annotation => annotation.entries[0].text) ?? [],
 			/** Adds feedback from another client, such as the agent. */
@@ -108,6 +115,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 				return manager.getSubscription(kind, resource, owner);
 			}
 			override dispatch(channel: string, action: ClientAnnotationsAction): void {
+				host.dispatched.push(channel);
 				const seq = manager.dispatchOptimistic(channel, action);
 				if (host.connected) {
 					hostApply(channel, action, { clientId, clientSeq: seq });
@@ -123,7 +131,7 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override onDidDeleteSession = Event.None;
-			override onDidChangeSessions = Event.None;
+			override onDidChangeSessions = changes.event;
 			override getSession(resource: URI) { return sessions.find(session => session.resource.toString() === resource.toString()); }
 		});
 		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
@@ -150,6 +158,44 @@ suite('AnnotationsAgentFeedbackItemsBackend', () => {
 		});
 		return { backend, host, sessions, showPanes, feedback };
 	}
+
+	test('rebinds a held subscription when the advertised annotations resource changes on the same connection', async () => {
+		const { backend, host, sessions: [session], showPanes, feedback } = createConnectedBackend(1);
+		showPanes([session]);
+		host.addFeedback(session, 'old');
+		backend.getItems(session.resource);
+		await timeout(0);
+		const before = backend.getItems(session.resource).map(item => item.text);
+		const replacement = URI.parse('review-store://another-host/reviews?generation=2');
+
+		host.replaceAnnotationsResource(session, replacement);
+		const pending = {
+			items: backend.getItems(session.resource).map(item => item.text),
+			loaded: backend.hasLoaded(session.resource),
+			open: [...host.open],
+		};
+		await timeout(0);
+		host.addFeedback(session, 'new');
+		backend.upsert(feedback('written', session));
+
+		assert.deepStrictEqual({
+			before, pending,
+			items: backend.getItems(session.resource).map(item => item.text),
+			hostItems: host.items(session),
+			channel: backend.getAnnotationsChannelResource(session.resource)?.toString(),
+			dispatched: host.dispatched,
+			open: [...host.open],
+		}, {
+			before: ['old'],
+			pending: { items: [], loaded: false, open: [replacement.toString()] },
+			items: ['new', 'written'],
+			hostItems: ['new', 'written'],
+			channel: replacement.toString(),
+			dispatched: [replacement.toString()],
+			open: [replacement.toString()],
+		});
+	});
+
 	test('scoped observation shares and releases annotations without populating the persistent cache', async () => {
 		const sessionResource = URI.parse('agent-host-claude:/saved');
 		const annotationsUri = URI.parse('claude:/saved/annotations');
