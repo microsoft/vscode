@@ -132,16 +132,30 @@ suite('SessionsTitleBarWidget', () => {
 		Reflect.set(widget, '_isQuickChat', false);
 		Reflect.set(widget, '_sessionTitle', undefined);
 		const hoverDelegate: IHoverDelegate = { placement: 'element', delay: 500, showHover: () => undefined };
-		const hovers: { content: string | undefined; sharedDelegate: boolean }[] = [];
+		const hovers: { target: HTMLElement; content: () => string | undefined; sharedDelegate: boolean }[] = [];
 		Reflect.set(widget, 'options', { hoverDelegate });
 		Reflect.set(widget, 'hoverService', upcastPartial<IHoverService>({
-			setupManagedHover: (delegate, _target, content) => {
-				hovers.push({ content: typeof content === 'string' ? content : undefined, sharedDelegate: delegate === hoverDelegate });
+			setupManagedHover: (delegate, target, content) => {
+				hovers.push({
+					target,
+					content: typeof content === 'function' ? content as () => string | undefined : () => typeof content === 'string' ? content : undefined,
+					sharedDelegate: delegate === hoverDelegate,
+				});
 				return { ...Disposable.None, show: () => { }, hide: () => { }, update: () => { } };
 			},
 		}));
 
 		renderActiveSession.call(widget);
+		const workspaceHover = hovers.find(hover => hover.target.classList.contains('agent-sessions-titlebar-workspace'))!;
+		const branchHover = hovers.find(hover => hover.target.classList.contains('agent-sessions-titlebar-branch'))!;
+		Object.defineProperties(workspaceHover.target, {
+			clientWidth: { configurable: true, value: 100 },
+			scrollWidth: { configurable: true, value: 100 },
+		});
+		Object.defineProperties(branchHover.target, {
+			clientWidth: { configurable: true, value: 80 },
+			scrollWidth: { configurable: true, value: 160 },
+		});
 
 		assert.deepStrictEqual({
 			ariaLabel: container.getAttribute('aria-label'),
@@ -150,7 +164,7 @@ suite('SessionsTitleBarWidget', () => {
 			workspaceIcon: !!container.querySelector('.codicon-worktree-compact'),
 			branchIcon: !!container.querySelector('.codicon-git-branch-compact'),
 			branch: container.querySelector('.agent-sessions-titlebar-branch')?.textContent,
-			hovers,
+			hovers: hovers.map(hover => ({ content: hover.content(), sharedDelegate: hover.sharedDelegate })),
 			nativeTitles: container.querySelectorAll('[title]').length,
 		}, {
 			ariaLabel: 'Show Sessions: vscode, branch feature/session-branch',
@@ -160,7 +174,7 @@ suite('SessionsTitleBarWidget', () => {
 			branchIcon: true,
 			branch: 'feature/session-branch',
 			hovers: [
-				{ content: 'vscode', sharedDelegate: true },
+				{ content: undefined, sharedDelegate: true },
 				{ content: 'feature/session-branch', sharedDelegate: true },
 			],
 			nativeTitles: 0,

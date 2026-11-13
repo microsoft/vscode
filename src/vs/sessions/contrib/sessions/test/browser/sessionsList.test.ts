@@ -2283,11 +2283,13 @@ suite('Sessions - SessionsList', () => {
 				const collapsed = getHeader()?.querySelector('.session-section-chevron')?.className;
 				getHeader()?.click();
 				const expanded = getHeader()?.querySelector('.session-section-chevron')?.className;
+				const disclosureRow = getHeader()?.closest('.monaco-list-row')?.classList.contains('sessions-disclosure-row');
 
-				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded }, {
+				assert.deepStrictEqual({ stickyHeaders, collapsed, expanded, disclosureRow }, {
 					stickyHeaders: [label],
 					collapsed: 'session-section-chevron collapsible codicon codicon-chevron-right',
 					expanded: 'session-section-chevron collapsible codicon codicon-chevron-down',
+					disclosureRow: true,
 				});
 			});
 		}
@@ -10906,6 +10908,32 @@ suite('Sessions - SessionsList', () => {
 		function chatRowTitles(container: HTMLElement): string[] {
 			return [...container.querySelectorAll<HTMLElement>('.session-chat-title')].map(element => element.textContent ?? '');
 		}
+
+		test('marks a collapsed parent session, but not a leaf session, as a disclosure row', () => {
+			const main = createChat('Main chat', ChatOriginKind.User);
+			const peer = createChat('Peer chat', ChatOriginKind.User);
+			const parentBase = createTestSession('Parent').session;
+			const parent: ISession = {
+				...parentBase,
+				chats: constObservable([main, peer]),
+				mainChat: constObservable(main),
+				capabilities: constObservable({ supportsMultipleChats: true }),
+			};
+			const parentContainer = renderSessionChatsList(parent, undefined, false, false).container;
+			const leafContainer = renderSessionChatsList(createTestSession('Leaf').session, undefined, false, false).container;
+			const parentRow = parentContainer.querySelector('.session-item')?.closest('.monaco-list-row');
+			const leafRow = leafContainer.querySelector('.session-item')?.closest('.monaco-list-row');
+
+			assert.deepStrictEqual({
+				parentCollapsed: parentRow?.getAttribute('aria-expanded'),
+				parentDisclosure: parentRow?.classList.contains('sessions-disclosure-row'),
+				leafDisclosure: leafRow?.classList.contains('sessions-disclosure-row'),
+			}, {
+				parentCollapsed: 'false',
+				parentDisclosure: true,
+				leafDisclosure: false,
+			});
+		});
 
 		/** Section, session and chat rows top to bottom, indented by nesting; done sessions and standalone chats are marked. */
 		function renderedTreeRows(container: HTMLElement): string[] {

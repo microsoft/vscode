@@ -397,7 +397,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			workspaceEl.textContent = contextTitle;
 			workspaceGroup.appendChild(workspaceEl);
 			centerGroup.appendChild(workspaceGroup);
-			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), workspaceEl, contextTitle));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+				this.options.hoverDelegate ?? getDefaultHoverDelegate('element'),
+				workspaceEl,
+				() => workspaceEl.scrollWidth > workspaceEl.clientWidth ? contextTitle : undefined,
+			));
 		}
 
 		if (workspaceInfo?.branch) {
@@ -413,7 +417,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			branchEl.textContent = workspaceInfo.branch;
 			branchGroup.appendChild(branchEl);
 			centerGroup.appendChild(branchGroup);
-			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), branchEl, workspaceInfo.branch));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+				this.options.hoverDelegate ?? getDefaultHoverDelegate('element'),
+				branchEl,
+				() => branchEl.scrollWidth > branchEl.clientWidth ? workspaceInfo.branch : undefined,
+			));
 		}
 
 		sessionPill.appendChild(centerGroup);
