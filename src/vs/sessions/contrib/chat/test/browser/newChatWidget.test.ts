@@ -36,6 +36,7 @@ import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/c
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -331,7 +332,7 @@ interface ISendHarness {
 	_lastBackgroundSentSessionResource?: URI;
 	_lastBackgroundSendOptions?: ISendRequestOptions;
 	readonly _newChatInput?: Pick<SharedChatInputComposer, 'hasInput'>;
-	readonly notificationService: { error(message: string | Error): void; info?(message: string): void };
+	readonly notificationService: { error(message: string | Error): void; info?(message: string): void; prompt?: INotificationService['prompt'] };
 	readonly _pendingBackgroundSends: { set(key: object, value: IDisposable): void; deleteAndDispose(key: object): void };
 	readonly recentWorkspacesService: { restoreDismissedWorkspace(folderUri: URI): void };
 	readonly newSessionComposerService: { notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void };
@@ -367,7 +368,7 @@ interface ISendHarness {
 		} | undefined;
 	};
 	readonly sessionComparisonService?: { startComparison(options: IStartSessionComparisonOptions): Promise<{ readonly id: string; readonly participants: readonly { readonly role: SessionComparisonParticipantRole; readonly sessionResource?: URI }[] }> };
-	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: { readonly source: 'chat' }): Promise<void> };
+	readonly sessionsService?: { unsetNewSession(): void; openSession(resource: URI, options: IOpenSessionOptions): Promise<void> };
 	readonly commandService?: { executeCommand(commandId: string, ...args: unknown[]): Promise<unknown> };
 	readonly logService: { error(message: string, ...args: unknown[]): void };
 	_getComparisonBranch?(session: ISession): string | undefined;
@@ -4194,11 +4195,13 @@ suite('NewChatWidget', () => {
 	});
 
 	for (const [backgroundSend, inboxSelected] of [[false, false], [false, true], [true, false]]) {
-		test(`confirms background sends based on grouping and reseeds the workspace (always background: ${backgroundSend}, Inbox selected: ${inboxSelected})`, async () => {
+		test(`notifies background sends and reseeds the workspace, preserving hosted status (always background: ${backgroundSend}, Inbox selected: ${inboxSelected})`, async () => {
 			const onDidSendRequest = disposables.add(new Emitter<ISendRequestSentEvent>());
 			const pendingSends = disposables.add(new DisposableMap<object, IDisposable>());
 			const folderUri = URI.file('/dismissed');
 			const restored: URI[] = [];
+			const notifications: Parameters<INotificationService['prompt']>[] = [];
+			const opened: { resource: URI; options: IOpenSessionOptions }[] = [];
 			const session = upcastPartial<ISession>({ sessionId: 'draft' });
 			const sentSession = upcastPartial<ISession>({ resource: URI.parse('test-session:/started') });
 			let sentOptions: ISendRequestOptions | undefined;
@@ -4209,7 +4212,11 @@ suite('NewChatWidget', () => {
 				_backgroundSend: backgroundSend,
 				_backgroundSendStatus: observableValue<string | undefined>('sendStatus', undefined),
 				_newChatInput: { hasInput: false },
-				notificationService: { error: () => assert.fail('Unexpected error') },
+				notificationService: {
+					error: () => assert.fail('Unexpected error'),
+					prompt: (...args) => { notifications.push(args); return upcastPartial<ReturnType<INotificationService['prompt']>>({}); },
+				},
+				sessionsService: { unsetNewSession: () => assert.fail('Unexpected navigation'), openSession: async (resource, options) => { opened.push({ resource, options }); } },
 				_pendingBackgroundSends: pendingSends,
 				recentWorkspacesService: { restoreDismissedWorkspace: uri => restored.push(uri) },
 				_session: constObservable(session),
@@ -4228,16 +4235,21 @@ suite('NewChatWidget', () => {
 				_createNewSession: async () => { picker.selectedFolderUri = URI.file('/different-workspace'); },
 			};
 			await send.call(harness, 'hello', undefined, backgroundSend ? undefined : true);
-			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const beforeSuccess = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: { query: 'unrelated' } }));
-			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get() };
+			const afterUnrelatedSend = { restored: [...restored], status: harness._backgroundSendStatus?.get(), notifications: notifications.length };
 			assert.ok(sentOptions);
 			onDidSendRequest.fire(upcastPartial<ISendRequestSentEvent>({ options: sentOptions, session: sentSession }));
-			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource }, {
-				beforeSuccess: { restored: [], status: undefined }, afterUnrelatedSend: { restored: [], status: undefined },
+			const openedBeforeAction = [...opened];
+			await notifications[0]?.[2][0].run();
+			assert.deepStrictEqual({ beforeSuccess, afterUnrelatedSend, restored, pending: pendingSends.size, background: sentOptions.background, status: harness._backgroundSendStatus?.get(), resource: harness._lastBackgroundSentSessionResource, notifications: notifications.map(([severity, message, choices]) => ({ severity, message, choices: choices.map(choice => choice.label) })), openedBeforeAction, opened }, {
+				beforeSuccess: { restored: [], status: undefined, notifications: 0 }, afterUnrelatedSend: { restored: [], status: undefined, notifications: 0 },
 				restored: [folderUri], pending: 0, background: true,
-				status: backgroundSend || inboxSelected ? 'Message sent' : undefined,
-				resource: backgroundSend || inboxSelected ? sentSession.resource : undefined,
+				status: backgroundSend ? 'Message sent' : undefined,
+				resource: backgroundSend ? sentSession.resource : undefined,
+				notifications: backgroundSend ? [] : [{ severity: Severity.Info, message: 'Message sent', choices: ['Open Session'] }],
+				openedBeforeAction: [],
+				opened: backgroundSend ? [] : [{ resource: sentSession.resource, options: { source: 'link', forceMainChat: true } }],
 			});
 		});
 	}
