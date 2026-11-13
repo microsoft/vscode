@@ -1092,6 +1092,13 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'startup' },
 			markdownDescription: nls.localize('chat.btwTip.enabled', "Controls whether the Agents Window shows a tip about using `/btw` to ask side questions."),
 		},
+		[ChatConfiguration.AutomateTipEnabled]: {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			experiment: { mode: 'auto' },
+			markdownDescription: nls.localize('chat.automateTip.enabled', "Controls whether the Agents Window shows a tip about using `/automate` to create recurring automations."),
+		},
 		[ChatConfiguration.SendInBackgroundTipEnabled]: {
 			type: 'boolean',
 			default: false,
