@@ -119,8 +119,8 @@ export class WelcomeName extends Disposable {
 			const client = lifetime.add(await this.gitHubService.acquireAccountApiClient(providerId, session, signal));
 			const profile = await client.users.getAuthenticated(signal, { caller: 'welcomeName.fetchGitHubProfileName', priority: 'background' });
 			return profile.name?.trim() || undefined;
-		} catch (error) {
-			this.logService.warn('Failed to fetch GitHub profile name:', error);
+		} catch {
+			this.logService.warn('Failed to fetch GitHub profile name.');
 			return undefined;
 		} finally {
 			lifetime.dispose();
