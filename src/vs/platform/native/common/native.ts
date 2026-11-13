@@ -231,8 +231,7 @@ export interface INativeAppWindow {
 	readonly iconDataUrl?: string;
 
 	/**
-	 * Where the window shows on screen, in the coordinates of Electron's `screen`, where the platform tells: macOS does
-	 * for the windows that it shows on screen.
+	 * Where the window shows on screen, in the coordinates of Electron's `screen`, where the platform tells: macOS does.
 	 */
 	readonly bounds?: IRectangle;
 }
@@ -453,19 +452,25 @@ export interface ICommonNativeHostService {
 	getAppWindows(options?: { readonly interactive?: boolean }): Promise<INativeAppWindows>;
 
 	/**
-	 * Lights up a window of another application on screen while VS Code captures it, given where it shows (see
-	 * {@link INativeAppWindow.bounds}). It draws above every window, ignores the mouse, and never takes focus. It stays
-	 * until {@link endAppWindowCaptureFeedback} ends it, or for a while at most.
+	 * Captures a window of another application in a single screenshot, where the platform can: macOS can. Returns the
+	 * screenshot as a PNG, or `undefined` when the platform can't, so that the caller captures a frame of the window as a
+	 * desktop media source instead.
+	 *
+	 * With `feedback`, where the platform tells where the window is (see {@link INativeAppWindow.bounds}), the window
+	 * flashes, then turns into its screenshot, which stays above it until {@link endAppWindowCaptureFeedback}, or for a
+	 * while at most. The feedback draws above every window, ignores the mouse, and never takes focus. This resolves once
+	 * the screenshot shows above the window, so that another window can then come to the front without covering it.
 	 */
-	showAppWindowCaptureFeedback(bounds: IRectangle, options: { readonly color: string; readonly reduceMotion: boolean }): Promise<void>;
+	captureAppWindow(window: INativeAppWindow, options?: { readonly feedback?: { readonly reduceMotion: boolean } }): Promise<VSBuffer | undefined>;
 
 	/**
-	 * Ends {@link showAppWindowCaptureFeedback}. Given the screenshot of the window as a `data:` URL, the window turns
-	 * into it, and it shrinks into the destination: a rectangle of the target window, in device-independent pixels from
-	 * the top left of its content. Without a destination on the same display, the screenshot shrinks where the window
-	 * is. Resolves once the feedback is gone.
+	 * Ends the feedback of {@link captureAppWindow}. Given a destination, a rectangle of the target window in
+	 * device-independent pixels from the top left of its content, the screenshot flies into it and takes its corner
+	 * radius, then fades as the destination shows. Without a screenshot from the capture, it needs the screenshot as a
+	 * `data:` URL. Without a destination on the same display, the screenshot shrinks where the window is; without either,
+	 * the flash fades. Resolves once the screenshot covers the destination, or once the feedback is gone.
 	 */
-	endAppWindowCaptureFeedback(screenshot?: { readonly image: string; readonly destination?: IRectangle }, options?: INativeHostOptions): Promise<void>;
+	endAppWindowCaptureFeedback(screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;

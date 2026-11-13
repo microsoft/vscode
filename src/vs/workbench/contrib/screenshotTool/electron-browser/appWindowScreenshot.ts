@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomFactor } from '../../../../base/browser/browser.js';
-import { $, getWindow } from '../../../../base/browser/dom.js';
+import { $, getComputedStyle, getWindow, scheduleAtNextAnimationFrame } from '../../../../base/browser/dom.js';
 import { raceTimeout } from '../../../../base/common/async.js';
+import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { readImageDimensions } from '../../../../base/common/image.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -17,8 +19,6 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeAppWindow, INativeAppWindows, INativeHostService } from '../../../../platform/native/common/native.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IScreenshotToolImage } from '../browser/screenshotTool.js';
 
 export const IAppWindowScreenshotService = createDecorator<IAppWindowScreenshotService>('appWindowScreenshotService');
@@ -85,15 +85,17 @@ export interface IAppWindowScreenshotService {
 	 * Captures the window of another app as it is shown. Only call it when the user asked for it, as it asks for the
 	 * Screen Recording permission on macOS the first time, and shows the system's window picker in Wayland sessions.
 	 *
-	 * Where the platform tells where the window is, the window lights up on screen while it is captured. That stays
-	 * until {@link endCaptureFeedback}, which the caller must call however the capture ended.
+	 * Where the platform tells where the window is, the window flashes on screen, then turns into its screenshot, which
+	 * stays above it, so that VS Code can come to the front without covering it. That stays until
+	 * {@link endCaptureFeedback}, which the caller must call however the capture ended.
 	 */
 	capture(options?: IAppWindowScreenshotOptions): Promise<AppWindowScreenshotResult>;
 
 	/**
-	 * Ends the feedback of {@link capture}. Given the screenshot and the element that it goes to, such as its attachment
-	 * in the chat input, the window turns into the screenshot, which shrinks into a thumbnail at the start of the
-	 * element; without them, the light just goes out. Resolves once the feedback is gone, at once when there is none.
+	 * Ends the feedback of {@link capture}. Given the screenshot and the element that it goes to, the screenshot flies
+	 * into the element, when it is small, like its attachment in the chat input, or else into a thumbnail at the top left
+	 * of the element, then fades as the element shows. Without them, the flash just fades. Resolves once the screenshot
+	 * covers the element, so that the element can show, or once the feedback is gone, at once when there is none.
 	 */
 	endCaptureFeedback(destination?: { readonly element: HTMLElement; readonly image: IScreenshotToolImage }): Promise<void>;
 }
@@ -109,8 +111,15 @@ const MAX_CAPTURE_SIZE = 8192;
 /** How long a capture waits for the first frame of the window. */
 const FRAME_TIMEOUT = 5000;
 
-/** The height of the thumbnail that the screenshot shrinks into, at most, which is wider by half. */
+/** The height of an element that the screenshot flies into whole. A bigger one takes a thumbnail this high, wider by half. */
 const FEEDBACK_THUMBNAIL_HEIGHT = 32;
+
+/** The space between a big element and the thumbnail that the screenshot flies into, and the corner radius of the thumbnail. */
+const FEEDBACK_THUMBNAIL_INSET = 6;
+const FEEDBACK_THUMBNAIL_RADIUS = 4;
+
+/** How long the feedback waits for the window to lay out the element that the screenshot flies into. */
+const FEEDBACK_LAYOUT_TIMEOUT = 250;
 
 const MAC_SCREEN_RECORDING_SETTINGS_URL = 'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture';
 
@@ -142,15 +151,14 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 		return this.storageService.getBoolean(CAPTURED_STORAGE_KEY, StorageScope.APPLICATION_SHARED, false);
 	}
 
-	/** Whether the feedback of a capture shows, until the caller ends it. */
-	private feedbackShown = false;
+	/** The feedback of a capture, until the caller ends it, and whether it shows the screenshot. */
+	private feedback: { revealed: boolean } | undefined;
 
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILogService private readonly logService: ILogService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
@@ -237,16 +245,15 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 			}
 		}
 
-		if (window.bounds) {
-			this.feedbackShown = true;
-			void this.nativeHostService.showAppWindowCaptureFeedback(window.bounds, {
-				color: this.themeService.getColorTheme().getColor(focusBorder)?.toString() ?? '#0078d4',
-				reduceMotion: this.accessibilityService.isMotionReduced(),
-			});
-		}
+		const feedback = window.bounds ? { revealed: false } : undefined;
+		this.feedback = feedback;
 
 		try {
-			const image = await this.captureWindow(window);
+			let image = await this.captureScreenshot(window, !!feedback);
+			if (image && feedback) {
+				feedback.revealed = true;
+			}
+			image ??= await this.captureWindow(window);
 			if (!image) {
 				return { kind: 'failed', target, window };
 			}
@@ -266,24 +273,34 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 	}
 
 	async endCaptureFeedback(destination?: { readonly element: HTMLElement; readonly image: IScreenshotToolImage }): Promise<void> {
-		if (!this.feedbackShown) {
+		const feedback = this.feedback;
+		if (!feedback) {
 			return;
 		}
-		this.feedbackShown = false;
-		const rect = destination?.element.getBoundingClientRect();
-		if (!destination || !rect?.width || !rect.height) {
+		this.feedback = undefined;
+		if (!destination) {
 			return this.nativeHostService.endAppWindowCaptureFeedback();
 		}
-		// A small element, like an attachment, takes the thumbnail at its left end, and a big one, like the input, at its top left.
-		const inset = rect.height > FEEDBACK_THUMBNAIL_HEIGHT ? 6 : 2;
-		const height = Math.max(Math.min(FEEDBACK_THUMBNAIL_HEIGHT, rect.height - 2 * inset), 1);
-		const box = { x: rect.left + inset, y: rect.top + inset, width: Math.max(Math.min(height * 1.5, rect.width - 2 * inset), 1), height };
-		// The overlay that shows the feedback measures in device-independent pixels, which zoom in the window scales.
+		// What changed lays out in the frames that follow, like the chat input, which grows with an attachment. A window
+		// behind other windows may not render, hence the timeout.
 		const targetWindow = getWindow(destination.element);
+		await raceTimeout(new Promise<void>(resolve => scheduleAtNextAnimationFrame(targetWindow, () => scheduleAtNextAnimationFrame(targetWindow, resolve))), FEEDBACK_LAYOUT_TIMEOUT);
+		const rect = destination.element.getBoundingClientRect();
+		if (!rect.width || !rect.height) {
+			return this.nativeHostService.endAppWindowCaptureFeedback();
+		}
+		const whole = rect.height <= FEEDBACK_THUMBNAIL_HEIGHT;
+		const height = Math.max(Math.min(FEEDBACK_THUMBNAIL_HEIGHT, rect.height - 2 * FEEDBACK_THUMBNAIL_INSET), 1);
+		const box = whole
+			? { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+			: { x: rect.left + FEEDBACK_THUMBNAIL_INSET, y: rect.top + FEEDBACK_THUMBNAIL_INSET, width: Math.max(Math.min(height * 1.5, rect.width - 2 * FEEDBACK_THUMBNAIL_INSET), 1), height };
+		const radius = whole ? parseFloat(getComputedStyle(destination.element).borderTopLeftRadius) || 0 : FEEDBACK_THUMBNAIL_RADIUS;
+		// The overlay that shows the feedback measures in device-independent pixels, which zoom in the window scales.
 		const zoom = getZoomFactor(targetWindow);
 		return this.nativeHostService.endAppWindowCaptureFeedback({
-			image: destination.image.dataUrl,
+			image: feedback.revealed ? undefined : destination.image.dataUrl,
 			destination: { x: box.x * zoom, y: box.y * zoom, width: box.width * zoom, height: box.height * zoom },
+			radius: radius * zoom,
 		}, { targetWindowId: targetWindow.vscodeWindowId });
 	}
 
@@ -296,6 +313,22 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 			placeHolder: localize('pickAppWindow', "Select the window of the app to capture"),
 		});
 		return picked?.window;
+	}
+
+	/**
+	 * Captures the window in a single screenshot, where the platform can, which the feedback then shows above the window.
+	 * Returns `undefined` where it can't.
+	 */
+	private async captureScreenshot(window: INativeAppWindow, feedback: boolean): Promise<IScreenshotToolImage | undefined> {
+		let data: VSBuffer | undefined;
+		try {
+			data = await this.nativeHostService.captureAppWindow(window, feedback ? { feedback: { reduceMotion: this.accessibilityService.isMotionReduced() } } : undefined);
+		} catch (error) {
+			this.logService.error('[AppWindowScreenshot] Capturing a screenshot of a window failed:', error);
+			return undefined;
+		}
+		const size = data && readImageDimensions(data);
+		return data && size ? { dataUrl: `data:image/png;base64,${encodeBase64(data)}`, width: size.width, height: size.height } : undefined;
 	}
 
 	/** Captures one frame of the window, at its full resolution. */

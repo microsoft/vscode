@@ -27,10 +27,10 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
-import { excludeOwnWindowSources, orderAppWindowSources } from '../common/appWindows.js';
-import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions } from './appWindowCaptureFeedback.js';
-import { getMacScreenWindows } from './macScreenWindows.js';
+import { FocusMode, IApplicationBadge, ICommonNativeHostService, INativeAppWindow, INativeAppWindows, INativeHostOptions, INativeSystemWideKeybinding, INativeSystemWideKeybindingResult, INativeZipFile, INativeZipOptions, INativeZipProgress, INativeZipResult, IOpenAgentsWindowOptions, IOSProperties, IOSProxy, IOSProxyConfig, IOSStatistics, IStartTracingOptions, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
+import { excludeOwnWindowSources, findRecentAppWindow, getScreenWindowId, getWindowSourceId, orderAppWindowSources } from '../common/appWindows.js';
+import { AppWindowCaptureFeedback, IAppWindowCaptureFeedbackOptions, IAppWindowCaptureOverlay } from './appWindowCaptureFeedback.js';
+import { captureMacWindow, getMacScreenWindows } from './macScreenWindows.js';
 import { IGlobalKeybindingsMainService } from '../../globalKeybindings/electron-main/globalKeybindingsMainService.js';
 import { IGPUProcessMainService } from '../../gpu/electron-main/gpuProcessMainService.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -945,33 +945,51 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 		const ownSourceIds = BrowserWindow.getAllWindows().filter(window => !window.isDestroyed()).map(window => window.getMediaSourceId());
 		const others = excludeOwnWindowSources(sources, ownSourceIds);
-		const onScreen = await screenWindows;
-		const ordered = onScreen ? orderAppWindowSources(others, onScreen.windows, onScreen.frontmostPid, process.pid) : others.map(source => ({ source, bounds: undefined }));
-		return {
-			kind: 'windows',
-			windows: ordered.map(({ source, bounds }) => ({
-				sourceId: source.id,
-				title: source.name,
-				iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
-				bounds,
-			})),
-		};
+		const screen = await screenWindows;
+		const ordered = screen ? orderAppWindowSources(others, screen, process.pid) : others.map(source => ({ source, bounds: undefined, eligible: true }));
+		const windows: INativeAppWindow[] = ordered.map(({ source, bounds }) => ({
+			sourceId: source.id,
+			title: source.name,
+			iconDataUrl: source.appIcon && !source.appIcon.isEmpty() ? source.appIcon.resize({ width: 32, height: 32, quality: 'best' }).toDataURL() : undefined,
+			bounds,
+		}));
+		// In full screen, VS Code has a Space of its own, where the screen shows no window of another app. Then a capture
+		// takes the window that the user left for VS Code, which desktop media sources leave out, as it is off screen.
+		const recent = screen && !ordered[0]?.eligible ? findRecentAppWindow(screen, process.pid) : undefined;
+		if (recent) {
+			const sourceId = getWindowSourceId(recent);
+			windows.unshift({ sourceId, title: recent.title ?? '', bounds: recent.bounds });
+			return { kind: 'windows', windows: windows.filter((window, index) => index === 0 || excludeOwnWindowSources([{ id: window.sourceId }], [sourceId]).length) };
+		}
+		return { kind: 'windows', windows };
 	}
 
 	private appWindowCaptureFeedback: AppWindowCaptureFeedback | undefined;
 
-	async showAppWindowCaptureFeedback(windowId: number | undefined, bounds: IRectangle, options: IAppWindowCaptureFeedbackOptions): Promise<void> {
-		this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
-		this.appWindowCaptureFeedback.show(bounds, options);
+	async captureAppWindow(windowId: number | undefined, window: INativeAppWindow, options?: { readonly feedback?: IAppWindowCaptureFeedbackOptions }): Promise<VSBuffer | undefined> {
+		let overlay: IAppWindowCaptureOverlay | undefined;
+		if (options?.feedback && window.bounds) {
+			this.appWindowCaptureFeedback ??= this._register(new AppWindowCaptureFeedback(this.logService));
+			overlay = this.appWindowCaptureFeedback.show(window.bounds, options.feedback);
+		}
+		const screenWindowId = isMacintosh ? getScreenWindowId(window.sourceId) : undefined;
+		const image = screenWindowId !== undefined ? await captureMacWindow(screenWindowId, this.logService) : undefined;
+		if (!image) {
+			// The caller captures the window another way, which shows the window meanwhile.
+			void overlay?.dim();
+			return undefined;
+		}
+		await overlay?.reveal(image);
+		return VSBuffer.wrap(image);
 	}
 
-	async endAppWindowCaptureFeedback(windowId: number | undefined, screenshot?: { readonly image: string; readonly destination?: IRectangle }, options?: INativeHostOptions): Promise<void> {
+	async endAppWindowCaptureFeedback(windowId: number | undefined, screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void> {
 		let destination: IRectangle | undefined;
 		const content = screenshot?.destination && this.windowById(options?.targetWindowId, windowId)?.win?.getContentBounds();
 		if (screenshot?.destination && content) {
 			destination = { ...screenshot.destination, x: content.x + screenshot.destination.x, y: content.y + screenshot.destination.y };
 		}
-		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination });
+		await this.appWindowCaptureFeedback?.end(screenshot && { image: screenshot.image, destination, radius: screenshot.radius });
 	}
 
 	async isAdmin(): Promise<boolean> {

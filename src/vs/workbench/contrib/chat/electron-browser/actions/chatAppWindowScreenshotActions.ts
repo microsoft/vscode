@@ -248,32 +248,40 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 	}
 
 	try {
-		// VS Code comes to the front first, as a window behind other apps doesn't render the chat that it reveals.
-		if (inBackground) {
-			await hostService.focus(chatInUse ? getWindow(chatInUse.domNode) : mainWindow, { mode: FocusMode.Force });
-		}
 		// The user can switch chats while picking the window.
 		let widget = sessionInUse ? chatWidgetService.getWidgetBySessionResource(sessionInUse) : undefined;
-		if (widget && isEqual(widget.viewModel?.sessionResource, sessionInUse)) {
-			await chatWidgetService.reveal(widget);
+		let focused: Promise<void> | undefined;
+		if (widget?.visible && widget.viewModel && isEqual(widget.viewModel.sessionResource, sessionInUse)) {
+			// The chat shows already, so the screenshot flies into it at once, while VS Code comes to the front under the screenshot.
+			if (inBackground) {
+				focused = hostService.focus(getWindow(widget.domNode), { mode: FocusMode.Force });
+			}
 		} else {
-			widget = await chatWidgetService.revealWidget() ?? chatWidgetService.lastFocusedWidget;
-		}
-		// The chat input drops the attachments that it got before its session loaded.
-		if (widget && !widget.viewModel) {
-			const viewModelChange = Event.toPromise(widget.onDidChangeViewModel);
-			await raceTimeout(viewModelChange, VIEW_MODEL_TIMEOUT);
-			viewModelChange.cancel();
-		}
-		if (!widget?.viewModel) {
-			return;
-		}
-		// The chat can be in another window, which also comes to the front, so that the screenshot shrinks into it.
-		if (inBackground) {
-			await hostService.focus(getWindow(widget.domNode), { mode: FocusMode.Force });
+			// VS Code comes to the front first, as a window behind other apps doesn't render the chat that it reveals.
+			if (inBackground) {
+				await hostService.focus(chatInUse ? getWindow(chatInUse.domNode) : mainWindow, { mode: FocusMode.Force });
+			}
+			if (widget && isEqual(widget.viewModel?.sessionResource, sessionInUse)) {
+				await chatWidgetService.reveal(widget);
+			} else {
+				widget = await chatWidgetService.revealWidget() ?? chatWidgetService.lastFocusedWidget;
+			}
+			// The chat input drops the attachments that it got before its session loaded.
+			if (widget && !widget.viewModel) {
+				const viewModelChange = Event.toPromise(widget.onDidChangeViewModel);
+				await raceTimeout(viewModelChange, VIEW_MODEL_TIMEOUT);
+				viewModelChange.cancel();
+			}
+			if (!widget?.viewModel) {
+				return;
+			}
+			// The chat can be in another window, which also comes to the front, so that the screenshot flies into it.
+			if (inBackground) {
+				await hostService.focus(getWindow(widget.domNode), { mode: FocusMode.Force });
+			}
 		}
 		widget.attachmentModel.addContext(screenshot.entry);
-		// The input renders the attachment at once, which shows once the screenshot shrank into it.
+		// The input renders the attachment at once, which shows once the screenshot covers it.
 		const attachment = widget.inputPart.getAttachmentElement(screenshot.entry.id);
 		attachment?.style.setProperty('visibility', 'hidden');
 		try {
@@ -281,6 +289,7 @@ async function attachAppWindowScreenshot(accessor: ServicesAccessor, request: IA
 		} finally {
 			attachment?.style.removeProperty('visibility');
 		}
+		await focused;
 		widget.focusInput();
 		status(localize('appWindowScreenshot.attached', "Attached a screenshot of {0}.", screenshot.entry.name));
 	} finally {

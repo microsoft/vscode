@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, screen } from 'electron';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { release } from 'os';
+import { DeferredPromise } from '../../../base/common/async.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../base/common/platform.js';
 import { ILogService } from '../../log/common/log.js';
 import { IRectangle } from '../../window/common/window.js';
@@ -13,8 +15,10 @@ import { IRectangle } from '../../window/common/window.js';
 const FEEDBACK_TIMEOUT = 20000;
 
 /**
- * The page of the overlay. `highlight` lights up the window, `fly` turns the window into its screenshot and shrinks
- * that into a rectangle, and `fade` puts the light out. The last two resolve once their animation ended.
+ * The page of the overlay, which draws the window as a card: a white light, then the screenshot under it. `flash` lights
+ * up the window, `reveal` turns it into its screenshot, which lifts off the window as the light fades, `fly` moves the
+ * card into a rectangle, `land` fades it there, `fade` puts it out, and `dim` only the light. All but `flash` resolve
+ * once their animation ended, except `reveal`, which resolves once the screenshot shows.
  */
 const OVERLAY_PAGE = `<!DOCTYPE html>
 <html>
@@ -23,115 +27,213 @@ const OVERLAY_PAGE = `<!DOCTYPE html>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
 <style>
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
-.light, .shot { position: absolute; box-sizing: border-box; border-radius: 12px; pointer-events: none; }
-.shot { box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4); transform-origin: center; }
+.card { position: absolute; box-sizing: border-box; overflow: hidden; pointer-events: none; }
+.card > * { position: absolute; inset: 0; width: 100%; height: 100%; }
+.card > img { object-fit: cover; }
+.light { background: white; opacity: 0; }
 </style>
 </head>
 <body>
 <script>
 'use strict';
+// The window lights up this fast. As the light fades, the screenshot lifts off the window, until it flies into its
+// destination, where it stays a moment before it fades, so that the destination shows under it first.
+const FLASH_TIME = 120;
+const LIFT_TIME = 180;
+const LIFT_SCALE = 0.95;
+const FLY_TIME = 280;
+const LAND_DELAY = 60;
+const LAND_TIME = 140;
+const FADE_TIME = 150;
+const card = document.createElement('div');
+card.className = 'card';
 const light = document.createElement('div');
 light.className = 'light';
-// The window stays lit this long at least, however fast the capture is, so that the user sees which window it took.
-const LIT_TIME = 450;
-let litAt = 0;
-function place(element, rect) {
-	element.style.left = rect.x + 'px';
-	element.style.top = rect.y + 'px';
-	element.style.width = rect.width + 'px';
-	element.style.height = rect.height + 'px';
+card.append(light);
+let target;
+let reduceMotion = false;
+let peak = 0;
+let revealed = false;
+function frame(rect, radius) {
+	return { left: rect.x + 'px', top: rect.y + 'px', width: rect.width + 'px', height: rect.height + 'px', borderRadius: radius + 'px' };
 }
-function highlight(rect, color, reduceMotion) {
-	place(light, rect);
-	document.body.append(light);
-	litAt = performance.now();
-	const ring = '0 0 0 3px ' + color + ', 0 0 32px 6px ' + color;
-	light.animate(reduceMotion ? [
-		{ opacity: 0, boxShadow: ring },
-		{ opacity: 1, boxShadow: ring },
-	] : [
-		{ opacity: 0, backgroundColor: 'rgba(255, 255, 255, 0)', boxShadow: '0 0 0 0 ' + color },
-		{ opacity: 1, backgroundColor: 'rgba(255, 255, 255, 0.2)', boxShadow: '0 0 0 3px ' + color + ', 0 0 56px 14px ' + color, offset: 0.35 },
-		{ opacity: 1, backgroundColor: 'rgba(255, 255, 255, 0)', boxShadow: ring },
-	], { duration: reduceMotion ? 150 : 500, easing: 'ease-out', fill: 'forwards' });
+function scale(rect, factor) {
+	const width = rect.width * factor;
+	const height = rect.height * factor;
+	return { x: rect.x + (rect.width - width) / 2, y: rect.y + (rect.height - height) / 2, width, height };
+}
+function wait(time) {
+	return new Promise(resolve => setTimeout(resolve, Math.max(time, 0)));
+}
+function fadeOut(element, duration) {
+	return element.animate([{ opacity: getComputedStyle(element).opacity }, { opacity: 0 }], { duration, easing: 'ease-out', fill: 'forwards' }).finished;
+}
+function flash(rect, radius, reduce) {
+	target = { rect, radius };
+	reduceMotion = reduce;
+	Object.assign(card.style, frame(rect, radius));
+	document.body.append(card);
+	peak = performance.now() + FLASH_TIME;
+	light.animate([{ opacity: 0 }, { opacity: reduce ? 0.4 : 1 }], { duration: FLASH_TIME, easing: 'ease-out', fill: 'forwards' });
+}
+async function reveal(src) {
+	let image;
+	if (!reduceMotion) {
+		image = new Image();
+		image.alt = '';
+		image.src = src;
+		try {
+			await image.decode();
+		} catch {
+			image = undefined;
+		}
+	}
+	// The screenshot takes the place of the window under the light, at its brightest.
+	await wait(peak - performance.now());
+	if (image) {
+		card.insertBefore(image, light);
+		revealed = true;
+		card.animate([frame(target.rect, target.radius), frame(scale(target.rect, LIFT_SCALE), target.radius)], { duration: LIFT_TIME, easing: 'ease-out', fill: 'forwards' });
+	}
+	void fadeOut(light, LIFT_TIME);
+	await new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve)));
+}
+async function fly(to, radius, src) {
+	if (!revealed && src) {
+		await reveal(src);
+	}
+	if (!revealed) {
+		return fade();
+	}
+	for (const animation of card.getAnimations()) {
+		animation.commitStyles();
+		animation.cancel();
+	}
+	const from = { left: card.style.left, top: card.style.top, width: card.style.width, height: card.style.height, borderRadius: card.style.borderRadius };
+	if (to) {
+		await card.animate([from, frame(to, radius)], { duration: FLY_TIME, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' }).finished;
+	} else {
+		await card.animate([{ ...from, opacity: 1 }, { ...frame(scale(target.rect, 0.2), target.radius), opacity: 0 }], { duration: FLY_TIME, easing: 'ease-in', fill: 'forwards' }).finished;
+	}
+}
+async function land() {
+	if (revealed) {
+		await wait(LAND_DELAY);
+		await fadeOut(card, LAND_TIME);
+	}
 }
 async function fade() {
-	await light.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: 'ease-in', fill: 'forwards' }).finished;
+	await fadeOut(card, FADE_TIME);
 }
-async function fly(src, from, to, reduceMotion) {
-	if (reduceMotion) {
-		return fade();
-	}
-	const shot = new Image();
-	shot.className = 'shot';
-	shot.src = src;
-	place(shot, from);
-	try {
-		await shot.decode();
-	} catch {
-		return fade();
-	}
-	const lit = performance.now() - litAt;
-	if (lit < LIT_TIME) {
-		await new Promise(resolve => setTimeout(resolve, LIT_TIME - lit));
-	}
-	document.body.append(shot);
-	light.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, fill: 'forwards' });
-	const scale = Math.min(to.width / from.width, to.height / from.height);
-	const moved = 'translate(' + (to.x + to.width / 2 - from.x - from.width / 2) + 'px, ' + (to.y + to.height / 2 - from.y - from.height / 2) + 'px) scale(' + scale + ')';
-	// Scaled down, the corners would vanish, so they grow as the screenshot shrinks.
-	const radius = Math.min(6 / scale, 120) + 'px';
-	await shot.animate([
-		{ transform: 'none', borderRadius: '12px', opacity: 1 },
-		{ transform: 'scale(0.95)', borderRadius: '12px', opacity: 1, offset: 0.15 },
-		{ transform: moved, borderRadius: radius, opacity: 1, offset: 0.9 },
-		{ transform: moved, borderRadius: radius, opacity: 0 },
-	], { duration: 650, easing: 'cubic-bezier(0.4, 0, 0.2, 1)', fill: 'forwards' }).finished;
+async function dim() {
+	await fadeOut(light, FADE_TIME);
 }
 </script>
 </body>
 </html>`;
 
 export interface IAppWindowCaptureFeedbackOptions {
-	/** The color of the light around the window, in CSS. */
-	readonly color: string;
-	/** Whether to only fade, rather than move the screenshot. */
+	/** Whether to flash less, and keep the screenshot from moving. */
 	readonly reduceMotion: boolean;
 }
 
-interface IOverlay {
-	readonly window: BrowserWindow;
-	/** The display that the overlay covers, in screen coordinates. */
-	readonly display: IRectangle;
-	/** The window that is captured, in the coordinates of the overlay. */
-	readonly target: IRectangle;
-	readonly reduceMotion: boolean;
-	/** Resolves whether the overlay lights up the window. */
-	readonly ready: Promise<boolean>;
-	readonly timeout: ReturnType<typeof setTimeout>;
+/** How the feedback ends, see {@link AppWindowCaptureFeedback.end}. */
+export interface IAppWindowCaptureFeedbackEnd {
+	/** The screenshot as a `data:` URL, which the feedback needs when the capture didn't show it. */
+	readonly image?: string;
+	/** The rectangle that the screenshot flies into, in screen coordinates. */
+	readonly destination?: IRectangle;
+	/** The corner radius of the destination. */
+	readonly radius?: number;
+}
+
+/** The feedback of a capture, which the capture shows the screenshot in. */
+export interface IAppWindowCaptureOverlay {
+	/** Turns the window into its screenshot, a PNG, which lifts off the window. Resolves once the screenshot shows. */
+	reveal(image: Buffer): Promise<void>;
+	/** Puts out the flash when the capture has no screenshot to show yet, so that the window shows meanwhile. */
+	dim(): Promise<void>;
 }
 
 /**
- * Shows the user that VS Code captures a window of another application: it lights up the window, then turns it into
- * its screenshot, which shrinks into the chat input that it goes to. It draws in a transparent window above every
- * other window, on the display of the captured window, which ignores the mouse and never takes focus.
+ * Shows the user which window of another application VS Code captures: the window flashes, then turns into its
+ * screenshot, which lifts off the window and flies into the chat input that it goes to, where it fades as its
+ * attachment shows. It draws in a transparent panel above every other window, on the display of the captured window,
+ * even above applications in full screen. The panel ignores the mouse and never takes focus.
  */
 export class AppWindowCaptureFeedback extends Disposable {
 
-	private overlay: IOverlay | undefined;
+	/** The feedback of the capture that is under way, until the capture ends it. */
+	private current: CaptureOverlay | undefined;
+
+	private readonly overlays = new Set<CaptureOverlay>();
 
 	constructor(private readonly logService: ILogService) {
 		super();
-		this._register(toDisposable(() => this.close(this.overlay)));
+		this._register(toDisposable(() => {
+			for (const overlay of this.overlays) {
+				overlay.dispose();
+			}
+		}));
 	}
 
-	/** Lights up the window at the given bounds, in screen coordinates, and ends the feedback that showed before. */
-	show(bounds: IRectangle, options: IAppWindowCaptureFeedbackOptions): void {
-		this.close(this.overlay);
+	/** Flashes the window at the given bounds, in screen coordinates, and ends the feedback that showed before. */
+	show(bounds: IRectangle, options: IAppWindowCaptureFeedbackOptions): IAppWindowCaptureOverlay {
+		this.current?.dispose();
+		const overlay = new CaptureOverlay(bounds, options, this.logService, () => {
+			this.overlays.delete(overlay);
+			if (this.current === overlay) {
+				this.current = undefined;
+			}
+		});
+		this.overlays.add(overlay);
+		this.current = overlay;
+		return overlay;
+	}
 
-		const display = screen.getDisplayMatching(bounds).bounds;
-		const window = new BrowserWindow({
-			...display,
+	/**
+	 * Ends the feedback. Given a destination on the display of the window, the screenshot flies into it, then fades as
+	 * the destination shows under it; without one, it shrinks where the window is. Without a screenshot, the flash
+	 * fades. Resolves once the screenshot covers the destination, or once the feedback is gone.
+	 */
+	async end(screenshot: IAppWindowCaptureFeedbackEnd | undefined): Promise<void> {
+		const overlay = this.current;
+		this.current = undefined;
+		if (!overlay) {
+			return;
+		}
+		if (screenshot && await overlay.fly(screenshot)) {
+			void overlay.land().finally(() => overlay.dispose());
+			return;
+		}
+		if (!screenshot) {
+			await overlay.fade();
+		}
+		overlay.dispose();
+	}
+}
+
+class CaptureOverlay implements IAppWindowCaptureOverlay, IDisposable {
+
+	private readonly window: BrowserWindow;
+
+	/** The display that the overlay covers, in screen coordinates. */
+	private readonly display: IRectangle;
+
+	/** Resolves whether the overlay shows. */
+	private readonly ready: Promise<boolean>;
+
+	/** Completes once the overlay is gone, when Electron leaves the page's functions that were running unsettled. */
+	private readonly disposed = new DeferredPromise<void>();
+
+	private readonly timeout: ReturnType<typeof setTimeout>;
+
+	constructor(bounds: IRectangle, options: IAppWindowCaptureFeedbackOptions, private readonly logService: ILogService, private readonly onDidDispose: () => void) {
+		this.display = screen.getDisplayMatching(bounds).bounds;
+		this.window = new BrowserWindow({
+			...this.display,
+			// Unlike other windows, a panel shows above applications in full screen.
+			...(isMacintosh ? { type: 'panel' } : {}),
 			show: false,
 			frame: false,
 			transparent: true,
@@ -155,90 +257,104 @@ export class AppWindowCaptureFeedback extends Disposable {
 				backgroundThrottling: false,
 			},
 		});
-		window.setIgnoreMouseEvents(true);
-		window.setAlwaysOnTop(true, 'screen-saver');
-		// The captured window can be on another Space than VS Code.
-		window.setVisibleOnAllWorkspaces(true, { skipTransformProcessType: true });
+		this.window.setIgnoreMouseEvents(true);
+		this.window.setAlwaysOnTop(true, 'screen-saver');
+		// The captured window can be on another Space than VS Code, or in full screen.
+		this.window.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
 		if (isMacintosh) {
-			window.excludedFromShownWindowsMenu = true;
+			this.window.excludedFromShownWindowsMenu = true;
 		}
 
-		const target = { x: bounds.x - display.x, y: bounds.y - display.y, width: bounds.width, height: bounds.height };
-		const overlay: IOverlay = {
-			window,
-			display,
-			target,
-			reduceMotion: options.reduceMotion,
-			ready: this.load(window, `highlight(${JSON.stringify(target)}, ${JSON.stringify(options.color)}, ${options.reduceMotion})`),
-			timeout: setTimeout(() => this.close(overlay), FEEDBACK_TIMEOUT),
-		};
-		this.overlay = overlay;
+		const target = { x: bounds.x - this.display.x, y: bounds.y - this.display.y, width: bounds.width, height: bounds.height };
+		this.ready = this.load(`flash(${JSON.stringify(target)}, ${getWindowRadius(bounds, this.display)}, ${JSON.stringify(!!options.reduceMotion)})`);
+		this.timeout = setTimeout(() => this.dispose(), FEEDBACK_TIMEOUT);
 	}
 
-	/**
-	 * Ends the feedback: given the screenshot as a `data:` URL, the window turns into it, which shrinks into the
-	 * destination, in screen coordinates, or where the window is when the destination is on another display. Without a
-	 * screenshot, the light goes out. Resolves once the feedback is gone.
-	 */
-	async end(screenshot: { readonly image: string; readonly destination: IRectangle | undefined } | undefined): Promise<void> {
-		const overlay = this.overlay;
-		if (!overlay) {
-			return;
-		}
-		try {
-			if (await overlay.ready && !overlay.window.isDestroyed()) {
-				await overlay.window.webContents.executeJavaScript(screenshot
-					? `fly(${JSON.stringify(screenshot.image)}, ${JSON.stringify(overlay.target)}, ${JSON.stringify(this.getDestination(overlay, screenshot.destination))}, ${overlay.reduceMotion})`
-					: 'fade()');
-			}
-		} catch (error) {
-			this.logService.error('[AppWindowCaptureFeedback] Ending the feedback failed:', error);
-		} finally {
-			this.close(overlay);
-		}
+	async reveal(image: Buffer): Promise<void> {
+		await this.run(`reveal(${JSON.stringify(`data:image/png;base64,${image.toString('base64')}`)})`);
 	}
 
-	private async load(window: BrowserWindow, script: string): Promise<boolean> {
+	async dim(): Promise<void> {
+		await this.run('dim()');
+	}
+
+	/** Flies the screenshot into the destination, or shrinks it where the window is. Resolves whether it covers the destination. */
+	async fly(screenshot: IAppWindowCaptureFeedbackEnd): Promise<boolean> {
+		const destination = this.toOverlay(screenshot.destination);
+		const flown = await this.run(`fly(${JSON.stringify(destination ?? null)}, ${JSON.stringify(Number(screenshot.radius) || 0)}, ${JSON.stringify(screenshot.image ?? null)})`);
+		return flown && !!destination;
+	}
+
+	land(): Promise<boolean> {
+		return this.run('land()');
+	}
+
+	fade(): Promise<boolean> {
+		return this.run('fade()');
+	}
+
+	dispose(): void {
+		clearTimeout(this.timeout);
+		void this.disposed.complete();
+		if (!this.window.isDestroyed()) {
+			this.window.destroy();
+		}
+		this.onDidDispose();
+	}
+
+	private async load(script: string): Promise<boolean> {
 		try {
-			await window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(OVERLAY_PAGE)}`);
-			if (window.isDestroyed()) {
+			await this.window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(OVERLAY_PAGE)}`);
+			if (this.window.isDestroyed()) {
 				return false;
 			}
-			window.showInactive();
-			await window.webContents.executeJavaScript(script);
-			return true;
+			this.window.showInactive();
+			return await this.execute(script);
 		} catch (error) {
-			if (!window.isDestroyed()) {
+			if (!this.window.isDestroyed()) {
 				this.logService.error('[AppWindowCaptureFeedback] Showing the feedback failed:', error);
 			}
 			return false;
 		}
 	}
 
-	/** The rectangle that the screenshot shrinks into, in the coordinates of the overlay. */
-	private getDestination(overlay: IOverlay, destination: IRectangle | undefined): IRectangle {
-		if (destination) {
-			const rect = { x: destination.x - overlay.display.x, y: destination.y - overlay.display.y, width: destination.width, height: destination.height };
-			const centerX = rect.x + rect.width / 2;
-			const centerY = rect.y + rect.height / 2;
-			if (centerX >= 0 && centerY >= 0 && centerX <= overlay.display.width && centerY <= overlay.display.height) {
-				return rect;
+	/** Runs a function of the page, and resolves whether it ran. */
+	private async run(script: string): Promise<boolean> {
+		try {
+			if (!await this.ready || this.window.isDestroyed()) {
+				return false;
 			}
+			return await this.execute(script);
+		} catch (error) {
+			if (!this.window.isDestroyed()) {
+				this.logService.error('[AppWindowCaptureFeedback] The feedback failed:', error);
+			}
+			return false;
 		}
-		const { target } = overlay;
-		return { x: target.x + target.width * 0.4, y: target.y + target.height * 0.4, width: target.width * 0.2, height: target.height * 0.2 };
 	}
 
-	private close(overlay: IOverlay | undefined): void {
-		if (!overlay) {
-			return;
-		}
-		if (this.overlay === overlay) {
-			this.overlay = undefined;
-		}
-		clearTimeout(overlay.timeout);
-		if (!overlay.window.isDestroyed()) {
-			overlay.window.destroy();
-		}
+	/** Runs a script in the page, and resolves whether it ran, or `false` once the overlay is gone. */
+	private execute(script: string): Promise<boolean> {
+		return Promise.race([this.window.webContents.executeJavaScript(script).then(() => true), this.disposed.p.then(() => false)]);
 	}
+
+	/** The rectangle in the coordinates of the overlay, when its center is on the display of the overlay. */
+	private toOverlay(rect: IRectangle | undefined): IRectangle | undefined {
+		if (!rect) {
+			return undefined;
+		}
+		const x = rect.x - this.display.x;
+		const y = rect.y - this.display.y;
+		const centerX = x + rect.width / 2;
+		const centerY = y + rect.height / 2;
+		return centerX >= 0 && centerY >= 0 && centerX <= this.display.width && centerY <= this.display.height ? { x, y, width: rect.width, height: rect.height } : undefined;
+	}
+}
+
+/** The corner radius of a window of macOS, which macOS 26 (Darwin 25) rounds more. A window in full screen has none. */
+function getWindowRadius(bounds: IRectangle, display: IRectangle): number {
+	if (bounds.x <= display.x && bounds.y <= display.y && bounds.x + bounds.width >= display.x + display.width && bounds.y + bounds.height >= display.y + display.height) {
+		return 0;
+	}
+	return parseInt(release(), 10) >= 25 ? 16 : 10;
 }
