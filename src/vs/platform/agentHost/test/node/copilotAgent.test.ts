@@ -5807,22 +5807,14 @@ suite('CopilotAgent', () => {
 			}
 		});
 
-		test('registers a session whose retry of refused extensions fails after trust expanded during initialization, but not one whose revocation fails', async () => {
-			class ErrorRecordingLogService extends NullLogService {
-				readonly errors: string[] = [];
-				override error(message: string | Error, ..._args: unknown[]): void {
-					this.errors.push(typeof message === 'string' ? message : message.message);
-				}
-			}
+		test('fails initialization only for a session that can\'t complete revoking project extensions after trust contracted during it', async () => {
 			const root = await fs.mkdtemp(`${os.tmpdir()}/trust-initialization-`);
 			const workspace = URI.file(join(root, 'workspace'));
 			const modulePath = join(workspace.fsPath, '.github', 'extensions', 'preview', 'extension.mjs');
 			await fs.mkdir(dirname(modulePath), { recursive: true });
 			await fs.writeFile(modulePath, '');
-			const logService = new ErrorRecordingLogService();
 			const { agent, configurationService } = createTestAgentContext(disposables, {
 				copilotClient: new TestCopilotClient([]),
-				logService,
 				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } },
 			});
 			const internals = agent as unknown as {
@@ -5845,7 +5837,12 @@ suite('CopilotAgent', () => {
 					extensionLaunchDirectories: [workspace],
 					setExtensionLaunchAdmission: (value: ICopilotProjectExtensionLaunchAdmission) => { admission.value = value; },
 					initializeSession: duringInitialization,
-					reconcileProjectExtensionsAfterTrustChange: async () => { throw new Error('extensions.reconcile is not supported by this runtime'); },
+					// A session throws only when it can't stop an extension whose trust was revoked; a failed retry is its own to log.
+					reconcileProjectExtensionsAfterTrustChange: async (reconciliation: ICopilotProjectExtensionTrustReconciliation) => {
+						if (reconciliation.revokedExtensionNames.size > 0) {
+							throw new Error('rpc.extensions.reload timed out');
+						}
+					},
 					dispose: () => { disposed = true; },
 				} as unknown as CopilotAgentSession;
 				try {
@@ -5858,16 +5855,14 @@ suite('CopilotAgent', () => {
 
 			try {
 				const expansionOnly = await initialize(async () => trust([workspace]));
-				const loggedForExpansion = logService.errors.length;
 				const revocation = await initialize(async () => {
 					await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
 					trust([]);
 				});
 
-				assert.deepStrictEqual({ expansionOnly, loggedForExpansion, revocation }, {
+				assert.deepStrictEqual({ expansionOnly, revocation }, {
 					expansionOnly: { outcome: 'resolved', registered: true, disposed: false },
-					loggedForExpansion: 1,
-					revocation: { outcome: 'extensions.reconcile is not supported by this runtime', registered: false, disposed: false },
+					revocation: { outcome: 'rpc.extensions.reload timed out', registered: false, disposed: false },
 				});
 			} finally {
 				await disposeAgent(agent);
@@ -12686,6 +12681,83 @@ suite('CopilotAgent', () => {
 							{ lists: 1, reloads: 1, reconciles: 1, statuses: { revoked: 'failed', refused: 'running', disabled: 'disabled' } },
 							{ lists: 0, reloads: 0, reconciles: 0, statuses: {} },
 						],
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('retries refused project extensions without failing when the retry fails, also while another folder loses trust', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const live = (fixture.agent as unknown as { _allLiveSessions(): CopilotAgentSession[] })._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					sdk.extensions.push({ id: 'project:refused', name: 'refused', source: 'project', status: 'failed' });
+					Object.assign(sdk.rpc.extensions, {
+						// Like the runtime, which reports an extension the launch provider still refuses as a lifecycle failure.
+						reconcile: async () => {
+							sdk.extensionReconcileCalls++;
+							throw new Error('Extension lifecycle reconciliation failed');
+						},
+					});
+
+					// The same change revoked another folder's extension, which this session doesn't run.
+					const outcome = await live.reconcileProjectExtensionsAfterTrustChange({ expanded: true, revokedExtensionNames: new Set(['elsewhere']) })
+						.then(() => 'resolved', (error: Error) => error.message);
+
+					assert.deepStrictEqual({ outcome, reloads: sdk.extensionReloadCalls, reconciles: sdk.extensionReconcileCalls }, { outcome: 'resolved', reloads: 0, reconciles: 1 });
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('lets a trust reconciliation in flight finish before its session disconnects, and sends the retiring runtime nothing more', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const live = (fixture.agent as unknown as { _allLiveSessions(): CopilotAgentSession[] })._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					sdk.extensions.push(
+						{ id: 'project:revoked', name: 'revoked', source: 'project', status: 'running' },
+						{ id: 'project:refused', name: 'refused', source: 'project', status: 'failed' },
+					);
+					let lists = 0;
+					const reloadStarted = new DeferredPromise<void>();
+					const releaseReload = new DeferredPromise<void>();
+					const order: string[] = [];
+					const { list } = sdk.rpc.extensions;
+					Object.assign(sdk.rpc.extensions, {
+						list: async () => {
+							lists++;
+							return list();
+						},
+						reload: async () => {
+							sdk.extensionReloadCalls++;
+							reloadStarted.complete();
+							await releaseReload.p;
+							order.push('reloaded');
+						},
+						reconcile: async () => {
+							sdk.extensionReconcileCalls++;
+							return list();
+						},
+					});
+
+					const reconciling = live.reconcileProjectExtensionsAfterTrustChange({ expanded: true, revokedExtensionNames: new Set(['revoked']) });
+					await reloadStarted.p;
+					// A configuration refresh retires the session while its reload is in flight.
+					const destroying = live.destroySession().then(() => order.push(`disconnected:${sdk.disconnectCalls}`));
+					await timeout(0);
+					order.push(`releasing:${sdk.disconnectCalls}`);
+					releaseReload.complete();
+					await Promise.all([reconciling, destroying]);
+
+					assert.deepStrictEqual({ order, lists, reloads: sdk.extensionReloadCalls, reconciles: sdk.extensionReconcileCalls }, {
+						order: ['releasing:0', 'reloaded', 'disconnected:1'],
+						lists: 1,
+						reloads: 1,
+						reconciles: 0,
 					});
 				} finally {
 					await fixture.dispose();

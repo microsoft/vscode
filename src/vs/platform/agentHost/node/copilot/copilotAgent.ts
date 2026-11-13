@@ -11097,15 +11097,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			if (session.canvasRuntimeEnabled && changeDuringInitialization) {
 				reconciledTrustState = this._projectExtensionLaunchPolicy.trustState;
 				const reconciliation = await this._projectExtensionLaunchPolicy.reconciliationFor(changeDuringInitialization);
-				try {
-					await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
-				} catch (error) {
-					// An extension that may run without trust fails the session; one that stays refused only misses a retry.
-					if (reconciliation.revokedExtensionNames.size > 0) {
-						throw error;
-					}
-					this._logService.error(`[Copilot:${session.sessionId}] Failed to retry refused project extensions after workspace trust expanded during initialization`, error);
-				}
+				// It throws only when a revocation fails: an extension that may run without trust fails the session.
+				await session.reconcileProjectExtensionsAfterTrustChange(reconciliation);
 			}
 			await beforeRegistration?.();
 			if (session.hasPendingConnectorRefresh) {
