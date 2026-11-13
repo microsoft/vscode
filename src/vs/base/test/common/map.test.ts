@@ -542,24 +542,34 @@ suite('Map', () => {
 		original.set(fileA, 1);
 
 		const copy = new ResourceMap(original);
-		assert.strictEqual(copy.size, 1);
-		assert.strictEqual(copy.has(fileA), true);
-		assert.strictEqual(copy.has(fileAUpper), true);
-		assert.strictEqual(copy.get(fileA), 1);
-		assert.strictEqual(copy.get(fileAUpper), 1);
+		const afterCopy = {
+			entries: Array.from(copy),
+			has: [copy.has(fileA), copy.has(fileAUpper)],
+			values: [copy.get(fileA), copy.get(fileAUpper)],
+		};
 
-		// Updating the copy under a case-variant URI should update the same entry, not create a duplicate
 		copy.set(fileAUpper, 2);
-		assert.strictEqual(copy.size, 1);
-		assert.strictEqual(copy.get(fileA), 2);
-		assert.strictEqual(copy.get(fileAUpper), 2);
-		assert.strictEqual(original.get(fileA), 1);
+		const afterSet = {
+			entries: Array.from(copy),
+			values: [copy.get(fileA), copy.get(fileAUpper)],
+			original: Array.from(original),
+		};
 
-		// Deleting from copy should respect custom toKey and isolate original
-		assert.strictEqual(copy.delete(fileA), true);
-		assert.strictEqual(copy.size, 0);
-		assert.strictEqual(copy.has(fileAUpper), false);
-		assert.strictEqual(original.size, 1);
+		const deleted = copy.delete(fileA);
+
+		assert.deepStrictEqual({
+			afterCopy,
+			afterSet,
+			deleted,
+			afterDelete: { size: copy.size, has: copy.has(fileAUpper) },
+			original: Array.from(original),
+		}, {
+			afterCopy: { entries: [[fileA, 1]], has: [true, true], values: [1, 1] },
+			afterSet: { entries: [[fileAUpper, 2]], values: [2, 2], original: [[fileA, 1]] },
+			deleted: true,
+			afterDelete: { size: 0, has: false },
+			original: [[fileA, 1]],
+		});
 	});
 
 	test('ResourceMap - clone with new toKey re-keys entries', function () {
