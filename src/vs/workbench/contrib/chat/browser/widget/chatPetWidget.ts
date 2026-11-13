@@ -232,6 +232,7 @@ interface SubagentPetHost {
 	readonly color: ChatPetColor;
 	readonly accessory: ChatPetAccessoryId | undefined;
 	readonly scale: number;
+	readonly random: () => number;
 	isAnimationVisible(element: HTMLElement): boolean;
 	getDragBounds(): DOMRect;
 	getMovementBounds(): DOMRect;
@@ -1308,7 +1309,7 @@ class SubagentPet extends Disposable {
 		for (const eye of this.eyes.children) {
 			(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
 		}
-		this._blink = this._activity.add(new ChatPetBlinkController(blinking => this.eyes.classList.toggle('blink', blinking)));
+		this._blink = this._activity.add(new ChatPetBlinkController(blinking => this.eyes.classList.toggle('blink', blinking), _host.random));
 		this._activity.add(_host.onDidChangeAnimationVisibility(() => this.updateBlink()));
 		const firstPupil = this.eyes.firstElementChild?.firstElementChild;
 		if (firstPupil) {
@@ -1641,12 +1642,14 @@ export class ChatPetWidget extends Disposable {
 	private _color: ChatPetColor;
 	private _selectedAccessory: ChatPetAccessoryId | undefined;
 	private _scale = 1;
+	private readonly _random: () => number;
 
 	constructor(
 		host: IChatPetWidgetHost,
 		options: {
 			readonly resizeObserverCtor?: typeof ResizeObserver;
 			readonly intersectionObserverCtor?: typeof IntersectionObserver;
+			readonly random?: () => number;
 		} | undefined,
 		@IChatPetService private readonly chatPetService: IChatPetService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
@@ -1657,6 +1660,7 @@ export class ChatPetWidget extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
+		this._random = options?.random ?? Math.random;
 
 		this.parent = host.parent;
 		this.dragBounds = host.dragBounds;
@@ -3232,7 +3236,7 @@ export class ChatPetWidget extends Disposable {
 		const available = beforePet + afterPet;
 		const minimumTop = Math.max(movement.top - overlay.top, bounds.bottom - SUBAGENT_PET_MAX_HEIGHT);
 		const attempts = Math.max(1, Math.ceil(available / Math.max(1, size / 2)));
-		const start = Math.random() * available;
+		const start = this._random() * available;
 		let best: { left: number; top: number } | undefined;
 		for (let index = 0; index < attempts; index++) {
 			const offset = available > 0 ? (start + index * available / attempts) % available : 0;
@@ -3286,6 +3290,7 @@ export class ChatPetWidget extends Disposable {
 				get color() { return widget._color; },
 				get accessory() { return widget._selectedAccessory; },
 				get scale() { return widget._scale; },
+				random: this._random,
 				isAnimationVisible: element => this._isAnimationVisible(this._visual) && this._isAnimationVisible(element),
 				getDragBounds: () => this.dragBounds.getBoundingClientRect(),
 				getMovementBounds: () => this.movementBounds.getBoundingClientRect(),

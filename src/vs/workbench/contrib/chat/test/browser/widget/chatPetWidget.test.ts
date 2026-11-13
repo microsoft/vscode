@@ -114,7 +114,7 @@ suite('ChatPetWidget', () => {
 		}
 	}
 
-	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, initialModel?: IChatModel) {
+	function createHostTransitionHarness(motionReduced = false, initialTransition: IChatPetWidgetHost['transition'] = 'teleport', color?: ChatPetColor, intersectionObserverCtor?: typeof IntersectionObserver, setPlatformOccupation?: IChatPetWidgetHost['setPlatformOccupation'], supportsJumpGame = false, initializeService?: (service: ChatPetService) => void, initialModel?: IChatModel, random?: () => number) {
 		const root = mainWindow.document.createElement('div');
 		root.style.cssText = 'position:fixed;left:0;top:0;width:800px;height:640px';
 		if (supportsJumpGame) {
@@ -179,7 +179,7 @@ suite('ChatPetWidget', () => {
 		}
 		initializeService?.(service);
 		const widget = disposables.add(new ChatPetWidget(
-			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor }, service, accessibilityService,
+			firstHost, { resizeObserverCtor: TestResizeObserver, intersectionObserverCtor, random }, service, accessibilityService,
 			new class extends mock<IContextMenuService>() {
 				override showContextMenu(delegate: IContextMenuDelegate): void { contextMenu = delegate; }
 			}(),
@@ -206,6 +206,10 @@ suite('ChatPetWidget', () => {
 				reducedMotionChanged.fire();
 			},
 		};
+	}
+
+	function createSubagentPetTestHarness(random: () => number, motionReduced = false) {
+		return createHostTransitionHarness(motionReduced, undefined, undefined, undefined, undefined, false, undefined, undefined, random);
 	}
 
 	/**
@@ -3015,14 +3019,14 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('subagent pets spawn across the platform and stack where their paths overlap', async () => {
-		const { widget, firstHost, button, overlay, firstParent, layout } = createHostTransitionHarness(true);
+		let randomValue = 0;
+		const { widget, firstHost, button, overlay, firstParent, layout } = createSubagentPetTestHarness(() => randomValue, true);
 		const changed = disposables.add(new Emitter<ChatResponseModelChangeReason>());
 		const parts: IChatProgressResponseContent[] = [];
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(parts, changed.event)) });
 		button.style.left = '300px';
-		const random = sinon.stub(Math, 'random');
 		const add = (id: string, position: number) => {
-			random.returns(position);
+			randomValue = position;
 			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
 			tool.toolSpecificData = { kind: 'subagent', isActive: true };
 			parts.push(tool);
@@ -3103,7 +3107,7 @@ suite('ChatPetWidget', () => {
 	});
 
 	test('subagent pets spawn inside the visible window when their platform extends beyond it', () => {
-		const { widget, firstHost, root, firstParent, button, overlay } = createHostTransitionHarness(true);
+		const { widget, firstHost, root, firstParent, button, overlay } = createSubagentPetTestHarness(() => 0.99, true);
 		root.style.width = `${mainWindow.innerWidth + 240}px`;
 		firstParent.style.left = `${mainWindow.innerWidth - 80}px`;
 		firstParent.style.width = '240px';
@@ -3111,7 +3115,6 @@ suite('ChatPetWidget', () => {
 		const tools: ChatToolInvocation[] = [];
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools, changed.event)) });
 		button.style.left = '0px';
-		sinon.stub(Math, 'random').returns(0.99);
 		const tool = new ChatToolInvocation(undefined, { id: 'edge', displayName: 'Edge', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'edge', undefined, {});
 		tool.toolSpecificData = { kind: 'subagent', isActive: true };
 		tools.push(tool);
@@ -3476,8 +3479,7 @@ suite('ChatPetWidget', () => {
 	test('subagent pets blink and move their eyes with their own idle frames', async () => {
 		const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'performance'] });
 		disposables.add(toDisposable(() => clock.restore()));
-		sinon.stub(Math, 'random').returns(0);
-		const { widget, firstHost, overlay, setReducedMotion } = createHostTransitionHarness();
+		const { widget, firstHost, overlay, setReducedMotion } = createSubagentPetTestHarness(() => 0);
 		const tool = new ChatToolInvocation(undefined, { id: 'subagent', displayName: 'Subagent', modelDescription: 'Subagent', source: ToolDataSource.Internal }, 'subagent', undefined, {});
 		tool.toolSpecificData = { kind: 'subagent', isActive: true };
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
