@@ -142,8 +142,11 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
-function isUnreadSessionModifiedToday(session: ISession, reader?: IReader): boolean {
-	return !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
+/** How recently an unread session from before the Inbox's first use must have been modified to still be admitted. */
+const UNREAD_HISTORICAL_INBOX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isUnreadSessionModifiedRecently(session: ISession, reader?: IReader): boolean {
+	return !session.isRead.read(reader) && session.updatedAt.read(reader).getTime() >= Date.now() - UNREAD_HISTORICAL_INBOX_WINDOW_MS;
 }
 
 type StoredSessionInboxState = SessionInboxState | { readonly kind: 'resumed' };
@@ -411,7 +414,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
 		if (attention?.isHistoricalCompletion) {
-			if (!isUnreadSessionModifiedToday(session, reader)) {
+			if (!isUnreadSessionModifiedRecently(session, reader)) {
 				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
 			}
 		}

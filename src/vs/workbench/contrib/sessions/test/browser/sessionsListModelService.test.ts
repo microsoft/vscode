@@ -210,10 +210,11 @@ suite('SessionsListModelService', () => {
 
 	// -- Inbox --
 
-	test('historical unread completions only bypass the cutoff when modified today locally', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+	test('historical unread completions only bypass the cutoff when modified within the last 7 days', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const cases = [
 			{ id: 'yesterday-unread', updatedAt: new Date(2025, 11, 31, 23, 59, 59, 999), isRead: false, historical: true },
-			{ id: 'midnight-unread', updatedAt: new Date(2026, 0, 1), isRead: false, historical: true },
+			{ id: 'seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000), isRead: false, historical: true },
+			{ id: 'over-seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000 - 1), isRead: false, historical: true },
 			{ id: 'today-unread', updatedAt: new Date(2026, 0, 1, 11), isRead: false, historical: true },
 			{ id: 'today-read', updatedAt: new Date(2026, 0, 1, 11), isRead: true, historical: true },
 			{ id: 'last-month-unread', updatedAt: new Date(2025, 11, 1, 11), isRead: false, historical: true },
@@ -229,8 +230,9 @@ suite('SessionsListModelService', () => {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: historical,
 		}])), undefined);
 		assert.deepStrictEqual(sessions.map(session => [session.sessionId, service.getInboxState(session)?.kind]), [
-			['yesterday-unread', 'done'],
-			['midnight-unread', undefined],
+			['yesterday-unread', undefined],
+			['seven-days-unread', undefined],
+			['over-seven-days-unread', 'done'],
 			['today-unread', undefined],
 			['today-read', 'done'],
 			['last-month-unread', 'done'],
@@ -241,7 +243,7 @@ suite('SessionsListModelService', () => {
 
 	test('historical unread completions remain in Inbox after reading and reload until dismissed', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const isRead = observableValue('historicalRead', false);
-		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
+		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 1, 23));
 		const session = { ...createSession('historical'), isRead, updatedAt };
 		sessions.push(session);
 		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
