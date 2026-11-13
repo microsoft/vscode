@@ -4,15 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, getDomNodeZoomLevel, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
 import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
+import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('dom', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test('hasClass', () => {
 
 		const element = document.createElement('div');
@@ -737,21 +739,44 @@ suite('dom', () => {
 		});
 	});
 
+	test('getDomNodeZoomLevel multiplies ancestor CSS zoom across shadow roots', () => {
+		const outer = mainWindow.document.body.appendChild($('div'));
+		store.add(toDisposable(() => outer.remove()));
+		outer.style.zoom = '1.25';
+		const host = outer.appendChild($('div'));
+		host.style.zoom = '0.8';
+		const shadow = host.attachShadow({ mode: 'open' });
+		const inner = shadow.appendChild($('div'));
+		const leaf = inner.appendChild($('div'));
+		leaf.style.zoom = '2';
+
+		assert.deepStrictEqual({
+			outer: getDomNodeZoomLevel(outer),
+			host: getDomNodeZoomLevel(host),
+			inner: getDomNodeZoomLevel(inner),
+			leaf: getDomNodeZoomLevel(leaf),
+		}, {
+			outer: 1.25,
+			host: 1,
+			inner: 1,
+			leaf: 2,
+		});
+	});
+
 	suite('ModifierKeyEmitter', () => {
 		test('exposes the keyboard event only while notifying listeners', () => {
+			const disposables = new DisposableStore();
 			const emitter = ModifierKeyEmitter.getInstance();
 			const received: (string | undefined)[] = [];
-			const listener = emitter.event(status => received.push(status.event?.type));
+			disposables.add(emitter.event(status => received.push(status.event?.type)));
 			try {
 				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
 				mainWindow.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', ctrlKey: false }));
 			} finally {
-				listener.dispose();
+				disposables.dispose();
 			}
 
 			assert.deepStrictEqual({ received, retained: emitter.keyStatus.event }, { received: ['keydown', 'keyup'], retained: undefined });
 		});
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 });

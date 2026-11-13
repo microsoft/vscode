@@ -506,6 +506,43 @@ suite('Workbench - Titlebar Part', () => {
 			}
 		});
 	}
+
+	test('counter-zooms titlebar shadow-root and context-view menus without shrinking dropdown buttons', () => {
+		const workbench = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.className = 'monaco-workbench';
+		const titlebar = workbench.appendChild(mainWindow.document.createElement('div'));
+		titlebar.className = 'part titlebar';
+		titlebar.style.setProperty('--zoom-factor', '0.8');
+		const titlebarContainer = titlebar.appendChild(mainWindow.document.createElement('div'));
+		titlebarContainer.className = 'titlebar-container counter-zoom';
+		const toolbar = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
+		toolbar.className = 'monaco-toolbar';
+		const splitItem = toolbar.appendChild(mainWindow.document.createElement('div'));
+		splitItem.className = 'monaco-dropdown-with-primary';
+		const primary = splitItem.appendChild(mainWindow.document.createElement('div'));
+		primary.className = 'action-container';
+		primary.style.cssText = 'width: 20px; height: 24px;';
+		const dropdown = splitItem.appendChild(mainWindow.document.createElement('div'));
+		dropdown.className = 'dropdown-action-container';
+		dropdown.style.cssText = 'width: 16px; height: 24px;';
+		const shadowHost = dropdown.appendChild(mainWindow.document.createElement('div'));
+		shadowHost.className = 'shadow-root-host';
+		const contextView = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
+		contextView.className = 'context-view';
+
+		assert.deepStrictEqual({
+			primaryWidth: Math.round(primary.getBoundingClientRect().width),
+			dropdownWidth: Math.round(dropdown.getBoundingClientRect().width),
+			shadowHostZoom: mainWindow.getComputedStyle(shadowHost).getPropertyValue('zoom'),
+			contextViewZoom: mainWindow.getComputedStyle(contextView).getPropertyValue('zoom'),
+		}, {
+			primaryWidth: 25,
+			dropdownWidth: 20,
+			shadowHostZoom: '0.8',
+			contextViewZoom: '0.8',
+		});
+	});
 });
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {
