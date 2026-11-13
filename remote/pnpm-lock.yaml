@@ -178,8 +178,8 @@ importers:
         specifier: 0.88.0
         version: 0.88.0
       '@github/copilot-sdk':
-        specifier: 1.0.33-preview.0
-        version: 1.0.33-preview.0
+        specifier: 1.0.34-preview.0
+        version: 1.0.34-preview.0
       '@hpke/core':
         specifier: ^1.9.0
         version: 1.9.0
@@ -404,52 +404,52 @@ packages:
     engines: {node: '>=20.0.0'}
     hasBin: true
 
-  '@github/copilot-sdk-darwin-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-RR4RrOKleNmo+n90FMT/jNQuvOzrjwtruBHzElR9dEik4uacQ7bOGrKTpZk/u9RMVRtfVHyu0pVLtZVjD7UHkQ==}
+  '@github/copilot-sdk-darwin-arm64@1.0.34-preview.0':
+    resolution: {integrity: sha512-1pFxP9q4yUjccc06uwU2q9btOJd/sijwkYEVLeX24ugjhFm+GsbHTQomJ2ST9UgscDbkl4z/qhunStuVP04fyg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@github/copilot-sdk-darwin-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-/CmMuyAXl/6JpzTB9HeDDzCQXlIw+pVvj4N/tQcg+bhbLN/xvJcewtvJ1EGyejyUWImjdBai1pQxr+d6oxabQA==}
+  '@github/copilot-sdk-darwin-x64@1.0.34-preview.0':
+    resolution: {integrity: sha512-Aa0HqwM7PtFyI4UeORCN9fA+tdaBy2ZK6amMEGgvwTs7kxWkLkEoXyZYKwNbsHSWe497dxJs5IXVF2Lzi5VoJg==}
     cpu: [x64]
     os: [darwin]
 
-  '@github/copilot-sdk-linux-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-ho/QH+L/FiFUEjfA0/iBTuUR7IE6B6DEIDwRt7ywPxMYuCPbNIC6dpPONheL6xir+BpEZB0ChQnbO6bvhMUC+A==}
+  '@github/copilot-sdk-linux-arm64@1.0.34-preview.0':
+    resolution: {integrity: sha512-mwe+yPyACN+aajSeQMKuzF1Ju4lb/YpEf0SwxGuY2xWDyRgtrjep4bEqTxUutLXG7N4wdCldQP+nTOQGRVVttQ==}
     cpu: [arm64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linux-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-Q/8P9P6y+MhuV/c36i8Uu7pg1xnntL5hokIzpcORWaRAhYdiYaVeakp2+huMtjL43qSMdLqfmT1g3ivMD7OEVg==}
+  '@github/copilot-sdk-linux-x64@1.0.34-preview.0':
+    resolution: {integrity: sha512-jNbDyAhURaG7p8LFxbKr+Kj8aQBs4Y4Nv2HJdFPUiBHeYnYL+8YUiTTf52yfV5D8pY+jhEmXuvw6T4fZ6CQ4ug==}
     cpu: [x64]
     os: [linux]
     libc: [glibc]
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-CMnJlH90HXfuz6LivbBEOD2P7agzccFqEZmYYcwZToJHSEeQLOcub+6gqB25vXUQjAzFibAaklIMLGy64Y95Kg==}
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.34-preview.0':
+    resolution: {integrity: sha512-a1BqlNLLmyCq8NaU4nOxaLimgZ8G5WC+qcJn1j74exm6BfjSCRSw6ihIruK05jHp+PIOHloZUtkBByHlVMARBA==}
     cpu: [arm64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-N/kcKAiqKI/j46qNoKT06vlPEEzyvnzTZ0cxgTWr/si0tQx/2UQuVyTlRRBn1QtzvJJTpBclK4+4NwI2RsCFaw==}
+  '@github/copilot-sdk-linuxmusl-x64@1.0.34-preview.0':
+    resolution: {integrity: sha512-en95T05M6f7l4QsUtiuWdHmqvlXdCUUakXUl4TpNSaTD64gFWDts7epedC/xf1aATJ1N4SjrjC3Xmdr9AXivxQ==}
     cpu: [x64]
     os: [linux]
     libc: [musl]
 
-  '@github/copilot-sdk-win32-arm64@1.0.33-preview.0':
-    resolution: {integrity: sha512-3gv/SYtdaVEAc6mpMkt0mKloPk1gHGdtY6IMykb+lkb6RCtC+bFmCst1L1f67tx8rNBQ5IGu96X5xfz+uPAhnw==}
+  '@github/copilot-sdk-win32-arm64@1.0.34-preview.0':
+    resolution: {integrity: sha512-oz1gdA2/zXeyb81gMNn99Im68m+r/7PWhmHmUd+bQpYqW/ceQSMNPhyJB5+zzbKU+EZqS+A+aZHhBoobynd/gQ==}
     cpu: [arm64]
     os: [win32]
 
-  '@github/copilot-sdk-win32-x64@1.0.33-preview.0':
-    resolution: {integrity: sha512-n3bJbIKlOagcdrZtj8vhUs/5ArJk5Qtv/dbvgWgBhEObWBYbOjTls4q3rVE/8QC5hGEeli+c8eTaZEwXF8ThSA==}
+  '@github/copilot-sdk-win32-x64@1.0.34-preview.0':
+    resolution: {integrity: sha512-JgJfVgLvy910jM2SgV2a0ndL3PcizGJJZmMKT9r2Clb0fPMoRpWtL5eADAQz7RWckqxn2dzyPPstaRTVjOi+yQ==}
     cpu: [x64]
     os: [win32]
 
-  '@github/copilot-sdk@1.0.33-preview.0':
-    resolution: {integrity: sha512-7vNdfXrLlhmaoLEJoLc8P9EivPApXmR93PrsE9TCvvIVUl3e4y7ZiSpJHm0b1UTwPFWuD72+i/NnbTzQgoHP3w==}
+  '@github/copilot-sdk@1.0.34-preview.0':
+    resolution: {integrity: sha512-CKEjyCYM96AkeHeiCx8Cr07N/FJf9VHnV4c9nY0tjGIve93gGcvf7/Zi14dA6cVDR0qtpsgUI52JYFppQ5gBKg==}
     engines: {node: ^20.19.0 || >=22.12.0}
 
   '@hpke/common@1.10.1':
@@ -1062,45 +1062,45 @@ snapshots:
 
   '@devcontainers/cli@0.88.0': {}
 
-  '@github/copilot-sdk-darwin-arm64@1.0.33-preview.0':
+  '@github/copilot-sdk-darwin-arm64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-darwin-x64@1.0.33-preview.0':
+  '@github/copilot-sdk-darwin-x64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linux-arm64@1.0.33-preview.0':
+  '@github/copilot-sdk-linux-arm64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linux-x64@1.0.33-preview.0':
+  '@github/copilot-sdk-linux-x64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-arm64@1.0.33-preview.0':
+  '@github/copilot-sdk-linuxmusl-arm64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-linuxmusl-x64@1.0.33-preview.0':
+  '@github/copilot-sdk-linuxmusl-x64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-win32-arm64@1.0.33-preview.0':
+  '@github/copilot-sdk-win32-arm64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk-win32-x64@1.0.33-preview.0':
+  '@github/copilot-sdk-win32-x64@1.0.34-preview.0':
     optional: true
 
-  '@github/copilot-sdk@1.0.33-preview.0':
+  '@github/copilot-sdk@1.0.34-preview.0':
     dependencies:
       koffi: 3.2.1
       lossless-json: 4.3.3
       vscode-jsonrpc: 10.0.0
       zod: 4.6.7
     optionalDependencies:
-      '@github/copilot-sdk-darwin-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-darwin-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-linux-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-linux-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-linuxmusl-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-linuxmusl-x64': 1.0.33-preview.0
-      '@github/copilot-sdk-win32-arm64': 1.0.33-preview.0
-      '@github/copilot-sdk-win32-x64': 1.0.33-preview.0
+      '@github/copilot-sdk-darwin-arm64': 1.0.34-preview.0
+      '@github/copilot-sdk-darwin-x64': 1.0.34-preview.0
+      '@github/copilot-sdk-linux-arm64': 1.0.34-preview.0
+      '@github/copilot-sdk-linux-x64': 1.0.34-preview.0
+      '@github/copilot-sdk-linuxmusl-arm64': 1.0.34-preview.0
+      '@github/copilot-sdk-linuxmusl-x64': 1.0.34-preview.0
+      '@github/copilot-sdk-win32-arm64': 1.0.34-preview.0
+      '@github/copilot-sdk-win32-x64': 1.0.34-preview.0
 
   '@hpke/common@1.10.1': {}
 
