@@ -11,7 +11,7 @@ import { toAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { timeout } from '../../../../../../base/common/async.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -211,6 +211,7 @@ suite('Artifact Integration Groups', () => {
 				toggles.push({ id: presentation.model.snapshot.get().artifact.id, target: !target ? 'focused' : target.className.includes('chat-pill-button') ? 'pill' : target.className, ...(selection ? { selection } : {}), ...(sectionId ? { sectionId } : {}) });
 			},
 			release: () => { },
+			suspend: () => Disposable.None,
 		};
 		const ran: string[] = [];
 		const action = (id: string, label: string, icon: ThemeIcon): IChatPillAction => toAction({ id, label, class: ThemeIcon.asClassName(icon), run: () => { ran.push(id); } });

@@ -15,7 +15,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
 import { disposableTimeout } from '../../../../../base/common/async.js';
-import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -280,6 +280,8 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 	private view: IOpenContextView | undefined;
 	private restoreFocus = false;
 	private disposing = false;
+	/** Keeps the details this dropdown replaced, so its rows mark their active section and activating it closes them. */
+	private detailsSuspension: IDisposable | undefined;
 
 	/**
 	 * @param pill The group pill, which positions the dropdown and toggles it itself.
@@ -345,6 +347,7 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 	}
 
 	show(): void {
+		this.detailsSuspension = this.group.detailsHost.suspend();
 		const targetWindow = getWindow(this.pill);
 		this.view = this.contextViewService.showContextView({
 			getAnchor: () => this.pill,
@@ -405,10 +408,14 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 	private openDetails(presentation: ArtifactIntegrationPresentation, selection: ArtifactDetailsSelection | undefined, sectionId: string): void {
 		const button = this.button;
 		const host = this.group.detailsHost;
+		// The section decides on the details this dropdown replaced: it shows them again, switches them, or closes them.
+		const suspension = this.detailsSuspension;
+		this.detailsSuspension = undefined;
 		this.hide(false);
 		if (button.isConnected) {
 			host.toggle(presentation, button, selection, sectionId);
 		}
+		suspension?.dispose();
 	}
 
 	private runAction(action: IChatPillAction, keepOpen: boolean): void {
@@ -469,6 +476,9 @@ class ArtifactIntegrationGroupDropdown extends Disposable {
 		this.disposing = true;
 		this.view?.close();
 		super.dispose();
+		// After the rows, which would otherwise rerender as the hidden details close.
+		this.detailsSuspension?.dispose();
+		this.detailsSuspension = undefined;
 	}
 }
 

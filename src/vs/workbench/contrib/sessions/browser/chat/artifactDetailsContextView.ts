@@ -8,7 +8,7 @@ import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent
 import { AnchorAlignment } from '../../../../../base/browser/ui/contextview/contextview.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
@@ -45,6 +45,7 @@ export class ArtifactDetailsContextView extends Disposable implements IArtifactD
 	private view: IOpenContextView | undefined;
 	private target: HTMLElement | undefined;
 	private suspended = false;
+	private suspension: IDisposable | undefined;
 	private readonly scopedInstantiationService: IInstantiationService;
 
 	constructor(
@@ -119,6 +120,7 @@ export class ArtifactDetailsContextView extends Disposable implements IArtifactD
 		this.hoverService.hideHover(true);
 		this.target = target;
 		this.suspended = false;
+		this.suspension = undefined;
 		if (this.selected.get() !== presentation) {
 			this.panel.clear();
 			this.model.value = this.scopedInstantiationService.createInstance(ArtifactDetailsModel, presentation, () => this.close(false));
@@ -150,6 +152,21 @@ export class ArtifactDetailsContextView extends Disposable implements IArtifactD
 				this.focusFallback?.();
 			}
 		}
+	}
+
+	suspend(): IDisposable {
+		if (!this.view) {
+			return Disposable.None;
+		}
+		const suspension = toDisposable(() => {
+			if (this.suspension === suspension) {
+				this.close(false);
+			}
+		});
+		this.suspension = suspension;
+		this.suspended = true;
+		this.view.close();
+		return suspension;
 	}
 
 	private show(): void {
@@ -248,6 +265,7 @@ export class ArtifactDetailsContextView extends Disposable implements IArtifactD
 	private close(restoreFocus: boolean): void {
 		const target = this.target;
 		this.suspended = false;
+		this.suspension = undefined;
 		if (this.view) {
 			this.view.close();
 		} else {
@@ -303,7 +321,7 @@ function artifactDetailsHelp(): string {
 		localize('artifactDetailsHelp.description', "Descriptions show at most three lines. The Accessible View includes the full description. When a provider supplies more information about a list, use Tab to reach its information icon and Enter or Space to read the hover."),
 		localize('artifactDetailsHelp.controls', "Use Tab and Shift+Tab to move between controls. Buttons below the state lists run actions once. Enabled actions come first in provider order, and the first action is primary. List rows show a single line; their full text and state remain available to screen readers and in hovers. Use Space to change an Autopilot switch. Enabling a rule grants permission for future automatic runs; it can run immediately if its condition already holds. Turning it off prevents new runs, but does not cancel work already started."),
 		localize('artifactDetailsHelp.focus', "A temporarily unavailable switch moves focus to its explanation, then back when available, unless you move focus elsewhere. Enabled automation remains available to turn off."),
-		localize('artifactDetailsHelp.dismiss', "Escape or Close returns focus to the invoking pill. Clicking outside, including in the chat input, dismisses details without moving focus back. A pill's main part opens its resource. The status section that shows the details is expanded; activating it again closes them and returns focus to the pill. Activating another status section, including another artifact's, keeps the details open, makes that section the expanded one, and selects and focuses the corresponding list, or focuses its action; an artifact without status sections offers a Details section instead."),
+		localize('artifactDetailsHelp.dismiss', "Escape or Close returns focus to the invoking pill. Clicking outside, including in the chat input, dismisses details without moving focus back. A pill's main part opens its resource. The status section that shows the details is expanded; activating it again closes them and returns focus to the pill. Activating another status section, including another artifact's, keeps the details open, makes that section the expanded one, and selects and focuses the corresponding list, or focuses its action; an artifact without status sections offers a Details section instead. Opening an artifact group's list hides a member's details until you activate a status section in it; the list focuses that member, marks its expanded section, and activating that section closes the details."),
 		localize('artifactDetailsHelp.view', "Open the Accessible View{0} to read the full description and current lists as text. The chat accessibility verbosity setting controls the help hint.", '<keybinding:editor.action.accessibleView>'),
 		localize('artifactDetailsHelp.autopilot', "All Available Autopilot Rules applies only to its provider's currently available rules. Its switch is on while at least one rule is on, and the enabled count describes partial enablement. Enabling a group saves immediately and uses the policies shown in the dropdowns. Disabling a group revokes all enabled rules without enabling unavailable ones."),
 		localize('artifactDetailsHelp.tabs', "State lists start collapsed. Clicking a state-list tab, or pressing Enter or Space on it, expands its list; activating the expanded tab again collapses all lists. While a list is expanded, Left and Right Arrow, Home, and End select another state-list tab and keep keyboard focus on the full tab; while all lists are collapsed, they only move focus between tabs. Clicking a tab moves focus to the first item in its list. Tab moves through the information buttons beside each tab label and into the expanded list. Enter or Space on an information button shows that list's details without selecting its tab. The list area keeps its height when you change tabs. Use arrow keys in a list and Enter to open its selected item. A pill's status section expands and focuses its list. Autopilot is collapsed by default; its heading expands or collapses its rules, and its separate switch enables all available rules or turns them off. Policy dropdowns remain visible while rules are off. Selecting a policy while off does not enable the rule; turning the switch on uses the displayed policy without asking again. Policy selections, expanded tabs, and Autopilot expansion choices are remembered when reopening the artifact."),

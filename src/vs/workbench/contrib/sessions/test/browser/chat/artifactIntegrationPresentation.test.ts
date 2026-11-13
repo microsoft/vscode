@@ -54,6 +54,7 @@ import '../../../../../browser/media/style.css';
 import '../../../../../browser/actions/listCommands.js';
 import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView, ArtifactDetailsContextView } from '../../../browser/chat/artifactDetailsContextView.js';
 import { ArtifactIntegrationPresentation } from '../../../browser/chat/artifactIntegrationPresentation.js';
+import { ArtifactIntegrationGroup } from '../../../browser/chat/artifactIntegrationGroup.js';
 import { ArtifactDetailsModel } from '../../../browser/chat/artifactDetailsModel.js';
 import { ArtifactDetailsPanel } from '../../../browser/chat/artifactDetailsPanel.js';
 import { artifactViewKey, IArtifactDetailsViewData } from '../../../browser/chat/artifactDetailsView.js';
@@ -1336,6 +1337,61 @@ suite('Artifact Integration Presentation', () => {
 			afterToggle: { open: false, expanded: ['false', 'false'], backgrounds: [normal, normal] },
 			afterOutsideClick: { open: false, expanded: ['false', 'false'], backgrounds: [normal, normal] },
 			shows: 2,
+		});
+	});
+
+	test('a group dropdown keeps the member details it replaces, so its active section closes them and another section switches them', async () => {
+		const f = fixture();
+		const members = [f.artifact('first'), f.artifact('second')];
+		const group = store.add(f.instantiation.createInstance(ArtifactIntegrationGroup, 'group', constObservable(members.map(a => ({ presentation: a.presentation, entry: a.base }))), f.controller));
+		const item = group.pill.createActionViewItem!({});
+		assert.ok(item instanceof BaseActionViewItem);
+		store.add(item);
+		const pill = append(f.row.querySelector<HTMLElement>('.actions-container')!, $('.action-item'));
+		item.render(pill);
+		const button = pill.querySelector<HTMLElement>('.chat-pill-button')!;
+		const rows = () => [...f.host.querySelectorAll<HTMLElement>('.artifact-group-row')];
+		const statuses = (row: number) => [...rows()[row].querySelectorAll<HTMLElement>('.artifact-group-row-status')];
+		const state = () => ({
+			dropdown: !!f.host.querySelector('.artifact-group-dropdown'),
+			details: f.host.querySelector('.artifact-integration-panel h2')?.textContent,
+			selected: members.findIndex(a => a.presentation === f.controller.selected.get()),
+			activeSection: f.controller.activeSection.get(),
+		});
+		const openFromDropdown = async (row: number, section: number) => {
+			button.click();
+			statuses(row)[section].click();
+			await settle(f);
+		};
+
+		await openFromDropdown(1, 1);
+		const panel = f.host.querySelector('.artifact-integration-panel');
+		const opened = state();
+		button.click();
+		const reopened = {
+			...state(),
+			expanded: rows().map((_, index) => statuses(index).map(status => status.getAttribute('aria-expanded'))),
+			selectedRows: rows().map(row => row.classList.contains('selected')),
+			focusedRow: rows().findIndex(row => row.contains(getActiveElement())),
+		};
+		statuses(1)[0].click();
+		await settle(f);
+		const switched = { ...state(), samePanel: panel === f.host.querySelector('.artifact-integration-panel'), released: [...members[1].released] };
+		await openFromDropdown(1, 0);
+		const toggledClosed = { ...state(), focusedPill: getActiveElement() === button, released: [...members[1].released] };
+		await openFromDropdown(0, 0);
+		button.click();
+		escape(f.host.querySelector<HTMLElement>('.artifact-group-dropdown')!);
+		await settle(f);
+		assert.deepStrictEqual({ opened, reopened, switched, toggledClosed, dismissed: state() }, {
+			opened: { dropdown: false, details: 'Full title for second', selected: 1, activeSection: '["test","comments"]' },
+			reopened: {
+				dropdown: true, details: undefined, selected: 1, activeSection: '["test","comments"]',
+				expanded: [['false', 'false'], ['false', 'true']], selectedRows: [false, true], focusedRow: 1,
+			},
+			switched: { dropdown: false, details: 'Full title for second', selected: 1, activeSection: '["test","status"]', samePanel: true, released: [] },
+			toggledClosed: { dropdown: false, details: undefined, selected: -1, activeSection: undefined, focusedPill: true, released: ['main', 'checks', 'comments'] },
+			dismissed: { dropdown: false, details: undefined, selected: -1, activeSection: undefined },
 		});
 	});
 

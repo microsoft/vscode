@@ -11,7 +11,7 @@ import { Action, toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
-import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
@@ -41,6 +41,12 @@ export interface IArtifactDetailsHost {
 	 */
 	toggle(presentation: ArtifactIntegrationPresentation, target?: HTMLElement, selection?: ArtifactDetailsSelection, sectionId?: string): void;
 	release(presentation: ArtifactIntegrationPresentation): void;
+	/**
+	 * Hides the details while another overlay that shares their context view, such as a group dropdown, takes their
+	 * place. They keep their artifact and active section, so activating that section again closes them. Disposing the
+	 * result closes the hidden details unless they were shown again.
+	 */
+	suspend(): IDisposable;
 }
 
 /** The number of Autopilot rules enabled across an artifact's integrations. */
