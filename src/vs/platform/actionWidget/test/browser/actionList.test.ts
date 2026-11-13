@@ -4604,25 +4604,37 @@ suite('ActionListWidget', () => {
 		assert.strictEqual(widget.getFocusedElement()?.item?.id, 'match-first');
 	});
 
-	test('action item icon and submenu indicator have aria-hidden="true"', () => {
+	test('action item icons remain decorative when hidden and shown again', () => {
+		const item: IActionListItem<ITestActionItem> = {
+			...action('branch-item'),
+			group: { title: 'Branches', icon: Codicon.gitBranch },
+			submenuActions: [toAction({ id: 'action', label: 'Action', run: () => { } })],
+		};
 		const widget = createActionListWidget(disposables, {
-			items: [
-				{
-					...action('branch-item'),
-					group: { title: 'Branches', icon: Codicon.gitBranch },
-					submenuActions: [toAction({ id: 'action', label: 'Action', run: () => { } })],
-				},
-			],
+			items: [item],
 			listOptions: { showFilter: false },
 		});
 
-		const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon:not(.action-list-submenu-indicator)');
-		const submenuIndicator = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .action-list-submenu-indicator');
+		const readIcons = () => {
+			const icon = widget.domNode.querySelector<HTMLElement>('.monaco-list-row > .codicon:not(.action-list-submenu-indicator)');
+			const submenuIndicator = widget.domNode.querySelector<HTMLElement>('.monaco-list-row .action-list-submenu-indicator');
+			return {
+				icon: icon?.getAttribute('aria-hidden'),
+				iconDisplay: icon?.style.display,
+				submenuIndicator: submenuIndicator?.getAttribute('aria-hidden'),
+			};
+		};
 
-		assert.ok(icon);
-		assert.ok(submenuIndicator);
-		assert.strictEqual(icon.getAttribute('aria-hidden'), 'true');
-		assert.strictEqual(submenuIndicator.getAttribute('aria-hidden'), 'true');
+		const visible = readIcons();
+		widget.updateItems([{ ...item, hideIcon: true }]);
+		const hidden = readIcons();
+		widget.updateItems([{ ...item, hideIcon: false }]);
+
+		assert.deepStrictEqual({ visible, hidden, shownAgain: readIcons() }, {
+			visible: { icon: 'true', iconDisplay: '', submenuIndicator: 'true' },
+			hidden: { icon: 'true', iconDisplay: 'none', submenuIndicator: 'true' },
+			shownAgain: { icon: 'true', iconDisplay: '', submenuIndicator: 'true' },
+		});
 	});
 
 });
