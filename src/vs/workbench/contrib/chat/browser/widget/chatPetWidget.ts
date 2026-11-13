@@ -2156,17 +2156,17 @@ export class ChatPetWidget extends Disposable {
 					continue;
 				}
 				let previousResponseSubagentIds = new Set<string>();
-				reader.store.add(autorun(reader => {
-					observableSignalFromEvent(this, response.onDidChange).read(reader);
+				reader.store.add(autorun(responseReader => {
+					observableSignalFromEvent(this, response.onDidChange).read(responseReader);
 					const responseSubagentIds = new Set<string>();
 					for (const part of response.response.value) {
 						if (part.kind !== 'toolInvocation') {
 							continue;
 						}
-						part.toolSpecificDataKind.read(reader);
-						part.state.read(reader);
+						part.toolSpecificDataKind.read(responseReader);
+						part.state.read(responseReader);
 						const data = part.toolSpecificData;
-						if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
+						if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, responseReader))) {
 							responseSubagentIds.add(JSON.stringify([request.id, part.toolCallId]));
 						}
 					}
