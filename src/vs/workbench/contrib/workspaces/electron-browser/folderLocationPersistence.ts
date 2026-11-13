@@ -215,7 +215,7 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			if (!this.isAtAlternate(location) || this.folderLocationService.getLocation(folder)) {
 				return;
 			}
-			await this.workspaceEditingService.whenFolderLocationIdle();
+			await this.workspaceEditingService.whenFolderLocationIdle(token);
 			if (token.isCancellationRequested || !this.isAtAlternate(location) || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0])) {
 				return;
 			}
