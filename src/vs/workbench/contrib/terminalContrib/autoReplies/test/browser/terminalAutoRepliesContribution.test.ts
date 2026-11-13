@@ -114,4 +114,24 @@ suite('TerminalAutoRepliesContribution', () => {
 			assert.deepStrictEqual({ owners: [...activeOwners], installCount }, { owners: ['live peer'], installCount: 1 });
 		}
 	}));
+
+	test('does not block shutdown when the backend never finishes cleanup', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let cleanupStarted = false;
+		let disconnected = false;
+		const lifecycleService = createLifecycleService(() => { disconnected = true; });
+		const backend = new class extends mock<ITerminalBackend>() {
+			override uninstallAllAutoReplies(): Promise<void> {
+				cleanupStarted = true;
+				// An unresponsive pty host never answers
+				return new Promise<void>(() => { });
+			}
+		};
+		const configurationService = new TestConfigurationService({ 'terminal.integrated': { autoReplies: {} } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const contribution = store.add(new TerminalAutoRepliesContribution(configurationService, createInstanceService([backend]), lifecycleService));
+
+		await lifecycleService.shutdown();
+		contribution.dispose();
+		assert.deepStrictEqual({ cleanupStarted, disconnected }, { cleanupStarted: true, disconnected: true });
+	}));
 });
