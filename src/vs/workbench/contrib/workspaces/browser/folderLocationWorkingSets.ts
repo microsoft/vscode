@@ -5,7 +5,6 @@
 
 import { Sequencer } from '../../../../base/common/async.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -14,12 +13,17 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
 
-export const FOLDER_LOCATION_RESTORE_EDITORS_SETTING = 'workbench.folderLocation.restoreEditors';
 export const FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY = 'folderLocation.workingSets';
 export const FOLDER_LOCATION_MAX_WORKING_SETS = 20;
 
+/** Marks the working sets owned by this contribution, so that unreferenced ones can be told apart from others. */
+export const FOLDER_LOCATION_WORKING_SET_NAME_PREFIX = 'folderLocation:';
+
 interface IStoredWorkingSets {
 	readonly version: 1;
+
+	/** The location whose editors are in the editor area. */
+	readonly owner?: string;
 	readonly entries: readonly { readonly key: string; readonly workingSet: IEditorWorkingSet }[];
 }
 
@@ -28,6 +32,10 @@ interface IStoredWorkingSets {
  * when the folder switches location, the editors of the location being left are
  * saved and the ones of the location being entered are restored. A location that
  * is visited for the first time starts with no editors.
+ *
+ * The location that owns the editor area is persisted, so that a window that starts at
+ * another location than the one it was closed at (for example because the alternate
+ * location is gone) swaps the editors of the last session out.
  */
 export class FolderLocationWorkingSetsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -38,7 +46,8 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	/** Ordered from least to most recently saved. */
 	private workingSets: { key: string; workingSet: IEditorWorkingSet }[];
 
-	private currentKey: string | undefined;
+	/** The location whose editors are in the editor area. Only changes once they were applied. */
+	private owner: string | undefined;
 
 	private disposed = false;
 
@@ -46,7 +55,6 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ILogService private readonly logService: ILogService
@@ -54,10 +62,14 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		super();
 
 		this._register(toDisposable(() => this.disposed = true));
-		this.workingSets = this.load();
-		this.currentKey = this.getCurrentKey();
 
-		this._register(this.folderLocationService.onDidChangeLocation(() => this.onDidChangeLocation()));
+		const stored = this.load();
+		this.workingSets = stored.entries;
+		this.owner = stored.owner ?? this.getCurrentKey();
+		this.deleteOrphans();
+
+		this._register(this.folderLocationService.onDidChangeLocation(() => this.reconcile()));
+		this.reconcile();
 	}
 
 	private getCurrentKey(): string | undefined {
@@ -65,16 +77,19 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		return folder ? this.uriIdentityService.asCanonicalUri(folder.uri).toString() : undefined;
 	}
 
-	private onDidChangeLocation(): void {
-		const leaving = this.currentKey;
-		const entering = this.getCurrentKey();
-		this.currentKey = entering;
-
-		if (!leaving || !entering || leaving === entering || !this.configurationService.getValue<boolean>(FOLDER_LOCATION_RESTORE_EDITORS_SETTING)) {
+	/** Makes the editor area hold the editors of the current location. */
+	private reconcile(): void {
+		if (!this.owner || this.owner === this.getCurrentKey()) {
 			return;
 		}
 
-		this.sequencer.queue(() => this.disposed || !this.configurationService.getValue<boolean>(FOLDER_LOCATION_RESTORE_EDITORS_SETTING) ? Promise.resolve() : this.switchWorkingSet(leaving, entering)).catch(error => this.logService.error('[folderLocation] Failed to switch the editors', error));
+		this.sequencer.queue(async () => {
+			const entering = this.getCurrentKey();
+			if (this.disposed || !this.owner || !entering || this.owner === entering) {
+				return;
+			}
+			await this.switchWorkingSet(this.owner, entering);
+		}).catch(error => this.logService.error('[folderLocation] Failed to switch the editors', error));
 	}
 
 	private async switchWorkingSet(leaving: string, entering: string): Promise<void> {
@@ -86,13 +101,20 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 			this.save(leaving, entering);
 		}
 
-		// Apply the editors of the location being entered. A failure keeps the current editors.
+		// Apply the editors of the location being entered. The location only owns the editor
+		// area once that worked: otherwise its saved working set must not be replaced by the
+		// editors that are still open.
 		const target = this.workingSets.find(entry => entry.key === entering)?.workingSet;
 		if (this.disposed) {
 			return;
 		}
 		try {
-			await this.editorGroupsService.applyWorkingSet(target ?? 'empty', { preserveFocus: true });
+			if (await this.editorGroupsService.applyWorkingSet(target ?? 'empty', { preserveFocus: true })) {
+				this.owner = entering;
+				this.store();
+			} else {
+				this.logService.error('[folderLocation] The working set could not be applied');
+			}
 		} catch (error) {
 			this.logService.error('[folderLocation] Failed to apply the working set', error);
 		}
@@ -100,7 +122,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 	private save(key: string, protectedKey: string): void {
 		const previous = this.workingSets.find(entry => entry.key === key);
-		const workingSet = this.editorGroupsService.saveWorkingSet(key);
+		const workingSet = this.editorGroupsService.saveWorkingSet(FOLDER_LOCATION_WORKING_SET_NAME_PREFIX + key);
 
 		this.workingSets = this.workingSets.filter(entry => entry !== previous);
 		this.workingSets.push({ key, workingSet });
@@ -118,29 +140,42 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		this.store();
 	}
 
-	private load(): { key: string; workingSet: IEditorWorkingSet }[] {
+	/** Deletes the working sets that were saved but never made it into the stored mapping, for example because of a crash. */
+	private deleteOrphans(): void {
+		const referenced = new Set(this.workingSets.map(entry => entry.workingSet.id));
+		for (const workingSet of this.editorGroupsService.getWorkingSets()) {
+			if (workingSet.name.startsWith(FOLDER_LOCATION_WORKING_SET_NAME_PREFIX) && !referenced.has(workingSet.id)) {
+				this.editorGroupsService.deleteWorkingSet(workingSet);
+			}
+		}
+	}
+
+	private load(): { owner: string | undefined; entries: { key: string; workingSet: IEditorWorkingSet }[] } {
 		const raw = this.storageService.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (!raw) {
-			return [];
+			return { owner: undefined, entries: [] };
 		}
 
 		let stored: IStoredWorkingSets | undefined;
 		try {
 			stored = JSON.parse(raw);
 		} catch {
-			return [];
+			return { owner: undefined, entries: [] };
 		}
 		if (stored?.version !== 1 || !Array.isArray(stored.entries)) {
-			return [];
+			return { owner: undefined, entries: [] };
 		}
 
 		// Drop handles whose editor state no longer exists
 		const existing = new Set(this.editorGroupsService.getWorkingSets().map(workingSet => workingSet.id));
-		return stored.entries.filter(entry => typeof entry.key === 'string' && existing.has(entry.workingSet?.id)).slice(-FOLDER_LOCATION_MAX_WORKING_SETS);
+		return {
+			owner: typeof stored.owner === 'string' ? stored.owner : undefined,
+			entries: stored.entries.filter(entry => typeof entry.key === 'string' && existing.has(entry.workingSet?.id)).slice(-FOLDER_LOCATION_MAX_WORKING_SETS)
+		};
 	}
 
 	private store(): void {
-		const stored: IStoredWorkingSets = { version: 1, entries: this.workingSets };
+		const stored: IStoredWorkingSets = { version: 1, owner: this.owner, entries: this.workingSets };
 		this.storageService.store(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, JSON.stringify(stored), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }

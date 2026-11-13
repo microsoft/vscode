@@ -439,12 +439,6 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				agentsWindow: { default: false, readOnly: true },
 			},
-			'workbench.folderLocation.restoreEditors': {
-				'type': 'boolean',
-				'description': localize('folderLocationRestoreEditors', "Controls whether the open editors are saved and restored per location when the workspace folder switches to an alternate location and back."),
-				'default': true,
-				agentsWindow: { default: false, readOnly: true },
-			},
 			'workbench.editor.splitInGroupLayout': {
 				'type': 'string',
 				'enum': ['vertical', 'horizontal'],
