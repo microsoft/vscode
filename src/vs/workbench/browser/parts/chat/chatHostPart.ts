@@ -54,17 +54,26 @@ export class ChatHostPart extends Part {
 
 	/** Shows `content`, until the returned disposable is disposed; the owner of the content disposes the content. */
 	setContent(content: IContentPart): IDisposable {
+		// What it showed stops showing: its owner still disposes it, and disposing its handle then leaves this content alone
+		const previous = this._content;
+		if (previous && previous !== content) {
+			(previous.element as HTMLElement).remove();
+			previous.setVisible(false);
+		}
 		this._content = content;
 		this._contentEdge = undefined;
 		this._contentArea?.appendChild(content.element as HTMLElement);
 		this._contentListener.value = content.onDidChange(() => this._onDidChange.fire(undefined));
 		content.setVisible(this._visible);
 		this.relayoutContent();
+		// Its least width follows what it shows: the grid sizes it again
+		this._onDidChange.fire(undefined);
 		return toDisposable(() => {
 			if (this._content === content) {
 				this._content = undefined;
 				this._contentListener.clear();
 				(content.element as HTMLElement).remove();
+				this._onDidChange.fire(undefined);
 			}
 		});
 	}
@@ -75,8 +84,12 @@ export class ChatHostPart extends Part {
 	}
 
 	protected override createContentArea(parent: HTMLElement): HTMLElement {
-		// The edge of what it shows follows the window's classes, such as for Modern UI, floating panels, or their density
-		const classObserver = new MutationObserver(() => this._contentEdge = undefined);
+		// The edge of what it shows follows the window's classes, such as for Modern UI, floating panels, or their density.
+		// The window lays out as they change, before this observer runs: lay out what it shows again, at its new edge
+		const classObserver = new MutationObserver(() => {
+			this._contentEdge = undefined;
+			this.relayoutContent();
+		});
 		classObserver.observe(this.layoutService.mainContainer, { attributes: true, attributeFilter: ['class'] });
 		this._register(toDisposable(() => classObserver.disconnect()));
 

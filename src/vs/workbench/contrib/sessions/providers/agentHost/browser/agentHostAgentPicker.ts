@@ -11,8 +11,6 @@ import { autorun, derived, IObservable, IReader, observableSignalFromEvent } fro
 import * as nls from '../../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
-import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { agentHostAgentPickerStorageKey, resolveAgentHostAgent } from '../../../../../../platform/agentHost/common/customAgents.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -45,6 +43,8 @@ import { ITelemetryService } from '../../../../../../platform/telemetry/common/t
 import { logSettingExperimentTrigger } from '../../../../../../platform/telemetry/common/experimentTrigger.js';
 import { getAgentHostAgentPickerState, setAgentHostAgent } from './agentHostAgentSelection.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 
 const IsActiveSessionAgentHost = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionProviderIdContext.key, LOCAL_AGENT_HOST_PROVIDER_ID),
@@ -127,7 +127,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				group: 'navigation',
 				order: -1,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled, IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
+					IsActiveSessionAgentHost, IsPhoneLayoutContext.negate(), ChatContextKeys.inAutomationsDialog.negate(),
 				),
 			}, {
 				id: Menus.AutomationsDialogInputToolbar,
@@ -142,7 +142,7 @@ export class AgentHostAgentPickerAction extends Action2 {
 				group: 'navigation',
 				order: 0,
 				// Hide the agent picker while a delegation (continue in) target is pending.
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, IsSessionsWindowContext, InSessionHostScopeContext, IsPhoneLayoutContext.negate(), ChatContextKeys.hasPendingDelegationTarget.negate()),
 			}],
 		});
 	}
@@ -463,18 +463,23 @@ export class AgentHostAgentPickerContribution extends Disposable implements IWor
 }
 
 /**
- * Registers the agent host's agent picker and its keybinding, until the returned disposable is disposed.
- * {@link AgentHostAgentPickerContribution} renders it.
+ * Registers the agent picker of agent host sessions and its keybinding, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerAgentHostAgentPickerActions(): IDisposable {
 	const store = new DisposableStore();
+
 	store.add(KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: OPEN_AGENT_HOST_AGENT_PICKER_COMMAND_ID,
 		weight: KeybindingWeight.EditorContrib + 1,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, AgentHostAgentPickerKeybindingContext),
+		when: AgentHostAgentPickerKeybindingContext,
 		primary: KeyMod.CtrlCmd | KeyCode.Period,
 		handler: () => openActiveAgentHostAgentPicker(),
 	}));
+
 	store.add(registerAction2(AgentHostAgentPickerAction));
+
 	return store;
 }

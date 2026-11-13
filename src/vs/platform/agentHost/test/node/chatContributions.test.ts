@@ -367,6 +367,24 @@ class FollowingEnvelopeContribution extends TestContribution {
 	}
 }
 
+class ThrowingShutdownContribution extends TestContribution {
+	static readonly id = 'throwingShutdown';
+	readonly order = 20;
+
+	onWillShutdown(): void {
+		throw new Error('expected');
+	}
+}
+
+class FollowingShutdownContribution extends TestContribution {
+	static readonly id = 'followingShutdown';
+	readonly order = 21;
+
+	onWillShutdown(): void {
+		calls.push('followingShutdown');
+	}
+}
+
 class RejectionReasonEnvelopeContribution extends TestContribution {
 	static readonly id = 'rejectionReasonEnvelope';
 
@@ -3693,6 +3711,13 @@ suite('AgentHostChatContributions', () => {
 		contributions.didDispatchAction(dispatchedAction('agent-host-chat://test', 'agent-host-session://test', { type: ActionType.ChatQueuedMessagesReordered, order: [] }));
 
 		assert.deepStrictEqual(calls, ['followingEnvelope']);
+	});
+
+	test('isolates a throwing shutdown contribution', () => {
+		const contributions = disposables.add(createContributions(disposables, ThrowingShutdownContribution, FollowingShutdownContribution));
+		contributions.willShutdown();
+
+		assert.deepStrictEqual(calls, ['followingShutdown']);
 	});
 
 	test('passes envelope rejection reasons to contributions', () => {

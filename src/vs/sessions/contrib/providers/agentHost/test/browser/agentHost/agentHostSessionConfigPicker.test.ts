@@ -59,7 +59,6 @@ import { ISessionsService } from '../../../../../../../workbench/contrib/session
 import { IChat, ISessionChangeset, ISessionChangesetOperationTarget, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { AgentHostSessionConfigPicker, AgentHostSessionConfigPickerContribution, IConfigPickerItem, PickerActionViewItem } from '../../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
-import { EditorWindowAgentHostSessionConfigPickerContribution } from '../../../../../../../workbench/contrib/sessions/providers/agentsView/browser/agentsViewComposerControls.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../../../../base/browser/domStylesheets.js';
 import { ENVIRONMENT_PICKER_SETTING } from '../../../../../../../workbench/contrib/sessions/common/chatConstants.js';
@@ -69,7 +68,7 @@ import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contri
 import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 // The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
 import '../../../browser/agentHostSessionConfigPicker.contribution.js';
-import { InSessionHostScopeContext, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { InSessionHostScopeContext, ISessionHost, ISessionHostService } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, testChatSourceOf, testGridPanes } from '../../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/common/chatSessionFileChange.js';
 
@@ -321,6 +320,7 @@ function setupServices(
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable<readonly ISessionHost[]>([]) }));
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -369,7 +369,6 @@ function setupServices(
 			return undefined;
 		}
 	})());
-	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable([]) }));
 	instantiationService.stub(IViewsService, new (class extends mock<IViewsService>() {
 		override async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
 			actionWidget.events.push(`openView:${id}:${focus}`);
@@ -751,43 +750,6 @@ suite('Agent Host Session Config Picker', () => {
 		assert.deepStrictEqual({ count: actionIds.length > 0, allKeepAction: actionIds.every(Boolean) }, { count: true, allKeepAction: true });
 	});
 
-	test('contributes the repository controls of a session that only a composer or pane outside the grid shows in an editor window\'s chat part only, not in the Agents window', () => {
-		const services = setupServices(store);
-		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
-			override readonly onDidChange = Event.None;
-			override register() { return toDisposable(() => { }); }
-		}());
-		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
-			override readonly mainContainer = document.createElement('div');
-		}());
-		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly slotPanes = testGridPanes(constObservable([]));
-		}());
-		const hosts = observableValue<readonly ISessionHost[]>('hosts', []);
-		services.instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts }));
-		const repositoryItems = () => MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
-			.filter(isIMenuItem)
-			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
-			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
-		const host = (kind: SessionHostKind) => upcastPartial<ISessionHost>({ ...testChatSourceOf(constObservable(services.activeSession)), kind });
-		const shownBy = (kind: SessionHostKind) => {
-			hosts.set([host(kind)], undefined);
-			return repositoryItems();
-		};
-
-		const agentsWindow = services.instantiationService.createInstance(AgentHostSessionConfigPickerContribution);
-		const inAgentsWindow = { composer: shownBy(SessionHostKind.Composer), pane: shownBy(SessionHostKind.Pane) };
-		agentsWindow.dispose();
-		hosts.set([], undefined);
-		store.add(services.instantiationService.createInstance(EditorWindowAgentHostSessionConfigPickerContribution));
-		const inEditorWindow = { none: repositoryItems(), window: shownBy(SessionHostKind.MainWindow), composer: shownBy(SessionHostKind.Composer), pane: shownBy(SessionHostKind.Pane) };
-
-		assert.deepStrictEqual({ inAgentsWindow, inEditorWindow }, {
-			inAgentsWindow: { composer: [], pane: [] },
-			inEditorWindow: { none: [], window: [], composer: ['Isolation', 'Base Branch'], pane: ['Isolation', 'Base Branch'] },
-		});
-	});
-
 	test('refreshes repository menu items only for configuration changes of visible sessions', () => {
 		const services = setupServices(store);
 		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
@@ -937,7 +899,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places running session controls from the scoped composer layout, and none with AI features disabled', () => {
+	test('places running session controls from the scoped composer layout', () => {
 		const runningSessionIds = [
 			'sessions.agentHost.runningSessionModePicker',
 			'sessions.agentHost.runningSessionConfigPicker',
@@ -945,7 +907,6 @@ suite('Agent Host Session Config Picker', () => {
 			'sessions.agentHost.runningSessionCodexApprovalsPicker',
 		];
 		const context = new Context(1, null);
-		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
 		// The chat input of a session host's scope.
 		context.setValue(InSessionHostScopeContext.key, true);
@@ -965,15 +926,10 @@ suite('Agent Host Session Config Picker', () => {
 			primary: visible(MenuId.ChatInput),
 			secondary: visible(MenuId.ChatInputSecondary),
 		};
-		context.setValue(ChatContextKeys.enabled.key, false);
-		const aiDisabledExperimental = [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)];
-		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, false);
-		const aiDisabled = { experimental: aiDisabledExperimental, legacy: [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)] };
 
-		assert.deepStrictEqual({ legacy, experimental, aiDisabled }, {
+		assert.deepStrictEqual({ legacy, experimental }, {
 			legacy: { primary: [], secondary: runningSessionIds },
 			experimental: { primary: runningSessionIds, secondary: [] },
-			aiDisabled: { experimental: [], legacy: [] },
 		});
 	});
 
@@ -1237,7 +1193,7 @@ suite('Agent Host Session Config Picker', () => {
 				rows: [
 					'Branch · Works alongside your 5 uncommitted files',
 					'New Worktree · Recommended · Creates a separate copy for this session',
-					'[5 Uncommitted Files]',
+					'[5 Modified Files]',
 					'app.ts',
 					'README.md',
 					'todo.ts',
@@ -1246,7 +1202,7 @@ suite('Agent Host Session Config Picker', () => {
 				header: undefined,
 				className: 'sessions-chat-isolation-listed-changes',
 			},
-			ariaLabel: 'app.ts, 5 Uncommitted Files',
+			ariaLabel: 'app.ts, 5 Modified Files',
 			calls: [
 				'shown:uncommittedFilesCount',
 				'opened:uncommittedFilesCount',
@@ -1301,6 +1257,31 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
+	test('isolation picker recommends New Worktree with a secondary badge once the user has started a session in a new worktree', async () => {
+		const services = setupServices(store);
+		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.InlineHint);
+		services.instantiationService.stub(IWorktreeSuggestionService, suggestions);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.workspaceObs.set(makeWorkspace(3), undefined);
+		const { container } = renderAttachedPicker(store, services);
+		const trigger = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		const recommendation = async () => {
+			trigger.click();
+			await timeout(0);
+			const worktree = services.actionWidget.items.find(item => item.item?.value === 'worktree');
+			return { badge: worktree?.badge, className: worktree?.className };
+		};
+
+		const firstTime = await recommendation();
+		suggestions.worktreeSessionCreated.set(true, undefined);
+		const afterWorktreeSession = await recommendation();
+
+		assert.deepStrictEqual({ firstTime, afterWorktreeSession }, {
+			firstTime: { badge: 'Recommended', className: undefined },
+			afterWorktreeSession: { badge: 'Recommended', className: 'sessions-chat-config-secondary-badge' },
+		});
+	});
+
 	test('uncommitted files count lists the files once they load while its picker is open, until it closes', async () => {
 		const services = setupServices(store);
 		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.UncommittedFilesCount, undefined, 2);
@@ -1321,8 +1302,8 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({ whileLoading, loaded, afterClosing: rows(), updates: services.actionWidget.events.filter(event => event === 'updateItems').length }, {
 			whileLoading: ['Branch', 'New Worktree'],
-			loaded: ['Branch', 'New Worktree', '[2 Uncommitted Files]', 'app.ts', 'README.md'],
-			afterClosing: ['Branch', 'New Worktree', '[2 Uncommitted Files]', 'app.ts', 'README.md'],
+			loaded: ['Branch', 'New Worktree', '[2 Modified Files]', 'app.ts', 'README.md'],
+			afterClosing: ['Branch', 'New Worktree', '[2 Modified Files]', 'app.ts', 'README.md'],
 			updates: 1,
 		});
 	});

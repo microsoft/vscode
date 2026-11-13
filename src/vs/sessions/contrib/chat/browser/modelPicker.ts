@@ -16,9 +16,11 @@ import { COMPARE_SESSION_MODELS_COMMAND_ID } from '../../../../workbench/contrib
 import { ModelComparisonAvailableContext, ModelComparisonPickerFocusedContext } from '../../../../workbench/contrib/chat/browser/widget/input/modelPicker/modelPickerComparison.js';
 import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { resolveGridCommandView } from '../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
-import { ModelPickerAction, ModelPickerToolbarsContribution } from '../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+import { ModelPickerToolbarsContribution, registerModelPickerAction } from '../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
 
-// -- Actions --
+registerModelPickerAction();
+
+// -- Action --
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -40,7 +42,5 @@ registerAction2(class extends Action2 {
 		(parts.getFocusedSessionView() ?? resolveGridCommandView(accessor))?.openModelComparison();
 	}
 });
-
-registerAction2(ModelPickerAction);
 
 registerWorkbenchContribution2(ModelPickerToolbarsContribution.ID, ModelPickerToolbarsContribution, WorkbenchPhase.BlockRestore);

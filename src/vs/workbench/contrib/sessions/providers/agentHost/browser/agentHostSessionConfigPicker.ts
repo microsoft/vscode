@@ -59,7 +59,7 @@ import { NEW_WORKTREE_LABEL } from '../../../browser/chat/branchPicker.js';
 import { ISessionChangesService } from '../../../../../services/sessions/common/sessionChangesService.js';
 import { CHANGES_VIEW_ID } from '../../../common/changes.js';
 import { ISessionsProvidersService } from '../../../browser/sessionsProvidersService.js';
-import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost, ISessionHostService, SessionHostKind } from '../../../../../services/sessions/browser/sessionHost.js';
+import { getFocusedSessionChatSource, IFocusedSessionHostService, InSessionHostScopeContext, ISessionChatSource, ISessionHost, ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IChatPhoneInputPresenter } from '../../../../chat/browser/widget/input/chatPhoneInputPresenter.js';
 import { createChatPhoneInputSessionContext } from '../../../browser/chatPhoneInputContext.js';
 import { ISessionsService } from '../../../browser/sessionsService.js';
@@ -87,7 +87,7 @@ import { CodexSessionConfigKey } from '../../../../../../platform/agentHost/comm
 import { type IChat, type ISessionChangeset, type ISessionFileChange, UNCOMMITTED_CHANGES_CHANGESET_ID, ISession } from '../../../../../services/sessions/common/session.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IUncommittedChangesListItem, IWorktreeSuggestion, IWorktreeSuggestionService } from '../../../browser/worktreeSuggestion/worktreeSuggestionService.js';
-import { getChangedFileUri, getUncommittedFilesDescription, getUncommittedFilesSectionLabel } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
+import { getChangedFileUri, getModifiedFilesSectionLabel, getUncommittedFilesDescription } from '../../../browser/worktreeSuggestion/worktreeSuggestionPresentation.js';
 import { WorktreeSuggestionVariant } from '../../../common/worktreeSuggestion.js';
 
 const ExperimentalSessionComposerLayout = SessionUsesExperimentalComposerLayoutContext;
@@ -120,6 +120,8 @@ export interface IConfigPickerItem {
 	readonly disabled?: boolean;
 	/** Text shown after the label, such as "Recommended". */
 	readonly badge?: string;
+	/** Shows {@link badge} as a quiet secondary pill instead of in the badge color. */
+	readonly secondaryBadge?: boolean;
 	/** Runs instead of selecting a value, for rows that are not options, such as reviewing uncommitted changes. */
 	readonly run?: () => void;
 }
@@ -159,10 +161,13 @@ function formatUncommittedChanges(count: number): string {
 		: localize('agentHostSessionConfig.branchItemUncommittedPlural', "{0} uncommitted files", count);
 }
 
-/** Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. */
-function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion): IConfigPickerItem {
+/**
+ * Recommends New Worktree over Branch in the isolation picker while the worktree suggestion applies. Once
+ * the user has started a session in a new worktree, the recommendation is a quieter secondary pill.
+ */
+function withWorktreeSuggestion(item: IConfigPickerItem, suggestion: IWorktreeSuggestion, hasCreatedWorktreeSession: boolean): IConfigPickerItem {
 	if (item.value === 'worktree') {
-		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended") };
+		return item.disabled ? item : { ...item, badge: localize('agentHostSessionConfig.isolation.recommended', "Recommended"), secondaryBadge: hasCreatedWorktreeSession };
 	}
 	if (item.value === 'folder' || item.value === 'workspace') {
 		return {
@@ -186,6 +191,9 @@ const LISTED_FILES_MAX = 3;
 
 /** Aligns the label of the isolation picker's section of uncommitted files with the files. */
 const LISTED_FILES_CLASS = 'sessions-chat-isolation-listed-changes';
+
+/** Styles the badge of a row whose item has {@link IConfigPickerItem.secondaryBadge}. */
+const SECONDARY_BADGE_CLASS = 'sessions-chat-config-secondary-badge';
 
 /** Prefixes the values of rows that are not options, which no option value contains. */
 const LISTED_FILE_VALUE_PREFIX = '\0worktreeSuggestion:';
@@ -259,7 +267,7 @@ function toActionItems(property: string, items: readonly IConfigPickerItem[], cu
 		return {
 			kind: ActionListItemKind.Action,
 			label: item.label,
-			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : item.badge ? { badge: item.badge } : {}),
+			...(property === SessionConfigKey.AutoApprove ? getPermissionLevelBadge(item.value, disabled, organizationDefault) : item.badge ? { badge: item.badge, ...(item.secondaryBadge ? { className: SECONDARY_BADGE_CLASS } : {}) } : {}),
 			detail,
 			group: { title: '', icon: getConfigIcon(property, item.value, uncommittedChanges !== undefined) },
 			ariaDescription: detail,
@@ -1011,7 +1019,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		const session = this._session.get();
 		return session?.sessionId === sessionId
 			? this._chat.get()?.resource
-			: (provider.getAllSessions?.() ?? provider.getSessions()).find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
+			: provider.getSessions().find(candidate => candidate.sessionId === sessionId)?.mainChat.get().resource;
 	}
 
 	private _requireChat(provider: IAgentHostSessionsProvider, sessionId: string): URI {
@@ -1201,7 +1209,7 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		// Counts the files the section lists, which the repository's count can briefly disagree with.
 		const total = this._worktreeSuggestionService.getUncommittedChanges(suggestion, undefined)?.length ?? suggestion.uncommittedChanges;
-		const sectionLabel = getUncommittedFilesSectionLabel(total);
+		const sectionLabel = getModifiedFilesSectionLabel(total);
 		const files = toConfigPickerItems(this._worktreeSuggestionService.getUncommittedChangesListItems(WorktreeSuggestionVariant.UncommittedFilesCount, suggestion, LISTED_FILES_MAX))
 			// Screen readers skip separators and the header, so each row carries the section in its group title.
 			.map(row => ({ ...row, group: { ...row.group, title: sectionLabel } }));
@@ -1318,7 +1326,8 @@ export class AgentHostSessionConfigPicker extends Disposable {
 		}
 		const { items: filteredItems, policyRestricted } = applyAutoApproveFiltering(rawItems, property, this._configurationService);
 		const isolationSuggestion = presentation === SessionConfigKey.Isolation ? this._getIsolationPickerRecommendation(sessionId) : undefined;
-		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion)) : filteredItems;
+		const hasCreatedWorktreeSession = !!isolationSuggestion && this._worktreeSuggestionService.hasCreatedWorktreeSession(undefined);
+		const items = isolationSuggestion ? filteredItems.map(item => withWorktreeSuggestion(item, isolationSuggestion.suggestion, hasCreatedWorktreeSession)) : filteredItems;
 		const isAutoApproveProperty = property === SessionConfigKey.AutoApprove;
 		const config = this._getSessionConfig(provider, sessionId);
 		const currentValue = config?.values[property] ?? schema.default;
@@ -2036,8 +2045,8 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
-		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IChatPhoneInputPresenter private readonly _phonePresenter: IChatPhoneInputPresenter,
 	) {
 		super();
 		// The mode-picker factories below pick the mobile subclass at
@@ -2051,9 +2060,13 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 		// because the classes are only accessed inside these factory
 		// callbacks, which run at `AfterRestored` — well after both
 		// modules have finished evaluating.
+		let shownKey: string | undefined;
 		this._register(autorun(reader => {
-			this._readShownSessions(reader);
-			this._refreshRepositoryMenuItems(actionViewItemService);
+			const key = this._readShownSessions(reader).map(shown => `${shown.session.sessionId} ${shown.chat.toString()}`).join('\n');
+			if (key !== shownKey) {
+				shownKey = key;
+				this._refreshRepositoryMenuItems(actionViewItemService);
+			}
 		}));
 		this._watchProviders(this._sessionsProvidersService.getProviders({ includeSessionBackends: true }), actionViewItemService);
 		this._register(this._sessionsProvidersService.onDidChangeProviders(e => {
@@ -2142,44 +2155,25 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			}
 			// Menu items are derived only from visible sessions; refreshing them recreates the repository pickers.
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(sessionId => {
-				if (this._readShownSessions(undefined).some(({ session }) => session.sessionId === sessionId)) {
+				if (this._readShownSessions(undefined).some(shown => shown.session.sessionId === sessionId)) {
 					this._refreshRepositoryMenuItems(actionViewItemService);
 				}
 			}));
 		}
 	}
 
-	/**
-	 * Whether the repository controls also show for the sessions that panes and composers show outside the grid, such as
-	 * those of an editor window's chat part, which has no grid. Read as the contribution is constructed.
-	 */
-	protected get includesSessionHosts(): boolean {
-		return false;
-	}
-
-	/**
-	 * The sessions whose repository controls can show: those of the grid's slots and, when {@link includesSessionHosts},
-	 * those of the panes and composers that show a session.
-	 */
-	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: IChat | undefined }[] {
-		const shown = new Map<string, { readonly session: ISession; readonly chat: IChat | undefined }>();
-		for (const pane of this._sessionsService.slotPanes.read(reader)) {
-			const session = pane.session.read(reader);
+	private _readShownSessions(reader: IReader | undefined): readonly { readonly session: ISession; readonly chat: URI }[] {
+		const shown = new Map<string, { readonly session: ISession; readonly chat: URI }>();
+		const add = (session: ISession | undefined, chat: IChat | undefined) => {
 			if (session && !shown.has(session.sessionId)) {
-				shown.set(session.sessionId, { session, chat: pane.chat.read(reader) });
+				shown.set(session.sessionId, { session, chat: (chat ?? session.mainChat.read(reader)).resource });
 			}
-		}
-		if (!this.includesSessionHosts) {
-			return [...shown.values()];
+		};
+		for (const pane of this._sessionsService.slotPanes.read(reader)) {
+			add(pane.session.read(reader), pane.chat.read(reader));
 		}
 		for (const host of this._sessionHostService.hosts.read(reader)) {
-			if (host.kind !== SessionHostKind.Pane && host.kind !== SessionHostKind.Composer) {
-				continue;
-			}
-			const session = host.session.read(reader);
-			if (session && !shown.has(session.sessionId)) {
-				shown.set(session.sessionId, { session, chat: host.chat.read(reader) });
-			}
+			add(host.session.read(reader), host.chat.read(reader));
 		}
 		return [...shown.values()];
 	}
@@ -2191,7 +2185,7 @@ export class AgentHostSessionConfigPickerContribution extends Disposable impleme
 			if (!provider || !isAgentHostProvider(provider)) {
 				continue;
 			}
-			const config = provider.getSessionConfig(session.sessionId, (chat ?? session.mainChat.get()).resource);
+			const config = provider.getSessionConfig(session.sessionId, chat);
 			if (!config) {
 				continue;
 			}
@@ -2321,7 +2315,7 @@ export class NewSessionApprovePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 			}],
 		});
 	}
@@ -2341,7 +2335,7 @@ export class NewSessionPermissionModePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 			}],
 		});
 	}
@@ -2367,7 +2361,7 @@ export class NewSessionCodexApprovalsPickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
+				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 			}],
 		});
 	}
@@ -2393,7 +2387,6 @@ export class NewSessionModePickerAction extends Action2 {
 				// this picker with a unified mode + model bottom sheet, so
 				// gate this desktop-only Action out of phone layouts.
 				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
 					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 					IsPhoneLayoutContext.negate(),
 				),
@@ -2419,12 +2412,12 @@ export class RunningSessionConfigPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2444,12 +2437,12 @@ export class RunningSessionPermissionModePickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2474,12 +2467,12 @@ export class RunningSessionCodexApprovalsPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2503,7 +2496,6 @@ export class RunningSessionModePickerAction extends Action2 {
 				group: 'navigation',
 				order: 0.1,
 				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
@@ -2515,7 +2507,6 @@ export class RunningSessionModePickerAction extends Action2 {
 				order: 9,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
@@ -2531,22 +2522,22 @@ export class RunningSessionModePickerAction extends Action2 {
 }
 
 /**
- * Registers the agent host's pickers of a new session and of a running session's chat input, until the returned
- * disposable is disposed. {@link AgentHostSessionConfigPickerContribution} renders them.
+ * Registers the configuration pickers of new and running agent host sessions, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
  */
 export function registerAgentHostSessionConfigPickerActions(): IDisposable {
 	const store = new DisposableStore();
-	for (const action of [
-		NewSessionApprovePickerAction,
-		NewSessionPermissionModePickerAction,
-		NewSessionCodexApprovalsPickerAction,
-		NewSessionModePickerAction,
-		RunningSessionConfigPickerAction,
-		RunningSessionPermissionModePickerAction,
-		RunningSessionCodexApprovalsPickerAction,
-		RunningSessionModePickerAction,
-	]) {
-		store.add(registerAction2(action));
-	}
+
+	store.add(registerAction2(NewSessionApprovePickerAction));
+	store.add(registerAction2(NewSessionPermissionModePickerAction));
+	store.add(registerAction2(NewSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(NewSessionModePickerAction));
+	store.add(registerAction2(RunningSessionConfigPickerAction));
+	store.add(registerAction2(RunningSessionPermissionModePickerAction));
+	store.add(registerAction2(RunningSessionCodexApprovalsPickerAction));
+	store.add(registerAction2(RunningSessionModePickerAction));
+
 	return store;
 }

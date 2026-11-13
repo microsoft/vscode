@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sep } from '../../../../../base/common/path.js';
-import { AsyncIterableProducer, DeferredPromise, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -22,7 +22,6 @@ import { InstantiationType, registerSingleton } from '../../../../../platform/in
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IProgressService } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { isDark } from '../../../../../platform/theme/common/theme.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -40,10 +39,8 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, derived, IObservable, observableFromEvent, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IChatViewHostService, IChatViewHostSessionStart } from '../chatViewHost.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
-import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { IAgentHostImportConversationStore, type IAgentHostImportConversation } from '../agentSessions/agentHost/agentHostImportConversationStore.js';
 import { IAgentHostActiveClientService } from '../agentSessions/agentHost/agentHostActiveClientService.js';
@@ -1913,7 +1910,6 @@ export type NewChatSessionSendOutcome = 'none' | 'sent' | 'queued' | 'rejected' 
  * session stays open (and its resource is returned) when that request is rejected or fails.
  */
 export async function openChatSessionAndSend(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<{ readonly resource: URI; readonly sendOutcome: NewChatSessionSendOutcome } | undefined> {
-	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
 	const chatSessionService = accessor.get(IChatSessionsService);
 	const logService = accessor.get(ILogService);
@@ -1923,30 +1919,8 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 	const toolsService = accessor.get(ILanguageModelToolsService);
 	const importConversationStore = accessor.get(IAgentHostImportConversationStore);
 	const activeClientService = chatSendOptions?.sessionToolIds?.length ? accessor.get(IAgentHostActiveClientService) : undefined;
-	const progressService = accessor.get(IProgressService);
+	const chatViewHostService = accessor.get(IChatViewHostService);
 	const notificationService = accessor.get(INotificationService);
-
-	// What replaces the Chat view, such as the chat part of an editor window with the Agents view, shows the session instead
-	const widgetService = accessor.get(IChatWidgetService);
-	const chatViewHostDelegate = openOptions.position === ChatSessionPosition.Sidebar ? widgetService.chatViewHostDelegate : undefined;
-	if (chatViewHostDelegate) {
-		if (openOptions.type === AgentSessionProviders.Local) {
-			// It shows sessions, not local chat
-			notificationService.info(localize('chatSessions.localChatUnavailable', "Local chat sessions are not available while the Agents view is enabled."));
-			return undefined;
-		}
-		if (!chatSendOptions) {
-			openOptions.beforeOpen?.();
-			if (openOptions.sessionResource) {
-				return await chatViewHostDelegate.openSession(openOptions.sessionResource, false) ? { resource: openOptions.sessionResource, sendOutcome: 'none' } : undefined;
-			}
-			// A new session of the type, which its composer creates as the user sends
-			await chatViewHostDelegate.newSession(openOptions.type, false);
-			return undefined;
-		}
-		// With an initial request, the session is created and sent to as for any other position (with its options, tools and
-		// any copied conversation), and shown once it runs, by what replaces the Chat view
-	}
 
 	// Determine resource to open
 	const sessionResource = openOptions.sessionResource ?? getResourceForNewChatSession(openOptions);
@@ -1963,41 +1937,19 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		importConversationStore.set(sessionResource, chatSendOptions.importConversation);
 	}
 
-	// Open chat session. For a sidebar "Continue in…" migration the transition
-	// spans multiple async phases (load → materializing send → untitled→real
-	// rebind), during which the chat widget is transiently empty. Hold the
-	// sessions list suppressed across the whole transition so it never flashes.
-	let sessionsListSuppression: IDisposable | undefined;
-	let transitionProgress: DeferredPromise<void> | undefined;
-	// Holds the session's model while it is sent to before what replaces the Chat view shows it
-	let chatViewHostModel: IDisposable | undefined;
+	// Open chat session. In the host of the Chat view's chats, the start spans the
+	// whole transition (load → materializing send → untitled→real rebind) until
+	// it completes below.
+	let hostSessionStart: IChatViewHostSessionStart | undefined;
 	try {
 		openOptions.beforeOpen?.();
 		switch (openOptions.position) {
 			case ChatSessionPosition.Sidebar: {
-				if (chatViewHostDelegate) {
-					chatViewHostModel = await chatService.acquireOrLoadSession(sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'openChatSessionAndSend#chatViewHost', 'explicitOverride');
-					if (!chatViewHostModel) {
-						throw new Error(`Unable to load the '${openOptions.type}' chat session`);
-					}
-					break;
-				}
-				const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-				openOptions.beforeOpen?.();
-				if (chatSendOptions?.importConversation) {
-					sessionsListSuppression = view.beginSessionsListSuppression();
-					// Show the chat view's working indicator for the whole transition (the
-					// widget is blank while the backend session materializes) so it does not
-					// look hung. Completed once the migration finishes below.
-					transitionProgress = new DeferredPromise<void>();
-					progressService.withProgress({ location: ChatViewId }, () => transitionProgress!.p);
-				}
-				if (openOptions.type === AgentSessionProviders.Local) {
-					await view.startNewLocalSession();
-				} else {
-					await view.loadSession(sessionResource, 'explicitOverride');
-				}
-				view.focus();
+				hostSessionStart = await chatViewHostService.startSession(sessionResource, {
+					local: openOptions.type === AgentSessionProviders.Local,
+					importingConversation: !!chatSendOptions?.importConversation,
+					beforeOpen: openOptions.beforeOpen,
+				});
 				break;
 			}
 			case ChatSessionPosition.Editor: {
@@ -2041,9 +1993,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		}
 	} catch (e) {
 		activeClientService?.clearSessionTools(sessionResource);
-		chatViewHostModel?.dispose();
-		sessionsListSuppression?.dispose();
-		transitionProgress?.complete();
+		hostSessionStart?.dispose();
 		if (openOptions.beforeOpen && isCancellationError(e)) {
 			throw e;
 		}
@@ -2073,11 +2023,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 				openedSessionResource = newSessionResource;
 				switch (openOptions.position) {
 					case ChatSessionPosition.Sidebar: {
-						if (chatViewHostDelegate) {
-							break;
-						}
-						const view = await viewsService.openView(ChatViewId) as ChatViewPane;
-						await view.loadSession(newSessionResource);
+						await hostSessionStart?.moved(newSessionResource);
 						break;
 					}
 					case ChatSessionPosition.Editor: {
@@ -2103,23 +2049,19 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 		}
 	}
 
-	// The migration transition is complete (session loaded, request sent and any
-	// untitled→real rebind done); allow the sessions list again and stop the
-	// working indicator.
-	sessionsListSuppression?.dispose();
-	transitionProgress?.complete();
-	if (chatViewHostDelegate) {
+	// The start is complete (session loaded, request sent and any untitled→real
+	// rebind done). A request that did not run, in a session the host does not
+	// show, is put back into a new session's composer when it can be sent again.
+	if (hostSessionStart) {
 		try {
-			const ran = sendOutcome === 'sent' || sendOutcome === 'queued';
-			// A new session that did not run is not listed: only one that ran, became real or was given can show
-			const shown = (ran || openOptions.sessionResource || !resources.isEqual(openedSessionResource, sessionResource))
-				&& await chatViewHostDelegate.openSession(openedSessionResource, false);
-			if (!ran && !shown && chatSendOptions) {
+			const sent = sendOutcome === 'sent' || sendOutcome === 'queued';
+			const shown = await hostSessionStart.complete(openedSessionResource, sent);
+			if (!sent && !shown && chatSendOptions) {
 				importConversationStore.take(sessionResource);
 				// Only a request of a prompt and attachments can be sent again from a composer: one with a copied
 				// conversation, session options or tools would start a different session, so its caller reports it instead
 				const restorable = !chatSendOptions.importConversation && !chatSendOptions.initialSessionOptions && !chatSendOptions.sessionToolIds?.length;
-				const composer = restorable ? await chatViewHostDelegate.newSession(openOptions.type, false) : undefined;
+				const composer = restorable ? await hostSessionStart.createComposer() : undefined;
 				if (composer) {
 					composer.setInput(chatSendOptions.prompt);
 					if (chatSendOptions.attachedContext?.length) {
@@ -2131,7 +2073,7 @@ export async function openChatSessionAndSend(accessor: ServicesAccessor, openOpt
 				}
 			}
 		} finally {
-			chatViewHostModel?.dispose();
+			hostSessionStart.dispose();
 		}
 	}
 	return { resource: openedSessionResource, sendOutcome };

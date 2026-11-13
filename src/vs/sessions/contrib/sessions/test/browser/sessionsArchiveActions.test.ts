@@ -36,8 +36,8 @@ import { ISessionGroupItem, ISessionSection, SessionsGrouping, SessionsList, Ses
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
-import '../../browser/views/sessionsViewActions.js';
 import { createListHarness, createTestSession } from './sessionsListTestUtils.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - Bulk archive undo', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

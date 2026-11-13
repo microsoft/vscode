@@ -7,7 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { isMobile, isWeb } from '../../../../../base/common/platform.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -36,14 +36,13 @@ import { IAutomationService } from '../../../../../workbench/contrib/chat/common
 import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { registerSessionsListActions, registerSessionsListReadStateActions, SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
+import { SessionsArchiveActionsContribution, registerSessionsListActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+
 registerSessionsListActions();
-registerSessionsListReadStateActions();
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
-
 registerAction2(class CloseSessionAction extends Action2 {
 	constructor() {
 		super({
@@ -61,11 +60,9 @@ registerAction2(class CloseSessionAction extends Action2 {
 	}
 });
 
-
 //  Open Session at Index (Ctrl/Cmd+1..9)
 
 const OPEN_SESSION_AT_INDEX_COMMAND_ID = 'sessionsViewPane.openSessionAtIndex';
-
 
 function digitToKeyCode(digit: number): KeyCode {
 	switch (digit) {
@@ -81,7 +78,6 @@ function digitToKeyCode(digit: number): KeyCode {
 		default: return KeyCode.Unknown;
 	}
 }
-
 
 const openSessionAtIndex = async (accessor: ServicesAccessor, sessionIndex: unknown): Promise<void> => {
 	if (typeof sessionIndex !== 'number') {
@@ -106,12 +102,10 @@ const openSessionAtIndex = async (accessor: ServicesAccessor, sessionIndex: unkn
 	}
 };
 
-
 CommandsRegistry.registerCommand({
 	id: OPEN_SESSION_AT_INDEX_COMMAND_ID,
 	handler: openSessionAtIndex
 });
-
 
 // Open Nth session from the list. Windows/Linux: Alt+1..9 (Ctrl+1..9 is reserved
 // for focusing sessions in the grid). macOS: Ctrl+1..9 (WinCtrl) — the grid uses
@@ -128,7 +122,6 @@ for (let visibleIndex = 1; visibleIndex <= 9; visibleIndex++) {
 		handler: accessor => openSessionAtIndex(accessor, sessionIndex)
 	});
 }
-
 
 //  Navigate Previous / Next Session (list order)
 
@@ -173,7 +166,6 @@ const navigateSessionInList = async (accessor: ServicesAccessor, direction: 'pre
 	}
 };
 
-
 registerAction2(class NavigatePreviousSessionAction extends Action2 {
 	constructor() {
 		super({
@@ -207,7 +199,6 @@ registerAction2(class NavigatePreviousSessionAction extends Action2 {
 		return navigateSessionInList(accessor, 'previous');
 	}
 });
-
 
 registerAction2(class NavigateNextSessionAction extends Action2 {
 	constructor() {
@@ -243,16 +234,11 @@ registerAction2(class NavigateNextSessionAction extends Action2 {
 	}
 });
 
-
-//  Section Actions
-
-/** Grouping sections whose New Session starts in a workspace that their sessions work in. */
 const SessionGroupingSectionContext = ContextKeyExpr.or(
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'repository'),
 	ContextKeyExpr.equals(SessionSectionTypeContext.key, 'environment'),
 );
-
 
 /**
  * Opens a new session that starts in the workspace and environment of `session`, or in the
@@ -284,7 +270,6 @@ async function openNewSessionLike(accessor: ServicesAccessor, session: ISession 
 
 	sessionsService.focusActiveSession();
 }
-
 
 registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	constructor() {
@@ -329,15 +314,12 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 	}
 });
 
-
 CommandsRegistry.registerCommand(NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, (accessor, section: ISessionSection, environment: string) => {
 	const source = getNewSessionSources(section.sessions, accessor.get(ISessionsProvidersService), accessor.get(ISessionsManagementService)).find(source => source.environment.id === environment);
 	return source ? openNewSessionLike(accessor, source.session) : undefined;
 });
 
-
 const NEW_QUICK_CHAT_COMMAND_ID = 'sessionsView.newQuickChat';
-
 
 // Gate on AI features being enabled and the local agent host (which serves
 // quick chats) being available.
@@ -345,7 +327,6 @@ const QuickChatEnabledContext = ContextKeyExpr.and(
 	ChatContextKeys.enabled,
 	AGENT_HOST_ENABLED_CONTEXT_KEY,
 );
-
 
 registerAction2(class NewQuickChatAction extends Action2 {
 	constructor() {
@@ -390,7 +371,6 @@ registerAction2(class NewQuickChatAction extends Action2 {
 		sessionsService.focusActiveSession();
 	}
 });
-
 
 registerAction2(class NewSessionInGroupAction extends Action2 {
 	constructor() {
@@ -455,20 +435,6 @@ registerAction2(class OpenSessionCustomizationsAction extends Action2 {
 	}
 });
 
-for (const [menu, submenu] of [
-	[Menus.SessionItemContextMenu, Menus.SessionItemOpenIn],
-	[Menus.SessionChatItemContext, Menus.SessionChatItemOpenIn],
-]) {
-	MenuRegistry.appendMenuItem(menu, {
-		title: localize2('openIn', "Open in"),
-		submenu,
-		group: 'navigation',
-		order: 1,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, IsSessionsWindowContext),
-	});
-}
-
-
 registerAction2(class OpenSessionToTheSideAction extends Action2 {
 	constructor() {
 		super({
@@ -497,9 +463,7 @@ registerAction2(class OpenSessionToTheSideAction extends Action2 {
 	}
 });
 
-
 registerWorkbenchContribution2(SessionsArchiveActionsContribution.ID, SessionsArchiveActionsContribution, WorkbenchPhase.BlockStartup);
-
 
 registerAction2(class ManageAutomationsAction extends Action2 {
 	constructor() {
@@ -514,9 +478,7 @@ registerAction2(class ManageAutomationsAction extends Action2 {
 	}
 });
 
-
 const MARK_ALL_AUTOMATION_RUNS_READ_COMMAND_ID = 'sessionsView.markAllAutomationRunsRead';
-
 
 registerAction2(class MarkAllAutomationRunsReadAction extends Action2 {
 	constructor() {

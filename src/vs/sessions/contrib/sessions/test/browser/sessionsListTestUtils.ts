@@ -28,6 +28,7 @@ import { IDeletedSessionGroups, ISessionGroup, ISessionGroupAppearance, ISession
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ISessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -59,6 +60,7 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 	}
 	override readonly onDidChangeSessions = Event.None;
 	override readonly onDidDeleteSession = Event.None;
+	override readonly onDidReplaceSession = Event.None;
 	override canMoveChat(_session: ISession, _chat: IChat): boolean { return false; }
 	override canMoveSessionUnder(_session: ISession): boolean { return false; }
 	sessions: ISession[];
@@ -347,7 +349,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionReorders: IListHarness['sectionReorders'] = [];
 
 	instantiationService.stub(ISessionsManagementService, managementService);
-	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation());
+	instantiationService.stub(ISessionsListPresentation, new DefaultSessionsListPresentation(new class extends mock<IPinnedCanvasService>() { }()));
 	instantiationService.stub(ICommandService, commandService);
 	stubSessionsService(instantiationService, new class extends mock<ISessionsService>() {
 		readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);

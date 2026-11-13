@@ -62,6 +62,7 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import './services/workspaces/common/editSessionIdentityService.js';
+import './services/workspaces/common/workspaceFolderLocationService.js';
 import './services/extensions/browser/extensionUrlHandler.js';
 import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
@@ -461,6 +462,7 @@ import './contrib/workspace/browser/workspace.contribution.js';
 
 // Workspaces
 import './contrib/workspaces/browser/workspaces.contribution.js';
+import './contrib/workspaces/browser/folderLocationWorkingSets.contribution.js';
 
 // List
 import './contrib/list/browser/list.contribution.js';

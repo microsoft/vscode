@@ -62,6 +62,86 @@ suite('SessionsListingScopeFilter', () => {
 		});
 	});
 
+	test('lists the replacement of a session, as a change of its sessions only reports it, and matches it to the scope again', () => {
+		const here = createSession('here', 'repo');
+		const other = createSession('other', 'repo');
+		const sessions: ISession[] = [here, other];
+		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event));
+		const events: { readonly added: readonly ISession[]; readonly removed: readonly ISession[]; readonly changed: readonly ISession[] }[] = [];
+		disposables.add(filter.onDidChangeSessions(e => events.push(e)));
+
+		// A pending session committed under the same ID: another object, which comes as a change only
+		const committed = createSession('here', 'repo');
+		sessions[0] = committed;
+		changes.fire({ added: [], removed: [], changed: [committed] });
+		const listedCommitted = filter.getSessions().find(session => session.sessionId === 'here');
+		// A replacement that works elsewhere leaves the scope
+		const moved = createSession('other', 'elsewhere');
+		sessions[1] = moved;
+		changes.fire({ added: [], removed: [], changed: [moved] });
+
+		assert.deepStrictEqual({
+			listedCommitted: listedCommitted === committed,
+			listed: filter.getSessions().map(session => session.sessionId),
+			events: events.map(e => ({ added: e.added.length, removed: e.removed.length, changed: e.changed.map(session => session === committed ? 'committed' : session === other ? 'other' : session === moved ? 'moved' : 'stale') })),
+		}, {
+			listedCommitted: true,
+			listed: ['here'],
+			events: [{ added: 0, removed: 0, changed: ['committed'] }, { added: 0, removed: 0, changed: ['other'] }],
+		});
+	});
+
+	test('lists the replacement of a hidden session that moves into the scope, and the session a draft graduates into', () => {
+		const hidden = createSession('hidden', 'other');
+		const draft = createSession('draft', 'repo');
+		const sessions: ISession[] = [hidden];
+		const changes = disposables.add(new Emitter<ISessionChangeEvent>());
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, changes.event));
+		const listed = () => filter.getSessions().map(session => session === hidden ? 'hidden (stale)' : session === draft ? 'draft' : session.sessionId === 'hidden' ? 'hidden (replacement)' : session.sessionId);
+
+		// A replacement under the same ID that works in the scope, reported as a change only
+		const moved = createSession('hidden', 'repo');
+		sessions[0] = moved;
+		changes.fire({ added: [], removed: [], changed: [moved] });
+		const afterMove = listed();
+		// A draft is added and listed; its provider then drops it for the session it committed, with no change, and matches again
+		sessions.push(draft);
+		changes.fire({ added: [draft], removed: [], changed: [] });
+		const withDraft = listed();
+		sessions.splice(sessions.indexOf(draft), 1, createSession('committed', 'repo'));
+		filter.rematch();
+
+		assert.deepStrictEqual({ afterMove, withDraft, graduated: listed() }, {
+			afterMove: ['hidden (replacement)'],
+			withDraft: ['hidden (replacement)', 'draft'],
+			graduated: ['hidden (replacement)', 'committed'],
+		});
+	});
+
+	test('announces how it lists the sessions differently from those listed before it', () => {
+		const here = createSession('here', 'repo');
+		const elsewhere = createSession('elsewhere', 'other');
+		const sessions = [here, elsewhere];
+		const folders = observableValue<readonly URI[]>('folders', [URI.file('/home/user/projects/repo')]);
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders, repositories: constObservable([]) }, () => sessions, Event.None));
+		const ids = (list: readonly ISession[]) => list.map(session => session.sessionId).sort().join(',');
+		const events: string[] = [];
+		disposables.add(filter.onDidChangeSessions(e => events.push(`added=${ids(e.added)} removed=${ids(e.removed)} changed=${ids(e.changed)}`)));
+
+		// From every session, as without a scope; from an earlier scope of the other folder; from the same sessions
+		filter.announceFrom(sessions);
+		filter.announceFrom([elsewhere]);
+		filter.announceFrom([here]);
+
+		assert.deepStrictEqual(events, [
+			'added= removed= changed=elsewhere',
+			'added=here removed= changed=elsewhere',
+		]);
+	});
+
 	test('lists workspace-less quick chats in every scope, but not a session whose workspace is still hydrating', () => {
 		const quickChatFlag = observableValue('isQuickChat', true);
 		const quickChat: ISession = { ...createSession('quickChat', 'scratch'), workspace: observableValue<ISessionWorkspace | undefined>('quickChat', undefined), isQuickChat: quickChatFlag };

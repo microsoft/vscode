@@ -1365,13 +1365,26 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	/**
+	 * Reports that `event.from` was replaced by `event.to`, once its listing scope lists the sessions as they are now: who
+	 * learns of the replacement, such as the sessions management service, can look either up at once.
+	 */
+	private _replaceSession(event: { readonly from: ISession; readonly to: ISession }): void {
+		this._listingScope.value?.rematch();
+		this._onDidReplaceSession.fire(event);
+	}
+
+	/**
 	 * Lists only the sessions of `scope` from then on, such as those of an editor window's folders, in {@link getSessions}
 	 * and {@link onDidChangeSessions}. Lookups, such as {@link getAllSessions}, still find every session.
 	 */
 	setListingScope(scope: ISessionsListingScope): void {
+		const previous = this.getSessions();
 		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
 		this._listingScope.value = filter;
 		this._listedSessionChanges.input = filter.onDidChangeSessions;
+		// Who listens already learns how the listing changed, also the first time. A window should still set its scope before
+		// its views subscribe, so that they never list sessions outside it.
+		filter.announceFrom(previous);
 	}
 
 	getSessions(): ISession[] {
@@ -1538,7 +1551,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (workspaceUri && !workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
-		const automationConfiguration = options?.automationConfiguration;
+		const automationConfiguration = options?.draftConfiguration ?? options?.automationConfiguration;
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
@@ -1608,6 +1621,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				},
 			};
 		}
+		return this.getDraftSessionConfiguration(sessionId);
+	}
+
+	getDraftSessionConfiguration(sessionId: string): IAutomationSessionConfiguration | undefined {
+		const session = this._newSessions.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		const modelId = session.modelId.get();
+		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
+		const initialConfiguration = session.initialAutomationSessionConfiguration;
+		const initialTemplate = initialConfiguration?.sessionTemplate;
 		// Cloud sessions have no client-side mode or permission pickers, so the initial
 		// Automation configuration is carried through unchanged.
 		const initialMode = initialConfiguration?.mode ?? initialTemplate?.config?.[SessionConfigKey.Mode];
@@ -2315,7 +2340,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.delete(session.resource.toString());
 		this._sessionWrapperCache.delete(session.sessionId);
 		this._clearCurrentNewSessionIfMatch(session);
-		this._onDidReplaceSession.fire({ from: placeholder, to: committed });
+		this._replaceSession({ from: placeholder, to: committed });
 	}
 
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
@@ -2421,7 +2446,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 					const committedSession = this._chatToSession(committedChat);
 					this._sessionWrapperCache.delete(session.sessionId);
-					this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
+					this._replaceSession({ from: newSession, to: committedSession });
 
 					return committedSession;
 				} finally {

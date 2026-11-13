@@ -56,9 +56,10 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, SessionsViewWorktreeGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -354,14 +355,6 @@ suite('Sessions - View Menu', () => {
 		assert.deepStrictEqual({ initial, enabled, hiddenAI, disabled: offered() }, {
 			initial: true, enabled: true, hiddenAI: false, disabled: true,
 		});
-	});
-
-	test('offers Worktree grouping only in a view that allows it', () => {
-		const { snapshot, contextKeyService } = createMenu();
-		const offered = () => snapshot(Menus.SessionsViewGrouping).some(item => item.title === 'Worktree');
-		const agentsWindow = offered();
-		SessionsViewWorktreeGroupingContext.bindTo(contextKeyService).set(true);
-		assert.deepStrictEqual({ agentsWindow, editorWindow: offered() }, { agentsWindow: false, editorWindow: true });
 	});
 
 	test('inbox triage menu respects the mode, triage state, and disabled AI', () => {

@@ -67,6 +67,7 @@ import '../platform/actions/common/actions.contribution.js';
 import '../platform/undoRedo/common/undoRedoService.js';
 import '../platform/mcp/common/mcpResourceScannerService.js';
 import '../workbench/services/workspaces/common/editSessionIdentityService.js';
+import '../workbench/services/workspaces/common/workspaceFolderLocationService.js';
 import '../workbench/services/extensions/browser/extensionUrlHandler.js';
 import '../workbench/services/keybinding/common/keybindingEditing.js';
 import '../workbench/services/decorations/browser/decorationsService.js';

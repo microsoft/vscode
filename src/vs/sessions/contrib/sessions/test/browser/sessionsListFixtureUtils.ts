@@ -81,15 +81,16 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../../../
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
 import { ISessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { DefaultSessionsListPresentation } from '../../../../../workbench/contrib/sessions/browser/defaultSessionsListPresentation.js';
+import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { getSessionGroupSectionId, ISessionGroupsService, SessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionSectionOrderService, SessionSectionOrderService } from '../../../../../workbench/services/sessions/browser/sessionSectionOrderService.js';
 import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { ISessionsNavigationHost } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationHost.js';
-import { IFocusedSessionHostService, ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
-import { ITestSessionWithChat, sessionHostServiceOf, testGridPanes, navigationHostOf } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ISessionHost, ISessionHostService, MainWindowSessionHost } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionsNavigationService } from '../../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { ITestSessionWithChat, navigationServiceOf, sessionHostServiceOf, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChat, ISession, ISessionEnvironment } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionComparison, ISessionComparisonService } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
@@ -101,27 +102,14 @@ import { ISessionAttentionService, IInboxSessionAttention } from '../../../../..
 import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ISessionsHeaderElements, ISessionsViewOptions, renderSessionsHeader, SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionsHeaderElements, renderSessionsHeader, SessionsViewGroupingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
-import '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
 
+import '../../browser/views/sessionsViewActions.js';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsList.css';
 import '../../../../../workbench/contrib/sessions/browser/media/sessionsViewPane.css';
 import '../../browser/media/newSessionActionViewItem.css';
-import { IViewContainerModel, IViewDescriptor, IViewDescriptorService, IViewPaneContainer, ViewContainer, ViewContainerLocation } from '../../../../../workbench/common/views.js';
-import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
-import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { IPinnedCanvasService } from '../../../../../workbench/contrib/sessions/browser/pinnedCanvases.js';
-import { IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
-import { ILanguageModelToolsService } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
-import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
-import { ISessionWorktreeCleanupService } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
-import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
-import { localize2 } from '../../../../../nls.js';
-import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
 
 //#region State
 
@@ -136,6 +124,7 @@ export interface ISessionsListFixtureChat extends ITestChatSpec {
 export interface ISessionsListFixtureSession extends ITestSessionSpec {
 	readonly inlineAction?: 'checks' | 'comments' | 'combined';
 	readonly chats?: readonly ISessionsListFixtureChat[];
+	readonly hasScheduledMessages?: boolean;
 	/** Pinned to the sidebar's Pinned section. */
 	readonly pinned?: boolean;
 	readonly inboxState?: SessionInboxAction;
@@ -635,20 +624,11 @@ function collectApprovals(state: ISessionsListFixtureState, sessions: ReadonlyMa
  * and pins flow through the real list-state services and toolbars show the
  * production actions, so a fixture only describes data and interaction.
  */
-/** The services, sessions and list state that a sessions list fixture renders with. */
-interface ISessionsListFixtureServices {
-	readonly instantiationService: TestInstantiationService;
-	readonly sessions: ReadonlyMap<string, ITestSession>;
-	readonly getSession: (id: string) => ITestSession;
-	readonly resolve: (row: SessionsListFixtureRow) => SessionsListItemReference;
-	readonly approvalModel: AgentSessionApprovalModel;
-	readonly groupIds: Map<string, string>;
-}
-
-async function createSessionsListFixtureServices(context: ComponentFixtureContext, state: ISessionsListFixtureState): Promise<ISessionsListFixtureServices> {
+export async function renderSessionsListFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState): Promise<ISessionsListFixture> {
 	const { container, disposableStore } = context;
 	const view = state.view ?? {};
 	const header = state.header;
+	const interaction = state.interaction ?? {};
 
 	const feedback = observableValue<readonly IAgentFeedback[]>('inlineFeedback', []);
 	const ciModels = new Map<number, GitHubPullRequestCIModel>();
@@ -768,6 +748,11 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 			reg.defineInstance(IProductService, TestProductService);
 			reg.defineInstance(ISessionsManagementService, new FixtureSessionsManagementService(sessions));
 			reg.define(ISessionsListPresentation, DefaultSessionsListPresentation);
+			reg.defineInstance(IPinnedCanvasService, new class extends mock<IPinnedCanvasService>() {
+				override readonly enabled = constObservable(false);
+				override readonly entries = constObservable([]);
+				override readonly selected = constObservable(undefined);
+			}());
 			reg.define(ISessionsListModelService, SessionsListModelService);
 			reg.define(ISessionGroupsService, SessionGroupsService);
 			reg.define(ISessionSectionOrderService, SessionSectionOrderService);
@@ -807,7 +792,7 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(undefined);
 			}();
 			reg.defineInstance(ISessionsService, sessionsService);
-			reg.defineInstance(ISessionsNavigationHost, navigationHostOf(sessionsService));
+			reg.defineInstance(ISessionsNavigationService, navigationServiceOf(sessionsService));
 			reg.defineInstance(ISessionHostService, sessionHostServiceOf(disposableStore, { mainWindowActiveSession: constObservable(undefined), gridShown: constObservable(visibleSessions), windowSessions: constObservable([]) }));
 			reg.define(ISessionHost, MainWindowSessionHost);
 			reg.defineInstance(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {
@@ -922,17 +907,6 @@ async function createSessionsListFixtureServices(context: ComponentFixtureContex
 		return { session: session.session.resource, chat: chat.chat.resource };
 	};
 
-	return { instantiationService, sessions, getSession, resolve, approvalModel, groupIds };
-}
-
-export async function renderSessionsListFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState): Promise<ISessionsListFixture> {
-	const { container, disposableStore } = context;
-	const view = state.view ?? {};
-	const header = state.header;
-	const interaction = state.interaction ?? {};
-	const { instantiationService, sessions, getSession, resolve, approvalModel, groupIds } = await createSessionsListFixtureServices(context, state);
-	const contextKeyService = instantiationService.get(IContextKeyService);
-
 	const width = view.width ?? 340;
 	const height = view.height ?? (view.phone ? 260 : header && !header.navigationShortcuts ? 180 : 220);
 	container.style.width = `${state.frame?.width ?? width}px`;
@@ -973,6 +947,9 @@ export async function renderSessionsListFixture(context: ComponentFixtureContext
 		grouping: () => view.grouping ?? SessionsGrouping.Workspace,
 		sorting: () => view.sorting ?? SessionsSorting.Created,
 		compact: () => view.compact ?? false,
+		scheduledSessionResources: constObservable(new Set(state.sessions
+			.filter(spec => spec.hasScheduledMessages)
+			.map(spec => getSession(spec.id).session.resource.toString()))),
 		showNavigationShortcuts: () => header?.navigationShortcuts ?? false,
 		customizationsCount: constObservable(header?.customizationsCount ?? 0),
 		customizationMigrationsAvailable: constObservable(header?.customizationMigrationsAvailable ?? false),
@@ -1248,126 +1225,6 @@ function simulateHover(list: TestSessionsList, item: SessionsListItemReference, 
 	}
 	store.add(list.onDidUpdate(apply));
 	store.add(toDisposable(() => hoveredRow?.classList.remove('hovered')));
-}
-
-//#endregion
-
-//#region Sessions view
-
-/**
- * Renders the Sessions view as the Agents view of an editor window shows it: the real {@link SessionsView}, whose title
- * shows the actions of the sessions header and which offers no customizations, in the Primary Side Bar of a window without
- * any class of the Agents window, with the sessions of `state`.
- */
-export interface ISessionsViewFixtureOptions {
-	/** The workspaces, by label, of the editor window whose providers list only their sessions: the others are not listed. */
-	readonly scopeWorkspaces?: readonly string[];
-}
-
-export async function renderSessionsViewFixture(context: ComponentFixtureContext, state: ISessionsListFixtureState, options: ISessionsViewFixtureOptions = {}): Promise<SessionsView> {
-	const { container, disposableStore } = context;
-	const scopeWorkspaces = options.scopeWorkspaces;
-	if (scopeWorkspaces) {
-		// The providers of a scoped editor window list only the sessions of its workspaces
-		state = { ...state, sessions: state.sessions.filter(spec => !!spec.workspace && scopeWorkspaces.includes(spec.workspace)) };
-	}
-	const { instantiationService } = await createSessionsListFixtureServices(context, state);
-	const width = state.view?.width ?? 300;
-	const height = state.view?.height ?? 360;
-
-	const viewContainer: ViewContainer = { id: 'workbench.view.agents', title: localize2('fixtureAgentsView', 'Sessions'), ctorDescriptor: new SyncDescriptor(class extends mock<IViewPaneContainer>() { }) };
-	const viewDescriptor: IViewDescriptor = { id: SessionsViewId, name: localize2('fixtureSessionsView', 'Sessions'), ctorDescriptor: new SyncDescriptor(SessionsView), containerIcon: Codicon.agent };
-	instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
-		override readonly onDidChangeContainerLocation = Event.None;
-		override readonly onDidChangeContainer = Event.None;
-		override readonly onDidChangeLocation = Event.None;
-		override getViewContainerByViewId() { return viewContainer; }
-		override getDefaultContainerById() { return viewContainer; }
-		override getViewDescriptorById() { return viewDescriptor; }
-		override getViewLocationById() { return ViewContainerLocation.Sidebar; }
-		override getViewContainerLocation() { return ViewContainerLocation.Sidebar; }
-		override getViewContainerModel() {
-			return new class extends mock<IViewContainerModel>() {
-				override readonly onDidChangeContainerInfo = Event.None;
-				override readonly onDidChangeActiveViewDescriptors = Event.None;
-				override readonly visibleViewDescriptors = [viewDescriptor];
-				override readonly activeViewDescriptors = [viewDescriptor];
-			}();
-		}
-	}());
-	instantiationService.stub(ILifecycleService, new class extends mock<ILifecycleService>() {
-		override readonly startupKind = StartupKind.NewWindow;
-		override phase = LifecyclePhase.Restored;
-		override readonly onBeforeShutdown = Event.None;
-		override readonly onWillShutdown = Event.None;
-		override readonly onDidShutdown = Event.None;
-		override async when(): Promise<void> { }
-	}());
-	instantiationService.stub(ICustomizationMigrationService, new class extends mock<ICustomizationMigrationService>() {
-		override readonly onDidChangeCustomizations = Event.None;
-	}());
-	instantiationService.stub(IHostService, new class extends mock<IHostService>() {
-		override readonly onDidChangeFocus = Event.None;
-		override readonly hasFocus = true;
-	}());
-	instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
-		override readonly mainContainer = container;
-		override readonly onDidChangePartVisibility = Event.None;
-		override isVisible() { return true; }
-	}());
-	instantiationService.stub(ISessionsHostLayoutService, new class extends mock<ISessionsHostLayoutService>() { }());
-	instantiationService.stub(IPinnedCanvasService, new class extends mock<IPinnedCanvasService>() {
-		override readonly enabled = constObservable(false);
-		override readonly entries = constObservable([]);
-		override readonly selected = constObservable(undefined);
-	}());
-	instantiationService.stub(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
-		override readonly onDidChangeSentiment = Event.None;
-		override readonly sentiment: IChatSentiment = {};
-		override readonly sentimentObs = constObservable<IChatSentiment>({});
-	}());
-	instantiationService.stub(IFocusedSessionHostService, new class extends mock<IFocusedSessionHostService>() { }());
-	instantiationService.stub(IAICustomizationMcpServerCountService, new class extends mock<IAICustomizationMcpServerCountService>() { }());
-	instantiationService.stub(ILanguageModelToolsService, new class extends mock<ILanguageModelToolsService>() { }());
-	instantiationService.stub(IAgentHostToolSetEnablementService, new class extends mock<IAgentHostToolSetEnablementService>() { }());
-	instantiationService.stub(IAgentsWindowExtensionSuggestionsService, new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
-		override readonly showBadge = constObservable(false);
-	}());
-	instantiationService.stub(ISessionWorktreeCleanupService, new class extends mock<ISessionWorktreeCleanupService>() {
-		override readonly suggestion = constObservable(undefined);
-		override async activate() { }
-	}());
-
-	// The Primary Side Bar of an editor window, whose single view shows the actions of its header in its title
-	container.classList.add('monaco-workbench');
-	container.style.width = `${width}px`;
-	container.style.height = `${height}px`;
-	const sideBar = DOM.append(container, DOM.$('.part.sidebar.left'));
-	sideBar.style.width = '100%';
-	sideBar.style.height = '100%';
-	sideBar.style.backgroundColor = 'var(--vscode-sideBar-background)';
-	const paneView = DOM.append(DOM.append(sideBar, DOM.$('.content')), DOM.$('.monaco-pane-view'));
-	paneView.style.height = '100%';
-
-	const view = disposableStore.add(instantiationService.createInstance(SessionsView, {
-		id: SessionsViewId,
-		title: 'Sessions',
-		headerInTitle: true,
-		showCustomizations: false,
-		minimumBodySize: 0,
-		maximumBodySize: Number.POSITIVE_INFINITY,
-		scoped: scopeWorkspaces && constObservable(true),
-	} satisfies ISessionsViewOptions));
-	view.render();
-	paneView.appendChild(view.element);
-	view.setVisible(true);
-	view.orthogonalSize = width;
-	// As the split view of a pane view sizes its panes
-	view.element.style.height = `${height}px`;
-	view.layout(height);
-
-	await timeout(SETTLE_DELAY);
-	return view;
 }
 
 //#endregion

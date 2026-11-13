@@ -12,7 +12,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchList, WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button, ButtonWithDropdown } from '../../../../../base/browser/ui/button/button.js';
@@ -62,7 +62,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { getCustomizationContributionSourceLabel } from './customizationContributionSource.js';
-import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup } from './customizationTree.js';
+import { asTreeRenderer, customizationTreeStyles, getCustomizationTreeContentHeight, ICustomizationTreeGroup, isCustomizationTreeEntryVisible } from './customizationTree.js';
 import { CustomizationToggle } from './customizationToggle.js';
 import { affectsCustomizationDiscoveryAvailability, isCustomizationDiscoveryAvailable } from './customizationMarketplaceConfiguration.js';
 import { getAvailableCustomizationMarketplaceInstallTelemetryContext, runCustomizationMarketplaceInstallWithTelemetry } from '../../common/customizationMarketplaceInstallTelemetry.js';
@@ -857,6 +857,8 @@ export class PluginListWidget extends Disposable {
 	private searchQuery: string = '';
 	private currentTreeGroups: readonly ICustomizationTreeGroup<IPluginListEntry>[] = [];
 	private browseMode: boolean = false;
+	/** Groups the user collapsed, restored whenever the tree is re-rendered without a search or browsing the marketplace. */
+	private readonly collapsedGroups = new Set<string>();
 	private visible = false;
 	private firstCardFocusElement: HTMLElement | undefined;
 	private narrowLayout = false;
@@ -1161,8 +1163,18 @@ export class PluginListWidget extends Disposable {
 			remoteRenderer.setFocusedItemId(entry?.type === 'remote-item' ? getRemotePluginEntryId(entry) : undefined);
 			marketplaceRenderer.setFocusedItemId(entry?.type === 'marketplace-item' ? getMarketplacePluginEntryId(entry) : undefined);
 		}));
+		this._register(this.list.onDidChangeCollapseState(event => {
+			const entry = event.node.element;
+			if (entry?.type === 'group-header' && !this.isFilteringPluginTree()) {
+				if (event.node.collapsed) {
+					this.collapsedGroups.add(entry.group);
+				} else {
+					this.collapsedGroups.delete(entry.group);
+				}
+			}
+		}));
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header');
+			focusFirstCustomizationTreeItem<IPluginListEntry>(this.list, this.getVisiblePluginEntries(), entry => entry.type !== 'group-header', entry => isCustomizationTreeEntryVisible(this.list, entry));
 		}));
 
 		// Handle context menu
@@ -1729,16 +1741,24 @@ export class PluginListWidget extends Disposable {
 		});
 
 		this.cardScrollableNode.style.display = 'none';
+		const isFiltering = this.isFilteringPluginTree();
 		const children: IObjectTreeElement<IPluginListEntry>[] = this.currentTreeGroups.map(group => ({
 			element: group.element,
 			collapsible: true,
-			collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+			collapsed: !isFiltering && this.collapsedGroups.has(group.id),
 			children: group.children.map(element => ({ element })),
 		}));
-		this.list.setChildren(null);
 		this.list.setChildren(null, children);
 		this.updateToolbarActions();
 		this.updatePluginTreeEmptyState(this.currentTreeGroups.reduce((count, group) => count + group.children.length, 0));
+	}
+
+	/**
+	 * Whether the tree shows search or marketplace results, which are shown
+	 * with every group expanded.
+	 */
+	private isFilteringPluginTree(): boolean {
+		return this.browseMode || !!this.searchQuery.trim();
 	}
 
 	private renderPluginTreeGroupActions(entry: IPluginGroupHeaderEntry, container: HTMLElement, disposables: DisposableStore): void {
@@ -2542,7 +2562,7 @@ export class PluginListWidget extends Disposable {
 				return;
 			}
 			this.list.domFocus();
-			const firstItem = entries.find(entry => entry.type !== 'group-header');
+			const firstItem = entries.find(entry => entry.type !== 'group-header' && isCustomizationTreeEntryVisible(this.list, entry)) ?? entries[0];
 			if (firstItem) {
 				this.list.setFocus([firstItem]);
 			}

@@ -29,6 +29,7 @@ import { ICustomizationItem } from '../../../common/customizationHarnessService.
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { TestNotificationService } from '../../../../../../platform/notification/test/common/testNotificationService.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
@@ -350,6 +351,58 @@ suite('pluginListWidget', () => {
 		});
 	});
 
+	test('keeps collapsed groups collapsed when the plugin list changes', () => {
+		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
+			const plugin = new class extends mock<IAgentPlugin>() {
+				override readonly uri = URI.file(`/plugins/${name}`);
+				override readonly label = name;
+				override readonly enablement = constObservable(state);
+			}();
+			return { kind: AgentPluginItemKind.Installed, name, description: '', plugin };
+		};
+		type TreeNode = { readonly element: { readonly type: string; readonly label?: string }; readonly collapsed?: unknown; readonly children?: readonly unknown[] };
+		const renders: (readonly TreeNode[] | undefined)[] = [];
+		const widget = Object.assign(Object.create(PluginListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renders.push(children) },
+			installedItems: [createItem('workspace-one', ContributionEnablementState.EnabledWorkspace), createItem('user-one', ContributionEnablementState.EnabledProfile)],
+			remoteItems: [],
+			marketplaceItems: [],
+			marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
+			searchQuery: '',
+			browseMode: false,
+			collapsedGroups: new Set<string>(['user']),
+			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
+			cardScrollableNode: document.createElement('div'),
+			updateToolbarActions: () => { },
+			updatePluginTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
+			}(),
+		});
+		const renderPluginTree = Reflect.get(PluginListWidget.prototype, 'renderPluginTree') as (this: object) => void;
+		const describeRenders = () => renders.splice(0).map(children => children?.map(child => `${child.element.label} (${child.children?.length}) ${child.collapsed ? 'collapsed' : 'expanded'}`));
+
+		renderPluginTree.call(widget);
+		const initial = describeRenders();
+		widget.installedItems = [...widget.installedItems, createItem('user-two', ContributionEnablementState.EnabledProfile)];
+		renderPluginTree.call(widget);
+		const afterPluginAdded = describeRenders();
+		widget.searchQuery = 'one';
+		renderPluginTree.call(widget);
+		const whileSearching = describeRenders();
+		widget.searchQuery = '';
+		widget.browseMode = true;
+		renderPluginTree.call(widget);
+		const whileBrowsing = describeRenders();
+
+		assert.deepStrictEqual({ initial, afterPluginAdded, whileSearching, whileBrowsing }, {
+			initial: [['Workspace (1) expanded', 'User (1) collapsed']],
+			afterPluginAdded: [['Workspace (1) expanded', 'User (2) collapsed']],
+			whileSearching: [['Workspace (1) expanded', 'User (2) expanded']],
+			whileBrowsing: [['Workspace (1) expanded', 'User (2) expanded']],
+		});
+	});
+
 	test('renders Workspace before User even when User has no plugins', () => {
 		const createItem = (name: string, state: ContributionEnablementState): IInstalledPluginItem => {
 			const plugin = new class extends mock<IAgentPlugin>() {
@@ -374,6 +427,7 @@ suite('pluginListWidget', () => {
 				marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
 				searchQuery: '',
 				browseMode: false,
+				collapsedGroups: new Set<string>(),
 				configurationService: new TestConfigurationService({
 					[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
 				}),
@@ -383,7 +437,7 @@ suite('pluginListWidget', () => {
 				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace() {
 						const uri = URI.file('/workspace');
-						return { id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] };
+						return testIWorkspace({ id: 'test', folders: [{ uri, name: 'Workspace', index: 0, toResource: (path: string) => URI.joinPath(uri, path) }] });
 					}
 				}(),
 			});
@@ -472,12 +526,13 @@ suite('pluginListWidget', () => {
 			marketplaceSnapshot: new PluginMarketplaceSnapshotModel(),
 			searchQuery: '',
 			browseMode: false,
+			collapsedGroups: new Set<string>(),
 			configurationService: new TestConfigurationService({ [CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true }),
 			cardScrollableNode: document.createElement('div'),
 			updateToolbarActions: () => { },
 			updatePluginTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
-				override getWorkspace() { return { id: 'test', folders }; }
+				override getWorkspace() { return testIWorkspace({ id: 'test', folders }); }
 				override getWorkspaceFolder(resource: URI) {
 					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
 				}

@@ -3224,6 +3224,44 @@ suite('Sessions - Chat View', () => {
 		});
 	});
 
+	test('only measures the surface on refresh when it shows codicons', async () => {
+		const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')!;
+		const measureRefreshes = async (background: ISessionsChatBackground | undefined) => {
+			const workbench = dom.$('.monaco-workbench.agent-sessions-workbench');
+			const part = dom.append(workbench, dom.$('.part.sessionspart.sessions-chat-surface'));
+			dom.getWindow(workbench).document.body.appendChild(workbench);
+			const store = new DisposableStore();
+			store.add(toDisposable(() => workbench.remove()));
+			const renderer = store.add(new SessionsChatBackgroundRenderer(part, true, () => 0.5));
+			renderer.setBackground(background);
+			await timeout(20);
+			let reads = 0;
+			Object.defineProperty(part, 'clientWidth', { configurable: true, get() { reads++; return clientWidth.get!.call(this); } });
+			dom.append(part, dom.$('.interactive-item-container'));
+			await timeout(20);
+			part.dispatchEvent(new Event('scroll'));
+			await timeout(20);
+			store.dispose();
+			return reads;
+		};
+
+		assert.deepStrictEqual({
+			none: await measureRefreshes(undefined),
+			image: await measureRefreshes({
+				kind: 'image',
+				backgroundImage: 'url("file:///textures/kirby.png")',
+				backgroundRepeat: 'no-repeat',
+				backgroundSize: 'auto',
+				backgroundPosition: 'right bottom',
+			}),
+			measuresCodicons: await measureRefreshes({ kind: 'codicons' }) > 0,
+		}, {
+			none: 0,
+			image: 0,
+			measuresCodicons: true,
+		});
+	});
+
 	for (const interactive of [false, true]) {
 		test(`only writes Codicon opacity when it changes (${interactive ? 'interactive' : 'decorative'})`, async () => {
 			const codicons = { kind: 'codicons' } as const;

@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { autorun, derived, IObservable, ISettableObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize2 } from '../../../../../nls.js';
 import { BaseActionViewItem } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -234,37 +234,6 @@ export class ModelPicker extends Disposable {
 	}
 }
 
-// -- Action --
-
-/** The model picker of the new-session composer and the Automations dialog, rendered by {@link ModelPickerToolbarsContribution}. */
-export class ModelPickerAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.modelPicker',
-			title: localize2('sessionsModelPicker', "Model"),
-			f1: false,
-			menu: [{
-				id: Menus.AutomationsDialogInputToolbar,
-				group: 'navigation',
-				order: 1,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.enabled,
-					ChatContextKeys.inAutomationsDialog,
-					ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
-				),
-			}, {
-				id: Menus.NewSessionChatInputToolbar,
-				group: 'navigation',
-				order: 1,
-				// Hidden on phone when the active provider supplies a combined
-				// mode + model picker instead (see MobileChatInputConfigPicker).
-				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate())),
-			}],
-		});
-	}
-	override async run(): Promise<void> { /* handled by action view item */ }
-}
-
 // -- Action View Item --
 
 export class ModelPickerActionViewItem extends BaseActionViewItem {
@@ -310,4 +279,44 @@ export class ModelPickerToolbarsContribution extends Disposable implements IWork
 			}));
 		}
 	}
+}
+
+/**
+ * Registers the model picker action of the new-session composer, until the returned disposable is disposed.
+ *
+ * Call it once per window, from the one module or contribution that owns these registrations: its registrations are
+ * global, and registering them twice throws or duplicates them.
+ */
+export function registerModelPickerAction(): IDisposable {
+	const store = new DisposableStore();
+
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: 'sessions.modelPicker',
+				title: localize2('sessionsModelPicker', "Model"),
+				f1: false,
+				menu: [{
+					id: Menus.AutomationsDialogInputToolbar,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.inAutomationsDialog,
+						ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+					),
+				}, {
+					id: Menus.NewSessionChatInputToolbar,
+					group: 'navigation',
+					order: 1,
+					// Hidden on phone when the active provider supplies a combined
+					// mode + model picker instead (see MobileChatInputConfigPicker).
+					when: ContextKeyExpr.or(IsPhoneLayoutContext.negate(), SessionUsesCombinedConfigPickerContext.negate()),
+				}],
+			});
+		}
+		override async run(): Promise<void> { /* handled by action view item */ }
+	}));
+
+	return store;
 }

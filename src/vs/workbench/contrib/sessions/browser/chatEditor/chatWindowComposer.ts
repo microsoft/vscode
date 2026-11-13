@@ -73,7 +73,7 @@ export function getChatWindowComposerTarget(sessionsManagementService: ISessions
 	};
 }
 
-/** How a failed background send gives its prompt back to its composer ({@link ChatWindowComposerBackgroundSends.track}). */
+/** How a background send that did not start gives its prompt back to its composer ({@link ChatWindowComposerBackgroundSends.track}). */
 export interface IBackgroundSendRecovery {
 	/** The prompt as the user wrote it, with its attachments and inline references. */
 	readonly input: IChatDraft;
@@ -95,7 +95,8 @@ export interface IBackgroundSendRecovery {
  * Follows the background sends of the composers of chat windows until each ends, also after its composer is gone, and
  * reports a failure: the management service does not notify the failures of a composer's own draft slot. The prompt of
  * a failed send goes back into its composer when nothing changed there since; otherwise the notification offers to
- * restore it, without changing what the composer aims for now, or to copy it, also once the composer is gone.
+ * restore it, without changing what the composer aims for now, or to copy it, also once the composer is gone. So does
+ * the prompt of an ordinary send that the composer sent in the background and the user cancelled, without an error.
  */
 export class ChatWindowComposerBackgroundSends extends Disposable {
 
@@ -124,17 +125,29 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 		}));
 		entry.add(trackNewSessionRequestEnd(this._sessionsManagementService, owner, send.session, ({ started, error }) => {
 			entry.dispose();
-			if (!started && error !== undefined && !isCancellationError(error) && !(error instanceof WorkspaceNotTrustedError)) {
-				this._reportFailure(session, error, recovery);
+			if (started) {
+				return;
+			}
+			if (error !== undefined && !isCancellationError(error) && !(error instanceof WorkspaceNotTrustedError)) {
+				this._giveBack(session, recovery, error);
+			} else if (!send.requestedInBackground) {
+				// An ordinary send that the composer sent in the background, which the user did not start, such as by declining
+				// to trust its workspace: as that of a foreground send, its prompt goes back to the composer, without an error.
+				this._giveBack(session, recovery, undefined);
 			}
 		}));
 		return entry;
 	}
 
-	private _reportFailure(session: ISession, error: unknown, recovery: IBackgroundSendRecovery): void {
+	/** Gives the prompt of a send that did not start back to its composer; reports `error` when it failed. */
+	private _giveBack(session: ISession, recovery: IBackgroundSendRecovery, error: unknown): void {
 		if (recovery.canRestoreSilently() && recovery.restore() === 'restored') {
-			this._notificationService.error(localize('chatWindowComposer.backgroundSendFailed', "Couldn't start the session: {0}", toErrorMessage(error)));
-			this._accessibilityService.status(localize('chatWindowComposer.promptRestored', "The prompt of the session that couldn't start is back in the composer."));
+			if (error !== undefined) {
+				this._notificationService.error(localize('chatWindowComposer.backgroundSendFailed', "Couldn't start the session: {0}", toErrorMessage(error)));
+				this._accessibilityService.status(localize('chatWindowComposer.promptRestored', "The prompt of the session that couldn't start is back in the composer."));
+			} else {
+				this._accessibilityService.status(localize('chatWindowComposer.unstartedPromptRestored', "The prompt of the session that wasn't started is back in the composer."));
+			}
 			return;
 		}
 		const actions: IAction[] = [];
@@ -153,8 +166,10 @@ export class ChatWindowComposerBackgroundSends extends Disposable {
 		const workspace = session.isQuickChat?.get() ? localize('chatWindowComposer.noWorkspace', "No Workspace") : session.workspace.get()?.label ?? localize('chatWindowComposer.noWorkspace', "No Workspace");
 		const agent = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId)?.sessionTypes.find(type => type.id === session.sessionType)?.label ?? session.sessionType;
 		this._notificationService.notify({
-			severity: Severity.Error,
-			message: localize('chatWindowComposer.backgroundSendFailedIn', "Couldn't start the session in {0} with {1}: {2}", workspace, agent, toErrorMessage(error)),
+			severity: error !== undefined ? Severity.Error : Severity.Info,
+			message: error !== undefined
+				? localize('chatWindowComposer.backgroundSendFailedIn', "Couldn't start the session in {0} with {1}: {2}", workspace, agent, toErrorMessage(error))
+				: localize('chatWindowComposer.backgroundSendNotStartedIn', "The session in {0} with {1} wasn't started.", workspace, agent),
 			actions: { primary: actions },
 		});
 	}
