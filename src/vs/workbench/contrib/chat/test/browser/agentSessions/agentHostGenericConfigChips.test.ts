@@ -8,11 +8,11 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { IReference } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../../base/common/map.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
@@ -37,6 +37,7 @@ import { TestDialogService } from '../../../../../../platform/dialogs/test/commo
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { NullOpenerService } from '../../../../../../platform/opener/test/common/nullOpenerService.js';
@@ -55,6 +56,7 @@ import { AgentHostInitialSessionConfig, retrySessionConfigSubscriptionOnCreation
 import { IAgentHostNewSessionFolderService } from '../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 function createSubscription<T>(): IAgentSubscription<T> {
 	return {
@@ -117,7 +119,7 @@ suite('AgentHostGenericConfigChips', () => {
 			override readonly onDidChangeConnections = Event.None;
 			override readonly connections: readonly IRemoteAgentHostConnectionInfo[] = [];
 		}();
-		const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), new NullLogService()));
+		const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 		const changed = disposables.add(new Emitter<IChatWidgetViewModelChangeEvent>());
 		const widget = new class extends mock<IChatWidget>() {
 			override readonly onDidChangeViewModel = changed.event;
@@ -565,7 +567,7 @@ suite('AgentHostGenericConfigChips', () => {
 					override getConnection() { return agentHost; }
 					override getConnectionByAuthority() { return agentHost; }
 				}();
-				const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), new NullLogService()));
+				const connections = disposables.add(new AgentHostConnectionsService(agentHost, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 				const backend = URI.parse(`${provider}:/parent`);
 				const resource = connections.getSessionResource(backend, remote ? 'host' : AMBIENT_AGENT_HOST_AUTHORITY)!;
 				for (const fragment of ['', 'first-peer', 'second-peer']) {
@@ -891,7 +893,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 				return [...remoteConnections].find(([address]) => agentHostAuthority(address) === authority)?.[1];
 			}
 		}();
-		const connectionsService = store.add(new AgentHostConnectionsService(ambient, remoteService, new TestPathService(), new NullLogService()));
+		const connectionsService = store.add(new AgentHostConnectionsService(ambient, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 		const registerPolicy = (address: string) => store.add(connectionsService.registerSessionResolutionPolicy(agentHostAuthority(address), {
 			sessionSchemeAlias: { ui: 'test-agent', backend: 'ahp-session' },
 		}));
@@ -947,7 +949,7 @@ suite('AgentHostGenericConfigChips - remote sessions', () => {
 		instantiationService.set(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(IPreferencesService, {});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
-		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: 'test', folders: [] }) });
+		instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => (testIWorkspace({ id: 'test', folders: [] })) });
 		instantiationService.set(IWorkspaceTrustManagementService, store.add(new TestWorkspaceTrustManagementService()));
 		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {

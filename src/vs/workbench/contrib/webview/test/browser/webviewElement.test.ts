@@ -391,26 +391,37 @@ suite('WebviewElement', () => {
 
 	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
 		const firstHash = new DeferredPromise<string>();
-		let delayFirstHash = false;
-		const { webview, container, setSource } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
-			if (delayFirstHash) {
-				delayFirstHash = false;
-				return firstHash.p;
-			}
-			return defaultHash();
+		const secondHash = new DeferredPromise<string>();
+		let delayedHashes: DeferredPromise<string>[] = [];
+		const { webview, container, setSource, createReadyEvent } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
+			const delayed = delayedHashes.shift();
+			return delayed ? delayed.p : defaultHash();
 		});
-		delayFirstHash = true;
+		delayedHashes = [firstHash, secondHash];
 		const before = setSource.callCount;
 
 		webview.mountTo(container, mainWindow);
 		webview.mountTo(container, mainWindow);
+		secondHash.complete('current-origin');
+		await secondHash.p;
 		await timeout(0);
 		const afterSecondMount = setSource.callCount - before;
 		firstHash.complete('stale-origin');
 		await firstHash.p;
 		await timeout(0);
+		// The stale hash must not replace the origin that the current mount's shell is checked against.
+		const channel = new MessageChannel();
+		store.add(toDisposable(() => {
+			channel.port1.close();
+			channel.port2.close();
+		}));
+		mainWindow.dispatchEvent(new MessageEvent('message', { ...createReadyEvent(channel.port1), origin: 'https://current-origin.invalid' }));
 
-		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before }, { afterSecondMount: 1, afterStaleCompletion: 1 });
+		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before, acceptedCurrentOrigin: channel.port1.onmessage !== null }, {
+			afterSecondMount: 1,
+			afterStaleCompletion: 1,
+			acceptedCurrentOrigin: true,
+		});
 	});
 
 	test('remount rejects the old handshake and key token', async () => {

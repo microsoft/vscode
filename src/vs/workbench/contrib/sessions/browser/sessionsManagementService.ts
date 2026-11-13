@@ -25,7 +25,7 @@ import { dedupeMigratedCopilotCliSessions } from '../../chat/browser/copilotCliE
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
+import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, type ISessionReplacedEvent, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -120,8 +120,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 	private readonly _onDidChangeSessionTypes = this._register(new Emitter<void>());
 	readonly onDidChangeSessionTypes: Event<void> = this._onDidChangeSessionTypes.event;
 
-	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
-	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
+	private readonly _onDidReplaceSession = this._register(new Emitter<ISessionReplacedEvent>());
+	readonly onDidReplaceSession: Event<ISessionReplacedEvent> = this._onDidReplaceSession.event;
 	private readonly _onDidMoveChat = this._register(new Emitter<IChatMovedEvent>());
 	readonly onDidMoveChat: Event<IChatMovedEvent> = this._onDidMoveChat.event;
 	private readonly _onDidInvokeChangesetOperation = this._register(new Emitter<ISessionChangesetOperationInvokedEvent>());
@@ -242,7 +242,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
-				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
+				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e)));
 			}
 			if (provider.onDidInvokeChangesetOperation) {
 				disposables.add(provider.onDidInvokeChangesetOperation(e => this._onDidInvokeChangesetOperation.fire(e)));
@@ -254,12 +254,13 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return added;
 	}
 
-	private _handleDidReplaceSession(from: ISession, to: ISession): void {
+	private _handleDidReplaceSession(event: ISessionReplacedEvent): void {
+		const { from, to } = event;
 		this._moveOwnership(from, to);
 		this._explicitlyMarkedUnreadChats.delete(from.resource);
 		this.chatWidgetHistoryService.moveHistory(ChatAgentLocation.Chat, from.sessionId, to.sessionId);
 		// Notify the view service so it can update the visible grid slot.
-		this._onDidReplaceSession.fire({ from, to });
+		this._onDidReplaceSession.fire(event);
 		// Always fire the change event so the SessionsList refreshes even when
 		// the user navigated to a different session while the new one was
 		// being created (which is how duplicate rows appeared in the list).
@@ -825,6 +826,9 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (sessionTemplate && provider.supportsAutomationSessionConfiguration !== true) {
 			throw new Error(`Sessions provider '${provider.id}' does not support Automation session templates.`);
 		}
+		if (options?.draftConfiguration && !provider.getDraftSessionConfiguration) {
+			throw new Error(`Sessions provider '${provider.id}' does not support saved draft configuration.`);
+		}
 		if (options?.modelConfiguration && !options.modelId) {
 			throw new Error('Session model configuration requires a model identifier.');
 		}
@@ -848,6 +852,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			...(options?.modeId ? { modeId: options.modeId } : {}),
 			...(options?.pullRequestUrl ? { pullRequestUrl: options.pullRequestUrl } : {}),
 			...(automationConfiguration ? { automationConfiguration } : {}),
+			...(options?.draftConfiguration ? { draftConfiguration: options.draftConfiguration } : {}),
 		};
 	}
 
@@ -1241,6 +1246,17 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		} finally {
 			inFlightRequest.dispose();
 		}
+	}
+
+	async configureNewSessionDraft(session: ISession, options: ICreateNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<void> {
+		const provider = this._getProvider(session);
+		if (!provider || this._ownership.get(session.sessionId)?.state !== 'draft') {
+			throw new Error('The saved draft is no longer available for configuration.');
+		}
+		if ((options.isolationMode && !provider.setWorktreeConfiguration && !provider.setIsolationMode) || (options.branch && !provider.setWorktreeConfiguration && !provider.setBranch)) {
+			throw new Error('The provider cannot restore the saved draft workspace configuration.');
+		}
+		await this._configureNewSession(provider, session, options, true, token, session.workspace.get()?.folders[0]?.root);
 	}
 
 	private async _configureNewSession(

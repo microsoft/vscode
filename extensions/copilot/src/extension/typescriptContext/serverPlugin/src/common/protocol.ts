@@ -659,3 +659,118 @@ export namespace NesRenameResponse {
 export type NesRenameResponse = (tt.server.protocol.Response & {
 	body: NesRenameResponse.OK | NesRenameResponse.Failed;
 }) | { type: 'cancelled' };
+
+/**
+ * A text range given as zero-based UTF-16 offsets, with an exclusive end.
+ */
+export type OffsetRange = {
+	start: number;
+	end: number;
+};
+
+/**
+ * A textual change between the original and the modified text of a structural diff request.
+ */
+export type DiffTextChange = {
+	original: OffsetRange;
+	modified: OffsetRange;
+};
+
+export interface StructuralDiffRequestArgs {
+	/**
+	 * The file whose versions are compared. Its name decides how both texts are parsed, names the
+	 * root entity and identifies test files. The file itself is not read.
+	 */
+	fileName: FilePath;
+	originalText: string;
+	modifiedText: string;
+	changes: readonly DiffTextChange[];
+}
+
+export interface StructuralDiffRequest extends tt.server.protocol.Request {
+	arguments?: StructuralDiffRequestArgs;
+}
+
+export enum StructuralDiffSymbolKind {
+	File = 'file',
+	Module = 'module',
+	Class = 'class',
+	Method = 'method',
+	Property = 'property',
+	Constructor = 'constructor',
+	Enum = 'enum',
+	Interface = 'interface',
+	Function = 'function',
+	Variable = 'variable',
+	Object = 'object',
+	Array = 'array',
+	EnumMember = 'enumMember'
+}
+
+export enum StructuralDiffClassification {
+	Declaration = 'declaration',
+	Header = 'header',
+	Implementation = 'implementation',
+	Dependency = 'dependency',
+	Other = 'other'
+}
+
+export enum StructuralDiffTag {
+	Test = 'test'
+}
+
+/**
+ * A structural item as it appears in one text. Groups of import and export statements use the
+ * language kinds `imports` and `exports`. Their names are not localized.
+ */
+export type StructuralDiffItem = {
+	name: string;
+	kind: StructuralDiffSymbolKind;
+	languageKind?: string;
+	range: OffsetRange;
+	selectionRange?: OffsetRange;
+};
+
+export type StructuralDiffCoverage = {
+	textChangeIndex: number;
+	range: OffsetRange;
+	classification: StructuralDiffClassification;
+	tags: StructuralDiffTag[];
+};
+
+export type StructuralDiffNode = {
+	id: string;
+	original?: StructuralDiffItem;
+	modified?: StructuralDiffItem;
+	originalChanges: StructuralDiffCoverage[];
+	modifiedChanges: StructuralDiffCoverage[];
+	children: StructuralDiffNode[];
+};
+
+export type StructuralDiffResult = {
+	root: StructuralDiffNode;
+	isIncomplete: boolean;
+};
+
+export namespace StructuralDiffResponse {
+
+	export type OK = StructuralDiffResult;
+
+	export type Failed = CustomResponse.Failed;
+
+	export function isCancelled(response: StructuralDiffResponse | undefined): boolean {
+		return response?.type === 'cancelled';
+	}
+
+	export function isOk(response: StructuralDiffResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: OK } {
+		return response?.type === 'response' && (response.body as OK | undefined)?.root !== undefined;
+	}
+
+	export function isError(response: StructuralDiffResponse | undefined): response is Omit<tt.server.protocol.Response, 'body'> & { body: Failed } {
+		return response?.type === 'response' && (response.body as Failed | undefined)?.error !== undefined;
+	}
+}
+
+export type StructuralDiffResponse = (tt.server.protocol.Response & {
+	body: StructuralDiffResponse.OK | StructuralDiffResponse.Failed;
+}) | { type: 'cancelled' };

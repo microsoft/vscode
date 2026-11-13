@@ -62,6 +62,7 @@ type SessionsListNodeOutput =
 	| {
 		readonly type: 'session';
 		readonly id: string;
+		readonly children?: readonly SessionsListNodeOutput[];
 		readonly title: string;
 		readonly status: string;
 		readonly workspace?: string;
@@ -588,13 +589,10 @@ function getInvokingSession(sessionsManagementService: ISessionsManagementServic
 
 function findHeader(nodes: readonly SessionsListSnapshotNode[], headerId: string): SessionsListSnapshotNode | undefined {
 	for (const node of nodes) {
-		if (node.type === 'session') {
-			continue;
-		}
-		if (node.id === headerId) {
+		if (node.type !== 'session' && node.id === headerId) {
 			return node;
 		}
-		const match = findHeader(node.children, headerId);
+		const match = findHeader(node.children ?? [], headerId);
 		if (match) {
 			return match;
 		}
@@ -605,13 +603,10 @@ function findHeader(nodes: readonly SessionsListSnapshotNode[], headerId: string
 /** The custom group the header is nested in, or `undefined` at the top level. */
 function findHeaderParent(nodes: readonly SessionsListSnapshotNode[], headerId: string, parentId?: string): string | undefined {
 	for (const node of nodes) {
-		if (node.type === 'session') {
-			continue;
-		}
-		if (node.id === headerId) {
+		if (node.type !== 'session' && node.id === headerId) {
 			return parentId;
 		}
-		const match = findHeaderParent(node.children, headerId, node.id);
+		const match = findHeaderParent(node.children ?? [], headerId, node.type === 'session' ? undefined : node.id);
 		if (match !== undefined) {
 			return match;
 		}
@@ -632,6 +627,7 @@ function toNodeOutput(node: SessionsListSnapshotNode, currentSessionId: string |
 			...(!session.isRead.get() ? { unread: true } : {}),
 			...(session.sessionId === currentSessionId ? { current: true } : {}),
 			...(node.hidden ? { hidden: true } : {}),
+			...(node.children ? { children: node.children.map(child => toNodeOutput(child, currentSessionId, maxSessions)) } : {}),
 		};
 	}
 	let sessionCount = 0;

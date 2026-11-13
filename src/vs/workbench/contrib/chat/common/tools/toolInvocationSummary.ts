@@ -27,8 +27,11 @@ export function getToolInvocationSummary(invocation: IChatToolInvocation | IChat
 	return invocation.summary;
 }
 
-/** Called at the agent-host boundary after validating native tool provenance and successful completion. */
-export function getToolInvocationSummaryFromInput(toolId: string, input: unknown, mapResource: (uri: URI) => URI = uri => uri): ChatToolInvocationSummary | undefined {
+/**
+ * Called at the agent-host boundary after validating native tool provenance and successful completion.
+ * `viewedResourceType` is what the host reports the path of a `view` call named, when it knows.
+ */
+export function getToolInvocationSummaryFromInput(toolId: string, input: unknown, mapResource: (uri: URI) => URI = uri => uri, viewedResourceType?: 'file' | 'directory'): ChatToolInvocationSummary | undefined {
 	const resource = (value: unknown): IChatToolSummaryResource | undefined => {
 		if (typeof value !== 'string' || !value) {
 			return undefined;
@@ -58,10 +61,17 @@ export function getToolInvocationSummaryFromInput(toolId: string, input: unknown
 		}
 		case 'view': {
 			const target = file();
+			if (!target) {
+				return undefined;
+			}
+			// The tool also lists directories. A host that does not say which the path named leaves a line range as the only sign of a file.
+			if (viewedResourceType === 'directory') {
+				return { kind: 'list', resources: [target] };
+			}
 			const viewRange = getProperty(input, 'view_range');
-			return target && Array.isArray(viewRange) && viewRange.length === 2 && Number.isSafeInteger(viewRange[0]) && viewRange[0] > 0
-				&& Number.isSafeInteger(viewRange[1]) && (viewRange[1] === -1 || viewRange[1] >= viewRange[0])
-				? { kind: 'read', resources: [target] } : undefined;
+			const hasLineRange = Array.isArray(viewRange) && viewRange.length === 2 && Number.isSafeInteger(viewRange[0]) && viewRange[0] > 0
+				&& Number.isSafeInteger(viewRange[1]) && (viewRange[1] === -1 || viewRange[1] >= viewRange[0]);
+			return viewedResourceType === 'file' || hasLineRange ? { kind: 'read', resources: [target] } : undefined;
 		}
 		case 'copilot_findTextInFiles':
 		case 'grep_search':

@@ -556,7 +556,7 @@ suite('Mobile workbench - MobileChatPhoneInputPresenter', () => {
 		const { modeDelegate, modelDelegate } = harness.delegates;
 		const action = store.add(new Action('test.config', 'Configure'));
 		const customItem = harness.presenter.createActionViewItem?.(action, modeDelegate, modelDelegate);
-		const item = store.add(new MobileChatInputCombinedPickerActionItem(action, modeDelegate, modelDelegate, harness.presenter));
+		const item = store.add(harness.instantiationService.createInstance(MobileChatInputCombinedPickerActionItem, action, modeDelegate, modelDelegate));
 		const buttonContainer = dom.append(harness.container, dom.$('div'));
 		item.render(buttonContainer);
 		assert.deepStrictEqual({

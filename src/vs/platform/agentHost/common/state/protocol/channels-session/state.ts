@@ -36,6 +36,7 @@ export const enum SessionLifecycle {
  *
  * @category Session State
  * @nonexhaustive
+ * @bitset
  */
 export const enum SessionStatus {
 	/** Session is idle — no turn is active. */
@@ -74,6 +75,8 @@ export const enum SessionOriginKind {
  */
 export interface AutomationSessionOrigin {
 	kind: SessionOriginKind.Automation;
+	/** Immutable purpose copied from the run, including after its definition is removed. */
+	purpose?: 'scheduledChat';
 	/** Owning {@link AutomationEntry.resource}. */
 	automation: URI;
 	/** Owning {@link AutomationRunState.resource}. */
@@ -192,7 +195,8 @@ export interface SessionState extends SessionMetadata {
 	 * - Top-level {@link McpServerCustomization} entries the host
 	 *   surfaces directly (for example a globally-configured MCP server
 	 *   that isn't bundled in a plugin or directory). MCP servers may
-	 *   also appear as children of a container.
+	 *   also appear as children of a container, and may serve skills in
+	 *   their own {@link McpServerCustomization.children | `children`} array.
 	 *
 	 * Client-published plugins arrive via
 	 * {@link SessionActiveClient.customizations | `activeClients[].customizations`}
@@ -723,8 +727,8 @@ export interface ToolAnnotations {
  * ({@link CustomizationType.Plugin | `Plugin`} or
  * {@link CustomizationType.Directory | `Directory`}) or
  * {@link CustomizationType.McpServer | `McpServer`} entries surfaced
- * directly by the host. The remaining types appear only as children of
- * a container.
+ * directly by the host. The remaining types appear as children of a
+ * container; skills may also be served by an MCP server.
  *
  * @category Customization Types
  * @nonexhaustive
@@ -979,8 +983,8 @@ export interface DirectoryCustomization extends ContainerCustomizationBase {
 }
 
 /**
- * Fields shared by the leaf child customizations that live inside a
- * container — {@link AgentCustomization}, {@link SkillCustomization},
+ * Fields shared by the leaf child customizations that live inside a container
+ * (or, for skills, an MCP server) — {@link AgentCustomization}, {@link SkillCustomization},
  * {@link PromptCustomization}, {@link RuleCustomization}, and
  * {@link HookCustomization}.
  *
@@ -999,7 +1003,8 @@ interface ChildCustomizationBase extends CustomizationBase {
 	 * enabled state of a plugin child is the plugin's derived enabled value and
 	 * `(child.enabled ?? true)`, so a disabled plugin disables every child
 	 * regardless of each child's own flag. A directory child instead uses the
-	 * directory's `enabled` value and its own flag.
+	 * directory's `enabled` value and its own flag. An MCP-served skill uses the
+	 * server's effective enabled value and its own flag.
 	 *
 	 * A child is turned on or off by id with
 	 * {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
@@ -1054,7 +1059,7 @@ export interface AgentCustomization extends ChildCustomizationBase {
 }
 
 /**
- * A skill contributed by a plugin or directory.
+ * A skill contributed by a plugin, directory, or MCP server.
  *
  * Covers both [Open Plugins skill formats](https://open-plugins.com/agent-builders/components/skills)
  * — the `skills/` directory layout (one subdirectory per skill, each with
@@ -1205,7 +1210,7 @@ export interface McpServerCustomization extends CustomizationBase {
 	 *
 	 * A skill's effective enabled state is the server's effective enabled
 	 * value and `(skill.enabled ?? true)`. A skill is turned on or off by id
-	 * with {@link SessionCustomizationToggledAction | `session/customizationToggled`}.
+	 * with [`session/customizationToggled`](/reference/session#sessioncustomizationtoggledaction).
 	 */
 	children?: SkillCustomization[];
 }
@@ -1306,7 +1311,7 @@ export type ChildCustomization =
 /**
  * A top-level customization active in a session. Either a container
  * ({@link PluginCustomization} or {@link DirectoryCustomization}) whose
- * leaf customizations live in its
+ * child customizations live in its
  * {@link ContainerCustomizationBase.children | `children`} array, or a
  * bare {@link McpServerCustomization} surfaced directly by the host.
  *

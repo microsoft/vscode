@@ -1722,10 +1722,12 @@ export class WorkspacePicker extends Disposable {
 			return undefined;
 		}
 
+		const currentFolder = this._selectedFolderUri?.scheme === Schemas.file ? this._selectedFolderUri : undefined;
 		const result = await this.fileDialogService.showOpenDialog({
 			canSelectFolders: true,
 			canSelectFiles: false,
 			canSelectMany: false,
+			defaultUri: currentFolder ? this.uriIdentityService.extUri.dirname(currentFolder) : undefined,
 		});
 		if (!result?.length) {
 			return undefined;

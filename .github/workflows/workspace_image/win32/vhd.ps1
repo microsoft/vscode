@@ -2,7 +2,7 @@
 # ../README.md).
 #
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode [-WaitFor C:\a\_temp\workspace-image.vhdx.ready] [-CachedIo] [-Trust]
-#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1]
+#   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -Create -MountFolder C:\a\vscode [-MaximumSizeGB 200] [-BlockSizeMB 1] [-FileSystem DevDrive|NTFS]
 #   vhd.ps1 -Path C:\a\_temp\workspace-image.vhdx -MountFolder C:\a\vscode -Detach
 #
 # Without -Create or -Detach, attaches the VHDX with the virtual disk API (see Vhd.cs), and mounts its
@@ -12,8 +12,10 @@
 # temporary file that image.ts restores is read from memory. -Trust trusts the Dev Drive of the VHDX
 # on this machine, like a Dev Drive that it formats.
 # -Create creates a Dev Drive in a new dynamic VHDX with blocks of 1 MB, and mounts it at the empty
-# folder. -Detach flushes its volume, removes its mount point, which would be left dangling, and
-# detaches it. Neither trimming the volume nor compacting the VHDX makes it smaller.
+# folder. -FileSystem NTFS formats an NTFS volume instead, for the versions of Windows without Dev
+# Drives, such as Windows Server 2022. -Detach flushes its volume, removes its mount point, which
+# would be left dangling, and detaches it. Neither trimming the volume nor compacting the VHDX makes
+# it smaller.
 param(
 	[Parameter(Mandatory = $true)]
 	[string] $Path,
@@ -24,7 +26,9 @@ param(
 	[switch] $Create,
 	[switch] $Detach,
 	[int] $MaximumSizeGB = 200,
-	[int] $BlockSizeMB = 1
+	[int] $BlockSizeMB = 1,
+	[ValidateSet('DevDrive', 'NTFS')]
+	[string] $FileSystem = 'DevDrive'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -71,12 +75,20 @@ if ($Create) {
 	@("select vdisk file=`"$Path`"", 'attach vdisk', 'create partition primary', 'assign letter=W') | Set-Content $script
 	diskpart /s $script | Out-Host
 	if ($LASTEXITCODE -ne 0) { throw "diskpart exited with $LASTEXITCODE" }
-	Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+	if ($FileSystem -eq 'NTFS') {
+		Format-Volume -DriveLetter W -FileSystem NTFS -Confirm:$false -Force | Out-Host
+	} else {
+		Format-Volume -DriveLetter W -DevDrive -Confirm:$false -Force | Out-Host
+	}
 	Add-PartitionAccessPath -DriveLetter W -AccessPath $folder
 	# Without a drive letter, the native realpath of the files stays under the folder
 	Remove-PartitionAccessPath -DriveLetter W -AccessPath 'W:\'
-	Step "formatted a Dev Drive and mounted it at $MountFolder"
-	fsutil devdrv query $MountFolder | Out-Host
+	if ($FileSystem -eq 'NTFS') {
+		Step "formatted an NTFS volume and mounted it at $MountFolder"
+	} else {
+		Step "formatted a Dev Drive and mounted it at $MountFolder"
+		fsutil devdrv query $MountFolder | Out-Host
+	}
 	return
 }
 

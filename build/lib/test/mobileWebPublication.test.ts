@@ -60,12 +60,21 @@ test('the standard publisher registers mobile separately while preserving web an
 });
 
 test('both product pipeline entry points select and publish Mobile independently from Web', async () => {
-	const webCondition = '${{ if and(eq(variables[\'VSCODE_CIBUILD\'], false), eq(variables[\'VSCODE_BUILD_STAGE_WEB\'], true)) }}';
-	const mobileCondition = '${{ if and(eq(variables[\'VSCODE_CIBUILD\'], false), eq(parameters.VSCODE_BUILD_WEB_MOBILE, true)) }}';
+	// product-build.yml has no CI builds (see product-build-ci.yml)
+	const conditions = {
+		'../../azure-pipelines/product-build.yml': {
+			web: '${{ if eq(variables[\'VSCODE_BUILD_STAGE_WEB\'], true) }}',
+			mobile: '${{ if eq(parameters.VSCODE_BUILD_WEB_MOBILE, true) }}',
+		},
+		'../../azure-pipelines/product-build-template.yml': {
+			web: '${{ if and(eq(variables[\'VSCODE_CIBUILD\'], false), eq(variables[\'VSCODE_BUILD_STAGE_WEB\'], true)) }}',
+			mobile: '${{ if and(eq(variables[\'VSCODE_CIBUILD\'], false), eq(parameters.VSCODE_BUILD_WEB_MOBILE, true)) }}',
+		},
+	};
 	const publishCondition = '${{ if eq(variables[\'VSCODE_PUBLISH\'], true) }}';
 	type Stage = { stage: string; dependsOn: string[]; jobs: { template: string; parameters?: { mobile?: boolean; VSCODE_BUILD_WEB_MOBILE?: string } }[] };
-	type StageEntry = { stage?: string; [webCondition]?: Stage[]; [mobileCondition]?: Stage[]; [publishCondition]?: Stage[] };
-	for (const file of ['../../azure-pipelines/product-build.yml', '../../azure-pipelines/product-build-template.yml']) {
+	type StageEntry = { stage?: string; [condition: string]: Stage[] | string | undefined };
+	for (const [file, { web: webCondition, mobile: mobileCondition }] of Object.entries(conditions)) {
 		const source = await readFile(new URL(file, import.meta.url), 'utf8');
 		const pipeline = load(source) as {
 			parameters: { name: string; displayName?: string; type: string; default: boolean }[];
@@ -76,13 +85,14 @@ test('both product pipeline entry points select and publish Mobile independently
 			name: 'VSCODE_BUILD_WEB_MOBILE', displayName: '\u{1f3af} Mobile', type: 'boolean', default: true,
 		});
 		const stages = pipeline.stages ?? pipeline.extends!.parameters.stages;
+		const selectedStages = (condition: string) => stages.flatMap(entry => (entry[condition] as Stage[] | undefined) ?? []);
 		assert.deepStrictEqual({
-			targets: ([webCondition, mobileCondition] as const).flatMap(condition => stages.flatMap(entry => entry[condition] ?? [])).map(stage => ({
+			targets: [webCondition, mobileCondition].flatMap(selectedStages).map(stage => ({
 				name: stage.stage,
 				dependsOn: stage.dependsOn,
 				jobs: stage.jobs.map(job => ({ sharedTemplate: job.template.endsWith('web/product-build-web.yml@self'), mobile: job.parameters?.mobile })),
 			})),
-			publishMobile: stages.flatMap(entry => entry[publishCondition] ?? [])[0]?.jobs[0]?.parameters?.VSCODE_BUILD_WEB_MOBILE,
+			publishMobile: selectedStages(publishCondition)[0]?.jobs[0]?.parameters?.VSCODE_BUILD_WEB_MOBILE,
 			sharedQuality: stages.some(stage => stage.stage === 'Quality'),
 		}, {
 			targets: [

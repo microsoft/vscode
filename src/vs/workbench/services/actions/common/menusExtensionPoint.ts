@@ -576,6 +576,18 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
 		proposed: 'chatSessionsProvider'
 	},
+	{
+		key: 'titleBar',
+		id: MenuId.TitleBar,
+		description: localize('menus.titleBar', "The title bar of the editor window."),
+		proposed: 'contribTitleBar'
+	},
+	{
+		key: 'agents/titleBar',
+		id: MenuId.AgentsTitleBar,
+		description: localize('menus.agentsTitleBar', "The title bar of the agents window."),
+		proposed: 'contribTitleBar'
+	},
 ];
 
 namespace schema {

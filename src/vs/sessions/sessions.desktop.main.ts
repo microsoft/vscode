@@ -150,6 +150,9 @@ import '../workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Debug
 import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js';
 
+// Workspaces
+import '../workbench/contrib/workspaces/electron-browser/workspaces.contribution.js';
+
 // Extension devtools
 import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
@@ -242,6 +245,7 @@ import '../workbench/contrib/chat/electron-browser/agentSessions/computerUseHelp
 import './electron-browser/sessions.desktop.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.js';
 import './contrib/openAgentsWindow/electron-browser/openAgentsWindowKeybindingTip.js';
+import './contrib/agentsLauncher/electron-browser/agentsLauncher.contribution.js';
 
 // Remote Agent Host
 import '../workbench/services/agentHost/electron-browser/agentHostService.js';

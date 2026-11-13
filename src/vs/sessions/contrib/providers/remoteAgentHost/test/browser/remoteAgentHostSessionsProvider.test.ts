@@ -441,7 +441,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	stubFocusedSessionHostFromSessionsService(instantiationService);
 	instantiationService.stub(IAgentHostActiveClientService, new class extends mock<IAgentHostActiveClientService>() {
 		override acquireSessionTools = () => new ImmortalReference(constObservable([]));
-		override acquireScope = (_sessionType: string, _roots: readonly URI[]) => ({
+		override acquireScope = (_sessionType: string, _roots: readonly URI[] | undefined) => ({
 			customizations: constObservable([]),
 			customAgents: constObservable([]),
 			tools: constObservable([]),
@@ -2016,6 +2016,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			resolvedWhileConnected: sessionResource.toString(),
 			connectCallsAfterResolve: 0,
 			connectCalls: 1,
+		});
+	});
+
+	test('declines to adopt a session until its cache is listed over the current connection, and then prompts the retry', async () => {
+		connection.addSession(createSession('handed-off'));
+		const provider = createProvider(disposables, connection, { noConnection: true });
+		// A cache restored from storage, which can lack the session's peer chats.
+		provider.seedSessions([createSession('handed-off')]);
+		const to = provider.getSessions()[0];
+		const from = new class extends mock<ISession>() {
+			override readonly mainChat = constObservable<IChat>({ ...to.mainChat.get(), resource: URI.parse('relay:/main') });
+		}();
+		const replacements: string[] = [];
+		disposables.add(provider.onDidReplaceSession(event => replacements.push(...[...event.chats ?? []].map(([chat, ownChat]) => `${chat.toString()} -> ${ownChat.toString()}`))));
+		const attempts: string[] = [];
+		const attempt = (when: string) => attempts.push(`${when}: ${provider.adoptSession(from, AgentSession.uri('copilotcli', 'handed-off'))}`);
+		attempt('offline');
+		provider.setConnection(connection);
+		attempt('listing');
+		// Like the handoff, retry on changes of sessions until adopted.
+		disposables.add(provider.onDidChangeSessions(() => {
+			if (!attempts.at(-1)?.endsWith('true')) {
+				attempt('listed');
+			}
+		}));
+		await timeout(0);
+
+		assert.deepStrictEqual({ attempts, replacements }, {
+			attempts: ['offline: false', 'listing: false', 'listed: true'],
+			replacements: [`relay:/main -> ${to.mainChat.get().resource.toString()}`],
 		});
 	});
 
@@ -4573,7 +4603,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 			new NullRemoteAgentHostService(),
 			upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-			new NullLogService(),
+			upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 		));
 		let notifications = 0;
 		disposables.add(resolutions.onDidChangeSessionResolution(() => notifications++));

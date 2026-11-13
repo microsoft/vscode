@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import * as Platform from '../../../../../base/common/platform.js';
@@ -23,6 +23,10 @@ import { RunAutomaticTasks } from '../../browser/runAutomaticTasks.js';
 import { TaskService } from '../../browser/taskService.js';
 import { ITaskService, IWorkspaceFolderTaskResult } from '../../common/taskService.js';
 import { ITaskSystemInfo } from '../../common/taskSystem.js';
+import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
+import { ContributedTask, RunOnOptions, Task, TaskScope, TaskSourceKind } from '../../common/tasks.js';
 
 class TestTaskService extends TaskService {
 	get whenTaskSystemReady(): Promise<void> {
@@ -133,6 +137,60 @@ suite('Task system readiness', function () {
 		await timeout(0);
 		assert.strictEqual(getWorkspaceTasks.callCount, 1);
 	});
+
+	for (const preparation of ['discovery', 'permission', 'resolution'] as const) {
+		test(`revoking trust invalidates automatic tasks pending ${preparation}, even after trust is restored`, async () => {
+			const instantiationService = workbenchInstantiationService(undefined, store);
+			const trust = store.add(new TestWorkspaceTrustManagementService());
+			instantiationService.stub(IWorkspaceTrustManagementService, trust);
+			const configurationService = instantiationService.get(IConfigurationService);
+			sinon.stub(configurationService, 'inspect').returns({ value: 'on', userValue: 'on' });
+			sinon.stub(configurationService, 'getValue').returns(preparation === 'permission' ? 'off' : 'on');
+			const pending = new DeferredPromise<void>();
+			const entered = new DeferredPromise<void>();
+			const pause = async () => {
+				await entered.complete();
+				await pending.p;
+			};
+			const launches: Task[] = [];
+			instantiationService.stub(ITaskService, new class extends mock<ITaskService>() {
+				override readonly isReconnected = true;
+				override readonly hasTaskSystemInfo = true;
+				override readonly onDidChangeTaskSystemInfo = Event.None;
+				override async getWorkspaceTasks() {
+					if (preparation === 'discovery') {
+						await pause();
+					}
+					return new Map<string, IWorkspaceFolderTaskResult>();
+				}
+				override async run(task: Task | undefined) {
+					if (task) {
+						launches.push(task);
+					}
+					return { exitCode: 0 };
+				}
+			});
+			const task = new ContributedTask('automatic', {
+				kind: TaskSourceKind.Extension, label: 'test', extension: 'test', scope: TaskScope.Workspace, workspaceFolder: undefined
+			}, 'automatic', 'test', { type: 'test', _key: 'automatic' }, {}, false, { runOn: RunOnOptions.folderOpen }, {});
+			sinon.stub(RunAutomaticTasks.prototype, '_findAutoTasks' as keyof RunAutomaticTasks).value(() => ({
+				tasks: preparation === 'resolution' ? [pause().then(() => task)] : [task],
+				taskNames: [task._label],
+				locations: new Map()
+			}));
+			sinon.stub(RunAutomaticTasks.prototype, '_showPrompt' as keyof RunAutomaticTasks).value(async () => {
+				await pause();
+				return true;
+			});
+			store.add(instantiationService.createInstance(RunAutomaticTasks));
+			await entered.p;
+			await trust.setWorkspaceTrust(false);
+			await trust.setWorkspaceTrust(true);
+			await pending.complete();
+			await timeout(0);
+			assert.deepStrictEqual(launches, []);
+		});
+	}
 
 	for (const readinessBeforeDisposal of ['waiting', 'ready', 'lost'] as const) {
 		test(`disposing automatic tasks stops pending readiness work (readiness before disposal: ${readinessBeforeDisposal})`, async () => {

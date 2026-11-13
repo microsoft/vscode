@@ -1516,7 +1516,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (workspaceUri && !workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
-		const automationConfiguration = options?.automationConfiguration;
+		const automationConfiguration = options?.draftConfiguration ?? options?.automationConfiguration;
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
@@ -1586,6 +1586,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				},
 			};
 		}
+		return this.getDraftSessionConfiguration(sessionId);
+	}
+
+	getDraftSessionConfiguration(sessionId: string): IAutomationSessionConfiguration | undefined {
+		const session = this._newSessions.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		const modelId = session.modelId.get();
+		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
+		const initialConfiguration = session.initialAutomationSessionConfiguration;
+		const initialTemplate = initialConfiguration?.sessionTemplate;
 		// Cloud sessions have no client-side mode or permission pickers, so the initial
 		// Automation configuration is carried through unchanged.
 		const initialMode = initialConfiguration?.mode ?? initialTemplate?.config?.[SessionConfigKey.Mode];

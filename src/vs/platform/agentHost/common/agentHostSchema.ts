@@ -288,7 +288,7 @@ export interface IPermissionsValue {
 const permissionsProperty = schemaProperty<IPermissionsValue>({
 	type: 'object',
 	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), or Edit(./docs/**). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), Edit(./docs/**), Mcp(server), or Mcp(server/tool). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
 	properties: {
 		allow: {
 			type: 'array',
@@ -670,6 +670,7 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostChatResourcesConfigKey = 'chatResources';
 export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
 export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
@@ -1053,6 +1054,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
+		default: false,
+	}),
+	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files they record, such as above the chat input."),
 		default: false,
 	}),
 	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({

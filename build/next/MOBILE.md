@@ -54,6 +54,10 @@ background skill already instructs the agent to explain when required tools
 are unavailable rather than generating an image it cannot apply; packaging
 the skill does not include the background implementation or enable its tools.
 
+Pinned-canvas implementation is excluded from the package. The selecting entry
+supplies pinning through the list presentation; shared lists do not require a
+mobile placeholder service. Ordinary window canvases remain shared.
+
 The size limits are experimental regression guards introduced with this target,
 not existing VS Code product requirements or hosting restrictions. Review actual
 dependency growth before changing a baseline; do not widen the contribution

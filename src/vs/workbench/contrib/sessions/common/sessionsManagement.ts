@@ -15,7 +15,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionType, ISessionWorkspace, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions } from './sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, ISessionChangesetOperationInvokedEvent, ISessionConfigurationSnapshot, ISessionCreationTarget, type ISessionReplacedEvent, ISendRequestOptions as ISessionsProviderSendRequestOptions, type SessionResourceResolveReason, ICreateNewChatOptions, ISessionDraftConfiguration } from './sessionsProvider.js';
 
 export interface IManagedSessionWorktree extends IAgentHostManagedWorktree {
 	readonly providerId: string;
@@ -121,6 +121,8 @@ export interface ICreateNewSessionOptions {
 	readonly sessionTemplate?: IAutomationSessionTemplate;
 	/** Complete provider-owned Automation draft state. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
+	/** Ordinary saved-draft choices, restored by providers implementing getDraftSessionConfiguration. */
+	readonly draftConfiguration?: ISessionDraftConfiguration;
 	/**
 	 * Optional worktree isolation mode (`worktree` or `workspace`) to apply
 	 * via {@link ISessionsProvider.setIsolationMode}. Skipped if the
@@ -265,6 +267,7 @@ export interface INewSessionRequestEndedEvent {
 }
 
 export interface ISessionsManagementService {
+	configureNewSessionDraft(session: ISession, options: ICreateNewSessionOptions, token?: CancellationToken): Promise<void>;
 	readonly archivedSessionItems: IObservable<IChatSessionItemArchiveState>;
 	acquireArchivedSessionItems(): IDisposable;
 	readonly _serviceBrand: undefined;
@@ -408,7 +411,7 @@ export interface ISessionsManagementService {
 	/** Fires after a session was successfully renamed via {@link renameSession}. */
 	readonly onDidRenameSession: Event<ISession>;
 	/** Fires after a provider replaced a session (e.g. a draft graduating into a committed session). */
-	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }>;
+	readonly onDidReplaceSession: Event<ISessionReplacedEvent>;
 	/** Fires when a provider moved a chat to another of its sessions (see `ISessionsProvider.onDidMoveChat`). */
 	readonly onDidMoveChat: Event<IChatMovedEvent>;
 	/** Fires when the user invokes a changeset operation of a session from any provider. */

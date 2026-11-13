@@ -328,8 +328,9 @@ export interface IFloatingWidgetPlacement {
  * Places a widget at the right edge of the editor, vertically centered on the commented code. When requested and there
  * is room, the widget goes right after the end of the code, level with its top, or right after the end of the lines
  * next to the code instead. When the code leaves no room for the widget at the right edge, the widget goes below the
- * code, so that it doesn't cover it. When the widget would cover the code or one of the obstacles, it moves to the
- * closest position above or below them that is free, within the area that the editor can scroll through.
+ * code, still at the right edge, so that it covers neither the code nor the start of the lines below it. When the
+ * widget would cover the code or one of the obstacles, it moves to the closest position above or below them that is
+ * free, within the area that the editor can scroll through.
  *
  * Widgets stay in the order of their code: a widget that moves out of the way of another one goes to the side of it
  * that its code is on. It only goes to the other side when there's no room on its own side.
@@ -346,7 +347,6 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 		preferredTop = code.top;
 		centered = false;
 	} else if (code && codeRight + CODE_GAP > maxLeft) {
-		left = clamp(code.left, minLeft, maxLeft);
 		preferredTop = code.top + code.height + EDGE_MARGIN;
 		centered = false;
 	} else if (code && request.linesRight !== undefined) {
@@ -376,8 +376,9 @@ export function computeFloatingWidgetPlacement(request: IFloatingWidgetPlacement
 	// The widget is out of order with a widget above or below it when it's on the side of it that its code isn't on.
 	const codeTop = code?.top ?? 0;
 	const isOutOfOrder = (top: number, obstacle: IFloatingWidgetObstacle) => areOutOfOrder({ top, left, width, height, codeTop }, obstacle);
-	// Widgets that are out of order with the preferred position anyway, such as ones that were moved there, don't
-	// keep the widget from the others.
+	// Widgets that are out of order with the preferred position anyway don't keep the widget from the others. Those are
+	// ones that the user moved there, and ones for code that starts earlier but goes on long enough for them to be
+	// centered below this one, which would otherwise push this one far from its code.
 	const unmovedTop = clamp(preferredTop, 0, maxTop);
 	const orderedObstacles = request.obstacles.filter(obstacle => !isOutOfOrder(unmovedTop, obstacle));
 	// When no position is free, the widget stays as close to the preferred position as it can.

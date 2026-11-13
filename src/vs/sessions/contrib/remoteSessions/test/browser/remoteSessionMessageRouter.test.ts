@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../base/common/types.js';
@@ -33,7 +33,7 @@ import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, ChatState, Com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IWorkspaceTrustManagementService } from '../../../../../platform/workspace/common/workspaceTrust.js';
 import { messageToRequestOrigin } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
@@ -209,7 +209,7 @@ suite('RemoteSessionMessageRouter', () => {
 			}
 			override getConnectionByAuthority(authority: string): IAgentConnection | undefined { return this.getConnection(authority); }
 		}();
-		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), new NullLogService()));
+		const connections = store.add(new AgentHostConnectionsService(local, remoteService, new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 		const sessions = ['agent-host-copilot', 'remote-first-copilot', 'remote-second-copilot'].map((scheme, index) => {
 			const resource = URI.from({ scheme, path: '/same-id' });
 			const chats = ['', 'original-chat', 'other-chat'].map(fragment => upcastPartial<IChat>({

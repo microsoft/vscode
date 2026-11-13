@@ -1,6 +1,7 @@
 ---
 name: automate
 description: 'Propose an automation from a completed task or a new idea, then create it after approval. Use when the user asks to create an automation or wants scheduled local or cloud agent work.'
+argument-hint: Describe a task, schedule, and where it should run
 ---
 <!-- Customize this skill and select save to override its behavior. Delete that copy to restore the built-in behavior. -->
 
@@ -14,6 +15,8 @@ description: 'Propose an automation from a completed task or a new idea, then cr
 - With no useful context, offer two or three examples, including a local file/report task, before discovering tools or providers. Invite a custom goal; suggestions are not choices.
 
 Establish task and result before setup/discovery. Ask what success should produce or do only when unclear; reuse known answers.
+
+For an explicit one-time request with a clear prompt, time, and destination, use the one-time workflow below rather than requiring a separate proposal acceptance. Bare `/automate`, recurring work, and incomplete requests still use the proposal workflow.
 
 Ask one concept per question, titled by the missing input, such as "Repositories to check". Batch related questions in the same turn or form instead of serial follow-ups. Suggest answers; mark unresolved choices as undecided. Read discovery output with file/search tools, not shell. Do not inspect task files, execute tasks, or request permissions merely to draft.
 
@@ -41,8 +44,18 @@ Complete the proposal without an acceptance form. End: "Say Create it when ready
 
 If the user accepts with a rename or unambiguous edit, save the reviewed draft plus only that edit without another round. If resolving a change requires judgment, conflicting choices, or consequential assumptions, show the resolved draft and wait for acceptance. Add no new task behavior while saving.
 
+## Schedule a clear one-time request
+
+Use `listAutomations` to check one-time availability and obtain the current time and device time zone. Resolve an unambiguous requested time to `schedule: { interval: "once", runAt: "<absolute UTC instant>" }`; ask about ambiguous wall-clock times or missing task details rather than guessing. A date-specific request is not a recurring cron schedule.
+
+Default to `target: { kind: "currentChat" }`, which sends into this exact conversation, including a peer chat. Only choose a new session when requested: `currentSession` copies the current session's environment but creates a new conversation; `workspace` and `quickChat` also create new conversations. A new-session prompt must include its necessary context; it does not inherit chat history or unsent input. Existing-chat requests use the conversation's execution settings when they run, so do not supply configuration overrides.
+
+Call `configureAutomation` directly for a fully specified, explicitly requested one-time send. Normal tool approval still applies; this does not authorize future tool actions. Initial support is text-only on a supported local desktop Agent Host with Send Later enabled. Do not copy attachments or silently substitute another provider or destination. The host queues once when available; it cannot wake the computer or start a stopped host.
+
+Report the accepted destination and local send time with its time zone. Accepted means scheduled, not executed; an existing-chat run completing means queued, not that the requested work finished. Reschedule with `runAt`, cancel a pending request with `enabled: false`, and use the existing run tool only for an explicitly requested Send Now. Never create autonomous follow-ups or self-rescheduling. On an uncertain result, inspect the saved identity with `listAutomations` and direct the user to Reconcile Schedule if unresolved; do not create a replacement.
+
 ## Create only after acceptance
 
-After acceptance, resolve remaining blockers and call `configureAutomation` with the reviewed configuration and the same prompt, retaining its line breaks. Preserve explicit creation-state requests; otherwise omit `enabled` and retain existing tool defaults. Do not claim confirmation choices the tool does not offer. Respect tool approval and organization policy; never bypass them through shell, HTTP, or repository edits. Chat targets omit workspace, isolation, and branch fields. Never guess settings or widen permissions.
+For the proposal workflow, after acceptance, resolve remaining blockers and call `configureAutomation` with the reviewed configuration and the same prompt, retaining its line breaks. Preserve explicit creation-state requests; otherwise omit `enabled` and retain existing tool defaults. Do not claim confirmation choices the tool does not offer. Respect tool approval and organization policy; never bypass them through shell, HTTP, or repository edits. Chat targets omit workspace, isolation, and branch fields. Never guess settings or widen permissions.
 
 Report saved identity, state, and accepted prompt edits. Reconcile uncertain results before retrying. Do not enable, run, change, or delete an automation without explicit authorization. Creating does not authorize a run.

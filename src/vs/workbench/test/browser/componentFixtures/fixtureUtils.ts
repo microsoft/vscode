@@ -932,6 +932,8 @@ export function registerWorkbenchServices(registration: ServiceRegistration): vo
 		getUriLabel: (uri: URI) => uri.path,
 		getUriBasenameLabel: (uri: URI) => uri.path.split('/').pop() ?? '',
 		getWorkspaceLabel: () => '',
+		getFolderLocationLabel: () => undefined,
+		registerWorkspaceLabelDecorator: () => ({ dispose: () => { } }),
 		getHostLabel: () => '',
 		getSeparator: () => '/',
 		registerFormatter: () => ({ dispose: () => { } }),

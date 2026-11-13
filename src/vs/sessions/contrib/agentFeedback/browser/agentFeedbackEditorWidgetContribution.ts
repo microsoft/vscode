@@ -52,8 +52,8 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 	) {
 		super();
 
-		this._store.add(this._agentFeedbackService.onDidChangeNavigation(sessionResource => {
-			if (this._sessionResource && sessionResource.toString() === this._sessionResource.toString()) {
+		this._store.add(this._agentFeedbackService.onDidChangeNavigation(({ sessionResource, reveal }) => {
+			if (reveal && this._sessionResource && sessionResource.toString() === this._sessionResource.toString()) {
 				this._handleNavigation();
 			}
 		}));
@@ -231,7 +231,9 @@ export class AgentFeedbackEditorWidgetContribution extends Disposable implements
 			shouldIncludeRawPRReviewComments(this._agentFeedbackService, this._sessionResource),
 		);
 		const bearing = this._agentFeedbackService.getNavigationBearing(this._sessionResource, comments);
-		if (bearing.activeIdx < 0) {
+		// A passive anchor (set without reveal) must not expand, focus or scroll to its comment,
+		// also when widgets are created or rebuilt after it was set.
+		if (bearing.activeIdx < 0 || bearing.reveal === false) {
 			return;
 		}
 

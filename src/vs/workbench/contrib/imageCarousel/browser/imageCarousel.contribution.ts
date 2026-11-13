@@ -13,11 +13,13 @@ import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
-import { ImageCarouselEditor } from './imageCarouselEditor.js';
+import { ImageCarouselEditor, ImageCarouselMarkingUpContext } from './imageCarouselEditor.js';
 import { ImageCarouselEditorInput } from './imageCarouselEditorInput.js';
 import { ICarouselImage, IImageCarouselCollection } from './imageCarouselTypes.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IExplorerService } from '../../files/browser/files.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
@@ -155,6 +157,37 @@ class OpenImageInCarouselAction extends Action2 {
 }
 
 registerAction2(OpenImageInCarouselAction);
+
+/**
+ * Ends the markup of an image on Escape. Markups end on Escape themselves; this command keeps the modal
+ * editor's Escape from closing the Images Preview instead, so that the user sees the image again.
+ */
+class FinishImageMarkUpAction extends Action2 {
+	constructor() {
+		super({
+			// Not a `workbench.` command, which modal editors would block.
+			id: 'imageCarousel.finishMarkUp',
+			title: localize2('imageCarousel.finishMarkUp', "Finish Marking Up Image"),
+			precondition: ImageCarouselMarkingUpContext,
+			keybinding: {
+				primary: KeyCode.Escape,
+				// Above every Escape keybinding of `workbench.action.closeModalEditor`.
+				weight: KeybindingWeight.WorkbenchContrib + 20,
+				when: ImageCarouselMarkingUpContext,
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		for (const editorPane of accessor.get(IEditorService).visibleEditorPanes) {
+			if (editorPane instanceof ImageCarouselEditor && editorPane.isMarkingUp) {
+				editorPane.finishMarkUp();
+			}
+		}
+	}
+}
+
+registerAction2(FinishImageMarkUpAction);
 
 // --- Explorer Context Menu Integration ---
 

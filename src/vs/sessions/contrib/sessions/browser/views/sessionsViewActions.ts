@@ -62,6 +62,7 @@ import { AccessibleViewRegistry } from '../../../../../platform/accessibility/br
 import { SessionsListNotificationFocused } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { getInboxPullRequestMergeOperation, getSessionInboxSection, SessionInboxAction, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionAttentionService } from '../../../../../workbench/contrib/sessions/common/sessionAttentionService.js';
+import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
 AccessibleViewRegistry.register({
 	name: 'sessions-list-notification',
@@ -1128,6 +1129,31 @@ registerAction2(class NewSessionInGroupAction extends Action2 {
 });
 
 //  Session Item Actions
+
+registerAction2(class OpenSessionCustomizationsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.openCustomizations',
+			title: localize2('openSessionCustomizations', "Open Customizations"),
+			icon: Codicon.extensions,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
+			menu: {
+				id: Menus.SessionItemContextMenu,
+				group: 'navigation',
+				order: 6,
+				when: ChatContextKeys.enabled,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessions = context ? Array.isArray(context) ? context : [context] : [];
+		if (sessions.length !== 1) {
+			throw new Error(localize('openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
+		}
+		await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
+	}
+});
 
 registerAction2(class PinSessionAction extends Action2 {
 	constructor() {
