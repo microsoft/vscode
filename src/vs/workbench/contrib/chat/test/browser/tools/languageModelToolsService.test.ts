@@ -30,7 +30,7 @@ import { IExtensionService } from '../../../../../services/extensions/common/ext
 import { LanguageModelToolsService } from '../../../browser/tools/languageModelToolsService.js';
 import { IChatToolRiskAssessmentService, IToolRiskAssessment, ToolRiskLevel, ToolRiskPromptKind } from '../../../browser/tools/chatToolRiskAssessmentService.js';
 import { ChatModel, IChatModel } from '../../../common/model/chatModel.js';
-import { IChatService, IChatProgress, IChatInfoMessage, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatService, IChatProgress, IChatInfoMessage, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../../common/constants.js';
 import { SpecedToolAliases, isToolResultInputOutputDetails, isToolSet, IToolData, IToolImpl, IToolInvocation, ToolDataSource, IToolResultTextPart, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { MockChatService } from '../../common/chatService/mockChatService.js';
@@ -279,7 +279,7 @@ function createTestToolsService(store: ReturnType<typeof ensureNoDisposablesAreL
 function setupRiskGateTool(
 	setup: TestToolsServiceSetup,
 	store: any,
-	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string; capture?: { invocation?: ChatToolInvocation } },
+	opts?: { withConfirmation?: boolean; permissionLevel?: ChatPermissionLevel; advancedEnabled?: boolean; toolId?: string; capture?: { invocation?: ChatToolInvocation }; toolSpecificData?: IChatTerminalToolInvocationData },
 ): { invoke: (token?: CancellationToken) => Promise<{ content: { value: string }[] }>; wasInvoked: () => boolean } {
 	const withConfirmation = opts?.withConfirmation ?? true;
 	const permissionLevel = opts?.permissionLevel ?? ChatPermissionLevel.Autopilot;
@@ -291,7 +291,10 @@ function setupRiskGateTool(
 
 	let invoked = false;
 	const tool = registerToolForTest(setup.service, store, toolId, {
-		prepareToolInvocation: async () => (withConfirmation ? { confirmationMessages: { title: 'Confirm?', message: 'Proceed?' } } : {}),
+		prepareToolInvocation: async () => ({
+			...(withConfirmation ? { confirmationMessages: { title: 'Confirm?', message: 'Proceed?' } } : {}),
+			toolSpecificData: opts?.toolSpecificData,
+		}),
 		invoke: async () => { invoked = true; return { content: [{ kind: 'text', value: 'ran' }] }; },
 	});
 
@@ -2100,6 +2103,32 @@ suite('LanguageModelToolsService', () => {
 		assert.deepStrictEqual(
 			{ invoked: t.wasInvoked(), assessCalls: setup.riskAssessmentService.assessCalls.length, value: result.content[0].value },
 			{ invoked: true, assessCalls: 1, value: 'ran' },
+		);
+	});
+
+	test('autopilot risk gate skips a terminal command with a shell comment', async () => {
+		const setup = createTestToolsService(store);
+		setup.riskAssessmentService.enabled = true;
+		setup.riskAssessmentService.assessment = { risk: ToolRiskLevel.Green, explanation: 'Removes generated files.' };
+		const t = setupRiskGateTool(setup, store, {
+			withConfirmation: false,
+			toolId: 'run_in_terminal',
+			toolSpecificData: {
+				kind: 'terminal',
+				commandLine: { original: 'rm -rf src # generated files', hasComment: true },
+				language: 'sh',
+			},
+		});
+
+		const result = await t.invoke();
+
+		assert.deepStrictEqual(
+			{
+				invoked: t.wasInvoked(),
+				assessCalls: setup.riskAssessmentService.assessCalls.length,
+				isRiskMessage: String(result.content[0].value).startsWith('Autopilot skipped this tool call'),
+			},
+			{ invoked: false, assessCalls: 0, isRiskMessage: true },
 		);
 	});
 
