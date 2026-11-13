@@ -154,6 +154,11 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	private readonly _providerListeners = this._register(new DisposableMap<CloudSandboxSessionsProvider, DisposableStore>());
 	private readonly _runtimeSessions = new Map<string, ISession>();
 	private readonly _runtimeOwners = new Map<string, CloudSandboxSessionsProvider>();
+	/**
+	 * Runtime sessions taken in from a replacement before their runtime reported them added, which it still reports as added.
+	 * An ID leaves as that add, or a removal of the session, such as as its runtime detaches, is taken in.
+	 */
+	private readonly _takenInByReplacement = new Set<string>();
 	private readonly _pendingTasks = new Map<string, ICloudSandboxTask>();
 	private readonly _runtimeChatMoves = this._register(new Emitter<IChatMovedEvent>());
 	override readonly onDidMoveChat = this._runtimeChatMoves.event;
@@ -278,6 +283,9 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				const from = this._publicSession(event.from);
 				const to = this._publicSession(event.to);
 				if (from !== to) {
+					// Take the replacement in first, as its runtime reports it only after the replacement: who learns of it, and
+					// the listing scope, find the replacement listed in place of the session it replaced
+					this._acceptRuntimeReplacement(provider, event.from, event.to);
 					this._replaceSession({ from, to });
 				}
 			}));
@@ -308,12 +316,25 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 			? this._tasks.get(session.resource.path.slice(1))?.session ?? session : session;
 	}
 
+	private _acceptRuntimeReplacement(provider: CloudSandboxSessionsProvider, from: ISession, to: ISession): void {
+		const known = this._runtimeSessions.get(to.sessionId) === to;
+		this._acceptRuntimeSessions(provider, { added: [to], removed: [from], changed: [] }, false);
+		if (!known && this._runtimeSessions.get(to.sessionId) === to) {
+			this._takenInByReplacement.add(to.sessionId);
+		}
+	}
+
 	private _acceptRuntimeSessions(provider: CloudSandboxSessionsProvider, event: ISessionChangeEvent, announce = true): void {
 		const added: ISession[] = [];
 		const removed: ISession[] = [];
 		const changed = new Set<ISession>();
 		transaction(tx => {
 			for (const session of event.removed) {
+				if (this._runtimeSessions.get(session.sessionId) !== session && this._takenInByReplacement.has(session.sessionId)) {
+					// The session that replaced it was taken in under the same ID
+					continue;
+				}
+				this._takenInByReplacement.delete(session.sessionId);
 				this._runtimeSessions.delete(session.sessionId);
 				this._runtimeOwners.delete(session.sessionId);
 				const taskId = session.resource.scheme === CLOUD_SANDBOX_TASK_SCHEME ? session.resource.path.slice(1) : undefined;
@@ -331,7 +352,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 				if (provider.isSessionWithheld(session.resource)) {
 					continue;
 				}
-				const wasKnown = this._runtimeSessions.has(session.sessionId);
+				const wasKnown = this._runtimeSessions.has(session.sessionId) && !this._takenInByReplacement.delete(session.sessionId);
 				this._runtimeSessions.set(session.sessionId, session);
 				this._runtimeOwners.set(session.sessionId, provider);
 				if (session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME) {
