@@ -479,7 +479,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		const syncProvider = this._activeClientService.getSyncProvider(sessionType);
 		// The management UI remains ambient while individual sessions use their working-directory scopes.
-		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, []));
+		const ambientScope = agentStore.add(this._activeClientService.acquireScope(sessionType, undefined));
 
 		const itemProvider = agentStore.add(this._instantiationService.createInstance(AgentCustomizationItemProvider,
 			connection,

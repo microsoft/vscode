@@ -25,6 +25,7 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
 import { BaseIssueReporterService } from '../../browser/baseIssueReporterService.js';
 import { IIssueFormService, ISimilarIssue } from '../../common/issue.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('BaseIssueReporterService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -51,6 +52,7 @@ suite('BaseIssueReporterService', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const targetWindow = iframe.contentWindow;
 		assert.ok(targetWindow);
 		const title = $<HTMLInputElement>('input#issue-title');

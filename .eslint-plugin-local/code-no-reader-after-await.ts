@@ -3,15 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, Visitor } from '@oxlint/plugins';
 
-export default new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+export default new class NoReaderAfterAwait implements CreateRule {
+	create(context: Context): Visitor {
 		return {
-			'CallExpression': (node: ESTree.CallExpression) => {
-				const callExpression = node as TSESTree.CallExpression;
+			'CallExpression': (callExpression: ESTree.CallExpression) => {
 
 				if (!isFunctionWithReader(callExpression.callee)) {
 					return;
@@ -19,7 +16,7 @@ export default new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
 
 				const functionArg = callExpression.arguments.find(arg =>
 					arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression'
-				) as TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression | undefined;
+				) as ESTree.ArrowFunctionExpression | ESTree.Function | undefined;
 
 				if (!functionArg) {
 					return;
@@ -37,14 +34,14 @@ export default new class NoReaderAfterAwait implements eslint.Rule.RuleModule {
 };
 
 function checkFunctionForAwaitBeforeReader(
-	fn: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression,
+	fn: ESTree.ArrowFunctionExpression | ESTree.Function,
 	readerName: string,
-	context: eslint.Rule.RuleContext
+	context: Context
 ) {
 	const awaitPositions: { line: number; column: number }[] = [];
-	const visited = new Set<TSESTree.Node>();
+	const visited = new Set<ESTree.Node>();
 
-	function collectPositions(node: TSESTree.Node) {
+	function collectPositions(node: ESTree.Node) {
 		if (visited.has(node)) {
 			return;
 		}
@@ -118,7 +115,7 @@ function checkFunctionForAwaitBeforeReader(
 	}
 }
 
-function getMethodName(callExpression: TSESTree.CallExpression): string {
+function getMethodName(callExpression: ESTree.CallExpression): string {
 	if (callExpression.callee.type === 'MemberExpression' &&
 		callExpression.callee.property.type === 'Identifier') {
 		return callExpression.callee.property.name;
@@ -126,7 +123,7 @@ function getMethodName(callExpression: TSESTree.CallExpression): string {
 	return 'read';
 }
 
-function isReaderMethodCall(node: TSESTree.CallExpression, readerName: string): boolean {
+function isReaderMethodCall(node: ESTree.CallExpression, readerName: string): boolean {
 	if (node.callee.type === 'MemberExpression') {
 		// Pattern 1: reader.read() or reader.readObservable()
 		if (node.callee.object.type === 'Identifier' &&
@@ -149,7 +146,7 @@ function isReaderMethodCall(node: TSESTree.CallExpression, readerName: string): 
 
 const readerFunctions = new Set(['derived', 'autorun', 'autorunOpts', 'autorunHandleChanges', 'autorunSelfDisposable']);
 
-function getReaderParameterName(fn: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression): string | null {
+function getReaderParameterName(fn: ESTree.ArrowFunctionExpression | ESTree.Function): string | null {
 	if (fn.params.length === 0) {
 		return null;
 	}
@@ -160,7 +157,7 @@ function getReaderParameterName(fn: TSESTree.ArrowFunctionExpression | TSESTree.
 	return null;
 }
 
-function isFunctionWithReader(callee: TSESTree.Node): boolean {
+function isFunctionWithReader(callee: ESTree.Node): boolean {
 	if (callee.type === 'Identifier') {
 		return readerFunctions.has(callee.name);
 	}

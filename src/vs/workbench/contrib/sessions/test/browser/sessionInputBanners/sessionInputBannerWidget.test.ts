@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import type { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
-import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, retry, timeout } from '../../../../../../base/common/async.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -93,6 +94,40 @@ suite('SessionInputBannerWidget', () => {
 		await timeout(0);
 		assert.strictEqual(primaryButton.getAttribute('aria-disabled'), 'false');
 	}));
+
+	test('pauses the working border while it is outside the viewport', async () => {
+		const host = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		host.style.cssText = 'position: fixed; top: 0; left: 0; width: 400px; height: 100px; overflow: hidden;';
+		disposables.add(toDisposable(() => host.remove()));
+		const hoverService = upcastPartial<IHoverService>({
+			setupManagedHover: () => upcastPartial<IManagedHover>({ dispose() { } }),
+		});
+		const contextMenuService = upcastPartial<IContextMenuService>({ showContextMenu() { } });
+		const widget = disposables.add(new SessionInputBannerWidget({
+			icon: Codicon.warning,
+			accent: true,
+			text: '2 Checks Failing',
+			ariaLabel: '2 Checks Failing',
+			actions: [],
+		}, hoverService, contextMenuService));
+		host.appendChild(widget.domNode);
+		widget.setWorking(true);
+
+		// Under reduced motion the border has no animation, but its paused state is still tracked.
+		const reduced = mainWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const waitForBorder = (state: 'running' | 'paused') => retry(async () => assert.deepStrictEqual({
+			paused: widget.domNode.classList.contains('session-input-banner-anim-paused'),
+			animations: widget.domNode.getAnimations({ subtree: true }).map(animation => animation.playState),
+		}, {
+			paused: state === 'paused',
+			animations: reduced ? [] : [state, state],
+		}), 10, 100);
+		await waitForBorder('running');
+		// Refreshing an already working banner must keep its visibility tracking.
+		widget.setWorking(true);
+		widget.domNode.style.marginTop = '200px';
+		await waitForBorder('paused');
+	});
 
 	test('does not run a primary action whose readiness resolves after disposal', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const ready = new DeferredPromise<boolean>();

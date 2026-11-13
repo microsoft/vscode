@@ -1253,6 +1253,131 @@ suite('ChatTerminalToolProgressPart output scrollback', () => {
 	});
 });
 
+suite('ChatTerminalToolProgressPart completion', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	type Harness = Awaited<ReturnType<typeof createTerminalFullOutputHarness>>;
+
+	/** A non-PTY command that is still running and already produced output. */
+	function createRunningSource() {
+		const onDidChange = store.add(new Emitter<void>());
+		let exit: { readonly exitCode: number } | undefined;
+		const source: IChatTerminalOutputSource = {
+			onDidChange: onDidChange.event,
+			output: 'Live command output',
+			outputPosition: { generation: 1, start: 0 },
+			get hasExited() { return !!exit; },
+			get exitCode() { return exit?.exitCode; },
+		};
+		return {
+			source,
+			emitOutput: () => onDidChange.fire(),
+			exit: (exitCode: number) => {
+				exit = { exitCode };
+				onDidChange.fire();
+			},
+		};
+	}
+
+	async function waitForExpandedOutput(part: ChatTerminalToolProgressPart): Promise<void> {
+		await retry(async () => assert.ok(part.domNode.querySelector('.chat-terminal-output-container.expanded')), 10, 100);
+	}
+
+	async function createAutoExpandedPart(harness: Harness, running: ReturnType<typeof createRunningSource>, mode: TerminalFullOutputRenderingMode) {
+		const entry = harness.createPart({ mode, hasReference: false, runningInBackground: true });
+		running.emitOutput();
+		await waitForExpandedOutput(entry.part);
+		return entry;
+	}
+
+	function expansion(part: ChatTerminalToolProgressPart, mode: TerminalFullOutputRenderingMode) {
+		return {
+			output: !!part.domNode.querySelector('.chat-terminal-output-container.expanded'),
+			wrapper: mode === 'plain' ? undefined : !part.domNode.classList.contains('chat-used-context-collapsed'),
+		};
+	}
+
+	for (const mode of ['plain', 'thinking'] as const) {
+		const collapsed = { output: false, wrapper: mode === 'plain' ? undefined : false };
+
+		test(`collapses automatically expanded output once the command exits in ${mode} mode`, async () => {
+			const running = createRunningSource();
+			const harness = await createTerminalFullOutputHarness(store, running.source);
+			const { part } = await createAutoExpandedPart(harness, running, mode);
+			const whileRunning = expansion(part, mode);
+			running.exit(0);
+			await timeout(0);
+			assert.deepStrictEqual({ whileRunning, afterExit: expansion(part, mode) }, {
+				whileRunning: { output: true, wrapper: mode === 'plain' ? undefined : true },
+				afterExit: collapsed,
+			});
+		});
+
+		test(`waits for focus to leave the card before collapsing a finished command in ${mode} mode`, async () => {
+			const running = createRunningSource();
+			const harness = await createTerminalFullOutputHarness(store, running.source);
+			const { part } = await createAutoExpandedPart(harness, running, mode);
+			const output = part.domNode.querySelector<HTMLElement>('.chat-terminal-output-container [tabindex="0"]');
+			assert.ok(output);
+			output.focus();
+			running.exit(0);
+			await timeout(0);
+			const whileFocused = { ...expansion(part, mode), focused: mainWindow.document.activeElement === output };
+			// The window becoming inactive blurs the output without moving focus elsewhere
+			output.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+			await timeout(0);
+			const whileWindowInactive = expansion(part, mode);
+			output.blur();
+			output.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+			await timeout(0);
+			const expanded = { output: true, wrapper: mode === 'plain' ? undefined : true };
+			assert.deepStrictEqual({ whileFocused, whileWindowInactive, afterLeaving: expansion(part, mode) }, {
+				whileFocused: { ...expanded, focused: true },
+				whileWindowInactive: expanded,
+				afterLeaving: collapsed,
+			});
+		});
+
+		test(`starts collapsed when rebuilt for a completed tool call that expanded automatically in ${mode} mode`, async () => {
+			const running = createRunningSource();
+			const harness = await createTerminalFullOutputHarness(store, running.source);
+			const original = await createAutoExpandedPart(harness, running, mode);
+			original.part.domNode.remove();
+			original.part.dispose();
+			// The tool call completes before its still attached output reports the exit
+			const data = original.invocation.toolSpecificData;
+			assert.ok(data?.kind === 'terminal');
+			data.terminalCommandState = { exitCode: 0 };
+			const rebuilt = harness.createPart({ mode, hasReference: false, invocation: original.invocation });
+			running.emitOutput();
+			await timeout(TerminalToolAutoExpandTimeout.DataEvent * 2);
+			assert.deepStrictEqual(expansion(rebuilt.part, mode), collapsed);
+		});
+	}
+
+	test('keeps a command the user expanded from its header once the command exits', async () => {
+		const running = createRunningSource();
+		const harness = await createTerminalFullOutputHarness(store, running.source);
+		const { part } = await createAutoExpandedPart(harness, running, 'thinking');
+		await harness.collapse(part, 'thinking');
+		part.domNode.querySelector<HTMLElement>('.chat-used-context-label .monaco-button')?.click();
+		await waitForExpandedOutput(part);
+		running.exit(0);
+		await timeout(0);
+		assert.deepStrictEqual(expansion(part, 'thinking'), { output: true, wrapper: true });
+	});
+
+	test('keeps a failed command expanded when failures expand automatically', async () => {
+		const running = createRunningSource();
+		const harness = await createTerminalFullOutputHarness(store, running.source);
+		harness.configurationService.setUserConfiguration(ChatConfiguration.AutoExpandToolFailures, true);
+		const { part } = await createAutoExpandedPart(harness, running, 'thinking');
+		running.exit(1);
+		await timeout(0);
+		assert.deepStrictEqual(expansion(part, 'thinking'), { output: true, wrapper: true });
+	});
+});
+
 suite('ChatTerminalToolProgressPart Auto-Expand Logic', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -1576,6 +1701,14 @@ suite('ChatTerminalToolOutputSection layout', () => {
 			});
 		});
 	}
+
+	test('a collapse requested while the output loads is not undone by the pending expansion', async () => {
+		const section = createSection({ text: 'output' });
+		const expansion = section.toggle(true);
+		await section.toggle(false);
+		await expansion;
+		assert.strictEqual(section.isExpanded, false);
+	});
 
 	test('only enables Enter and View Full Output activation for completed output with an enabled action', async () => {
 		let running = true;

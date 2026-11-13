@@ -33,6 +33,23 @@ import { PolicyState } from './state/protocol/channels-root/state.js';
  *     context-size: long
  * ```
  *
+ * A route can have a `name`, and `guidance` for the chat's main agent: how the user wants that
+ * kind of work done, which can name skills and custom agents to use. Routes with a name are told
+ * apart by it, so two of them may use the same model. Routing never reads a route's `guidance`;
+ * `modelRouterGuidance.ts` does. The router's own `guidance` is for the routing decision.
+ *
+ * ```yaml
+ * routes:
+ *   - name: feature
+ *     model: claude-opus-5.5
+ *     when: Building something new or changing behavior across files.
+ *     guidance: Plan first. Have the reviewer agent check the change before you finish.
+ *   - name: quick
+ *     model: claude-opus-5.5
+ *     when: Questions, lookups and small edits.
+ *     effort: low
+ * ```
+ *
  * Only a documented subset of YAML is accepted (block maps and lists, flow lists of values,
  * plain and quoted values, `|` and `>` text, comments), and it is checked strictly, because the
  * shared YAML parser is lenient about malformed input.
@@ -51,6 +68,7 @@ export const MODEL_ROUTER_FOLDER = 'model-routers';
 /** The only file-format version this build reads. */
 export const MODEL_ROUTER_VERSION = 1;
 
+/** One route is enough when it has `guidance`: a single way of working is still worth writing down. */
 export const MODEL_ROUTER_MIN_ROUTES = 2;
 /** The most options a decision model is asked to choose between: rounded probabilities stay trustworthy up to here. */
 export const MODEL_ROUTER_MAX_ROUTES = 10;
@@ -79,6 +97,10 @@ export interface IModelRouterRoute {
 	readonly effort?: ModelRouterEffortLevel;
 	/** The context window for this route, overriding the router's. */
 	readonly contextSize?: ModelRouterContextSize;
+	/** A route with a name is identified by it, one without by its model. */
+	readonly name?: string;
+	/** How the user wants the work done, given to the main agent of a chat on this route. */
+	readonly mainAgentGuidance?: string;
 }
 
 export interface IModelRouter {
@@ -126,7 +148,14 @@ interface IRange {
 const topLevelKeys = new Set(['version', 'name', 'display-name', 'description', 'effort', 'context-size', 'switching', 'guidance', 'routes']);
 /** Keys the format reserves for later versions; a router using them still loads. */
 const reservedTopLevelKeys = new Set(['subagents', 'phases', 'mid-turn']);
-const routeKeys = new Set(['model', 'when', 'examples', 'effort', 'context-size']);
+const routeKeys = new Set(['name', 'model', 'when', 'examples', 'effort', 'context-size', 'guidance']);
+/** Keys of the preview format, which wrote named routes as `playbooks` with `roles`. */
+const removedTopLevelKeys = new Map([
+	['playbooks', 'Write `playbooks` as `routes`: a list where each route has `model` and `when`, and can have a `name` and `guidance`.'],
+	['roles', '`roles` are no longer read. To have a custom agent used, name it in a route\'s `guidance`.'],
+]);
+/** The most guidance a route gives its main agent: it is part of every request of the chat. */
+const MAX_ROUTE_GUIDANCE_CHARS = 4000;
 const effortLevels: ReadonlySet<string> = new Set(reasoningEffortLevels);
 
 /** The router name a file name implies: `daily-driver.model-router.yaml` → `daily-driver`. */
@@ -228,7 +257,11 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 
 	const values = new Map(root.properties.map(property => [property.key.value, property]));
 	for (const property of root.properties) {
-		if (reservedTopLevelKeys.has(property.key.value)) {
+		const removed = removedTopLevelKeys.get(property.key.value);
+		if (removed) {
+			// `playbooks` held the routes, so a file that still has them can't be used; `roles` only added to them.
+			(property.key.value === 'playbooks' ? report.error : report.warning)(removed, property.key);
+		} else if (reservedTopLevelKeys.has(property.key.value)) {
 			report.warning(`\`${property.key.value}\` is reserved for a later version and is ignored.`, property.key);
 		} else if (!topLevelKeys.has(property.key.value)) {
 			report.warning(`Unknown key \`${property.key.value}\` is ignored.`, property.key);
@@ -293,31 +326,49 @@ export function parseModelRouter(content: string, fileName: string): IModelRoute
 	const routes: IModelRouterRoute[] = [];
 	const routesProperty = values.get('routes');
 	if (!routesProperty || routesProperty.value.type !== 'sequence') {
-		report.error('Add `routes`: a list of models, each with `model` and `when`.', routesProperty?.value);
+		// A file still written as `playbooks` was told how to rewrite it above.
+		if (!values.has('playbooks')) {
+			report.error('Add `routes`: a list of models, each with `model` and `when`.', routesProperty?.value);
+		}
 	} else {
 		const items = routesProperty.value.items;
-		if (items.length < MODEL_ROUTER_MIN_ROUTES || items.length > MODEL_ROUTER_MAX_ROUTES) {
-			report.error(`A router has ${MODEL_ROUTER_MIN_ROUTES} to ${MODEL_ROUTER_MAX_ROUTES} routes; this one has ${items.length}.`, routesProperty.value);
-		}
 		const seenModels = new Map<string, number>();
+		const seenNames = new Map<string, number>();
 		items.forEach((item, index) => {
 			const route = parseRoute(item, index, report);
 			if (!route) {
 				return;
 			}
+			const label = modelRouterRouteLabel(route, index);
 			if (effort === 'off' && route.effort) {
-				report.warning(`Route ${index + 1}'s \`effort\` is ignored because the router's \`effort\` is \`off\`.`, item);
+				report.warning(`${label}'s \`effort\` is ignored because the router's \`effort\` is \`off\`.`, item);
 			}
-			for (const model of route.models) {
-				const key = normalizeModelReference(model);
-				const previous = seenModels.get(key);
+			if (route.name) {
+				const previous = seenNames.get(route.name);
 				if (previous !== undefined) {
-					report.error(`\`${model}\` is already in route ${previous + 1}; each model belongs to one route.`, item);
+					report.error(`The name \`${route.name}\` is already route ${previous + 1}'s; each name belongs to one route.`, item);
 				}
-				seenModels.set(key, index);
+				seenNames.set(route.name, index);
+			} else {
+				// A route without a name is identified by its model, so each model belongs to one such route.
+				for (const model of route.models) {
+					const key = normalizeModelReference(model);
+					const previous = seenModels.get(key);
+					if (previous !== undefined) {
+						report.error(`\`${model}\` is already in route ${previous + 1}; each model belongs to one route, unless the routes have a \`name\`.`, item);
+					}
+					seenModels.set(key, index);
+				}
 			}
 			routes.push(route);
 		});
+		const guided = routes.some(route => route.mainAgentGuidance);
+		if (items.length > MODEL_ROUTER_MAX_ROUTES || items.length < (guided ? 1 : MODEL_ROUTER_MIN_ROUTES)) {
+			report.error(`A router has ${MODEL_ROUTER_MIN_ROUTES} to ${MODEL_ROUTER_MAX_ROUTES} routes; this one has ${items.length}.`, routesProperty.value);
+		}
+		if (guided && switching === 'auto') {
+			report.error('A route\'s `guidance` is given to a chat when it starts and kept for that chat, so `switching: auto` can\'t be used with it.', switchingProperty?.value);
+		}
 	}
 
 	if (modelRouterDecisionTextBytes(guidance ?? '', routes) > MODEL_ROUTER_MAX_DECISION_TEXT_BYTES) {
@@ -356,18 +407,31 @@ function hasError(diagnostics: readonly IModelRouterDiagnostic[]): boolean {
 	return diagnostics.some(diagnostic => diagnostic.severity === ModelRouterDiagnosticSeverity.Error);
 }
 
+/** How messages name a route: by its name, else by its place in the list. */
+export function modelRouterRouteLabel(route: Pick<IModelRouterRoute, 'name'>, index: number): string {
+	return route.name ? `Route \`${route.name}\`` : `Route ${index + 1}`;
+}
+
 function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRouterRoute | undefined {
-	const label = `Route ${index + 1}`;
+	const position = `Route ${index + 1}`;
 	if (item.type !== 'map') {
-		report.error(`${label} needs \`model\` and \`when\`.`, item);
+		report.error(`${position} needs \`model\` and \`when\`.`, item);
 		return undefined;
 	}
 	const values = new Map(item.properties.map(property => [property.key.value, property]));
 	for (const property of item.properties) {
 		if (!routeKeys.has(property.key.value)) {
-			report.warning(`Unknown key \`${property.key.value}\` in ${label.toLowerCase()} is ignored.`, property.key);
+			report.warning(`Unknown key \`${property.key.value}\` in ${position.toLowerCase()} is ignored.`, property.key);
 		}
 	}
+
+	const nameProperty = values.get('name');
+	const name = nameProperty ? scalar(nameProperty.value) : undefined;
+	if (nameProperty && (!name || !NAME_PATTERN.test(name))) {
+		report.error(`${position}'s \`name\` is lowercase letters, digits and single hyphens, like \`bug-fix\`.`, nameProperty.value);
+		return undefined;
+	}
+	const label = modelRouterRouteLabel({ name }, index);
 
 	const modelProperty = values.get('model');
 	const models = modelProperty ? scalarList(modelProperty.value) : undefined;
@@ -399,7 +463,17 @@ function parseRoute(item: YamlNode, index: number, report: IReporter): IModelRou
 
 	const effort = parseEffort(values.get('effort')?.value, [], undefined, `${label}'s \`effort\``, report) as ModelRouterEffortLevel | undefined;
 	const contextSize = parseContextSize(values.get('context-size')?.value, `${label}'s \`context-size\``, report);
-	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}) };
+
+	const guidanceProperty = values.get('guidance');
+	const mainAgentGuidance = guidanceProperty ? scalar(guidanceProperty.value)?.trim() : '';
+	if (mainAgentGuidance === undefined) {
+		report.error(`${label}'s \`guidance\` is text.`, guidanceProperty?.value);
+		return undefined;
+	}
+	if (mainAgentGuidance.length > MAX_ROUTE_GUIDANCE_CHARS) {
+		report.error(`${label}'s \`guidance\` is too long: at most ${MAX_ROUTE_GUIDANCE_CHARS} characters.`, guidanceProperty?.value);
+	}
+	return { models, when, examples, ...(effort ? { effort } : {}), ...(contextSize ? { contextSize } : {}), ...(name ? { name } : {}), ...(mainAgentGuidance ? { mainAgentGuidance } : {}) };
 }
 
 function parseEffort(node: YamlNode | undefined, keywords: readonly string[], fallback: string | undefined, label: string, report: IReporter): string | undefined {
@@ -682,7 +756,7 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	const routes: IResolvedModelRoute[] = [];
 	const used = new Set<string>();
 	router.routes.forEach((route, index) => {
-		const label = `Route ${index + 1}`;
+		const label = modelRouterRouteLabel(route, index);
 		let match: { model: IAgentModelInfo; reference: string } | undefined;
 		for (const reference of route.models) {
 			const result = matchModelReference(routable, reference);
@@ -704,10 +778,16 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 			warning(`${label} (${route.models.join(', ')}) is skipped: none of its models are available on this account.`);
 			return;
 		}
-		if (used.has(match.model.id)) {
+		// A route without a name is its model, so a second one that lands on the same model has nothing to add.
+		const key = route.name ?? match.model.id;
+		if (used.has(key)) {
+			// A name can also be a model's id, and a pick could then mean either route.
+			if (route.name || routes.some(other => other.route.name === key)) {
+				warning(`${label} is skipped: \`${key}\` is the name of one route and the model of another.`);
+			}
 			return;
 		}
-		used.add(match.model.id);
+		used.add(key);
 		if (match.reference !== route.models[0]) {
 			warning(`${label} uses \`${match.reference}\` because \`${route.models[0]}\` is not available.`);
 		}
@@ -738,7 +818,8 @@ export function resolveModelRouter(router: IModelRouter, models: readonly IAgent
 	if (router.contextSize === 'long' && routes.length > 0 && !routes.some(route => route.contextSize)) {
 		warning('None of this router\'s models has a larger context size, so `context-size: long` is ignored.');
 	}
-	if (routes.length < MODEL_ROUTER_MIN_ROUTES) {
+	// A router written with one route never had anything to route between.
+	if (routes.length < MODEL_ROUTER_MIN_ROUTES && router.routes.length >= MODEL_ROUTER_MIN_ROUTES) {
 		warning(`Only ${routes.length} of this router's models ${routes.length === 1 ? 'is' : 'are'} available, so there is nothing to route between.`);
 	}
 	return { routes, diagnostics };

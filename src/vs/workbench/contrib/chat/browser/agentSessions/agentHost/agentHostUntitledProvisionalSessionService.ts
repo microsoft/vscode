@@ -85,6 +85,7 @@ import { IAgentHostNewSessionFolderService, computeDesiredWorkingDirectories, co
 import { IAgentCustomizationScope, IAgentHostActiveClientService } from './agentHostActiveClientService.js';
 import { type IAgentHostImportConversation, IAgentHostImportConversationStore } from './agentHostImportConversationStore.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
+import { isAgentHostTargetFolderTrusted } from './agentHostSessionConfigSubscription.js';
 
 export const IAgentHostUntitledProvisionalSessionService =
 	createDecorator<IAgentHostUntitledProvisionalSessionService>('agentHostUntitledProvisionalSessionService');
@@ -122,7 +123,7 @@ export interface IAgentHostUntitledProvisionalSessionService {
 	 */
 	getInitialSessionConfig(): Record<string, unknown> | undefined;
 
-	/** Resolves a new editor chat's initial picker configuration before its widget is shown. */
+	/** Resolves a trusted new editor chat's initial picker configuration before its widget is shown. */
 	prepareSessionConfig(sessionResource: URI, token?: CancellationToken): Promise<void>;
 
 	/** Initial presentation only; hydrated host state and explicit draft edits take precedence. */
@@ -415,7 +416,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		bindRootState();
 		this._register(this._agentHostService.onAgentHostStart(bindRootState));
 		this._register(this._agentHostService.onAgentHostStart(() => this._retryPendingBackendDisposals()));
-		this._register(this._agentHostService.onAgentHostStart(() => {
+		this._register(Event.any(this._agentHostService.onAgentHostStart, this._workspaceTrustManagementService.onDidChangeTrust, this._workspaceTrustManagementService.onDidChangeTrustedFolders)(() => {
 			this._preparedConfigGeneration++;
 			this._preparedConfigs.clear();
 		}));
@@ -547,9 +548,17 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const workingDirectory = this._newSessionFolderService.resolveNewSessionPrimary(sessionResource);
 			const config = this._getInitialConfig();
 			this._resolvedConfigConnections.set(sessionResource, resolution);
-			const result = await raceTimeout(raceCancellation(resolution.connection.resolveSessionConfig({
-				provider, workingDirectory, config,
-			}), token), SessionConfigPreparationTimeout, () => {
+			const resolveConfig = async () => {
+				if (!await isAgentHostTargetFolderTrusted(workingDirectory, this._workspaceTrustManagementService)
+					|| token.isCancellationRequested || this._store.isDisposed || generation !== this._preparedConfigGeneration || this._resolvedConfigRequestSeq.get(sessionResource) !== seq
+					|| !isEqual(workingDirectory, this._newSessionFolderService.resolveNewSessionPrimary(sessionResource))
+					|| !this._isCurrentConfigConnection(sessionResource, resolution)
+					|| isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService)) {
+					return undefined;
+				}
+				return resolution.connection.resolveSessionConfig({ provider, workingDirectory, config });
+			};
+			const result = await raceTimeout(raceCancellation(resolveConfig(), token), SessionConfigPreparationTimeout, () => {
 				this._logService.warn('[AgentHostProvisional] Initial session configuration timed out; continuing without prepared pickers');
 			});
 			if (!result || token.isCancellationRequested || generation !== this._preparedConfigGeneration || this._resolvedConfigRequestSeq.get(sessionResource) !== seq
@@ -769,7 +778,7 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 			const metadata = this.getInitialSessionMetadata(sessionResource);
 
 			// Prewarming is silent; first Send owns interactive trust, so never create in an untrusted target.
-			if (!await this._isTargetFolderTrusted(workingDirectory)) {
+			if (!await isAgentHostTargetFolderTrusted(workingDirectory, this._workspaceTrustManagementService)) {
 				await this._retireGeneration(sessionResource, entry);
 				return undefined;
 			}
@@ -869,20 +878,6 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		for (const backendSession of this._pendingBackendDisposals) {
 			void this._disposeBackend(backendSession, 'pending provisional cleanup');
 		}
-	}
-
-	/**
-	 * Whether the folder the provisional agent would run in is trusted. When a
-	 * working directory is known (it may be a standalone folder outside the
-	 * open workspace, e.g. a per-session folder), gate on that folder's trust;
-	 * otherwise fall back to whole-workspace trust.
-	 */
-	private async _isTargetFolderTrusted(workingDirectory: URI | undefined): Promise<boolean> {
-		if (workingDirectory) {
-			const { trusted } = await this._workspaceTrustManagementService.getUriTrustInfo(workingDirectory);
-			return trusted;
-		}
-		return this._workspaceTrustManagementService.isWorkspaceTrusted();
 	}
 
 	tryRebind(

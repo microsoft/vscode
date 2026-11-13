@@ -22,8 +22,13 @@ import { getFirstApprovalAcrossChats, IApprovedSession } from '../../../../workb
 import { readPaneSessions } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 
 const LOG_PREFIX = '[BlockedSessionsIndicator]';
-const IGNORED_OCCURRENCES_STORAGE_KEY = 'sessions.blockedIndicator.ignoredOccurrences';
-const MAX_STORED_IGNORED_SESSIONS = 50;
+const ACKNOWLEDGED_OCCURRENCES_STORAGE_KEY = 'sessions.blockedIndicator.ignoredOccurrences';
+const MAX_STORED_ACKNOWLEDGED_SESSIONS = 50;
+
+const enum AcknowledgementKind {
+	Ignored = 'ignored',
+	Viewed = 'viewed',
+}
 
 /**
  * The specific reason a homogeneous set of blocked sessions needs attention,
@@ -40,22 +45,24 @@ export const enum RequiresInputKind {
 }
 
 /**
- * A blocked occurrence the user has acknowledged, either by viewing the session
- * or by explicitly ignoring it.
+ * A blocked occurrence the user has viewed, explicitly ignored, or approved.
  */
 interface IAcknowledgedOccurrence {
 	/** The acknowledged occurrence, as produced by `_getBlockOccurrenceId`. */
 	readonly occurrenceId: string;
 	/** Why the session was blocked when it was acknowledged. */
 	readonly reason: BlockedSessionReason;
+	/** Whether the occurrence should remain as a reminder or be hidden entirely. */
+	readonly kind: AcknowledgementKind;
 }
 
 /**
  * Model behind the sessions title bar's "N sessions require input" indicator.
  *
  * It refines the raw {@link BlockedSessions} set into what the title bar should
- * actually surface: visible and explicitly ignored occurrences are acknowledged,
- * approvals are dismissed optimistically, and later occurrences surface again.
+ * actually surface: a new away occurrence gets the full alert, viewing it dismisses
+ * that alert, navigating away leaves a compact reminder, explicitly ignored
+ * occurrences stay hidden, and later occurrences surface again.
  *
  * Blink detection keys off blocked occurrences, so navigation can acknowledge a
  * block but never creates one.
@@ -88,15 +95,34 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 	}
 
 	/** Acknowledged occurrences by session id, in acknowledgement order; the latest 50 survive reloads. */
-	private readonly _ignoredBlockOccurrences = observableValue<ReadonlyMap<string, IAcknowledgedOccurrence>>('ignoredBlockOccurrences', new Map());
-	private _storedIgnoredOccurrences: ReadonlyMap<string, IAcknowledgedOccurrence> = new Map();
-	private _writingIgnoredOccurrences = false;
+	private readonly _acknowledgedBlockOccurrences = observableValue<ReadonlyMap<string, IAcknowledgedOccurrence>>('acknowledgedBlockOccurrences', new Map());
+	private _storedAcknowledgedOccurrences: ReadonlyMap<string, IAcknowledgedOccurrence> = new Map();
+	private _writingAcknowledgedOccurrences = false;
 
 	/**
-	 * Blocked sessions in the selected host scope that are not visible, ignored, being fixed, or already approved.
-	 * Visible blocked occurrences stay acknowledged after the user navigates away.
+	 * All unresolved blocked sessions away from the visible panes. This is the set
+	 * shown by the blocked-sessions dropdown.
 	 */
 	readonly blockedSessions: IObservable<readonly IBlockedSession[]>;
+
+	/**
+	 * Away blocked sessions whose initial attention notification has not been
+	 * dismissed by viewing the session. These drive the full attention state.
+	 */
+	readonly unacknowledgedBlockedSessions: IObservable<readonly IBlockedSession[]>;
+
+	/**
+	 * Away blocked sessions that have been viewed but remain unresolved. These
+	 * drive the compact reminder marker.
+	 */
+	readonly reminderSessions: IObservable<readonly IBlockedSession[]>;
+
+	/**
+	 * Number of unresolved blocked sessions in the current provider scope,
+	 * including sessions visible in a pane. This keeps reminder counts stable
+	 * while navigating without changing the away-only reminder visibility.
+	 */
+	readonly attentionSessionCount: IObservable<number>;
 
 	/**
 	 * The homogeneous reason the blocked sessions need attention (all terminal
@@ -148,14 +174,14 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		// The blocked-sessions feature is only enabled outside of stable builds.
 		const enabled = productService.quality !== 'stable';
 
-		this._storedIgnoredOccurrences = this._loadIgnoredOccurrences();
-		this._ignoredBlockOccurrences.set(this._storedIgnoredOccurrences, undefined);
+		this._storedAcknowledgedOccurrences = this._loadAcknowledgedOccurrences();
+		this._acknowledgedBlockOccurrences.set(this._storedAcknowledgedOccurrences, undefined);
 		if (enabled) {
-			this._storeIgnoredOccurrences(this._storedIgnoredOccurrences);
-			this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, IGNORED_OCCURRENCES_STORAGE_KEY, this._store)(() => {
-				if (!this._writingIgnoredOccurrences) {
-					this._storedIgnoredOccurrences = this._loadIgnoredOccurrences();
-					this._ignoredBlockOccurrences.set(this._storedIgnoredOccurrences, undefined);
+			this._storeAcknowledgedOccurrences(this._storedAcknowledgedOccurrences);
+			this._register(this._storageService.onDidChangeValue(StorageScope.PROFILE, ACKNOWLEDGED_OCCURRENCES_STORAGE_KEY, this._store)(() => {
+				if (!this._writingAcknowledgedOccurrences) {
+					this._storedAcknowledgedOccurrences = this._loadAcknowledgedOccurrences();
+					this._acknowledgedBlockOccurrences.set(this._storedAcknowledgedOccurrences, undefined);
 				}
 			}));
 		}
@@ -165,27 +191,35 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		this._logService.trace(`${LOG_PREFIX} created (enabled: ${enabled})`);
 		this._register(toDisposable(() => this._logService.trace(`${LOG_PREFIX} disposed`)));
 
-		// A session that is currently visible on screen is not treated as blocked:
-		// exclude visible sessions from the requires-input indicator and the dropdown.
-		this.blockedSessions = derived(this, reader => {
+		const eligibleBlockedSessions = derived(this, reader => {
 			if (!enabled) {
 				return [];
 			}
 			const providerIds = scopedProviderIds.read(reader);
-			const visibleSessionIds = new Set<string>();
-			for (const session of readPaneSessions(this._sessionsService.slotPanes, reader)) {
-				visibleSessionIds.add(session.sessionId);
-			}
-			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
+			const acknowledgedOccurrences = this._acknowledgedBlockOccurrences.read(reader);
 			// Sessions whose CI fix is being submitted in the background are hidden
 			// immediately (before their status flips to in-progress) so the row
 			// disappears the moment the user clicks "Fix CI".
 			const ciFixHidden = this._ciFixModel.hiddenSessions.read(reader);
 			return this._blockedSessionsModel.blockedSessionsWithReasons.read(reader)
 				.filter(blocked => (!providerIds || providerIds.includes(blocked.session.providerId))
-					&& !visibleSessionIds.has(blocked.session.sessionId)
 					&& !ciFixHidden.has(blocked.session.sessionId)
-					&& !this._isBlockIgnored(blocked, ignoredOccurrences, reader));
+					&& !this._isBlockAcknowledgedAs(blocked, acknowledgedOccurrences, AcknowledgementKind.Ignored, reader));
+		});
+		const visibleSessionIds = derived(this, reader => new Set(readPaneSessions(this._sessionsService.slotPanes, reader).map(session => session.sessionId)));
+
+		this.attentionSessionCount = derived(this, reader => eligibleBlockedSessions.read(reader).length);
+		this.blockedSessions = derived(this, reader => {
+			const visible = visibleSessionIds.read(reader);
+			return eligibleBlockedSessions.read(reader).filter(blocked => !visible.has(blocked.session.sessionId));
+		});
+		this.unacknowledgedBlockedSessions = derived(this, reader => {
+			const acknowledged = this._acknowledgedBlockOccurrences.read(reader);
+			return this.blockedSessions.read(reader).filter(blocked => !this._isBlockAcknowledgedAs(blocked, acknowledged, AcknowledgementKind.Viewed, reader));
+		});
+		this.reminderSessions = derived(this, reader => {
+			const acknowledged = this._acknowledgedBlockOccurrences.read(reader);
+			return this.blockedSessions.read(reader).filter(blocked => this._isBlockAcknowledgedAs(blocked, acknowledged, AcknowledgementKind.Viewed, reader));
 		});
 
 		// The homogeneous reason across all blocked sessions (or `undefined` for a
@@ -213,8 +247,9 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			return common;
 		});
 
-		// A visible blocked session has been acknowledged. Keep that occurrence
-		// ignored after navigation, and clear stale ignores when a new block appears.
+		// Keep acknowledgements stable through transient provider/model state, clear
+		// stale acknowledgements when a new blocked occurrence appears, and mark an
+		// occurrence as viewed while its session is visible.
 		let observedInputSessions = new Map<string, ISession>();
 		this._register(autorun(reader => {
 			if (!enabled) {
@@ -222,14 +257,14 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 			const blockedSessions = this._blockedSessionsModel.blockedSessionsWithReasons.read(reader);
 			const blockedById = new Map(blockedSessions.map(entry => [entry.session.sessionId, entry] as const));
-			const visibleSessionIds = new Set(readPaneSessions(this._sessionsService.slotPanes, reader).map(session => session.sessionId));
-			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
-			const sessionsById = new Map(ignoredOccurrences.size > 0 ? allSessions.read(reader).map(session => [session.sessionId, session] as const) : []);
-			const next = new Map(ignoredOccurrences);
+			const visible = visibleSessionIds.read(reader);
+			const acknowledgedOccurrences = this._acknowledgedBlockOccurrences.read(reader);
+			const sessionsById = new Map(acknowledgedOccurrences.size > 0 ? allSessions.read(reader).map(session => [session.sessionId, session] as const) : []);
+			const next = new Map(acknowledgedOccurrences);
 			const nextObservedInputSessions = new Map<string, ISession>();
 			let changed = false;
 
-			for (const [sessionId, acknowledged] of ignoredOccurrences) {
+			for (const [sessionId, acknowledged] of acknowledgedOccurrences) {
 				const session = sessionsById.get(sessionId);
 				if (session?.isArchived.read(reader)) {
 					next.delete(sessionId);
@@ -276,23 +311,27 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 				this._logService.trace(`${LOG_PREFIX} releasing acknowledgement of ${sessionId} (${acknowledged.occurrenceId}): no longer blocked`);
 			}
 
-			for (const blockedSession of blockedById.values()) {
-				const sessionId = blockedSession.session.sessionId;
-				if (!visibleSessionIds.has(sessionId)) {
+			for (const blocked of blockedById.values()) {
+				const sessionId = blocked.session.sessionId;
+				if (!visible.has(sessionId)) {
 					continue;
 				}
-				const occurrenceId = this._getBlockOccurrenceId(blockedSession, reader, next.get(sessionId)?.occurrenceId);
-				if (next.get(sessionId)?.occurrenceId !== occurrenceId) {
+				const current = next.get(sessionId);
+				const occurrenceId = this._getBlockOccurrenceId(blocked, reader, current?.occurrenceId);
+				if (current?.occurrenceId === occurrenceId && current.kind === AcknowledgementKind.Ignored) {
+					continue;
+				}
+				if (current?.occurrenceId !== occurrenceId || current?.kind !== AcknowledgementKind.Viewed) {
 					next.delete(sessionId);
-					next.set(sessionId, { occurrenceId, reason: blockedSession.reason });
+					next.set(sessionId, { occurrenceId, reason: blocked.reason, kind: AcknowledgementKind.Viewed });
 					changed = true;
-					this._logService.trace(`${LOG_PREFIX} acknowledging ${sessionId} (${occurrenceId}): the session is visible`);
+					this._logService.trace(`${LOG_PREFIX} dismissing initial notification for ${sessionId} (${occurrenceId}): the session is visible`);
 				}
 			}
 
 			observedInputSessions = nextObservedInputSessions;
 			if (changed) {
-				this._setIgnoredOccurrences(next);
+				this._setAcknowledgedOccurrences(next);
 			}
 		}));
 
@@ -302,16 +341,16 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			if (!enabled) {
 				return;
 			}
-			const ignoredOccurrences = this._ignoredBlockOccurrences.read(reader);
+			const acknowledgedOccurrences = this._acknowledgedBlockOccurrences.read(reader);
 			const modelBlocked = this._blockedSessionsModel.blockedSessionsWithReasons.read(reader);
 			const currentOccurrences = new Map(modelBlocked.map(blocked => [
 				blocked.session.sessionId,
-				this._getBlockOccurrenceId(blocked, reader, ignoredOccurrences.get(blocked.session.sessionId)?.occurrenceId),
+				this._getBlockOccurrenceId(blocked, reader, acknowledgedOccurrences.get(blocked.session.sessionId)?.occurrenceId),
 			] as const));
 			const previousOccurrences = this._lastBlockedOccurrences;
 			this._lastBlockedOccurrences = currentOccurrences;
 
-			const surfacedSessionIds = new Set(this.blockedSessions.read(reader).map(blocked => blocked.session.sessionId));
+			const surfacedSessionIds = new Set(this.unacknowledgedBlockedSessions.read(reader).map(blocked => blocked.session.sessionId));
 
 			// Scope changes may drop queued blinks, but never create new occurrences.
 			for (const [sessionId, occurrenceId] of this._pendingBlinkOccurrences) {
@@ -336,18 +375,18 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			}
 		}));
 
-		// What the title bar actually surfaces, after visible / acknowledged /
-		// being-fixed sessions are filtered out. Traced so a resurfacing session can
-		// be correlated with the raw blocked set and the acknowledgements above.
+		// What the title bar actually surfaces after visibility, acknowledgement,
+		// explicit ignores, and in-progress fixes are applied.
 		this._register(autorun(reader => {
-			const surfaced = this.blockedSessions.read(reader);
-			this._logService.trace(`${LOG_PREFIX} surfacing ${surfaced.length} blocked session(s): ${describeBlockedSessions(surfaced)}`);
+			const fullAttention = this.unacknowledgedBlockedSessions.read(reader);
+			const reminders = this.reminderSessions.read(reader);
+			this._logService.trace(`${LOG_PREFIX} surfacing ${fullAttention.length} initial notification(s) and ${reminders.length} reminder(s): ${describeBlockedSessions([...fullAttention, ...reminders])}`);
 		}));
 	}
 
 	/**
 	 * Whether a fresh attention blink is pending. Returns `true` only when a session
-	 * queued as newly blocked is still in the surfaced (visible-filtered) blocked set,
+	 * queued as newly blocked is still in the unacknowledged full-attention set,
 	 * so a blink queued while the pill was suppressed can't fire for a session that has
 	 * since become visible or unblocked. The pending queue is cleared as it is read so
 	 * a subsequent render won't replay the animation.
@@ -356,10 +395,10 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		if (this._pendingBlinkOccurrences.size === 0) {
 			return false;
 		}
-		const ignoredOccurrences = this._ignoredBlockOccurrences.get();
-		const surfacedOccurrences = new Map(this.blockedSessions.get().map(blocked => [
+		const acknowledgedOccurrences = this._acknowledgedBlockOccurrences.get();
+		const surfacedOccurrences = new Map(this.unacknowledgedBlockedSessions.get().map(blocked => [
 			blocked.session.sessionId,
-			this._getBlockOccurrenceId(blocked, undefined, ignoredOccurrences.get(blocked.session.sessionId)?.occurrenceId),
+			this._getBlockOccurrenceId(blocked, undefined, acknowledgedOccurrences.get(blocked.session.sessionId)?.occurrenceId),
 		] as const));
 		let shouldBlink = false;
 		for (const [sessionId, occurrenceId] of this._pendingBlinkOccurrences) {
@@ -379,7 +418,7 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 			this._logService.trace(`${LOG_PREFIX} ignore requested for ${session.sessionId}, but it is not reported as blocked`);
 			return;
 		}
-		this._ignoreOccurrence(blocked, this._getBlockOccurrenceId(blocked, undefined, this._ignoredBlockOccurrences.get().get(session.sessionId)?.occurrenceId));
+		this._ignoreOccurrence(blocked, this._getBlockOccurrenceId(blocked, undefined, this._acknowledgedBlockOccurrences.get().get(session.sessionId)?.occurrenceId));
 	}
 
 	/** Ignore every blocked occurrence currently surfaced by the indicator. */
@@ -388,15 +427,15 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		if (blockedSessions.length === 0) {
 			return;
 		}
-		const next = new Map(this._ignoredBlockOccurrences.get());
+		const next = new Map(this._acknowledgedBlockOccurrences.get());
 		for (const blocked of blockedSessions) {
 			const sessionId = blocked.session.sessionId;
 			const occurrenceId = this._getBlockOccurrenceId(blocked, undefined, next.get(sessionId)?.occurrenceId);
 			next.delete(sessionId);
-			next.set(sessionId, { occurrenceId, reason: blocked.reason });
+			next.set(sessionId, { occurrenceId, reason: blocked.reason, kind: AcknowledgementKind.Ignored });
 			this._logService.trace(`${LOG_PREFIX} ignoring ${sessionId} (${occurrenceId}): ignore all`);
 		}
-		this._setIgnoredOccurrences(next);
+		this._setAcknowledgedOccurrences(next);
 	}
 
 	/**
@@ -437,41 +476,46 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		}
 	}
 
-	private _loadIgnoredOccurrences(): ReadonlyMap<string, IAcknowledgedOccurrence> {
-		const raw = this._storageService.get(IGNORED_OCCURRENCES_STORAGE_KEY, StorageScope.PROFILE);
+	private _loadAcknowledgedOccurrences(): ReadonlyMap<string, IAcknowledgedOccurrence> {
+		const raw = this._storageService.get(ACKNOWLEDGED_OCCURRENCES_STORAGE_KEY, StorageScope.PROFILE);
 		if (raw === undefined) {
 			return new Map();
 		}
 		try {
 			const parsed: unknown = JSON.parse(raw);
 			if (!Array.isArray(parsed)) {
-				throw new Error('Expected an array of ignored blocked occurrences');
+				throw new Error('Expected an array of acknowledged blocked occurrences');
 			}
 			const occurrences = new Map<string, IAcknowledgedOccurrence>();
 			const entries: unknown[] = parsed;
 			for (const entry of entries) {
 				if (!Array.isArray(entry) || entry.length !== 2 || typeof entry[0] !== 'string') {
-					throw new Error('Invalid ignored blocked occurrence');
+					throw new Error('Invalid acknowledged blocked occurrence');
 				}
 				const occurrence: Partial<Record<keyof IAcknowledgedOccurrence, unknown>> | null = entry[1];
 				if (!occurrence || typeof occurrence !== 'object'
 					|| typeof occurrence.occurrenceId !== 'string'
-					|| (occurrence.reason !== BlockedSessionReason.NeedsInput && occurrence.reason !== BlockedSessionReason.FailingCI)) {
-					throw new Error('Invalid ignored blocked occurrence');
+					|| (occurrence.reason !== BlockedSessionReason.NeedsInput && occurrence.reason !== BlockedSessionReason.FailingCI)
+					|| (occurrence.kind !== undefined && occurrence.kind !== AcknowledgementKind.Ignored && occurrence.kind !== AcknowledgementKind.Viewed)) {
+					throw new Error('Invalid acknowledged blocked occurrence');
 				}
 				occurrences.delete(entry[0]);
-				occurrences.set(entry[0], { occurrenceId: occurrence.occurrenceId, reason: occurrence.reason });
+				occurrences.set(entry[0], {
+					occurrenceId: occurrence.occurrenceId,
+					reason: occurrence.reason,
+					kind: occurrence.kind === AcknowledgementKind.Viewed ? AcknowledgementKind.Viewed : AcknowledgementKind.Ignored,
+				});
 			}
-			return new Map([...occurrences].slice(-MAX_STORED_IGNORED_SESSIONS));
+			return new Map([...occurrences].slice(-MAX_STORED_ACKNOWLEDGED_SESSIONS));
 		} catch (error) {
-			this._logService.warn(`${LOG_PREFIX} Failed to load ignored occurrences`, error);
+			this._logService.warn(`${LOG_PREFIX} Failed to load acknowledged occurrences`, error);
 			return new Map();
 		}
 	}
 
-	private _setIgnoredOccurrences(next: ReadonlyMap<string, IAcknowledgedOccurrence>): void {
-		const previous = this._ignoredBlockOccurrences.get();
-		const stored = new Map(this._loadIgnoredOccurrences());
+	private _setAcknowledgedOccurrences(next: ReadonlyMap<string, IAcknowledgedOccurrence>): void {
+		const previous = this._acknowledgedBlockOccurrences.get();
+		const stored = new Map(this._loadAcknowledgedOccurrences());
 		for (const [sessionId, occurrence] of previous) {
 			if (!next.has(sessionId) && stored.get(sessionId)?.occurrenceId === occurrence.occurrenceId) {
 				stored.delete(sessionId);
@@ -479,47 +523,59 @@ export class BlockedSessionsIndicatorModel extends Disposable {
 		}
 		for (const [sessionId, occurrence] of next) {
 			if (occurrence !== previous.get(sessionId)) {
-				stored.delete(sessionId);
-				stored.set(sessionId, occurrence);
+				const storedOccurrence = stored.get(sessionId);
+				const preserveStoredIgnore = occurrence.kind === AcknowledgementKind.Viewed
+					&& storedOccurrence?.kind === AcknowledgementKind.Ignored
+					&& storedOccurrence.occurrenceId === occurrence.occurrenceId;
+				if (!preserveStoredIgnore) {
+					stored.delete(sessionId);
+					stored.set(sessionId, occurrence);
+				}
 			}
 		}
 		const reconciled = new Map(next);
-		for (const sessionId of this._storedIgnoredOccurrences.keys()) {
+		for (const sessionId of this._storedAcknowledgedOccurrences.keys()) {
 			reconciled.delete(sessionId);
 		}
 		for (const [sessionId, occurrence] of stored) {
 			reconciled.set(sessionId, occurrence);
 		}
-		this._storeIgnoredOccurrences(stored);
-		this._ignoredBlockOccurrences.set(reconciled, undefined);
+		this._storeAcknowledgedOccurrences(stored);
+		this._acknowledgedBlockOccurrences.set(reconciled, undefined);
 	}
 
-	private _storeIgnoredOccurrences(occurrences: ReadonlyMap<string, IAcknowledgedOccurrence>): void {
+	private _storeAcknowledgedOccurrences(occurrences: ReadonlyMap<string, IAcknowledgedOccurrence>): void {
 		// Bound persisted history without undoing acknowledgements in the current window.
-		this._storedIgnoredOccurrences = new Map([...occurrences].slice(-MAX_STORED_IGNORED_SESSIONS));
-		this._writingIgnoredOccurrences = true;
+		this._storedAcknowledgedOccurrences = new Map([...occurrences].slice(-MAX_STORED_ACKNOWLEDGED_SESSIONS));
+		this._writingAcknowledgedOccurrences = true;
 		try {
-			if (this._storedIgnoredOccurrences.size === 0) {
-				this._storageService.remove(IGNORED_OCCURRENCES_STORAGE_KEY, StorageScope.PROFILE);
+			if (this._storedAcknowledgedOccurrences.size === 0) {
+				this._storageService.remove(ACKNOWLEDGED_OCCURRENCES_STORAGE_KEY, StorageScope.PROFILE);
 			} else {
-				this._storageService.store(IGNORED_OCCURRENCES_STORAGE_KEY, JSON.stringify([...this._storedIgnoredOccurrences]), StorageScope.PROFILE, StorageTarget.MACHINE);
+				const serialized = [...this._storedAcknowledgedOccurrences].map(([sessionId, occurrence]) => [
+					sessionId,
+					occurrence.kind === AcknowledgementKind.Ignored
+						? { occurrenceId: occurrence.occurrenceId, reason: occurrence.reason }
+						: occurrence,
+				]);
+				this._storageService.store(ACKNOWLEDGED_OCCURRENCES_STORAGE_KEY, JSON.stringify(serialized), StorageScope.PROFILE, StorageTarget.MACHINE);
 			}
 		} finally {
-			this._writingIgnoredOccurrences = false;
+			this._writingAcknowledgedOccurrences = false;
 		}
 	}
 
 	private _ignoreOccurrence(blocked: IBlockedSession, occurrenceId: string): void {
-		const next = new Map(this._ignoredBlockOccurrences.get());
+		const next = new Map(this._acknowledgedBlockOccurrences.get());
 		next.delete(blocked.session.sessionId);
-		next.set(blocked.session.sessionId, { occurrenceId, reason: blocked.reason });
-		this._setIgnoredOccurrences(next);
+		next.set(blocked.session.sessionId, { occurrenceId, reason: blocked.reason, kind: AcknowledgementKind.Ignored });
+		this._setAcknowledgedOccurrences(next);
 		this._logService.trace(`${LOG_PREFIX} ignoring ${blocked.session.sessionId} (${occurrenceId})`);
 	}
 
-	private _isBlockIgnored(blocked: IBlockedSession, ignoredOccurrences: ReadonlyMap<string, IAcknowledgedOccurrence>, reader: IReader): boolean {
-		const acknowledged = ignoredOccurrences.get(blocked.session.sessionId);
-		return acknowledged !== undefined && this._getBlockOccurrenceId(blocked, reader, acknowledged.occurrenceId) === acknowledged.occurrenceId;
+	private _isBlockAcknowledgedAs(blocked: IBlockedSession, acknowledgedOccurrences: ReadonlyMap<string, IAcknowledgedOccurrence>, kind: AcknowledgementKind, reader: IReader): boolean {
+		const acknowledged = acknowledgedOccurrences.get(blocked.session.sessionId);
+		return acknowledged?.kind === kind && this._getBlockOccurrenceId(blocked, reader, acknowledged.occurrenceId) === acknowledged.occurrenceId;
 	}
 
 	private _getBlockOccurrenceId(blocked: IBlockedSession, reader: IReader | undefined, ignoredOccurrence?: string): string {

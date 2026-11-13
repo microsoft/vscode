@@ -20,7 +20,7 @@ import { ISessionSectionOrderService, ISessionSectionPositions, resolveSectionOr
 export interface ISessionGroupAppearance {
 	/** Theme icon id chosen by the user. */
 	readonly icon?: string;
-	/** Theme color id applied to the group icon. */
+	/** Theme color id applied to the group icon and name. */
 	readonly color?: string;
 }
 
@@ -211,7 +211,7 @@ export interface ISessionGroupsService {
 	/** Set a group's icon, or restore the default with `undefined`. */
 	setGroupIcon(groupId: string, icon: string | undefined): void;
 
-	/** Set a group's icon color, or restore the default with `undefined`. */
+	/** Set a group's icon and name color, or restore the default with `undefined`. */
 	setGroupColor(groupId: string, color: string | undefined): void;
 
 	/** Appearance of a workspace, repository, or environment section, keyed by its stable section id. */
@@ -220,7 +220,7 @@ export interface ISessionGroupsService {
 	/** Set a grouping section's icon, or restore its default with `undefined`. */
 	setSectionIcon(sectionId: string, icon: string | undefined): void;
 
-	/** Set a grouping section's icon color, or restore its default with `undefined`. */
+	/** Set a grouping section's icon and name color, or restore its default with `undefined`. */
 	setSectionColor(sectionId: string, color: string | undefined): void;
 
 	/**
@@ -288,7 +288,8 @@ export interface ISessionGroupsService {
 	 * and cleared if the new session is abandoned without sending. No-op when the
 	 * group does not exist.
 	 */
-	setPendingNewSessionGroup(groupId: string): void;
+	setPendingNewSessionGroup(groupId: string | undefined): void;
+	getPendingNewSessionGroup(): string | undefined;
 
 	/**
 	 * Record the group that sessions sent from the new-session draft slot with id `slotId` (see
@@ -480,7 +481,15 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 
 		// Follow both pre-send draft replacement and committed-session graduation.
 		this._register(this.sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => this.replaceInFlightSession(from, to)));
-		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this.replaceInFlightSession(from, to)));
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => {
+			this.replaceInFlightSession(from, to);
+			// A session replaced by one with another ID, such as one its host hands off to another connection, continues as it
+			const changed = new Set<string>();
+			if (this.migrateIdentities([[from.sessionId, to.sessionId]], changed)) {
+				this.save();
+				this._onDidChange.fire({ groupsChanged: false, membershipChanged: new Set([from.sessionId, ...changed]) });
+			}
+		}));
 
 		// The started session carries the committed id; record its group now.
 		this._register(this.sessionsManagementService.onDidStartSession(session => {
@@ -562,28 +571,31 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 	}
 
 	private migratePreviousIdentities(sessions: readonly ISession[], changedSessions?: Set<string>): boolean {
+		return this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])), changedSessions);
+	}
+
+	/** Moves the custom-group membership of each `[from, to]` session ID to `to`, unless `to` has a placement of its own. */
+	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[], changedSessions?: Set<string>): boolean {
 		let changed = false;
-		for (const session of sessions) {
-			for (const previous of session.previousIdentities ?? []) {
-				if (previous.sessionId === session.sessionId) {
-					continue;
+		for (const [from, to] of identities) {
+			if (from === to) {
+				continue;
+			}
+			const group = this._membership.get(from);
+			if (group !== undefined) {
+				if (!this._membership.has(to) && !this._explicitlyUngroupedSessionIds.has(to)) {
+					this._membership.set(to, group);
 				}
-				const group = this._membership.get(previous.sessionId);
-				if (group !== undefined) {
-					if (!this._membership.has(session.sessionId) && !this._explicitlyUngroupedSessionIds.has(session.sessionId)) {
-						this._membership.set(session.sessionId, group);
-					}
-					this._membership.delete(previous.sessionId);
-					changedSessions?.add(session.sessionId);
-					changed = true;
+				this._membership.delete(from);
+				changedSessions?.add(to);
+				changed = true;
+			}
+			if (this._explicitlyUngroupedSessionIds.delete(from)) {
+				changedSessions?.add(to);
+				if (!this._membership.has(to)) {
+					this._explicitlyUngroupedSessionIds.add(to);
 				}
-				if (this._explicitlyUngroupedSessionIds.delete(previous.sessionId)) {
-					changedSessions?.add(session.sessionId);
-					if (!this._membership.has(session.sessionId)) {
-						this._explicitlyUngroupedSessionIds.add(session.sessionId);
-					}
-					changed = true;
-				}
+				changed = true;
 			}
 		}
 		return changed;
@@ -894,8 +906,12 @@ export class SessionGroupsService extends Disposable implements ISessionGroupsSe
 		return [...result];
 	}
 
-	setPendingNewSessionGroup(groupId: string): void {
-		this._pendingNewSessionGroupId = this._groups.has(groupId) ? groupId : undefined;
+	setPendingNewSessionGroup(groupId: string | undefined): void {
+		this._pendingNewSessionGroupId = groupId && this._groups.has(groupId) ? groupId : undefined;
+	}
+
+	getPendingNewSessionGroup(): string | undefined {
+		return this._pendingNewSessionGroupId;
 	}
 
 	setDraftSlotGroup(slotId: string, groupId: string | undefined): IDisposable {

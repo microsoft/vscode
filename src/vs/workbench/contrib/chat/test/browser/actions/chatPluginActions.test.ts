@@ -969,7 +969,7 @@ suite('ManagePluginMarketplacesAction', () => {
 
 	test('keeps the provider input busy and shows errors inline for correction and retry', async () => {
 		const pending = new DeferredPromise<void>();
-		const addCalls: { session: URI; source: string }[] = [];
+		const addCalls: { session: URI | undefined; source: string }[] = [];
 		const provider: ICustomizationMarketplaceManagementProvider = {
 			onDidChange: Event.None,
 			onDidChangeMarketplaces: Event.None,

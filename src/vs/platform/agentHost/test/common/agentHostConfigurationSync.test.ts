@@ -111,18 +111,20 @@ suite('AgentHostConfigurationSync', () => {
 		assert.strictEqual(getGlobalConfigurationValue(configurationService, ALL_HOSTS_SETTING), false);
 	});
 
-	test('artifact integrations are opt-in and cannot be enabled by a workspace', () => {
-		const configuration = createConfigurationService({
-			[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
-			[AgentMergeSettingId.Enabled]: { userValue: true },
+	for (const target of [AgentHostConfigurationSyncTarget.Local, AgentHostConfigurationSyncTarget.Remote]) {
+		test(`mirrors the quality-based artifact integrations default to host ${target}, ignoring workspace values`, () => {
+			const configuration = createConfigurationService({
+				[ArtifactIntegrationsSettingId]: { workspaceValue: true, workspaceFolderValue: true },
+				[AgentMergeSettingId.Enabled]: { userValue: true },
+			});
+			const patch = resolveAgentHostConfigurationSyncPatch(configuration, target);
+			assert.deepStrictEqual({
+				scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
+				integrations: patch[AgentHostArtifactIntegrationsConfigKey],
+				agentMerge: patch[AgentMergeConfigKey.Enabled],
+			}, { scope: ConfigurationScope.APPLICATION, integrations: product.quality === 'insider', agentMerge: product.quality !== 'insider' });
 		});
-		const patch = resolveAgentHostConfigurationSyncPatch(configuration, AgentHostConfigurationSyncTarget.Local);
-		assert.deepStrictEqual({
-			scope: artifactToolsConfigurationProperties[ArtifactIntegrationsSettingId].scope,
-			integrations: patch[AgentHostArtifactIntegrationsConfigKey],
-			agentMerge: patch[AgentMergeConfigKey.Enabled],
-		}, { scope: ConfigurationScope.APPLICATION, integrations: false, agentMerge: true });
-	});
+	}
 
 	for (const savedAgentMerge of [false, true]) {
 		test(`integration mode suppresses and restores Agent Merge without changing its ${savedAgentMerge} preference`, () => {

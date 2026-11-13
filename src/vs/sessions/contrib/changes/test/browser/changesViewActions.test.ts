@@ -55,14 +55,18 @@ import { IChat, ISessionChangeset, ISessionChangesSummary, ISessionFolder, ISess
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../../../../../workbench/contrib/sessions/common/changes.js';
 import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService, NoChangesEditorScope } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
-import { IsPhoneLayoutContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { IsPhoneLayoutContext, SessionArtifactIntegrationsEnabledContext, SessionHasChangesContext, SessionHasWorkspaceContext, SessionIsCreatedContext, SessionWorkspaceIsVirtualContext, DesktopChangesEditorTransitionContext, DesktopDiffEditorInputActiveContext, DesktopLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { activeSessionCIFixRequested, hasActiveSessionFailedCIChecks } from '../../../../../workbench/contrib/sessions/browser/fixCIChecks.js';
 import { CustomViewVisibleContext } from '../../../../common/agentsWindowContextKeys.js';
 import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
 import { MultiDiffEditor } from '../../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.js';
 import { CHANGES_HEADER_ACTIONS_ID, ChangesPickerActionItem, ChangesPickerSummary, isChangesActionsWorkspaceReady, unlockChatPetCreatePullRequestAchievement } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
 import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
 import '../../browser/changesViewActions.js';
+import '../../../../browser/layoutActions.js';
+import { FIX_CI_CHECKS_COMMAND_ID } from '../../browser/checksActions.js';
 import '../../../codeReview/browser/codeReview.contributions.js';
+import '../../../../browser/layoutActions.js';
 
 // Awaited while this file loads so that the contribution's permanent registrations are in place before
 // any suite runs instead of being registered by this suite.
@@ -126,6 +130,23 @@ suite('Changes View Actions', () => {
 			commandId: 'workbench.agentSessions.action.openPullRequest',
 			args: [activeSession],
 		}]);
+	});
+
+	test('the title bar leaves Fix Checks and Open Pull Request to the pull request artifact while artifact integrations apply to the session', () => {
+		const fixChecks = MenuRegistry.getMenuItems(MenuId.AgentsChangesPrimaryActionSubMenu).filter(isIMenuItem).find(item => item.command.id === FIX_CI_CHECKS_COMMAND_ID)!;
+		const openPullRequest = MenuRegistry.getMenuItems(MenuId.AgentsChangesToolbar).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.agentSessions.openPullRequest')!;
+		const visible = (artifactIntegrationsEnabled: boolean) => {
+			const context = contextWith({
+				[IsSessionsWindowContext.key]: true,
+				[ActiveSessionContextKeys.HasPullRequest.key]: true,
+				[hasActiveSessionFailedCIChecks.key]: true,
+				[activeSessionCIFixRequested.key]: false,
+				[SessionArtifactIntegrationsEnabledContext.key]: artifactIntegrationsEnabled,
+			});
+			return [fixChecks, openPullRequest].map(item => item.when?.evaluate(context) ?? true);
+		};
+
+		assert.deepStrictEqual({ disabled: visible(false), enabled: visible(true) }, { disabled: [true, true], enabled: [false, false] });
 	});
 
 	suite('Open Changes', () => {

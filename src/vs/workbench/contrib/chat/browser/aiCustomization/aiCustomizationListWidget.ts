@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IListContextMenuEvent, IListVirtualDelegate, IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, builtinIcon } from './aiCustomizationIcons.js';
@@ -56,6 +56,7 @@ import { getCustomizationSecondaryText, MiddleEllipsisPathLabel } from './aiCust
 import { renderCustomizationMarketplaceIcon } from './aiCustomizationPresentation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { CustomizationOrganizationPolicyNotice, getOrganizationManagedTooltip, OrganizationManagedTag } from './customizationOrganizationPolicy.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
@@ -154,7 +155,7 @@ interface IAICustomizationItemTemplateData {
 	readonly typeIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
 	readonly badge: HTMLElement;
-	readonly tag: HTMLElement;
+	readonly managedTag: OrganizationManagedTag;
 	readonly statusIcon: HTMLElement;
 	readonly descriptionContainer: HTMLElement;
 	readonly description: HighlightedLabel;
@@ -346,7 +347,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 		const nameRow = DOM.append(textContainer, $('.item-name-row'));
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameRow, $('.item-name'))));
 		const badge = DOM.append(nameRow, $('.inline-badge.item-badge'));
-		const tag = DOM.append(nameRow, $('.inline-badge.item-tag'));
+		const managedTag = disposables.add(new OrganizationManagedTag(nameRow, this.hoverService));
 		const statusIcon = DOM.append(nameRow, $('.item-status-icon'));
 		const descriptionContainer = DOM.append(textContainer, $('.item-description'));
 		const description = disposables.add(new HighlightedLabel(descriptionContainer));
@@ -373,7 +374,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			typeIcon,
 			nameLabel,
 			badge,
-			tag,
+			managedTag,
 			statusIcon,
 			descriptionContainer,
 			description,
@@ -460,8 +461,7 @@ class AICustomizationItemRenderer implements IListRenderer<IFileItemEntry, IAICu
 			templateData.badge.style.display = 'none';
 		}
 
-		templateData.tag.textContent = '';
-		templateData.tag.style.display = 'none';
+		templateData.managedTag.update(element.organizationControl);
 
 		// Status icon for external items with sync/loading status
 		const hideLoadedStatus = element.status === 'loaded'
@@ -802,7 +802,7 @@ export function getCustomizationItemAriaLabel(item: IAICustomizationListItem, so
 	const displayName = item.displayName ?? formatDisplayName(item.name);
 	const secondaryText = sourceLabel ?? getCustomizationSecondaryText(item.description, item.filename, item.promptType);
 	const statusLabel = getCustomizationItemStatusLabel(item);
-	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage].filter(Boolean).join('. ');
+	const accessibleSecondaryText = [secondaryText, statusLabel, item.statusMessage, item.organizationControl ? getOrganizationManagedTooltip(item.organizationControl) : undefined].filter(Boolean).join('. ');
 	const nameAndDescription = accessibleSecondaryText ? localize('itemAriaLabel', "{0}. {1}", displayName, accessibleSecondaryText) : displayName;
 	return item.disabled ? localize('itemAriaLabelDisabled', "{0}, disabled", nameAndDescription) : nameAndDescription;
 }
@@ -839,12 +839,16 @@ export class AICustomizationListWidget extends Disposable {
 	private emptyStateSubtext!: HTMLElement;
 
 	private currentSection: AICustomizationManagementSection = AICustomizationManagementSection.Agents;
+	private organizationPolicyNotice!: CustomizationOrganizationPolicyNotice;
 	private allItems: readonly IAICustomizationListItem[] = [];
 	private displayEntries: IListEntry[] = [];
 	private searchQuery: string = '';
 	private skillBundleFilter: string | undefined;
 	private sectionLoading = false;
+	/** Groups the user collapsed, keyed by section and group, restored whenever the items are re-rendered without a search. */
 	private readonly collapsedGroups = new Set<string>();
+	/** The section whose tree is rendered, so that only a section change starts the tree from scratch. */
+	private renderedTreeSection: AICustomizationManagementSection | undefined;
 	private _layoutDeferred = false;
 	private lastLayoutWidth = 0;
 	private lastLayoutHeight = 0;
@@ -968,6 +972,9 @@ export class AICustomizationListWidget extends Disposable {
 				this.openerService.open(URI.parse(href));
 			}
 		}));
+		this.organizationPolicyNotice = this._register(this.instantiationService.createInstance(CustomizationOrganizationPolicyNotice));
+		this.sectionTitleHeader.appendChild(this.organizationPolicyNotice.element);
+		this.organizationPolicyNotice.setSection(this.currentSection);
 
 		// Re-layout when the header height changes (e.g. description wraps,
 		// or CSS adjustments alter padding) so the list's allotted height stays
@@ -1094,7 +1101,6 @@ export class AICustomizationListWidget extends Disposable {
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
-				expandOnlyOnTwistieClick: entry => entry.type !== 'skill-bundle',
 			}
 		));
 
@@ -1113,6 +1119,13 @@ export class AICustomizationListWidget extends Disposable {
 				} else {
 					this.expandedSkillBundles.add(entry.item.id);
 				}
+			} else if (entry?.type === 'group-header' && !this.searchQuery.trim()) {
+				const key = this.getCollapsedGroupKey(entry.groupKey);
+				if (event.node.collapsed) {
+					this.collapsedGroups.add(key);
+				} else {
+					this.collapsedGroups.delete(key);
+				}
 			}
 		}));
 
@@ -1129,7 +1142,7 @@ export class AICustomizationListWidget extends Disposable {
 		// so the focus indicator is visible instead of requiring the user to
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header');
+			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header' && this.isEntryVisible(entry));
 		}));
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
@@ -1242,6 +1255,7 @@ export class AICustomizationListWidget extends Disposable {
 		}
 		this.currentSection = section;
 		this.updateSectionHeader();
+		this.organizationPolicyNotice.setSection(section);
 
 		const modelSection = toItemsModelSection(section);
 		if (!modelSection) {
@@ -1749,6 +1763,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Commits the current displayEntries to the list and updates empty state.
 	 */
 	private commitDisplayEntries(): void {
+		this.renderedTreeSection = undefined;
 		this.list.setChildren(null, this.displayEntries.map(element => ({ element })));
 		this.updateEmptyState();
 	}
@@ -1800,6 +1815,7 @@ export class AICustomizationListWidget extends Disposable {
 			}
 			return entries;
 		};
+		const isFiltering = !!this.searchQuery.trim();
 		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => {
 			this.displayEntries.push(group.element);
 			const fileEntries = group.children.filter((element): element is IFileItemEntry => element.type !== 'group-header');
@@ -1807,12 +1823,18 @@ export class AICustomizationListWidget extends Disposable {
 			return {
 				element: group.element,
 				collapsible: true,
-				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+				collapsed: !isFiltering && group.element.type === 'group-header' && this.collapsedGroups.has(this.getCollapsedGroupKey(group.element.groupKey)),
 				children: entries,
 			};
 		});
-		this.list.setChildren(null);
+		// Update the rows of the same section in place, keeping focus and the
+		// scroll position; only a new section starts from an empty tree.
+		if (this.renderedTreeSection !== this.currentSection) {
+			this.renderedTreeSection = this.currentSection;
+			this.list.setChildren(null);
+		}
 		this.list.setChildren(null, children);
+		this.moveFocusOutOfCollapsedGroups();
 		this.updateAddButton();
 		this.updateEmptyState();
 	}
@@ -2143,6 +2165,10 @@ export class AICustomizationListWidget extends Disposable {
 		this.announceItemCount(this.filterItems());
 		const entry = this.displayEntries.find(entry => entry.type === 'skill-bundle' && entry.item.skillBundle?.id === bundleId);
 		if (entry) {
+			const group = this.list.getParentElement(entry);
+			if (group?.type === 'group-header') {
+				this.collapsedGroups.delete(this.getCollapsedGroupKey(group.groupKey));
+			}
 			this.list.expandTo(entry);
 			this.list.expand(entry);
 			this.list.reveal(entry);
@@ -2171,10 +2197,43 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusList(): void {
 		this.list.domFocus();
-		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
+		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header' && this.isEntryVisible(entry)) ?? this.displayEntries[0];
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 		}
+	}
+
+	/**
+	 * Moves focus from an entry hidden inside a collapsed group (for example a
+	 * search result once the search is cleared) to its nearest visible ancestor,
+	 * so a focused row and active descendant remain.
+	 */
+	private moveFocusOutOfCollapsedGroups(): void {
+		const [focused] = this.list.getFocus();
+		if (!focused || !this.list.hasElement(focused) || this.isEntryVisible(focused)) {
+			return;
+		}
+		let ancestor = this.list.getParentElement(focused);
+		while (ancestor && !this.isEntryVisible(ancestor)) {
+			ancestor = this.list.getParentElement(ancestor);
+		}
+		this.list.setFocus(ancestor ? [ancestor] : []);
+	}
+
+	/**
+	 * Whether the entry has a row in the list, that is, it is not inside a
+	 * collapsed group or skill bundle.
+	 */
+	private isEntryVisible(entry: IListEntry): boolean {
+		if (!this.list.hasElement(entry)) {
+			return false;
+		}
+		for (let parent = this.list.getParentElement(entry); parent; parent = this.list.getParentElement(parent)) {
+			if (this.list.isCollapsed(parent)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

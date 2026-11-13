@@ -21,6 +21,19 @@ suite('SessionsListFilters', () => {
 		return store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
 	}
 
+	test('scheduled-only filtering persists and participates in reset and undo', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		filters.setScheduledOnly(true);
+		const restored = createFilters(storage);
+		const persisted = restored.isScheduledOnly();
+		const undo = restored.capture();
+		restored.reset();
+		const reset = restored.isScheduledOnly();
+		undo();
+		assert.deepStrictEqual({ persisted, reset, undone: restored.isScheduledOnly() }, { persisted: true, reset: false, undone: true });
+	});
+
 	test('Inbox scope distinguishes exact workspaces and environments without separating harnesses', () => {
 		const filters = createFilters();
 		const sessions = [
@@ -273,6 +286,37 @@ suite('SessionsListFilters', () => {
 			optedIn: ['cloud/slack', 'cloud/github/autopilot'],
 			reset: defaults,
 		});
+	});
+
+	test('persists, resets, and restores the show automation runs choice', () => {
+		const storage = store.add(new InMemoryStorageService());
+		const filters = createFilters(storage);
+		const initial = filters.isShowAutomationRuns();
+		filters.setShowAutomationRuns(true);
+		const restored = createFilters(storage);
+		const reloaded = restored.isShowAutomationRuns();
+		const restore = restored.capture();
+		restored.reset();
+		const reset = restored.isShowAutomationRuns();
+		restore();
+
+		assert.deepStrictEqual({ initial, reloaded, reset, undo: restored.isShowAutomationRuns() }, {
+			initial: false,
+			reloaded: true,
+			reset: false,
+			undo: true,
+		});
+	});
+
+	test('tracks the show automation runs choice through a reader', () => {
+		const filters = createFilters();
+		const states: boolean[] = [];
+		store.add(autorun(reader => states.push(filters.isShowAutomationRuns(reader))));
+
+		filters.setShowAutomationRuns(true);
+		filters.setShowAutomationRuns(false);
+
+		assert.deepStrictEqual(states, [false, true, false]);
 	});
 
 	test('keeps cached application groups when a remote disconnects and tracks metadata hydration', () => {

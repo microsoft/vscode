@@ -4,12 +4,74 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { autorun, observableValue, waitForState } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
+import { FileService } from '../../../../../platform/files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { ChatResourceContributionEntries, IChatResourceContribution, IChatResourceSessionIds, resolveChatResourceTemplate } from '../../browser/chatResources/chatResourceContributions.js';
 import { getShownChatResource } from '../../browser/chatResources/chatResourcesControl.js';
 import { defaultChatEmbeddedResourceSize, getChatEmbeddedResourceHeight, IChatEmbeddedResourceSize, resizeChatEmbeddedResource } from '../../browser/chatResources/chatResourceSizing.js';
 
 suite('ChatResources', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('resolves resource templates with the chat\'s and the agent\'s session id', () => {
+		const ids: IChatResourceSessionIds = { chatSessionId: 'chat 1', agentSessionId: 'cli-42' };
+		assert.deepStrictEqual([
+			resolveChatResourceTemplate('chat-todos:/${chatSessionId}.todo.json', ids)?.toString(true),
+			resolveChatResourceTemplate('chat-todos:/${agentSessionId}.todo.json', ids)?.toString(true),
+			resolveChatResourceTemplate('chat-todos:/${agentSessionId}.todo.json', { chatSessionId: 'chat 1', agentSessionId: undefined }),
+			resolveChatResourceTemplate('chat-todos:/${chatSessionId}.todo.json', { chatSessionId: 'a#b?c', agentSessionId: undefined })?.path,
+		], ['chat-todos:/chat 1.todo.json', 'chat-todos:/cli-42.todo.json', undefined, '/a#b?c.todo.json']);
+	});
+
+	test('lists a contributed resource while its file exists for the chat', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		store.add(fileService.registerProvider('chat-status', store.add(new InMemoryFileSystemProvider())));
+		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${agentSessionId}.md' };
+		const ids = observableValue<IChatResourceSessionIds | undefined>('ids', { chatSessionId: 'chat-1', agentSessionId: 'cli-42' });
+		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), ids, () => { }, fileService));
+		const listed = () => entries.sections.get().flatMap(section => section.entries.map(entry => `${entry.id} ${entry.label} ${entry.resource?.toString()}`));
+		// Like the pill that reads them, an observer keeps the entries and their file watchers alive.
+		store.add(autorun(reader => entries.sections.read(reader)));
+
+		const before = listed();
+		await fileService.writeFile(URI.parse('chat-status:/cli-42.md'), VSBuffer.fromString('# Status'));
+		await waitForState(entries.sections, sections => sections.length > 0);
+		const created = listed();
+		await fileService.del(URI.parse('chat-status:/cli-42.md'));
+		await waitForState(entries.sections, sections => sections.length === 0);
+
+		assert.deepStrictEqual({ before, created, deleted: listed() }, {
+			before: [],
+			created: ['contributed:pub.ext/status Status chat-status:/cli-42.md'],
+			deleted: [],
+		});
+	});
+
+	test('watches a resource whose file system provider registers later', async () => {
+		const fileService = store.add(new FileService(new NullLogService()));
+		const contribution: IChatResourceContribution = { extensionId: new ExtensionIdentifier('pub.ext'), id: 'status', label: 'Status', icon: undefined, resource: 'chat-status:/${chatSessionId}.md' };
+		const entries = store.add(new ChatResourceContributionEntries(observableValue('contributions', [contribution]), observableValue('ids', { chatSessionId: 'chat-1', agentSessionId: undefined }), () => { }, fileService));
+		store.add(autorun(reader => entries.sections.read(reader)));
+		const provider = store.add(new InMemoryFileSystemProvider());
+		const watched: string[] = [];
+		const watch = provider.watch.bind(provider);
+		provider.watch = (resource, options) => {
+			watched.push(resource.toString());
+			return watch(resource, options);
+		};
+
+		store.add(fileService.registerProvider('chat-status', provider));
+		await fileService.writeFile(URI.parse('chat-status:/chat-1.md'), VSBuffer.fromString('# Status'));
+		await waitForState(entries.sections, sections => sections.length > 0);
+
+		assert.deepStrictEqual(watched, ['chat-status:/chat-1.md']);
+	});
 
 	suite('embedded size', () => {
 		const automatic = (maxAutomaticHeight: number): IChatEmbeddedResourceSize => ({ fixedHeight: undefined, maxAutomaticHeight });

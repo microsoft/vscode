@@ -72,3 +72,5 @@ jobs:
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
           VSCODE_LINUX_X64_COMPILATION_ARTIFACT: ${{ parameters.VSCODE_LINUX_X64_COMPILATION_ARTIFACT }}
           VSCODE_RERUN_FAILED_TESTS: true
+
+      - template: ./steps/product-build-win32-network-diagnostics.yml@self

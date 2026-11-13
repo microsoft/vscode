@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IReader } from '../../../../../base/common/observable.js';
+import { IReader, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../../base/common/resources.js';
 import { isObject } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
@@ -153,12 +153,16 @@ export function getSessionFilterOptions(sessions: readonly ISession[], environme
 export class SessionsListFilters extends Disposable implements ISessionsListResettableState {
 	private static readonly STORAGE_KEY = 'sessionsListControl.filters';
 	private static readonly INBOX_SCOPE_STORAGE_KEY = 'sessionsListControl.inboxScope';
+	private static readonly SHOW_AUTOMATION_RUNS_KEY = 'showAutomationRuns';
+	private static readonly SCHEDULED_ONLY_KEY = 'scheduledOnly';
 	private readonly excluded: Map<string, boolean>;
 	private _inboxScope: IInboxScope = {};
 	get inboxScope(): IInboxScope { return this._inboxScope; }
 	get hasInboxScope(): boolean { return this._inboxScope.workspace !== undefined || this._inboxScope.environment !== undefined; }
+	get hasInboxWorkspaceScope(): boolean { return !!this._inboxScope.workspace && this._inboxScope.workspace !== 'none'; }
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
+	private readonly changeSignal = observableSignalFromEvent(this, this.onDidChange);
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
@@ -203,6 +207,27 @@ export class SessionsListFilters extends Disposable implements ISessionsListRese
 
 	setExcluded(filter: SessionFilter, excluded: boolean): void {
 		this.excluded.set(sessionFilterKey(filter), excluded);
+		this.save();
+	}
+
+	isShowAutomationRuns(reader?: IReader): boolean {
+		if (reader) {
+			this.changeSignal.read(reader);
+		}
+		return this.excluded.get(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY) ?? false;
+	}
+
+	setShowAutomationRuns(show: boolean): void {
+		this.excluded.set(SessionsListFilters.SHOW_AUTOMATION_RUNS_KEY, show);
+		this.save();
+	}
+
+	isScheduledOnly(): boolean {
+		return this.excluded.get(SessionsListFilters.SCHEDULED_ONLY_KEY) ?? false;
+	}
+
+	setScheduledOnly(scheduledOnly: boolean): void {
+		this.excluded.set(SessionsListFilters.SCHEDULED_ONLY_KEY, scheduledOnly);
 		this.save();
 	}
 

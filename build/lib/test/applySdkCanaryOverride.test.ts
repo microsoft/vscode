@@ -22,7 +22,7 @@ const sdk = '@github/copilot-sdk';
 const FAKE_PNPM = `
 const fs = require('fs'), path = require('path');
 const args = process.argv.slice(2);
-if (args[0] === '--version') {
+if (args.includes('--version')) {
 	console.log(/^pnpm@([^+]+)/.exec(JSON.parse(fs.readFileSync(path.join(process.env.FAKE_ROOT, 'package.json'), 'utf8')).packageManager)[1]);
 	process.exit(0);
 }

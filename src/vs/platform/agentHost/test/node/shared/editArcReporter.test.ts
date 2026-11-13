@@ -594,6 +594,8 @@ function createConfigurationService(enabled: boolean, disposables: DisposableSto
 		getSessionConfigValues: () => undefined,
 		resolveConfigurationOwner: session => session,
 		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxPaths: () => undefined,
+		setSessionSandboxPaths: () => { },
 		getSessionSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
 		getChatSandboxEnabled: () => undefined,

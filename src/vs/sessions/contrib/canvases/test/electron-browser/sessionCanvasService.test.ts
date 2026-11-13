@@ -490,6 +490,135 @@ suite('SessionCanvasService', () => {
 		});
 	});
 
+	test('reloads a retained page through its network once and keeps a failed same-source reload cached', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const events: string[] = [];
+		const proxyReady = new DeferredPromise<void>();
+		const pageLoaded = new DeferredPromise<void>();
+		let fail = false;
+		let creates = 0;
+		const model = upcastPartial<IBrowserViewModel>({
+			network: { authority: 'ssh-remote+host' },
+			onWillDispose: Event.None,
+			loadURL: async url => {
+				events.push(`load ${url}`);
+				if (fail) {
+					throw new Error('load failed');
+				}
+				await pageLoaded.p;
+			},
+			dispose: () => { },
+		});
+		harness.setCreateBrowserModelHandler(async () => { creates++; return model; });
+		harness.setAcquireNetworkHandler(async network => {
+			events.push('acquire');
+			await proxyReady.p;
+			return { object: network, dispose: () => events.push('release') };
+		});
+		const source = harness.canvas.source!;
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, source, true), CancellationError);
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		const first = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const duplicate = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const whileProxyStarts = [...events];
+		proxyReady.complete();
+		await timeout(0);
+		const whileLoading = [...events];
+		pageLoaded.complete();
+		const resolutions = await Promise.all([first, duplicate]);
+		fail = true;
+		await assert.rejects(harness.canvasService.resolveCanvasModel(input.reference, source, true), /load failed/);
+		const cached = await harness.canvasService.resolveCanvasModel(input.reference, source);
+
+		assert.deepStrictEqual({
+			creates, whileProxyStarts, whileLoading, events,
+			sameModel: [...resolutions, cached].every(resolution => resolution.model === model),
+			reused: [...resolutions, cached].map(resolution => resolution.reused),
+		}, {
+			creates: 1, whileProxyStarts: ['acquire'], whileLoading: ['acquire', 'load https://example.test/preview'],
+			events: ['acquire', 'load https://example.test/preview', 'release', 'acquire', 'load https://example.test/preview', 'release'],
+			sameModel: true, reused: [false, true, true],
+		});
+	});
+
+	test('does not reload a stale retained source after its remote proxy becomes ready', async () => {
+		const results: { transition: string; events: string[] }[] = [];
+		for (const transition of ['membership', 'source', 'owner', 'dispose']) {
+			const harness = createHarness();
+			await harness.openSettled[0];
+			await Promise.resolve();
+			const input = harness.opened[0];
+			const events: string[] = [];
+			const proxyReady = new DeferredPromise<void>();
+			harness.setCreateBrowserModelHandler(async () => upcastPartial<IBrowserViewModel>({
+				network: { authority: 'ssh-remote+host' },
+				onWillDispose: Event.None,
+				loadURL: async () => { events.push('load'); },
+				dispose: () => { },
+			}));
+			harness.setAcquireNetworkHandler(async network => {
+				events.push('acquire');
+				await proxyReady.p;
+				return { object: network, dispose: () => events.push('release') };
+			});
+			const source = harness.canvas.source!;
+			await harness.canvasService.resolveCanvasModel(input.reference, source);
+			const reloading = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+			const rejected = assert.rejects(reloading, CancellationError);
+			if (transition === 'membership') {
+				harness.canvases.set(undefined, undefined);
+			} else if (transition === 'source') {
+				harness.canvases.set([{ ...harness.canvas, source: undefined }], undefined);
+			} else if (transition === 'owner') {
+				harness.activeSession.set(undefined, undefined);
+			} else {
+				harness.canvasService.dispose();
+			}
+			proxyReady.complete();
+			await rejected;
+			results.push({ transition, events });
+		}
+
+		assert.deepStrictEqual(results, ['membership', 'source', 'owner', 'dispose'].map(transition => ({ transition, events: ['acquire', 'release'] })));
+	});
+
+	test('reattaches the retained page without waiting for a manual reload that later fails', async () => {
+		const harness = createHarness();
+		await harness.openSettled[0];
+		await Promise.resolve();
+		const input = harness.opened[0];
+		const loading = new DeferredPromise<void>();
+		const model = upcastPartial<IBrowserViewModel>({
+			onWillDispose: Event.None,
+			loadURL: () => loading.p,
+			dispose: () => { },
+		});
+		harness.setCreateBrowserModelHandler(async () => model);
+		const source = harness.canvas.source!;
+		await harness.canvasService.resolveCanvasModel(input.reference, source);
+		const reloading = harness.canvasService.resolveCanvasModel(input.reference, source, true);
+		const failed = assert.rejects(reloading, /load failed/);
+		let reattached: ICanvasModelResolution | undefined;
+		let reattachError: Error | undefined;
+		const returning = harness.canvasService.resolveCanvasModel(input.reference, source).then(
+			resolution => { reattached = resolution; },
+			error => { reattachError = error; },
+		);
+		await timeout(0);
+		const attachedBeforeFailure = reattached?.model === model;
+		loading.error(new Error('load failed'));
+		await Promise.all([returning, failed]);
+		const cached = await harness.canvasService.resolveCanvasModel(input.reference, source);
+
+		assert.deepStrictEqual({
+			attachedBeforeFailure, sameModel: reattached?.model === model, reused: reattached?.reused,
+			reattachError: reattachError?.message, cached: cached.model === model,
+		}, { attachedBeforeFailure: true, sameModel: true, reused: true, reattachError: undefined, cached: true });
+	});
+
 	test('waits for the remote network proxy before loading a returning source into the retained page, and holds it until the load settles', async () => {
 		const pageLoaded = new DeferredPromise<void>();
 		const { harness, input, events } = await createRetainedPageAwaitingProvider({ authority: 'ssh-remote+host' }, () => pageLoaded.p);

@@ -15,7 +15,7 @@
 .automation-cloud-row {
 	display: flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size80);
+	gap: var(--vscode-spacing-size60);
 	padding: var(--vscode-spacing-size120) 0;
 }
 
@@ -891,8 +891,21 @@
 	line-height: inherit;
 }
 
+/*
+ * The workspace/session-type pickers here are rendered as
+ * `.monaco-action-bar` items, which size every `.codicon` to a fixed
+ * 16x16 box (`actionbar.css`) regardless of its compact font-size.
+ * That leaves ~2px of invisible padding on each side of the glyph, on
+ * top of `.sessions-chat-dropdown-label`'s own 6px `margin-left`, so
+ * the icon-to-label gap reads wider than the embedded chat input's
+ * pickers (which get an equivalent override scoped to
+ * `.interactive-input-part`). Shrink the box to the glyph itself so
+ * the label's 6px margin is the only remaining gap.
+ */
 .automation-target-toolbar .sessions-chat-picker-slot .action-label > .codicon {
 	font-size: var(--vscode-codiconFontSize-compact);
+	width: auto;
+	height: auto;
 }
 
 .automation-target-toolbar .sessions-chat-dropdown-chevron {
@@ -1162,7 +1175,7 @@
 .automation-target-toolbar .automation-form-branch-slot {
 	display: inline-flex;
 	align-items: center;
-	gap: var(--vscode-spacing-size40);
+	gap: var(--vscode-spacing-size60);
 	box-sizing: border-box;
 	height: 22px;
 	padding: var(--vscode-spacing-size20) var(--vscode-spacing-size60);
@@ -1202,10 +1215,22 @@
 }
 
 .automation-target-toolbar .automation-form-branch-name {
+	/* The trigger already spaces its icon/label/chevron with `gap`; cancel
+	 * the shared `.sessions-chat-dropdown-label` margin so it doesn't
+	 * stack an extra 6px on top of that gap. */
+	margin-left: 0;
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
+}
+
+.automation-target-toolbar .automation-form-branch-slot > .codicon-chevron-down {
+	/* Same double-counting as the label above: the shared
+	 * `.codicon-chevron-down` rule also adds its own 2px `margin-left`,
+	 * which would stack on top of the trigger's `gap` and widen the
+	 * label-to-chevron spacing to 8px. */
+	margin-left: 0;
 }
 
 .automation-form-prompt-host .chat-secondary-toolbar .automation-form-harness-chip {

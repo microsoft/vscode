@@ -22,15 +22,17 @@ For starting browser sessions, each entry registers its `ISessionRepositoryPicke
 
 Directly composed chat inputs, such as automation prompts, receive the same editor options from the view factory and pass them to their input component.
 
+The view factory also owns optional chat-background presentation for the session grid and transcript. Shared chat views receive a background adapter through their options rather than importing a renderer or configuration service. The regular entry supplies the background feature; the isolated mobile entry omits its presentation, registrations, and media. Both entries share built-in skill definitions and discovery; packaging a skill does not register the tools it uses.
+
 View factories receive the owning host's instantiation service for each view. Mobile headers use that same scope; they must not capture a global service or reuse another view's scope.
 
-`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options.
+`ISessionsListPresentation` owns list chrome, interactions, and name editing. The regular implementation starts the list's inline editor; the experimental implementation prompts before committing. Session and group changes still go through the list and its shared services. List dimensions are passed as component options. Its optional `pinnedCanvases` model is supplied by the entry that selects pinning; shared views do not require the pinned-canvas service.
 
 `IChatEditPresentationService` owns text-edit rendering and external-edit opening. The regular entry selects compare editors and ordinary editor navigation; the experimental entry selects edit rows and mobile overlays. Shared chat owns compare-model creation, and each returned presentation owns its rendering resources. Mobile diff overlays read through the standard text-model service, including in-memory snapshots.
 
 ## Isolated web composition
 
-The experimental `agents.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. The source entry is not registered in production build targets.
+The experimental `agents.web.mobile.main.internal.ts` entry composes the shared core with an explicit set of contributions, a fixed phone workbench, and entry-owned presentation services. Existing desktop and web entries neither import its implementations nor activate its defaults. Ordinary production build targets do not include this entry; its opt-in [isolated package](../../../build/next/MOBILE.md) has separate assets and localization.
 
 After transpiling the checkout, `node scripts/code-sessions-web.js --mobile --no-open` serves this entry locally. Add `--mock` for the mock-services entry. This source launcher does not publish an artifact.
 

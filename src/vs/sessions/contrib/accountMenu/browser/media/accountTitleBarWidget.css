@@ -20,20 +20,14 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench .sessions-account-titlebar-widget:hover,
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
-	background: var(--vscode-toolbar-hoverBackground);
-}
-
 .agent-sessions-workbench .sessions-account-titlebar-widget:active,
-.agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible,
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget.menu-visible {
+.agent-sessions-workbench .sessions-account-titlebar-widget.menu-visible {
 	background: var(--vscode-toolbar-activeBackground);
 }
 
-.agent-sessions-workbench .action-item:focus-within .sessions-account-titlebar-widget {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .sessions-account-titlebar-widget.menu-visible:not(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-icon {

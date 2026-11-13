@@ -4,6 +4,11 @@ parameters:
   - name: os
     type: string
     default: ''
+  # Condition of the steps, besides the store having been saved already, for example to skip them when
+  # the job starts from a workspace image
+  - name: condition
+    type: string
+    default: succeeded()
 
 # Removes the packages that the installed projects don't use from the pnpm store that
 # restore-pnpm-store.yml restored, when the cache saves it at the end of the job (its key missed).
@@ -17,7 +22,7 @@ steps:
         set -e
         pnpm store prune
         rm -rf "$(pnpm store path)/projects"
-      condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'), ne(variables['Agent.OS'], 'Windows_NT'))
+      condition: and(${{ parameters.condition }}, ne(variables.PNPM_STORE_RESTORED, 'true'), ne(variables['Agent.OS'], 'Windows_NT'))
       displayName: Prune pnpm store
       continueOnError: true
 
@@ -28,6 +33,6 @@ steps:
         exec { pnpm store prune }
         $StorePath = (pnpm store path)
         Remove-Item -Recurse -Force -ErrorAction SilentlyContinue (Join-Path $StorePath "projects")
-      condition: and(succeeded(), ne(variables.PNPM_STORE_RESTORED, 'true'), eq(variables['Agent.OS'], 'Windows_NT'))
+      condition: and(${{ parameters.condition }}, ne(variables.PNPM_STORE_RESTORED, 'true'), eq(variables['Agent.OS'], 'Windows_NT'))
       displayName: Prune pnpm store
       continueOnError: true

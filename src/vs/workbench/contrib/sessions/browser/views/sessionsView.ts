@@ -49,6 +49,8 @@ import { PANEL_SECTION_BORDER } from '../../../../common/theme.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ISessionsService } from '../sessionsService.js';
+import { ISessionDraftsService } from '../sessionDraftsService.js';
+import { IScheduledChatsService } from '../scheduledChatsService.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { Menus } from '../menus.js';
 import { MobileSessionFilterChips } from '../mobile/mobileSessionFilterChips.js';
@@ -58,8 +60,7 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { IPinnedCanvasService } from '../pinnedCanvases.js';
-import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
+import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING, SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CustomizationsNavigationState } from '../customizationsNavigationState.js';
@@ -81,11 +82,11 @@ const SESSIONS_SECTION_MIN_HEIGHT = 120;
 const SESSIONS_HEADER_ELLIPSIS_MIN_WIDTH = 8;
 export type CustomizationsPresentation = 'hidden' | 'control' | 'treatment';
 
-export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, treatment: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
+export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: boolean, aiHidden: boolean, navigationIncludesCustomizations: boolean, location: ChatCustomizationsLocation = 'auto'): CustomizationsPresentation {
 	if (phoneLayout || !aiEnabled || aiHidden) {
 		return 'hidden';
 	}
-	const resolved = resolveChatCustomizationsLocation(location, true, treatment);
+	const resolved = resolveChatCustomizationsLocation(location, true, navigationIncludesCustomizations);
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
@@ -169,6 +170,7 @@ export class SessionsView extends ViewPane {
 	listNotification: SessionsListNotification | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private readonly separateNavigation: IObservable<boolean>;
+	private readonly customizationsAtBottom: IObservable<boolean>;
 	private readonly sessionsListRearrangeContext: IContextKey<boolean>;
 	private readonly customizationsNavigationVisible = observableValue(this, false);
 	private readonly customizationsNavigationState: CustomizationsNavigationState;
@@ -215,11 +217,13 @@ export class SessionsView extends ViewPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
-		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
+		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
+		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
 		this.separateNavigation = observableConfigValue(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING, false, configurationService);
+		this.customizationsAtBottom = observableConfigValue(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, false, configurationService);
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
@@ -331,6 +335,17 @@ export class SessionsView extends ViewPane {
 			() => !this.sessionsControl || this.sessionsControl.scrollTop === 0,
 		));
 		const sessionsControl = this.sessionsControl = this._register(this.instantiationService.createInstance(SessionsList, this.sessionsControlContainer, {
+			pendingSections: derived(this, reader => {
+				const claimedDraftIds = this.scheduledChatsService.claimedDraftIds.read(reader);
+				const drafts = this.sessionDraftsService.sections.read(reader)
+					.map(section => ({ ...section, items: section.items.filter(item => !claimedDraftIds.has(item.id)) }))
+					.filter(section => section.items.length);
+				return drafts;
+			}),
+			schedulingEnabled: this.scheduledChatsService.enabled,
+			scheduledSessions: derived(this, reader => this.scheduledChatsService.items.read(reader).filter(item => !item.conversation)),
+			scheduledSessionResources: derived(this, reader => new Set(this.scheduledChatsService.items.read(reader)
+				.flatMap(item => item.conversation ? [item.conversation.sessionResource.toString()] : []))),
 			sectionRowHeight: this.presentation.sectionRowHeight,
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.grouping,
@@ -340,10 +355,10 @@ export class SessionsView extends ViewPane {
 			showCustomizations: () => this.customizationsPresentation === 'treatment',
 			customizationsCount: this.customizationsNavigationState.totalCount,
 			customizationMigrationsAvailable: this.customizationsNavigationState.migrationAvailable,
-			customizationExtensionSuggestionsAvailable: this.customizationsNavigationState.extensionSuggestionsAvailable,
+			customizationsBadge: this.customizationsNavigationState.badge,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
-			pinnedCanvases: this.pinnedCanvasService,
+			pinnedCanvases: this.presentation.pinnedCanvases,
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
@@ -451,6 +466,8 @@ export class SessionsView extends ViewPane {
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
 
 		this.registerSessionFilters(sessionsControl);
+		this.registerAutomationFilter(sessionsControl);
+		this.registerScheduledFilter(sessionsControl);
 		this.registerArchivedFilter(sessionsControl);
 		this.registerResetFiltersAction();
 
@@ -480,6 +497,7 @@ export class SessionsView extends ViewPane {
 
 		// When the session the main window shows changes, reveal it in the sessions list: chat windows, which are other
 		// windows, do not select theirs.
+		this._register(this.sessionDraftsService.onDidOpenDraft(id => sessionsControl.revealPendingSession(id)));
 		this._register(autorun(reader => {
 			const activeSession = this._mainWindowHost.session.read(reader);
 			if (activeSession) {
@@ -573,8 +591,9 @@ export class SessionsView extends ViewPane {
 		const enabled = this.scopedContextKeyService.contextMatchesRules(ChatContextKeys.enabled);
 		const hidden = this.chatEntitlementService.sentimentObs.read(reader).hidden === true;
 		const navigation = this.separateNavigation.read(reader);
+		const navigationIncludesCustomizations = navigation && !this.customizationsAtBottom.read(reader);
 		this.updateCustomizationsPresentation(
-			getCustomizationsPresentation(phone, enabled, hidden, navigation, this.customizationsLocation.read(reader)),
+			getCustomizationsPresentation(phone, enabled, hidden, navigationIncludesCustomizations, this.customizationsLocation.read(reader)),
 			navigation && !phone && enabled && !hidden,
 		);
 	}
@@ -708,6 +727,58 @@ export class SessionsView extends ViewPane {
 
 	private readonly archivedFilterRegistration = this._register(new DisposableStore());
 
+	private registerAutomationFilter(sessionsControl: SessionsList): void {
+		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.showAutomationRuns', sessionsControl.filters.isShowAutomationRuns());
+		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isShowAutomationRuns() });
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterAutomationRuns',
+					title: localize('showAutomationRuns', "Show Automation Runs"),
+					toggled: ContextKeyExpr.equals(contextKey.key, true),
+					menu: [{
+						id: Menus.SessionsViewFilter,
+						group: '3_visibility',
+						order: 0.5,
+					}],
+				});
+			}
+			override run() {
+				const show = !sessionsControl.filters.isShowAutomationRuns();
+				sessionsControl.filters.setShowAutomationRuns(show);
+				contextKeyInstance.set(show);
+			}
+		}));
+	}
+
+	private registerScheduledFilter(sessionsControl: SessionsList): void {
+		const contextKey = new RawContextKey<boolean>('sessionsViewPane.filter.scheduledOnly', sessionsControl.filters.isScheduledOnly());
+		const contextKeyInstance = contextKey.bindTo(this.scopedContextKeyService);
+		this.filterContextKeys.set(contextKey.key, { key: contextKeyInstance, read: () => sessionsControl.filters.isScheduledOnly() });
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'sessionsViewPane.filterScheduled',
+					title: localize('scheduledOnly', "Scheduled Only"),
+					toggled: ContextKeyExpr.equals(contextKey.key, true),
+					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
+					menu: [{
+						id: Menus.SessionsViewFilter,
+						group: '3_visibility',
+						order: 0.6,
+						when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true)),
+					}],
+				});
+			}
+			override run() {
+				const scheduledOnly = !sessionsControl.filters.isScheduledOnly();
+				sessionsControl.filters.setScheduledOnly(scheduledOnly);
+				contextKeyInstance.set(scheduledOnly);
+			}
+		}));
+	}
+
 	private registerSessionFilters(sessionsControl: SessionsList): void {
 		const changed = observableSignalFromEvent(this, Event.any(
 			this.sessionsManagementService.onDidChangeSessions,
@@ -817,7 +888,6 @@ export class SessionsView extends ViewPane {
 							id: Menus.SessionsViewFilter,
 							group: '3_visibility',
 							order: 1,
-							when: SessionsViewGroupingContext.notEqualsTo(SessionsGrouping.Inbox),
 						}]
 					});
 				}
@@ -826,16 +896,6 @@ export class SessionsView extends ViewPane {
 					sessionsControl.setExcludeArchived(!excluding);
 					archivedContextKeyInstance.set(excluding); // was excluding → now showing
 				}
-			}));
-			this.archivedFilterRegistration.add(MenuRegistry.appendMenuItem(Menus.SessionsViewFilter, {
-				command: {
-					id: 'sessionsViewPane.filterArchived',
-					title: localize('showArchived', "Show Archived"),
-					toggled: ContextKeyExpr.equals(archivedContextKey.key, true),
-				},
-				group: '3_visibility',
-				order: 1,
-				when: SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox),
 			}));
 		};
 		registerArchivedFilter();

@@ -25,14 +25,13 @@ import { dirname, isEqualOrParent } from '../../../../../base/common/resources.j
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import type { AgentExtensionMode, IAgentExtensionInfo, IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
+import { isAgentExtensionEnabledAndSettled, type AgentExtensionMode, type IAgentExtensionInfo, type IAgentExtensionInventory } from '../../../../../platform/agentHost/common/agentService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextMenuService, IContextViewService } from '../../../../../platform/contextview/browser/contextView.js';
 import { ICustomizationMarketplaceService } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
@@ -168,6 +167,7 @@ interface ICopilotCanvasExtensionTemplateData {
 	readonly label: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly pluginLink: HTMLAnchorElement;
+	readonly sourceText: HTMLElement;
 	readonly detailSeparator: HTMLElement;
 	readonly detailText: HTMLElement;
 	readonly actions: HTMLElement;
@@ -205,6 +205,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		const label = DOM.append(text, $('.copilot-customization-tree-label'));
 		const detail = DOM.append(text, $('.copilot-customization-tree-detail'));
 		const pluginLink = DOM.append(detail, $<HTMLAnchorElement>('a.copilot-customization-tree-source-link.source-link'));
+		const sourceText = DOM.append(detail, $('.copilot-customization-tree-detail-text'));
 		const detailSeparator = DOM.append(detail, $('.copilot-customization-tree-detail-separator'));
 		const detailText = DOM.append(detail, $('.copilot-customization-tree-detail-text'));
 		const actions = DOM.append(container, $('.copilot-customization-tree-actions'));
@@ -225,7 +226,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		moreButton.element.dataset.customizationAction = 'more';
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.CLICK, event => event.stopPropagation()));
-		const template = { container, label, detail, pluginLink, detailSeparator, detailText, actions, toggle, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
+		const template = { container, label, detail, pluginLink, sourceText, detailSeparator, detailText, actions, toggle, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
 		this.templates.add(template);
 		return template;
 	}
@@ -243,12 +244,15 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 		templateData.label.textContent = item.extensionName;
 		const detailText = this.getDetail(item);
 		const isPlugin = item.extensionSource === 'plugin';
+		const sourceLabel = isPlugin
+			? getCustomizationContributionSourceLabel('plugin', item.extension?.pluginName ?? item.extensionName)
+			: getCustomizationContributionSourceLabel('extension', item.extensionName);
 		templateData.pluginLink.style.display = isPlugin ? '' : 'none';
-		templateData.pluginLink.textContent = isPlugin
-			? localize('copilotCanvases.pluginSource', "Plugin: {0}", item.extension?.pluginName ?? item.extensionName)
-			: '';
-		templateData.detailSeparator.style.display = isPlugin && detailText ? '' : 'none';
-		templateData.detailSeparator.textContent = isPlugin && detailText ? '·' : '';
+		templateData.pluginLink.textContent = isPlugin ? sourceLabel : '';
+		templateData.sourceText.style.display = isPlugin ? 'none' : '';
+		templateData.sourceText.textContent = isPlugin ? '' : sourceLabel;
+		templateData.detailSeparator.style.display = detailText ? '' : 'none';
+		templateData.detailSeparator.textContent = detailText ? '·' : '';
 		templateData.detailText.textContent = detailText;
 		if (isPlugin) {
 			const openPluginLabel = localize('copilotCanvases.openPluginDetails', "Open plugin details for {0}", item.extension?.pluginName ?? item.extensionName);
@@ -289,7 +293,7 @@ class CopilotCanvasExtensionRenderer implements IListRenderer<ICopilotCanvasExte
 			}));
 		}
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.label, { content: item.extensionName }));
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.detail, { content: [templateData.pluginLink.textContent, detailText].filter(Boolean).join(' · ') }));
+		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.detail, { content: [sourceLabel, detailText].filter(Boolean).join(' · ') }));
 		this.updateActionsTabbability(templateData);
 	}
 
@@ -332,10 +336,7 @@ interface ICopilotCanvasTemplateData {
 	readonly container: HTMLElement;
 	readonly label: HTMLElement;
 	readonly detail: HTMLElement;
-	readonly detailText: HTMLElement;
-	readonly pluginLink: HTMLAnchorElement;
 	readonly actions: HTMLElement;
-	readonly toggle: CustomizationToggle;
 	readonly moreButton: Button;
 	readonly templateDisposables: DisposableStore;
 	readonly elementDisposables: DisposableStore;
@@ -350,15 +351,9 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 	constructor(
 		private readonly getItemKey: (item: ICopilotCanvasItem) => string,
 		private readonly getDetail: (item: ICopilotCanvasItem) => string,
-		private readonly getExtension: (item: ICopilotCanvasItem) => ICopilotCanvasExtensionItem,
 		private readonly getOpenUnavailableMessage: (item: ICopilotCanvasItem) => string | undefined,
 		private readonly isEnabled: (item: ICopilotCanvasItem) => boolean,
-		private readonly canToggleExtension: (item: ICopilotCanvasExtensionItem) => boolean,
-		private readonly getToggleUnavailableMessage: (item: ICopilotCanvasExtensionItem) => string,
-		private readonly isMutationPending: (item: ICopilotCanvasExtensionItem) => boolean,
 		private readonly hasMenuActions: (item: ICopilotCanvasItem) => boolean,
-		private readonly onToggleExtension: (item: ICopilotCanvasExtensionItem, enabled: boolean) => void,
-		private readonly onOpenPlugin: (item: ICopilotCanvasExtensionItem) => void,
 		private readonly onShowMenu: (item: ICopilotCanvasItem, anchor: HTMLElement) => void,
 		private readonly hoverService: IHoverService,
 	) { }
@@ -370,12 +365,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		const text = DOM.append(container, $('.copilot-customization-tree-text'));
 		const label = DOM.append(text, $('.copilot-customization-tree-label'));
 		const detail = DOM.append(text, $('.copilot-customization-tree-detail'));
-		const detailText = DOM.append(detail, $('.copilot-customization-tree-detail-text'));
-		const pluginLink = DOM.append(detail, $<HTMLAnchorElement>('a.copilot-customization-tree-source-link.source-link'));
 		const actions = DOM.append(container, $('.copilot-customization-tree-actions'));
-		const toggle = templateDisposables.add(new CustomizationToggle({ ariaLabel: '' }));
-		actions.appendChild(toggle.domNode);
-		toggle.domNode.dataset.customizationAction = 'toggle';
 		const moreButton = templateDisposables.add(new Button(actions, {
 			...getButtonStyles({
 				buttonSecondaryBackground: undefined,
@@ -390,7 +380,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		moreButton.element.dataset.customizationAction = 'more';
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
 		templateDisposables.add(DOM.addDisposableListener(actions, DOM.EventType.CLICK, event => event.stopPropagation()));
-		const template = { container, label, detail, detailText, pluginLink, actions, toggle, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
+		const template = { container, label, detail, actions, moreButton, templateDisposables, elementDisposables, currentItemKey: undefined };
 		this.templates.add(template);
 		return template;
 	}
@@ -400,46 +390,13 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		const item = entry.item;
 		const itemKey = this.getItemKey(item);
 		const enabled = this.isEnabled(item);
-		const extension = this.getExtension(item);
 		templateData.currentItemKey = itemKey;
 		templateData.container.dataset.customizationKey = itemKey;
 		templateData.container.classList.toggle('disabled', !enabled);
 		templateData.container.classList.toggle('readonly', !enabled || !isOpenableExtensionCanvasDefinition(item.canvas));
 		templateData.label.textContent = item.canvas.displayName;
 		const detail = this.getDetail(item);
-		const isPlugin = extension.extensionSource === 'plugin';
-		templateData.detailText.textContent = isPlugin ? '' : detail;
-		templateData.pluginLink.style.display = isPlugin ? '' : 'none';
-		templateData.pluginLink.textContent = isPlugin ? detail : '';
-		if (isPlugin) {
-			const pluginName = extension.extension?.pluginName ?? extension.extensionName;
-			const openPluginLabel = localize('copilotCanvases.openPluginDetails', "Open plugin details for {0}", pluginName);
-			templateData.pluginLink.setAttribute('href', '#');
-			templateData.pluginLink.setAttribute('aria-label', openPluginLabel);
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.pluginLink, DOM.EventType.MOUSE_DOWN, event => event.stopPropagation()));
-			templateData.elementDisposables.add(DOM.addStandardDisposableListener(templateData.pluginLink, DOM.EventType.KEY_DOWN, event => {
-				if (event.keyCode === KeyCode.Enter) {
-					event.stopPropagation();
-				}
-			}));
-			templateData.elementDisposables.add(DOM.addDisposableListener(templateData.pluginLink, DOM.EventType.CLICK, event => {
-				event.preventDefault();
-				event.stopPropagation();
-				this.onOpenPlugin(extension);
-			}));
-		} else {
-			templateData.pluginLink.removeAttribute('href');
-			templateData.pluginLink.removeAttribute('aria-label');
-		}
-		const canToggle = this.canToggleExtension(extension);
-		templateData.toggle.domNode.style.display = extension.extensionSource !== 'project' ? '' : 'none';
-		templateData.toggle.checked = enabled;
-		templateData.toggle.disabled = !canToggle || this.isMutationPending(extension);
-		const toggleLabel = enabled
-			? localize('copilotCanvases.disableExtensionLabel', "Disable canvas extension '{0}'", extension.extensionName)
-			: localize('copilotCanvases.enableExtensionLabel', "Enable canvas extension '{0}'", extension.extensionName);
-		templateData.toggle.setAriaLabel(toggleLabel, canToggle ? toggleLabel : this.getToggleUnavailableMessage(extension));
-		templateData.elementDisposables.add(templateData.toggle.onChange(value => this.onToggleExtension(extension, value)));
+		templateData.detail.textContent = detail;
 		const showMenu = this.hasMenuActions(item);
 		templateData.moreButton.element.style.display = showMenu ? '' : 'none';
 		const moreLabel = localize('copilotCanvases.canvasMoreActions', "More Actions for Canvas {0}", item.canvas.displayName);
@@ -456,7 +413,9 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 			}));
 		}
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.label, { content: item.canvas.description || item.canvas.displayName }));
-		templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.detail, { content: detail }));
+		if (detail) {
+			templateData.elementDisposables.add(this.hoverService.setupDelayedHover(templateData.detail, { content: detail }));
+		}
 		this.updateActionsTabbability(templateData);
 	}
 
@@ -467,14 +426,10 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 		}
 	}
 
-	focusAction(itemKey: string, actionId: IFocusedCanvasAction['actionId']): boolean {
+	focusAction(itemKey: string): boolean {
 		for (const template of this.templates) {
 			if (template.currentItemKey === itemKey) {
-				if (actionId === 'toggle') {
-					template.toggle.focus();
-				} else {
-					template.moreButton.element.focus();
-				}
+				template.moreButton.element.focus();
 				return true;
 			}
 		}
@@ -482,9 +437,7 @@ class CopilotCanvasRenderer implements IListRenderer<ICopilotCanvasEntry, ICopil
 	}
 
 	private updateActionsTabbability(templateData: ICopilotCanvasTemplateData): void {
-		const focused = templateData.currentItemKey === this.focusedItemKey;
-		setVirtualizedRowActionsTabbable(templateData.actions, focused);
-		templateData.pluginLink.tabIndex = focused && templateData.pluginLink.style.display !== 'none' ? 0 : -1;
+		setVirtualizedRowActionsTabbable(templateData.actions, templateData.currentItemKey === this.focusedItemKey);
 	}
 
 	disposeTemplate(templateData: ICopilotCanvasTemplateData): void {
@@ -519,6 +472,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	private readonly cachedDefinitions = new Map<string, ICachedCanvasDefinitionsEntry>();
 	private readonly pendingExtensionMutations = new Set<string>();
 	private readonly collapsedGroups = new Set<CopilotCanvasGroupKey>();
+	private readonly collapsedExtensions = new Set<string>();
 	private canvasRefreshBatch: ICanvasRefreshBatch | undefined;
 
 	private extensions: readonly ICopilotCanvasExtensionItem[] = [];
@@ -542,7 +496,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ICustomizationMarketplaceService private readonly customizationMarketplaceService: ICustomizationMarketplaceService,
 		@IHoverService hoverService: IHoverService,
-		@ILabelService private readonly labelService: ILabelService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService openerService: IOpenerService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -638,15 +591,9 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		this.canvasRenderer = new CopilotCanvasRenderer(
 			item => this.getItemKey(item),
 			item => this.getCanvasDetail(item),
-			item => this.getExtensionForCanvas(item),
 			item => this.getCanvasOpenUnavailableMessage(item),
 			item => this.isCanvasEnabled(item),
-			item => this.canToggleExtension(item),
-			item => this.getToggleUnavailableMessage(item),
-			item => this.pendingExtensionMutations.has(this.getExtensionScopeKey(item)),
 			item => this.hasCanvasActions(item),
-			(item, enabled) => void this.setExtensionEnabled(item, enabled),
-			item => void this.openExtensionProvider(item),
 			(item, anchor) => this.showCanvasMenu(item, anchor),
 			hoverService,
 		);
@@ -718,6 +665,16 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 						this.collapsedGroups.delete(entry.groupKey);
 					}
 				}
+				return;
+			}
+			if (entry.type !== 'extension') {
+				return;
+			}
+			const key = this.getExtensionItemKey(entry.item);
+			if (event.node.collapsed) {
+				this.collapsedExtensions.add(key);
+			} else {
+				this.collapsedExtensions.delete(key);
 			}
 		}));
 		this.emptyContainer = DOM.append(this.element, $('.list-empty-state'));
@@ -810,28 +767,11 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			localize('copilotCanvases.title', "Canvases"),
 			description,
 			...groups.flatMap(group => [
-				localize('copilotCanvases.accessibleGroup', "{0}. {1} Canvases.", group.label, group.count),
-				...group.children.flatMap(({ item: extension }) =>
-					extension.canvases.map(item => {
-						const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
-						return unavailableMessage
-							? localize(
-								'copilotCanvases.accessibleUnavailableItem',
-								"{0}. {1}. {2}. {3}",
-								item.canvas.displayName,
-								this.getCanvasDetail(item),
-								this.getCanvasStateLabel(item),
-								unavailableMessage,
-							)
-							: localize(
-								'copilotCanvases.accessibleItem',
-								"{0}. {1}. {2}.",
-								item.canvas.displayName,
-								this.getCanvasDetail(item),
-								this.getCanvasStateLabel(item),
-							);
-					})
-				),
+				localize('copilotCanvases.accessibleGroup', "{0}. {1} canvas extensions.", group.label, group.count),
+				...group.children.flatMap(({ item: extension }) => [
+					this.getExtensionAriaLabel(extension),
+					...extension.canvases.map(item => this.getCanvasAriaLabel(item)),
+				]),
 			]),
 		].join('\n\n');
 	}
@@ -996,7 +936,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			}
 		}
 		for (const extension of inventory?.extensions ?? []) {
-			if (extension.status !== 'running') {
+			if (!isAgentExtensionEnabledAndSettled(extension.status)) {
 				continue;
 			}
 			const key = this.getCanvasCacheKey(context, extension.id, extension.source);
@@ -1153,7 +1093,14 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 					collapsed: group.element.collapsed
 						? ObjectTreeElementCollapseState.PreserveOrCollapsed
 						: ObjectTreeElementCollapseState.PreserveOrExpanded,
-					children: group.children.flatMap(({ item }) => item.canvases.map(canvas => ({ element: { type: 'canvas' as const, item: canvas } }))),
+					children: group.children.map(({ item }) => ({
+						element: { type: 'extension', item },
+						collapsible: item.canvases.length > 0,
+						collapsed: !query && this.collapsedExtensions.has(this.getExtensionItemKey(item))
+							? ObjectTreeElementCollapseState.Collapsed
+							: ObjectTreeElementCollapseState.Expanded,
+						children: item.canvases.map(canvas => ({ element: { type: 'canvas', item: canvas } })),
+					})),
 				}));
 				this.tree.setChildren(null, children);
 			}
@@ -1320,34 +1267,25 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private hasCanvasActions(item: ICopilotCanvasItem): boolean {
-		const extension = this.getExtensionForCanvas(item);
 		return (this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas))
-			|| this.getCanvasOpenUnavailableMessage(item) !== undefined
-			|| this.hasExtensionActions(extension);
+			|| this.getCanvasOpenUnavailableMessage(item) !== undefined;
 	}
 
 	private getCanvasActions(item: ICopilotCanvasItem, disposables: DisposableStore): IAction[] {
 		const openable = this.isCanvasEnabled(item) && isOpenableExtensionCanvasDefinition(item.canvas);
 		const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
-		const actions: IAction[] = [];
-		if (openable || unavailableMessage) {
-			actions.push(disposables.add(new Action(
-				'canvas.show',
-				unavailableMessage
-					? localize('copilotCanvases.showCanvasRequiresInput', "Open Canvas (Requires Specific Inputs)")
-					: localize('copilotCanvases.showCanvas', "Open Canvas"),
-				undefined,
-				openable,
-				() => this.openCanvas(item),
-			)));
+		if (!openable && !unavailableMessage) {
+			return [];
 		}
-		const extension = this.getExtensionForCanvas(item);
-		const extensionActions = this.getExtensionActions(extension, disposables);
-		if (actions.length > 0 && extensionActions.length > 0) {
-			actions.push(new Separator());
-		}
-		actions.push(...extensionActions);
-		return actions;
+		return [disposables.add(new Action(
+			'canvas.show',
+			unavailableMessage
+				? localize('copilotCanvases.showCanvasRequiresInput', "Open Canvas (Requires Specific Inputs)")
+				: localize('copilotCanvases.showCanvas', "Open Canvas"),
+			undefined,
+			openable,
+			() => this.openCanvas(item),
+		))];
 	}
 
 	private async openCanvas(item: ICopilotCanvasItem): Promise<void> {
@@ -1429,7 +1367,6 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 			if (children.length === 0 && (transient || !definition.alwaysShow || extensions.length === 0)) {
 				continue;
 			}
-			const count = children.reduce((total, child) => total + child.item.canvases.length, 0);
 			const collapsed = !transient && this.collapsedGroups.has(definition.key);
 			const element: ICopilotCanvasGroupEntry = {
 				type: 'group-header',
@@ -1438,7 +1375,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				transient,
 				label: definition.label,
 				icon: definition.icon,
-				count,
+				count: children.length,
 				isFirst: groups.length === 0,
 				description: definition.description,
 				collapsed,
@@ -1447,7 +1384,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 				id: definition.key,
 				label: definition.label,
 				description: definition.description,
-				count,
+				count: children.length,
 				element,
 				children,
 			});
@@ -1485,35 +1422,30 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (entry.type === 'group-header') {
 			return getCustomizationTreeAriaLabel(entry.label, entry.count, entry.collapsed);
 		}
-		if (entry.type === 'extension') {
-			return localize(
-				'copilotCanvases.extensionRowAriaLabel',
-				"{0}. {1}. {2}. {3} Canvases. {4}",
-				entry.item.extensionName,
-				this.getExtensionSource(entry.item),
-				this.getExtensionStateLabel(entry.item),
-				entry.item.canvases.length,
-				this.canToggleExtension(entry.item) ? '' : this.getToggleUnavailableMessage(entry.item),
-			);
-		}
-		const unavailableMessage = this.getCanvasOpenUnavailableMessage(entry.item);
-		const sourceDetail = this.getCanvasDetail(entry.item);
+		return entry.type === 'extension' ? this.getExtensionAriaLabel(entry.item) : this.getCanvasAriaLabel(entry.item);
+	}
+
+	private getExtensionAriaLabel(item: ICopilotCanvasExtensionItem): string {
+		return localize(
+			'copilotCanvases.extensionRowAriaLabel',
+			"{0}. {1}. {2}. {3} Canvases. {4}",
+			item.extensionName,
+			this.getExtensionSource(item),
+			this.getExtensionStateLabel(item),
+			item.canvases.length,
+			this.canToggleExtension(item) ? '' : this.getToggleUnavailableMessage(item),
+		);
+	}
+
+	private getCanvasAriaLabel(item: ICopilotCanvasItem): string {
+		const detail = this.getCanvasDetail(item);
+		const state = detail
+			? localize('copilotCanvases.canvasDetailState', "{0}. {1}", detail, this.getCanvasStateLabel(item))
+			: this.getCanvasStateLabel(item);
+		const unavailableMessage = this.getCanvasOpenUnavailableMessage(item);
 		return unavailableMessage
-			? localize(
-				'copilotCanvases.unavailableRowAriaLabel',
-				"{0}. {1}. {2}. {3}",
-				entry.item.canvas.displayName,
-				sourceDetail,
-				this.getCanvasStateLabel(entry.item),
-				unavailableMessage,
-			)
-			: localize(
-				'copilotCanvases.rowAriaLabel',
-				"{0}. {1}. {2}.",
-				entry.item.canvas.displayName,
-				sourceDetail,
-				this.getCanvasStateLabel(entry.item),
-			);
+			? localize('copilotCanvases.unavailableRowAriaLabel', "{0}. {1}. {2}", item.canvas.displayName, state, unavailableMessage)
+			: localize('copilotCanvases.rowAriaLabel', "{0}. {1}.", item.canvas.displayName, state);
 	}
 
 	private getExtensionItemKey(item: ICopilotCanvasExtensionItem): string {
@@ -1558,15 +1490,15 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 		if (activeRow?.dataset.customizationKey === focusedAction.itemKey && activeAction?.dataset.customizationAction === focusedAction.actionId) {
 			return;
 		}
-		if (!this.extensionRenderer.focusAction(focusedAction.itemKey, focusedAction.actionId)) {
-			this.canvasRenderer.focusAction(focusedAction.itemKey, focusedAction.actionId);
+		if (!this.extensionRenderer.focusAction(focusedAction.itemKey, focusedAction.actionId) && focusedAction.actionId === 'more') {
+			this.canvasRenderer.focusAction(focusedAction.itemKey);
 		}
 	}
 
 	private getFilteredExtensions(): readonly ICopilotCanvasExtensionItem[] {
 		const query = this.searchInput.value.trim().toLowerCase();
 		if (!query) {
-			return this.extensions.filter(extension => extension.canvases.length > 0);
+			return this.extensions;
 		}
 		return this.extensions.flatMap(extension => {
 			const extensionMatches = customizationSearchMatchesAny(query, [
@@ -1582,7 +1514,7 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 					item.canvas.description,
 					item.canvas.canvasId,
 				]));
-			return canvases.length > 0 ? [{ ...extension, canvases }] : [];
+			return extensionMatches || canvases.length > 0 ? [{ ...extension, canvases }] : [];
 		});
 	}
 
@@ -1654,32 +1586,17 @@ export class CopilotCanvasesWidget extends Disposable implements IAICustomizatio
 	}
 
 	private getCanvasDetail(item: ICopilotCanvasItem): string {
-		const extension = this.getExtensionForCanvas(item);
-		const sourceDescription = extension.extensionSource === 'plugin'
-			? getCustomizationContributionSourceLabel('plugin', extension.extension?.pluginName ?? extension.extensionName)
-			: getCustomizationContributionSourceLabel('extension', extension.extensionName);
-		if (!item.cached) {
-			return sourceDescription;
-		}
-		return item.canvas.description
-			? localize('copilotCanvases.lastKnownSourceDescription', "{0} · Last known: {1}", sourceDescription, item.canvas.description)
-			: localize('copilotCanvases.lastKnownSource', "{0} · Last known", sourceDescription);
+		// The parent row names the source, so a child only notes when its definition is a cached snapshot.
+		return item.cached ? localize('copilotCanvases.lastKnownCanvas', "Last known") : '';
 	}
 
+	/**
+	 * Status text shown after a canvas extension's source label.
+	 */
 	private getExtensionDetail(item: ICopilotCanvasExtensionItem): string {
-		if (item.canvases.length === 0 && this.isExtensionEnabled(item)) {
-			return localize('copilotCanvases.noCanvasesReported', "No Canvases Reported");
-		}
-		if (item.extensionSource === 'project') {
-			return this.getExtensionSource(item);
-		}
-		if (item.extensionSource === 'plugin') {
-			return '';
-		}
-		if (item.extension?.resource) {
-			return this.labelService.getUriLabel(dirname(item.extension.resource), { relative: true });
-		}
-		return this.getExtensionSource(item);
+		return item.canvases.length === 0 && this.isExtensionEnabled(item)
+			? localize('copilotCanvases.noCanvasesReported', "No Canvases Reported")
+			: '';
 	}
 
 	private getExtensionSource(item: ICopilotCanvasExtensionItem): string {

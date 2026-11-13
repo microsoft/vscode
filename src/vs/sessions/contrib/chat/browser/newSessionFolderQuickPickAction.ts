@@ -15,9 +15,14 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { resolveChatWindow } from '../../../../workbench/contrib/chatWindow/browser/chatWindowLayoutActions.js';
 import { ISessionsRecentWorkspacesService } from '../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionsPartService } from '../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { WorkspaceSelectionOrigin } from '../../../../workbench/services/sessions/common/workspaceSelection.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 
 export interface IFolderQuickPickItem extends IQuickPickItem {
 	readonly folderUri?: URI;
@@ -77,13 +82,17 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const quickInputService = accessor.get(IQuickInputService);
 		const sessionsService = accessor.get(ISessionsService);
 		const recentWorkspacesService = accessor.get(ISessionsRecentWorkspacesService);
 		const labelService = accessor.get(ILabelService);
 		const fileDialogService = accessor.get(IFileDialogService);
 		const composerService = accessor.get(INewSessionComposerService);
+		const sessionsPartService = accessor.get(ISessionsPartService);
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const chatWindowService = accessor.get(IChatWindowService);
+		const chatWindow = resolveChatWindow(accessor, args);
 
 		const items = buildFolderQuickPickItems(recentWorkspacesService, labelService);
 
@@ -110,8 +119,17 @@ class NewSessionPickFolderQuickPickAction extends Action2 {
 			return;
 		}
 
+		if (chatWindow) {
+			await chatWindowService.openNewChat(chatWindow, { folder: { uri: folderUri, ...(providerId ? { providerId } : {}) } });
+			return;
+		}
 		composerService.notifyUserWorkspaceSelection();
-		await sessionsService.openNewSession({ folderUri, providerId });
+		providerId ??= sessionsManagementService.resolveWorkspace(folderUri)?.providerId;
+		await sessionsService.openNewSession();
+		const result = sessionsPartService.getActiveSessionView()?.selectWorkspace(folderUri, { providerId, selectionOrigin: WorkspaceSelectionOrigin.User });
+		if (result !== 'applied') {
+			throw new Error(localize('sessions.newSession.pickFolderQuickPick.failed', "Unable to select the folder for the new session."));
+		}
 	}
 }
 

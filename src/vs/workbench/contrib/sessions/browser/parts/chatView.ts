@@ -40,6 +40,18 @@ export interface IChatViewRequestSubmission {
 	readonly completion: Promise<IChatViewRequestOutcome>;
 }
 
+export interface IChatViewBackgroundReplica extends IDisposable {
+	updateBackground(): void;
+	layout(): void;
+}
+
+/** Entry-owned background presentation, omitted when a composition does not support backgrounds. */
+export interface IChatViewBackground {
+	readonly onDidChange: Event<void>;
+	hasBackground(): boolean;
+	createReplica(chatElement: HTMLElement, container: HTMLElement): IChatViewBackgroundReplica | undefined;
+}
+
 /**
  * Options passed to a chat view when it is created.
  */
@@ -47,8 +59,15 @@ export interface IChatViewOptions {
 	readonly inputEditorOptions?: Pick<IEditorOptions, 'fontSize' | 'lineHeight'>;
 	readonly showEmptyStateIcon?: boolean;
 	readonly renderNewSessionHeader?: (container: HTMLElement, before: HTMLElement) => IDisposable;
+	readonly background?: IChatViewBackground;
 	/** Visibility of the owning session slot, preserved across composer/preparation/transcript handoffs. */
 	readonly hostVisible?: IObservable<boolean>;
+	/**
+	 * Whether a new-session composer's chat widget is visible only while the composer is, rather than for as long as it
+	 * is rendered, so that a hidden composer is no foreground chat. For a host that keeps its composer rendered while
+	 * hidden, such as a floating window.
+	 */
+	readonly hideChatWidgetWhileHidden?: boolean;
 	/** Keep the custom view hosting this composer visible while preparing its draft. */
 	readonly preserveCustomView?: boolean;
 	/** Send new-session requests without navigating away from the hosting view. */
@@ -126,6 +145,11 @@ export interface INewSessionBackgroundSend {
 	/** The prompt as the user wrote it. */
 	readonly query: string;
 	readonly attachedContext: readonly IChatRequestVariableEntry[] | undefined;
+	/**
+	 * Whether the user sent it in the background, such as with Send in Background, rather than as an ordinary send that the
+	 * composer sends in the background because its view has it send all its requests so ({@link IChatViewOptions.backgroundSend}).
+	 */
+	readonly requestedInBackground: boolean;
 	/** Whether it is still the composer's latest send; never once the composer is gone. */
 	isLatest(): boolean;
 }
@@ -167,7 +191,11 @@ export interface ISessionViewHostOptions {
  */
 export abstract class AbstractChatView extends Disposable implements ISerializableView {
 
-	readonly element: HTMLElement = $('.chat-view');
+	/**
+	 * The root of the chat: `.sessions-chat` is the class its styles are keyed on, so that it looks the same in every host,
+	 * such as the Agents window, a chat window or the chat part of an editor window, whatever the host's own classes.
+	 */
+	readonly element: HTMLElement = $('.chat-view.sessions-chat');
 
 	readonly minimumWidth = 200;
 	readonly maximumWidth = Number.POSITIVE_INFINITY;

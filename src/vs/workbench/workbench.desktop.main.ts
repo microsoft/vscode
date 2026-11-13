@@ -140,6 +140,9 @@ import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
 
+// Screenshot Tool
+import './contrib/screenshotTool/electron-browser/screenshotTool.contribution.js';
+
 // Surveys
 import './contrib/surveys/browser/survey.contribution.js';
 
@@ -148,6 +151,9 @@ import './contrib/processExplorer/electron-browser/processExplorer.contribution.
 
 // Remote
 import './contrib/remote/electron-browser/remote.contribution.js';
+
+// Workspaces
+import './contrib/workspaces/electron-browser/workspaces.contribution.js';
 
 // Terminal
 import './contrib/terminal/electron-browser/terminal.contribution.js';

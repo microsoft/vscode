@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { mainWindow } from '../../../../../../base/browser/window.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IActiveCodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
+import { IActiveCodeEditor, ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { IBulkEditService } from '../../../../../../editor/browser/services/bulkEditService.js';
 import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { Selection } from '../../../../../../editor/common/core/selection.js';
@@ -33,7 +35,7 @@ import { CellKind, NOTEBOOK_EDITOR_ID } from '../../../../notebook/common/notebo
 import { withTestNotebook } from '../../../../notebook/test/browser/testNotebookEditor.js';
 import { registerChatCodeBlockActions } from '../../../browser/actions/chatCodeblockActions.js';
 import { InsertCodeBlockOperation } from '../../../browser/actions/codeBlockOperations.js';
-import { IChatCodeBlockContextProviderService, IChatWidgetService } from '../../../browser/chat.js';
+import { IChatCodeBlockContextProviderService, IChatCodeBlockInfo, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { ICodeBlockActionContext } from '../../../browser/widget/chatContentParts/codeBlockPart.js';
 import { IChatService, IChatUserActionEvent } from '../../../common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../common/model/chatModel.js';
@@ -320,4 +322,64 @@ suite('Chat code-block action telemetry', () => {
 		await assert.rejects(() => runCommand('workbench.action.chat.insertIntoNewFile'), /open failure/);
 		assert.deepStrictEqual({ accepted, userActions }, { accepted: [], userActions: [] });
 	});
+});
+
+suite('Chat code-block navigation', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let actions: IDisposable;
+	suiteSetup(() => actions = registerChatCodeBlockActions());
+	suiteTeardown(() => actions.dispose());
+
+	for (const reverse of [false, true]) {
+		test(`continues ${reverse ? 'backward' : 'forward'} from preview controls through mixed blocks`, async () => {
+			const instantiation = store.add(new TestInstantiationService());
+			const container = mainWindow.document.createElement('div');
+			mainWindow.document.body.appendChild(container);
+			store.add(toDisposable(() => container.remove()));
+			const controls = [0, 1, 2].map(() => container.appendChild(mainWindow.document.createElement('button')));
+			const model = store.add(createTextModel('const value = 1;'));
+			const editor = upcastPartial<ICodeEditor>({ getModel: () => model });
+			let focusedEditor: ICodeEditor | undefined;
+			const response = upcastPartial<IChatResponseViewModel>({ id: 'preview-response', setVote: () => { } });
+			const otherResponse = upcastPartial<IChatResponseViewModel>({ id: 'other-response', setVote: () => { } });
+			const visited: number[] = [];
+			const revealed: string[] = [];
+			const blocks: IChatCodeBlockInfo[] = controls.map((control, index) => ({
+				ownerMarkdownPartId: 'mixed-blocks',
+				codeBlockIndex: index,
+				elementId: response.id,
+				chatSessionResource: URI.parse('chat-session:/navigation'),
+				codemapperUri: undefined,
+				uri: index === 1 ? model.uri : undefined,
+				get isFocused() { return index !== 1 && mainWindow.document.activeElement === control; },
+				focus: () => {
+					control.focus();
+					focusedEditor = index === 1 ? editor : undefined;
+					visited.push(index);
+				},
+			}));
+			instantiation.stub(ICodeEditorService, { getFocusedCodeEditor: () => focusedEditor ?? null });
+			instantiation.stub(IChatWidgetService, {
+				lastFocusedWidget: upcastPartial<IChatWidget>({
+					inputEditor: upcastPartial<ICodeEditor>({ hasWidgetFocus: () => false }),
+					viewModel: upcastPartial<IChatViewModel>({ getItems: () => [response, otherResponse] }),
+					getFocus: () => otherResponse,
+					getElementFromNode: node => container.contains(node) ? response : undefined,
+					getCodeBlockInfoForEditor: uri => isEqual(uri, model.uri) ? blocks[1] : undefined,
+					getCodeBlockInfosForResponse: item => item === response ? blocks : [],
+					reveal: item => revealed.push(item.id),
+				}),
+			});
+			controls[reverse ? 2 : 0].focus();
+			const command = CommandsRegistry.getCommand(`workbench.action.chat.${reverse ? 'previous' : 'next'}CodeBlock`);
+			assert.ok(command);
+			for (let step = 0; step < 3; step++) {
+				await command.handler(instantiation);
+			}
+			assert.deepStrictEqual({ visited, revealed }, {
+				visited: reverse ? [1, 0, 2] : [1, 2, 0],
+				revealed: [response.id, response.id, response.id],
+			});
+		});
+	}
 });

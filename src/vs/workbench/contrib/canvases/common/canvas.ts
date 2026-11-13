@@ -191,9 +191,9 @@ export interface ICanvasService {
 	/**
 	 * Resolves the live browser model retained for this presentation, creating it once when needed.
 	 * A retained model keeps its last page while the provider is temporarily unavailable, then
-	 * loads the next source in place.
+	 * loads the next source in place. Reloading requires a retained page and a current live source.
 	 */
-	resolveCanvasModel(reference: ICanvasReference, source: URI): Promise<ICanvasModelResolution>;
+	resolveCanvasModel(reference: ICanvasReference, source: URI, reload?: boolean): Promise<ICanvasModelResolution>;
 }
 
 export function isCanvasOwner(first: ICanvasOwner, second: ICanvasOwner): boolean {

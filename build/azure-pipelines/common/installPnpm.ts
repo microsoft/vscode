@@ -41,8 +41,13 @@ export function getPinnedPnpmVersion(): string {
 	return match.groups.version;
 }
 
+/**
+ * Returns the version of the `pnpm` on PATH. `--pm-on-fail=ignore` keeps it from switching to the
+ * version that `packageManager` pins (`pmOnFail: download` in pnpm-workspace.yaml), which it would
+ * report instead.
+ */
 function getInstalledPnpmVersion(): string | undefined {
-	const result = spawnSync(PNPM, ['--version'], { encoding: 'utf8', shell: IS_WINDOWS });
+	const result = spawnSync(PNPM, ['--pm-on-fail=ignore', '--version'], { encoding: 'utf8', shell: IS_WINDOWS });
 	return result.status === 0 ? result.stdout.trim() : undefined;
 }
 

@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { parseSSHConfigHostEntries, parseSSHGOutput } from '../../common/sshConfigParsing.js';
+import { parseSSHConfigHostEntries, parseSSHConfigIncludePaths, parseSSHGOutput } from '../../common/sshConfigParsing.js';
 
 suite('SSH Config Parsing', () => {
 
@@ -117,6 +117,47 @@ suite('SSH Config Parsing', () => {
 			].join('\n');
 
 			assert.deepStrictEqual(parseSSHConfigHostEntries(config), ['myserver']);
+		});
+	});
+
+	suite('parseSSHConfigIncludePaths', () => {
+
+		test('parses multiple quoted and unquoted paths', () => {
+			assert.deepStrictEqual(parseSSHConfigIncludePaths('  ~/.ssh/config.d/* "/absolute/config" "relative directory/config"\t\'other directory/config\' '), [
+				'~/.ssh/config.d/*', '/absolute/config', 'relative directory/config', 'other directory/config',
+			]);
+		});
+
+		test('handles partially quoted paths and OpenSSH escapes', () => {
+			assert.deepStrictEqual(parseSSHConfigIncludePaths(String.raw`/configs/"my directory"/config escaped\ space/config "escaped\"quote" 'escaped\'quote'`), [
+				'/configs/my directory/config', 'escaped space/config', 'escaped"quote', 'escaped\'quote',
+			]);
+		});
+
+		test('recognizes comments only between arguments', () => {
+			assert.deepStrictEqual([
+				parseSSHConfigIncludePaths('"directory # one/config" \'directory # two/config\' literal#hash\t# ignored/config'),
+				parseSSHConfigIncludePaths('config # ignored/config'),
+				parseSSHConfigIncludePaths('# ignored/config'),
+			], [
+				['directory # one/config', 'directory # two/config', 'literal#hash'],
+				['config'],
+				[],
+			]);
+		});
+
+		test('preserves Windows paths and decodes escaped backslashes', () => {
+			assert.deepStrictEqual(parseSSHConfigIncludePaths(String.raw`"C:\Users\Test User\ssh_config" C:/ProgramData/ssh/config "\\\\server\share\ssh_config"`), [
+				'C:\\Users\\Test User\\ssh_config', 'C:/ProgramData/ssh/config', '\\\\server\\share\\ssh_config',
+			]);
+		});
+
+		test('rejects unterminated quotes and empty paths without returning partial results', () => {
+			assert.deepStrictEqual([
+				'"unterminated', '\'unterminated', 'valid "unterminated', '""', 'valid \'\' other',
+			].map(parseSSHConfigIncludePaths), [
+				undefined, undefined, undefined, undefined, undefined,
+			]);
 		});
 	});
 

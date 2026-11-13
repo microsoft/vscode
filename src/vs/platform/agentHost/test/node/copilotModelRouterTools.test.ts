@@ -29,6 +29,7 @@ const good = 'version: 1\ndescription: Test.\nroutes:\n  - model: haiku\n    whe
 const files: Record<string, string> = {
 	[URI.file(goodPath).fsPath]: good,
 	[URI.file('/home/.agents/model-routers/bad.model-router.yaml').fsPath]: 'version: 1\ndescription: Bad.\nroutes:\n  - model: haiku\n    when: "unclosed\n',
+	[URI.file('/home/.agents/model-routers/workday.model-router.yaml').fsPath]: 'version: 1\ndescription: Test.\nroutes:\n  - name: feature\n    model: haiku\n    when: Big.\n    guidance: Plan first.\n  - name: quick\n    model: haiku\n    when: Small.\n',
 };
 
 suite('check_model_router', () => {
@@ -94,6 +95,17 @@ suite('check_model_router', () => {
 				{ id: 'opus', name: 'Opus', efforts: [], retiring: 'Retires soon.' },
 				{ id: 'sonnet', name: 'Sonnet', efforts: [], contextSizes: [200_000, 1_000_000], longContextCostsMore: true },
 				{ id: 'sonnet-lite', name: 'Sonnet Lite', efforts: [], contextSizes: [200_000, 1_000_000] },
+			],
+		});
+	});
+
+	test('names each route that has a name', async () => {
+		const result = JSON.parse((await call({ path: '/home/.agents/model-routers/workday.model-router.yaml' })).textResultForLlm);
+		assert.deepStrictEqual({ diagnostics: result.router.diagnostics, routes: result.router.routes }, {
+			diagnostics: [],
+			routes: [
+				{ route: 1, name: 'feature', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
+				{ route: 2, name: 'quick', model: 'haiku', matched: 'haiku', supportedEfforts: ['low', 'high'] },
 			],
 		});
 	});

@@ -41,6 +41,16 @@ const defaultListPresentation = 'src/vs/workbench/contrib/sessions/browser/defau
 const mobilePresentationRoot = 'src/vs/sessions/contrib/mobile/browser/';
 const defaultSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsServices.registration.ts';
 const coreSessionsRegistrations = 'src/vs/sessions/services/sessions/browser/sessionsCoreServices.registration.ts';
+const chatBackgroundPresentation = [
+	'src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts',
+	'src/vs/sessions/contrib/chat/browser/chatBackgroundTint.ts',
+	'src/vs/sessions/contrib/chat/browser/getThemeColorsTool.ts',
+	'src/vs/workbench/contrib/sessions/browser/chat/defaultChatViewFactory.ts',
+	'src/vs/workbench/contrib/sessions/browser/chatBackgroundService.ts',
+	'src/vs/workbench/contrib/sessions/browser/chatBackgroundRenderer.ts',
+	'src/vs/workbench/contrib/sessions/browser/sessionsChatSurface.ts',
+	'src/vs/workbench/contrib/sessions/browser/media/chatBackground.css',
+];
 
 suite('Sessions presentation entry isolation', () => {
 	for (const { entry, expected, configurationPresenter } of [
@@ -94,27 +104,80 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(required.map(([id]) => registrations.find(([service]) => service === id)), required);
 		});
 
+		test(`${entry} shares skills while selecting chat backgrounds only for the regular workbench`, () => {
+			const mobile = entry.includes('.mobile.');
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = [
+				'src/vs/sessions/contrib/chat/browser/chat.contribution.ts',
+				'src/vs/sessions/contrib/chat/browser/chat.desktop.contribution.ts',
+				'src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts',
+				mobilePresentationRoot + 'mobile.contribution.ts',
+			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
+			assert.deepStrictEqual({
+				backgroundModules: chatBackgroundPresentation.filter(file => dependencies.has(file)),
+				factory: registrations.filter(([id]) => id === 'IChatViewFactory'),
+				backgroundService: registrations.filter(([id]) => id === 'ISessionsChatBackgroundService'),
+				promptsService: registrations.filter(([id]) => id === 'IPromptsService'),
+			}, {
+				backgroundModules: mobile ? [] : chatBackgroundPresentation,
+				factory: [['IChatViewFactory', mobile ? 'MobileChatViewFactory' : 'DefaultChatViewFactory']],
+				backgroundService: mobile ? [] : [['ISessionsChatBackgroundService', 'SessionsChatBackgroundService']],
+				promptsService: [['IPromptsService', 'AgenticPromptsService']],
+			});
+		});
+
 		test(`${entry} supplies required window services without loading desktop presentation on mobile`, () => {
 			const mobile = entry.includes('.mobile.');
 			const dependencies = collectSourceDependencies(entry);
 			const modules = mobile ? [mobilePresentationRoot + 'mobile.contribution.ts'] : [
 				'src/vs/sessions/contrib/canvases/browser/windowCanvases.contribution.ts',
+				'src/vs/sessions/contrib/canvases/browser/pinnedCanvases.contribution.ts',
 				'src/vs/workbench/contrib/chatWindow/browser/chatWindow.contribution.ts',
 			];
 			const registrations = modules.filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
 			const desktopPresentation = [
 				'src/vs/sessions/contrib/canvases/browser/windowCanvasEditor.ts',
+				'src/vs/sessions/contrib/canvases/browser/pinnedCanvasService.ts',
 				'src/vs/workbench/contrib/chatWindow/browser/chatWindowService.ts',
 				'src/vs/workbench/contrib/chatWindow/browser/media/chatWindow.css',
 			];
 			assert.deepStrictEqual({
 				canvas: registrations.find(([id]) => id === 'IWindowCanvasService'),
+				pinnedCanvas: registrations.find(([id]) => id === 'IPinnedCanvasService'),
 				chatWindow: registrations.find(([id]) => id === 'IChatWindowService'),
 				presentation: desktopPresentation.filter(file => dependencies.has(file)),
 			}, {
 				canvas: ['IWindowCanvasService', 'WindowCanvasService'],
+				pinnedCanvas: mobile ? undefined : ['IPinnedCanvasService', 'PinnedCanvasService'],
 				chatWindow: ['IChatWindowService', mobile ? 'MobileNullChatWindowService' : 'ChatWindowService'],
 				presentation: mobile ? [] : desktopPresentation,
+			});
+		});
+
+		test(`${entry} supplies layout and chat-input services without desktop features on mobile`, () => {
+			const mobile = entry.includes('.mobile.');
+			const dependencies = collectSourceDependencies(entry);
+			const registrations = [
+				'src/vs/sessions/contrib/layout/browser/sessions.layout.contribution.ts',
+				'src/vs/sessions/contrib/layout/browser/sessions.mobile.layout.contribution.ts',
+				'src/vs/workbench/contrib/screenshotTool/browser/screenshotTool.contribution.ts',
+				'src/vs/sessions/contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.ts',
+				mobilePresentationRoot + 'mobile.contribution.ts',
+			].filter(file => dependencies.has(file)).flatMap(getSingletonRegistrations);
+			assert.deepStrictEqual({
+				workingSet: registrations.filter(([id]) => id === 'ISessionEditorWorkingSetService'),
+				screenshot: registrations.filter(([id]) => id === 'IScreenshotToolService'),
+				worktreeSuggestion: registrations.filter(([id]) => id === 'IWorktreeSuggestionService'),
+				desktopLayout: dependencies.has('src/vs/sessions/contrib/layout/browser/desktopLayoutController.ts'),
+				desktopScreenshot: dependencies.has('src/vs/workbench/contrib/screenshotTool/browser/screenshotToolService.ts'),
+				worktreeContribution: dependencies.has('src/vs/sessions/contrib/worktreeSuggestion/browser/worktreeSuggestion.contribution.ts'),
+			}, {
+				workingSet: [['ISessionEditorWorkingSetService', 'SessionEditorWorkingSetService']],
+				screenshot: [['IScreenshotToolService', mobile ? 'MobileNullScreenshotToolService' : 'ScreenshotToolService']],
+				worktreeSuggestion: [['IWorktreeSuggestionService', mobile ? 'MobileNullWorktreeSuggestionService' : 'WorktreeSuggestionService']],
+				desktopLayout: !mobile,
+				desktopScreenshot: !mobile,
+				worktreeContribution: !mobile,
 			});
 		});
 
@@ -208,6 +271,16 @@ suite('Sessions presentation entry isolation', () => {
 			assert.deepStrictEqual(resources.map(file => `src/${file}`).filter(isMobileEntryFile), []);
 		});
 	}
+
+	test('background assets stay in regular workbenches and out of the mobile package', async () => {
+		const backgrounds = ['koi-dark-static.webp', 'koi-dark.webp', 'koi-light-static.webp', 'koi-light.webp']
+			.map(file => `vs/sessions/services/chatBackground/browser/media/${file}`);
+		const resources = await Promise.all((['web', 'desktop', 'server-web', 'mobile'] as const).map(target =>
+			getResourcePaths(path.join(repositoryRoot, 'src'), target)));
+		assert.deepStrictEqual(resources.map(files => files.filter(file => backgrounds.includes(file))), [
+			backgrounds, backgrounds, backgrounds, [],
+		]);
+	});
 
 	test('full chat imports retain the original script-widget CSS precedence', () => {
 		const source = fs.readFileSync(path.join(repositoryRoot, 'src/vs/sessions/sessions.common.main.ts'), 'utf8');

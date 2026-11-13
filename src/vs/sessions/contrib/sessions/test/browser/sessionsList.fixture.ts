@@ -721,6 +721,26 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		additionalThemes: ['darkHighContrast'],
 		expectedVisualDescriptions: ['The pointer is over the Release work group header. It shows its hover background, a chevron in place of the group icon, and New Session and Archive All actions on the right.'],
 	}),
+	SessionsList_Groups_CustomColors: defineSessionsListFixture({
+		sessions: GROUP_SESSIONS,
+		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, TRIAGE_GROUP],
+		view: { height: 440 },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['Release work uses its assigned blue color for both its icon and its readable group name. The uncustomized Triage and workspace headers and session names retain their normal colors. High-contrast themes retain their normal label colors.'],
+	}),
+	SessionsList_Groups_CustomColorsCompact: defineSessionsListFixture({
+		sessions: GROUP_SESSIONS,
+		groups: [{ ...RELEASE_GROUP, color: 'charts.blue' }, { ...TRIAGE_GROUP, color: 'charts.orange' }],
+		view: { compact: true, height: 300 },
+		interaction: { hovered: { group: 'release' }, focused: { group: 'triage' } },
+	}, {
+		deferPaint: true,
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['In compact mode the hovered Release work name retains a readable blue color even when its icon yields to the chevron. The keyboard-focused Triage name uses the normal focus foreground rather than its assigned orange, and uncustomized workspace and session names remain unchanged. High-contrast themes retain their normal label colors.'],
+	}),
 	SessionsList_Groups_FocusedHeader: defineSessionsListFixture({
 		sessions: GROUP_SESSIONS,
 		groups: [RELEASE_GROUP],
@@ -899,7 +919,8 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		interaction: { hovered: { section: 'repository:microsoft/vscode' } },
 	}, {
 		labels: { kind: 'screenshot' },
-		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action.'],
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the microsoft/vscode repository header. It shows its hover background, a chevron in place of the repository icon, and on the right a New Session button with a dropdown arrow followed by an Archive All action. In high contrast themes, a dashed active-contrast outline surrounds the header.'],
 	}),
 
 	//#endregion
@@ -922,6 +943,20 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The pointer is over the vscode-docs workspace section header. It shows its hover background, a chevron in place of the folder icon, and its section actions on the right.'],
+	}),
+	SessionsList_ScheduledHoverActions: defineSessionsListFixture({
+		sessions: [{ id: 'scheduled', title: 'Clarify request', workspace: 'vscode', hasScheduledMessages: true }],
+		interaction: { hovered: { session: 'scheduled' } },
+	}, {
+		additionalThemes: ['darkHighContrast'],
+		expectedVisualDescriptions: ['The passive scheduled clock is hidden while the row actions are shown.'],
+	}),
+	SessionsList_ScheduledHoverActionsCompact: defineSessionsListFixture({
+		sessions: [{ id: 'scheduled', title: 'Clarify request', workspace: 'vscode', hasScheduledMessages: true }],
+		view: { width: 260, compact: true },
+		interaction: { hovered: { session: 'scheduled' } },
+	}, {
+		expectedVisualDescriptions: ['The narrow compact row hides its passive scheduled clock and shows its actions without clipping them.'],
 	}),
 	SessionsList_HoveredChat: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_SESSION],
@@ -1039,13 +1074,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsList_CompactNestedChatsCollapsed: defineSessionsListFixture({
 		sessions: [ARCHIVED_CHAT_SESSION],
 		view: { compact: true, showArchived: true, width: 340, collapsed: [{ session: 'nested-archive' }] },
-		interaction: { focused: { session: 'nested-archive' } },
+		interaction: { hovered: { session: 'nested-archive' }, focused: { session: 'nested-archive' } },
 		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
 	}, {
 		labels: { kind: 'screenshot' },
 		deferPaint: true,
 		additionalThemes: ['darkHighContrast'],
-		expectedVisualDescriptions: ['A keyboard-focused compact session shows its parent Pin and Mark as Done actions. Its active child is hidden, its done child is in the collapsed Done section, and the parent remains a single compact row.'],
+		expectedVisualDescriptions: ['A keyboard-focused compact session retains its solid focus boundary while the pointer remains over it. It shows the parent Pin and Mark as Done actions, hides its active child, and keeps its done child in the collapsed Done section.'],
+	}),
+	SessionsList_CompactNestedChatsCollapsedHover: defineSessionsListFixture({
+		sessions: [ARCHIVED_CHAT_SESSION],
+		view: { compact: true, showArchived: true, width: 340, collapsed: [{ session: 'nested-archive' }] },
+		interaction: { hovered: { session: 'nested-archive' } },
+		settings: { [ChatSessionArchiveActionWordingSettingId]: ChatSessionArchiveActionWording.MarkAsDone },
+	}, {
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over a collapsed compact parent session. Its nested chats remain hidden and its row actions show. In high contrast themes, a dashed active-contrast outline surrounds the parent row.'],
 	}),
 	SessionsList_CompactNestedChatApprovals: defineSessionsListFixture({
 		sessions: [NESTED_CHAT_APPROVAL_SESSION],
@@ -1341,7 +1386,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	}),
 	SessionsList_CustomizationsExtensionSuggestionsAvailable: defineSessionsListFixture({
 		sessions: [{ id: 'suggestions', title: 'Review the generated diagrams', workspace: 'vscode', minutesAgo: 5 }],
-		header: { navigationShortcuts: true, customizationsCount: 8, customizationExtensionSuggestionsAvailable: true },
+		header: { navigationShortcuts: true, customizationsCount: 8, customizationsBadge: 'Some installed extensions can be enabled in the Agents window.' },
 	}, {
 		labels: { kind: 'screenshot' },
 		expectedVisualDescriptions: ['The Customizations navigation row has no total-count badge and shows a small activity badge dot, not a warning dot, beside its label.'],

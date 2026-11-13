@@ -9,10 +9,14 @@ import { URI } from '../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { agentHostAuthority, toAgentHostUri } from '../../../platform/agentHost/common/agentHostUri.js';
-import { IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostEntryType } from '../../../platform/agentHost/common/remoteAgentHostService.js';
+import { remoteAgentHostSessionTypeId } from '../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
+import { IRemoteAgentHostLocationPreferenceService, RemoteAgentHostLocationPreference } from '../../../platform/agentHost/common/remoteAgentHostLocationPreference.js';
+import { ISSHAgentHostConnection, ISSHRemoteAgentHostService } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ITunnelAgentHostService } from '../../../platform/agentHost/common/tunnelAgentHost.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
@@ -62,6 +66,8 @@ suite('Web Open in Editor', () => {
 				getEntryByAddress: () => ({ name: 'Remote host', connection }),
 			}));
 			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({ resolveSessionResourceIdentity: () => undefined }));
+			instantiationService.stub(IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: () => undefined }));
+			instantiationService.stub(ISSHRemoteAgentHostService, upcastPartial<ISSHRemoteAgentHostService>({ connections: [] }));
 			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'vscode-test' }));
@@ -89,6 +95,59 @@ suite('Web Open in Editor', () => {
 				query: connection.type === RemoteAgentHostEntryType.SSH ? 'windowId=_blank&session=test%3A%2Fnested-chat' : expected.query,
 				openExternal: true,
 			}]);
+		});
+	}
+
+	for (const [connection, serverType, preference] of [
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'standalone', undefined],
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'editor', undefined],
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'editor', 'editor'],
+		[{ type: RemoteAgentHostEntryType.SSH, address: 'ssh:host', hostName: 'host', sshConfigHost: 'host' }, 'editor', 'dedicated'],
+		[{ type: RemoteAgentHostEntryType.WSL, address: 'wsl:Ubuntu', distro: 'Ubuntu' }, undefined, undefined],
+		[{ type: RemoteAgentHostEntryType.DevContainer, address: 'devcontainer:host', hostPath: '/source/project' }, undefined, undefined],
+	] satisfies [IRemoteAgentHostEntry['connection'], ISSHAgentHostConnection['serverType'], RemoteAgentHostLocationPreference | undefined][]) {
+		test(`hands off ${connection.type} sessions when the editor follows the selected host (${serverType ?? 'standalone'}, ${preference ?? 'no preference'})`, async () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const entry = { name: 'Remote host', connection };
+			const address = getEntryAddress(entry);
+			const authority = agentHostAuthority(address);
+			const folder = toAgentHostUri(URI.file('/project'), authority);
+			const resource = URI.from({ scheme: remoteAgentHostSessionTypeId(authority, 'copilotcli'), path: '/session', fragment: 'chat' });
+			const chat = upcastPartial<IChat>({
+				resource,
+				workspace: constObservable(upcastPartial<ISessionWorkspace>({ folders: [{ workingDirectory: folder, root: folder, name: 'project', description: undefined }] })),
+			});
+			const session = upcastPartial<ITestSessionWithChat>({ resource, providerId: 'test', activeChat: constObservable(chat) });
+			const provider: ISessionsProvider = upcastPartial<IAgentHostSessionsProvider>({ id: 'agenthost-test', remoteAddress: address });
+			const sessions: (string | null)[] = [];
+			const notifications: string[] = [];
+			instantiationService.stub(ISessionsProvidersService, upcastPartial<ISessionsProvidersService>({ getProvider: <T extends ISessionsProvider>() => provider as T }));
+			instantiationService.stub(IRemoteAgentHostService, upcastPartial<IRemoteAgentHostService>({ getEntryByAddress: () => entry }));
+			instantiationService.stub(IAgentHostConnectionsService, upcastPartial<IAgentHostConnectionsService>({
+				resolveSessionResourceIdentity: () => ({ connectionAuthority: authority, backendSession: URI.parse('copilotcli:/session') }),
+			}));
+			instantiationService.stub(IRemoteAgentHostLocationPreferenceService, upcastPartial<IRemoteAgentHostLocationPreferenceService>({ getPreference: key => key === address ? preference : undefined }));
+			instantiationService.stub(ISSHRemoteAgentHostService, upcastPartial<ISSHRemoteAgentHostService>({
+				connections: [upcastPartial<ISSHAgentHostConnection>({ localAddress: address, serverType })],
+			}));
+			instantiationService.stub(ITunnelAgentHostService, upcastPartial<ITunnelAgentHostService>({ getSelectedServerType: () => undefined }));
+			instantiationService.stub(INotificationService, upcastPartial<INotificationService>({ info: message => { notifications.push(String(message)); } }));
+			instantiationService.stub(ITelemetryService, NullTelemetryService);
+			instantiationService.stub(IProductService, upcastPartial<IProductService>({ urlProtocol: 'vscode-test' }));
+			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({
+				open: async resource => {
+					sessions.push(new URLSearchParams((typeof resource === 'string' ? URI.parse(resource) : resource).query).get('session'));
+					return true;
+				},
+			}));
+
+			await instantiationService.invokeFunction(accessor => new OpenInVSCodeAction().run(accessor, { session, chat }));
+
+			const sharesAgentHost = serverType !== 'editor' || preference === 'editor';
+			assert.deepStrictEqual({ sessions, notifications }, {
+				sessions: [sharesAgentHost ? 'agent-host-copilotcli:/session#chat' : null],
+				notifications: !sharesAgentHost ? ['The session\'s folder was opened in a new editor window, but the session can\'t be opened there. This window is connected to a different agent host on the remote machine than the one its editor windows use.'] : [],
+			});
 		});
 	}
 });

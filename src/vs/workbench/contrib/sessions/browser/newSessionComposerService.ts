@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { combinedDisposable, Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignal, observableSignalFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,6 +14,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IWorkspaceSelectionSnapshot } from '../../../services/sessions/common/workspaceSelection.js';
 import { ISendRequestOptions } from '../common/sessionsManagement.js';
 import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
+import { getWindowHost, ISessionHost } from '../../../services/sessions/browser/sessionHost.js';
 
 export const NEW_SESSION_PROMPT_TYPING_DURATION_MS = 2_500;
 
@@ -68,9 +69,18 @@ export interface INewSessionComposerPicker {
 	openComparison?(): void;
 }
 
+export interface INewSessionTargetLabels {
+	readonly harness?: string;
+	readonly workspace?: string;
+	readonly environment?: string;
+	readonly projectRoot?: URI;
+	readonly repositoryRoot?: URI;
+}
+
 export interface INewSessionComposer {
 	readonly sessionResource?: IObservable<URI | undefined>;
 	readonly modelPicker?: INewSessionComposerPicker;
+	readonly targetLabels?: IObservable<INewSessionTargetLabels>;
 	readonly workspacePreselectionSource?: NewSessionWorkspacePreselectionSource;
 	readonly workspaceSelection?: IWorkspaceSelectionSnapshot;
 	readonly onDidChangeWorkspaceSelection?: Event<void>;
@@ -106,6 +116,7 @@ export interface INewSessionComposerService {
 	readonly hasDraftInput: boolean | undefined;
 	getDraftInputStateForSession(sessionResource: URI | undefined): boolean | undefined;
 	hasDraftInputForSession(sessionResource: URI): boolean;
+	getComposer(host: ISessionHost, reader?: IReader): INewSessionComposer | undefined;
 	notifyUserNavigation(): void;
 	readonly onWillSendRequest: Event<{ readonly options: ISendRequestOptions; readonly selection: IWorkspaceSelectionSnapshot | undefined }>;
 	notifyWillSendRequest(options: ISendRequestOptions, selection: IWorkspaceSelectionSnapshot | undefined): void;
@@ -117,14 +128,17 @@ export interface INewSessionComposerService {
 	/** Called by a picker before it applies the user's custom agent selection. */
 	notifyUserAgentSelection(selection: IUserAgentSelection): void;
 	/** Hidden composers retain draft tracking but cannot receive global composer actions. */
-	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>): IDisposable;
+	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>, host?: ISessionHost): IDisposable;
 }
 
 export class NewSessionComposerService extends Disposable implements INewSessionComposerService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _composers = new Set<INewSessionComposer>();
+	private readonly _composerHosts = new Map<INewSessionComposer, ISessionHost>();
 	private readonly _visibleComposers = new Set<INewSessionComposer>();
+	private readonly _lastFocusedComposerByWindow = new WeakMap<ISessionHost, INewSessionComposer>();
+	private readonly _composerSelectionChanged = observableSignal(this);
 	private readonly _activeComposer = observableValue<INewSessionComposer | undefined>(this, undefined);
 	readonly activeComposer: IObservable<INewSessionComposer | undefined> = this._activeComposer;
 	private readonly _userWorkspaceSelectionVersion = observableValue(this, 0);
@@ -178,14 +192,39 @@ export class NewSessionComposerService extends Disposable implements INewSession
 			&& (composer.isInputReady === false || composer.hasInput === true));
 	}
 
-	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>): IDisposable {
+	getComposer(host: ISessionHost, reader?: IReader): INewSessionComposer | undefined {
+		this._composerSelectionChanged.read(reader);
+		const windowHost = getWindowHost(host);
+		const lastFocused = this._lastFocusedComposerByWindow.get(windowHost);
+		if (lastFocused && this._composers.has(lastFocused)) {
+			return lastFocused;
+		}
+		return Array.from(this._composers).findLast(composer => {
+			const composerHost = this._composerHosts.get(composer);
+			return composerHost && getWindowHost(composerHost) === windowHost;
+		});
+	}
+
+	registerComposer(composer: INewSessionComposer, visible?: IObservable<boolean>, host?: ISessionHost): IDisposable {
 		this._composers.add(composer);
+		if (host) {
+			this._composerHosts.set(composer, host);
+		}
+		this._composerSelectionChanged.trigger(undefined);
+		const windowHost = host && getWindowHost(host);
 		const activate = () => {
 			if (this._visibleComposers.has(composer)) {
 				this._visibleComposers.delete(composer);
 				this._visibleComposers.add(composer);
 				this._activeComposer.set(composer, undefined);
 			}
+		};
+		const focus = () => {
+			if (windowHost) {
+				this._lastFocusedComposerByWindow.set(windowHost, composer);
+				this._composerSelectionChanged.trigger(undefined);
+			}
+			activate();
 		};
 		const deactivate = () => {
 			this._visibleComposers.delete(composer);
@@ -201,7 +240,7 @@ export class NewSessionComposerService extends Disposable implements INewSession
 				deactivate();
 			}
 		});
-		const focusListener = composer.onDidFocus?.(activate) ?? Disposable.None;
+		const focusListener = composer.onDidFocus?.(focus) ?? Disposable.None;
 		const inputListener = composer.onDidChangeInput?.(() => {
 			this._inputVersion.set(this._inputVersion.get() + 1, undefined);
 			if (composer.hasInput) {
@@ -214,6 +253,19 @@ export class NewSessionComposerService extends Disposable implements INewSession
 		});
 		return combinedDisposable(visibilityListener, focusListener, inputListener, sessionListener, toDisposable(() => {
 			this._composers.delete(composer);
+			this._composerHosts.delete(composer);
+			if (windowHost && this._lastFocusedComposerByWindow.get(windowHost) === composer) {
+				const replacement = Array.from(this._composers).findLast(candidate => {
+					const candidateHost = this._composerHosts.get(candidate);
+					return candidateHost && getWindowHost(candidateHost) === windowHost;
+				});
+				if (replacement) {
+					this._lastFocusedComposerByWindow.set(windowHost, replacement);
+				} else {
+					this._lastFocusedComposerByWindow.delete(windowHost);
+				}
+			}
+			this._composerSelectionChanged.trigger(undefined);
 			this._inputVersion.set(this._inputVersion.get() + 1, undefined);
 			deactivate();
 		}));

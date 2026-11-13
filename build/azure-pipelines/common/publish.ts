@@ -11,7 +11,7 @@ import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
 import crypto from 'crypto';
 import { retry } from './retry.ts';
-import { getGatingJob, type IGatingJob, type Timeline, type TimelineRecord } from './publishGate.ts';
+import { getGatingJob, isStage, runArtifactPublishOperation, warnIfMobileArtifactMissing, type IGatingJob, type Timeline } from './publishGate.ts';
 import { getCertificatesFromPFX, getKeyFromPFX } from '../../lib/pfx.ts';
 import { CosmosClient } from '@azure/cosmos';
 import { Worker, isMainThread, workerData } from 'node:worker_threads';
@@ -602,15 +602,6 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
-/**
- * Whether the timeline record is the given stage. Stages are matched by their
- * YAML identifier, since the record name is the stage's display name when one
- * is set.
- */
-function isStage(record: TimelineRecord, stage: string): boolean {
-	return record.type === 'Stage' && (record.identifier === stage || record.name === stage);
-}
-
 async function getPipelineTimeline(): Promise<Timeline> {
 	return await requestAZDOAPI<Timeline>('timeline');
 }
@@ -632,39 +623,41 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 	}
 }
 
-async function unzip(packagePath: string, outputPath: string): Promise<string[]> {
+export async function unzip(packagePath: string, outputPath: string): Promise<string[]> {
 	return new Promise((resolve, reject) => {
 		yauzl.open(packagePath, { lazyEntries: true, autoClose: true }, (err, zipfile) => {
-			if (err) {
-				return reject(err);
+			if (err || !zipfile) {
+				return reject(err ?? new Error(`Could not open archive: ${packagePath}`));
 			}
 
 			const result: string[] = [];
-			zipfile!.on('entry', entry => {
-				if (/\/$/.test(entry.fileName)) {
-					zipfile!.readEntry();
-				} else {
-					zipfile!.openReadStream(entry, (err, istream) => {
-						if (err) {
-							return reject(err);
-						}
-
+			zipfile.on('error', reject);
+			zipfile.on('entry', async entry => {
+				try {
+					if (!/\/$/.test(entry.fileName)) {
 						const filePath = path.join(outputPath, entry.fileName);
-						fs.mkdirSync(path.dirname(filePath), { recursive: true });
-
-						const ostream = fs.createWriteStream(filePath);
-						ostream.on('finish', () => {
-							result.push(filePath);
-							zipfile!.readEntry();
+						await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+						const istream = await new Promise<Readable>((resolve, reject) => {
+							zipfile.openReadStream(entry, (err, stream) => {
+								if (err || !stream) {
+									reject(err ?? new Error(`Could not read archive entry: ${entry.fileName}`));
+								} else {
+									resolve(stream);
+								}
+							});
 						});
-						istream?.on('error', err => reject(err));
-						istream!.pipe(ostream);
-					});
+						await pipeline(istream, fs.createWriteStream(filePath));
+						result.push(filePath);
+					}
+					zipfile.readEntry();
+				} catch (error) {
+					reject(error);
+					zipfile.close();
 				}
 			});
 
-			zipfile!.on('close', () => resolve(result));
-			zipfile!.readEntry();
+			zipfile.on('end', () => resolve(result));
+			zipfile.readEntry();
 		});
 	});
 }
@@ -682,7 +675,7 @@ interface Asset {
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
-function getPlatform(product: string, os: string, arch: string, type: string): string {
+export function getPlatform(product: string, os: string, arch: string, type: string): string {
 	switch (os) {
 		case 'win32':
 			switch (product) {
@@ -731,6 +724,9 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 						case 'web':
 							if (arch === 'standalone') {
 								return 'web-standalone';
+							}
+							if (arch === 'mobile') {
+								return 'web-mobile';
 							}
 							return `server-linux-${arch}-web`;
 						default:
@@ -931,6 +927,7 @@ async function main() {
 
 	const done = new State();
 	const processing = new Set<string>();
+	const optionalFailures = new Set<string>();
 
 	for (const name of done) {
 		console.log(`\u2705 ${name}`);
@@ -948,6 +945,7 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS_ARM64') === 'True') { stages.add('macOSARM64'); }
 	if (e('VSCODE_BUILD_STAGE_MACOS_UNIVERSAL') === 'True') { stages.add('macOSUniversal'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
+	if (e('VSCODE_BUILD_STAGE_MOBILE') === 'True') { stages.add('Mobile'); }
 
 	let timeline: Timeline;
 	let artifacts: Artifact[];
@@ -963,11 +961,11 @@ async function main() {
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
 		gatingJobs = new Map(artifacts
-			.filter(a => !done.has(a.name) && !processing.has(a.name))
+			.filter(a => !done.has(a.name) && !processing.has(a.name) && !optionalFailures.has(a.name))
 			.map(a => [a.name, getGatingJob(timeline, a.name)]));
 		artifactsBlocked = [...gatingJobs].filter(([, job]) => job?.state === 'failed').map(([name]) => name);
 
-		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size + artifactsBlocked.length + optionalFailures.size) {
 			break;
 		} else if (stagesInProgress.length > 0) {
 			console.log('Stages in progress:', stagesInProgress.join(', '));
@@ -1001,18 +999,26 @@ async function main() {
 
 			const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 
-			await retry(async (attempt) => {
-				const start = Date.now();
-				console.log(`[${artifact.name}] Downloading (attempt ${attempt})...`);
-				await downloadArtifact(artifact, artifactZipPath);
-				const archiveSize = fs.statSync(artifactZipPath).size;
-				const downloadDurationS = (Date.now() - start) / 1000;
-				const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
-				console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
+			const prepared = await runArtifactPublishOperation(artifact.name, async () => {
+				await retry(async (attempt) => {
+					const start = Date.now();
+					console.log(`[${artifact.name}] Downloading (attempt ${attempt})...`);
+					await downloadArtifact(artifact, artifactZipPath);
+					const archiveSize = fs.statSync(artifactZipPath).size;
+					const downloadDurationS = (Date.now() - start) / 1000;
+					const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
+					console.log(`[${artifact.name}] Successfully downloaded after ${Math.floor(downloadDurationS)} seconds(${downloadSpeedKBS} KB/s).`);
+				});
+
+				const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+				return artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
 			});
 
-			const artifactFilePaths = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
-			const artifactFilePath = artifactFilePaths.filter(p => !/_manifest/.test(p))[0];
+			if (!prepared.succeeded) {
+				optionalFailures.add(artifact.name);
+				continue;
+			}
+			const artifactFilePath = prepared.value;
 
 			processing.add(artifact.name);
 			const promise = new Promise<void>((resolve, reject) => {
@@ -1027,10 +1033,14 @@ async function main() {
 				});
 			});
 
-			const operation = promise.then(() => {
+			const operation = runArtifactPublishOperation(artifact.name, () => promise).then(result => {
 				processing.delete(artifact.name);
-				done.add(artifact.name);
-				console.log(`\u2705 ${artifact.name} `);
+				if (result.succeeded) {
+					done.add(artifact.name);
+					console.log(`\u2705 ${artifact.name} `);
+				} else {
+					optionalFailures.add(artifact.name);
+				}
 			});
 
 			operations.push({ name: artifact.name, operation });
@@ -1040,7 +1050,7 @@ async function main() {
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+	console.log(`Found all ${done.size + processing.size + artifactsBlocked.length + optionalFailures.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
 	const artifactsInProgress = operations.filter(o => processing.has(o.name));
 
@@ -1076,6 +1086,10 @@ async function main() {
 		const record = timeline.records.find(r => isStage(r, stage))!;
 
 		if (record.result !== 'succeeded' && record.result !== 'succeededWithIssues') {
+			if (stage === 'Mobile') {
+				console.log(`##vso[task.logissue type=warning]The optional Mobile stage did not succeed (${record.result}); continuing the ordinary release.`);
+				continue;
+			}
 			failed.add(`stage ${stage}`);
 			console.error(`Stage ${stage} did not succeed: ${record.result}`);
 		}
@@ -1087,7 +1101,11 @@ async function main() {
 		throw new Error(artifactsBlocked.length > 0 ? 'Some artifacts were not published because their gating job did not succeed' : 'Some stages did not succeed');
 	}
 
+	warnIfMobileArtifactMissing(timeline, artifacts.map(artifact => artifact.name));
 	console.log(`All ${done.size} artifacts published!`);
+	if (optionalFailures.size > 0) {
+		console.log(`Optional artifacts not published: ${[...optionalFailures].join(', ')}`);
+	}
 }
 
 if (import.meta.main) {

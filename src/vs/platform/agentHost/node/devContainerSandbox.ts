@@ -158,8 +158,10 @@ export function isDevContainerSandboxSupported(output: string): boolean {
 		throw new Error('Invalid Docker sandbox configuration');
 	}
 	const hostConfig = { ...container.HostConfig };
+	// Podman omits these even though it masks system paths by default, so their absence cannot rule masking out.
+	const unreportedMasking = hostConfig.MaskedPaths === undefined || hostConfig.ReadonlyPaths === undefined;
 	for (const key of ['SecurityOpt', 'MaskedPaths', 'ReadonlyPaths', 'Devices']) {
-		if (hostConfig[key] === null) {
+		if (hostConfig[key] === null || hostConfig[key] === undefined) {
 			hostConfig[key] = [];
 		}
 	}
@@ -176,6 +178,7 @@ export function isDevContainerSandboxSupported(output: string): boolean {
 	}
 	const securityOptions = HostConfig.SecurityOpt?.map(option => option.replace(':', '=')) ?? [];
 	return securityOptions.includes('seccomp=unconfined')
+		&& !unreportedMasking
 		&& !HostConfig.MaskedPaths?.length
 		&& !HostConfig.ReadonlyPaths?.length
 		&& HostConfig.Devices?.some(device => device.PathOnHost === '/dev/net/tun'

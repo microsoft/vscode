@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import * as dom from '../../../../../../base/browser/dom.js';
 import { $, AnimationFrameScheduler, DisposableResizeObserver } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -293,7 +294,7 @@ export class ChatSubagentContentPart extends ChatThinkingStyleContentPart implem
 			actionViewItemProvider: (action, options) => isPhase
 				? this.instantiationService.createInstance(FusionPhasePillActionViewItem, undefined, action, { ...options, showElapsedOnly: true }, false)
 				: this.actionViewItemService.lookUp(MenuId.ChatSubagentContent, CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID)?.(action, options, this.instantiationService, dom.getWindow(container).vscodeWindowId)
-				?? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, !this.environmentService.isSessionsWindow),
+				?? this.instantiationService.createInstance(OpenSubagentChatActionViewItem, undefined, action, options, !this.environmentService.isSessionsWindow && !ChatContextKeys.inSessionsChat.getValue(this.contextKeyService)),
 		}));
 		this._openChatToolbar.setActions([menuAction]);
 		this._updateOpenChatOnlyMode();

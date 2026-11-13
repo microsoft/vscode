@@ -44,6 +44,7 @@ import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.j
 import { ISession, ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICodeReviewService } from '../../../../../workbench/contrib/sessions/browser/codeReviewService.js';
 import { createMockCodeReviewService } from '../../../../../workbench/test/browser/componentFixtures/sessions/mockCodeReviewService.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const SESSION_RESOURCE = URI.parse('fixture-session://agents-diff');
 const MODIFIED_FIRST_RESOURCE = URI.file('/workspace/src/first.ts');
@@ -182,6 +183,8 @@ class FixtureOverlayEditorGroup extends mock<IEditorGroup>() implements IAgentFe
 		this.activeEditor = input;
 		this.activeEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override readonly input = input;
+			override readonly onDidChangeControl = Event.None;
+			override getControl() { return undefined; }
 		}();
 	}
 
@@ -254,7 +257,7 @@ async function renderAgentsDiffEditor({ container, disposableStore, disposableSt
 			reg.define(IMenuService, FixtureAgentFeedbackMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
-			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return { id: '', folders: [], configuration: undefined }; } }());
+			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() { override onDidChangeWorkspaceFolders = Event.None; override getWorkspace(): IWorkspace { return testIWorkspace({ id: '', folders: [], configuration: undefined }); } }());
 			reg.defineInstance(INotebookDocumentService, new class extends mock<INotebookDocumentService>() { override getNotebook(): undefined { return undefined; } }());
 			reg.definePartialInstance(IEditorProgressService, {
 				show: () => ({ total: () => { }, worked: () => { }, done: () => { } }),

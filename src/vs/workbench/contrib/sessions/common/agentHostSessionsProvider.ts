@@ -6,12 +6,14 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { AuthenticateParams, AuthenticateResult, IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { type AgentProvider, type IAgentPluginInstallation } from '../../../../platform/agentHost/common/agent.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { AgentCustomization, Customization, McpServerStatus, RootConfigState, type CustomizationEnablement, type McpServerState, type RootState, type TextRange } from '../../../../platform/agentHost/common/state/protocol/state.js';
@@ -19,7 +21,7 @@ import { type CustomizationDisabledReason } from '../../../../platform/agentHost
 import { type McpServerSource } from '../../../../platform/agentHost/common/meta/mcpCustomizationMeta.js';
 import type { IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ISessionConfigProvider, ISessionsProvider } from './sessionsProvider.js';
-import { ISessionAgentRef } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionAgentRef } from '../../../services/sessions/common/session.js';
 import type { AgentMergeSessionOverrides, AgentMergeSessionState } from '../../../../platform/agentHost/common/agentMerge.js';
 import type { ISessionSandboxPolicy } from '../../../../platform/agentHost/common/meta/agentSandboxPolicyMeta.js';
 
@@ -109,6 +111,7 @@ export type AgentHostMcpTool = {
 	readonly name: string;
 	readonly title?: string;
 	readonly description?: string;
+	readonly annotations?: { readonly title?: string };
 };
 
 /**
@@ -151,6 +154,8 @@ export interface IAgentHostMcpServer {
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** The containing plugin's effective activation is unresolved until the session starts. */
+	readonly waitingForSessionStart?: boolean;
 	readonly status: McpServerStatus;
 	/**
 	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
@@ -186,6 +191,8 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
+	readonly setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
+	readonly listPluginInstallations?: (provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>;
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */
 	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
@@ -195,6 +202,14 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly showConnectionLog?: () => Promise<void>;
 	/** Remote address string, present on remote providers. */
 	readonly remoteAddress?: string;
+	/**
+	 * Continues a session that another provider listed for the same agent host
+	 * session, present on remote providers. `backendChats` maps the resources of
+	 * `from`'s chats to their host chat resources, so that open chats move to
+	 * this provider's chats. Returns `false` while this provider does not list
+	 * that session.
+	 */
+	adoptSession?(from: ISession, backendSession: URI, backendChats?: ResourceMap<URI>): boolean;
 	/**
 	 * Set when this provider is one member of a larger user-facing host (see
 	 * {@link IAgentHostGroup}). Members share one host filter entry instead of

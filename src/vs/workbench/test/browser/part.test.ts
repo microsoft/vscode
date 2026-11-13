@@ -188,6 +188,10 @@ suite('Workbench parts', () => {
 			this.setFooterArea(footerContainer);
 		}
 
+		testRemoveFooterArea(): void {
+			this.removeFooterArea();
+		}
+
 		testLayoutContents(width: number, height: number) {
 			return this.layoutContents(width, height);
 		}
@@ -316,6 +320,30 @@ suite('Workbench parts', () => {
 				contentSize: new Dimension(100, 104),
 				footerSize: new Dimension(100, 32),
 			},
+		});
+	});
+
+	test('Part reflects footer presence on its container', () => {
+		const part = disposables.add(new MyPart2());
+		part.create(fixture);
+		const footer = document.createElement('div');
+
+		part.testSetFooterArea(footer);
+		const withFooter = {
+			hasClass: fixture.classList.contains('has-footer'),
+			footerClass: footer.classList.contains('footer'),
+		};
+		part.testRemoveFooterArea();
+
+		assert.deepStrictEqual({
+			withFooter,
+			afterRemoval: {
+				hasClass: fixture.classList.contains('has-footer'),
+				footerConnected: footer.isConnected,
+			},
+		}, {
+			withFooter: { hasClass: true, footerClass: true },
+			afterRemoval: { hasClass: false, footerConnected: false },
 		});
 	});
 

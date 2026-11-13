@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { suite, test } from 'node:test';
-import { getPnpmCommand } from '../pnpm.ts';
+import { checkPackageManager, getPnpmCommand } from '../pnpm.ts';
 
 suite('getPnpmCommand', () => {
 
@@ -59,6 +59,34 @@ suite('getPnpmCommand', () => {
 			{ command: 'pnpm', args: [], shell: false },
 			{ command: 'pnpm', args: [], shell: false },
 			{ command: 'pnpm.cmd', args: [], shell: true },
+		]);
+	});
+});
+
+suite('checkPackageManager', () => {
+
+	const agent = (version: string) => `pnpm/${version} npm/? node/v24.15.0 darwin arm64`;
+
+	test('accepts the pinned pnpm and newer releases of its major version, and explains why another pnpm did not switch', () => {
+		assert.deepStrictEqual([
+			checkPackageManager(undefined, '12.17.0'),
+			checkPackageManager(agent('12.17.0'), '12.17.0'),
+			checkPackageManager(agent('12.18.0'), '12.17.0', 'ignore'),
+			checkPackageManager('npm/11.6.0 node/v24.15.0 darwin arm64 workspaces/false', '12.17.0'),
+			checkPackageManager(agent('12.16.0'), '12.17.0', 'warn'),
+			checkPackageManager(agent('9.15.9'), '12.17.0', 'download'),
+			checkPackageManager(agent('13.0.0'), '12.17.0'),
+		], [
+			undefined,
+			undefined,
+			undefined,
+			'This repository uses pnpm. Run `pnpm install`.',
+			'This repository uses pnpm 12.17.0 (`packageManager` in package.json), but pnpm 12.16.0 didn\'t switch to it: pnpm_config_pm_on_fail is set to warn.\n' +
+			'Unset pnpm_config_pm_on_fail, or install pnpm 12.17.0 with `pnpm self-update 12.17.0` (`npm install -g pnpm@12.17.0` if you installed pnpm with npm).',
+			'This repository uses pnpm 12.17.0 (`packageManager` in package.json), but pnpm 9.15.9 didn\'t switch to it: switching is turned off with `--pm-on-fail`, or this pnpm is too old to switch.\n' +
+			'Run pnpm without `--pm-on-fail`, or install pnpm 12.17.0 with `pnpm self-update 12.17.0` (`npm install -g pnpm@12.17.0` if you installed pnpm with npm).',
+			'This repository uses pnpm 12.17.0 (`packageManager` in package.json), but pnpm 13.0.0 didn\'t switch to it: switching is turned off with `--pm-on-fail`, or this pnpm is too old to switch.\n' +
+			'Run pnpm without `--pm-on-fail`, or install pnpm 12.17.0 with `pnpm self-update 12.17.0` (`npm install -g pnpm@12.17.0` if you installed pnpm with npm).',
 		]);
 	});
 });

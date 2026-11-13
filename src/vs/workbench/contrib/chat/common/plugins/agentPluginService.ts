@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { IObservable } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -49,6 +50,21 @@ export type CopilotCliPluginInstallSource =
 	| { readonly kind: 'url'; readonly url: string; readonly ref?: string; readonly sha?: string; readonly path?: string }
 	| { readonly kind: 'local'; readonly path: string };
 
+/** Computes the runtime's canonical identity for a direct installation. */
+export async function getCopilotCliPluginSourceId(source: CopilotCliPluginInstallSource): Promise<string> {
+	const descriptor = source.kind === 'local'
+		? { source: source.kind, path: source.path }
+		: {
+			source: source.kind,
+			...(source.kind === 'github' ? { repo: source.repository } : { url: source.url }),
+			ref: source.ref ?? '',
+			...(source.sha === undefined ? {} : { sha: source.sha }),
+			path: source.path ?? '',
+		};
+	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(descriptor)));
+	return encodeHex(VSBuffer.wrap(new Uint8Array(digest)));
+}
+
 export interface ICopilotCliPluginInstallation {
 	readonly name: string;
 	readonly marketplace: string;
@@ -91,10 +107,17 @@ export interface IAgentPluginService {
 	readonly enablementModel: IEnablementModel;
 }
 
-/** Commits global runtime enablement before publishing the client's decision; workspace overrides stay local. */
+/** Routes runtime-owned installations to their owner; other plugins retain workbench-scoped decisions. */
 export async function setAgentPluginEnablement(plugin: IAgentPlugin, model: IEnablementModel, state: ContributionEnablementState): Promise<void> {
 	if (plugin.policyEnablement?.get() !== undefined || plugin.policyBlocked?.get()) {
 		throw new Error(localize('pluginEnablementManaged', "Plugin '{0}' is managed by your organization.", plugin.label));
+	}
+	if (plugin.copilotCliInstallation) {
+		if (!plugin.setEnabled || (state !== ContributionEnablementState.EnabledProfile && state !== ContributionEnablementState.DisabledProfile)) {
+			throw new Error(localize('pluginRuntimeScopeRequired', "Change repository enablement for plugin '{0}' from its chat customizations.", plugin.label));
+		}
+		await plugin.setEnabled(isContributionEnabled(state));
+		return;
 	}
 	const key = plugin.uri.toString();
 	const rejected = () => new Error(localize('pluginEnablementRejected', "Plugin '{0}' enablement was rejected by the local enablement model.", plugin.label));

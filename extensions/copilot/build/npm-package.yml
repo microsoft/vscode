@@ -45,6 +45,8 @@ extends:
         testPlatforms:
           - name: Linux
             nodeVersions: [24.x]
+            # chat-lib is consumed by other products, which don't share our GLIBC requirements.
+            useSysroot: false
           - name: MacOS
             nodeVersions: [24.x]
           - name: Windows

@@ -75,7 +75,7 @@ export class ChatAttachmentResolveService implements IChatAttachmentResolveServi
 		}
 
 		// untitled editor
-		if (isUntitledResourceEditorInput(editor)) {
+		if (!(editor instanceof EditorInput) && isUntitledResourceEditorInput(editor)) {
 			return await this.resolveUntitledEditorAttachContext(editor);
 		}
 

@@ -32,8 +32,10 @@ import { isLocalhostAuthority, isAllInterfacesAuthority } from '../../../../../p
 import { IConfigurationService, isConfigured } from '../../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ExternalUriOpenerPriority } from '../../../../../editor/common/languages.js';
+import { registerBuiltInExternalUriOpener } from '../../../externalUriOpener/common/configuration.js';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../../externalUriOpener/common/externalUriOpenerService.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
+import { NewTabButtonEntryAction } from '../../../../browser/parts/editor/newTabButton.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { match } from '../../../../../base/common/glob.js';
 import { $, addDisposableListener, EventType } from '../../../../../base/browser/dom.js';
@@ -556,6 +558,21 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(class OpenIntegratedBrowserFromNewTabButtonAction extends NewTabButtonEntryAction {
+	constructor() {
+		super({
+			id: BrowserViewCommandId.Open + '.fromNewTabButton',
+			title: localize2('browser.openFromNewTabButton', "New Integrated Browser"),
+			icon: Codicon.globe,
+			order: 4,
+		});
+	}
+
+	// Opens where the browser opens new tabs, by default in the (now active) group of the button.
+	protected override openTab(accessor: ServicesAccessor): Promise<unknown> {
+		return accessor.get(ICommandService).executeCommand(BrowserViewCommandId.Open);
+	}
+});
 registerAction2(OpenFileInIntegratedBrowserAction);
 registerAction2(OpenOrListBrowsersAction);
 registerAction2(NewTabAction);
@@ -616,6 +633,8 @@ export class LocalhostLinkOpenerContribution extends Disposable implements IWork
 		super();
 
 		this._register(externalUriOpenerService.registerExternalOpenerProvider(this));
+		// The Simple Browser opener delegates to the Integrated Browser, so only this one is offered
+		this._register(registerBuiltInExternalUriOpener(LocalhostLinkOpenerContribution.OPENER_ID, localize('browser.externalUriOpener.description', "Open in the Integrated Browser."), ['simpleBrowser.open']));
 	}
 
 	async *getOpeners(targetUri: URI): AsyncIterable<IExternalUriOpener> {
