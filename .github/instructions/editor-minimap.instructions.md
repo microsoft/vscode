@@ -19,7 +19,7 @@ The minimap is a canvas view part, `src/vs/editor/browser/viewParts/minimap/mini
 ## Section headers (`findSectionHeaders.ts`)
 
 - Keep it language-agnostic. Don't hard-code keywords like `region` or comment syntax for one language. Language-specific data belongs in the language configuration: `folding.markers.start` may declare a named group `label` for the region name; otherwise the name is the text after the match. The comment tokens come from `blockCommentStartToken` and `blockCommentEndToken`.
-- A `MARK:` label inside a block comment drops the comment end token (`<!-- MARK: Label -->` shows `Label`, #210371). The token is stripped only when the comment opened on the same line before the match.
+- A `MARK:` label inside a block comment drops the comment end token (`<!-- MARK: Label -->` shows `Label`, #210371). The token is stripped only when a block comment is open on that line just before the first `separator` or `label` capture, not before the match. A custom regex may consume the opening token itself (`^<!--\s*MARK:\s*(?<label>.*)$`) and still have the end token stripped.
 - Use the `d` flag and `match.indices` for positions, not `indexOf` on the matched text.
 
 ## Overview ruler
@@ -28,8 +28,8 @@ The minimap is a canvas view part, `src/vs/editor/browser/viewParts/minimap/mini
 
 ## Verifying a change
 
-- Run `pnpm run typecheck-client` before you propose a change. `build-fast` and the unit tests don't type-check, and test files have failed to compile this way.
-- Unit tests: `./scripts/test.sh --grep "Minimap|SectionHeaders|EditorLayoutProvider"`.
+- `build-fast` and the unit tests transpile without type checking, and minimap test files have failed to compile this way. When you change TypeScript, including tests, check the diagnostics of an active watch task, or run `pnpm run typecheck-client` if none covers the change.
+- The unit tests run the compiled output in `out/`. Refresh it first, with an active watch task or `pnpm run build-fast --client-only`, then run `./scripts/test.sh --grep "Minimap|SectionHeaders|EditorLayoutProvider"`.
 - Many minimap bugs depend on the pixel ratio. Reproduce at a fractional zoom (for example `window.zoomLevel: -1` on a Retina screen, a pixel ratio of 1.667) as well as at 1 and 2.
 - Assert on numbers from the page, not on screenshots: the canvas `width`/`height` attributes against their CSS sizes, the slider's `top` while scrolling, pixel colors sampled from the canvas. Compare before and after pixel-for-pixel when a change shouldn't alter the output.
 - In a UI scenario (the `validate-ui-scenario` skill), a synthetic `WheelEvent` doesn't scroll the editor. Use `page.mouse.wheel`, or keyboard scrolling, and check that `scrollTop` changed.
