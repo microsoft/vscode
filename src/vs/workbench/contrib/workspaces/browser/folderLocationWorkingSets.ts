@@ -13,6 +13,8 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { EditorInput } from '../../../common/editor/editorInput.js';
+import { SideBySideEditorInput } from '../../../common/editor/sideBySideEditorInput.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../services/editor/common/editorGroupsService.js';
 import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -68,6 +70,9 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	/** Set while a switch waits for the backups of editors it would close to be restored. */
 	private deferred = false;
 
+	/** Counts the changes of dirty state and unregistrations of working copies, which can make a deferred switch possible. */
+	private workingCopyGeneration = 0;
+
 	constructor(
 		@IWorkspaceFolderLocationService private readonly folderLocationService: IWorkspaceFolderLocationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -92,6 +97,7 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 
 		// A restored backup makes its editor dirty, and an unregistered working copy discards its backup
 		this._register(Event.any(this.workingCopyService.onDidChangeDirty, this.workingCopyService.onDidUnregister)(() => {
+			this.workingCopyGeneration++;
 			if (this.deferred) {
 				this.reconcile();
 			}
@@ -130,10 +136,14 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 				return;
 			}
 
-			// Closing an editor whose backup is not restored yet discards the backup: retried once its editor turns dirty
+			// Closing an editor whose backup is not restored yet discards the backup: retried once its editor turns dirty.
+			// A change that comes in while the backups are queried could be missed by them, so it checks again right away.
+			const generation = this.workingCopyGeneration;
 			this.deferred = await this.hasUnrestoredBackups();
 			if (this.deferred || this.disposed) {
-				if (this.deferred) {
+				if (this.deferred && generation !== this.workingCopyGeneration) {
+					this.reconcile();
+				} else if (this.deferred) {
 					this.logService.info('[folderLocation] Deferring the switch of the editors until their backups are restored');
 				}
 				return;
@@ -144,22 +154,47 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 	}
 
 	/**
-	 * Whether an editor that applying a working set would close has a backup that is not restored yet.
-	 * A backup only exists for unsaved content and a restored one makes its editor dirty, while dirty
-	 * editors stay open: so a backup of an editor that is not dirty is not restored yet, also when its
-	 * working copy is already registered. A backup whose editor never restores keeps the switch deferred.
+	 * Whether an input that applying a working set would close has a backup that is not restored yet.
+	 * A backup only exists for unsaved content and a restored one makes its input dirty: so a backup of
+	 * an input that is not dirty is not restored yet, also when its working copy is already registered.
+	 * A backup whose input never restores keeps the switch deferred.
 	 */
 	private async hasUnrestoredBackups(): Promise<boolean> {
-		const closing = this.editorGroupsService.parts
-			.filter(part => !part.isTransient)
-			.flatMap(part => part.groups.flatMap(group => group.editors))
-			.filter(editor => !editor.isDirty() && editor.resource);
-		if (closing.length === 0) {
+		const backups = await this.workingCopyBackupService.getBackups();
+		if (backups.length === 0) {
 			return false;
 		}
 
-		const backups = await this.workingCopyBackupService.getBackups();
-		return backups.some(backup => closing.some(editor => this.uriIdentityService.extUri.isEqual(editor.resource, backup.resource)));
+		// The editors are only looked at once the backups are known, so that they are current
+		return this.getClosingInputs().some(input => !input.isDirty() && backups.some(backup => this.uriIdentityService.extUri.isEqual(input.resource, backup.resource)));
+	}
+
+	/**
+	 * The inputs that applying a working set disposes: the editors that close without confirmation
+	 * (that are not dirty, or are dirty and saving) and, for side by side editors, both of their sides.
+	 */
+	private getClosingInputs(): EditorInput[] {
+		const inputs: EditorInput[] = [];
+		const add = (input: EditorInput) => {
+			inputs.push(input);
+			if (input instanceof SideBySideEditorInput) {
+				add(input.primary);
+				add(input.secondary);
+			}
+		};
+		for (const part of this.editorGroupsService.parts) {
+			if (part.isTransient) {
+				continue;
+			}
+			for (const group of part.groups) {
+				for (const editor of group.editors) {
+					if (!editor.isDirty() || editor.isSaving()) {
+						add(editor);
+					}
+				}
+			}
+		}
+		return inputs;
 	}
 
 	private async switchWorkingSet(leaving: string, entering: string): Promise<void> {

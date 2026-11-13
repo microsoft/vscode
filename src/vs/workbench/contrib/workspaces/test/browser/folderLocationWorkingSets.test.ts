@@ -21,6 +21,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { DiffEditorInput } from '../../../../common/editor/diffEditorInput.js';
 import { IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
 import { UntitledTextEditorInput } from '../../../../services/untitled/common/untitledTextEditorInput.js';
@@ -55,6 +56,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		/** The editors of the main part, for the backup checks. */
 		editors: { resource: URI; dirty?: boolean }[] = [];
 		backups: IWorkingCopyIdentifier[] = [];
+		backupsGate: Promise<void> | undefined;
 
 		saved(): Record<string, string> {
 			return Object.fromEntries([...this.sets.values()].map(set => [set.name, set.content]));
@@ -74,7 +76,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		const editorGroupsService = {
 			whenRestored: options?.whenRestored ?? Promise.resolve(),
 			parts: [
-				{ get groups() { return [{ count: area.content ? 1 : 0, editors: area.editors.map(editor => ({ resource: editor.resource, isDirty: () => !!editor.dirty })) }]; } },
+				{ get groups() { return [{ count: area.content ? 1 : 0, editors: area.editors.map(editor => ({ resource: editor.resource, isDirty: () => !!editor.dirty, isSaving: () => false })) }]; } },
 				{ get groups() { return [{ count: area.auxiliaryEditors, editors: [] }]; } },
 				{ isTransient: true, groups: [{ count: 5, editors: [] }] }
 			],
@@ -105,7 +107,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			storage as unknown as IStorageService,
 			{ asCanonicalUri: (uri: URI) => uri, extUri: extUriIgnorePathCase } as unknown as IUriIdentityService,
 			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message) } as unknown as ILogService,
-			{ getBackups: async () => area.backups } as unknown as IWorkingCopyBackupService,
+			{ getBackups: async () => { await area.backupsGate; return area.backups; } } as unknown as IWorkingCopyBackupService,
 			{ onDidChangeDirty: onDidChangeDirty.event, onDidUnregister: Event.None } as unknown as IWorkingCopyService
 		));
 
@@ -474,6 +476,25 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		assert.deepStrictEqual(results, { 'unrestored backup': 'P', stored: 'undefined', infos: '1', afterRestored: '', 'dirty editor': '', 'no backup': '' });
 	});
 
+	test('an editor whose backup is restored while the backups are queried does not keep the switch deferred', async () => {
+		const untitled = URI.from({ scheme: 'untitled', path: 'Untitled-1' });
+		const fixture = createFixture();
+		fixture.area.content = 'P';
+		fixture.area.editors = [{ resource: untitled }];
+		fixture.area.backups = [{ resource: untitled, typeId: '' }];
+		await settle();
+
+		let release!: () => void;
+		fixture.area.backupsGate = new Promise<void>(resolve => release = resolve);
+		fixture.switchTo(alternate);
+		await settle();
+		fixture.restoreBackup(untitled);
+		release();
+		await settle();
+
+		assert.deepStrictEqual({ content: fixture.area.content, saved: fixture.area.saved() }, { content: '', saved: { [prefix + p]: 'P' } });
+	});
+
 	test('stored locations that only differ in the casing of their path are the same location', async () => {
 		const storage = ds.add(new InMemoryStorageService());
 		const area = new EditorArea();
@@ -559,7 +580,8 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		}
 	}
 
-	test('an inactive untitled editor whose backup is still being restored is neither closed nor discarded by a switch, and travels along once it is restored', async () => {
+	/** Switches the location while the backup of an untitled editor, which is only in an inactive tab of its own or of a diff editor, is being restored. */
+	async function switchWhileRestoring(tab: 'untitled' | 'diff') {
 		const backupService = disposables.add(new HeldWorkingCopyBackupService());
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService), workingCopyBackupService: () => backupService }, disposables);
 		instantiationService.invokeFunction(accessor => Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).start(accessor));
@@ -578,9 +600,11 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		backupService.gate = new Promise<void>(resolve => release = resolve);
 		const untitled = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, model));
 		const active = disposables.add(new TestFileEditorInput(URI.file('/work/project/active.txt'), 'testTypeId'));
+		const original = disposables.add(new TestFileEditorInput(URI.file('/work/project/original.txt'), 'testTypeId'));
+		const inactive = tab === 'diff' ? disposables.add(instantiationService.createInstance(DiffEditorInput, undefined, undefined, original, untitled, undefined)) : untitled;
 		const group = parts.testMainPart.activeGroup;
 		await group.openEditor(active, { pinned: true });
-		await group.openEditor(untitled, { pinned: true, inactive: true });
+		await group.openEditor(inactive, { pinned: true, inactive: true });
 		const resolving = untitled.resolve();
 		await parts.whenRestored;
 
@@ -599,7 +623,7 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 			accessor.get(IWorkingCopyService)
 		)));
 
-		const editors = () => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor === untitled ? 'untitled' : editor === active ? 'active' : 'other');
+		const editors = () => group.getEditors(EditorsOrder.SEQUENTIAL).map(editor => editor === inactive ? tab : editor === active ? 'active' : 'other');
 		// The entering location only becomes the owner once its editors are applied
 		const switched = Event.toPromise(Event.filter(storage.onDidChangeValue(StorageScope.WORKSPACE, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, disposables), () => JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!).owner === alternateKey), disposables);
 		folder = URI.file('/work/project-alt');
@@ -611,9 +635,24 @@ suite('FolderLocationWorkingSetsContribution with the editor parts', () => {
 		await resolving;
 		await switched;
 
-		assert.deepStrictEqual({ whileRestoring, editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), backup: backupService.hasBackupSync(identifier) }, {
+		return { whileRestoring, editors: editors(), disposed: untitled.isDisposed(), dirty: untitled.isDirty(), content: model.textEditorModel?.getValue(), backup: backupService.hasBackupSync(identifier) };
+	}
+
+	test('an inactive untitled editor whose backup is still being restored is neither closed nor discarded by a switch, and travels along once it is restored', async () => {
+		assert.deepStrictEqual(await switchWhileRestoring('untitled'), {
 			whileRestoring: { editors: ['active', 'untitled'], disposed: false, dirty: false, backup: true },
 			editors: ['untitled'],
+			disposed: false,
+			dirty: true,
+			content: 'backed up',
+			backup: true
+		});
+	});
+
+	test('an inactive diff editor whose modified side is an untitled editor with a backup that is still being restored is not closed by a switch, and travels along once it is restored', async () => {
+		assert.deepStrictEqual(await switchWhileRestoring('diff'), {
+			whileRestoring: { editors: ['active', 'diff'], disposed: false, dirty: false, backup: true },
+			editors: ['diff'],
 			disposed: false,
 			dirty: true,
 			content: 'backed up',
