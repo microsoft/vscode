@@ -28,8 +28,9 @@ import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinit
  * Event fired when sessions change within a provider.
  */
 /**
- * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: see
- * `getSessionsInScopeFolders`. With no folders, it lists every session.
+ * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: the sessions
+ * working in one of its folders, and the sessions of the same git or GitHub repositories, such as of their worktrees, as
+ * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
  */
 export interface ISessionsListingScope {
 	readonly folders: IObservable<readonly URI[]>;

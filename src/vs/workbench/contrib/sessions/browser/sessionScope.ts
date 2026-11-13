@@ -14,59 +14,6 @@ import { getRepositoryRootFromWorktree } from '../../../../platform/agentHost/co
 import { GITHUB_REMOTE_FILE_SCHEME, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionChangeEvent, ISessionsListingScope } from '../common/sessionsProvider.js';
 
-/** The sessions of a scope, such as the folders of an editor window's workspace. */
-export interface ISessionScope {
-	includes(session: ISession): boolean;
-}
-
-/**
- * The sessions of the given scope folders, such as the folders of an editor window's workspace: the sessions with a
- * folder that is, or is inside, a scope folder, and the sessions of the same git repositories, such as its worktrees.
- * Only the metadata the providers already report is read, comparing whole URIs, so a session of another host never
- * matches a local folder. A repository is known from a scope folder itself, from a session working in the scope, from
- * `scopeRepositories`, and from the path of a worktree that VS Code created (`<repository>.worktrees/<name>`), as the
- * Agent Host names it: for an opened worktree, also before any session works in it, and for sessions whose provider
- * has not reported their repository yet. `scopeRepositories` are the repositories the scope folders are
- * known to be checkouts of, such as the main checkout of an open worktree. `scopeGitHubRepositories`, as lowercase
- * `owner/repo`, are the GitHub repositories of their `origin`: a session working in one of them on GitHub, on any branch,
- * such as a Copilot Cloud session, is in the scope too. A workspace-less quick chat, by its own `isQuickChat` flag, is in
- * every scope: a session whose workspace is not known yet is not, as it may still hydrate into another folder. With a
- * `reader`, the result follows the sessions' workspaces and quick-chat flags.
- */
-export function getSessionsInScopeFolders(sessions: readonly ISession[], scopeFolders: readonly URI[], reader?: IReader, scopeRepositories: readonly URI[] = [], scopeGitHubRepositories: readonly string[] = []): ISessionScope {
-	const extUri = extUriBiasedIgnorePathCase;
-	const gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
-	const isInScope = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
-	const repositories = new ResourceSet([...scopeFolders, ...scopeRepositories], uri => extUri.getComparisonKey(uri));
-	for (const scopeFolder of scopeFolders) {
-		const repository = scopeFolder.scheme === Schemas.file ? getRepositoryRootFromWorktree(scopeFolder) : undefined;
-		if (repository) {
-			repositories.add(repository);
-		}
-	}
-	const included = new Set<ISession>();
-	for (const session of sessions) {
-		if (session.isQuickChat?.read(reader)) {
-			included.add(session);
-			continue;
-		}
-		for (const folder of session.workspace.read(reader)?.folders ?? []) {
-			if (isInScope(folder.workingDirectory) || isInScope(folder.root) || isInScope(folder.gitRepository?.workTreeUri)) {
-				included.add(session);
-				if (folder.gitRepository) {
-					repositories.add(folder.gitRepository.uri);
-				}
-			}
-		}
-	}
-	for (const session of sessions) {
-		if (!included.has(session) && session.workspace.read(reader)?.folders.some(folder => repositories.has(folder.root) || (!!folder.gitRepository && repositories.has(folder.gitRepository.uri)) || isWorktreeOf(folder.workingDirectory, repositories))) {
-			included.add(session);
-		}
-	}
-	return { includes: session => included.has(session) };
-}
-
 /** Whether `uri` is on GitHub (`github-remote-file://github/<owner>/<repo>/<branch>/...`) in one of `repositories`. */
 function isGitHubRepositoryOf(uri: URI, repositories: ReadonlySet<string>): boolean {
 	if (!repositories.size || uri.scheme !== GITHUB_REMOTE_FILE_SCHEME || uri.authority !== 'github') {
@@ -81,7 +28,6 @@ function isWorktreeOf(workingDirectory: URI, repositories: ResourceSet): boolean
 	const repository = workingDirectory.scheme === Schemas.file ? getRepositoryRootFromWorktree(workingDirectory) : undefined;
 	return !!repository && repositories.has(repository);
 }
-
 
 /**
  * The sessions a provider lists in a {@link ISessionsListingScope}, out of all of its sessions, and their changes. It follows
@@ -130,10 +76,10 @@ export class SessionsListingScopeFilter extends Disposable {
 			const gitHubRepositories = scope.gitHubRepositories?.read(reader) ?? [];
 			const sessions = getAllSessions();
 			this._known = new Map(sessions.map(session => [session.sessionId, session]));
-			const inScope = folders.length ? getSessionsInScopeFolders(sessions, folders, reader, repositories, gitHubRepositories) : undefined;
+			const inScope = folders.length ? this._getSessionsInScope(sessions, folders, reader, repositories, gitHubRepositories) : undefined;
 			const listed = new Map<string, ISession>();
 			for (const session of sessions) {
-				if (!inScope || inScope.includes(session)) {
+				if (!inScope || inScope.has(session)) {
 					listed.set(session.sessionId, session);
 				}
 			}
@@ -149,6 +95,54 @@ export class SessionsListingScopeFilter extends Disposable {
 	rematch(): void {
 		this._pendingChanges.push({ added: [], removed: [], changed: [] });
 		this._allSessionsChanged.trigger(undefined);
+	}
+
+	/**
+	 * The `sessions` in the scope of `scopeFolders`, such as the folders of an editor window's workspace: the sessions with
+	 * a folder that is, or is inside, a scope folder, and the sessions of the same git repositories, such as its worktrees.
+	 * Only the metadata the providers already report is read, comparing whole URIs, so a session of another host never
+	 * matches a local folder. A repository is known from a scope folder itself, from a session working in the scope, from
+	 * `scopeRepositories`, and from the path of a worktree that VS Code created (`<repository>.worktrees/<name>`), as the
+	 * Agent Host names it: for an opened worktree, also before any session works in it, and for sessions whose provider
+	 * has not reported their repository yet. `scopeRepositories` are the repositories the scope folders are
+	 * known to be checkouts of, such as the main checkout of an open worktree. `scopeGitHubRepositories`, as lowercase
+	 * `owner/repo`, are the GitHub repositories of their `origin`: a session working in one of them on GitHub, on any branch,
+	 * such as a Copilot Cloud session, is in the scope too. A workspace-less quick chat, by its own `isQuickChat` flag, is in
+	 * every scope: a session whose workspace is not known yet is not, as it may still hydrate into another folder. The
+	 * result follows the sessions' workspaces and quick-chat flags through `reader`.
+	 */
+	private _getSessionsInScope(sessions: readonly ISession[], scopeFolders: readonly URI[], reader: IReader, scopeRepositories: readonly URI[], scopeGitHubRepositories: readonly string[]): ReadonlySet<ISession> {
+		const extUri = extUriBiasedIgnorePathCase;
+		const gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
+		const isInScope = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
+		const repositories = new ResourceSet([...scopeFolders, ...scopeRepositories], uri => extUri.getComparisonKey(uri));
+		for (const scopeFolder of scopeFolders) {
+			const repository = scopeFolder.scheme === Schemas.file ? getRepositoryRootFromWorktree(scopeFolder) : undefined;
+			if (repository) {
+				repositories.add(repository);
+			}
+		}
+		const included = new Set<ISession>();
+		for (const session of sessions) {
+			if (session.isQuickChat?.read(reader)) {
+				included.add(session);
+				continue;
+			}
+			for (const folder of session.workspace.read(reader)?.folders ?? []) {
+				if (isInScope(folder.workingDirectory) || isInScope(folder.root) || isInScope(folder.gitRepository?.workTreeUri)) {
+					included.add(session);
+					if (folder.gitRepository) {
+						repositories.add(folder.gitRepository.uri);
+					}
+				}
+			}
+		}
+		for (const session of sessions) {
+			if (!included.has(session) && session.workspace.read(reader)?.folders.some(folder => repositories.has(folder.root) || (!!folder.gitRepository && repositories.has(folder.gitRepository.uri)) || isWorktreeOf(folder.workingDirectory, repositories))) {
+				included.add(session);
+			}
+		}
+		return included;
 	}
 
 	/** The sessions the scope lists. */

@@ -17,66 +17,8 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { ISessionsListingScope } from '../common/sessionsProvider.js';
 import { parseGitHubRepositoryFromGitConfig } from './gitHubRepositoryResolver.js';
 
-/**
- * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a
- * directory, and the main checkout when `.git` is the file of a worktree (`gitdir: <repository>/.git/worktrees/<name>`).
- * `undefined` for a folder without `.git`, or whose `.git` names no worktree, such as a submodule's. Throws when `.git`
- * exists but cannot be read.
- */
-export async function readFolderGitRepository(fileService: IFileService, folder: URI): Promise<URI | undefined> {
-	const dotGit = joinPath(folder, '.git');
-	let isDirectory: boolean;
-	try {
-		isDirectory = (await fileService.stat(dotGit)).isDirectory;
-	} catch (error) {
-		if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-			return undefined;
-		}
-		throw error;
-	}
-	if (isDirectory) {
-		return folder;
-	}
-	const content = (await fileService.readFile(dotGit)).value.toString();
-	const gitdir = /^gitdir:\s*(?<path>.+?)\s*$/m.exec(content)?.groups?.path;
-	if (!gitdir) {
-		return undefined;
-	}
-	const worktreeGitDir = isAbsolute(gitdir) ? URI.file(gitdir) : joinPath(folder, gitdir);
-	const worktreesDir = dirname(worktreeGitDir);
-	const commonGitDir = dirname(worktreesDir);
-	return basename(worktreesDir) === 'worktrees' && basename(commonGitDir) === '.git' && !isEqual(commonGitDir, worktreesDir)
-		? dirname(commonGitDir)
-		: undefined;
-}
-
-/**
 /** The hosts of the GitHub repositories that Copilot Cloud sessions work in (`github-remote-file://github/...`). */
 const GITHUB_HOSTS = ['github.com'];
-
-/**
- * The GitHub repository, as lowercase `owner/repo`, that the `origin` remote of a git `config` names, such as
- * `https://github.com/owner/repo.git` or `git@github.com:owner/repo`; `undefined` for another host or without `origin`.
- */
-export function parseGitHubOrigin(config: string): string | undefined {
-	const repository = parseGitHubRepositoryFromGitConfig(config, GITHUB_HOSTS, 'origin');
-	return repository && `${repository.owner}/${repository.repo}`.toLowerCase();
-}
-
-/**
- * The GitHub repository the `origin` of a local git `repository` names, read from its `.git/config` (see
- * {@link parseGitHubOrigin}). `undefined` without that file; throws when it exists but cannot be read.
- */
-export async function readRepositoryGitHubOrigin(fileService: IFileService, repository: URI): Promise<string | undefined> {
-	try {
-		return parseGitHubOrigin((await fileService.readFile(joinPath(repository, '.git', 'config'))).value.toString());
-	} catch (error) {
-		if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-			return undefined;
-		}
-		throw error;
-	}
-}
 
 /** What a local folder is a checkout of: its git repository, and the GitHub repository of that repository's `origin`. */
 interface IFolderCheckout {
@@ -86,10 +28,10 @@ interface IFolderCheckout {
 
 /**
  * The scope the sessions providers of an editor window list their sessions in: the folders of the window's workspace, the
- * git repositories of its local folders (see {@link readFolderGitRepository}), and the GitHub repositories of their
- * `origin` (see {@link readRepositoryGitHubOrigin}), such as for Copilot Cloud sessions. Each folder's `.git` and its
- * repository's `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed;
- * there are no watchers. A folder that leaves the workspace stops counting at once.
+ * git repositories of its local folders, read from their `.git`, and the GitHub repositories of those repositories'
+ * `origin`, read from their `.git/config`, such as for Copilot Cloud sessions. Each folder's `.git` and its repository's
+ * `.git/config` are read once, as the folder joins the workspace, and again only after a read that failed; there are no
+ * watchers. A folder that leaves the workspace stops counting at once.
  */
 export class WorkspaceFolderRepositories extends Disposable implements ISessionsListingScope {
 
@@ -169,16 +111,73 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 
 	/** The checkout of `folder`, and whether to read it again as the folders change, as its `origin` could not be read. */
 	private async _readCheckout(folder: URI): Promise<{ readonly checkout: IFolderCheckout; readonly readAgain: boolean }> {
-		const repository = await readFolderGitRepository(this._fileService, folder);
+		const repository = await WorkspaceFolderRepositories._readFolderGitRepository(this._fileService, folder);
 		if (!repository) {
 			return { checkout: { repository, gitHubRepository: undefined }, readAgain: false };
 		}
 		try {
-			return { checkout: { repository, gitHubRepository: await readRepositoryGitHubOrigin(this._fileService, repository) }, readAgain: false };
+			return { checkout: { repository, gitHubRepository: await WorkspaceFolderRepositories._readRepositoryGitHubOrigin(this._fileService, repository) }, readAgain: false };
 		} catch (error) {
 			// The repository still counts; its `origin` is read again, like a failed read of `.git`, as the folders change.
 			this._logService.warn(`[WorkspaceFolderRepositories] Could not read the git origin of ${repository.toString()}`, error);
 			return { checkout: { repository, gitHubRepository: undefined }, readAgain: true };
+		}
+	}
+
+	/**
+	 * The git repository that a local folder is a checkout of, read from its `.git`: the folder itself when `.git` is a
+	 * directory, and the main checkout when `.git` is the file of a worktree (`gitdir: <repository>/.git/worktrees/<name>`).
+	 * `undefined` for a folder without `.git`, or whose `.git` names no worktree, such as a submodule's. Throws when `.git`
+	 * exists but cannot be read.
+	 */
+	private static async _readFolderGitRepository(fileService: IFileService, folder: URI): Promise<URI | undefined> {
+		const dotGit = joinPath(folder, '.git');
+		let isDirectory: boolean;
+		try {
+			isDirectory = (await fileService.stat(dotGit)).isDirectory;
+		} catch (error) {
+			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
+		}
+		if (isDirectory) {
+			return folder;
+		}
+		const content = (await fileService.readFile(dotGit)).value.toString();
+		const gitdir = /^gitdir:\s*(?<path>.+?)\s*$/m.exec(content)?.groups?.path;
+		if (!gitdir) {
+			return undefined;
+		}
+		const worktreeGitDir = isAbsolute(gitdir) ? URI.file(gitdir) : joinPath(folder, gitdir);
+		const worktreesDir = dirname(worktreeGitDir);
+		const commonGitDir = dirname(worktreesDir);
+		return basename(worktreesDir) === 'worktrees' && basename(commonGitDir) === '.git' && !isEqual(commonGitDir, worktreesDir)
+			? dirname(commonGitDir)
+			: undefined;
+	}
+
+	/**
+	 * The GitHub repository, as lowercase `owner/repo`, that the `origin` remote of a git `config` names, such as
+	 * `https://github.com/owner/repo.git` or `git@github.com:owner/repo`; `undefined` for another host or without `origin`.
+	 */
+	private static _parseGitHubOrigin(config: string): string | undefined {
+		const repository = parseGitHubRepositoryFromGitConfig(config, GITHUB_HOSTS, 'origin');
+		return repository && `${repository.owner}/${repository.repo}`.toLowerCase();
+	}
+
+	/**
+	 * The GitHub repository the `origin` of a local git `repository` names, read from its `.git/config` (see
+	 * {@link _parseGitHubOrigin}). `undefined` without that file; throws when it exists but cannot be read.
+	 */
+	private static async _readRepositoryGitHubOrigin(fileService: IFileService, repository: URI): Promise<string | undefined> {
+		try {
+			return WorkspaceFolderRepositories._parseGitHubOrigin((await fileService.readFile(joinPath(repository, '.git', 'config'))).value.toString());
+		} catch (error) {
+			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
+				return undefined;
+			}
+			throw error;
 		}
 	}
 }
