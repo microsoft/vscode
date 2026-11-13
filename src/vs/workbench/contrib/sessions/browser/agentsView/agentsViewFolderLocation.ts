@@ -192,8 +192,12 @@ export interface IAgentsViewFolderLocationService {
 	 * Moves the window's folder to the location `session` works in, when that is the folder's primary location or one
 	 * of its alternate locations. Does nothing for a session working elsewhere, in a remote, web or multi-root window,
 	 * or with AI features disabled. A later call supersedes an earlier one that has not switched yet, also one that keeps the folder where it is.
+	 *
+	 * An `automatic` call, one the user did not ask for now (such as following a session into the worktree its agent
+	 * created), supersedes nothing: it does nothing while another switch, of this service or of the workspace, is under
+	 * way, and it never asks the workspace only to keep the folder where it is.
 	 */
-	switchToSession(session: ISession): Promise<void>;
+	switchToSession(session: ISession, options?: { readonly automatic?: boolean }): Promise<void>;
 
 	/** The session the user last picked while the folder was at `location`, its primary location or an alternate one. */
 	getLastSession(location: URI): URI | undefined;
@@ -216,6 +220,8 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 	private _request = 0;
 	/** How many moves it asked the workspace for that have not completed yet. */
 	private _pendingMoves = 0;
+	/** The switches of this service under way, from their request to the workspace's answer. */
+	private _switching = 0;
 	private readonly _provider: AgentsViewFolderLocationProvider;
 	/** Its provider, registered while AI features are enabled. */
 	private readonly _providerRegistration = this._register(new MutableDisposable());
@@ -295,17 +301,24 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		this._markTerminals();
 	}
 
-	async switchToSession(session: ISession): Promise<void> {
+	async switchToSession(session: ISession, options?: { readonly automatic?: boolean }): Promise<void> {
+		const automatic = !!options?.automatic;
+		if (automatic && this._switching > 0) {
+			return;
+		}
+		this._switching++;
 		// Its callers do not wait for it: what fails here is reported here
 		try {
-			await this._switchToSession(session);
+			await this._switchToSession(session, automatic);
 		} catch (error) {
 			this._logService.error('[agentsView] could not move the folder to the location of a session', error);
 			this._notificationService.error(localize('agentsViewFolderLocation.error', "Could not move the folder to the location of the session: {0}", toErrorMessage(error)));
+		} finally {
+			this._switching--;
 		}
 	}
 
-	private async _switchToSession(session: ISession): Promise<void> {
+	private async _switchToSession(session: ISession, automatic: boolean): Promise<void> {
 		const request = ++this._request;
 		const folder = this._supportedFolder();
 		const primary = this._workspaceContextService.getWorkspace().uri;
@@ -319,14 +332,14 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		// Every decision goes to the workspace, also one that keeps the folder where it is: its latest request is the one
 		// that applies, so an earlier move still under way does not apply after it
 		if (!workingDirectory || workingDirectory.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, folder.uri)) {
-			return this._move(request, session, primary, current, undefined);
+			return this._move(request, automatic, session, primary, current, undefined);
 		}
 		if (extUriBiasedIgnorePathCase.isEqualOrParent(workingDirectory, primary)) {
-			return this._move(request, session, primary, undefined, 'toPrimary');
+			return this._move(request, automatic, session, primary, undefined, 'toPrimary');
 		}
 
 		if (this._notLocations.has(workingDirectory)) {
-			return this._move(request, session, primary, current, undefined);
+			return this._move(request, automatic, session, primary, current, undefined);
 		}
 		let location: IFolderLocation | undefined;
 		try {
@@ -335,7 +348,7 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 					this._notificationService.info(localize('agentsViewFolderLocation.missing', "The folder {0} of this session no longer exists.", this._labelService.getUriLabel(workingDirectory, { noPrefix: true })));
 					this._log('toAlternate', 'missing');
 				}
-				return this._move(request, session, primary, current, undefined);
+				return this._move(request, automatic, session, primary, current, undefined);
 			}
 			location = await this._provider.resolveLocation(primary, workingDirectory, CancellationToken.None);
 			if (!location) {
@@ -349,17 +362,17 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 				this._notificationService.error(localize('agentsViewFolderLocation.readError', "Could not move the folder to {0}: {1}", this._labelService.getUriLabel(workingDirectory, { noPrefix: true }), toErrorMessage(error)));
 				this._log('toAlternate', 'failed');
 			}
-			return this._move(request, session, primary, current, undefined);
+			return this._move(request, automatic, session, primary, current, undefined);
 		}
 		// A session that works elsewhere opens in place
-		return this._move(request, session, primary, location?.uri ?? current, location ? 'toAlternate' : undefined);
+		return this._move(request, automatic, session, primary, location?.uri ?? current, location ? 'toAlternate' : undefined);
 	}
 
 	/**
 	 * Asks the workspace to move its folder to `location` of `primary`, or to keep it at `location` when that is where it
 	 * is (`direction` undefined), unless a later request of its own came meanwhile.
 	 */
-	private async _move(request: number, session: ISession, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection | undefined): Promise<void> {
+	private async _move(request: number, automatic: boolean, session: ISession, primary: URI, location: URI | undefined, direction: AgentsViewFolderLocationDirection | undefined): Promise<void> {
 		// Read again right before the move: AI features may have been disabled meanwhile, which also supersedes the request
 		if (request !== this._request || !this._isChatEnabled()) {
 			if (direction) {
@@ -367,13 +380,26 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 			}
 			return;
 		}
-		// The session the user picked is the last one of the location the folder is to be at
-		this._rememberSession(location ?? primary, session.resource);
+		const target = location ?? primary;
+		if (automatic && !direction) {
+			// Keeping the folder where it is needs the workspace only to supersede a switch of the user's under way, which an automatic one must not
+			this._rememberSession(target, session.resource);
+			return;
+		}
+		if (!automatic) {
+			// The session the user picked is the last one of the location the folder is to be at
+			this._rememberSession(target, session.resource);
+		}
 		this._pendingMoves++;
 		try {
-			await this._workspaceEditingService.setFolderLocation(location ?? primary);
+			// An automatic move gives way to a switch already under way in the workspace, such as one the user picked in the window's title
+			await this._workspaceEditingService.setFolderLocation(target, automatic ? { ifIdle: true } : undefined);
+			const applied = request === this._request && (!automatic || this._isAt(primary, target));
+			if (automatic && applied) {
+				this._rememberSession(target, session.resource);
+			}
 			if (direction) {
-				this._log(direction, request === this._request ? 'switched' : 'superseded');
+				this._log(direction, applied ? 'switched' : 'superseded');
 			}
 		} catch (error) {
 			this._logService.error('[agentsView] could not move the folder to the location of a session', error);
@@ -383,6 +409,13 @@ export class AgentsViewFolderLocationService extends Disposable implements IAgen
 		} finally {
 			this._pendingMoves--;
 		}
+	}
+
+	/** Whether the window's folder is at `location` of `primary`. */
+	private _isAt(primary: URI, location: URI): boolean {
+		const folder = this._workspaceContextService.getWorkspace().folders[0];
+		const current = folder && this._folderLocationService.isAtAlternateLocation(folder) ? folder.uri : primary;
+		return extUriBiasedIgnorePathCase.isEqual(current, location);
 	}
 
 	/** The window's folder, when its location can be set (see `IWorkspaceFolderLocationService.canSetLocation`) and AI features are enabled. */

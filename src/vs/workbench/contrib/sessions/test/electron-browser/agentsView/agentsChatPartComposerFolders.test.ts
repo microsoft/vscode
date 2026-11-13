@@ -13,7 +13,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentsChatPartComposerFolders } from '../../../browser/agentsView/agentsChatPartComposerFolders.js';
 
 suite('AgentsChatPartComposerFolders', () => {
@@ -25,6 +25,7 @@ suite('AgentsChatPartComposerFolders', () => {
 	function create(options: { folders: { uri: string; primaryUri?: string }[]; remote?: boolean; currentLocation?: IFolderLocation; noLocations?: boolean }) {
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
 		const onDidChangeProviders = store.add(new Emitter<void>());
+		const onDidChangeWorkbenchState = store.add(new Emitter<WorkbenchState>());
 		let folders = options.folders;
 		let locations: IFolderLocation[] = options.noLocations ? [] : [worktree('/work/vscode.worktrees/a', 'feature-a'), worktree('/work/vscode.worktrees/b', 'feature-b')];
 		const asked: string[] = [];
@@ -42,7 +43,8 @@ suite('AgentsChatPartComposerFolders', () => {
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: onDidChangeProviders.event,
 			onDidChangeLocation: Event.None,
-			onDidChangeCanSetLocation: Event.None,
+			// As the service has it: whether a folder can move changes also as the window's folders change
+			onDidChangeCanSetLocation: Event.any<unknown>(onDidChangeWorkbenchState.event, onDidChangeWorkspaceFolders.event) as Event<void>,
 			canSetLocation: () => folders.length === 1 && !options.remote,
 			isAtAlternateLocation: atAlternate,
 			getLocation: folder => atAlternate(folder) && options.currentLocation ? { ...options.currentLocation, providerId: 'agentsView.linkedCheckouts', builtIn: true } : undefined,
@@ -80,6 +82,16 @@ suite('AgentsChatPartComposerFolders', () => {
 			afterNewWorktree: ['/work/vscode.worktrees/a', '/work/vscode', '/work/vscode.worktrees/b', '/work/vscode.worktrees/c'],
 			asked: ['/work/vscode', '/work/vscode', '/work/vscode'],
 		});
+	});
+
+	test('reads the folder\'s locations once as the window\'s folders change, which also changes whether the folder can move', async () => {
+		const { asked, moveTo } = create({ folders: [{ uri: '/work/vscode' }] });
+		await timeout(0);
+		asked.splice(0);
+		moveTo([{ uri: '/work/vscode.worktrees/a', primaryUri: '/work/vscode' }]);
+		await timeout(0);
+
+		assert.deepStrictEqual(asked, ['/work/vscode']);
 	});
 
 	test('as the window\'s folder moves to another location, it offers it at once and tells where it moved from and to; not as it changes to another repository', async () => {

@@ -256,7 +256,9 @@ suite('AgentsChatPartService', () => {
 
 		// The sessions whose opening asked to move the window's folder to where they work
 		const switchedTo: ISession[] = [];
-		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ switchToSession: async session => { switchedTo.push(session); } }));
+		// Whether each of those was automatic, not asked for by the user now
+		const automatic: boolean[] = [];
+		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ switchToSession: async (session, options) => { switchedTo.push(session); automatic.push(!!options?.automatic); } }));
 
 		const host = new EditorWindowMainSessionHost(contextKeyService);
 		instantiationService.stub(ISessionHost, host);
@@ -283,6 +285,7 @@ suite('AgentsChatPartService', () => {
 			/** Changes of sessions that the providers' listing scope hides, such as of another folder: they are not listed. */
 			fireHiddenSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => allSessionsChanged.fire({ added, removed, changed: [] } as never),
 			switchedTo,
+			automatic,
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),
 			/** The tabs of each group, the active one of each, and whether the layout shows the chat part. */
 			layout: () => ({
@@ -373,8 +376,8 @@ suite('AgentsChatPartService', () => {
 	test('a session the user opened that comes to work elsewhere, such as in the new worktree its agent created, moves the window\'s folder there too', async () => {
 		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
 		const moving: ISession = { ...buildTestSession({ id: 'moving', title: 'Moving' }).session, workspace };
-		const { service, switchedTo } = createService({ sessions: () => [moving] });
-		const switches = () => switchedTo.splice(0).length;
+		const { service, switchedTo, automatic } = createService({ sessions: () => [moving] });
+		const switches = () => { switchedTo.splice(0); return automatic.splice(0).map(isAutomatic => isAutomatic ? 'automatic' : 'user'); };
 
 		await service.openChat(moving, undefined);
 		const opened = switches();
@@ -382,7 +385,8 @@ suite('AgentsChatPartService', () => {
 		const moved = switches();
 		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
 
-		assert.deepStrictEqual({ opened, moved, unchanged: switches() }, { opened: 1, moved: 1, unchanged: 0 });
+		// Following the session gives way to a switch the user asked for meanwhile
+		assert.deepStrictEqual({ opened, moved, unchanged: switches() }, { opened: ['user'], moved: ['automatic'], unchanged: [] });
 	});
 
 	test('a composer\'s send moves the window\'s folder to where its session works, also when that is known already, and follows the session into the new worktree its agent creates', async () => {
@@ -390,8 +394,12 @@ suite('AgentsChatPartService', () => {
 		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
 		const created = upcastPartial<ISession>({ sessionId: 'created', status, mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace });
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
-		const { service, switchedTo } = createService({ newSession });
-		const switches = () => switchedTo.splice(0).map(switched => switched === created ? 'created' : 'other');
+		const { service, switchedTo, automatic } = createService({ newSession });
+		// The send moves the folder automatically: it gives way to a switch the user asked for meanwhile
+		const switches = () => {
+			const kinds = automatic.splice(0);
+			return switchedTo.splice(0).map((switched, index) => `${switched === created ? 'created' : 'other'}${kinds[index] ? ' (automatic)' : ''}`);
+		};
 
 		await service.openComposer(undefined);
 		newSession.set(created, undefined);
@@ -401,7 +409,7 @@ suite('AgentsChatPartService', () => {
 		const sent = switches();
 		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
 
-		assert.deepStrictEqual({ draft, sent, newWorktree: switches() }, { draft: [], sent: ['created'], newWorktree: ['created'] });
+		assert.deepStrictEqual({ draft, sent, newWorktree: switches() }, { draft: [], sent: ['created (automatic)'], newWorktree: ['created (automatic)'] });
 	});
 
 	test('a composer\'s send that completes after the user opened another tab does not move the window\'s folder back to it', async () => {

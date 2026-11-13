@@ -39,11 +39,10 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
 	) {
 		super();
-		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => this._onDidChangeFolders()));
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
 		// The location the folder is at, as the workspace resolved it, shows as one also before or without its provider's list
 		this._register(_folderLocationService.onDidChangeLocation(() => this._update(this._locations.get())));
-		// A window whose folder comes to move, or no longer can, such as as folders are added, offers its locations or not
+		// Also as the window's folders change: a folder that comes to move, or no longer can, such as as folders are added, offers its locations or not
 		this._register(_folderLocationService.onDidChangeCanSetLocation(() => this._onDidChangeFolders()));
 		this._at = this._location();
 		this._update([]);
