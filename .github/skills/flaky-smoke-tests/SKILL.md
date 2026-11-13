@@ -17,6 +17,7 @@ The pipeline builds VS Code from source and runs the complete Electron smoke sui
 
 - Windows unit and integration tests: `WindowsSmokeFlakyUnit_<odd|even>` and `WindowsSmokeFlakyIntegration_<odd|even>`, with artifacts `logs-windows-x64-<unit|integration>-<odd|even>-<attempt>`.
 - Linux unit tests: `LinuxSmokeFlakyUnit_<odd|even>`, with artifacts `logs-linux-x64-unit-<odd|even>-<attempt>`.
+- macOS unit tests: `macOSSmokeFlakyUnit_<odd|even>`, with artifacts `logs-macos-arm64-unit-<odd|even>-<attempt>`.
 
 Each shard has its own Slack tally line.
 
