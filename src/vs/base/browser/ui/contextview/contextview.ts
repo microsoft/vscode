@@ -13,7 +13,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 import * as platform from '../../../common/platform.js';
 import { OmitOptional } from '../../../common/types.js';
-import { avoidWindowControlsOverlay } from './windowControlsOverlay.js';
+import { avoidWindowControlsOverlay, IWindowControlsOverlayPosition, IWindowControlsOverlaySize, IWindowControlsOverlayTitlebarRect, IWindowControlsOverlayViewport } from './windowControlsOverlay.js';
 import './contextview.css';
 
 export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../common/layout.js';
@@ -244,6 +244,39 @@ export function getDevicePixelRounding(start: number, size: number, anchorStart:
 		return roomBefore >= devicePixel ? 'start' : 'none';
 	}
 	return roomBefore < devicePixel ? 'end' : 'nearest';
+}
+
+/**
+ * Moves a view's laid-out position so that its border box starts on whole device pixels (see
+ * {@link DOM.alignToDevicePixels}), computed from geometry measured before the view moves so that
+ * aligning forces no further layout.
+ *
+ * @param position The laid-out position, in the coordinate space of `viewport` and `origin`.
+ * @param size The rendered border-box size of the view.
+ * @param anchor The rect the view is anchored to, which decides the rounding direction per axis.
+ * @param viewport The visible area of the page, which the aligned view must stay inside.
+ * @param origin Where the view is placed when its `top` and `left` are 0.
+ * @param zoom The CSS zoom applied to the view.
+ * @param devicePixelRatio The device pixel ratio of the window that shows the view.
+ * @param titlebarAreaRect The visible window controls overlay, which the aligned position must not
+ * cover when `position` does not. Each axis keeps its alignment where it can.
+ */
+export function alignViewToDevicePixels(position: IWindowControlsOverlayPosition, size: IWindowControlsOverlaySize, anchor: IRect, viewport: IWindowControlsOverlayViewport, origin: IWindowControlsOverlayPosition, zoom: number, devicePixelRatio: number, titlebarAreaRect: IWindowControlsOverlayTitlebarRect | undefined): IWindowControlsOverlayPosition {
+	const align = (start: number, viewSize: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, originStart: number) => {
+		const rounding = getDevicePixelRounding(start, viewSize, anchorStart, anchorSize, viewportStart, viewportSize, devicePixelRatio);
+		const client = originStart - viewportStart + (start - originStart) * zoom;
+		return start + DOM.getDevicePixelAlignmentOffset(client, devicePixelRatio, rounding) / zoom;
+	};
+	const aligned = {
+		top: align(position.top, size.height, anchor.top, anchor.height, viewport.top, viewport.height, origin.top),
+		left: align(position.left, size.width, anchor.left, anchor.width, viewport.left, viewport.width, origin.left)
+	};
+	const clearOfWindowControls = (candidate: IWindowControlsOverlayPosition) => avoidWindowControlsOverlay(titlebarAreaRect, viewport, size, candidate) === candidate;
+	if (!clearOfWindowControls(position)) {
+		return aligned;
+	}
+	const candidates = [aligned, { top: position.top, left: aligned.left }, { top: aligned.top, left: position.left }];
+	return candidates.find(clearOfWindowControls) ?? position;
 }
 
 export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor): IRect {
@@ -637,29 +670,28 @@ export class ContextView extends Disposable {
 		this.view.style.left = '0px';
 		const positioningOrigin = DOM.getDomNodePagePosition(this.view);
 		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
+		// Read while layout is still clean: measuring after the view moves would force another layout
+		const zoom = DOM.getEffectiveZoom(this.view);
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
 		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
 		const layoutResult = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
-		const adjusted = avoidWindowControlsOverlay(getVisibleWCOTitlebarAreaRect(containerWindow), viewport, view, layoutResult);
-		const { top, left } = adjusted;
+		const titlebarAreaRect = getVisibleWCOTitlebarAreaRect(containerWindow);
+		const adjusted = avoidWindowControlsOverlay(titlebarAreaRect, viewport, view, layoutResult);
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
 		if (adjusted === layoutResult) {
 			this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
 			this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
 		} else {
-			this.view.classList.add(top >= anchor.top + anchor.height ? 'bottom' : 'top');
-			this.view.classList.add(left >= anchor.left ? 'left' : 'right');
+			this.view.classList.add(adjusted.top >= anchor.top + anchor.height ? 'bottom' : 'top');
+			this.view.classList.add(adjusted.left >= anchor.left ? 'left' : 'right');
 		}
 
+		const { top, left } = alignViewToDevicePixels(adjusted, { width: positioningOrigin.width, height: positioningOrigin.height }, anchor, viewport, positioningOrigin, zoom, containerWindow.devicePixelRatio, titlebarAreaRect);
 		this.view.style.top = `${top - positioningOrigin.top}px`;
 		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';
-		DOM.alignToDevicePixels(this.view, {
-			horizontal: getDevicePixelRounding(left, view.width, anchor.left, anchor.width, viewport.left, viewport.width, containerWindow.devicePixelRatio),
-			vertical: getDevicePixelRounding(top, view.height, anchor.top, anchor.height, viewport.top, viewport.height, containerWindow.devicePixelRatio)
-		});
 	}
 
 	hide(data?: unknown, skipAnimation = false): void {

@@ -6,7 +6,7 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { $, getDomNodePagePosition, getWindow, isHTMLElement } from '../../../../browser/dom.js';
-import { CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, getDevicePixelRounding, getFocusedContextView, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
+import { alignViewToDevicePixels, CONTEXT_VIEW_CLOSE_ANIMATION_DURATION_VARIABLE, CONTEXT_VIEW_MENU_MOTION_CLASS, CONTEXT_VIEW_MENU_MOTION_CLOSING_CLASS, ContextView, ContextViewDOMPosition, contextViewMenuCloseAnimation, getDevicePixelRounding, getFocusedContextView, IContextViewRenderContext, IDelegate, isContextViewFocused } from '../../../../browser/ui/contextview/contextview.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../common/errors.js';
 import { DeferredPromise, timeout } from '../../../../common/async.js';
@@ -392,6 +392,40 @@ suite('ContextView', () => {
 			alignedFlushToEnd: 'start',
 			alignedFlushToStart: 'end',
 			alignedFillingViewport: 'none',
+		});
+	});
+
+	test('aligning to device pixels keeps a fractionally sized view inside the viewport and clear of the window controls (#347796)', () => {
+		const viewport = { top: 0, left: 0, width: 1002, height: 600 };
+		const origin = { top: 0, left: 0 };
+		const band = { x: 80, y: 0, width: 800, height: 32 };
+		const round = (value: number) => Math.round(value * 1000) / 1000;
+		const align = (position: { top: number; left: number }, size: { width: number; height: number }, anchor: { top: number; left: number; width: number; height: number }, titlebarAreaRect?: typeof band) => {
+			const aligned = alignViewToDevicePixels(position, size, anchor, viewport, origin, 1, 1.32, titlebarAreaRect);
+			return { top: round(aligned.top), left: round(aligned.left) };
+		};
+		// The view fits below the anchor only by its fractional height, so moving it down would overflow
+		const belowAnchor = align({ top: 200.2, left: 10 }, { width: 100, height: 399.4 }, { top: 190, left: 10, width: 1, height: 10.2 });
+		// Pushed below the titlebar band beside an anchor that spans it, where the nearest device pixel is inside the band
+		const pushed = { top: 32, left: 10 };
+		const tallAnchor = { top: 0, left: 10, width: 1, height: 40 };
+		// A zoomed view in a scrolled page, placed from a fractional origin, lands on whole device pixels on screen
+		const zoomedViewport = { top: 100, left: 30, width: 1002, height: 600 };
+		const zoomedOrigin = { top: 50.3, left: 20.1 };
+		const zoomed = alignViewToDevicePixels({ top: 250.3, left: 140.7 }, { width: 100, height: 100 }, { top: 240.1, left: 140.7, width: 1, height: 10.2 }, zoomedViewport, zoomedOrigin, 1.25, 1.32, undefined);
+		const toScreenDevicePixels = (start: number, originStart: number, viewportStart: number) => round((originStart - viewportStart + (start - originStart) * 1.25) * 1.32);
+		assert.deepStrictEqual({
+			belowAnchor,
+			belowBand: align(pushed, { width: 100, height: 100 }, tallAnchor, band),
+			withoutBand: align(pushed, { width: 100, height: 100 }, tallAnchor),
+			zoomed: { top: round(zoomed.top), left: round(zoomed.left) },
+			zoomedOnScreen: { top: toScreenDevicePixels(zoomed.top, zoomedOrigin.top, zoomedViewport.top), left: toScreenDevicePixels(zoomed.left, zoomedOrigin.left, zoomedViewport.left) },
+		}, {
+			belowAnchor: { top: 200.2, left: 9.848 },
+			belowBand: { top: 32, left: 9.848 },
+			withoutBand: { top: 31.818, left: 9.848 },
+			zoomed: { top: 250.666, left: 140.747 },
+			zoomedOnScreen: { top: 265, left: 186 },
 		});
 	});
 

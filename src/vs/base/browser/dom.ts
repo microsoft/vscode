@@ -899,24 +899,31 @@ export interface IDevicePixelAlignment {
 export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixelAlignment = {}): void {
 	const targetWindow = getWindow(element);
 	const devicePixelRatio = targetWindow.devicePixelRatio;
+	const zoom = getEffectiveZoom(element);
+	const rect = element.getBoundingClientRect();
+	alignInset(element, 'left', 'right', getDevicePixelAlignmentOffset(rect.left, devicePixelRatio, direction.horizontal) / zoom);
+	alignInset(element, 'top', 'bottom', getDevicePixelAlignmentOffset(rect.top, devicePixelRatio, direction.vertical) / zoom);
+}
+
+/**
+ * Returns how far, in CSS pixels, to move a client position so that it lands on a whole device
+ * pixel, rounding as {@link alignToDevicePixels} does. Offsets within Chromium's layout precision
+ * are returned as 0.
+ */
+export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest'): number {
+	if (rounding === 'none') {
+		return 0;
+	}
 	// Chromium floors positions to 1/64 CSS pixel, so a whole device pixel can only be reached to within that
 	const tolerance = devicePixelRatio / 64 * 1.05;
-	const zoom = getEffectiveZoom(element, targetWindow);
-	const rect = element.getBoundingClientRect();
-	const offset = (value: number, rounding: DevicePixelRounding = 'nearest') => {
-		if (rounding === 'none') {
-			return 0;
-		}
-		const device = value * devicePixelRatio;
-		const target = rounding === 'start' ? Math.floor(device + tolerance) : rounding === 'end' ? Math.ceil(device - tolerance) : Math.round(device);
-		return Math.abs(target - device) <= tolerance ? 0 : (target - device) / devicePixelRatio / zoom;
-	};
-	alignInset(element, 'left', 'right', offset(rect.left, direction.horizontal));
-	alignInset(element, 'top', 'bottom', offset(rect.top, direction.vertical));
+	const device = position * devicePixelRatio;
+	const target = rounding === 'start' ? Math.floor(device + tolerance) : rounding === 'end' ? Math.ceil(device - tolerance) : Math.round(device);
+	return Math.abs(target - device) <= tolerance ? 0 : (target - device) / devicePixelRatio;
 }
 
 /** The CSS zoom applied to an element, including ancestors outside its shadow roots (unlike {@link getDomNodeZoomLevel}). */
-function getEffectiveZoom(element: HTMLElement, targetWindow: Window): number {
+export function getEffectiveZoom(element: HTMLElement): number {
+	const targetWindow = getWindow(element);
 	let zoom = 1;
 	for (let current: Element | null = element; current;) {
 		const value = parseFloat(targetWindow.getComputedStyle(current).zoom);
