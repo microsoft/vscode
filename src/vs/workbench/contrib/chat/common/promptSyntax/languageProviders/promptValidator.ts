@@ -1189,7 +1189,7 @@ export class PromptValidator {
 				continue;
 			}
 			if (name === 'url') {
-				if (property.value.type !== 'scalar' || !/^https?:\/\//i.test(property.value.value)) {
+				if (property.value.type !== 'scalar' || !isHttpUrl(property.value.value)) {
 					report(toMarker(localize('promptValidator.httpHookUrlInvalid', "The 'url' property in an HTTP hook action must be an HTTP or HTTPS URL."), property.value.range, MarkerSeverity.Error));
 				}
 			} else if (name === 'headers') {
@@ -1548,9 +1548,15 @@ export class PromptValidator {
 				}
 				case 'command':
 				case 'cwd':
+					if (property.value.type !== 'scalar') {
+						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					}
+					break;
 				case 'url':
 					if (property.value.type !== 'scalar') {
 						report(toMarker(localize('promptValidator.mcpServerPropertyMustBeString', "The '{0}' property for MCP server '{1}' must be a string.", propertyName, name), property.value.range, MarkerSeverity.Error));
+					} else if (!isHttpUrl(property.value.value)) {
+						report(toMarker(localize('promptValidator.mcpServerUrlInvalid', "The 'url' property for MCP server '{0}' must be an HTTP or HTTPS URL.", name), property.value.range, MarkerSeverity.Error));
 					}
 					break;
 				case 'args':
@@ -1621,6 +1627,14 @@ function isTrueOrFalse(value: IValue): boolean {
 
 function isNullScalar(value: IValue): boolean {
 	return value.type === 'scalar' && value.value === 'null' && value.format === 'none';
+}
+
+function isHttpUrl(value: string): boolean {
+	if (!URL.canParse(value)) {
+		return false;
+	}
+	const url = new URL(value);
+	return (url.protocol === 'http:' || url.protocol === 'https:') && !!url.hostname;
 }
 
 function formatAttributeTypes(types: readonly IValue['type'][], allowNull = false): string {

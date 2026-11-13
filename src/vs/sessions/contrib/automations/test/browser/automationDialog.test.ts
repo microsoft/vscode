@@ -3195,6 +3195,11 @@ suite('Automation dialog creation', () => {
 		unit.selectedIndex = 1;
 		unit.dispatchEvent(new (DOM.getWindow(unit).Event)('change'));
 		await dialog.setCloud(true);
+		const beforeWorkspaceHidden = duration.style.display === 'none';
+		dialog.cloudEnabled.set(false, undefined);
+		await timeout(0);
+		const unavailableHidden = duration.style.display === 'none';
+		dialog.cloudEnabled.set(true, undefined);
 		await dialog.selectWorkspace(REPOSITORY);
 		const withEndDate = {
 			hidden: duration.style.display === 'none',
@@ -3209,7 +3214,8 @@ suite('Automation dialog creation', () => {
 		await dialog.selectWorkspace(REPOSITORY);
 		dialog.saveButton.click();
 		const result = await dialog.result;
-		assert.deepStrictEqual({ withEndDate, restored, kind: result?.kind, conditions: result?.value.disableConditions }, {
+		assert.deepStrictEqual({ beforeWorkspaceHidden, unavailableHidden, withEndDate, restored, kind: result?.kind, conditions: result?.value.disableConditions }, {
+			beforeWorkspaceHidden: true, unavailableHidden: true,
 			withEndDate: {
 				hidden: true, blocked: 'true',
 				error: 'Cloud automations do not support end dates. Select Never before switching to the cloud.',
@@ -3247,6 +3253,7 @@ suite('Automation dialog creation', () => {
 			});
 		});
 	}
+
 });
 
 suite('Automation dialog layout', () => {

@@ -27,6 +27,7 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	declare readonly _serviceBrand: undefined;
 
 	private readonly validRoots = TernarySearchTree.forPaths<boolean>(!isLinux);
+	private managedRemoteResourceHandler: ((request: GlobalRequest) => Promise<GlobalResponse>) | undefined;
 	private readonly validExtensions = new Set(['.svg', '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.mp4', '.otf', '.ttf']); // https://github.com/microsoft/vscode/issues/119384
 
 	constructor(
@@ -81,11 +82,20 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 	}
 
 	registerManagedRemoteResourceProtocol(requestRemoteResource: (url: URI) => Promise<NodeRemoteResourceResponse>): void {
-		session.defaultSession.protocol.handle(
-			Schemas.vscodeManagedRemoteResource,
-			createManagedRemoteResourceRequestHandler(requestRemoteResource, this.logService)
-		);
-		this._register(toDisposable(() => session.defaultSession.protocol.unhandle(Schemas.vscodeManagedRemoteResource)));
+		const handler = createManagedRemoteResourceRequestHandler(requestRemoteResource, this.logService);
+		this.managedRemoteResourceHandler = handler;
+		session.defaultSession.protocol.handle(Schemas.vscodeManagedRemoteResource, handler);
+		this._register(toDisposable(() => {
+			this.managedRemoteResourceHandler = undefined;
+			session.defaultSession.protocol.unhandle(Schemas.vscodeManagedRemoteResource);
+		}));
+	}
+
+	async requestManagedRemoteResource(url: URI): Promise<GlobalResponse> {
+		if (!this.managedRemoteResourceHandler) {
+			return new Response('Remote resources are not available', { status: 503 });
+		}
+		return this.managedRemoteResourceHandler(new Request(url.toString()));
 	}
 
 	//#region file://
