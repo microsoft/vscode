@@ -170,18 +170,18 @@
 	pointer-events: none;
 }
 
-.chat-pet-subagent-layer {
+.chat-subagent-pet-layer {
 	position: absolute;
 	inset: 0;
 	pointer-events: none;
 }
 
-.chat-pet-subagent-layer.hidden {
+.chat-subagent-pet-layer.hidden {
 	display: none;
 }
 
-.chat-pet-subagent,
-.chat-pet-subagent-despawning {
+.chat-subagent-pet,
+.chat-subagent-pet-despawning {
 	position: absolute;
 	width: 48px;
 	height: 48px;
@@ -189,17 +189,17 @@
 	pointer-events: none;
 }
 
-.chat-pet-subagent-canvas {
+.chat-subagent-pet-canvas {
 	width: 48px;
 	height: 48px;
 	image-rendering: pixelated;
 }
 
-.chat-pet-subagent .chat-pet-eye {
+.chat-subagent-pet .chat-pet-eye {
 	height: 12px;
 }
 
-.chat-pet-subagent .chat-pet-pupil {
+.chat-subagent-pet .chat-pet-pupil {
 	height: 8px;
 }
 
@@ -496,7 +496,7 @@
 .chat-pet-button[data-state='painting'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='buttonPress'] .chat-pet-eyes.blink .chat-pet-pupil,
 .chat-pet-button[data-state='love'] .chat-pet-eyes.blink .chat-pet-pupil,
-.chat-pet-subagent .chat-pet-eyes.blink .chat-pet-pupil {
+.chat-subagent-pet .chat-pet-eyes.blink .chat-pet-pupil {
 	animation-name: chat-pet-tall-eye-blink;
 }
 
