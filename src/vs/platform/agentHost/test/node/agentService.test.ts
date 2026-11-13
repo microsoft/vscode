@@ -8553,6 +8553,18 @@ suite('AgentService (node dispatcher)', () => {
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length > 0, 'the rewritten message should reach the agent');
 		}
 
+		test('keeps skill resource identity when rewriting neighboring attachments', async () => {
+			const { svc, agent, session, attachmentsRoot, warnings } = await setup();
+			const skills: MessageAttachment[] = [
+				{ type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review/SKILL.md', label: '/review', displayKind: 'skill' },
+				{ type: MessageAttachmentKind.Resource, uri: joinPath(attachmentsRoot, 'SKILL.md').toString(), label: '/other', displayKind: 'skill' },
+			];
+			await dispatchTurnAndWait(svc, agent, session, [...skills, {
+				type: MessageAttachmentKind.EmbeddedResource, label: 'Context', contentType: 'text/plain', data: encodeBase64(VSBuffer.fromString('context')),
+			}]);
+			assert.deepStrictEqual({ skills: agent.sendMessageCalls[0].attachments?.slice(0, 2), warnings }, { skills, warnings: [] });
+		});
+
 		test('snapshots EmbeddedResource attachments to disk and rewrites to a Resource URI under the session attachments folder', async () => {
 			const { svc, agent, session, attachmentsRoot } = await setup();
 			const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
