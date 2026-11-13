@@ -210,7 +210,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }), getWorkbenchState: () => WorkbenchState.EMPTY }));
-		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, onDidChangeCurrentLocation: Event.None, getLocations: async () => [] }));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, onDidChangeLocation: Event.None, onDidChangeCanSetLocation: Event.None, canSetLocation: () => false, getLocations: async () => [] }));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		// The changes of the listed sessions, and of all sessions, also of those the providers' listing scope hides

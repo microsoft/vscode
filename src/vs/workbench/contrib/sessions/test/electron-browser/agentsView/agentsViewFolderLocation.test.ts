@@ -110,37 +110,41 @@ suite('AgentsViewFolderLocation', () => {
 	 * The service, started, in a single-folder window at `/work/vscode` (or at `location` of it), with the real workspace
 	 * editing service, whose resolving of a location waits for `resolution` when one is given.
 	 */
-	function createService(options?: { readonly location?: string; readonly workbenchState?: WorkbenchState; readonly chatEnabled?: boolean; readonly resolution?: DeferredPromise<void>; readonly storage?: InMemoryStorageService }) {
+	function createService(options?: { readonly location?: string; readonly cannotSetLocation?: boolean; readonly chatEnabled?: boolean; readonly resolution?: DeferredPromise<void>; readonly storage?: InMemoryStorageService }) {
 		const instantiationService = disposables.add(new TestInstantiationService());
 		const contextKeyService = disposables.add(new ChangingContextKeyService());
 		contextKeyService.createKey(ChatContextKeys.enabled.key, options?.chatEnabled ?? true);
 		const primary = URI.file('/work/vscode');
-		const folder = upcastPartial<IWorkspaceFolder>({ uri: options?.location ? URI.file(options.location) : primary, primaryUri: options?.location ? primary : undefined });
+		const folder = upcastPartial<IWorkspaceFolder>({ uri: options?.location ? URI.file(options.location) : primary });
 		const moves: string[] = [];
 		const trusted: string[] = [];
 		const notifications: string[] = [];
 		let provider: IWorkspaceFolderLocationProvider | undefined;
 		const currentLocation = options?.location ? upcastPartial<IResolvedFolderLocation>({ uri: URI.file(options.location), providerId: AGENTS_VIEW_FOLDER_LOCATION_PROVIDER_ID }) : undefined;
+		// The workspace's own location is the folder's primary location; it does not change as the folder moves
 		const workspaceContextService = {
-			getWorkbenchState: () => options?.workbenchState ?? WorkbenchState.FOLDER,
-			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [folder] }),
+			getWorkbenchState: () => WorkbenchState.FOLDER,
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: primary, folders: [folder] }),
 			onDidChangeWorkspaceFolders: Event.None,
-			setFolderLocation: async (_primary: URI, location: URI | undefined) => { moves.push(location ? location.path : 'primary'); },
+			setFolderLocation: async (location: URI) => { moves.push(extUri.isEqual(location, primary) ? 'primary' : location.path); },
 		};
 		const folderLocationService = {
-			currentLocation,
+			canSetLocation: () => !options?.cannotSetLocation,
+			isAtAlternateLocation: () => !!options?.location,
+			getLocation: () => currentLocation,
 			registerProvider: (registered: IWorkspaceFolderLocationProvider) => { provider = registered; return toDisposable(() => provider = undefined); },
 			resolveLocation: async (from: URI, location: URI) => {
 				await options?.resolution?.p;
 				const resolved = await provider?.resolveLocation(from, location, CancellationToken.None);
 				return resolved && { ...resolved, providerId: provider!.id, builtIn: true };
 			},
-			setCurrentLocation: () => { },
+			setLocation: () => { },
 		};
 		// The real one: only its latest request applies
 		const workspaceEditingService = disposables.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 			undefined, workspaceContextService, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-			{ extUri }, { getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris.map(uri => uri.path)); } }, undefined, undefined, undefined, folderLocationService));
+			{ extUri }, { isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: true }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris.map(uri => uri.path)); } }, undefined, undefined, undefined, folderLocationService,
+			{ isWorkspaceTrustEnabled: () => true }));
 
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IFileService, fileService);
@@ -168,20 +172,17 @@ suite('AgentsViewFolderLocation', () => {
 
 	/** The recall of a location's last session over `service`, with a chat part that moves the folder as it opens a session, unless asked to keep it. */
 	function createRecall(service: AgentsViewFolderLocationService, sessions: ISession[]) {
-		const onDidChangeCurrentLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
-		let folder = URI.file('/work/vscode');
+		const onDidChangeLocation = disposables.add(new Emitter<IFolderLocationChangeEvent>());
 		const opened: string[] = [];
 		disposables.add(new AgentsViewLocationSessions(
-			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChangeCurrentLocation.event }),
+			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeLocation: onDidChangeLocation.event }),
 			service,
-			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
 			upcastPartial<ISessionsManagementService>({ getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()) }),
 			upcastPartial<IAgentsChatPartService>({ openChat: async (session, _chat, options) => { opened.push(session.resource.toString()); if (!options?.keepFolder) { await service.switchToSession(session); } } }),
 			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>() => true as T }),
 		));
 		const pick = async (path: string) => {
-			folder = URI.file(path);
-			onDidChangeCurrentLocation.fire({ reason: 'user' });
+			onDidChangeLocation.fire({ folder: upcastPartial<IWorkspaceFolder>({ uri: URI.file(path) }), reason: 'user' });
 			await timeout(0);
 		};
 		return { opened, pick };
@@ -262,7 +263,7 @@ suite('AgentsViewFolderLocation', () => {
 			ordinaryCheckout: await moved(sessionIn('/work/ordinary')),
 			missing: await moved(sessionIn('/work/vscode.worktrees/gone', '/work/vscode')),
 			unreadable: await moved(sessionIn('/work/denied')),
-			multiRoot: await moved(sessionIn('/work/vscode.worktrees/feature'), { workbenchState: WorkbenchState.WORKSPACE }),
+			multiRoot: await moved(sessionIn('/work/vscode.worktrees/feature'), { cannotSetLocation: true }),
 			aiDisabled: await moved(sessionIn('/work/vscode.worktrees/feature'), { chatEnabled: false }),
 		}, {
 			toLinked: '/work/vscode.worktrees/feature',

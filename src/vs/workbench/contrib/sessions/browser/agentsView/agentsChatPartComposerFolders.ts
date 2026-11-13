@@ -7,14 +7,11 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
-import { isWeb } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
 /**
  * The folders the chat part's new-session composers create their sessions in: the window's folders and, for the one local
@@ -40,13 +37,14 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
-		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => this._onDidChangeFolders()));
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
 		// The location the folder is at, as the workspace resolved it, shows as one also before or without its provider's list
-		this._register(_folderLocationService.onDidChangeCurrentLocation(() => this._update(this._locations.get())));
+		this._register(_folderLocationService.onDidChangeLocation(() => this._update(this._locations.get())));
+		// A window whose folder comes to move, or no longer can, such as as folders are added, offers its locations or not
+		this._register(_folderLocationService.onDidChangeCanSetLocation(() => this._onDidChangeFolders()));
 		this._at = this._location();
 		this._update([]);
 	}
@@ -65,7 +63,8 @@ export class AgentsChatPartComposerFolders extends Disposable {
 
 	private _location(): { readonly location: URI; readonly primary: URI } | undefined {
 		const folder = this._movableFolder();
-		return folder && { location: folder.uri, primary: folder.primaryUri ?? folder.uri };
+		const primary = this._workspaceContextService.getWorkspace().uri;
+		return folder && primary && { location: folder.uri, primary };
 	}
 
 	/** How a composer shows `folderUri` when it is another location of the window's folder: by its name and branch. */
@@ -81,9 +80,13 @@ export class AgentsChatPartComposerFolders extends Disposable {
 			this._update([]);
 			return;
 		}
+		const primary = this._workspaceContextService.getWorkspace().uri;
+		if (!primary) {
+			this._update([]);
+			return;
+		}
 		const source = new CancellationTokenSource();
 		this._refresh.value = toDisposable(() => source.dispose(true));
-		const primary = folder.primaryUri ?? folder.uri;
 		this._folderLocationService.getLocations(primary, source.token).then(locations => {
 			if (!source.token.isCancellationRequested) {
 				this._update(locations);
@@ -92,11 +95,12 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	}
 
 	private _update(provided: readonly IFolderLocation[]): void {
-		const windowFolders = this._workspaceContextService.getWorkspace().folders;
+		const workspace = this._workspaceContextService.getWorkspace();
+		const windowFolders = workspace.folders;
 		const folder = this._movableFolder();
-		const current = this._folderLocationService.currentLocation;
-		const locations = folder?.primaryUri && current && extUriBiasedIgnorePathCase.isEqual(current.uri, folder.uri)
-			&& !provided.some(location => extUriBiasedIgnorePathCase.isEqual(location.uri, current.uri))
+		const atAlternate = !!folder && this._folderLocationService.isAtAlternateLocation(folder);
+		const current = folder && atAlternate ? this._folderLocationService.getLocation(folder) : undefined;
+		const locations = current && !provided.some(location => extUriBiasedIgnorePathCase.isEqual(location.uri, current.uri))
 			? [current, ...provided]
 			: provided;
 		const folders: URI[] = windowFolders.map(windowFolder => windowFolder.uri);
@@ -106,8 +110,8 @@ export class AgentsChatPartComposerFolders extends Disposable {
 			}
 		};
 		// The primary location while the folder is at another, then its other locations
-		if (folder?.primaryUri) {
-			add(folder.primaryUri);
+		if (atAlternate && workspace.uri) {
+			add(workspace.uri);
 		}
 		for (const location of locations) {
 			add(location.uri);
@@ -116,12 +120,9 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		this._folders.set(folders, undefined);
 	}
 
-	/** The window's only folder, when it can move between its locations: a local, desktop, single-folder window. */
+	/** The window's folder, when it can move between its locations (see `IWorkspaceFolderLocationService.canSetLocation`). */
 	private _movableFolder() {
-		if (isWeb || this._environmentService.remoteAuthority || this._workspaceContextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
-			return undefined;
-		}
 		const folder = this._workspaceContextService.getWorkspace().folders[0];
-		return folder?.uri.scheme === Schemas.file ? folder : undefined;
+		return folder && this._folderLocationService.canSetLocation(folder) ? folder : undefined;
 	}
 }

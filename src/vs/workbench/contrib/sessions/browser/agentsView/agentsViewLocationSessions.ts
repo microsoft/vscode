@@ -7,7 +7,7 @@ import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
@@ -24,23 +24,21 @@ export class AgentsViewLocationSessions extends Disposable {
 	constructor(
 		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
 		@IAgentsViewFolderLocationService private readonly _agentsViewFolderLocationService: IAgentsViewFolderLocationService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IAgentsChatPartService private readonly _agentsChatPartService: IAgentsChatPartService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
-		this._register(workspaceFolderLocationService.onDidChangeCurrentLocation(e => {
+		this._register(workspaceFolderLocationService.onDidChangeLocation(e => {
 			// Read as the change comes: a pick still under way as AI features were disabled shows no chat once it completes
 			if (e.reason === 'user' && this._contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.enabled.key)) {
-				this._showLastSession().catch(onUnexpectedError);
+				this._showLastSession(e.folder.uri).catch(onUnexpectedError);
 			}
 		}));
 	}
 
-	private async _showLastSession(): Promise<void> {
-		const location = this._workspaceContextService.getWorkspace().folders[0]?.uri;
-		const resource = location && this._agentsViewFolderLocationService.getLastSession(location);
+	private async _showLastSession(location: URI): Promise<void> {
+		const resource = this._agentsViewFolderLocationService.getLastSession(location);
 		// A session that is no longer known, such as one deleted meanwhile, shows nothing
 		const session = resource && this._sessionsManagementService.getSession(resource);
 		if (session) {

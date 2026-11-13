@@ -11,7 +11,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IFolderLocationChangeEvent, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
@@ -29,27 +29,26 @@ suite('AgentsViewLocationSessions', () => {
 	function create(lastSessions: [URI, URI][], sessions: URI[]) {
 		const opened: string[] = [];
 		const onDidChange = store.add(new Emitter<IFolderLocationChangeEvent>());
-		let folder = primary;
+		let folder = upcastPartial<IWorkspaceFolder>({ uri: primary });
 		let chatEnabled = true;
 		const last = new ResourceMap<URI>(lastSessions);
 		const known = new ResourceMap<ISession>(sessions.map((resource): [URI, ISession] => [resource, upcastPartial<ISession>({ resource })]));
 		store.add(new AgentsViewLocationSessions(
-			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeCurrentLocation: onDidChange.event }),
+			upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeLocation: onDidChange.event }),
 			upcastPartial<IAgentsViewFolderLocationService>({ getLastSession: location => last.get(location), touchLocation: () => { } }),
-			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }),
 			upcastPartial<ISessionsManagementService>({ getSession: resource => known.get(resource) }),
 			upcastPartial<IAgentsChatPartService>({
 				openChat: async (session, _chat, options) => {
 					opened.push(`${session.resource.toString()} keepFolder=${options?.keepFolder}`);
 					// Opening the session keeps the folder where it is, a change the user did not pick
-					onDidChange.fire({ reason: 'programmatic' });
+					onDidChange.fire({ folder, reason: 'programmatic' });
 				}
 			}),
 			upcastPartial<IContextKeyService>({ getContextKeyValue: <T>(key: string) => (key === ChatContextKeys.enabled.key ? chatEnabled : undefined) as T }),
 		));
 		const pick = async (location: URI, reason: IFolderLocationChangeEvent['reason']) => {
-			folder = location;
-			onDidChange.fire({ reason });
+			folder = upcastPartial<IWorkspaceFolder>({ uri: location });
+			onDidChange.fire({ folder, reason });
 			await Promise.resolve();
 		};
 		return { opened, pick, setChatEnabled: (enabled: boolean) => chatEnabled = enabled };

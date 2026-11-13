@@ -13,8 +13,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { AgentsChatPartComposerFolders } from '../../../browser/agentsView/agentsChatPartComposerFolders.js';
 
 suite('AgentsChatPartComposerFolders', () => {
@@ -30,18 +29,25 @@ suite('AgentsChatPartComposerFolders', () => {
 		let locations: IFolderLocation[] = options.noLocations ? [] : [worktree('/work/vscode.worktrees/a', 'feature-a'), worktree('/work/vscode.worktrees/b', 'feature-b')];
 		const asked: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
+		// The workspace's own location is the folder's primary location; it does not change as the folder moves
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
-			getWorkspace: () => upcastPartial<IWorkspace>({ folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder.uri), primaryUri: folder.primaryUri ? URI.file(folder.primaryUri) : undefined })) }),
-			getWorkbenchState: () => folders.length === 1 ? WorkbenchState.FOLDER : folders.length ? WorkbenchState.WORKSPACE : WorkbenchState.EMPTY,
+			getWorkspace: () => upcastPartial<IWorkspace>({
+				uri: folders.length === 1 ? URI.file(folders[0].primaryUri ?? folders[0].uri) : undefined,
+				folders: folders.map(folder => upcastPartial<IWorkspaceFolder>({ uri: URI.file(folder.uri) })),
+			}),
 		}));
+		// As the workspace answers: only the folder of a local single-folder window can move
+		const atAlternate = (folder: IWorkspaceFolder) => folders.some(candidate => candidate.primaryUri && candidate.uri === folder.uri.path);
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: onDidChangeProviders.event,
-			onDidChangeCurrentLocation: Event.None,
-			currentLocation: options.currentLocation && { ...options.currentLocation, providerId: 'agentsView.linkedCheckouts', builtIn: true },
+			onDidChangeLocation: Event.None,
+			onDidChangeCanSetLocation: Event.None,
+			canSetLocation: () => folders.length === 1 && !options.remote,
+			isAtAlternateLocation: atAlternate,
+			getLocation: folder => atAlternate(folder) && options.currentLocation ? { ...options.currentLocation, providerId: 'agentsView.linkedCheckouts', builtIn: true } : undefined,
 			getLocations: async primary => { asked.push(primary.path); return locations; },
 		}));
-		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: options.remote ? 'ssh-remote+host' : undefined }));
 		const composerFolders = store.add(instantiationService.createInstance(AgentsChatPartComposerFolders));
 		composerFolders.refresh();
 		return {
@@ -119,15 +125,16 @@ suite('AgentsChatPartComposerFolders', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
-			getWorkspace: () => upcastPartial<IWorkspace>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') })] }),
-			getWorkbenchState: () => WorkbenchState.FOLDER,
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file('/work/vscode') })] }),
 		}));
 		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
 			onDidChangeProviders: Event.None,
-			onDidChangeCurrentLocation: Event.None,
+			onDidChangeLocation: Event.None,
+			onDidChangeCanSetLocation: Event.None,
+			canSetLocation: () => true,
+			isAtAlternateLocation: () => false,
 			getLocations: (_primary, cancellation) => { token = cancellation; return read.p; },
 		}));
-		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority: undefined }));
 		const composerFolders = instantiationService.createInstance(AgentsChatPartComposerFolders);
 		composerFolders.refresh();
 		composerFolders.dispose();
