@@ -2908,6 +2908,7 @@ suite('ChatPetWidget', () => {
 		const draws = sinon.spy(miniCanvas.getContext('2d')!, 'drawImage');
 		bodyImage.dispatchEvent(new mainWindow.Event('load'));
 		assert.ok(draws.calledWith(accessoryImage));
+		assert.strictEqual(draws.getCalls().filter(call => call.args[0] !== accessoryImage).length, 1);
 		draws.restore();
 		button.dataset.state = 'idle';
 		const miniPupil = firstMini.querySelector<HTMLElement>('.chat-pet-pupil')!;

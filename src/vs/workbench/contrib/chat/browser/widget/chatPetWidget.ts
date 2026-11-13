@@ -3155,12 +3155,12 @@ export class ChatPetWidget extends Disposable {
 				eyes.classList.toggle('tracking', state === 'idle');
 				this._startSpriteAnimation(source, sprite, animation, state === 'splat' ? () => setState('idle') : undefined, false, frameIndex => {
 					eyes.classList.toggle('bobbed', state === 'idle' && !this._motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
+				}, undefined, undefined, (context, frameIndex) => {
 					if (accessoryImage?.complete && accessoryImage.naturalWidth > 0 && accessory) {
-						const context = canvas.getContext('2d');
-						if (context) {
-							drawChatPetComposite(context, image, accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', state, source.fixedOrientationDecorations, true, accessory.eyeAccessoryMirrorsWithFacing !== false, accessory.coversAntennae === true, sprite.color);
-						}
+						drawChatPetComposite(context, image, accessoryImage, frameIndex, source.accessoryRigFrame ?? frameIndex, source.frameWidth, source.frameHeight ?? CHAT_PET_SOURCE_SIZE, 'right', state, source.fixedOrientationDecorations, true, accessory.eyeAccessoryMirrorsWithFacing !== false, accessory.coversAntennae === true, sprite.color);
+						return true;
 					}
+					return false;
 				});
 			}));
 			const fallAnimation = disposables.add(new MutableDisposable<IDisposable>());
@@ -4323,7 +4323,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
-	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState, initialFrame?: number): void {
+	private _startSpriteAnimation(source: ChatPetSpriteSource, sprite: ChatPetSpriteElement, animationDisposable: MutableDisposable<IDisposable>, onComplete?: () => void, reverse = false, onFrame?: (frameIndex: number) => void, state?: ChatPetState, initialFrame?: number, renderFrame?: (context: CanvasRenderingContext2D, frameIndex: number) => boolean): void {
 		sprite.color = this._color;
 		const { frameDurations } = source;
 		const { image, canvas } = sprite;
@@ -4347,7 +4347,8 @@ export class ChatPetWidget extends Disposable {
 		const drawFrame = (animationFrameIndex: number) => {
 			renderedFrameIndex = animationFrameIndex;
 			const frameIndex = source.frameIndices?.[animationFrameIndex] ?? animationFrameIndex;
-			if (state) {
+			const rendered = renderFrame?.(context, frameIndex);
+			if (!rendered && state) {
 				const activeAccessory = sprite.activeAccessory ? getChatPetAccessory(sprite.activeAccessory) : undefined;
 				drawChatPetComposite(
 					context,
@@ -4368,7 +4369,7 @@ export class ChatPetWidget extends Disposable {
 				);
 				this._drawPropeller(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? frameIndex);
 				this._drawEyeAccessory(sprite.activeAccessory, sprite.activeAccessoryImage, source, state, source.accessoryRigFrame ?? frameIndex);
-			} else {
+			} else if (!rendered) {
 				context.clearRect(0, 0, source.frameWidth, frameHeight);
 				context.drawImage(getChatPetColoredSprite(image, sprite.color), frameIndex * source.frameWidth, 0, source.frameWidth, frameHeight, 0, 0, source.frameWidth, frameHeight);
 			}
