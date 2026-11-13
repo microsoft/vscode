@@ -28846,6 +28846,25 @@ Use the attached image as context.
 			});
 		});
 
+		test('cancels the prompt when its turn ends, since the question closes with the turn', async () => {
+			const { session, runtime, mockSession, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-shell-auth');
+
+			const resultPromise = runtime.handleShellAuthenticationRequest(sudoPrompt, { sessionId: 'test-session-1', signal: new AbortController().signal });
+			const request = getInputRequest(signals[0]);
+			mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+
+			assert.deepStrictEqual({
+				hasActiveTurn: session.hasActiveTurn,
+				result: await resultPromise,
+				answerDelivered: session.answerShellAuthentication(request.id, 'too-late'),
+			}, {
+				hasActiveTurn: false,
+				result: { action: 'cancel' },
+				answerDelivered: false,
+			});
+		});
+
 		test('cancels without asking when nobody can answer', async () => {
 			const autopilot = await createAgentSession(disposables, { configValues: { [SessionConfigKey.Mode]: 'autopilot' } });
 			autopilot.session.resetTurnState('turn-shell-auth');

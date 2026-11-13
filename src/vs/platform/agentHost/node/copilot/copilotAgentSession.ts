@@ -3875,6 +3875,7 @@ export class CopilotAgentSession extends Disposable {
 		this._currentTurn.clear();
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._computerUseActivation.cancel();
+		this._cancelPendingShellAuthentications();
 		this._settleIdleWaiters(true);
 		this._agentMergeTurn = false;
 		this._clearStreamingToolCalls(preservesFusionState);
