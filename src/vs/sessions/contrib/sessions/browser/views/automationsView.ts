@@ -66,6 +66,7 @@ import { Gesture, GestureEvent, EventType as TouchEventType } from '../../../../
 import { extractEditorsDropData } from '../../../../../platform/dnd/browser/dnd.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { SessionStatusIcon } from '../../../../../workbench/contrib/sessions/browser/sessionStatusIcon.js';
 
@@ -255,10 +256,18 @@ export class AutomationsCardsWidget extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
 
 		logAutomationViewShown(this.telemetryService);
+		const configurationChanged = observableSignalFromEvent(this, configurationService.onDidChangeConfiguration);
+		const visibleAutomations = derived(this, reader => {
+			configurationChanged.read(reader);
+			const sendLaterEnabled = configurationService.getValue<boolean>(SESSIONS_SEND_LATER_ENABLED_SETTING) === true;
+			return this.automationService.automations.read(reader).filter(automation =>
+				!sendLaterEnabled || automation.purpose !== 'scheduledChat' || automation.oneTimeDispatchedAt !== undefined);
+		});
 		this.element = $('.automations-cards-widget');
 		this.element.tabIndex = -1;
 		const focusContext = AutomationsCustomViewFocusContext.bindTo(contextKeyService);
@@ -272,7 +281,7 @@ export class AutomationsCardsWidget extends Disposable {
 		this._register(autorun(reader => {
 			const state = this.automationService.historyState?.read(reader);
 			const catalogueState = this.automationService.catalogueState.read(reader);
-			const hasAutomations = this.automationService.automations.read(reader).length > 0;
+			const hasAutomations = visibleAutomations.read(reader).length > 0;
 			const hasRuns = this.automationService.runs.read(reader).length > 0;
 			const message = state === 'error'
 				? hasRuns
@@ -288,7 +297,7 @@ export class AutomationsCardsWidget extends Disposable {
 			const catalogueState = this.automationService.catalogueState.read(reader);
 			this.automationService.availableProviders.read(reader);
 			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
-			const items = this.automationService.automations.read(reader);
+			const items = visibleAutomations.read(reader);
 			const templates = readAutomationTemplates(this.agentPluginService.plugins.read(reader), reader);
 			this.cardsSection.render(items, catalogueState, unavailableProviders, templates);
 		}));
@@ -2429,6 +2438,7 @@ function formatSchedule(schedule: IAutomationSchedule): string {
 	const { interval, scheduleHour, scheduleMinute } = localSchedule;
 	const time = formatHourMinute(scheduleHour, scheduleMinute);
 	switch (interval) {
+		case 'once': return localize('scheduleOnceAt', "Once: {0}", schedule.runAt ? new Date(schedule.runAt).toLocaleString() : '');
 		case 'cron': return localize('scheduleCron', "Cron: {0}", schedule.cronExpression);
 		case 'hourly': return localize('scheduleHourly', "Hourly");
 		case 'daily': return localize('scheduleDailyAt', "Daily at {0}", time);

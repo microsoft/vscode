@@ -1286,6 +1286,27 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(creates, 0);
 		});
 
+		test('scheduled conversations restore persisted client ownership before autonomous dispatch', async () => {
+			const data = createPerSessionDataService();
+			const scopedService = disposables.add(createTestAgentService(new NullLogService(), fileService, data.service, { _serviceBrand: undefined } as IProductService, createNoopGitService()));
+			const provider = disposables.add(new MockAgent('copilot'));
+			registerTestAgentProvider(scopedService, provider);
+			const session = await scopedService.createSession({ legacyChatUris: false, provider: 'copilot' });
+			const chat = hostDefaultChat(scopedService, session);
+			await data.database(session).setMetadata(SESSION_CREDENTIAL_PRINCIPAL_KEY, JSON.stringify({
+				apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1',
+			}));
+			const authentication = getTestAgentServiceComposition(scopedService).authenticationService;
+			const before = authentication.getSessionCredentialPrincipal(session.toString());
+			scopedService.restoreSession = async () => { assert.fail('A client-owned session must not be restored autonomously'); };
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Exercise the production autonomous guard without exposing a test-only API.
+			const prepare = scopedService['_automationService']['_execution'].prepareConversation!;
+			await assert.rejects(prepare({ session: session.toString(), chat }, { text: 'Scheduled follow-up', origin: { kind: MessageKind.User } }, 'scheduled-message'), /requires an authenticated client/);
+			assert.deepStrictEqual({ before, after: authentication.getSessionCredentialPrincipal(session.toString()) }, {
+				before: undefined, after: { apiOrigin: GITHUB_COPILOT_PROTECTED_RESOURCE.resource, userId: '1' },
+			});
+		});
+
 		test('optional alternatives do not authorize a scoped operation or bypass another required resource', async () => {
 			class ScopedAgent extends MockAgent {
 				readonly supportsScopedCredentials = true;

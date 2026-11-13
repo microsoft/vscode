@@ -69,7 +69,7 @@ import { IActionViewItemFactory, IActionViewItemService, NullActionViewItemServi
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AutomationsHasItemsContext } from '../../../../common/agentsWindowContextKeys.js';
 import { getSessionApplication } from '../../../../../workbench/services/sessions/common/sessionApplication.js';
-import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { ExternalSessionApplicationBadgeMode, SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { buildAutomationsAccessibleContent } from '../../browser/views/automationsAccessibility.js';
 import { automationRunWithLocalProgress } from '../../browser/views/automationRunProgress.js';
 import { AUTOMATION_TEMPLATES } from '../../browser/views/automationTemplates.js';
@@ -917,6 +917,33 @@ suite('AutomationsCardsWidget', () => {
 		toolbar.push([action, disposables.add(new Action('other', 'Other'))]);
 		return { toolbar, button: container.querySelector<HTMLElement>('.monaco-button')! };
 	}
+
+	test('pending scheduled chats move out of Automations only while Send Later is enabled', async () => {
+		const { widget, automationService, configurationService } = setup();
+		const schedule: IAutomationSchedule = { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		automationService.setAutomations([
+			automation({ id: 'scheduled', purpose: 'scheduledChat', schedule }),
+			automation({ id: 'ordinary-once', schedule }),
+			automation({ id: 'recurring' }),
+		]);
+		const cardCount = () => widget.element.querySelectorAll('.automations-card-wrapper').length;
+		const before = cardCount();
+		const setEnabled = async (value: boolean) => {
+			await configurationService.setUserConfiguration(SESSIONS_SEND_LATER_ENABLED_SETTING, value);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				affectsConfiguration: key => key === SESSIONS_SEND_LATER_ENABLED_SETTING,
+				affectedKeys: new Set([SESSIONS_SEND_LATER_ENABLED_SETTING]),
+				change: { keys: [SESSIONS_SEND_LATER_ENABLED_SETTING], overrides: [] },
+				source: ConfigurationTarget.USER,
+			});
+		};
+		await setEnabled(true);
+		const whileEnabled = cardCount();
+		await setEnabled(false);
+		assert.deepStrictEqual({ before, whileEnabled, after: cardCount(), storedDefinitions: automationService.automations.get().length }, {
+			before: 3, whileEnabled: 2, after: 3, storedDefinitions: 3,
+		});
+	});
 
 	test('disabled cards are grouped under the warning area and above templates', () => {
 		const { widget, automationService } = setup('archive', NullHoverService, undefined, disposables.add(new InMemoryStorageService()));
