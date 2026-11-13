@@ -1384,6 +1384,7 @@ suite('CopilotSlashCommandCompletionProvider', () => {
 					{ name: 'my-plugin:user-disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 					{ name: 'my-plugin:disabled', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 					{ name: 'same-name', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
+					{ name: 'same-name:same-name', description: 'Runtime skill', kind: 'skill', allowDuringAgentExecution: true },
 				],
 				[
 					plugin('my-plugin', [

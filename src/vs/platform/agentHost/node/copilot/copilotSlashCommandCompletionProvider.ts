@@ -307,8 +307,8 @@ export class CopilotSlashCommandCompletionProvider implements IAgentHostCompleti
 				known.add(name);
 			} else {
 				ineligible.add(name);
-				if (container.type === CustomizationType.Plugin && isSyncedCustomization(container)) {
-					// Unlike visible duplicates, hidden skills stay hidden even when their bare name is reserved.
+				if (container.type === CustomizationType.Plugin) {
+					// Keep qualified runtime identities even when autocomplete uses the bare name.
 					ineligible.add(`${container.name}:${skill.name}`.toLowerCase());
 				}
 			}
