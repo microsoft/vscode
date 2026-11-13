@@ -5211,7 +5211,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
-		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas }, input }) => ({
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { uri: _uri, ...canvas }, input }) => ({
 			resource,
 			canvas,
 			...(input !== undefined ? { input } : {}),
@@ -5663,10 +5663,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _projectOpenedCanvas(data: SessionEventPayload<'session.canvas.opened'>['data']): void {
-		const url = this._canvasSource(data.url);
+		const uri = this._canvasSource(data.url);
 		const existing = this._canvasByInstanceId.get(data.instanceId);
 		if (existing
-			&& existing.canvas.url === url
+			&& existing.canvas.uri === uri
 			&& existing.canvas.extensionId === data.extensionId
 			&& existing.canvas.extensionName === data.extensionName
 			&& existing.canvas.canvasId === data.canvasId
@@ -5699,7 +5699,7 @@ export class CopilotAgentSession extends Disposable {
 			canvasId: data.canvasId,
 			...(data.title !== undefined ? { title: data.title } : {}),
 			...(data.status !== undefined ? { status: data.status } : {}),
-			...(url !== undefined ? { url } : {}),
+			...(uri !== undefined ? { uri } : {}),
 		};
 		const projection: ICopilotCanvasProjection = {
 			resource: existing?.resource ?? buildCanvasUri(this._chatChannelUri, generateUuid()),
@@ -13559,10 +13559,10 @@ export class CopilotAgentSession extends Disposable {
 			if (!projection) {
 				return;
 			}
-			const { url, ...canvas } = projection.canvas;
+			const { uri, ...canvas } = projection.canvas;
 			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas, ...(projection.input !== undefined ? { input: projection.input } : {}) };
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
-			if (url !== undefined) {
+			if (uri !== undefined) {
 				this._publishCanvasState(unavailable);
 			}
 		}));

@@ -66,6 +66,7 @@ export const enum AutomationOperation {
  * `30 9 * * 1-5` runs at 09:30 every weekday.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationSchedule {
 	/** Five-field AHP cron expression described by {@link AutomationSchedule}. */
@@ -132,6 +133,7 @@ export interface AutomationOneTimeTrigger {
  * Starts runs from a recurring cron schedule evaluated by the host.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationScheduleTrigger {
 	/**
@@ -160,6 +162,7 @@ export interface AutomationScheduleTrigger {
  * discovery.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationEventTrigger {
 	/**
@@ -219,6 +222,7 @@ export const enum AutomationDisableConditionKind {
  * Stops scheduling after a fixed number of scheduled runs.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationAfterRunsCondition {
 	kind: AutomationDisableConditionKind.AfterRuns;
@@ -234,6 +238,7 @@ export interface AutomationAfterRunsCondition {
  * Stops scheduling once a wall-clock date passes.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationAfterDateCondition {
 	kind: AutomationDisableConditionKind.AfterDate;
@@ -255,6 +260,7 @@ export type AutomationDisableCondition =
  * Describes one host-defined trigger event.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationTriggerEventDefinition {
 	/** Stable event id. */
@@ -295,6 +301,7 @@ export interface AutomationTriggerDefinition {
  * carry credentials, confirmation decisions, or durable permission grants.
  *
  * @category Automation State
+ * @preserveUnknownMembers
  */
 export interface AutomationSessionTemplate {
 	/** Provider id matching {@link AgentInfo.provider}. Omit to use the host's default provider. */

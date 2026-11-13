@@ -341,8 +341,9 @@ export interface InitializeResult {
 	 */
 	tcpConnections?: TcpConnectionsCapability;
 	/**
-	 * Present when chats in one session may be backed by different agents
-	 * (see {@link CreateChatParams.provider} and {@link ChatState.provider}).
+	 * Present when chats in one session may be backed by different agent
+	 * providers (see {@link CreateChatParams.provider} and
+	 * {@link ChatState.provider}).
 	 * Clients MUST NOT send `CreateChatParams.provider` without it.
 	 * @stability 1.0
 	 * @see {@link /specification/chat-channel#chat-providers | Chat Channel: Chat providers}

@@ -172,6 +172,7 @@ export function toListedSessionSummary(s: IAgentSessionMetadata): ListSessionsRe
 		...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 		workingDirectories: s.workingDirectories?.map(d => d.toString()),
 		changes: s.changes,
+		...(s.annotations !== undefined ? { annotations: s.annotations } : {}),
 		chats: s.chats?.map(chat => ({
 			resource: chat.chat.toString(),
 			title: chat.summary ?? '',

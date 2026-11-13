@@ -12,7 +12,7 @@ import { countsAgainstWindow, WINDOW_EXEMPT_METHODS } from './state/protocol/win
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import { getProtocolMessageSize, type IProtocolTransport } from './state/sessionTransport.js';
 
-const receiveLimitsValidator = vObj({ windowBytes: vNumber(), maximumFrameBytes: vNumber() });
+const receiveLimitsValidator = vObj({ windowBytes: vNumber(), maxFrameBytes: vNumber() });
 const notificationValidator = vObj({
 	jsonrpc: vEnum('2.0'), method: vString(), id: vOptionalProp(vUndefined()),
 	params: vObj({ channel: vString() }),
@@ -66,8 +66,8 @@ interface IOutgoingControl {
 }
 
 export function validateChannelLimits(limits: ChannelReceiveLimits): void {
-	if (![limits.windowBytes, limits.maximumFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
-		|| limits.maximumFrameBytes < 1024) {
+	if (![limits.windowBytes, limits.maxFrameBytes].every(value => Number.isSafeInteger(value) && value > 0)
+		|| limits.maxFrameBytes < 1024) {
 		throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid channel receive limits');
 	}
 }
@@ -349,7 +349,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 	}
 
-	get maximumFrameBytes(): number { return Math.min(this._sendLimits.maximumFrameBytes, channelSendBurstBytes); }
+	get maxFrameBytes(): number { return Math.min(this._sendLimits.maxFrameBytes, channelSendBurstBytes); }
 
 	setSendLimits(limits: ChannelReceiveLimits): void {
 		validateChannelLimits(limits);
@@ -368,7 +368,7 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 		const tail = this._outgoing.at(-1);
 		// Bounding the tail keeps each merge's reserialization cheap while the window is full.
-		const merged = tail && !tail.offset && tail.text.length * 2 < this.maximumFrameBytes ? merge?.(tail.message) : undefined;
+		const merged = tail && !tail.offset && tail.text.length * 2 < this.maxFrameBytes ? merge?.(tail.message) : undefined;
 		if (merged) {
 			message = merged;
 		}
@@ -415,7 +415,7 @@ export class AgentHostChannelDelivery extends Disposable {
 			const envelopeLength = JSON.stringify(envelope).length;
 			const remainingCredit = this._sendLimits.windowBytes - (this._sentBytes - this._peerConsumed);
 			// Even a one-byte window must fit the envelope and one escaped code point.
-			const frameBytes = Math.min(this.maximumFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
+			const frameBytes = Math.min(this.maxFrameBytes, Math.max((envelopeLength + 6) * 2, remainingCredit));
 			if (next.offset || next.text.length * 2 > frameBytes) {
 				let budget = frameBytes / 2 - envelopeLength;
 				end = next.offset;
@@ -483,7 +483,7 @@ export class AgentHostChannelDelivery extends Disposable {
 				}
 				return;
 			}
-			if (bytes > this._receiveLimits.maximumFrameBytes
+			if (bytes > this._receiveLimits.maxFrameBytes
 				|| this._receivedBytes - this._creditedBytes >= this._receiveLimits.windowBytes
 				|| !Number.isSafeInteger(this._receivedBytes + bytes)) {
 				throw new AgentHostChannelError(AgentHostChannelErrorCode.ReceiveLimitExceeded, 'Channel receive limit exceeded');

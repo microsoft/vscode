@@ -1801,7 +1801,7 @@ suite('AgentService (node dispatcher)', () => {
 		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const chat = URI.parse(buildDefaultChatUri(session.toString()));
 		const resource = buildCanvasUri(chat, 'preview');
-		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' };
 		const stateManager = getStateManager(service);
 		stateManager.setCanvasState(chat.toString(), resource.toString(), canvas);
 		service.restoreSession = async () => { throw new Error('Canvas subscriptions must not restore a provider'); };
@@ -24423,7 +24423,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot', session: URI.parse('ahp-session:/annotations-migration') });
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			// The shape written before annotations carried an origin: a
 			// top-level `turnId` and no owning session.

@@ -26,7 +26,7 @@ suite('AgentHost canvases', () => {
 	};
 	const resource = URI.parse('ahp-canvas:/host-specific/opaque-reference');
 	const state: CanvasState = {
-		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', url: 'https://example.test/preview',
+		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', uri: 'https://example.test/preview',
 	};
 
 	test('subscribes to advertised resources, updates source state and releases removed channels', () => {
@@ -58,7 +58,7 @@ suite('AgentHost canvases', () => {
 		let canvases: readonly ICanvas[] | undefined;
 		store.add(autorun(reader => { canvases = context.canvases.read(reader); }));
 		const initial = canvases?.[0].source?.toString();
-		current = { ...state, url: undefined };
+		current = { ...state, uri: undefined };
 		changed.fire(current);
 		const unavailable = canvases?.[0].source;
 		references.set(undefined, undefined);
@@ -305,8 +305,8 @@ suite('AgentHost canvases', () => {
 		const log = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}();
-		const invalid = new AgentHostCanvas(resource, { ...state, url: 'file:///private/token=secret' }, log);
-		const emptyAuthority = new AgentHostCanvas(resource, { ...state, url: 'http:/private/token=secret' }, log);
+		const invalid = new AgentHostCanvas(resource, { ...state, uri: 'file:///private/token=secret' }, log);
+		const emptyAuthority = new AgentHostCanvas(resource, { ...state, uri: 'http:/private/token=secret' }, log);
 		assert.deepStrictEqual({ invalid: invalid.source, emptyAuthority: emptyAuthority.source, warnings }, {
 			invalid: undefined, emptyAuthority: undefined, warnings: ['[AgentHostCanvas] Unsupported canvas source', '[AgentHostCanvas] Unsupported canvas source'],
 		});

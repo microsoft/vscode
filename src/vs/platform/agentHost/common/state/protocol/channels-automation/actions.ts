@@ -15,7 +15,10 @@ import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry,
  * Partial replacement of editable {@link AutomationDefinition} fields.
  *
  * Omitted fields are unchanged. Supplied arrays and objects replace their
- * corresponding values in full; they are not merged recursively.
+ * corresponding values in full; they are not merged recursively. Runtime
+ * decoders MUST preserve unrecognized members on these replacement objects
+ * and their nested objects (annotated `@preserveUnknownMembers`) and re-encode
+ * them, so editing known fields does not erase fields from newer versions.
  *
  * @category Automation Actions
  */

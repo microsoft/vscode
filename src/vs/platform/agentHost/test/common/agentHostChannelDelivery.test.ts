@@ -9,7 +9,7 @@ import { Event } from '../../../../base/common/event.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { vObj, vString } from '../../../../base/common/validation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AgentHostChannelDelivery, AgentHostChannelScheduler } from '../../common/agentHostChannelDelivery.js';
+import { AgentHostChannelDelivery, AgentHostChannelScheduler, readChannelFlowControl } from '../../common/agentHostChannelDelivery.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from '../../common/agentHostChannelTelemetry.js';
 import { isJsonRpcNotification, type JsonRpcNotification } from '../../common/state/sessionProtocol.js';
 import { getProtocolMessageSize, parseProtocolMessage, type IProtocolTransport } from '../../common/state/sessionTransport.js';
@@ -17,7 +17,7 @@ import { getProtocolMessageSize, parseProtocolMessage, type IProtocolTransport }
 suite('AgentHostChannelDelivery', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const channel = 'test:/delivery';
-	const limits = { windowBytes: 2048, maximumFrameBytes: 1024 };
+	const limits = { windowBytes: 2048, maxFrameBytes: 1024 };
 	const notification = (data: string, method = 'example/data'): JsonRpcNotification => ({
 		jsonrpc: '2.0', method, params: { channel, data },
 	});
@@ -60,6 +60,11 @@ suite('AgentHostChannelDelivery', () => {
 		};
 	}
 
+	test('decodes the released maxFrameBytes receive limit', () => {
+		const flowControl = { clientReceive: limits, hostReceive: { windowBytes: 4096, maxFrameBytes: 2048 } };
+		assert.deepStrictEqual(readChannelFlowControl(JSON.parse(JSON.stringify(flowControl))), flowControl);
+	});
+
 	test('sizes fragments to the remaining credit, even below the frame limit', async () => {
 		const sender = fixture();
 		const receiver = fixture({ receiveWindowBytes: 256, release: true });
@@ -74,7 +79,7 @@ suite('AgentHostChannelDelivery', () => {
 			assert.ok(isJsonRpcNotification(message));
 			sender.scheduler.acceptMessage(message);
 		});
-		sender.delivery.setSendLimits({ windowBytes: 256, maximumFrameBytes: 1024 });
+		sender.delivery.setSendLimits({ windowBytes: 256, maxFrameBytes: 1024 });
 		const message = notification('x'.repeat(300));
 		await sender.delivery.send(message);
 		assert.deepStrictEqual(receiver.received, [message]);
@@ -398,7 +403,7 @@ suite('AgentHostChannelDelivery', () => {
 		assert.deepStrictEqual(receiver.received, [message]);
 		assert.deepStrictEqual([...sender.errors, ...receiver.errors], []);
 		assert.ok(sender.sent.length > 2);
-		assert.ok(sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= limits.maximumFrameBytes));
+		assert.ok(sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= limits.maxFrameBytes));
 	});
 
 	test('reassembles consecutive fragmented messages and rejects only a surrogate pair split across fragments', () => {
@@ -574,7 +579,7 @@ suite('AgentHostChannelDelivery', () => {
 
 	test('rejects oversized raw frames and unavailable receive-size metadata', () => {
 		const h = fixture();
-		h.delivery.accept(notification('small'), limits.maximumFrameBytes + 1);
+		h.delivery.accept(notification('small'), limits.maxFrameBytes + 1);
 		assert.match(h.errors[0].message, /receive limit/);
 		const other = fixture();
 		other.scheduler.acceptMessage(notification('small'));
@@ -685,7 +690,7 @@ suite('AgentHostChannelDelivery', () => {
 		const credit = fixture();
 		credit.delivery.acceptCredit(1);
 		const receive = fixture();
-		receive.delivery.accept(notification('small'), limits.maximumFrameBytes + 1);
+		receive.delivery.accept(notification('small'), limits.maxFrameBytes + 1);
 		const control = fixture();
 		control.scheduler.sendControl(notification('x'.repeat(8192), 'tcp/reset'));
 		const disposed = fixture();
@@ -767,7 +772,7 @@ suite('AgentHostChannelDelivery', () => {
 		const blocked = h.delivery.send(blocker);
 		h.delivery.sendFrame();
 		const blockerEnd = await blocked;
-		const frameDataLength = limits.maximumFrameBytes / 2 - JSON.stringify(notification('')).length;
+		const frameDataLength = limits.maxFrameBytes / 2 - JSON.stringify(notification('')).length;
 		const data = 'x'.repeat(frameDataLength - 2);
 		const offeredBytes: number[] = [];
 		const merge = (suffix: string) => (tail: JsonRpcNotification) => {
@@ -784,10 +789,10 @@ suite('AgentHostChannelDelivery', () => {
 		while (h.delivery.canSend) {
 			h.delivery.sendFrame();
 		}
-		const mergedEnd = blockerEnd + limits.maximumFrameBytes;
+		const mergedEnd = blockerEnd + limits.maxFrameBytes;
 		assert.deepStrictEqual({ whileFull, offeredBytes, sent: h.sent, results: await Promise.all([first, second, third, fourth]), errors: h.errors }, {
 			whileFull: { sent: [blocker], canSend: false },
-			offeredBytes: [limits.maximumFrameBytes - 4, limits.maximumFrameBytes - 2],
+			offeredBytes: [limits.maxFrameBytes - 4, limits.maxFrameBytes - 2],
 			sent: [blocker, notification(data + 'yz'), next],
 			results: [mergedEnd, mergedEnd, mergedEnd, mergedEnd + JSON.stringify(next).length * 2],
 			errors: [],
@@ -1027,7 +1032,7 @@ suite('AgentHostChannelDelivery', () => {
 			whileQueued,
 			received: receiver.received,
 			fragmented: sender.sent.length > 1,
-			bounded: sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= limits.maximumFrameBytes),
+			bounded: sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= limits.maxFrameBytes),
 			errors: [...sender.errors, ...receiver.errors],
 		}, {
 			whileQueued: { sent: [], canSend: true },

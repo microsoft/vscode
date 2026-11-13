@@ -3964,7 +3964,7 @@ suite('ProtocolServerHandler', () => {
 				channel: sessionUri, flowControl: {
 					receive: {
 						windowBytes: agentHostStateReceiveLimits.windowBytes * 2,
-						maximumFrameBytes: agentHostStateReceiveLimits.maximumFrameBytes * 2,
+						maxFrameBytes: agentHostStateReceiveLimits.maxFrameBytes * 2,
 					}
 				}
 			}));
@@ -4026,7 +4026,7 @@ suite('ProtocolServerHandler', () => {
 				type: ActionType.ChatResponsePart, turnId: 'turn', part: { kind: ResponsePartKind.Markdown, id: 'part', content: '' },
 			});
 			const snapshotMessage = notification('channel/snapshot', { channel: defaultChatUri, snapshot: stateManager.getSnapshot(defaultChatUri) });
-			const receiveLimits = { windowBytes: JSON.stringify(snapshotMessage).length * 2, maximumFrameBytes: 64 * 1024 };
+			const receiveLimits = { windowBytes: JSON.stringify(snapshotMessage).length * 2, maxFrameBytes: 64 * 1024 };
 			const transport = connectClient('slow-window');
 			transport.sent.length = 0;
 			const subscribed = waitForResponse(transport, 2);
@@ -4113,8 +4113,8 @@ suite('ProtocolServerHandler', () => {
 			const transport = connectClient('invalid-window', [sessionUri]);
 			const codes: number[] = [];
 			for (const [index, receiveLimits] of [
-				{ windowBytes: 0, maximumFrameBytes: 1024 },
-				{ windowBytes: 1024, maximumFrameBytes: 1023 },
+				{ windowBytes: 0, maxFrameBytes: 1024 },
+				{ windowBytes: 1024, maxFrameBytes: 1023 },
 			].entries()) {
 				const rejected = waitForResponse(transport, index + 2);
 				transport.simulateMessage(request(index + 2, 'subscribe', { channel: sessionUri, flowControl: { receive: receiveLimits } }));
@@ -4156,7 +4156,7 @@ suite('ProtocolServerHandler', () => {
 			stateManager.createSession({ ...makeSessionSummary(), title: 'Initial '.repeat(128) });
 			const snapshot = stateManager.getSnapshot(sessionUri)!;
 			const snapshotMessage = notification('channel/snapshot', { channel: sessionUri, snapshot });
-			const receiveLimits = { windowBytes: JSON.stringify(snapshotMessage).length * 2, maximumFrameBytes: 64 * 1024 };
+			const receiveLimits = { windowBytes: JSON.stringify(snapshotMessage).length * 2, maxFrameBytes: 64 * 1024 };
 			const transport = connectClient('downgraded-window');
 			const windowed = waitForResponse(transport, 2);
 			transport.simulateMessage(request(2, 'subscribe', { channel: sessionUri, flowControl: { receive: receiveLimits } }));

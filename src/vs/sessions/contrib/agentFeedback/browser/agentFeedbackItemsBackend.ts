@@ -329,7 +329,7 @@ interface ITrackedChannel {
 
 /**
  * Feedback store backed by the agent host's annotations channel. Feedback
- * items round-trip as {@link Annotation}s on `<session>/annotations`, mutated
+ * items round-trip as {@link Annotation}s on the advertised annotations channel, mutated
  * via the `annotations/set` upsert (and `annotations/removed`) actions, with
  * feedback semantics carried in {@link Annotation._meta}.
  *

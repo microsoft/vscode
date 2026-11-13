@@ -509,7 +509,7 @@ session = await joinSession({
 
 			assert.deepStrictEqual({
 				openCanvasSucceeded: openCanvasComplete.result.success,
-				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				canvas: { instanceId: canvas.instanceId, uri: canvas.uri },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
 				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
@@ -518,7 +518,7 @@ session = await joinSession({
 				},
 			}, {
 				openCanvasSucceeded: true,
-				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				canvas: { instanceId: 'proof-instance', uri: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
 				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {

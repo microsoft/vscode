@@ -9557,7 +9557,7 @@ suite('CopilotAgent', () => {
 				const restoredBeforeClient = [await releaseAndObserve(), await releaseAndObserve()];
 
 				const canvasStates = signals.filter((signal): signal is Extract<AgentSignal, { kind: 'canvas' }> => signal.kind === 'canvas');
-				const urls = canvasStates.map(signal => signal.state.url);
+				const urls = canvasStates.map(signal => signal.state.uri);
 				assert.deepStrictEqual({
 					restoredBeforeClient,
 					launches: launches.map(launch => ({ kind: launch.kind, sends: launch.runtime.sendCalls })),

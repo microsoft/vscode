@@ -39,9 +39,9 @@ export class AgentHostCanvas implements ICanvas {
 		this.canvasId = canvas?.canvasId;
 		this.title = canvas?.title ?? canvas?.extensionName ?? canvas?.canvasId ?? localize('canvas.pendingTitle', "Canvas");
 		this.status = canvas?.status;
-		if (canvas?.url !== undefined) {
+		if (canvas?.uri !== undefined) {
 			try {
-				const source = URI.parse(canvas.url, true);
+				const source = URI.parse(canvas.uri, true);
 				if ((source.scheme === Schemas.http || source.scheme === Schemas.https) && source.authority) {
 					this.source = source;
 				} else {

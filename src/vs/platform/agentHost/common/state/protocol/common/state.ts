@@ -28,11 +28,11 @@ export type URI = string;
  * Limits on data that one peer receives on a windowed subscription.
  *
  * All sizes are UTF-16 bytes: two bytes for each UTF-16 code unit of a JSON-RPC
- * message's complete text, as sent. For a `channel/frame` fragment, this
+ * message's complete text, as sent. For a `channel/frame` notification, this
  * includes its envelope and escape characters. The same size is used for the
- * window, credit, and `maximumFrameBytes`. There is no negotiated limit on the
+ * window, credit, and `maxFrameBytes`. There is no negotiated limit on the
  * size of a complete data message. Outstanding data is always less than
- * `windowBytes + maximumFrameBytes`.
+ * `windowBytes + maxFrameBytes`.
  *
  * @category Common Types
  * @stability 1.0
@@ -41,10 +41,10 @@ export type URI = string;
 export interface ChannelReceiveLimits {
 	/**
 	 * The target amount of outstanding data. This is a soft target.
-	 * The sender MUST NOT send a data message or fragment while outstanding data
-	 * is equal to or greater than this value. The last message or fragment sent
+	 * The sender MUST NOT send a data message or frame while outstanding data
+	 * is equal to or greater than this value. The last message or frame sent
 	 * before the window is full can go past it, so a message that fits within
-	 * `maximumFrameBytes` can be sent whole even when it is larger than the
+	 * `maxFrameBytes` can be sent whole even when it is larger than the
 	 * remaining credit.
 	 * @integer
 	 * @minimum 1
@@ -55,12 +55,12 @@ export interface ChannelReceiveLimits {
 	 * The largest JSON-RPC message that the sender can send for a data message.
 	 * This is a hard limit, and MUST be at least 1024. For a `channel/frame`
 	 * notification, it includes the envelope and escape characters. A larger data
-	 * message MUST be split into smaller messages or sent in fragments.
+	 * message MUST be split into smaller messages or sent in frames.
 	 * @integer
 	 * @minimum 1024
 	 * @maximum 9007199254740991
 	 */
-	maximumFrameBytes: number;
+	maxFrameBytes: number;
 }
 
 /**
@@ -140,6 +140,7 @@ export type JsonPrimitive = string | number | boolean | null;
  * An optionally-sized icon that can be displayed in a user interface.
  *
  * @category Common Types
+ * @preserveUnknownMembers
  */
 export interface Icon {
 	/**
@@ -189,6 +190,7 @@ export interface Icon {
  *
  * @category Authentication
  * @see {@link https://datatracker.ietf.org/doc/html/rfc9728 | RFC 9728}
+ * @preserveUnknownMembers
  */
 export interface ProtectedResourceMetadata {
 	/**
@@ -317,6 +319,7 @@ export interface ConfigSchema {
  * A zero-based position within a textual document.
  *
  * @category Turn Types
+ * @preserveUnknownMembers
  */
 export interface TextPosition {
 	/** Zero-based line number. */
@@ -329,6 +332,7 @@ export interface TextPosition {
  * A range within a textual document.
  *
  * @category Turn Types
+ * @preserveUnknownMembers
  */
 export interface TextRange {
 	/** Start position of the range. */
@@ -345,6 +349,7 @@ export interface TextRange {
  * text selection field.
  *
  * @category Turn Types
+ * @preserveUnknownMembers
  */
 export interface TextSelection {
 	/** The range covered by the selection. */
@@ -355,6 +360,7 @@ export interface TextSelection {
 
 /**
  * A reference to large content stored outside the state tree.
+ * @preserveUnknownMembers
  */
 export interface ContentRef {
 	/** Content URI */
@@ -427,6 +433,7 @@ export interface UsageInfo {
 
 /**
  * @category Common Types
+ * @preserveUnknownMembers
  */
 export interface ErrorInfo {
 	/** Error type identifier */

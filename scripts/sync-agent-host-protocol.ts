@@ -19,6 +19,8 @@
 //   2. Merges duplicate imports from the same module.
 //   3. Formats with the project's tsfmt.json settings.
 //   4. Adds Microsoft copyright header.
+//   5. Applies agent-host-protocol.patch to preserve committed VS Code extensions.
+// The version file records the upstream revision, before this local overlay.
 //
 // URI stays as `string` (the protocol's canonical representation). VS Code code
 // should call `URI.parse()` at point-of-use where a URI class is needed.
@@ -282,6 +284,8 @@ function main() {
 		const srcPath = path.join(TYPES_DIR, file.src);
 		processFile(srcPath, file.dest);
 	}
+
+	execFileSync('git', ['apply', path.join(__dirname, 'agent-host-protocol.patch')], { cwd: ROOT, stdio: 'inherit' });
 
 	// Write the source commit hash to a single version file
 	const versionFile = path.join(DEST_DIR, '.ahp-version');

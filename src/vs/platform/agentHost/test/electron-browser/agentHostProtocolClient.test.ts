@@ -1033,7 +1033,7 @@ suite('AgentHostProtocolClient', () => {
 		const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
 		const flowControl = {
 			clientReceive: agentHostStateReceiveLimits,
-			hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 },
+			hostReceive: { windowBytes: 64 * 1024, maxFrameBytes: 1024 },
 		};
 		const state: SessionState = {
 			provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
@@ -1264,7 +1264,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
-		for (const limit of ['windowBytes', 'maximumFrameBytes'] as const) {
+		for (const limit of ['windowBytes', 'maxFrameBytes'] as const) {
 			test(`rejects a host that increases the offered ${limit}`, async () => {
 				const { client, transport } = createClient();
 				await connectClient(client, transport);
@@ -2115,12 +2115,13 @@ suite('AgentHostProtocolClient', () => {
 				const listing = client.listSessions();
 				const sent = transport.sentMessages[0] as JsonRpcRequest;
 				const directorySets = [undefined, [], ['file:///workspace'], ['file:///workspace', 'file:///second']];
+				const annotations = { resource: 'ahp-annotations://another-host/reviews?scope=one', annotationCount: 2, entryCount: 3 };
 				transport.fireMessage({
 					jsonrpc: '2.0', id: sent.id, result: {
 						items: directorySets.map((workingDirectories, index) => ({
 							resource: `session-store://tenant/session-${index}`, provider: 'other-agent', title: 'Session',
 							status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
-							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' },
+							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' }, annotations,
 						})),
 					}
 				});
@@ -2132,11 +2133,12 @@ suite('AgentHostProtocolClient', () => {
 					workingDirectory: session.workingDirectory?.toString(),
 					workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
 					project: session.project?.uri.toString(),
+					annotations: session.annotations,
 				})), [
-					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace },
-					{ workingDirectory: undefined, workingDirectories: [], project: workspace },
-					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace },
-					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace },
+					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace, annotations },
+					{ workingDirectory: undefined, workingDirectories: [], project: workspace, annotations },
+					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace, annotations },
+					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace, annotations },
 				]);
 			});
 		}
@@ -3204,7 +3206,7 @@ suite('AgentHostProtocolClient', () => {
 				snapshot: {
 					resource: resource.toString(), state: {
 						instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview',
-						url: 'https://example.test/preview',
+						uri: 'https://example.test/preview',
 					}, fromSeq: 1
 				}
 			},
@@ -3212,7 +3214,7 @@ suite('AgentHostProtocolClient', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
 			params: { channel: resource.toString(), flowControl: { receive: agentHostStateReceiveLimits } },
-			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
+			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' },
 		});
 	});
 
@@ -8768,7 +8770,7 @@ suite('AgentHostProtocolClient', () => {
 
 		suite('windowed state recovery', () => {
 			const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
-			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 } };
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maxFrameBytes: 1024 } };
 			const window = { channel, flowControl, recovery: 'snapshot' };
 			const offer = { channel, flowControl: { receive: agentHostStateReceiveLimits } };
 			const state: SessionState = {

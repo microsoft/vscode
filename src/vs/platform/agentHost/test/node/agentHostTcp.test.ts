@@ -198,6 +198,18 @@ suite('AHP windowed TCP', function () {
 		await stream.drain();
 	});
 
+	test('TCP creation returns an empty object', async () => {
+		const h = await harness(() => { });
+		const wire = h.newTransport();
+		await wire.request({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { clientId: 'tcp-result', protocolVersions: ['1.0.0'] } });
+		const channel = 'ahp-tcp:/empty-result';
+		const result = await wire.request({
+			jsonrpc: '2.0', id: 2, method: 'createTcpConnection', params: { channel, host: '127.0.0.1', port: h.port },
+		});
+		wire.send({ jsonrpc: '2.0', method: 'unsubscribe', params: { channel } });
+		assert.deepStrictEqual(result, {});
+	});
+
 	test('clients do not open TCP destinations without an advertised capability', async () => {
 		const h = await harness(() => { assert.fail('No TCP capability must not open a socket'); }, false);
 		assert.strictEqual(h.client.initializeResult.get()?.protocolVersion, '1.0.0');
@@ -386,9 +398,9 @@ suite('AHP windowed TCP', function () {
 		const h = await harness(socket => { accepted++; socket.end(input); });
 		const stream = store.add(await h.open());
 		// Equal windows keep the client's credit threshold valid; the test bypasses the client stream's own renegotiation.
-		await Promise.all([1024, 2048].map((maximumFrameBytes, index) => h.wire.request({
+		await Promise.all([1024, 2048].map((maxFrameBytes, index) => h.wire.request({
 			jsonrpc: '2.0', id: 900 + index, method: 'subscribe', params: {
-				channel: stream.resource, flowControl: { receive: { windowBytes: agentHostTcpReceiveLimits.windowBytes, maximumFrameBytes } },
+				channel: stream.resource, flowControl: { receive: { windowBytes: agentHostTcpReceiveLimits.windowBytes, maxFrameBytes } },
 			}
 		})));
 		assert.deepStrictEqual(await readAll(stream), input);

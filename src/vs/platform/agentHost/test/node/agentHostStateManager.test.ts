@@ -265,7 +265,7 @@ suite('AgentHostStateManager', () => {
 		const resource = buildCanvasUri(URI.parse(sessionChatUri), 'preview').toString();
 		const canvas: CanvasState = {
 			instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview',
-			url: 'https://example.test/preview',
+			uri: 'https://example.test/preview',
 		};
 		const actions: ActionEnvelope[] = [];
 		disposables.add(manager.onDidEmitEnvelope(action => actions.push(action)));
@@ -275,7 +275,7 @@ suite('AgentHostStateManager', () => {
 		});
 		const ready = manager.getSnapshot(resource)?.state;
 		const references = manager.getChatState(sessionChatUri)?.canvases;
-		const { url: _url, ...unavailable } = canvas;
+		const { uri: _uri, ...unavailable } = canvas;
 		manager.setCanvasState(sessionChatUri, resource, unavailable);
 		const cleared = manager.getSnapshot(resource)?.state;
 		manager.dispatchServerAction(sessionChatUri, { type: ActionType.ChatCanvasesChanged, canvases: undefined });
@@ -880,22 +880,83 @@ suite('AgentHostStateManager', () => {
 		});
 	});
 
-	test('deleteSession clears parent and subagent annotations', () => {
-		const subagent = buildSubagentSessionUri(sessionUri, 'tool-call');
-		const parentAnnotations = buildAnnotationsUri(sessionUri);
-		const subagentAnnotations = buildAnnotationsUri(subagent);
-		manager.createSession(makeSessionSummary());
-		manager.restoreAnnotations(sessionUri, { annotations: [] });
-		manager.restoreAnnotations(subagent, { annotations: [] });
-
-		manager.deleteSession(sessionUri);
-
+	test('dedicated annotations snapshots cannot be mistaken for session state', () => {
+		const session = 'ahp-session:/standard';
+		const annotations = buildAnnotationsUri(session);
+		manager.createSession(makeSessionSummary(session));
+		const initial = manager.getSnapshot(annotations)?.state;
+		const annotation = { id: 'review', origin: { session }, resource: 'file:///workspace/file.ts', resolved: false, entries: [{ id: 'entry', text: 'Review this' }] };
+		manager.dispatchServerAction(session, { type: ActionType.AnnotationsRemoved, annotationId: 'missing' });
+		manager.dispatchServerAction(annotations, { type: ActionType.AnnotationsSet, annotation });
 		assert.deepStrictEqual({
-			parent: manager.getAnnotationsState(parentAnnotations),
-			subagent: manager.getAnnotationsState(subagentAnnotations),
+			initial,
+			summary: manager.getSessionSummary(session)?.annotations,
+			annotations: manager.getSnapshot(annotations)?.state,
+			session: (manager.getSnapshot(session)?.state as SessionState).lifecycle,
+			misrouted: manager.getAnnotationsState(session),
 		}, {
-			parent: undefined,
-			subagent: undefined,
+			initial: { annotations: [] },
+			summary: { resource: annotations, annotationCount: 1, entryCount: 1 },
+			annotations: { annotations: [annotation] },
+			session: SessionLifecycle.Creating,
+			misrouted: undefined,
+		});
+	});
+
+	for (const owner of [sessionUri, 'ahp-session:/annotations-cleanup']) {
+		test(`deleteSession clears parent and subagent annotations (${owner})`, () => {
+			const subagent = buildSubagentSessionUri(owner, 'tool-call');
+			const parentAnnotations = buildAnnotationsUri(owner);
+			const subagentAnnotations = buildAnnotationsUri(subagent);
+			manager.createSession(makeSessionSummary(owner));
+			manager.restoreAnnotations(owner, { annotations: [] });
+			manager.restoreAnnotations(subagent, { annotations: [] });
+
+			manager.deleteSession(owner);
+
+			assert.deepStrictEqual({
+				parent: manager.getAnnotationsState(parentAnnotations),
+				subagent: manager.getAnnotationsState(subagentAnnotations),
+			}, {
+				parent: undefined,
+				subagent: undefined,
+			});
+		});
+	}
+
+	test('dedicated annotations isolate retained providers and do not expose old aliases', () => {
+		const first = 'copilotcli:/shared';
+		const second = 'claude:/shared';
+		const firstChannel = buildAnnotationsUri(first);
+		const secondChannel = buildAnnotationsUri(second);
+		const previousChannel = `${first}/annotations`;
+		manager.createSession(makeSessionSummary(first));
+		manager.createSession({ ...makeSessionSummary(second), provider: 'claude' });
+		const annotation = { id: 'review', origin: { session: first }, resource: 'file:///workspace/file.ts', resolved: false, entries: [{ id: 'entry', text: 'Review this' }] };
+		manager.dispatchServerAction(previousChannel, { type: ActionType.AnnotationsSet, annotation });
+		const oldAlias = { snapshot: manager.getSnapshot(previousChannel), mutation: manager.getAnnotationsState(firstChannel) };
+		manager.dispatchServerAction(firstChannel, { type: ActionType.AnnotationsSet, annotation });
+		manager.restoreAnnotations(second, { annotations: [] });
+		const before = {
+			advertised: manager.getSessionSummary(first)?.annotations,
+			canonical: manager.getSnapshot(firstChannel)?.state,
+			oldAlias,
+		};
+		manager.deleteSession(first);
+		assert.deepStrictEqual({
+			before,
+			deleted: manager.getAnnotationsState(firstChannel),
+			deletedAlias: manager.getAnnotationsState(previousChannel),
+			otherProvider: manager.getAnnotationsState(secondChannel),
+		}, {
+			before: {
+				advertised: { resource: firstChannel, annotationCount: 1, entryCount: 1 },
+				canonical: { annotations: [annotation] },
+				oldAlias: { snapshot: undefined, mutation: undefined },
+			},
+			deleted: undefined,
+			deletedAlias: undefined,
+			otherProvider: { annotations: [] },
 		});
 	});
 

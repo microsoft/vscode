@@ -22,7 +22,7 @@ import { parseProtocolMessage, type IProtocolTransport } from '../../common/stat
 suite('AgentHostChannelSubscription', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	const channel = 'test:/subscription';
-	const limits = { windowBytes: 2048, maximumFrameBytes: 1024 };
+	const limits = { windowBytes: 2048, maxFrameBytes: 1024 };
 	let clock: ReturnType<typeof sinon.useFakeTimers>;
 
 	setup(() => {
@@ -263,7 +263,7 @@ suite('AgentHostChannelSubscription', () => {
 
 	test('closes transports on receive-limit violations', () => {
 		const h = fixture();
-		h.receive(notification('x'.repeat(limits.maximumFrameBytes)));
+		h.receive(notification('x'.repeat(limits.maxFrameBytes)));
 		assert.deepStrictEqual({ received: h.received, errors: h.errors.map(error => error.message), transportDisposed: h.transportDisposed }, {
 			received: [], errors: ['Channel receive limit exceeded'], transportDisposed: true,
 		});
@@ -383,7 +383,7 @@ suite('AgentHostChannelSubscription', () => {
 				snapshot: receivedSnapshot,
 				methods: [...new Set(host.sent.map(message => message.method))],
 				fragmented: host.sent.length > 1,
-				bounded: host.sent.every(message => JSON.stringify(message).length * 2 <= limits.maximumFrameBytes),
+				bounded: host.sent.every(message => JSON.stringify(message).length * 2 <= limits.maxFrameBytes),
 				accepted: client.received,
 				errors: [...host.errors, ...client.errors],
 			}, {
