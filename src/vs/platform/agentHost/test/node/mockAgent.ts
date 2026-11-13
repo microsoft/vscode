@@ -11,7 +11,8 @@ import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentPermissionKind, AgentSession, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
+import type { AgentMessageProvenance } from '../../common/agentMessageProvenance.js';
+import { AgentPermissionKind, AgentSession, type IAgentPermissionResponseContext, type AgentChatMigrationResult, type AgentProvider, type AgentSignal, type IActiveClient, type IAgent, type IAgentActionSignal, type IAgentCapabilities, type IAgentChatConfigCompletionsParams, type IAgentChatContext, type IAgentChatMetadata, type IAgentChats, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentModelInfo, type IAgentPendingMessageSender, type IAgentResolveChatConfigParams, type IAgentSessionMetadata, type IAgentToolPendingConfirmationSignal, resolveAgentChatContext } from '../../common/agent.js';
 import { buildSubagentTurnsFromHistory, buildTurnsFromHistory, type IHistoryRecord } from './historyRecordFixtures.js';
 import { ProtectedResourceMetadata, ToolCallContributorKind, type AgentSelection, type MessageAttachment, type ModelSelection, type ToolDefinition } from '../../common/state/protocol/state.js';
 import type { ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
@@ -219,11 +220,14 @@ export class MockAgent implements IAgent {
 		this._sessions.set(AgentSession.id(session), session);
 	}
 
+	/** Provider data the initializing createChat reports for a new session's chat: the agent's backing of it. */
+	initialChatProviderData: string | undefined;
+
 	/** Backing helper for an initializing {@link chats}.createChat call. */
 	private _createSessionRecord(session: URI, config: IAgentCreateSessionConfig | undefined): IAgentCreateChatResult {
 		this.lastCreateSessionConfig = config;
 		this._sessions.set(AgentSession.id(session), session);
-		return { project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory };
+		return { project: mockProject(this.id), resolvedWorkingDirectory: this.resolvedWorkingDirectory, ...(this.initialChatProviderData !== undefined ? { providerData: this.initialChatProviderData } : {}) };
 	}
 
 	async resolveChatConfig(params: IAgentResolveChatConfigParams): Promise<ResolveSessionConfigResult> {
@@ -267,7 +271,7 @@ export class MockAgent implements IAgent {
 		this.setPendingMessagesCalls.push({ chat, steeringMessage, queuedMessages, steeringSender });
 	}
 
-	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender): boolean | void | Promise<boolean> {
+	sendSteeringMessage(chat: URI, message: PendingMessage, sender?: IAgentPendingMessageSender, _provenance?: AgentMessageProvenance): boolean | void | Promise<boolean> {
 		return this.setPendingMessages(chat, message, [], sender);
 	}
 
@@ -307,7 +311,7 @@ export class MockAgent implements IAgent {
 		this.truncateChatCalls.push({ chat, turnId, context });
 	}
 
-	respondToPermissionRequest(requestId: string, approved: boolean): void {
+	respondToPermissionRequest(requestId: string, approved: boolean, _context?: IAgentPermissionResponseContext): void {
 		this.respondToPermissionCalls.push({ requestId, approved });
 	}
 

@@ -760,7 +760,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 				const { confirmed } = await that.dialogService.confirm({ message });
 				if (confirmed) {
-					that.remoteTunnelService.stopTunnel();
+					await that.remoteTunnelService.stopTunnel();
 				}
 			}
 		}));

@@ -27,9 +27,9 @@ import { FileDownload } from '../../../../../workbench/contrib/files/browser/fil
 import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { TestFileEditorInput } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { Menus } from '../../../../browser/menus.js';
-import { DesktopLayoutContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../common/contextkeys.js';
-import { EmptyFileEditorInput } from '../../../editor/browser/emptyFileEditorInput.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { DesktopLayoutContext, IsPhoneLayoutContext, IsQuickChatSessionContext, SessionHasWorkspaceContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { EmptyFileEditorInput } from '../../../../../workbench/contrib/sessions/browser/emptyFileEditorInput.js';
 import { DownloadRemoteFileAction, RegisterFilesViewContribution, SESSIONS_FILES_CONTAINER_ID } from '../../browser/files.contribution.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID } from '../../browser/filesView.js';
 

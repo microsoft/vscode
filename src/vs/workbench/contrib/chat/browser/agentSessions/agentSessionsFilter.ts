@@ -42,13 +42,10 @@ export interface IAgentSessionsFilterOptions extends Partial<IAgentSessionsFilte
 	 */
 	readonly providerLabelOverrides?: ReadonlyMap<string, string>;
 
-	readonly limitResults?: () => number | undefined;
 	notifyResults?(count: number): void;
 
 	readonly groupResults?: () => AgentSessionsGrouping | undefined;
 	readonly sortResults?: () => AgentSessionsSorting | undefined;
-
-	overrideExclude?(session: IAgentSession): boolean | undefined;
 }
 
 const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
@@ -56,6 +53,7 @@ const DEFAULT_EXCLUDES: IAgentSessionsFilterExcludes = Object.freeze({
 	states: [] as const,
 	archived: true as const /* archived are never excluded but toggle between expanded and collapsed */,
 	read: false as const,
+	automation: true as const,
 	repositoryGroupCapped: true as const /* when true, repo groups are capped at a limit with a "show more" item */,
 });
 
@@ -67,7 +65,6 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange = this._onDidChange.event;
 
-	readonly limitResults = () => this.options.limitResults?.();
 	readonly groupResults = () => this.options.groupResults?.();
 	readonly sortResults = (): AgentSessionsSorting | undefined => this.options.sortResults?.() ?? this.currentSorting;
 
@@ -102,7 +99,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 			const excludedTypesRaw = this.storageService.get(this.STORAGE_KEY, StorageScope.PROFILE);
 			if (excludedTypesRaw) {
 				try {
-					this.excludes = JSON.parse(excludedTypesRaw) as IAgentSessionsFilterExcludes;
+					this.excludes = { ...DEFAULT_EXCLUDES, ...JSON.parse(excludedTypesRaw) as Partial<IAgentSessionsFilterExcludes> };
 				} catch {
 					this.excludes = { ...DEFAULT_EXCLUDES };
 				}
@@ -166,6 +163,7 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		this.registerStateActions(this.actionDisposables, menuId);
 		this.registerArchivedActions(this.actionDisposables, menuId);
 		this.registerReadActions(this.actionDisposables, menuId);
+		this.registerAutomationActions(this.actionDisposables, menuId);
 		this.registerResetAction(this.actionDisposables, menuId);
 	}
 
@@ -343,6 +341,27 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 		}));
 	}
 
+	private registerAutomationActions(disposables: DisposableStore, menuId: MenuId): void {
+		const that = this;
+		disposables.add(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: `agentSessions.filter.toggleExcludeAutomation.${menuId.id.toLowerCase()}`,
+					title: localize('agentSessions.filter.automation', "Automations"),
+					menu: {
+						id: menuId,
+						group: '3_props',
+						order: 1,
+					},
+					toggled: that.excludes.automation ? ContextKeyExpr.false() : ContextKeyExpr.true(),
+				});
+			}
+			run(): void {
+				that.storeExcludes({ ...that.excludes, automation: !that.excludes.automation });
+			}
+		}));
+	}
+
 	/**
 	 * Programmatically toggle the repository group capping state.
 	 */
@@ -381,13 +400,12 @@ export class AgentSessionsFilter extends Disposable implements Required<IAgentSe
 	}
 
 	exclude(session: IAgentSession): boolean {
-		const overrideExclude = this.options?.overrideExclude?.(session);
-		if (typeof overrideExclude === 'boolean') {
-			return overrideExclude;
-		}
-
 		const providerFilter = this.chatSessionsService.getChatSessionContribution(session.providerType)?.sessionListGroup ?? session.providerType;
 		if (this.options.allowedProviders && !this.options.allowedProviders.includes(providerFilter as AgentSessionProviders)) {
+			return true;
+		}
+
+		if (this.excludes.automation && session.metadata?.isAutomation === true) {
 			return true;
 		}
 

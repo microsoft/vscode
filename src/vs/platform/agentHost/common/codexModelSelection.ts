@@ -4,31 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CodexModelProvider } from './agentHostTelemetry.js';
+import { parseProviderQualifiedModelId, toProviderQualifiedModelId } from './providerQualifiedModelId.js';
 import type { ModelSelection } from './state/sessionState.js';
 
-const CODEX_MODEL_SELECTION_PREFIX = '@provider=';
 export const CODEX_COPILOT_MODEL_PROVIDER = 'vscode-proxy';
 
 export function toCodexModelSelectionId(modelProvider: string, modelId: string): string {
-	return `${CODEX_MODEL_SELECTION_PREFIX}${encodeURIComponent(modelProvider)}:${encodeURIComponent(modelId)}`;
+	return toProviderQualifiedModelId(modelProvider, modelId);
 }
 
 export function parseCodexModelSelection(selection: ModelSelection): { readonly modelProvider: string; readonly modelId: string } {
-	if (!selection.id.startsWith(CODEX_MODEL_SELECTION_PREFIX)) {
-		return { modelProvider: CODEX_COPILOT_MODEL_PROVIDER, modelId: selection.id };
-	}
-	const separator = selection.id.indexOf(':', CODEX_MODEL_SELECTION_PREFIX.length);
-	if (separator < CODEX_MODEL_SELECTION_PREFIX.length) {
-		return { modelProvider: CODEX_COPILOT_MODEL_PROVIDER, modelId: selection.id };
-	}
-	try {
-		return {
-			modelProvider: decodeURIComponent(selection.id.slice(CODEX_MODEL_SELECTION_PREFIX.length, separator)),
-			modelId: decodeURIComponent(selection.id.slice(separator + 1)),
-		};
-	} catch {
-		return { modelProvider: CODEX_COPILOT_MODEL_PROVIDER, modelId: selection.id };
-	}
+	const parsed = parseProviderQualifiedModelId(selection.id);
+	return parsed
+		? { modelProvider: parsed.provider, modelId: parsed.modelId }
+		: { modelProvider: CODEX_COPILOT_MODEL_PROVIDER, modelId: selection.id };
 }
 
 /** Bounds the provider actually used at dispatch; legacy model IDs are not evidence. */

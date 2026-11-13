@@ -17,7 +17,7 @@ import { DisposableStore, toDisposable } from '../../../../../../base/common/lif
 import { SaveReason } from '../../../../../common/editor.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { derived, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { dirname } from '../../../../../../base/common/resources.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
@@ -52,11 +52,11 @@ import { IHeaderAttribute, PromptFileParser } from '../../../common/promptSyntax
 import { PromptFileSource, PromptsType, Target } from '../../../common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection, AICustomizationSources, type AICustomizationSource } from '../../../common/aiCustomizationWorkspaceService.js';
 import { CustomizationMigrationCategoryId, getCustomizationMigrationCategory, ICustomizationMigrationCategory } from '../../../browser/aiCustomization/customizationMigrationCategories.js';
-import type { ICustomizationHarnessService, ICustomizationSourceFolder } from '../../../common/customizationHarnessService.js';
+import type { ICustomizationHarnessService, ICustomizationSourceFolder, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
 import type { IMigratedCustomizationsWithFailureReasonsResult } from '../../../browser/aiCustomization/customizationMigration.js';
 import type { ICustomizationMigrationCategorySummary, IInstalledCustomizationTarget } from '../../../browser/aiCustomization/aiCustomizationWelcomePage.js';
 import { AICustomizationManagementEditorInput } from '../../../browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionContribution, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
+import { AICustomizationManagementSectionBadgeProvider, aiCustomizationManagementSectionRegistry, IAICustomizationManagementSectionWidget } from '../../../browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { IMcpServerDetailInput } from '../../../browser/aiCustomization/embeddedMcpServerDetail.js';
 import { TestProgressService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { McpServerType } from '../../../../../../platform/mcp/common/mcpPlatformTypes.js';
@@ -90,12 +90,24 @@ suite('aiCustomizationManagementEditor', () => {
 		labels.push([input.getName(), input.getDescription()]);
 		input.setTargetLabels('Copilot', 'vscode');
 		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', 'vscode', 'Cloud');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('Copilot', undefined, 'hawks-mac-mini');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('', 'vscode');
+		labels.push([input.getName(), input.getDescription()]);
+		input.setTargetLabels('', '');
+		labels.push([input.getName(), input.getDescription()]);
 		input.setTargetLabels(undefined);
 		labels.push([input.getName(), input.getDescription()]);
 		assert.deepStrictEqual(labels, [
 			['Customizations', undefined],
 			['Customizations', '(Copilot)'],
 			['Customizations', '(Copilot · vscode)'],
+			['Customizations', '(Copilot · vscode · Cloud)'],
+			['Customizations', '(Copilot · hawks-mac-mini)'],
+			['Customizations', '(vscode)'],
+			['Customizations', undefined],
 			['Customizations', undefined],
 		]);
 	});
@@ -361,6 +373,41 @@ suite('aiCustomizationManagementEditor', () => {
 		], [true, false, false, false]);
 	});
 
+	test('opens an MCP skill bundle after Skills loads and ignores superseded navigation', async () => {
+		const calls: string[] = [];
+		const sectionLoad = new DeferredPromise<void>();
+		const sessionResource = observableValue('session', URI.parse('test:///session'));
+		const editor = {
+			contentNavigationGeneration: 0,
+			selectedSection: AICustomizationManagementSection.McpServers as AICustomizationManagementSection,
+			listWidgetSectionLoad: sectionLoad.p,
+			harnessService: { activeSessionResource: sessionResource },
+			selectSectionById: (section: AICustomizationManagementSection) => {
+				calls.push(`section:${section}`);
+				editor.selectedSection = section;
+				return true;
+			},
+			listWidget: { showSkillBundle: (id: string) => calls.push(`bundle:${id}`) },
+		};
+		const showMcpServerSkills = AICustomizationManagementEditor.prototype.showMcpServerSkills as (
+			this: typeof editor, bundleId: string,
+		) => Promise<void>;
+		const opening = showMcpServerSkills.call(editor, 'opaque/server');
+		const beforeLoaded = [...calls];
+		await sectionLoad.complete();
+		await opening;
+		const superseded = showMcpServerSkills.call(editor, 'old-server');
+		editor.contentNavigationGeneration++;
+		await superseded;
+		const switchedSession = showMcpServerSkills.call(editor, 'other-session-server');
+		sessionResource.set(URI.parse('test:///other-session'), undefined);
+		await switchedSession;
+		assert.deepStrictEqual({ beforeLoaded, calls }, {
+			beforeLoaded: [`section:${AICustomizationManagementSection.Skills}`],
+			calls: [`section:${AICustomizationManagementSection.Skills}`, 'bundle:opaque/server', `section:${AICustomizationManagementSection.Skills}`, `section:${AICustomizationManagementSection.Skills}`],
+		});
+	});
+
 	test('routes installed discovery items to their focused list rows', async () => {
 		const skillUri = URI.file('/skills/security/SKILL.md');
 		const pluginUri = URI.file('/plugins/security');
@@ -418,6 +465,41 @@ suite('aiCustomizationManagementEditor', () => {
 			],
 		});
 	});
+
+	for (const section of [AICustomizationManagementSection.Skills, AICustomizationManagementSection.Plugins]) {
+		test(`retries URI reveal in ${section} until the item is available`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const uri = URI.file('/customizations/example');
+			const attempts: URI[][] = [];
+			let searchCleared = false;
+			const editor = {
+				selectedSection: section,
+				isPromptsSection: (candidate: AICustomizationManagementSection) => candidate === AICustomizationManagementSection.Skills,
+				listWidget: {
+					revealAndSelectFirstItemByUri: (uris: URI[]) => {
+						attempts.push(uris);
+						return attempts.length === 2;
+					},
+					clearSearch: () => { searchCleared = true; },
+				},
+				pluginListWidget: {
+					revealAndSelectItemByUri: async (uri: URI) => {
+						attempts.push([uri]);
+						return attempts.length === 2;
+					},
+				},
+			};
+			const revealCustomizationByUri = Reflect.get(AICustomizationManagementEditor.prototype, 'revealCustomizationByUri') as (
+				this: typeof editor, uri: URI,
+			) => Promise<void>;
+
+			await revealCustomizationByUri.call(editor, uri);
+
+			assert.deepStrictEqual({ attempts, searchCleared }, {
+				attempts: [[uri], [uri]],
+				searchCleared: section === AICustomizationManagementSection.Skills,
+			});
+		}));
+	}
 
 	for (const section of [
 		AICustomizationManagementSection.Agents,
@@ -703,6 +785,7 @@ suite('aiCustomizationManagementEditor', () => {
 		harnessService: {
 			activeSessionResource: ISettableObservable<URI>;
 			activeHarness: ISettableObservable<string>;
+			availableHarnesses: ISettableObservable<readonly IHarnessDescriptor[]>;
 			getActiveDescriptor: ICustomizationHarnessService['getActiveDescriptor'];
 			findHarnessById: ICustomizationHarnessService['findHarnessById'];
 		};
@@ -816,7 +899,7 @@ suite('aiCustomizationManagementEditor', () => {
 		selectSectionById(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean; marketplaceSourceId?: string; preserveFocus?: boolean }): void;
 		rebuildVisibleSections(): void;
 		sectionBadges: Map<AICustomizationManagementSection, string>;
-		registerContributedSectionBadges(): void;
+		registerSectionBadges(): void;
 		updateContributedSectionEnablement(): void;
 		setVisible(visible: boolean): void;
 		editorGroupsService: {
@@ -828,6 +911,7 @@ suite('aiCustomizationManagementEditor', () => {
 		group: { id: number };
 		closeCustomizationEditor(): Promise<boolean>;
 		runMarketplacePrompt(prompt: string): Promise<void>;
+		createCanvas(): Promise<void>;
 	};
 
 	type MutableConfigurationInspection = {
@@ -858,6 +942,7 @@ suite('aiCustomizationManagementEditor', () => {
 			}) as IConfigurationValue<Readonly<T>>,
 			inspectValues,
 			updateValue: async (key: string, value: unknown) => { merged[key] = value; },
+			onDidChangeConfiguration: Event.None,
 		} as unknown as IConfigurationService & {
 			setValue(key: string, value: unknown): void;
 			inspectValues: MutableConfigurationInspection;
@@ -927,12 +1012,13 @@ suite('aiCustomizationManagementEditor', () => {
 		editor.harnessService = {
 			activeSessionResource: observableValue('activeSessionResource', URI.parse('agent-host-test:/session-a')),
 			activeHarness: observableValue('activeHarness', 'agent-host-copilotcli'),
+			availableHarnesses: observableValue<readonly IHarnessDescriptor[]>('availableHarnesses', []),
 			getActiveDescriptor: () => ({
 				id: 'agent-host-copilotcli',
 				label: 'Copilot',
 				icon: Codicon.copilot,
 			}),
-			findHarnessById: () => undefined,
+			findHarnessById: id => editor.harnessService.availableHarnesses.get().find(harness => harness.id === id),
 		};
 		editor.hoverService = hoverService ?? { ...NullHoverService };
 		editor.instantiationService = workbenchInstantiationService({}, editor.editorPreviewDisposables);
@@ -1155,7 +1241,7 @@ suite('aiCustomizationManagementEditor', () => {
 		);
 	});
 
-	test('runs marketplace prompts in a new Agents Window chat', async () => {
+	test('starts Canvas creation in a new Agents Window chat', async () => {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const calls: { commandId: string; args: readonly unknown[] }[] = [];
@@ -1166,11 +1252,11 @@ suite('aiCustomizationManagementEditor', () => {
 			},
 		};
 
-		await editor.runMarketplacePrompt('Review this change');
+		await editor.createCanvas();
 
 		assert.deepStrictEqual(calls, [{
 			commandId: 'workbench.action.sessions.newChat',
-			args: [{ prompt: 'Review this change', prefillPrompt: true, noWorkspace: true }],
+			args: [{ prompt: '/create-canvas ', prefillPrompt: true, noWorkspace: true }],
 		}]);
 	});
 
@@ -1206,7 +1292,7 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
-	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false, getBadge?: IAICustomizationManagementSectionContribution['getBadge']) {
+	function createContributedSectionEditor(enablementSettings?: readonly string[], initializeOnEditorOpen = false, getBadge?: AICustomizationManagementSectionBadgeProvider) {
 		const editor = createTestEditor();
 		store.add(editor.editorPreviewDisposables);
 		const visibilityChanges: boolean[] = [];
@@ -1233,7 +1319,6 @@ suite('aiCustomizationManagementEditor', () => {
 			enablementSettings,
 			initializeOnEditorOpen,
 			supportsHarness: id => id === harnessId,
-			getBadge,
 			create: () => {
 				state.created++;
 				return {
@@ -1246,6 +1331,9 @@ suite('aiCustomizationManagementEditor', () => {
 				};
 			},
 		}));
+		if (getBadge) {
+			store.add(aiCustomizationManagementSectionRegistry.registerBadge(section, getBadge, id => id === harnessId));
+		}
 		return { editor, section, state, visibilityChanges, focusedVisibility };
 	}
 
@@ -1258,7 +1346,7 @@ suite('aiCustomizationManagementEditor', () => {
 		assert.deepStrictEqual(state, { created: 1, visible: false, promptsFocused: 0, disposed: 0 });
 	});
 
-	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: IAICustomizationManagementSectionContribution['getBadge'], initializeOnEditorOpen = false) {
+	function createGatedSectionEditor(enabled?: boolean, enablementSettings: readonly string[] = [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled], getBadge?: AICustomizationManagementSectionBadgeProvider, initializeOnEditorOpen = false) {
 		const context = createContributedSectionEditor(enablementSettings, initializeOnEditorOpen, getBadge);
 		const { editor, section } = context;
 		const configuration = createConfigurationServiceStub({ [CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: enabled });
@@ -1324,7 +1412,7 @@ suite('aiCustomizationManagementEditor', () => {
 		Object.assign(editor.workspaceService, { managementSections: [AICustomizationManagementSection.Agents, section] });
 		const readBadges = () => sections.map(item => ({ id: item.id, badge: item.badge }));
 
-		editor.registerContributedSectionBadges();
+		editor.registerSectionBadges();
 		editor.rebuildVisibleSections();
 		const shown = readBadges();
 		badge.set(undefined, undefined);
@@ -1335,6 +1423,42 @@ suite('aiCustomizationManagementEditor', () => {
 			shown: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'Suggestions to review.' }],
 			cleared: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: undefined }],
 			updated: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'More suggestions to review.' }],
+		});
+	});
+
+	test('restores the badges of built-in sections that the harness shows again and does not read them while hidden', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const section = AICustomizationManagementSection.Skills;
+		const harnessId = editor.harnessService.activeHarness.get();
+		let reads = 0;
+		const badge = derived(() => {
+			reads++;
+			return 'Skills to review.';
+		});
+		store.add(aiCustomizationManagementSectionRegistry.registerBadge(section, () => badge));
+		editor.harnessService.availableHarnesses.set([{ id: harnessId, label: 'Copilot', icon: Codicon.copilot, hiddenSections: [section] }], undefined);
+		const sections: { id: AICustomizationManagementSection; badge?: string }[] = [];
+		Object.assign(editor.workspaceService, { managementSections: [AICustomizationManagementSection.Agents, section] });
+		Object.assign(editor, {
+			allSections: [
+				{ id: AICustomizationManagementSection.Agents, label: 'Agents', description: '', count: 0 },
+				{ id: section, label: 'Skills', description: '', count: 3 },
+			],
+			sections,
+			showWelcomePage() { editor.selectedSection = undefined; },
+		});
+		const readBadges = () => sections.map(item => ({ id: item.id, badge: item.badge }));
+
+		editor.registerSectionBadges();
+		editor.rebuildVisibleSections();
+		const hidden = { sections: readBadges(), reads };
+		editor.harnessService.availableHarnesses.set([{ id: harnessId, label: 'Copilot', icon: Codicon.copilot }], undefined);
+		editor.rebuildVisibleSections();
+
+		assert.deepStrictEqual({ hidden, shown: readBadges() }, {
+			hidden: { sections: [{ id: AICustomizationManagementSection.Agents, badge: undefined }], reads: 0 },
+			shown: [{ id: AICustomizationManagementSection.Agents, badge: undefined }, { id: section, badge: 'Skills to review.' }],
 		});
 	});
 
@@ -2003,6 +2127,27 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	test('selecting a section by id moves focus into it unless focus is preserved', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const focused: AICustomizationManagementSection[] = [];
+		Object.assign(editor, {
+			sections: [{ id: AICustomizationManagementSection.Instructions }, { id: AICustomizationManagementSection.McpServers }],
+			sectionContextKey: { set() { } },
+			listWidget: { setSection: async () => { }, focusSearch: () => focused.push(AICustomizationManagementSection.Instructions) },
+			mcpListWidget: { setVisible() { }, focusSearch: () => focused.push(AICustomizationManagementSection.McpServers) },
+		});
+
+		editor.selectSectionById(AICustomizationManagementSection.Instructions);
+		editor.selectSectionById(AICustomizationManagementSection.McpServers);
+		editor.selectSectionById(AICustomizationManagementSection.Instructions, { preserveFocus: true });
+
+		assert.deepStrictEqual({ focused, selected: editor.selectedSection }, {
+			focused: [AICustomizationManagementSection.Instructions, AICustomizationManagementSection.McpServers],
+			selected: AICustomizationManagementSection.Instructions,
+		});
+	});
+
 	test('opens a plugin skill when section counts change while it loads', async () => {
 		type SectionItem = { readonly id: AICustomizationManagementSection; readonly label: string; readonly description: string; count: number };
 		type NavigationEditor = TestableEditor & {
@@ -2237,24 +2382,23 @@ suite('aiCustomizationManagementEditor', () => {
 			return { focused: focusedEditor ?? (active === backButton ? 'backButton' : active?.textContent), hiddenTooltips };
 		};
 
-		try {
-			assert.deepStrictEqual({
-				migrationDetail: focusFor('editor', primary),
-				hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
-				disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
-				mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
-				pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
-			}, {
-				migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
-				hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
-				disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
-				mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
-				pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
-			});
-		} finally {
+		store.add(toDisposable(() => {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
-		}
+		}));
+		assert.deepStrictEqual({
+			migrationDetail: focusFor('editor', primary),
+			hiddenMigrateWithRawEditor: focusFor('editor', action('Hidden', { hidden: true }), true),
+			disabledMigrateInPreview: focusFor('editor', action('Disabled', { enabled: false })),
+			mcpDetailWithoutPrimaryAction: focusFor('mcpDetail', undefined),
+			pluginDetailWithoutPrimaryAction: focusFor('pluginDetail', undefined),
+		}, {
+			migrationDetail: { focused: 'Migrate', hiddenTooltips: 0 },
+			hiddenMigrateWithRawEditor: { focused: 'embeddedEditor', hiddenTooltips: 0 },
+			disabledMigrateInPreview: { focused: 'backButton', hiddenTooltips: 1 },
+			mcpDetailWithoutPrimaryAction: { focused: 'definitionEditor', hiddenTooltips: 0 },
+			pluginDetailWithoutPrimaryAction: { focused: 'backButton', hiddenTooltips: 1 },
+		});
 	});
 
 	test('uses view-raw copy for true read-only extension content', () => {
@@ -2286,19 +2430,18 @@ suite('aiCustomizationManagementEditor', () => {
 		const container = editor.editorPreviewFrontMatterContainer!;
 		document.body.appendChild(container);
 
-		try {
-			editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
-
-			const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
-			assert.ok(helpButton);
-
-			helpButton.click();
-
-			assert.strictEqual(focused, true);
-		} finally {
+		store.add(toDisposable(() => {
 			container.remove();
 			editor.editorPreviewDisposables.dispose();
-		}
+		}));
+		editor.renderPreviewAttribute(createScalarAttribute('description', 'Helpful text'), PromptsType.agent, Target.VSCode);
+
+		const helpButton = container.querySelector('button.editor-preview-row-help') as HTMLButtonElement | null;
+		assert.ok(helpButton);
+
+		helpButton.click();
+
+		assert.strictEqual(focused, true);
 	});
 
 	test('hides preview button when structured preview setting is disabled', () => {
@@ -4164,23 +4307,20 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		try {
-			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-			assert.deepStrictEqual({
-				pickerInvocationCount,
-				pickerFolders: pickedFolders.map(folder => folder.uri.path),
-				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
-				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
-			}, {
-				pickerInvocationCount: 1,
-				pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
-				agentTarget: '/home/test/.copilot/agents',
-				instructionsTarget: '/home/test/.copilot/instructions',
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		assert.deepStrictEqual({
+			pickerInvocationCount,
+			pickerFolders: pickedFolders.map(folder => folder.uri.path),
+			agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+			instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+		}, {
+			pickerInvocationCount: 1,
+			pickerFolders: ['/home/test/.copilot/agents', '/home/test/.claude/agents'],
+			agentTarget: '/home/test/.copilot/agents',
+			instructionsTarget: '/home/test/.copilot/instructions',
+		});
 	});
 
 	test('automatic migration target does not constrain a later folder choice', async () => {
@@ -4217,21 +4357,18 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		try {
-			const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		const targetFolders = await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-			assert.deepStrictEqual({
-				pickerInvocationCount,
-				agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
-				instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
-			}, {
-				pickerInvocationCount: 1,
-				agentTarget: '/home/test/.copilot/agents',
-				instructionsTarget: '/home/test/.claude/rules',
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		assert.deepStrictEqual({
+			pickerInvocationCount,
+			agentTarget: targetFolders?.get(PromptsType.agent)?.get(PromptsStorage.user)?.uri.path,
+			instructionsTarget: targetFolders?.get(PromptsType.instructions)?.get(PromptsStorage.user)?.uri.path,
+		}, {
+			pickerInvocationCount: 1,
+			agentTarget: '/home/test/.copilot/agents',
+			instructionsTarget: '/home/test/.claude/rules',
+		});
 	});
 
 	test('offers scenario-specific recovery for unavailable migration destinations', async () => {
@@ -4276,61 +4413,58 @@ suite('aiCustomizationManagementEditor', () => {
 			source: PromptFileSource.GitHubWorkspace,
 		};
 
-		try {
-			const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
-			editor.harnessService.activeSessionResource.set(untitledSession, undefined);
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
-			await prompts[0].run();
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		const untitledSession = URI.parse('agent-host-copilotcli:/untitled-2');
+		editor.harnessService.activeSessionResource.set(untitledSession, undefined);
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), untitledSession);
+		await prompts[0].run();
 
-			const activeSession = URI.parse('agent-host-copilotcli:/session');
-			editor.harnessService.activeSessionResource.set(activeSession, undefined);
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
-			await prompts[1].run();
+		const activeSession = URI.parse('agent-host-copilotcli:/session');
+		editor.harnessService.activeSessionResource.set(activeSession, undefined);
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+		await prompts[1].run();
 
-			readiness = 'unavailable';
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
-			await prompts[2].run();
+		readiness = 'unavailable';
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+		await prompts[2].run();
 
-			readiness = 'ready';
-			await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
+		readiness = 'ready';
+		await editor.resolveCustomizationMigrationTargetFolders([customization], new Map(), activeSession);
 
-			assert.deepStrictEqual({
-				prompts: prompts.map(prompt => ({
-					severity: prompt.severity,
-					message: prompt.message,
-					label: prompt.label,
-				})),
-				errors,
-				commands,
-				closeCount,
-				refreshCount,
+		assert.deepStrictEqual({
+			prompts: prompts.map(prompt => ({
+				severity: prompt.severity,
+				message: prompt.message,
+				label: prompt.label,
+			})),
+			errors,
+			commands,
+			closeCount,
+			refreshCount,
+		}, {
+			prompts: [{
+				severity: Severity.Error,
+				message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
+				label: 'Start new session',
 			}, {
-				prompts: [{
-					severity: Severity.Error,
-					message: 'Copilot needs an active session before it can report a writable skills folder for this workspace. Start a new session, send a message, then try the migration again.',
-					label: 'Start new session',
-				}, {
-					severity: Severity.Error,
-					message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
-					label: 'Retry',
-				}, {
-					severity: Severity.Error,
-					message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
-					label: 'Retry',
-				}],
-				errors: [
-					'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
-				],
-				commands: [{
-					commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
-					args: [],
-				}],
-				closeCount: 1,
-				refreshCount: 2,
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+				severity: Severity.Error,
+				message: 'Copilot is still loading writable skills folders for this workspace. Wait for the session to finish starting, then try again.',
+				label: 'Retry',
+			}, {
+				severity: Severity.Error,
+				message: 'Could not load writable skills folders from Copilot for this workspace. Check the active agent connection, then try again.',
+				label: 'Retry',
+			}],
+			errors: [
+				'Copilot does not provide a writable skills folder for this workspace. Select a different agent target or configure a supported destination before migrating.',
+			],
+			commands: [{
+				commandId: 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
+				args: [],
+			}],
+			closeCount: 1,
+			refreshCount: 2,
+		});
 	});
 
 	test('migrates workspace customizations into their own workspace folder', async () => {
@@ -4352,22 +4486,19 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 		const customFolder: ICustomizationSourceFolder = { uri: URI.file('/custom/skills'), label: '/custom/skills', source: PromptsStorage.local };
 
-		try {
-			assert.deepStrictEqual({
-				firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
-				otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
-				customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
-					promptIn('/workspace-b'),
-					new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
-				)?.uri.path,
-			}, {
-				firstWorkspaceFolder: '/workspace-a/.github/skills',
-				otherWorkspaceFolder: '/workspace-b/.github/skills',
-				customFolder: '/custom/skills',
-			});
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		assert.deepStrictEqual({
+			firstWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-a'), targetFolders)?.uri.path,
+			otherWorkspaceFolder: editor.getEffectiveCustomizationMigrationTargetFolder(promptIn('/workspace-b'), targetFolders)?.uri.path,
+			customFolder: editor.getEffectiveCustomizationMigrationTargetFolder(
+				promptIn('/workspace-b'),
+				new Map([[PromptsType.skill, new Map([[PromptsStorage.local, customFolder]])]]),
+			)?.uri.path,
+		}, {
+			firstWorkspaceFolder: '/workspace-a/.github/skills',
+			otherWorkspaceFolder: '/workspace-b/.github/skills',
+			customFolder: '/custom/skills',
+		});
 	});
 
 	test('does not infer migration destination groups from folder parents', async () => {
@@ -4405,12 +4536,9 @@ suite('aiCustomizationManagementEditor', () => {
 			]],
 		]);
 
-		try {
-			await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
+		store.add(toDisposable(() => editor.editorPreviewDisposables.dispose()));
+		await editor.resolveCustomizationMigrationTargetFolders(customizations, availableSourceFolders, sessionResource);
 
-			assert.strictEqual(pickerInvocationCount, 2);
-		} finally {
-			editor.editorPreviewDisposables.dispose();
-		}
+		assert.strictEqual(pickerInvocationCount, 2);
 	});
 });

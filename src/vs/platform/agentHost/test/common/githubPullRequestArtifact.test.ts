@@ -6,18 +6,19 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { arePullRequestArtifactChecksReady, getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactThreads, gitHubPullRequestArtifactOptions, isPullRequestArtifactCheckExcluded, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
+import { arePullRequestArtifactChecksReady, getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, gitHubPullRequestArtifactOptions, isPullRequestArtifactCheckExcluded, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { createPullRequestArtifactSnapshot } from './githubPullRequestArtifactTestUtils.js';
 
 suite('GitHub pull request artifact rules', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('merge policy labels keep readiness explicit without changing stored consent values', () => {
+	test('merge policy labels keep readiness explicit and distinct from native auto-merge without changing stored consent values', () => {
 		const option = gitHubPullRequestArtifactOptions.find(option => option.id === 'merge');
 		assert.deepStrictEqual(option?.kind === 'enum' ? {
 			label: option.label, defaultValue: option.defaultValue, disabledValue: option.disabledValue, choices: option.choices, actionIds: option.actionIds,
+			separateFromNativeAutoMerge: option.description?.includes('separate from GitHub\'s native auto-merge'),
 		} : undefined, {
-			label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never',
+			label: 'Merge Automatically When Ready', defaultValue: 'never', disabledValue: 'never', separateFromNativeAutoMerge: true,
 			choices: [{ value: 'never', label: 'Off' }, { value: 'always', label: 'Always' }, { value: 'ifUnchanged', label: 'When No Changes Were Made' }],
 			actionIds: ['merge'],
 		});
@@ -144,6 +145,20 @@ suite('GitHub pull request artifact rules', () => {
 			}
 		};
 		assert.deepStrictEqual(getPullRequestArtifactChecks(snapshot).map(check => [check.id, getPullRequestArtifactCheckState(check)]), [['build', 'passed'], ['suite:suite', 'failed']]);
+	});
+
+	test('lists required checks that never reported as pending, so the pull request does not look ready while GitHub blocks merging', () => {
+		const base = createPullRequestArtifactSnapshot();
+		const snapshot = {
+			...base,
+			checks: { ...base.checks, value: { ...base.checks.value!, requiredContexts: ['Build', 'PR Gate'] } },
+			mergeability: { ...base.mergeability, value: { ...base.mergeability.value!, mergeStateStatus: 'BLOCKED' } },
+		};
+		assert.deepStrictEqual({
+			checks: getPullRequestArtifactChecks(snapshot).map(check => [check.name, getPullRequestArtifactCheckState(check)]),
+			missing: getPullRequestArtifactMissingRequiredChecks(snapshot),
+			autoMerge: isPullRequestArtifactMergeable(snapshot, true),
+		}, { checks: [['Build', 'passed'], ['PR Gate', 'pending']], missing: ['PR Gate'], autoMerge: false });
 	});
 
 	test('merge gates respect draft state, feedback, permission, conflicts, and existing queues', () => {

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Type } from '@sinclair/typebox';
+// The declarations of the schemas refer to TypeBox's types, which TypeScript can't name through a
+// symlinked node_modules (pnpm's isolated layout). Export them from here, so the declarations can.
+export type { TInteger, TObject } from '@sinclair/typebox';
 
 export {
 	CancellationToken,

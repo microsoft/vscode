@@ -5,6 +5,7 @@
 
 import type { InitializeResult } from '../../state/protocol/common/commands.js';
 import type { AutomationDefinition, AutomationEntry } from '../../state/protocol/channels-automation/state.js';
+import { isUUID } from '../../../../../base/common/uuid.js';
 
 /** Initialize presence flag for autonomous execution support, independent of feature enablement and per-definition operations. */
 export const AgentHostAutonomousAutomationsCapabilityMetaKey = 'vscode.autonomousAutomations';
@@ -16,6 +17,18 @@ export const AgentHostAutomationHistoryDeletionStateCapabilityMetaKey = 'vscode.
 
 const AgentHostAutomationHistoryStateMetaKey = 'vscode.automationHistoryState';
 const AgentHostAutomationScheduleKindMetaKey = 'vscode.automationScheduleKind';
+const AgentHostAutomationCreationIdMetaKey = 'vscode.automationCreationId';
+
+/** Reads the client-owned handoff receipt without interpreting a host resource URI. */
+export function getAgentHostAutomationCreationId(definition: AutomationDefinition): string | undefined {
+	const id = definition._meta?.[AgentHostAutomationCreationIdMetaKey];
+	return typeof id === 'string' && isUUID(id) ? id : undefined;
+}
+
+/** Preserves the handoff receipt across edits and reconnects. */
+export function withAgentHostAutomationCreationId(meta: Record<string, unknown> | undefined, creationId: string): Record<string, unknown> {
+	return { ...meta, [AgentHostAutomationCreationIdMetaKey]: creationId };
+}
 
 /** Reads the explicitly chosen CRON editing form without changing runtime schedule semantics. */
 export function getAgentHostAutomationScheduleKind(definition: AutomationDefinition): 'cron' | undefined {

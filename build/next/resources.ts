@@ -22,11 +22,12 @@ const commonResourcePatterns = [
 	'vs/editor/common/languages/highlights/*.scm',
 	'vs/editor/common/languages/injections/*.scm',
 
-	// SVGs referenced from CSS (needed for transpile/dev builds where CSS is copied as-is)
+	// Images referenced from CSS or loaded dynamically
 	'vs/workbench/browser/media/code-icon.svg',
 	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
 	'vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
 	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/services/chatBackground/browser/media/*.webp',
 	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg'
 ];
 
@@ -163,6 +164,24 @@ const webResourcePatterns = [
 	'vs/workbench/services/extensionManagement/common/media/*.png',
 ];
 
+const mobileResourcePatterns = [
+	'vs/editor/common/languages/highlights/*.scm',
+	'vs/editor/common/languages/injections/*.scm',
+	'vs/workbench/browser/media/code-icon.svg',
+	'vs/workbench/browser/parts/editor/media/letterpress*.svg',
+	'vs/workbench/contrib/chat/browser/widget/media/chatPet/**/*.{gif,png}',
+	'vs/sessions/contrib/chat/browser/media/*.svg',
+	'vs/sessions/contrib/welcome/browser/media/themePreviews/*.svg',
+	'vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	'vs/workbench/contrib/webview/browser/pre/*.html',
+	'vs/workbench/contrib/webview/browser/pre/*.js',
+	'vs/platform/accessibilitySignal/browser/media/*.mp3',
+	'vs/workbench/contrib/agentsVoice/browser/media/*.mp3',
+	'vs/workbench/services/extensionManagement/common/media/*.{svg,png}',
+	'vs/workbench/contrib/extensions/browser/media/*.{svg,png}',
+	'vs/sessions/skills/**/SKILL.md',
+];
+
 function getResourcePatternsForTarget(target: BuildTarget): string[] {
 	switch (target) {
 		case 'desktop':
@@ -173,6 +192,8 @@ function getResourcePatternsForTarget(target: BuildTarget): string[] {
 			return serverWebResourcePatterns;
 		case 'web':
 			return webResourcePatterns;
+		case 'mobile':
+			return mobileResourcePatterns;
 		default:
 			throw new Error(`Unknown target: ${target}`);
 	}

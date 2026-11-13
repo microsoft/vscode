@@ -21,10 +21,10 @@ import { ActionType } from '../../../../platform/agentHost/common/state/sessionA
 import { DEFAULT_CHAT_ID, effectiveChatInteractivity, getSessionChatResource, isSessionStatusArchived, MessageKind, PendingMessageKind, readSessionWorkspaceless, SessionState, StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ChatInteractivity } from '../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ChatInteractivity } from '../../../../workbench/services/sessions/common/session.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IRemoteSessionChat, readRemoteSessionState, resolveRemoteSessionChat, resolveRemoteSessionReference, resolveRemoteSessionSource } from './remoteSessionSource.js';
 import { IRemoteSessionChatReference, IRemoteSessionChatService } from './remoteSessionChatService.js';
 import { areRemoteSessionToolsEnabled } from '../common/remoteSessions.js';
@@ -125,7 +125,7 @@ export class RemoteSessionMessageRouter {
 	}
 
 	private resolveProvider(chat: IRemoteSessionChat, resource = chat.chat.resource): IResolvedRemoteChat {
-		const provider = this.providersService.getProvider(chat.session.providerId);
+		const provider = this.providersService.getProvider(chat.session.providerId, chat.session.sessionId);
 		if (!provider || !isAgentHostProvider(provider) || (provider.connectionStatus && provider.connectionStatus.get().kind !== 'connected')) {
 			throw new Error(localize('remoteMessage.unregisteredProvider', "The agent host provider for {0} is not registered and connected in this Agents window.", resource.toString()));
 		}

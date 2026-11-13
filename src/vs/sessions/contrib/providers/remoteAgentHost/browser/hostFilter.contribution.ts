@@ -13,10 +13,11 @@ import { IsWebContext } from '../../../../../platform/contextkey/common/contextk
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsAuxiliaryWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
-import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../common/contextkeys.js';
-import { Menus } from '../../../../browser/menus.js';
-import { HostFilterActionViewItem } from './hostFilterActionViewItem.js';
-import { MobileHostFilterActionViewItem } from './mobileHostFilterActionViewItem.js';
+import { IsNewChatSessionContext, IsPhoneLayoutContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { AgentsWindowMenus } from '../../../../browser/agentsWindowMenus.js';
+import { HostFilterActionViewItem } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/hostFilterActionViewItem.js';
+import { MobileHostFilterActionViewItem } from '../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 
 const PICK_HOST_FILTER_ID = 'sessions.agentHostFilter.pick';
 
@@ -28,7 +29,7 @@ const PICK_HOST_FILTER_ID = 'sessions.agentHostFilter.pick';
  * - Web desktop (`isWeb && !isPhoneLayout`): rendered in the sessions
  *   sidebar via `Menus.SidebarAgentHost` (see `AgentHostShortcutsWidget`).
  * - Web phone: rendered in the `MobileTitlebarPart` center slot via
- *   `Menus.MobileTitleBarCenter`.
+ *   `AgentsWindowMenus.MobileTitleBarCenter`.
  * - Electron desktop: not surfaced (no `IsWebContext`).
  */
 registerAction2(class PickAgentHostFilterAction extends Action2 {
@@ -61,7 +62,7 @@ registerAction2(class PickAgentHostFilterAction extends Action2 {
 				// when no hosts are known: tapping it opens a bottom sheet
 				// with a "Re-discover hosts" action so the user always has
 				// a way to retry discovery from the home screen.
-				id: Menus.MobileTitleBarCenter,
+				id: AgentsWindowMenus.MobileTitleBarCenter,
 				group: 'navigation',
 				order: 0,
 				when: ContextKeyExpr.and(
@@ -104,7 +105,7 @@ export class AgentHostFilterContribution extends Disposable implements IWorkbenc
 		));
 
 		this._register(actionViewItemService.register(
-			Menus.MobileTitleBarCenter,
+			AgentsWindowMenus.MobileTitleBarCenter,
 			PICK_HOST_FILTER_ID,
 			(action, _options, instaService) => instaService.createInstance(MobileHostFilterActionViewItem, action),
 			registered.event,

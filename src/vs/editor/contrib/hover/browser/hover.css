@@ -41,6 +41,32 @@
 	display: flex;
 }
 
+.monaco-editor .monaco-hover .marker {
+	display: flex;
+	gap: var(--vscode-spacing-size80, 8px);
+}
+
+.monaco-editor .monaco-hover .marker > .marker-severity {
+	flex-shrink: 0;
+	line-height: inherit;
+}
+
+.monaco-editor .monaco-hover .marker > .marker-message {
+	min-width: 0;
+}
+
+.monaco-editor .monaco-hover .marker > .codicon-error {
+	color: var(--vscode-problemsErrorIcon-foreground);
+}
+
+.monaco-editor .monaco-hover .marker > .codicon-warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.monaco-editor .monaco-hover .marker > .codicon-info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
 .monaco-editor .monaco-hover .hover-row.hover-row-with-copy {
 	position: relative;
 	padding-right: 20px;

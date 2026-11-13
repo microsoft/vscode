@@ -15,6 +15,12 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
 	return isAutoLanguageModel(model);
 }
 
+export function isPendingLegacyAutoModel(model: ILanguageModelChatMetadataAndIdentifier | undefined, languageModelsService: ILanguageModelsService): boolean {
+	return !!model && isAutoModel(model) && !model.metadata.autoModelFusion
+		&& !isUserProvidedModel(model, languageModelsService)
+		&& !languageModelsService.getLanguageModelIds().includes(model.identifier);
+}
+
 /**
  * Whether the model is a Copilot CLI HydraFusion research preview (HydraFusion or HydraFusion Max).
  * Fusion offers them among its tiers; otherwise HydraFusion is a model of its own, with
@@ -22,6 +28,10 @@ export function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boo
  */
 export function isHydraFusionModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
 	return model.metadata.modelGroup?.id === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(model.metadata.id);
+}
+
+export function isModelComparisonSupported(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return !!model.metadata.autoModelFusion || !isAutoModel(model) && !isHydraFusionModel(model);
 }
 
 /** The label of a HydraFusion model as one of HydraFusion's own tiers, outside Fusion. */

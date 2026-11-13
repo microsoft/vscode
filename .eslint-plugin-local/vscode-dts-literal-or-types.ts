@@ -3,20 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class ApiLiteralOrTypes implements eslint.Rule.RuleModule {
+export default new class ApiLiteralOrTypes implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		docs: { url: 'https://github.com/microsoft/vscode/wiki/Extension-API-guidelines#enums' },
 		messages: { useEnum: 'Use enums, not literal-or-types', },
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return {
-			['TSTypeAnnotation TSUnionType']: (node: TSESTree.TSUnionType) => {
+			['TSTypeAnnotation TSUnionType']: (node: ESTree.TSUnionType) => {
 				if (node.types.every(value => value.type === 'TSLiteralType')) {
 					context.report({
 						node: node,

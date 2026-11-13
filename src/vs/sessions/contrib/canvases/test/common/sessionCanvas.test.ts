@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISessionCanvasDefinition } from '../../../../services/sessions/common/session.js';
+import { ISessionCanvasDefinition } from '../../../../../workbench/services/sessions/common/session.js';
 import { getSessionCanvasDefinitionInstanceId, getSessionCanvasDefinitionLabels } from '../../common/sessionCanvas.js';
 
 suite('SessionCanvas', () => {

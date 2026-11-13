@@ -9,7 +9,7 @@ import * as marked from '../../../../base/common/marked/marked.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentPermissionKind } from '../../common/agent.js';
-import { getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall } from '../../node/copilot/copilotToolDisplay.js';
+import { getAssistedApprovalNotice, getEditFilePaths, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getSandboxPathGrantConfirmation, getSdkImageGenerationMetadata, getToolIntention, getShellLanguage, getStreamingInvocationMessage, getSubagentMetadata, getPhaseTaskCompleteMarkdown, getTaskCompleteMarkdown, getToolDisplayName, getToolInputString, getToolKind, getToolSummaryInputContract, isEditTool, isHiddenTool, isTaskCompleteTool, synthesizeSkillToolCall, type TaskCompletionReview } from '../../node/copilot/copilotToolDisplay.js';
 
 type CopilotShellPermissionRequest = Extract<PermissionRequest, { kind: 'shell' }>;
 type CopilotCustomToolPermissionRequest = Extract<PermissionRequest, { kind: 'custom-tool' }>;
@@ -88,6 +88,7 @@ suite('copilotToolDisplay — friendly tool names', () => {
 			['task_complete', 'Task Complete'],
 			['ask_user', 'Ask User'],
 			['skill', 'Invoke Skill'],
+			['read_resource', 'Read MCP Resource'],
 			['task', 'Delegate Task'],
 			['list_agents', 'List Agents'],
 			['read_agent', 'Read Agent'],
@@ -115,6 +116,24 @@ suite('copilotToolDisplay — friendly tool names', () => {
 		for (const [toolName, displayName] of cases) {
 			assert.strictEqual(getToolDisplayName(toolName), displayName, toolName);
 		}
+	});
+
+	test('read_resource names the MCP resource and handles missing input and failure', () => {
+		const displayName = getToolDisplayName('read_resource');
+		const parameters = { server: 'skills', uri: 'skill://review/template.md' };
+		assert.deepStrictEqual({
+			invocation: getInvocationMessage('read_resource', displayName, parameters),
+			completed: getPastTenseMessage('read_resource', displayName, parameters, true),
+			withoutInput: getInvocationMessage('read_resource', displayName, undefined),
+			completedWithoutInput: getPastTenseMessage('read_resource', displayName, undefined, true),
+			failed: getPastTenseMessage('read_resource', displayName, parameters, false),
+		}, {
+			invocation: { markdown: 'Reading MCP resource `skill://review/template.md`' },
+			completed: { markdown: 'Read MCP resource `skill://review/template.md`' },
+			withoutInput: 'Reading MCP resource',
+			completedWithoutInput: 'Read MCP resource',
+			failed: '"Read MCP Resource" failed',
+		});
 	});
 
 	test('falls back to the raw tool name for unknown tools', () => {
@@ -264,6 +283,69 @@ suite('copilotToolDisplay — markdown-rendered tools', () => {
 			nonString: undefined,
 		});
 	});
+
+	test('getTaskCompleteMarkdown reports the runtime review instead of plain success', () => {
+		const parameters = { summary: 'Updated the parser.' };
+		const blockedActions: TaskCompletionReview['blockedActions'] = [
+			{ episodeId: 'episode-1', permissionKind: 'shell', recoveryReason: 'attempts_exhausted', toolCallId: 'tc-push' },
+			{ episodeId: 'episode-2', permissionKind: 'shell', recoveryReason: 'permission_required' },
+			{ episodeId: 'episode-3', permissionKind: 'write', recoveryReason: 'repeated_attempt' },
+			{ episodeId: 'episode-4', permissionKind: 'extension-env-access', recoveryReason: 'permission_required' },
+		];
+		assert.deepStrictEqual({
+			completed: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed' }),
+			completedWithBlockedActions: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed', blockedActions }),
+			blocked: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: false, outcome: 'blocked', blockedActions }),
+			blockedWithReason: getTaskCompleteMarkdown(undefined, undefined, { success: false, outcome: 'blocked', reason: 'The task was cancelled.' }),
+			blockedWithoutDetails: getTaskCompleteMarkdown(undefined, undefined, { success: false, outcome: 'blocked' }),
+			continued: getTaskCompleteMarkdown(parameters, undefined, { summary: 'Updated the parser.', success: false, outcome: 'continue' }),
+			reviewSummaryOnly: getTaskCompleteMarkdown(undefined, undefined, { summary: 'Updated the parser.', success: true, outcome: 'completed' }),
+			reviewSummaryListingBlockedActions: getTaskCompleteMarkdown(undefined, undefined, { summary: 'Updated the parser.\n\nBlocked actions:\n- shell (tool call tc-push)', success: false, outcome: 'blocked', blockedActions: blockedActions.slice(0, 1) }),
+		}, {
+			completed: '\n\n**Task completed:**\n\nUpdated the parser.',
+			completedWithBlockedActions: '\n\n**Task completed with blocked actions:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command\n- Edit a file\n- Use a tool',
+			blocked: '\n\n**Task blocked:**\n\nUpdated the parser.\n\nBlocked actions:\n- Run a terminal command\n- Edit a file\n- Use a tool',
+			blockedWithReason: '\n\n**Task blocked:**\n\nThe task was cancelled.',
+			blockedWithoutDetails: '\n\n**Task blocked.**',
+			continued: undefined,
+			reviewSummaryOnly: '\n\n**Task completed:**\n\nUpdated the parser.',
+			reviewSummaryListingBlockedActions: '\n\n**Task blocked:**\n\nBlocked actions:\n- Run a terminal command',
+		});
+	});
+
+	test('getPhaseTaskCompleteMarkdown shows a phase summary without claiming completion', () => {
+		assert.deepStrictEqual({
+			summary: getPhaseTaskCompleteMarkdown({ summary: 'Updated the parser.' }, 'Done'),
+			toolOutput: getPhaseTaskCompleteMarkdown({}, 'Updated the parser.'),
+			empty: getPhaseTaskCompleteMarkdown(undefined, undefined),
+		}, {
+			summary: '\n\n**Summary:**\n\nUpdated the parser.',
+			toolOutput: '\n\n**Summary:**\n\nUpdated the parser.',
+			empty: undefined,
+		});
+	});
+
+	test('getAssistedApprovalNotice explains only assessments that leave no verdict to show', () => {
+		assert.deepStrictEqual({
+			excluded: getAssistedApprovalNotice({ status: 'excluded', reason: 'sandbox-bypass' }),
+			unknownExclusion: getAssistedApprovalNotice({ status: 'excluded', reason: 'future-reason' }),
+			failed: getAssistedApprovalNotice({ status: 'failed', reason: 'timeout' }),
+			unknownFailure: getAssistedApprovalNotice({ status: 'failed', reason: 'future-reason' }),
+			completed: getAssistedApprovalNotice({ status: 'completed', recommendation: 'requireApproval', rationale: 'Pushes to a protected branch.' }),
+			notRun: getAssistedApprovalNotice({ status: 'not-run', reason: 'inactive' }),
+			unavailable: getAssistedApprovalNotice({ status: 'unavailable' }),
+			missing: getAssistedApprovalNotice(undefined),
+		}, {
+			excluded: 'Assisted permissions doesn\'t review requests to run outside the sandbox.',
+			unknownExclusion: 'Assisted permissions didn\'t review this request.',
+			failed: 'Assisted permissions couldn\'t review this request in time.',
+			unknownFailure: 'Assisted permissions couldn\'t review this request.',
+			completed: undefined,
+			notRun: undefined,
+			unavailable: undefined,
+			missing: undefined,
+		});
+	});
 });
 
 suite('Sandbox path grant confirmation display', () => {
@@ -274,25 +356,82 @@ suite('Sandbox path grant confirmation display', () => {
 		const write = getSandboxPathGrantConfirmation({ path: '/write', access: 'readWrite' });
 		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] });
 		const messages = [read, write, upgrade].map(display => typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage);
-		assert.deepStrictEqual(messages.map(message => message?.split('\n\n').slice(0, 2)), [
-			['Allow read access to `/read` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
-			['Allow read/write access to `/write` and retry inside the sandbox.', 'Access will be saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions.'],
-			['Change access to `/folder` from read-only to read/write and retry inside the sandbox.', 'The blocked path was `/folder/new/file`. Access will cover the granted path above, including its contents if it is a folder.'],
+		assert.deepStrictEqual(messages, [
+			'Allow read access to `/read` and retry inside the sandbox.',
+			'Allow read/write access to `/write` and retry inside the sandbox.',
+			'Change access to `/folder` from read-only to read/write and retry inside the sandbox.\n\nThe blocked path was `/folder/new/file`. Access will cover `/folder`, including its contents if it is a folder.',
 		]);
 	});
 
-	test('explains persistence in the header with Allow and Skip buttons', () => {
-		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' });
+	test('offers Session first, Workspace second, User third and Skip when Workspace is available', () => {
+		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' }, undefined, true);
 		assert.deepStrictEqual({
 			title: display.confirmationTitle,
 			options: display.options?.map(option => ({ id: option.id, label: option.label, kind: option.kind })),
 		}, {
-			title: 'Add to user sandbox settings and retry?',
+			title: 'Allow sandbox path access and retry?',
 			options: [
-				{ id: 'save-sandbox-path', label: 'Allow', kind: 'approve' },
+				{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: 'approve' },
+				{ id: 'save-workspace-sandbox-path', label: 'Allow for This Workspace', kind: 'approve' },
+				{ id: 'save-sandbox-path', label: 'Allow for This User', kind: 'approve' },
 				{ id: 'skip', label: 'Skip', kind: 'deny' },
 			],
 		});
+	});
+
+	test('labels a blocked session path without narrowing a broader raw grant', () => {
+		const grant = { path: '/copilot/session-state', deniedPath: '/copilot/session-state/sdk/notes.txt', access: 'read' as const };
+		const display = getSandboxPathGrantConfirmation(grant, {
+			path: { label: grant.path, fullPath: grant.path },
+			deniedPath: { label: 'This session / notes.txt', fullPath: grant.deniedPath },
+		});
+		assert.deepStrictEqual(typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown.split('\n\n') : undefined, [
+			'Allow read access to `/copilot/session-state` and retry inside the sandbox.',
+			'The blocked path was `This session / notes.txt`. Access will cover `/copilot/session-state`, including its contents if it is a folder.',
+		]);
+	});
+
+	test('describes session storage with the full relative path in code', () => {
+		const path = '/copilot/session-state/sdk/files/workspace.yml';
+		const display = { label: 'This session / files/workspace.yml', fullPath: path, isCurrentSession: true, relativePath: 'files/workspace.yml' };
+		const variants = [
+			getSandboxPathGrantConfirmation({ path, access: 'read' }, { path: display }),
+			getSandboxPathGrantConfirmation({ path, access: 'readWrite' }, { path: display }),
+			getSandboxPathGrantConfirmation({ path, access: 'readWrite', removedReadonlyPaths: [path] }, { path: display }),
+			getSandboxPathGrantConfirmation({ path: '/copilot/session-state/sdk', access: 'read' }, { path: { ...display, relativePath: '' } }),
+			getSandboxPathGrantConfirmation({ path: '/copilot/session-state/sdk/workspace.yaml', access: 'read' }, { path: { ...display, relativePath: 'workspace.yaml' } }),
+		];
+		assert.deepStrictEqual(variants.map(value => typeof value.invocationMessage === 'object' ? value.invocationMessage.markdown.split('\n\n')[0] : undefined), [
+			'Allow read access to `files/workspace.yml` in this session\'s storage.',
+			'Allow read/write access to `files/workspace.yml` in this session\'s storage.',
+			'Change access to `files/workspace.yml` in this session\'s storage from read-only to read/write.',
+			'Allow read access to this session\'s storage.',
+			'Allow read access to `workspace.yaml` in this session\'s storage.',
+		]);
+	});
+
+	test('names the granted storage folder when the blocked file is inside it', () => {
+		const path = '/copilot/session-state/sdk';
+		const deniedPath = `${path}/workspace.yml`;
+		const display = getSandboxPathGrantConfirmation({ path, deniedPath, access: 'read' }, {
+			path: { label: 'This session', fullPath: path, isCurrentSession: true, relativePath: '' },
+			deniedPath: { label: 'This session / workspace.yml', fullPath: deniedPath, isCurrentSession: true, relativePath: 'workspace.yml' },
+		});
+		assert.deepStrictEqual(typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown.split('\n\n').slice(0, 2) : undefined, [
+			'Allow read access to this session\'s storage.',
+			'The blocked path was `workspace.yml` in this session\'s storage. Access will cover `/copilot/session-state/sdk`, including its contents if it is a folder.',
+		]);
+	});
+
+	test('omits unsupported Workspace scope and keeps the message focused on path access', () => {
+		const displays = [false, true].map(available => getSandboxPathGrantConfirmation({ path: '/read', access: 'read' }, undefined, available));
+		assert.deepStrictEqual(displays.map(display => ({
+			options: display.options?.map(option => option.id),
+			message: typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage,
+		})), [
+			{ options: ['save-session-sandbox-path', 'save-sandbox-path', 'skip'], message: 'Allow read access to `/read` and retry inside the sandbox.' },
+			{ options: ['save-session-sandbox-path', 'save-workspace-sandbox-path', 'save-sandbox-path', 'skip'], message: 'Allow read access to `/read` and retry inside the sandbox.' },
+		]);
 	});
 });
 
@@ -384,6 +523,7 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: undefined,
+				mcpServerName: 'GitHub',
 			},
 			fallback: 'GitHub: issue_read',
 			toolName: 'issue_read',
@@ -1193,6 +1333,42 @@ suite('copilotToolDisplay — write_/read_ shell tools', () => {
 suite('skill events', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('does not link empty or root skill paths', () => {
+		assert.deepStrictEqual(['', ' ', '/'].map(path => {
+			const skill = synthesizeSkillToolCall({ name: 'plan', path, content: '' }, 'skill-event');
+			return { invocationMessage: skill.invocationMessage, pastTenseMessage: skill.pastTenseMessage };
+		}), [
+			{ invocationMessage: { markdown: 'Read skill plan' }, pastTenseMessage: { markdown: 'Read skill plan' } },
+			{ invocationMessage: { markdown: 'Read skill plan' }, pastTenseMessage: { markdown: 'Read skill plan' } },
+			{ invocationMessage: { markdown: 'Read skill plan' }, pastTenseMessage: { markdown: 'Read skill plan' } },
+		]);
+	});
+
+	test('never treats an unresolved MCP skill as a file or exposes its qualified name', () => {
+		const name = 'mcp1:6673:0123456789abcdef';
+		const withOrigin = synthesizeSkillToolCall({ name, path: '/not-a-skill', content: '', mcpOrigin: { serverName: 'fs', uri: 'skill://review/SKILL.md' } }, 'with-origin');
+		const withoutOrigin = synthesizeSkillToolCall({ name, path: '', content: '', source: 'mcp' }, 'without-origin');
+		assert.deepStrictEqual({
+			withOrigin: withOrigin.invocationMessage,
+			withoutOrigin: withoutOrigin.invocationMessage,
+		}, {
+			withOrigin: { markdown: 'Read skill fs:review' },
+			withoutOrigin: { markdown: 'Read skill' },
+		});
+	});
+
+	test('SDK skills have no source links while disk skills remain openable', () => {
+		assert.deepStrictEqual([
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'sdk', path: '/skill/troubleshoot', content: '' }, 'sdk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'troubleshoot', source: 'personal', path: '/user/skills/troubleshoot/SKILL.md', content: '' }, 'disk').invocationMessage,
+			synthesizeSkillToolCall({ name: 'other', source: 'sdk', path: '', content: '' }, 'other').invocationMessage,
+		], [
+			{ markdown: 'Read skill troubleshoot' },
+			{ markdown: 'Read skill [troubleshoot](file:///user/skills/troubleshoot/SKILL.md)' },
+			{ markdown: 'Read skill other' },
+		]);
+	});
 
 	test('hides the raw `skill` tool call and synthesizes a tool-start/complete pair from `skill.invoked`', () => {
 		const withPath = synthesizeSkillToolCall(

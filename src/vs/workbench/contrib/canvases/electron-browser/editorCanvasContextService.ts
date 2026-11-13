@@ -18,7 +18,8 @@ import { ChatEditor } from '../../chat/browser/widgetHosts/editor/chatEditor.js'
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel } from '../../chat/common/model/chatModel.js';
-import { CanvasInput, canvasOwnerKey, ICanvasContext, ICanvasContextService, ICanvasOwner, isCanvasOwner } from '../common/canvas.js';
+import { CanvasInput, ICanvasContext, ICanvasContextService, isCanvasOwner } from '../common/canvas.js';
+import { canvasOwnerKey, ICanvasOwner } from '../../../common/canvasReference.js';
 
 export class EditorCanvasContextService extends Disposable implements ICanvasContextService {
 

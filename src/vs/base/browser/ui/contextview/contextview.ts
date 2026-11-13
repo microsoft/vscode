@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getVisibleWCOTitlebarAreaRect } from '../../browser.js';
 import { BrowserFeatures } from '../../canIUse.js';
 import * as DOM from '../../dom.js';
 import { createStyleSheet } from '../../domStylesheets.js';
@@ -12,6 +13,7 @@ import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../..
 import { AnchorAlignment, AnchorAxisAlignment, AnchorPosition, IRect, layout2d } from '../../../common/layout.js';
 import * as platform from '../../../common/platform.js';
 import { OmitOptional } from '../../../common/types.js';
+import { avoidWindowControlsOverlay } from './windowControlsOverlay.js';
 import './contextview.css';
 
 export { AnchorAlignment, AnchorAxisAlignment, AnchorPosition } from '../../../common/layout.js';
@@ -226,16 +228,11 @@ export function getAnchorRect(anchor: HTMLElement | StandardMouseEvent | IAnchor
 	if (DOM.isHTMLElement(anchor)) {
 		const elementPosition = DOM.getDomNodePagePosition(anchor);
 
-		// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
-		// e.g. The title bar has counter zoom behavior meaning it applies the inverse of zoom level.
-		// Window Zoom Level: 1.5, Title Bar Zoom: 1/1.5, Size Multiplier: 1.5
-		const zoom = DOM.getDomNodeZoomLevel(anchor);
-
 		return {
-			top: elementPosition.top * zoom,
-			left: elementPosition.left * zoom,
-			width: elementPosition.width * zoom,
-			height: elementPosition.height * zoom
+			top: elementPosition.top,
+			left: elementPosition.left,
+			width: elementPosition.width,
+			height: elementPosition.height
 		};
 	} else if (isAnchor(anchor)) {
 		return {
@@ -611,19 +608,26 @@ export class ContextView extends Disposable {
 		this.view.style.top = '0px';
 		this.view.style.left = '0px';
 		const positioningOrigin = DOM.getDomNodePagePosition(this.view);
-		const view = { width: DOM.getTotalWidth(this.view), height: DOM.getTotalHeight(this.view) };
+		const viewZoom = DOM.getDomNodeZoomLevel(this.view);
+		const view = { width: DOM.getTotalWidth(this.view) * viewZoom, height: DOM.getTotalHeight(this.view) * viewZoom };
 		const anchorPosition = this.delegate!.anchorPosition;
 		const anchorAlignment = this.delegate!.anchorAlignment;
 		const anchorAxisAlignment = this.delegate!.anchorAxisAlignment;
 		const layoutResult = layout2d(viewport, view, anchor, { anchorAlignment, anchorPosition, anchorAxisAlignment });
-		const { top, left } = layoutResult;
+		const adjusted = avoidWindowControlsOverlay(getVisibleWCOTitlebarAreaRect(containerWindow), viewport, view, layoutResult);
+		const { top, left } = adjusted;
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
-		this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
-		this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		if (adjusted === layoutResult) {
+			this.view.classList.add(layoutResult.anchorPosition === AnchorPosition.BELOW ? 'bottom' : 'top');
+			this.view.classList.add(layoutResult.anchorAlignment === AnchorAlignment.LEFT ? 'left' : 'right');
+		} else {
+			this.view.classList.add(top >= anchor.top + anchor.height ? 'bottom' : 'top');
+			this.view.classList.add(left >= anchor.left ? 'left' : 'right');
+		}
 
-		this.view.style.top = `${top - positioningOrigin.top}px`;
-		this.view.style.left = `${left - positioningOrigin.left}px`;
+		this.view.style.top = `${(top - positioningOrigin.top) / viewZoom}px`;
+		this.view.style.left = `${(left - positioningOrigin.left) / viewZoom}px`;
 		this.view.style.width = 'initial';
 	}
 

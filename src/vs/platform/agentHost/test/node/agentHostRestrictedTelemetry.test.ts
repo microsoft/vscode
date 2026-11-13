@@ -51,7 +51,7 @@ class TestInternalSink implements IAgentHostInternalTelemetrySink {
 suite('AgentHost restricted telemetry chunking', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	for (const key of ['messageText', 'prompt']) {
+	for (const key of ['messageText', 'prompt', 'request.option.tools', 'request_option_tools']) {
 		for (const length of [0, 100, 8192, 8193, 20000]) {
 			test(`always compresses ${key} of length ${length}`, async () => {
 				const value = 'x'.repeat(length);

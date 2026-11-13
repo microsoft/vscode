@@ -13,8 +13,10 @@ parameters:
 # Each product test job tests the builds of the compilation artifact published
 # by the compile job (see product-build-darwin.yml, which must set
 # VSCODE_RUN_TESTS) with the selected test IDs, after applying the local
-# entitlement signature required to run the product on macOS. Retrying a test
-# job skips the test tasks that already passed in an earlier attempt.
+# entitlement signature required to run the product on macOS. Failed unit,
+# Agent Host E2E and node.js integration tests are rerun, as in the pull
+# request workflows. Retrying a test job skips the test tasks that already
+# passed in an earlier attempt.
 jobs:
   - job: macOS_${{ parameters.VSCODE_ARCH }}_Test_${{ parameters.VSCODE_JOB_NAME }}
     displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }}) - ${{ parameters.VSCODE_JOB_DISPLAY_NAME }}
@@ -63,3 +65,4 @@ jobs:
         parameters:
           VSCODE_TEST_IDS: ${{ parameters.VSCODE_TEST_IDS }}
           VSCODE_COMPILE_TEST_SUITES: true
+          VSCODE_RERUN_FAILED_TESTS: true

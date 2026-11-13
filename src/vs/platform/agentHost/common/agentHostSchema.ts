@@ -9,9 +9,11 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import { TelemetryConfiguration, TelemetryLevel } from '../../telemetry/common/telemetry.js';
 import { telemetryLevelToAgentHostValue } from './agentHostTelemetry.js';
 import { SessionConfigKey, type SessionSandboxEnabled } from './sessionConfigKeys.js';
+import { MissionControlUseLocalCredentialsConfigKey } from './missionControlEnvironment.js';
 import type { IShellInitScript } from './shellInitScript.js';
 import type { SessionConfigPropertySchema, SessionConfigSchema } from './state/protocol/commands.js';
 import { JsonRpcErrorCodes, ProtocolError } from './state/sessionProtocol.js';
+import { ModelRouterEnabledConfigKey } from './modelRouterConfig.js';
 
 // ---- Schema builder --------------------------------------------------------
 
@@ -192,12 +194,14 @@ export function createSchema<D extends SchemaDefinition>(definition: D): ISchema
 type AssertValidator = (value: unknown, path: string) => void;
 
 function buildAssert(schema: SessionConfigPropertySchema): AssertValidator {
-	if (schema.type === 'object' && schema.properties) {
+	if (schema.type === 'object' && (schema.properties || schema.additionalProperties)) {
 		const propAsserts: Record<string, AssertValidator> = {};
-		for (const key of Object.keys(schema.properties)) {
-			propAsserts[key] = buildAssert(schema.properties[key] as SessionConfigPropertySchema);
+		const properties = schema.properties ?? {};
+		for (const key of Object.keys(properties)) {
+			propAsserts[key] = buildAssert(properties[key] as SessionConfigPropertySchema);
 		}
 		const required = new Set(schema.required ?? []);
+		const additionalAssert = schema.additionalProperties ? buildAssert(schema.additionalProperties as SessionConfigPropertySchema) : undefined;
 		return (value, path) => {
 			if (typeof value !== 'object' || value === null || Array.isArray(value)) {
 				throw invalidParams(path, 'object', value);
@@ -212,6 +216,13 @@ function buildAssert(schema: SessionConfigPropertySchema): AssertValidator {
 					continue;
 				}
 				propAsserts[key](obj[key], childPath);
+			}
+			if (additionalAssert) {
+				for (const key of Object.keys(obj)) {
+					if (!Object.hasOwn(propAsserts, key)) {
+						additionalAssert(obj[key], joinPath(path, key));
+					}
+				}
 			}
 		};
 	}
@@ -277,7 +288,7 @@ export interface IPermissionsValue {
 const permissionsProperty = schemaProperty<IPermissionsValue>({
 	type: 'object',
 	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), or Edit(./docs/**). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), Edit(./docs/**), Mcp(server), or Mcp(server/tool). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
 	properties: {
 		allow: {
 			type: 'array',
@@ -542,6 +553,13 @@ export const AgentHostGlobalAutoApproveEnabledConfigKey = 'globalAutoApproveEnab
 export const AgentHostAutoApprovePolicyRestrictedConfigKey = 'autoApprovePolicyRestricted';
 
 /**
+ * Root config key forwarded from the renderer's `chat.permissions.assisted.instructions`
+ * setting: user-authored guidance for the reviewer that decides which tool calls run
+ * without confirmation under Assisted permissions. Empty uses the default guidance.
+ */
+export const AgentHostAssistedApprovalInstructionsConfigKey = 'assistedApprovalInstructions';
+
+/**
  * Root config key forwarded from the renderer when VS Code's `chat.autoReply`
  * setting changes. When `true`, the agent host auto-answers `ask_user`
  * questions instead of blocking on the user — the user is treated as
@@ -568,14 +586,26 @@ export const AgentHostGitHubMcpServerEnabledConfigKey = 'githubMcpServerEnabled'
 /** Root config key forwarded from the renderer for GitHub's Computer Use plugin. */
 export const AgentHostComputerUseEnabledConfigKey = 'computerUseEnabled';
 
+/** Root config key forwarded from the renderer for GitHub's Browser Use plugin. */
+export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
+
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
 /** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
 export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
+/** Host-persisted per-server decisions for loading and using MCP-served skills. */
+export const AgentHostMcpSkillsServerApprovalsConfigKey = 'mcpSkillsServerApprovals';
+
+/** Host-persisted per-extension-identity decisions for privileged capabilities. */
+export const AgentHostExtensionPermissionApprovalsConfigKey = 'extensionPermissionApprovals';
+
 /** Root config key forwarded from the renderer for Copilot connector discovery. */
 export const AgentHostMcpConnectorsEnabledConfigKey = 'mcpConnectorsEnabled';
+
+/** Root config key forwarded from the renderer enabling the runtime's `MCP_SKILLS` feature. */
+export const AgentHostMcpSkillsEnabledConfigKey = 'mcpSkillsEnabled';
 
 /**
  * Independently synchronized proxy settings retain their VS Code `http.*`
@@ -640,6 +670,7 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostChatResourcesConfigKey = 'chatResources';
 export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
 export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
@@ -665,11 +696,6 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  * Copilot draft starts its SDK session and MCP servers before the first send.
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
-
-// Root config key forwarded from the renderer when the `chat.agentSessions.migrateLegacyCopilotCli`
-// setting changes. When `true`, `listSessions` surfaces un-adopted extension-host Copilot CLI
-// sessions as adoptable agent-host sessions, and opening one adopts it in place. Experimental; off.
-export const AgentHostMigrateLegacyCopilotCliEnabledConfigKey = 'migrateLegacyCopilotCliEnabled';
 
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
@@ -808,6 +834,12 @@ const mcpServersValueProperties: Record<string, SessionConfigPropertySchema> = {
 
 export const platformRootSchema = createSchema({
 	...agentHostProxyConfigDefinition,
+	[MissionControlUseLocalCredentialsConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.localCredentials.title', "Use Local Credentials"),
+		description: localize('agentHost.config.localCredentials.description', "Use this host's GitHub and Copilot credentials for same-account Mission Control sessions."),
+		readOnly: true,
+	}),
 	[AgentHostAhpJsonlLoggingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.ahpJsonlLogging.title', "AHP Transport Logging"),
@@ -882,6 +914,12 @@ export const platformRootSchema = createSchema({
 		default: false,
 		readOnly: true,
 	}),
+	[AgentHostAssistedApprovalInstructionsConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.assistedApprovalInstructions.title', "Assisted Permissions Instructions"),
+		description: localize('agentHost.config.assistedApprovalInstructions.description', "User-authored instructions for the reviewer that decides which tool calls run without confirmation under Assisted permissions. Empty uses the default guidance."),
+		default: '',
+	}),
 	[AgentHostWorkspaceTrustConfigKey]: schemaProperty<IAgentHostWorkspaceTrust>({
 		type: 'object',
 		title: localize('agentHost.config.workspaceTrust', "Workspace Trust"),
@@ -920,6 +958,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.computerUseEnabled.description', "Whether local Copilot agent sessions on macOS and Windows offer GitHub's Computer Use plugin."),
 		default: false,
 	}),
+	[AgentHostBrowserUseEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.browserUseEnabled.title', "Browser Use"),
+		description: localize('agentHost.config.browserUseEnabled.description', "Whether local Copilot agent sessions offer GitHub's Browser Use plugin."),
+		default: false,
+	}),
 	[AgentHostMcpToolRoutingEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.mcpToolRoutingEnabled.title', "MCP Tool Routing"),
@@ -932,6 +976,20 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.mcpSamplingAllowedServers.description', "MCP server identities whose sampling requests are automatically approved in all sessions on this agent host. Approvals include known configuration and source identity, or the exact server name when no other identity is available. Remove an entry to require confirmation again. This does not approve its tool calls."),
 		items: { type: 'string', title: localize('agentHost.config.mcpSamplingAllowedServers.item', "MCP Server Identity") },
 		default: [],
+	}),
+	[AgentHostMcpSkillsServerApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
+		type: 'object',
+		title: localize('agentHost.config.mcpSkillsServerApprovals.title', "MCP Skills Server Approvals"),
+		description: localize('agentHost.config.mcpSkillsServerApprovals.description', "Per-server-identity decisions for loading and using MCP-served skills in all sessions on this agent host. Identities include known server configuration and source, or the exact server name when no other identity is available. Remove an entry to ask again. This does not approve ordinary tool permission requests."),
+		additionalProperties: { type: 'string', title: localize('agentHost.config.mcpSkillsServerApprovals.entry', "MCP Server Skills Decision"), enum: ['allow', 'deny'] },
+		default: {},
+	}),
+	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
+		type: 'object',
+		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, in all sessions on this agent host. Identities include the extension name and requested capabilities. Remove an entry to ask again."),
+		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
+		default: {},
 	}),
 	[AgentHostActiveAgentTitleGenerationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
@@ -963,6 +1021,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.mcpConnectorsEnabled.description', "Whether Copilot agent sessions expose MCP servers provided by connected Copilot Connectors."),
 		default: false,
 	}),
+	[AgentHostMcpSkillsEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.mcpSkillsEnabled.title', "MCP Skills"),
+		description: localize('agentHost.config.mcpSkillsEnabled.description', "Whether Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
+		default: true,
+	}),
 	[AgentHostMarkdownPlanRichLinksEnabledConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.markdownPlanRichLinks.title', "Markdown Plan Rich Links"),
@@ -992,6 +1056,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
 		default: false,
 	}),
+	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files they record, such as above the chat input."),
+		default: false,
+	}),
 	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactIntegrations.title', "Artifact Integrations"),
@@ -1017,6 +1087,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.autoAttachPullRequests.description', "Whether the Agent Host automatically discovers and associates a pull request for the currently checked-out branch. When disabled, only pull requests recorded as artifacts or explicitly associated by session actions are considered."),
 		default: true,
 	}),
+	[ModelRouterEnabledConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.modelRouterEnabled.title', "Model Routers"),
+		description: localize('agentHost.config.modelRouterEnabled.description', "Whether model routers from ~/.agents/model-routers are offered as Copilot models."),
+		default: false,
+	}),
 	[AgentHostOverlapProviderPreparationConfigKey]: schemaProperty<boolean>({
 		type: 'boolean',
 		title: localize('agentHost.config.overlapProviderPreparation.title', "Overlap Provider Preparation"),
@@ -1029,12 +1105,6 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: false,
 	}),
-	[AgentHostMigrateLegacyCopilotCliEnabledConfigKey]: schemaProperty<boolean>({
-		type: 'boolean',
-		title: localize('agentHost.config.migrateLegacyCopilotCliEnabled.title', "Migrate Legacy Copilot CLI Sessions"),
-		description: localize('agentHost.config.migrateLegacyCopilotCliEnabled.description', "Whether un-adopted extension-host Copilot CLI sessions are surfaced as adoptable agent-host sessions and migrated in place when opened."),
-		default: false,
-	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',
 		title: localize('agentHost.config.showExternalSessions.title', "Show External Agent Sessions"),
@@ -1042,7 +1112,7 @@ export const platformRootSchema = createSchema({
 		enum: [ChatExternalSessionsMode.None, ChatExternalSessionsMode.Recent, ChatExternalSessionsMode.Last24Hours, ChatExternalSessionsMode.Last7Days, ChatExternalSessionsMode.Last30Days],
 		enumDescriptions: [
 			localize('agentHost.config.showExternalSessions.none', "Do not show external sessions."),
-			localize('agentHost.config.showExternalSessions.recent', "Show up to the 2 most recent external sessions updated in the last 7 days. At startup, external sessions older than the second-most-recently updated local session are hidden."),
+			localize('agentHost.config.showExternalSessions.recent', "Show the 2 most recently updated external sessions from the last 7 days, hiding any that are older than your 2 newest local sessions."),
 			localize('agentHost.config.showExternalSessions.last24Hours', "Show external sessions updated in the last 24 hours."),
 			localize('agentHost.config.showExternalSessions.last7Days', "Show external sessions updated in the last 7 days."),
 			localize('agentHost.config.showExternalSessions.last30Days', "Show external sessions updated in the last 30 days."),
@@ -1099,4 +1169,5 @@ export const clientOwnedApprovalRootConfigKeys: ReadonlySet<string> = new Set([
 	AgentHostEditAutoApprovePatternsConfigKey,
 	AgentHostAutoReplyEnabledConfigKey,
 	AgentHostWorkspaceTrustConfigKey,
+	AgentHostAssistedApprovalInstructionsConfigKey,
 ]);

@@ -5,7 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { getComparisonKey } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
@@ -15,12 +15,13 @@ import { ActionType } from '../../../../platform/agentHost/common/state/protocol
 import { Annotation, AnnotationEntry, AnnotationsState, StateComponents, StringOrMarkdown } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { TextRange } from '../../../../platform/agentHost/common/state/protocol/common/state.js';
 import { authorForFeedbackKind, feedbackAnnotationEntryMeta, FEEDBACK_ANNOTATION_META_KEY, readFeedbackAnnotationMeta, resolveFeedbackEntryAuthor, type AgentFeedbackKindValue, type AgentFeedbackStateValue, type IFeedbackAnnotationMeta, type IFeedbackPullRequest } from '../../../../platform/agentHost/common/meta/agentFeedbackAnnotations.js';
-import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
-import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../common/agentHostSessionsProvider.js';
-import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from './agentFeedbackModel.js';
+import { ICodeReviewSuggestion } from '../../../../workbench/contrib/sessions/browser/codeReviewService.js';
+import { IAgentHostSessionsProvider, isAgentHostProviderId } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IFocusedSessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { AgentFeedbackKind, AgentFeedbackState, IAgentFeedback, IAgentFeedbackReply } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 
 // --- Backend interface --------------------------------------------------------
 
@@ -374,6 +375,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly _focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
@@ -393,11 +395,12 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		// in the window.
 		this._register(autorun(reader => {
 			const visible = new Set<string>();
-			const activeSession = this._sessionsService.activeSession.read(reader);
+			const activeSession = this._focusedSessionHostService.focusedHost.read(reader).session.read(reader);
 			if (activeSession) {
 				visible.add(activeSession.resource.toString());
 			}
-			for (const session of this._sessionsService.visibleSessionPanes.read(reader)) {
+			for (const pane of this._sessionsService.panes.read(reader)) {
+				const session = pane.session.read(reader);
 				if (session) {
 					visible.add(session.resource.toString());
 				}
@@ -419,6 +422,31 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 			return orderFeedbackItems(items);
 		}
 		return [];
+	}
+
+	/** Observes annotations only while subscribed, without retaining a session in the backend cache. */
+	getItemsObservable(sessionResource: URI): IObservable<readonly IAgentFeedback[]> {
+		const sessionsChanged = observableSignalFromEvent(this, this._sessionsManagementService.onDidChangeSessions);
+		const channel = derived(this, reader => {
+			sessionsChanged.read(reader);
+			const session = this._sessionsManagementService.getSession(sessionResource);
+			const provider = session && this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+			const resolved = session && provider?.getFeedbackAnnotationsChannel?.(session.sessionId);
+			if (!resolved) {
+				return undefined;
+			}
+			const ref = reader.delayedStore.add(resolved.connection.getSubscription(StateComponents.Annotations, resolved.annotationsUri, AnnotationsAgentFeedbackItemsBackend.OWNER));
+			return {
+				connection: resolved.connection,
+				subscription: ref.object,
+				changed: observableSignalFromEvent(this, ref.object.onDidChange),
+			};
+		});
+		return derived(this, reader => {
+			const current = channel.read(reader);
+			current?.changed.read(reader);
+			return current ? orderFeedbackItems(this._decode(current, sessionResource)) : [];
+		});
 	}
 
 	hasLoaded(sessionResource: URI): boolean {
@@ -501,7 +529,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		return value !== undefined && !(value instanceof Error);
 	}
 
-	private _decode(channel: ITrackedChannel, sessionResource: URI): IAgentFeedback[] {
+	private _decode(channel: Pick<ITrackedChannel, 'connection' | 'subscription'>, sessionResource: URI): IAgentFeedback[] {
 		const value = channel.subscription.value;
 		if (!value || value instanceof Error) {
 			return [];
@@ -677,7 +705,7 @@ export class AnnotationsAgentFeedbackItemsBackend extends Disposable implements 
 		if (!session || !isAgentHostProviderId(session.providerId)) {
 			return undefined;
 		}
-		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId);
+		const provider = this._sessionsProvidersService.getProvider<IAgentHostSessionsProvider>(session.providerId, session.sessionId);
 		if (!provider?.getFeedbackAnnotationsChannel) {
 			return undefined;
 		}

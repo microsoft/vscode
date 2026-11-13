@@ -5,6 +5,7 @@
 
 import type { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
+import { isAutoAdvertisedAsFusion } from '../../../../common/autoModeTiers.js';
 import { DOWN_MARK_MS, LOAD_TIMEOUT_MS, QUEUE_TIMEOUT_MS } from './constants.js';
 import { LocalModelServingError, type IDirectFamilyLookup, type ILocalModelClock, type ILocalModelLiveGates, type IQueuedSlotOptions, type IServingAccess, type IServingIdentity, type IServingLease, type IServingSlot, type IServingSnapshot } from './servingAccess.js';
 
@@ -38,7 +39,9 @@ interface IQueuedSlot {
 }
 
 function busyTimeoutError(): LocalModelServingError {
-	return new LocalModelServingError('busyTimeout', localize('localModel.busyTimeout', "The local model is busy. Try again, or use Auto."));
+	return new LocalModelServingError('busyTimeout', isAutoAdvertisedAsFusion()
+		? localize('localModel.busyTimeoutFusion', "The local model is busy. Try again, or use Copilot Fusion.")
+		: localize('localModel.busyTimeout', "The local model is busy. Try again, or use Auto."));
 }
 
 function notActiveError(displayName: string | undefined): LocalModelServingError {
@@ -48,6 +51,11 @@ function notActiveError(displayName: string | undefined): LocalModelServingError
 }
 
 function loadTimeoutError(displayName: string | undefined): LocalModelServingError {
+	if (isAutoAdvertisedAsFusion()) {
+		return new LocalModelServingError('startFailed', displayName
+			? localize('localModel.serving.loadTimeoutFusion', "{0} took too long to load. Try again, or use Copilot Fusion.", displayName)
+			: localize('localModel.serving.loadTimeoutGenericFusion', "The on-device model took too long to load. Try again, or use Copilot Fusion."));
+	}
 	return new LocalModelServingError('startFailed', displayName
 		? localize('localModel.serving.loadTimeout', "{0} took too long to load. Try again, or use Auto.", displayName)
 		: localize('localModel.serving.loadTimeoutGeneric', "The on-device model took too long to load. Try again, or use Auto."));

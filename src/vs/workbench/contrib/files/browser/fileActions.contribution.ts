@@ -27,6 +27,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IExplorerService } from './files.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
+import { NewMarkdownDocumentFromNewTabButtonAction, NewUntitledFileFromNewTabButtonAction } from './newTabButtonActions.js';
 
 // Contribute Global Actions
 
@@ -41,6 +42,8 @@ registerAction2(SetActiveEditorReadonlyInSession);
 registerAction2(SetActiveEditorWriteableInSession);
 registerAction2(ToggleActiveEditorReadonlyInSession);
 registerAction2(ResetActiveEditorReadonlyInSession);
+registerAction2(NewUntitledFileFromNewTabButtonAction);
+registerAction2(NewMarkdownDocumentFromNewTabButtonAction);
 
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
@@ -159,12 +162,29 @@ export const revealInSideBarCommand = {
 	title: nls.localize('revealInSideBar', "Reveal in Explorer View")
 };
 
+/**
+ * The Agents window shows files in its "Files" view instead of the Explorer view.
+ */
+const revealInFilesViewCommand = {
+	id: REVEAL_IN_EXPLORER_COMMAND_ID,
+	title: nls.localize('revealInFilesView', "Reveal in Files View")
+};
+
+/**
+ * Appends the reveal command to a menu, labelled after the view it reveals in.
+ */
+function appendRevealInSideBarMenuItem(menuId: MenuId, group: string, order: number, when: ContextKeyExpression): void {
+	MenuRegistry.appendMenuItem(menuId, { group, order, command: revealInSideBarCommand, when: ContextKeyExpr.and(when, IsSessionsWindowContext.negate()) });
+	MenuRegistry.appendMenuItem(menuId, { group, order, command: revealInFilesViewCommand, when: ContextKeyExpr.and(when, IsSessionsWindowContext) });
+}
+
 // Editor Title Context Menu
 appendEditorTitleContextMenuItem(SAVE_FILE_COMMAND_ID, SAVE_FILE_LABEL.value, ActiveEditorDirtyContext, '1_close_save', true, 10);
 appendEditorTitleContextMenuItem(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL.value, ActiveEditorDirtyContext, '1_close_save', false, 20);
 appendEditorTitleContextMenuItem(COPY_PATH_COMMAND_ID, copyPathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
 appendEditorTitleContextMenuItem(COPY_RELATIVE_PATH_COMMAND_ID, copyRelativePathCommand.title, ResourceContextKey.IsFileSystemResource, '1_cutcopypaste', true);
-appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ResourceContextKey.IsFileSystemResource, '2_files', false, 1);
+appendEditorTitleContextMenuItem(revealInSideBarCommand.id, revealInSideBarCommand.title, ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, IsSessionsWindowContext.negate()), '2_files', false, 1);
+appendEditorTitleContextMenuItem(revealInFilesViewCommand.id, revealInFilesViewCommand.title, ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, IsSessionsWindowContext), '2_files', false, 1);
 
 export function appendEditorTitleContextMenuItem(id: string, title: string, when: ContextKeyExpression | undefined, group: string, supportsMultiSelect: boolean, order?: number): void {
 	const precondition = supportsMultiSelect !== true ? MultipleEditorsSelectedInGroupContext.negate() : undefined;
@@ -772,12 +792,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	when: ContextKeyExpr.and(ResourceContextKey.IsFileSystemResource, ExplorerFolderContext.toNegated())
 });
 
-MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
-	group: 'navigation',
-	order: 20,
-	command: revealInSideBarCommand,
-	when: ResourceContextKey.IsFileSystemResource
-});
+appendRevealInSideBarMenuItem(MenuId.ChatAttachmentsContext, 'navigation', 20, ResourceContextKey.IsFileSystemResource);
 
 MenuRegistry.appendMenuItem(MenuId.ChatAttachmentsContext, {
 	group: '1_cutcopypaste',
@@ -803,12 +818,7 @@ for (const menuId of [MenuId.ChatInlineResourceAnchorContext, MenuId.ChatInputRe
 		when: ContextKeyExpr.and(ResourceContextKey.HasResource, ExplorerFolderContext.toNegated())
 	});
 
-	MenuRegistry.appendMenuItem(menuId, {
-		group: 'navigation',
-		order: 20,
-		command: revealInSideBarCommand,
-		when: ResourceContextKey.IsFileSystemResource
-	});
+	appendRevealInSideBarMenuItem(menuId, 'navigation', 20, ResourceContextKey.IsFileSystemResource);
 
 	MenuRegistry.appendMenuItem(menuId, {
 		group: '1_cutcopypaste',

@@ -76,6 +76,17 @@ suite('Chat inline attachments', () => {
 		});
 	});
 
+	test('says verbatim pills exactly where they are, while separating adjacent pills', () => {
+		const project = (input: string, anchors: Parameters<typeof projectInlineAttachments>[1]) => projectInlineAttachments(input, anchors, [])?.text;
+		assert.deepStrictEqual([
+			project(`see (${A}), "${A}"`, [{ offset: 5, text: 'link-a', verbatim: true }, { offset: 10, text: 'link-b', verbatim: true }]),
+			project(`${A}${A}${A}.`, [{ offset: 0, text: 'link-a', verbatim: true }, { offset: 1, text: '#x' }, { offset: 2, text: 'link-b', verbatim: true }]),
+		], [
+			'see (link-a), "link-b"',
+			'link-a #x link-b.',
+		]);
+	});
+
 	test('maps positions across lines', () => {
 		const input = `first\r\n${A} second ${A}`;
 		const projection = projectInlineAttachments(input, [
@@ -243,6 +254,50 @@ suite('Chat inline attachments', () => {
 		assert.deepStrictEqual(recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text), [
 			'compare ', '[utils]', ' with ', '[utils]', ' using ', '[paste]', ', not Pasted text #12 or MyPasted text #1',
 		]);
+	});
+
+	test('recovers the links of attachments that history keeps elsewhere than the prompt said', () => {
+		// An agent host keeps its own copy of an image, and the copy of a pasted image may have no location at all.
+		const text = '[shot.png](file:///Downloads/shot.png) flickers, [pasted.png](file:///tmp/pasted.png) too, see [b.ts](file:///src/(old)/b.ts) and @attachment:old.png but not ![shot.png](file:///Downloads/shot.png), [shot.png]() or `[b.ts](file:///src/b.ts)`';
+		const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+		const variables: IChatRequestVariableEntry[] = [
+			{ kind: 'image', id: 'shot', name: 'shot.png', value: URI.file('/history/1/shot.png'), isURL: true, references: [{ kind: 'reference', reference: URI.file('/history/1/shot.png') }] },
+			{ kind: 'image', id: 'pasted', name: 'pasted.png', value: new Uint8Array() },
+			{ kind: 'file', id: 'b', name: 'b.ts', value: URI.file('/worktree/src/b.ts') },
+			{ kind: 'image', id: 'old', name: 'old.png', value: new Uint8Array() },
+		];
+		const recovered = recoverAttachmentMentions(message, variables);
+		assert.deepStrictEqual({
+			parts: recovered.parts.map(part => part instanceof ChatRequestDynamicVariablePart ? `[${part.id}]` : part.text),
+			inline: [...getInlineRequestAttachments(recovered.parts, variables, text).values()].map(variable => variable.id),
+		}, {
+			parts: ['[shot]', ' flickers, ', '[pasted]', ' too, see ', '[b]', ' and ', '[old]', ' but not ![shot.png](file:///Downloads/shot.png), [shot.png]() or `[b.ts](file:///src/b.ts)`'],
+			inline: ['shot', 'pasted', 'b', 'old'],
+		});
+	});
+
+	test('binds a link to the attachment it links to, and other mentions to the remaining attachments of their name in order', () => {
+		const image = (id: string, location: string): IChatRequestVariableEntry => ({ kind: 'image', id, name: 'shot.png', value: new Uint8Array(), references: [{ kind: 'reference', reference: URI.file(location) }] });
+		const bind = (variables: IChatRequestVariableEntry[], ...locations: string[]) => {
+			const text = locations.map(location => `[shot.png](${URI.file(location).toString()})`).join(' and ');
+			const message = { text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, 1, 1, text.length + 1), text)] };
+			return recoverAttachmentMentions(message, variables).parts.flatMap(part => part instanceof ChatRequestDynamicVariablePart ? [part.id] : []);
+		};
+		const distinct = [image('a', '/a/shot.png'), image('b', '/b/shot.png')];
+		const identical = [image('a', '/same/shot.png'), image('b', '/same/shot.png')];
+		assert.deepStrictEqual({
+			exact: bind(distinct, '/b/shot.png', '/a/shot.png'),
+			exactThenRelocated: bind(distinct, '/b/shot.png', '/old/shot.png'),
+			relocatedThenExact: bind(distinct, '/old/shot.png', '/a/shot.png'),
+			repeatedExact: bind(distinct, '/a/shot.png', '/a/shot.png', '/old/shot.png'),
+			identicalLocations: bind(identical, '/same/shot.png', '/same/shot.png'),
+		}, {
+			exact: ['b', 'a'],
+			exactThenRelocated: ['b', 'a'],
+			relocatedThenExact: ['b', 'a'],
+			repeatedExact: ['a', 'a', 'b'],
+			identicalLocations: ['a', 'b'],
+		});
 	});
 
 	test('opens pills only when activating them does something', () => {

@@ -6,6 +6,7 @@
 import * as nls from '../../../nls.js';
 import { ArtifactIntegrationsSettingId } from '../../artifactIntegrations/common/artifactIntegration.js';
 import { ConfigurationScope, IConfigurationPropertySchema } from '../../configuration/common/configurationRegistry.js';
+import product from '../../product/common/product.js';
 import { AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostGitHubArtifactIgnoredChecksConfigKey } from './agentHostSchema.js';
 import { ArtifactToolsSettingId } from './agentService.js';
 import { gitHubPullRequestMarkReadyIgnoredChecksSetting } from './githubPullRequestArtifact.js';
@@ -14,7 +15,7 @@ export const artifactToolsConfigurationProperties = {
 	[ArtifactIntegrationsSettingId]: {
 		type: 'boolean',
 		markdownDescription: nls.localize('chat.artifactIntegrations.enabled', "Enables live state, actions, and opt-in Autopilot for recorded artifacts, including extension integrations. While enabled, Agent Merge is unavailable regardless of `#chat.agentMerge.enabled#`. Switching stops the previous system's automation without clearing saved choices or history. Previously enabled rules can resume when switching back. This does not enable new Autopilot rules or change ordinary artifact recording (`#chat.artifactTools.enabled#`)."),
-		default: false,
+		default: product.quality === 'insider',
 		scope: ConfigurationScope.APPLICATION,
 		tags: ['experimental'],
 		agentHost: { key: AgentHostArtifactIntegrationsConfigKey },

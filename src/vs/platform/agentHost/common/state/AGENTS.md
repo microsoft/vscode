@@ -2,6 +2,8 @@
 
 This directory contains the VS Code-facing wrappers around the Agent Host Protocol (AHP) state model. Read this before modifying protocol types.
 
+Before adding or changing protocol constructs or `_meta`, follow the [protocol constructs before `_meta` rules](../../../../../../.github/instructions/agent-host-interoperability.instructions.md#protocol-constructs-before-_meta). Existing protocol constructs must be used instead of metadata where possible; unmet requirements should be raised upstream, and optional metadata must tolerate alternate hosts and UIs that omit or ignore it.
+
 ## Overview
 
 - `sessionState.ts`, `sessionActions.ts`, `sessionReducers.ts`, and `sessionProtocol.ts` are VS Code-facing wrappers and re-exports.
@@ -21,7 +23,7 @@ The generated protocol includes the Changesets model:
 ## Updating generated protocol types
 
 1. Update the source files in the sibling `agent-host-protocol` repo.
-2. Run `npx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
+2. Run `pnpm dlx tsx scripts/sync-agent-host-protocol.ts` from the VS Code repo.
 3. If VS Code consumers need short aliases or type guards, update the wrapper files in this directory after the sync.
 4. Compile. The generated registry catches missing action/notification version map entries.
 

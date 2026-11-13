@@ -305,6 +305,13 @@ export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agen
  */
 export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
 
+/**
+ * Controls for each extension, by its identifier, whether it is enabled in the Agents window automatically, overriding
+ * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} for that extension. A keyed experiment-controlled setting, so that each
+ * extension can be tested in its own experiment. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS = 'extensions.experimental.agentsWindowAutoEnableExtensions';
+
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 
 export type LimitedWorkspaceSupportType = 'limited';

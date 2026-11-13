@@ -13,7 +13,7 @@
 # signing, publishing or release credentials. The shared templates drop every
 # step and job that references one of those connections when their
 # VSCODE_PRIVILEGED_CONNECTIONS parameter is false, which only this pipeline
-# passes:
+# and product-build-ci.yml (for the quality checks) pass:
 #
 #   git grep VSCODE_PRIVILEGED_CONNECTIONS -- build/azure-pipelines
 #
@@ -187,20 +187,6 @@ extends:
     settings:
       networkIsolationPolicy: Permissive,CFSClean,CFSClean2,CFSClean3
     stages:
-      # Every compile job waits for the copilot_vsix artifact of this stage.
-      - stage: Copilot
-        dependsOn: []
-        pool:
-          name: 1es-ubuntu-22.04-x64
-          os: linux
-        jobs:
-          - template: build/azure-pipelines/product-copilot.yml@self
-            parameters:
-              VSCODE_PUBLISH: false
-              VSCODE_RELEASE: false
-              VSCODE_UPLOAD_SOURCEMAPS: false
-              VSCODE_PRIVILEGED_CONNECTIONS: false
-
       - stage: Windows
         displayName: Windows X64
         dependsOn: []

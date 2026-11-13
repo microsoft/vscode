@@ -10,7 +10,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest, type SSHStrictHostKeyChecking } from '../../common/sshRemoteAgentHost.js';
+import { isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHHostKeyVerificationRequest, type ISSHResolvedConfig, type SSHStrictHostKeyChecking } from '../../common/sshRemoteAgentHost.js';
 import { resolveSSHKnownHostsFiles, SSHKnownHostsResolutionError } from '../../node/sshConfigPaths.js';
 import { SSHRemoteAgentHostMainService, type SSHAuthAttempt } from '../../node/sshRemoteAgentHostService.js';
 import { computeHostKeyFingerprint, parseKnownHosts, type IKnownHostsEntry } from '../../node/sshKnownHosts.js';
@@ -111,11 +111,11 @@ class HostKeyTestService extends SSHRemoteAgentHostMainService {
 	readonly client = new HostKeyMockSSHClient();
 	resolveFailure: Error | undefined;
 	failResolutionOnCall = 1;
-	private _resolveCalls = 0;
+	resolveCalls = 0;
 	useResolvedKnownHosts = false;
 	hostKeyAlias: string | undefined;
 	override async resolveSSHConfig(): ReturnType<SSHRemoteAgentHostMainService['resolveSSHConfig']> {
-		if (++this._resolveCalls >= this.failResolutionOnCall && this.resolveFailure) {
+		if (++this.resolveCalls >= this.failResolutionOnCall && this.resolveFailure) {
 			throw this.resolveFailure;
 		}
 		return { hostname: 'test.example.com', ...(this.hostKeyAlias ? { hostKeyAlias: this.hostKeyAlias } : {}), user: 'testuser', port: 22, identityFile: [], identityAgent: undefined, forwardAgent: false, userKnownHostsFiles: [], globalKnownHostsFiles: [], strictHostKeyChecking: undefined };
@@ -140,9 +140,9 @@ class HostKeyTestService extends SSHRemoteAgentHostMainService {
 		return this.authAttempts;
 	}
 
-	protected override async _readKnownHostsEntries(host: string): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined; hostKeyAlias: string | undefined }> {
+	protected override async _readKnownHostsEntries(host: string, resolvedConfig?: ISSHResolvedConfig): Promise<{ entries: IKnownHostsEntry[]; strictHostKeyChecking: SSHStrictHostKeyChecking | undefined; hostKeyAlias: string | undefined }> {
 		if (this.useResolvedKnownHosts) {
-			return super._readKnownHostsEntries(host);
+			return super._readKnownHostsEntries(host, resolvedConfig);
 		}
 		if (this.knownHostsGate) {
 			await this.knownHostsGate;
@@ -275,45 +275,57 @@ suite('SSHRemoteAgentHostMainService - host key verification', () => {
 	});
 
 	for (const failure of ['ambiguous paths', 'filesystem error'] as const) {
-		for (const failResolutionOnCall of [1, 2]) {
-			test(`rejects ${failure} during ${failResolutionOnCall === 1 ? 'connection setup' : 'host-key verification'} without prompting`, async () => {
-				const service = createService();
-				service.failResolutionOnCall = failResolutionOnCall;
-				service.useResolvedKnownHosts = true;
-				const filesystemError = new Error('Permission denied');
-				service.resolveFailure = await resolveSSHKnownHostsFiles(
-					'userknownhostsfile /keys/known_hosts relative\nstricthostkeychecking yes',
-					async () => {
-						if (failure === 'filesystem error') {
-							throw filesystemError;
-						}
-						return true;
-					},
-				).then(
-					() => assert.fail('Expected known-hosts resolution to fail'),
-					error => {
-						assert.ok(error instanceof SSHKnownHostsResolutionError);
-						return error;
-					},
-				);
-				const { requests, error } = await connectAnswering(service, true, makeConfig({ sshConfigHost: undefined }));
+		test(`rejects ${failure} during connection setup without prompting`, async () => {
+			const service = createService();
+			service.useResolvedKnownHosts = true;
+			const filesystemError = new Error('Permission denied');
+			service.resolveFailure = await resolveSSHKnownHostsFiles(
+				'userknownhostsfile /keys/known_hosts relative\nstricthostkeychecking yes',
+				async () => {
+					if (failure === 'filesystem error') {
+						throw filesystemError;
+					}
+					return true;
+				},
+			).then(
+				() => assert.fail('Expected known-hosts resolution to fail'),
+				error => {
+					assert.ok(error instanceof SSHKnownHostsResolutionError);
+					return error;
+				},
+			);
+			const { requests, error } = await connectAnswering(service, true, makeConfig({ sshConfigHost: undefined }));
 
-				assert.deepStrictEqual({
-					requests: requests.length,
-					verdict: service.client.verdict,
-					verdictCount: service.client.verdictCount,
-					rejected: failResolutionOnCall === 1 ? error === service.resolveFailure : error instanceof Error,
-					pendingRequests: service.pendingHostKeyRequestCount,
-				}, {
-					requests: 0,
-					verdict: failResolutionOnCall === 1 ? undefined : false,
-					verdictCount: failResolutionOnCall === 1 ? 0 : 1,
-					rejected: true,
-					pendingRequests: 0,
-				});
+			assert.deepStrictEqual({
+				requests: requests.length,
+				verdict: service.client.verdict,
+				verdictCount: service.client.verdictCount,
+				rejected: error === service.resolveFailure,
+				pendingRequests: service.pendingHostKeyRequestCount,
+			}, {
+				requests: 0,
+				verdict: undefined,
+				verdictCount: 0,
+				rejected: true,
+				pendingRequests: 0,
 			});
-		}
+		});
 	}
+
+	test('host-key verification reuses the connection snapshot instead of resolving again', async () => {
+		const service = createService();
+		service.useResolvedKnownHosts = true;
+		service.hostKeyAlias = 'original-host-identity';
+		service.failResolutionOnCall = 2;
+		service.resolveFailure = new SSHKnownHostsResolutionError('Configuration changed during the handshake');
+		const { requests, result } = await connectAnswering(service, true);
+
+		assert.deepStrictEqual({
+			resolutions: service.resolveCalls,
+			host: requests[0]?.host,
+			result,
+		}, { resolutions: 1, host: 'original-host-identity', result: 'resolved' });
+	});
 
 	test('reports the known_hosts verdict for a matching entry', async () => {
 		const service = createService();

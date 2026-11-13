@@ -57,8 +57,22 @@ export interface IStandardChatInputPillSections {
 	/** Keeps configuration reachable when the source filters out all its entries. */
 	readonly hasData?: IObservable<boolean>;
 	readonly icon?: ThemeIcon | IObservable<ThemeIcon>;
+	/**
+	 * Decorates the entries that render as a pill of their own: the pinned ones, and the lone entry the pill shows
+	 * inline. Their pill runs the entry's `open`, shows its {@link IChatPillEntry.checked} state, and offers its actions
+	 * in its context menu.
+	 */
+	presentOwnPill?(entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader): IChatPillEntry;
 	getContextMenuActions?(): readonly IAction[];
 	getContextMenuPrimaryActions?(): readonly IAction[];
+}
+
+/** See {@link IStandardChatInputPillSections.presentOwnPill}. */
+export interface IChatInputOwnPillContext {
+	/** Whether the user pinned the entry, rather than the pill showing it inline as its only entry. */
+	readonly pinned: boolean;
+	/** Pins the entry, so that it keeps a pill of its own when the pill lists more entries. */
+	pin(): void;
 }
 
 export interface IStandardChatInputPillsData {
@@ -239,7 +253,7 @@ export class StandardChatInputPillSources extends Disposable {
 	constructor(
 		data: IStandardChatInputPillsData,
 		offeredKinds: readonly SessionChatPillKind[],
-		pinScope: IObservable<string | undefined>,
+		private readonly pinScope: IObservable<string | undefined>,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
@@ -283,6 +297,14 @@ export class StandardChatInputPillSources extends Disposable {
 				const sections = source.sections.read(reader);
 				const scope = pinScope.read(reader);
 				const pinnedIds = pins.getPinned(scope, kind, reader);
+				const presentOwnPill = (entry: IChatPillEntry, pinned: boolean) => source.presentOwnPill?.(entry, {
+					pinned,
+					pin: () => {
+						if (scope) {
+							pins.setPinned(scope, kind, entry.id, entry.label, true);
+						}
+					},
+				}, reader) ?? entry;
 				const pinnedEntries: IChatPillEntry[] = [];
 				const unpinnedSections = sections.map(section => ({
 					...section,
@@ -290,7 +312,7 @@ export class StandardChatInputPillSources extends Disposable {
 						if (!pinnedIds.has(entry.id)) {
 							return true;
 						}
-						pinnedEntries.push(this.withPinAction(entry, kind, scope, true));
+						pinnedEntries.push(presentOwnPill(this.withPinAction(entry, kind, scope, true), true));
 						return false;
 					}),
 				})).filter(section => section.entries.length > 0);
@@ -299,16 +321,17 @@ export class StandardChatInputPillSources extends Disposable {
 				const unpinnedOptions = inlineRemaining
 					? { ...pillOptions, singleEntry: ChatPillSingleEntry.Inline }
 					: pillOptions;
-				const pinAvailable = !!scope && unpinnedEntries.length > 0 && !getChatPillInlineEntry(unpinnedEntries, unpinnedOptions);
+				const inlineEntry = getChatPillInlineEntry(unpinnedEntries, unpinnedOptions);
+				const pinAvailable = !!scope && unpinnedEntries.length > 0 && !inlineEntry;
 				return {
 					inlineRemaining,
 					pinnedEntries,
-					sections: pinAvailable
-						? unpinnedSections.map(section => ({
-							...section,
-							entries: section.entries.map(entry => this.withPinAction(entry, kind, scope, false)),
-						}))
-						: unpinnedSections,
+					sections: unpinnedSections.map(section => ({
+						...section,
+						entries: section.entries.map(entry => entry === inlineEntry
+							? presentOwnPill(entry, false)
+							: pinAvailable ? this.withPinAction(entry, kind, scope, false) : entry),
+					})),
 				};
 			});
 			const unpinnedSections = derived(this, reader => presentation.read(reader).sections);
@@ -385,6 +408,20 @@ export class StandardChatInputPillSources extends Disposable {
 		addSections(SessionChatPillKind.Subagents, data.subagents, sessionSubagentsPillOptions);
 		addSections(SessionChatPillKind.BackgroundShells, data.backgroundShells, sessionBackgroundShellsPillOptions);
 		this.sources = sources;
+	}
+
+	/** The IDs of the entries of a pill kind that the user pinned into pills of their own. */
+	getPinned(kind: SessionChatPillKind, reader: IReader | undefined): ReadonlySet<string> {
+		return this.pins.getPinned(this.pinScope.read(reader), kind, reader);
+	}
+
+	/** Pins an entry of a pill kind into a pill of its own, as its pin action does. Returns whether it could: pins need a scope. */
+	pin(kind: SessionChatPillKind, entry: Pick<IChatPillEntry, 'id' | 'label'>): boolean {
+		const scope = this.pinScope.get();
+		if (scope) {
+			this.pins.setPinned(scope, kind, entry.id, entry.label, true);
+		}
+		return !!scope;
 	}
 
 	private withPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string | undefined, pinned: boolean): IChatPillEntry {
@@ -488,12 +525,16 @@ export class ChatInputPills extends Disposable {
 		}));
 		this._register(this._row.onDidRequestContextMenu(anchor => showContextMenu(anchor, this._getTarget(anchor))));
 
-		derived(this, reader => {
+		const rowState = derived(this, reader => {
 			const anyVisible = this._pills.isVisible.read(reader);
 			// The empty row only restores pills the user hid or filtered; default-hidden kinds never claimed room in the row.
 			const anyRestorable = [...kindsWithData.read(reader)].some(kind => this._visibility.isVisible(kind, reader) || !isSessionChatPillHiddenByDefault(kind));
 			return anyVisible ? 'visible' : anyRestorable ? 'empty' : 'hidden';
-		}).recomputeInitiallyAndOnChange(this._store, state => {
+		});
+		// Only touch the DOM when the row state changes: the sources update often (e.g. while a response streams),
+		// and pill size changes are already rescanned by the row's resize observer.
+		this._register(autorun(reader => {
+			const state = rowState.read(reader);
 			const activeElement = getWindow(this._row.content).document.activeElement;
 			const restoreInputFocus = state === 'hidden' && !!activeElement && this._row.content.contains(activeElement);
 			const visible = state !== 'hidden';
@@ -507,7 +548,7 @@ export class ChatInputPills extends Disposable {
 			if (restoreInputFocus) {
 				this._row.restoreFocus(() => this._pills.getPillElements(), _options.focusFallback);
 			}
-		});
+		}));
 	}
 
 	get visible(): boolean {
@@ -516,6 +557,11 @@ export class ChatInputPills extends Disposable {
 
 	getPillElements(): readonly HTMLElement[] {
 		return this._pills.getPillElements();
+	}
+
+	/** Surfaces for the chat pet: each pill together with any segments joined to it, such as integration status. */
+	getPillItemElements(): readonly HTMLElement[] {
+		return this._pills.getPillItemElements();
 	}
 
 	focusFirst(): boolean {

@@ -253,7 +253,7 @@ suite('SyncedCustomizationBundler', () => {
 			const root = URI.parse(result.ref.uri);
 			const parsed = await parsePlugin(root, fileService, undefined, URI.from({ scheme: Schemas.inMemory, path: '/home' }), root, { deduplicateAgentsByName: false });
 			const expanded = await new AgentCustomizationContentExpander(fileService, new NullLogService())
-				.expandPluginContents(root, 'test', true, AICustomizationSources.extension, undefined, CancellationToken.None);
+				.expandPluginContents(root, 'syncedFromClient', true, AICustomizationSources.extension, undefined, CancellationToken.None);
 			const agents = await Promise.all(parsed.agents.map(async agent => ({
 				name: agent.name,
 				source: serializeOrigin(bundler.getOrigin(agent.uri)),

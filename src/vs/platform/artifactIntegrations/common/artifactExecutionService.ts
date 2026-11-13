@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
-import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactJsonValue, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
+import { ArtifactAction, ArtifactActionRejectedError, ArtifactActor, ArtifactJsonValue, ArtifactAutomationOption, ArtifactAutomationRequest, ArtifactContributionView, ArtifactDetails, ArtifactRecord, ArtifactRequestPresentation, ArtifactRun, IArtifactActionContext, IArtifactIntegrationBinding, artifactOptionDisabledValue, getArtifactActionAvailability, getArtifactRunInitiator, isArtifactItemActionInput, isArtifactOptionEnabled, isArtifactRunSettled } from './artifactIntegration.js';
 import { artifactActionConsent, artifactOptionConsent } from './artifactAutomationConfiguration.js';
 import { ArtifactConfigurationConflictError, ArtifactIntegrationState, ArtifactIntegrationStore, ArtifactRetryLimitError, ArtifactStoredBinding } from './artifactIntegrationStore.js';
 import { isArtifactJsonValue } from './artifactIntegrationValidation.js';
@@ -137,6 +137,7 @@ export class ArtifactExecutionService extends Disposable {
 			const action = this.requireAction(binding, actionId, true, chat);
 			const run: ArtifactRun = {
 				...this.newRun(binding, action, requestId, 'manual', action.label, chat), requestedBy: actor,
+				...binding.presentation.get().generalActions.some(action => action.id === actionId) ? { generalAction: true } : {},
 				...input === undefined ? {} : { input: deepClone(input) },
 			};
 			state.runs.push(run);
@@ -669,12 +670,17 @@ export class ArtifactExecutionService extends Disposable {
 
 	private capturePresentation(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun, promptDetails: readonly ArtifactDetails[] | undefined): ArtifactRequestPresentation {
 		const view = binding.presentation.get();
-		const details = promptDetails ? this.capturePromptDetails(action, promptDetails) : this.captureLinkedDetails(binding, action, view);
+		const item = this.captureItem(binding, action, run);
+		const details = promptDetails ? this.capturePromptDetails(action, promptDetails) : item ? item.details : this.captureLinkedDetails(binding, action, view);
 		return {
 			version: 1,
 			integrationLabel: binding.integrationLabel,
 			source: run.source,
-			action: { label: action.label, iconId: action.iconId },
+			action: {
+				...(item?.action ?? { label: action.label, iconId: action.iconId }),
+				// An item action presents its own label but runs the registered action, so it is described like it.
+				...(action.activityLabel ? { activityLabel: action.activityLabel } : {}),
+			},
 			artifact: {
 				resource: binding.artifact.resource,
 				label: view.main?.label ?? binding.artifact.label,
@@ -727,6 +733,46 @@ export class ArtifactExecutionService extends Disposable {
 			}
 		}
 		return details;
+	}
+
+	/**
+	 * A run an item action started for one details item, such as fixing one of several reported issues, is presented
+	 * as that item action on that item alone, rather than as the artifact action on every item it could apply to. When
+	 * the details no longer list the item, the request names the item action without any details.
+	 */
+	private captureItem(binding: IArtifactExecutionBinding, action: ArtifactAction, run: ArtifactRun): { readonly action: ArtifactRequestPresentation['action']; readonly details: readonly ArtifactDetails[] } | undefined {
+		const input = run.input;
+		if (!isArtifactItemActionInput(input)) {
+			return undefined;
+		}
+		try {
+			const model = binding.provider.acquireDetails(input.detailsId);
+			try {
+				const snapshot = model.details.get();
+				if (!isArtifactDetails(snapshot)) {
+					return undefined;
+				}
+				const item = snapshot.items.find(candidate => candidate.id === input.itemId);
+				const itemAction = snapshot.itemActions?.find(candidate => candidate.actionId === action.id && (!item || item.actions?.includes(candidate.id)));
+				if (!itemAction) {
+					return undefined;
+				}
+				const presentedAction = { label: itemAction.label, iconId: itemAction.iconId };
+				if (!item) {
+					return { action: presentedAction, details: [] };
+				}
+				const { actions: _, ...presented } = item;
+				return {
+					action: presentedAction,
+					details: [deepClone({ title: snapshot.title, availability: snapshot.availability, links: [], items: [presented], completeness: 'complete' })],
+				};
+			} finally {
+				model.dispose();
+			}
+		} catch (error) {
+			this.logService.error('[ArtifactIntegrations] Could not capture the item an action runs for', error);
+			return undefined;
+		}
 	}
 
 	private context(binding: IArtifactExecutionBinding, run: ArtifactRun): IArtifactActionContext {

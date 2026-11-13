@@ -14,7 +14,8 @@ import { IRequestContext, IRequestOptions } from '../../../../../base/parts/requ
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/virtualScheduling/index.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { Configuration, ConfigurationChangeEvent } from '../../../../../platform/configuration/common/configurationModels.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -1651,12 +1652,14 @@ suite('DefaultAccountProvider', () => {
 			const provider = await createProvider(requestService, {}, {}, undefined, { getSessions: async () => [selected] }, configuration);
 			outcomes.push({
 				settings: provider.resolveGitHubUrl('settings/copilot'),
+				tokenStamp: provider.copilotTokenInfo?.st,
 				requests: requestService.requests.map(request => ({ url: request.url?.split('?')[0], token: request.headers?.Authorization })),
 			});
 		}
 
 		assert.deepStrictEqual(outcomes, cases.map(({ base, api }) => ({
 			settings: `${base}settings/copilot`,
+			tokenStamp: 'proxima',
 			requests: paths.map(path => ({ url: `${api}${path}`, token: 'Bearer b-token' })),
 		})));
 	});
@@ -1724,6 +1727,168 @@ suite('DefaultAccountProvider', () => {
 			requests: 0,
 		})));
 	});
+
+	test('changing the Copilot provider reconciles existing accounts without authentication events', () => runWithFakedTimers({}, async () => {
+		const configuration = enterpriseConfiguration();
+		const enterprise = enterpriseSession('b');
+		const requestService = new TestRequestService(enterpriseResponse);
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, {}, undefined, {
+			getSessions: async providerId => providerId === 'github' ? sessions : [enterprise],
+		}, configuration);
+		const snapshot = () => {
+			const freshness = provider.managedSettingsFreshness;
+			return {
+				provider: provider.defaultAccount?.authenticationProvider.id,
+				session: provider.defaultAccount?.sessionId,
+				policy: provider.policyData?.managedSettings,
+				scope: freshness.state === ManagedSettingsFreshnessState.NotRequired ? undefined : freshness.scope,
+				freshness: freshness.state,
+			};
+		};
+		const outcomes = [snapshot()];
+		const key = 'github.copilot.advanced.authProvider';
+		for (const value of [undefined, 'github-enterprise']) {
+			await changeConfiguration(configuration, key, value);
+			await timeout(200);
+			outcomes.push(snapshot());
+		}
+
+		assert.deepStrictEqual({
+			outcomes,
+			requests: requestService.requests.filter(request => request.callSite === 'defaultAccount.managedSettings').map(request => ({
+				host: new URL(request.url!).hostname,
+				token: request.headers?.Authorization,
+			})),
+		}, {
+			outcomes: [
+				{
+					provider: 'github-enterprise', session: enterprise.id,
+					policy: { model: 'api.b.ghe.com' },
+					scope: { accountId, authenticationProviderId: 'github-enterprise', endpointOrigin: 'https://api.b.ghe.com' },
+					freshness: ManagedSettingsFreshnessState.Satisfied,
+				},
+				{
+					provider: 'github', session: sessions[0].id,
+					policy: { model: 'api.github.com' },
+					scope: { accountId, authenticationProviderId: 'github', endpointOrigin: 'https://api.github.com' },
+					freshness: ManagedSettingsFreshnessState.Satisfied,
+				},
+				{
+					provider: 'github-enterprise', session: enterprise.id,
+					policy: { model: 'api.b.ghe.com' },
+					scope: { accountId, authenticationProviderId: 'github-enterprise', endpointOrigin: 'https://api.b.ghe.com' },
+					freshness: ManagedSettingsFreshnessState.Satisfied,
+				},
+			],
+			requests: [
+				{ host: 'api.b.ghe.com', token: `Bearer ${enterprise.accessToken}` },
+				{ host: 'api.github.com', token: `Bearer ${sessions[0].accessToken}` },
+				{ host: 'api.b.ghe.com', token: `Bearer ${enterprise.accessToken}` },
+			],
+		});
+	}));
+
+	test('parent-key configuration events reconcile only effective Copilot provider changes', () => runWithFakedTimers({}, async () => {
+		const configuration = new TestConfigurationService({
+			github: { copilot: { advanced: { authProvider: 'github-enterprise' } } },
+		});
+		const enterprise = enterpriseSession('b');
+		let sessionLookups = 0;
+		const provider = await createProvider(new TestRequestService(enterpriseResponse), {}, {}, undefined, {
+			getSessions: async id => {
+				sessionLookups++;
+				return id === 'github' ? sessions : [enterprise];
+			},
+		}, configuration);
+		const outcomes = [];
+		for (const authProvider of [undefined, 'github', 'github-enterprise', 'github-enterprise']) {
+			const lookupsBefore = sessionLookups;
+			const contents = { github: { copilot: { advanced: { authProvider, unrelated: String(lookupsBefore) } } } };
+			await configuration.setUserConfiguration('github', contents.github);
+			const empty = { contents: {}, keys: [], overrides: [] };
+			const logService = new NullLogService();
+			const currentConfiguration = Configuration.parse({
+				defaults: empty, policy: empty, application: empty, userRemote: empty, workspace: empty, folders: [],
+				userLocal: { contents, keys: ['github.copilot.advanced'], overrides: [] },
+			}, logService);
+			const event = new ConfigurationChangeEvent(
+				{ keys: ['github.copilot.advanced'], overrides: [] }, undefined, currentConfiguration, undefined, logService);
+			event.source = ConfigurationTarget.USER;
+			configuration.onDidChangeConfigurationEmitter.fire(event);
+			await timeout(200);
+			outcomes.push({
+				matchesNestedKey: event.affectsConfiguration('github.copilot.advanced.authProvider'),
+				provider: provider.defaultAccount?.authenticationProvider.id,
+				session: provider.defaultAccount?.sessionId,
+				policy: provider.policyData?.managedSettings,
+				refreshed: sessionLookups > lookupsBefore,
+			});
+		}
+
+		assert.deepStrictEqual(outcomes, [
+			{ matchesNestedKey: false, provider: 'github', session: sessions[0].id, policy: { model: 'api.github.com' }, refreshed: true },
+			{ matchesNestedKey: false, provider: 'github', session: sessions[0].id, policy: { model: 'api.github.com' }, refreshed: false },
+			{ matchesNestedKey: false, provider: 'github-enterprise', session: enterprise.id, policy: { model: 'api.b.ghe.com' }, refreshed: true },
+			{ matchesNestedKey: false, provider: 'github-enterprise', session: enterprise.id, policy: { model: 'api.b.ghe.com' }, refreshed: false },
+		]);
+	}));
+
+	for (const providerId of ['github', 'github-enterprise']) {
+		test(`unrelated configuration changes leave the single ${providerId} account unchanged`, () => runWithFakedTimers({}, async () => {
+			const configuration = providerId === 'github' ? new TestConfigurationService() : enterpriseConfiguration();
+			const session = providerId === 'github' ? sessions[0] : enterpriseSession('b');
+			const requestService = new TestRequestService(enterpriseResponse);
+			const provider = await createProvider(requestService, {}, {}, undefined, {
+				getSessions: async id => id === providerId ? [session] : [],
+			}, configuration);
+			const account = provider.defaultAccount;
+			const requests = [...requestService.requests];
+
+			await changeConfiguration(configuration, 'github.copilot.advanced.unrelated', 'changed');
+			await timeout(200);
+
+			assert.deepStrictEqual({
+				provider: provider.defaultAccount?.authenticationProvider.id,
+				session: provider.defaultAccount?.sessionId,
+				sameAccount: provider.defaultAccount === account,
+				requests: requestService.requests,
+			}, { provider: providerId, session: session.id, sameAccount: true, requests });
+		}));
+	}
+
+	test('a failed policy fetch after a provider change cannot reuse the previous provider freshness or policy', () => runWithFakedTimers({}, async () => {
+		const configuration = enterpriseConfiguration();
+		const enterprise = enterpriseSession('b');
+		const requestService = new TestRequestService(async request =>
+			request.callSite === 'defaultAccount.managedSettings' && new URL(request.url!).hostname === 'api.github.com'
+				? jsonResponse({}, 503)
+				: enterpriseResponse(request));
+		const provider = await createProvider(requestService, { [COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY]: true }, {}, undefined, {
+			getSessions: async id => id === 'github' ? sessions : [enterprise],
+		}, configuration);
+
+		await changeConfiguration(configuration, 'github.copilot.advanced.authProvider', undefined);
+		await timeout(200);
+
+		assert.deepStrictEqual({
+			provider: provider.defaultAccount?.authenticationProvider.id,
+			session: provider.defaultAccount?.sessionId,
+			policy: provider.policyData?.managedSettings,
+			freshness: { ...provider.managedSettingsFreshness, lastAttemptAt: undefined },
+		}, {
+			provider: 'github',
+			session: sessions[0].id,
+			policy: undefined,
+			freshness: {
+				state: ManagedSettingsFreshnessState.Blocked,
+				source: 'nativeMdm',
+				scope: { accountId, authenticationProviderId: 'github', endpointOrigin: 'https://api.github.com' },
+				failure: ManagedSettingsFreshnessFailure.HttpError,
+				httpStatus: 503,
+				lastAttemptAt: undefined,
+			},
+		});
+	}));
 
 	test('a changed issuer refreshes the selected native account cache without configuration changes', async () => {
 		let currentSession = enterpriseSession('a');
@@ -1816,11 +1981,21 @@ suite('DefaultAccountProvider', () => {
 	async function enterpriseResponse(request: IRequestOptions): Promise<IRequestContext> {
 		switch (request.callSite) {
 			case 'defaultAccount.entitlements': return jsonResponse({ chat_enabled: true });
-			case 'defaultAccount.tokenEntitlements': return jsonResponse({ token: 'mcp=1;sn=test:signature' });
+			case 'defaultAccount.tokenEntitlements': return jsonResponse({ token: 'mcp=1;sn=test;st=proxima:signature' });
 			case 'defaultAccount.managedSettings': return jsonResponse({ model: new URL(request.url!).hostname });
 			case 'defaultAccount.mcpRegistryProvider': return jsonResponse({ mcp_registries: [{ url: 'https://registry.example.test', registry_access: 'registry_only' }] });
 			default: throw new Error(`Unexpected request: ${request.callSite}`);
 		}
+	}
+
+	async function changeConfiguration(configuration: TestConfigurationService, key: string, value: string | undefined): Promise<void> {
+		await configuration.setUserConfiguration(key, value);
+		configuration.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([key]),
+			change: { keys: [key], overrides: [] },
+			affectsConfiguration: section => section === key,
+		});
 	}
 
 	async function createProvider(

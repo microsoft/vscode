@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line local/code-import-patterns
-import { SessionReadOnlyBanner } from '../../../../../sessions/browser/parts/sessionReadOnlyBanner.js';
+import { SessionReadOnlyBanner } from '../../../../contrib/sessions/browser/parts/sessionReadOnlyBanner.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {

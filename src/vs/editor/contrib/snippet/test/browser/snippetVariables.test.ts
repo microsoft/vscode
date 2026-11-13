@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import * as sinon from 'sinon';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { sep } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
@@ -50,7 +50,7 @@ suite('Snippet Variables Resolver', function () {
 		model.dispose();
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 
 	function assertVariableResolve(resolver: VariableResolver, varName: string, expected?: string) {
@@ -323,24 +323,21 @@ suite('Snippet Variables Resolver', function () {
 	test('Time-based snippet variables have deterministic millisecond and unix values', function () {
 		const now = Date.UTC(2024, 3, 15, 12, 34, 56, 7);
 		const clock = sinon.useFakeTimers({ now });
-		try {
-			const resolver = new TimeBasedVariableResolver;
-			const expectedDate = new Date(now);
-			const pad = (value: number, length: number) => String(value).padStart(length, '0');
+		store.add(toDisposable(() => clock.restore()));
+		const resolver = new TimeBasedVariableResolver;
+		const expectedDate = new Date(now);
+		const pad = (value: number, length: number) => String(value).padStart(length, '0');
 
-			assertVariableResolve(resolver, 'CURRENT_YEAR', String(expectedDate.getFullYear()));
-			assertVariableResolve(resolver, 'CURRENT_YEAR_SHORT', String(expectedDate.getFullYear()).slice(-2));
-			assertVariableResolve(resolver, 'CURRENT_MONTH', pad(expectedDate.getMonth() + 1, 2));
-			assertVariableResolve(resolver, 'CURRENT_DATE', pad(expectedDate.getDate(), 2));
-			assertVariableResolve(resolver, 'CURRENT_HOUR', pad(expectedDate.getHours(), 2));
-			assertVariableResolve(resolver, 'CURRENT_MINUTE', pad(expectedDate.getMinutes(), 2));
-			assertVariableResolve(resolver, 'CURRENT_SECOND', pad(expectedDate.getSeconds(), 2));
-			assertVariableResolve(resolver, 'CURRENT_MILLISECOND', pad(expectedDate.getMilliseconds(), 3));
-			assertVariableResolve(resolver, 'CURRENT_SECONDS_UNIX', String(Math.floor(now / 1000)));
-			assertVariableResolve(resolver, 'CURRENT_MILLISECONDS_UNIX', String(now));
-		} finally {
-			clock.restore();
-		}
+		assertVariableResolve(resolver, 'CURRENT_YEAR', String(expectedDate.getFullYear()));
+		assertVariableResolve(resolver, 'CURRENT_YEAR_SHORT', String(expectedDate.getFullYear()).slice(-2));
+		assertVariableResolve(resolver, 'CURRENT_MONTH', pad(expectedDate.getMonth() + 1, 2));
+		assertVariableResolve(resolver, 'CURRENT_DATE', pad(expectedDate.getDate(), 2));
+		assertVariableResolve(resolver, 'CURRENT_HOUR', pad(expectedDate.getHours(), 2));
+		assertVariableResolve(resolver, 'CURRENT_MINUTE', pad(expectedDate.getMinutes(), 2));
+		assertVariableResolve(resolver, 'CURRENT_SECOND', pad(expectedDate.getSeconds(), 2));
+		assertVariableResolve(resolver, 'CURRENT_MILLISECOND', pad(expectedDate.getMilliseconds(), 3));
+		assertVariableResolve(resolver, 'CURRENT_SECONDS_UNIX', String(Math.floor(now / 1000)));
+		assertVariableResolve(resolver, 'CURRENT_MILLISECONDS_UNIX', String(now));
 	});
 
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
@@ -364,17 +361,14 @@ suite('Snippet Variables Resolver', function () {
 		`;
 
 		const clock = sinon.useFakeTimers();
-		try {
-			const resolver = new TimeBasedVariableResolver;
+		store.add(toDisposable(() => clock.restore()));
+		const resolver = new TimeBasedVariableResolver;
 
-			const firstResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
-			clock.tick((365 * 24 * 3600 * 1000) + (24 * 3600 * 1000) + (3661 * 1000));  // 1 year + 1 day + 1 hour + 1 minute + 1 second
-			const secondResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
+		const firstResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
+		clock.tick((365 * 24 * 3600 * 1000) + (24 * 3600 * 1000) + (3661 * 1000));  // 1 year + 1 day + 1 hour + 1 minute + 1 second
+		const secondResolve = new SnippetParser().parse(snippetText).resolveVariables(resolver);
 
-			assert.strictEqual(firstResolve.toString(), secondResolve.toString(), `Time-based snippet variables resolved differently`);
-		} finally {
-			clock.restore();
-		}
+		assert.strictEqual(firstResolve.toString(), secondResolve.toString(), `Time-based snippet variables resolved differently`);
 	});
 
 	test('creating snippet - format-condition doesn\'t work #53617', function () {

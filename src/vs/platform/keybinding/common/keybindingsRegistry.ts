@@ -73,12 +73,30 @@ export interface ICommandAndKeybindingRule<Args extends unknown[] = unknown[]> e
 	metadata?: ICommandMetadata | null;
 }
 
+/**
+ * Binds {@link command} to the keybindings of {@link source}, including the user's, where {@link when} holds.
+ */
+export interface IKeybindingAlias {
+	/** The command that is bound. */
+	readonly command: string;
+	/**
+	 * The command whose keybindings are inherited, without their when clauses, which describe where {@link source} applies.
+	 * Removing a keybinding of {@link source} also removes the default keybindings of {@link command} at that key, but not
+	 * those it inherits from the user's keybindings of {@link source}.
+	 */
+	readonly source: string;
+	/** Where the inherited keybindings apply. There, they outrank those of {@link source}. */
+	readonly when: ContextKeyExpression;
+}
+
 export interface IKeybindingsRegistry {
 	registerKeybindingRule(rule: IKeybindingRule): IDisposable;
 	setExtensionKeybindings(rules: IExtensionKeybindingRule[]): void;
 	registerCommandAndKeybindingRule<Args extends unknown[] = unknown[]>(desc: ICommandAndKeybindingRule<Args>): IDisposable;
+	registerKeybindingAlias(alias: IKeybindingAlias): IDisposable;
 	getDefaultKeybindings(): IKeybindingItem[];
 	getDefaultKeybindingsForOS(os: OperatingSystem): IKeybindingItem[];
+	getKeybindingAliases(): IKeybindingAlias[];
 }
 
 /**
@@ -90,6 +108,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 	private _coreKeybindingRules: LinkedList<IKeybindingRule>;
 	private _extensionKeybindings: IKeybindingItem[];
 	private _cachedMergedKeybindings: IKeybindingItem[] | null;
+	private readonly _keybindingAliases = new LinkedList<IKeybindingAlias>();
 
 	constructor() {
 		this._coreKeybindings = new LinkedList();
@@ -176,6 +195,14 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 			this.registerKeybindingRule(desc),
 			CommandsRegistry.registerCommand(desc)
 		);
+	}
+
+	public registerKeybindingAlias(alias: IKeybindingAlias): IDisposable {
+		return toDisposable(this._keybindingAliases.push(alias));
+	}
+
+	public getKeybindingAliases(): IKeybindingAlias[] {
+		return Array.from(this._keybindingAliases);
 	}
 
 	private _registerDefaultKeybinding(keybinding: Keybinding, commandId: string, commandArgs: any, weight1: number, weight2: number, when: ContextKeyExpression | null | undefined): IDisposable {

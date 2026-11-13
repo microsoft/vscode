@@ -54,12 +54,12 @@ function parseRequestUrl(requestUrl: string): URL | undefined {
 
 declare namespace vsda {
 	// the signer is a native module that for historical reasons uses a lower case class name
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class signer {
 		sign(arg: string): string;
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line local/code-class-name-pascal-case
 	export class validator {
 		createNewMessage(arg: string): string;
 		validate(arg: string): 'ok' | 'error';
@@ -609,7 +609,7 @@ export interface IServerAPI {
 	dispose(): void;
 }
 
-export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, agentHostBridgeConnectionToken: string | undefined): Promise<IServerAPI> {
+export async function createServer(address: string | net.AddressInfo | null, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string): Promise<IServerAPI> {
 
 	const connectionToken = await determineServerConnectionToken(args);
 	if (connectionToken instanceof ServerConnectionTokenParseError) {
@@ -650,7 +650,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	});
 
 	const disposables = new DisposableStore();
-	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, agentHostBridgeConnectionToken, disposables);
+	const { socketServer, instantiationService } = await setupServerServices(connectionToken, args, REMOTE_DATA_FOLDER, disposables);
 
 	// Set the unexpected error handler after the services have been initialized, to avoid having
 	// the telemetry service overwrite our handler

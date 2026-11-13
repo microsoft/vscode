@@ -17,13 +17,13 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
-import { ChangesEmptyState } from '../../browser/changesEmptyState.js';
-import { NEW_FILE_TAB_COMMAND_ID } from '../../../../common/sessionCommands.js';
+import { ChangesEmptyState } from '../../../../../workbench/contrib/sessionChanges/browser/changesEmptyState.js';
+import { NEW_FILE_TAB_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { OpenEditorCommandId } from '../../../../../workbench/contrib/searchEditor/browser/constants.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
-import { SessionsChangesAccessibilityHelp } from '../../browser/sessionsChangesAccessibilityHelp.js';
-import { ChangesViewPane } from '../../browser/changesView.js';
-import '../../browser/media/changesView.css';
+import { SessionsChangesAccessibilityHelp } from '../../../../../workbench/contrib/sessionChanges/browser/sessionsChangesAccessibilityHelp.js';
+import { ChangesViewPane } from '../../../../../workbench/contrib/sessionChanges/browser/changesView.js';
+import '../../../../../workbench/contrib/sessionChanges/browser/media/changesView.css';
 
 suite('Sessions - Changes empty state', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

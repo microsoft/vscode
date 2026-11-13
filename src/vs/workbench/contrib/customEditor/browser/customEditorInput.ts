@@ -465,21 +465,31 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return super.canMove(sourceGroup, targetGroup);
 	}
 
-	private doCanMove(targetWindowId: number): true | string {
-		if (this.isModified() && this._modelRef?.object.canHotExit === false) {
-			const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
-			if (sourceWindowId !== targetWindowId) {
-
-				// The custom editor is modified, not backed by a file and without a backup.
-				// We have to assume that the modified state is enclosed into the webview
-				// managed by an extension. As such, we cannot just move the webview
-				// into another window because that means, we potentally loose the modified
-				// state and thus trigger data loss.
-
-				return localize('editorCannotMove', "Unable to move '{0}': The editor contains changes that can only be saved in its current window.", this.getName());
-			}
-		}
-
-		return true;
+	public override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		// A new window is never the window the editor is in
+		return this.doCanMove(undefined);
 	}
+
+	/** Whether the editor can move into the window `targetWindowId`; `undefined` for a window not created yet. */
+	private doCanMove(targetWindowId: number | undefined): true | string {
+		return getCustomEditorWindowMoveVeto({
+			getName: () => this.getName(),
+			modified: this.isModified(),
+			canHotExit: this._modelRef?.object.canHotExit,
+			isSameWindow: () => getWindow(this.webview.container).vscodeWindowId === targetWindowId,
+		});
+	}
+}
+
+/**
+ * Whether a custom editor can move into another window. A modified one whose model cannot hot exit (not backed by a
+ * file and without a backup) cannot: its modified state is assumed to live in the webview the extension manages, which
+ * moving to another window would lose.
+ */
+export function getCustomEditorWindowMoveVeto(editor: { readonly modified: boolean; readonly canHotExit: boolean | undefined; isSameWindow(): boolean; getName(): string }): true | string {
+	if (editor.modified && editor.canHotExit === false && !editor.isSameWindow()) {
+		return localize('editorCannotMove', "Unable to move '{0}': The editor contains changes that can only be saved in its current window.", editor.getName());
+	}
+
+	return true;
 }

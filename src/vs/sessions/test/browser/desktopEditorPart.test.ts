@@ -8,20 +8,25 @@ import { $, append, getActiveElement } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
 import { Codicon } from '../../../base/common/codicons.js';
-import { Emitter } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { decodeKeybinding, ResolvedKeybinding } from '../../../base/common/keybindings.js';
 import { KeyCode, KeyMod } from '../../../base/common/keyCodes.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { OS } from '../../../base/common/platform.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { IMenu, IMenuChangeEvent, IMenuCreateOptions, IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from '../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextViewService } from '../../../platform/contextview/browser/contextView.js';
+import { IHoverService } from '../../../platform/hover/browser/hover.js';
+import { HoverService } from '../../../platform/hover/browser/hoverService.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
+import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { MockKeybindingService } from '../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { INotificationService, NotificationMessage } from '../../../platform/notification/common/notification.js';
@@ -30,8 +35,8 @@ import { ITelemetryService } from '../../../platform/telemetry/common/telemetry.
 import { NullTelemetryServiceShape } from '../../../platform/telemetry/common/telemetryUtils.js';
 import { TestMenuService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { DesktopMainEditorPart } from '../../browser/parts/desktopEditorPart.js';
-import { IEmptyEditorGroup } from '../../browser/parts/emptyEditorGroupAddTab.js';
-import { Menus } from '../../browser/menus.js';
+import { IEmptyEditorGroup } from '../../../workbench/browser/parts/sessions/emptyEditorGroupAddTab.js';
+import { AgentsWindowMenus } from '../../browser/agentsWindowMenus.js';
 import '../../browser/parts/media/editorPart.css';
 import { TestContextViewService } from './testContextViewService.js';
 
@@ -59,7 +64,7 @@ class TestKeybindingService extends MockKeybindingService {
 suite('Sessions - Desktop editor part empty group', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createEmptyGroup(disposables: Pick<DisposableStore, 'add'>) {
+	function createEmptyGroup(disposables: Pick<DisposableStore, 'add'>, options?: { readonly realHovers?: boolean }) {
 		const root = append(mainWindow.document.body, $('.monaco-workbench.agent-sessions-workbench'));
 		disposables.add(toDisposable(() => root.remove()));
 		root.style.setProperty('--vscode-spacing-size80', '8px');
@@ -138,6 +143,11 @@ suite('Sessions - Desktop editor part empty group', () => {
 		});
 		const contextViewService = new TestContextViewService();
 		services.stub(IContextViewService, contextViewService);
+		if (options?.realHovers) {
+			services.stub(IConfigurationService, new TestConfigurationService({ 'workbench.hover.delay': 500 }));
+			services.stub(ILayoutService, upcastPartial<ILayoutService>({ activeContainer: root, mainContainer: root, getContainer: () => root, onDidLayoutContainer: Event.None }));
+			services.stub(IHoverService, disposables.add(services.createInstance(HoverService)));
+		}
 
 		const modelChanged = disposables.add(new Emitter<void>());
 		let isEmpty = true;
@@ -147,6 +157,7 @@ suite('Sessions - Desktop editor part empty group', () => {
 			modelChanged.fire();
 		};
 		const group: IEmptyEditorGroup = {
+			id: 1,
 			element,
 			scopedContextKeyService: services.get(IContextKeyService),
 			get isEmpty() { return isEmpty; },
@@ -245,10 +256,10 @@ suite('Sessions - Desktop editor part empty group', () => {
 			// `+` and list menus for the first render and again when the group becomes empty again.
 			// Each of the two renders reads the Add Tab menu for the `+` dropdown and its own menu for the list, which also follows changes inside submenus (e.g. Canvas).
 			requestedMenus: [
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
-				{ id: Menus.SessionsEditorTabsBarAddTab, submenuChanges: false },
-				{ id: Menus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
+				{ id: AgentsWindowMenus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
+				{ id: AgentsWindowMenus.SessionsEditorTabsBarAddTab, submenuChanges: false },
+				{ id: AgentsWindowMenus.SessionsEmptyEditorGroupAddTab, submenuChanges: true },
 			],
 			ran: ['test.browser'],
 			submenuOnClick: { items: ['Kusto'], focused: true },
@@ -302,6 +313,29 @@ suite('Sessions - Desktop editor part empty group', () => {
 			withPanel: 100,
 		});
 	});
+
+	test('does not show the Canvas row\'s hover over its submenu, which hides the hover of another row when it opens', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const disposables = store.add(new DisposableStore());
+		const { root, control, entry } = createEmptyGroup(disposables, { realHovers: true });
+		disposables.add(control);
+		const hover = () => [...root.querySelectorAll('.monaco-hover')].map(element => element.textContent?.trim());
+		const enter = (row: HTMLElement) => {
+			row.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+			row.dispatchEvent(new MouseEvent('mouseenter'));
+		};
+
+		enter(entry('Browser'));
+		await timeout(1000);
+		const browserHover = hover();
+		enter(entry('Canvas'));
+		await timeout(1000);
+		const canvasRow = { submenu: entry('Canvas').getAttribute('aria-expanded'), hover: hover() };
+
+		assert.deepStrictEqual({ browserHover, canvasRow }, {
+			browserHover: ['Browser'],
+			canvasRow: { submenu: 'true', hover: [] },
+		});
+	}));
 
 	test('keeps rows across unrelated menu refreshes and re-renders on real changes and keybinding updates', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const disposables = store.add(new DisposableStore());

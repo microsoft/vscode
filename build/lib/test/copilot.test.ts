@@ -12,6 +12,8 @@ import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
 import { copilotPlatforms, ensureCopilotPlatformPackage, getCopilotExcludeFilter, getCopilotRuntimePrebuildFiles, getCopilotRuntimeVersion, prepareBuiltInCopilotRipgrepShim, renderCopilotShimLauncher } from '../copilot.ts';
+import { getLockedVersion } from '../pnpmLock.ts';
+import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
 
 /**
  * Builds a fake `@github/copilot-win32-x64@1.0.73` tarball on disk and returns
@@ -169,13 +171,7 @@ suite('copilot', () => {
 		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
 		try {
 			fs.mkdirSync(nodeModulesRoot, { recursive: true });
-			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
-				packages: {
-					'node_modules/@github/copilot-sdk-darwin-x64': {
-						version: '1.0.64-1',
-					}
-				}
-			}));
+			writePnpmLockfile(path.join(repoRoot, 'pnpm-lock.yaml'), { '@github/copilot-sdk-darwin-x64': { version: '1.0.64-1' } });
 
 			ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
 				packPackage: (packageName, _version, tempDir) => {
@@ -211,13 +207,7 @@ suite('copilot', () => {
 		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
 		try {
 			fs.mkdirSync(nodeModulesRoot, { recursive: true });
-			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
-				packages: {
-					'node_modules/@github/copilot-sdk-darwin-x64': {
-						version: '1.0.14',
-					}
-				}
-			}));
+			writePnpmLockfile(path.join(repoRoot, 'pnpm-lock.yaml'), { '@github/copilot-sdk-darwin-x64': { version: '1.0.14' } });
 
 			assert.throws(() => ensureCopilotPlatformPackage('darwin', 'x64', nodeModulesRoot, {
 				packPackage: (_packageName, _version, tempDir) => {
@@ -319,10 +309,8 @@ suite('copilot', () => {
 
 			// Pin the fetched tarball's integrity in the extension lockfile the build verifies against.
 			const { tarball, integrity } = createPinnedCopilotWin32Tarball(repoRoot);
-			const extensionLockfilePath = path.join(builtInCopilotExtensionDir, 'package-lock.json');
-			fs.writeFileSync(extensionLockfilePath, JSON.stringify({
-				packages: { 'node_modules/@github/copilot-win32-x64': { version: '1.0.73', integrity } }
-			}));
+			const extensionLockfilePath = path.join(builtInCopilotExtensionDir, 'pnpm-lock.yaml');
+			writePnpmLockfile(extensionLockfilePath, { '@github/copilot-win32-x64': { version: '1.0.73', integrity } });
 
 			const packCalls: { packageName: string; version: string }[] = [];
 			prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, {
@@ -361,16 +349,39 @@ suite('copilot', () => {
 			fs.writeFileSync(path.join(appNodeModulesDir, '@vscode', 'ripgrep-universal', 'bin', 'win32-x64', 'rg.exe'), '');
 
 			const { tarball } = createPinnedCopilotWin32Tarball(repoRoot);
-			const extensionLockfilePath = path.join(builtInCopilotExtensionDir, 'package-lock.json');
+			const extensionLockfilePath = path.join(builtInCopilotExtensionDir, 'pnpm-lock.yaml');
 			// Lockfile pins a DIFFERENT (tampered) integrity than the fetched tarball.
-			fs.writeFileSync(extensionLockfilePath, JSON.stringify({
-				packages: { 'node_modules/@github/copilot-win32-x64': { version: '1.0.73', integrity: `sha512-${'A'.repeat(88)}` } }
-			}));
+			writePnpmLockfile(extensionLockfilePath, { '@github/copilot-win32-x64': { version: '1.0.73', integrity: `sha512-${'A'.repeat(88)}` } });
 
 			assert.throws(() => prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, {
 				extensionLockfilePath,
 				packPackage: () => tarball
 			}), /integrity mismatch/);
+		} finally {
+			fs.rmSync(repoRoot, { recursive: true, force: true });
+		}
+	});
+
+	test('verifies fetched natives against the repository lockfile that records extensions/copilot', () => {
+		const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-sdk-repo-lockfile-test-'));
+		try {
+			const builtInCopilotExtensionDir = path.join(repoRoot, 'extensions', 'copilot');
+			const extensionCopilotDir = path.join(builtInCopilotExtensionDir, 'node_modules', '@github', 'copilot');
+			const appNodeModulesDir = path.join(repoRoot, 'node_modules');
+			const version = getLockedVersion('extensions/copilot', '@github/copilot');
+
+			fs.mkdirSync(path.join(extensionCopilotDir, 'sdk'), { recursive: true });
+			fs.writeFileSync(path.join(extensionCopilotDir, 'package.json'), JSON.stringify({ version }));
+
+			// Without a lockfile override, the pinned integrity must be found before the native is fetched.
+			const packCalls: string[] = [];
+			assert.throws(() => prepareBuiltInCopilotRipgrepShim('win32', 'x64', builtInCopilotExtensionDir, appNodeModulesDir, {
+				packPackage: (packageName, packageVersion) => {
+					packCalls.push(`${packageName}@${packageVersion}`);
+					throw new Error('not fetched in tests');
+				}
+			}), /not fetched in tests/);
+			assert.deepStrictEqual(packCalls, [`@github/copilot-win32-x64@${version}`]);
 		} finally {
 			fs.rmSync(repoRoot, { recursive: true, force: true });
 		}

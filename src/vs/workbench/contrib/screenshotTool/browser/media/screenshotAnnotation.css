@@ -1,0 +1,302 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Annotation Editor Buttons */
+.screenshot-annotation-editor .monaco-button {
+	border-radius: var(--vscode-cornerRadius-small);
+	height: 28px;
+	font-size: var(--vscode-fontSize-body1);
+	min-width: 80px;
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size160);
+	cursor: pointer;
+}
+
+/* Annotation Editor */
+.screenshot-annotation-editor {
+	position: absolute;
+	inset: 0;
+	background: var(--vscode-editor-background, #1e1e1e);
+	display: flex;
+	flex-direction: column;
+	font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, sans-serif;
+	font-size: var(--vscode-fontSize-body1);
+	color: var(--vscode-foreground, #ccc);
+	outline: none !important;
+}
+
+.screenshot-annotation-editor:focus,
+.screenshot-annotation-editor:focus-visible,
+.screenshot-annotation-editor:focus-within {
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.screenshot-annotation-editor .annotation-mark-up-header {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border-bottom: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, var(--vscode-panel-border));
+}
+
+/* The tools stay centered between two equal sides, the second of which ends with Done. */
+.screenshot-annotation-editor .annotation-mark-up-header-start,
+.screenshot-annotation-editor .annotation-mark-up-header-end {
+	flex: 1 1 0;
+	display: flex;
+	justify-content: flex-end;
+}
+
+/* The tools sit in the header, between its two sides. */
+.screenshot-annotation-editor .annotation-toolbar {
+	flex: 0 1 auto;
+	min-width: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size40);
+}
+
+.screenshot-annotation-editor .annotation-crop-toolbar {
+	gap: var(--vscode-spacing-size80);
+}
+
+.screenshot-annotation-editor .tool-btn {
+	width: 28px;
+	height: 28px;
+	min-width: 28px;
+	padding: var(--vscode-spacing-sizeNone);
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: pointer;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: var(--vscode-strokeThickness) solid transparent;
+	background: transparent;
+	color: var(--vscode-foreground, #ccc);
+	font-size: var(--vscode-codiconFontSize);
+	flex-shrink: 0;
+}
+
+.screenshot-annotation-editor .tool-btn:hover {
+	background: rgba(255, 255, 255, .1);
+}
+
+.screenshot-annotation-editor .tool-btn:focus {
+	outline: none;
+}
+
+.screenshot-annotation-editor .tool-btn:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder, #007acc);
+	outline-offset: -1px;
+}
+
+.screenshot-annotation-editor .tool-btn:disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
+.screenshot-annotation-editor .tool-btn:disabled:hover {
+	background: transparent;
+}
+
+.screenshot-annotation-editor .annotation-toolbar .tool-btn.active {
+	background: var(--vscode-button-background, #0e639c);
+	color: var(--vscode-button-foreground, #fff);
+	border-color: var(--vscode-button-background, #0e639c);
+}
+
+.screenshot-annotation-editor .annotation-toolbar .tool-btn.active,
+.screenshot-annotation-editor .annotation-toolbar .tool-btn.active .codicon {
+	color: var(--vscode-button-foreground, #fff) !important;
+}
+
+.screenshot-annotation-editor .annotation-toolbar .toolbar-separator {
+	width: var(--vscode-strokeThickness);
+	height: 20px;
+	background: var(--vscode-panel-border, #555);
+	margin: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size40);
+}
+
+.screenshot-annotation-editor .annotation-toolbar .toolbar-spacer {
+	flex: 1;
+}
+
+.screenshot-annotation-editor .annotation-toolbar .monaco-button,
+.screenshot-annotation-editor .annotation-mark-up-header-end .monaco-button {
+	height: 26px;
+	min-width: 70px;
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size120);
+	font-size: var(--vscode-fontSize-label1);
+	width: auto;
+	flex: none;
+}
+
+.screenshot-annotation-editor .annotation-toolbar .color-btn {
+	position: relative;
+}
+
+.screenshot-annotation-editor .annotation-tool-options-popover {
+	position: absolute;
+	transform: translateX(-50%);
+	display: flex;
+	flex-direction: column;
+	gap: var(--vscode-spacing-size80);
+	padding: var(--vscode-spacing-size100);
+	background: var(--vscode-editorWidget-background, #2d2d2d);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, #555);
+	border-radius: var(--vscode-cornerRadius-medium);
+	box-shadow: var(--vscode-shadow-lg);
+	z-index: 4;
+	min-width: 220px;
+}
+
+.screenshot-annotation-editor .annotation-tool-options-popover::before {
+	content: '';
+	position: absolute;
+	top: -6px;
+	left: 50%;
+	transform: translateX(-50%) rotate(45deg);
+	width: 10px;
+	height: 10px;
+	background: var(--vscode-editorWidget-background, #2d2d2d);
+	border-left: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, #555);
+	border-top: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border, #555);
+}
+
+.screenshot-annotation-editor .annotation-tool-options-group {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--vscode-spacing-size100);
+}
+
+.screenshot-annotation-editor .annotation-tool-options-label {
+	color: var(--vscode-descriptionForeground, #999);
+	font-size: var(--vscode-fontSize-label2);
+	min-width: 76px;
+}
+
+.screenshot-annotation-editor .annotation-color-swatches,
+.screenshot-annotation-editor .annotation-size-buttons {
+	display: flex;
+	gap: var(--vscode-spacing-size40);
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.screenshot-annotation-editor .annotation-color-swatch {
+	position: relative;
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	cursor: pointer;
+	border: 2px solid transparent;
+	flex-shrink: 0;
+	padding: var(--vscode-spacing-sizeNone);
+	background-clip: padding-box;
+}
+
+.screenshot-annotation-editor .annotation-color-swatch.transparent {
+	background:
+		linear-gradient(45deg, transparent 46%, #d04b4b 48%, #d04b4b 52%, transparent 54%),
+		linear-gradient(45deg, #858585 25%, transparent 25%, transparent 75%, #858585 75%),
+		linear-gradient(45deg, #858585 25%, transparent 25%, transparent 75%, #858585 75%);
+	background-color: #fff;
+	background-position: 0 0, 0 0, 5px 5px;
+	background-size: 100% 100%, 10px 10px, 10px 10px;
+}
+
+.screenshot-annotation-editor .annotation-color-swatch:hover,
+.screenshot-annotation-editor .annotation-size-button:hover {
+	border-color: var(--vscode-focusBorder, rgba(255, 255, 255, .5));
+}
+
+.screenshot-annotation-editor .annotation-color-swatch:focus-visible,
+.screenshot-annotation-editor .annotation-size-button:focus-visible,
+.screenshot-annotation-editor .annotation-opacity-slider:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder, #007acc);
+	outline-offset: 2px;
+}
+
+.screenshot-annotation-editor .annotation-color-swatch.active::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 10px;
+	height: 6px;
+	border-left: 2px solid #fff;
+	border-bottom: 2px solid #fff;
+	transform: translate(-50%, -65%) rotate(-45deg);
+	pointer-events: none;
+}
+
+.screenshot-annotation-editor .annotation-color-swatch.active.light-swatch::after {
+	border-color: #000;
+}
+
+.screenshot-annotation-editor .annotation-size-button.active {
+	background: var(--vscode-list-activeSelectionBackground, rgba(0, 122, 204, 0.25));
+	color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground, #fff));
+	border-color: transparent;
+}
+
+.screenshot-annotation-editor .annotation-size-button {
+	min-width: 28px;
+	height: 24px;
+	border-radius: var(--vscode-cornerRadius-small);
+	border: var(--vscode-strokeThickness) solid transparent;
+	background: var(--vscode-button-secondaryBackground, rgba(255, 255, 255, 0.08));
+	color: var(--vscode-button-secondaryForeground, var(--vscode-foreground, #ccc));
+	cursor: pointer;
+	font-size: var(--vscode-fontSize-label2);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size60);
+}
+
+.screenshot-annotation-editor .annotation-opacity-options {
+	align-items: center;
+}
+
+.screenshot-annotation-editor .annotation-opacity-slider {
+	flex: 1;
+	min-width: 92px;
+	accent-color: var(--vscode-focusBorder, #007acc);
+}
+
+.screenshot-annotation-editor .annotation-opacity-value {
+	color: var(--vscode-descriptionForeground, #999);
+	font-size: var(--vscode-fontSize-label2);
+	width: 34px;
+	text-align: right;
+}
+
+.screenshot-annotation-editor .annotation-hint {
+	text-align: center;
+	padding: var(--vscode-spacing-size60) var(--vscode-spacing-sizeNone);
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-descriptionForeground, #999);
+}
+
+.screenshot-annotation-editor .annotation-canvas-container {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+	position: relative;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background, #1e1e1e));
+}
+
+.screenshot-annotation-editor .annotation-canvas-container canvas {
+	cursor: crosshair;
+}
+
+.screenshot-annotation-editor .annotation-toolbar .crop-btn {
+	font-size: var(--vscode-codiconFontSize);
+	line-height: 1;
+}

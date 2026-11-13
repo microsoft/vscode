@@ -738,6 +738,19 @@ function handleRequest(req: import('http').IncomingMessage, res: import('http').
 		return;
 	}
 
+	// -- Model catalog with Auto's tiers, which the Copilot runtime reads with `DYNAMIC_AUTO_TIERS` --
+	// A single non-Fusion tier keeps Auto presented as Auto.
+	if (path === '/meta' && req.method === 'GET') {
+		json(200, {
+			models: { data: ALL_MODELS },
+			auto: {
+				default_tier: 'balance',
+				tiers: [{ id: 'balance', display_name: 'Balance', description: 'A balance of speed and capability', type: 'auto', status: { enabled: true } }],
+			},
+		});
+		return;
+	}
+
 	// -- Model by ID (DomainService.capiModelsURL/{id}) --------------
 	if (path.startsWith('/models/') && req.method === 'GET') {
 		const modelId = path.split('/models/')[1]?.split('/')[0];
@@ -1961,6 +1974,8 @@ interface MockLlmServerHandle {
 	port: number;
 	url: string;
 	close(): Promise<void>;
+	/** Close every open connection, so that clients have to connect again, through their proxy if they use one. */
+	closeConnections(): void;
 	/** Return total request count. */
 	requestCount(): number;
 	/** Wait until at least `n` requests have been received. */
@@ -2083,6 +2098,7 @@ function _startServer(port = 0, options?: StartServerOptions): Promise<MockLlmSe
 					}
 					server.close(err => err ? reject(err) : resolve(undefined));
 				}),
+				closeConnections: () => server.closeAllConnections(),
 				requestCount: () => reqCount,
 				waitForRequests: (n: number, timeoutMs: number) => new Promise<void>((resolve, reject) => {
 					if (reqCount >= n) { resolve(); return; }

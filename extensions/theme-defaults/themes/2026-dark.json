@@ -107,6 +107,7 @@
 		"commandCenter.border": "#2E3031",
 		"editor.background": "#121314",
 		"editor.foreground": "#BBBEBF",
+		"editor.placeholder.foreground": "#8C8C8C",
 		"editorStickyScroll.background": "#121314",
 		"editorStickyScrollHover.background": "#202122",
 		"editorStickyScroll.border": "#2A2B2C",

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveElement, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -417,7 +418,7 @@ export function registerChatCodeBlockActions(): DisposableStore {
 			const chatSessionsService = accessor.get(IChatSessionsService);
 			const sessionTelemetry = isResponseVM(context.element) ? getChatSessionTelemetryIds(context.element.sessionResource, accessor.get(IAgentHostConnectionsService)) : undefined;
 
-			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined } satisfies IUntitledTextResourceEditorInput);
+			const editor = await editorService.openEditor({ contents: context.code, languageId: context.languageId, resource: undefined, untitledOrigin: 'chat' } satisfies IUntitledTextResourceEditorInput);
 
 			if (editor && isResponseVM(context.element)) {
 				const requestId = context.element.requestId;
@@ -555,8 +556,10 @@ export function registerChatCodeBlockActions(): DisposableStore {
 
 		const editor = codeEditorService.getFocusedCodeEditor();
 		const editorUri = editor?.getModel()?.uri;
-		const curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
-		const focused = !widget.inputEditor.hasWidgetFocus() && widget.getFocus();
+		let curCodeBlockInfo = editorUri ? widget.getCodeBlockInfoForEditor(editorUri) : undefined;
+		const activeElement = getActiveElement();
+		const focusedItem = isHTMLElement(activeElement) ? widget.getElementFromNode(activeElement) : undefined;
+		const focused = !widget.inputEditor.hasWidgetFocus() && (focusedItem ?? widget.getFocus());
 		const focusedResponse = isResponseVM(focused) ? focused : undefined;
 
 		const elementId = curCodeBlockInfo?.elementId;
@@ -567,6 +570,7 @@ export function registerChatCodeBlockActions(): DisposableStore {
 			return;
 		}
 
+		curCodeBlockInfo ??= widget.getCodeBlockInfosForResponse(currentResponse).find(block => block?.isFocused);
 		widget.reveal(currentResponse);
 		const responseCodeblocks = widget.getCodeBlockInfosForResponse(currentResponse);
 		const focusIdx = curCodeBlockInfo ?

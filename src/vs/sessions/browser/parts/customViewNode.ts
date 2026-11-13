@@ -13,9 +13,9 @@ import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../platform/acti
 import { MenuItemAction } from '../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../platform/theme/common/colorUtils.js';
-import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../common/layoutConstants.js';
-import { activeSessionViewBackground, activeSessionViewForeground } from '../../common/theme.js';
-import { AbstractCustomView, ICustomViewDescriptor } from '../../services/customView/browser/customView.js';
+import { AGENTS_CENTERED_CONTENT_MAX_WIDTH } from '../../../workbench/contrib/sessions/common/layoutConstants.js';
+import { activeSessionViewBackground, activeSessionViewForeground } from '../../../workbench/contrib/sessions/common/theme.js';
+import { AbstractCustomView, ICustomViewDescriptor } from '../../../workbench/contrib/sessions/browser/customView.js';
 import { ChatPillActionViewItem } from '../../../workbench/browser/chatPills.js';
 
 /**

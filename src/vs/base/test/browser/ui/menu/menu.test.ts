@@ -7,13 +7,31 @@ import assert from 'assert';
 import sinon from 'sinon';
 import { $, append, EventType, getWindow, ModifierKeyEmitter } from '../../../../browser/dom.js';
 import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../browser/ui/menu/menu.js';
-import { Action, ActionRunner, SubmenuAction, toAction } from '../../../../common/actions.js';
+import { Action, ActionRunner, IAction, Separator, SubmenuAction, toAction } from '../../../../common/actions.js';
 import { EventType as TouchEventType } from '../../../../browser/touch.js';
-import { toDisposable } from '../../../../common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../common/platform.js';
 import { ResolvedKeybinding } from '../../../../common/keybindings.js';
 import { upcastPartial } from '../../../common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
+
+
+/**
+ * Replaces `navigator.windowControlsOverlay` on the given window so the real
+ * browser helpers observe a controlled overlay. Restores the original on dispose.
+ */
+function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visible: boolean; getTitlebarAreaRect(): DOMRect }): IDisposable {
+	const navigator = targetWindow.navigator as Navigator & { windowControlsOverlay?: unknown };
+	const original = Object.getOwnPropertyDescriptor(navigator, 'windowControlsOverlay');
+	Object.defineProperty(navigator, 'windowControlsOverlay', { configurable: true, get: () => stub });
+	return toDisposable(() => {
+		if (original) {
+			Object.defineProperty(navigator, 'windowControlsOverlay', original);
+		} else {
+			delete navigator.windowControlsOverlay;
+		}
+	});
+}
 
 suite('Menu', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -133,6 +151,101 @@ suite('Menu', () => {
 		assert.deepStrictEqual(runs, ['primary']);
 	});
 
+	test('renders group headers as labels that navigation, mnemonics and clicks skip', async () => {
+		const clock = sinon.useFakeTimers();
+		const host = append(document.body, $('div'));
+		disposables.add(toDisposable(() => host.remove()));
+		const runs: string[] = [];
+		const runner = disposables.add(new ActionRunner());
+		disposables.add(runner.onWillRun(e => runs.push(e.action.id)));
+		const groupTitles = new Map<IAction, string>();
+		const action = (id: string, label: string, groupTitle?: string) => {
+			const result = toAction({ id, label, run: () => { } });
+			if (groupTitle) {
+				groupTitles.set(result, groupTitle);
+			}
+			return result;
+		};
+		const menu = disposables.add(new Menu(host, [
+			// The first group's title, from its first action
+			action('open', '&Open', 'Recent'),
+			new Separator(),
+			// A separator with a label
+			new Separator('Discover More'),
+			action('create', '&Create'),
+			new SubmenuAction('browse', '&Browse', [action('marketplace', 'Marketplace')]),
+			// The header of an emptied group does not label the next group
+			new Separator('Empty Group'),
+			new Separator(),
+			action('settings', '&Settings'),
+			// A group title replaces the plain separator before its group
+			new Separator(),
+			action('help', '&Help', 'Support'),
+			new Separator('Trailing'),
+		], { actionRunner: runner, enableMnemonics: true, getGroupTitle: action => groupTitles.get(action) }, unthemedMenuStyles));
+		await clock.tickAsync(100);
+
+		const rowElements = Array.from(host.querySelectorAll<HTMLElement>('.actions-container > .action-item'));
+		const rows = rowElements.map(row => {
+			const header = row.querySelector('.menu-header-title');
+			const line = row.querySelector<HTMLElement>('.action-label.separator');
+			if (line) {
+				return { header: header?.textContent, line: getWindow(row).getComputedStyle(line).display !== 'none', lineText: line.textContent, enabled: !row.classList.contains('disabled') };
+			}
+			const item = row.querySelector<HTMLElement>('.action-menu-item')!;
+			const describedBy = item.getAttribute('aria-describedby');
+			return {
+				item: item.querySelector('.action-label')?.textContent,
+				role: item.getAttribute('role'),
+				position: `${item.getAttribute('aria-posinset')}/${item.getAttribute('aria-setsize')}`,
+				describedBy: describedBy ? host.ownerDocument.getElementById(describedBy)?.textContent : undefined,
+			};
+		});
+
+		const focused = () => rows[rowElements.findIndex((_, index) => menu.isFocused(index))];
+		const press = (key: string, keyCode: number) => host.querySelector('.monaco-action-bar')!.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true }));
+		menu.focus(true);
+		const navigation = [focused()];
+		for (const [key, keyCode] of [['ArrowDown', 40], ['ArrowDown', 40], ['ArrowDown', 40], ['ArrowDown', 40], ['ArrowDown', 40], ['ArrowUp', 38]] as const) {
+			press(key, keyCode);
+			navigation.push(focused());
+		}
+
+		// The first letters of headers are not mnemonics
+		press('r', 82);
+		press('d', 68);
+		for (const header of host.querySelectorAll('.menu-header')) {
+			header.dispatchEvent(new MouseEvent(EventType.MOUSE_UP, { bubbles: true }));
+			header.dispatchEvent(new MouseEvent(EventType.CLICK, { bubbles: true }));
+		}
+		await clock.tickAsync(1);
+		const runsBeforeMnemonic = [...runs];
+		press('c', 67);
+		await clock.tickAsync(1);
+
+		const open = { item: 'Open', role: 'menuitem', position: '1/5', describedBy: 'Recent' };
+		const create = { item: 'Create', role: 'menuitem', position: '2/5', describedBy: 'Discover More' };
+		const browse = { item: 'Browse', role: 'menuitem', position: '3/5', describedBy: 'Discover More' };
+		const settings = { item: 'Settings', role: 'menuitem', position: '4/5', describedBy: undefined };
+		const help = { item: 'Help', role: 'menuitem', position: '5/5', describedBy: 'Support' };
+		assert.deepStrictEqual({ rows, navigation, runsBeforeMnemonic, runs }, {
+			rows: [
+				{ header: 'Recent', line: false, lineText: '', enabled: false },
+				open,
+				{ header: 'Discover More', line: true, lineText: '', enabled: false },
+				create,
+				browse,
+				{ header: undefined, line: true, lineText: '', enabled: false },
+				settings,
+				{ header: 'Support', line: true, lineText: '', enabled: false },
+				help,
+			],
+			navigation: [open, create, browse, settings, help, open, help],
+			runsBeforeMnemonic: [],
+			runs: ['create'],
+		});
+	});
+
 	// A menu positioned under a resting pointer can receive synthetic pointer events,
 	// so hover must react only when the pointer coordinates actually change.
 	test('stationary mouse does not change focus (#110594, #148158)', () => {
@@ -175,7 +288,10 @@ suite('Menu', () => {
 
 	test('stationary mouse does not open submenu (#110594, #148158)', () => {
 		const clock = sinon.useFakeTimers();
-		const host = append(document.body, $('div'));
+		const host = append(document.body, $('.hc-black'));
+		host.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
+		host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		host.style.setProperty('--vscode-strokeThickness', '1px');
 		disposables.add(toDisposable(() => host.remove()));
 		const submenu = new SubmenuAction('submenu', 'Submenu', [
 			disposables.add(new Action('child', 'Child'))
@@ -198,11 +314,13 @@ suite('Menu', () => {
 		assert.deepStrictEqual({
 			expandedAfterMouseOver,
 			expandedAfterStationaryMouseMove,
-			expandedAfterMouseMove: submenuItem.getAttribute('aria-expanded')
+			expandedAfterMouseMove: submenuItem.getAttribute('aria-expanded'),
+			expandedOutline: getWindow(submenuItem).getComputedStyle(submenuItem).outlineStyle,
 		}, {
 			expandedAfterMouseOver: 'false',
 			expandedAfterStationaryMouseMove: 'false',
-			expandedAfterMouseMove: 'true'
+			expandedAfterMouseMove: 'true',
+			expandedOutline: 'solid',
 		});
 	});
 
@@ -318,6 +436,230 @@ suite('Menu', () => {
 		}
 	}
 
+	suite('window controls overlay (#165454)', () => {
+		interface IOpenOptions {
+			readonly overlay: DOMRect | undefined;
+			readonly left: number;
+			readonly top: number;
+			readonly nested?: boolean;
+			readonly childCount?: number;
+		}
+
+		/**
+		 * Opens a submenu (and optionally a nested submenu) and returns the
+		 * client rects of every opened submenu level, outermost first.
+		 */
+		const openSubmenus = ({ overlay, left, top, nested, childCount = 2 }: IOpenOptions) => {
+			const host = append(document.body, $('div'));
+			host.style.position = 'fixed';
+			host.style.top = `${top}px`;
+			host.style.left = `${left}px`;
+			const store = disposables.add(new DisposableStore());
+			store.add(toDisposable(() => host.remove()));
+			const root = append(host, $('.context-view'));
+			const children = Array.from({ length: childCount }, (_, i) => store.add(new Action(`child${i}`, `Child ${i}`)));
+			const leaf = new SubmenuAction('nested', 'Nested', children);
+			const submenu = new SubmenuAction('submenu', 'Submenu', nested ? [leaf] : children);
+			store.add(stubWindowControlsOverlay(getWindow(host), { visible: !!overlay, getTitlebarAreaRect: () => overlay! }));
+			store.add(new Menu(root, [submenu], {}, unthemedMenuStyles));
+			const open = (parent: HTMLElement) => {
+				parent.querySelector<HTMLElement>('.monaco-submenu-item')!.dispatchEvent(new KeyboardEvent(EventType.KEY_UP, { key: 'ArrowRight', keyCode: 39, bubbles: true }));
+				return parent.querySelector<HTMLElement>('.monaco-submenu')!;
+			};
+			const containers = [open(root)];
+			if (nested) {
+				containers.push(open(containers[0]));
+			}
+			const rects = containers.map(container => container.getBoundingClientRect());
+			store.dispose();
+			return rects;
+		};
+
+		const openSubmenu = (options: IOpenOptions) => openSubmenus(options).at(-1)!;
+
+		const window = getWindow(document.body);
+		const overlay = () => new DOMRect(80, 0, window.innerWidth - 200, 30);
+
+		/**
+		 * An overlay whose left or right window-control strip covers the given
+		 * unadjusted submenu box, so that the box genuinely needs to move.
+		 */
+		const overlayCovering = (box: DOMRect, side: 'left' | 'right') => {
+			const x = side === 'left' ? box.right + 10 : 40;
+			const right = side === 'left' ? window.innerWidth - 40 : box.left - 10;
+			return new DOMRect(x, 0, right - x, 30);
+		};
+
+		const intersects = (box: DOMRect, left: number, right: number, bottom: number) =>
+			right > left && box.left < right && box.right > left && box.top < bottom && box.bottom > 0;
+
+		const describe = (box: DOMRect, wco: DOMRect) => ({
+			clearOfLeftButtons: !intersects(box, 0, wco.x, wco.height),
+			clearOfRightButtons: !intersects(box, wco.x + wco.width, window.innerWidth, wco.height),
+			inViewport: box.left >= 0 && box.top >= 0 && box.right <= window.innerWidth && box.bottom <= window.innerHeight,
+			hasSize: box.width > 0 && box.height > 0,
+		});
+
+		const clear = { clearOfLeftButtons: true, clearOfRightButtons: true, inViewport: true, hasSize: true };
+
+		for (const { side, position } of [
+			{ side: 'left', position: () => ({ left: 0, top: 0 }) },
+			{ side: 'right', position: () => ({ left: window.innerWidth - 150, top: 0 }) },
+		] as const) {
+			test(`submenus at the ${side} corner move clear of the buttons`, () => {
+				const without = openSubmenu({ overlay: undefined, ...position() });
+				const wco = overlayCovering(without, side);
+				const withOverlay = openSubmenu({ overlay: wco, ...position() });
+				assert.deepStrictEqual({
+					withoutOverlay: describe(without, wco),
+					withOverlay: describe(withOverlay, wco),
+					movedDown: withOverlay.top >= wco.height,
+					left: withOverlay.left,
+				}, {
+					withoutOverlay: { ...clear, [side === 'left' ? 'clearOfLeftButtons' : 'clearOfRightButtons']: false },
+					withOverlay: clear,
+					movedDown: true,
+					left: without.left,
+				});
+			});
+		}
+
+		test('tall submenus placed upward into the titlebar band move clear of the buttons', () => {
+			// A tall submenu opened near the bottom of the window does not fit below its
+			// entry, so the layout places it upward near the top of the window. The band
+			// is sized from that unadjusted placement so the submenu genuinely starts
+			// inside it and overlaps the left buttons.
+			const position = { left: 0, top: window.innerHeight - 40 };
+			const childCount = 200;
+			const without = openSubmenu({ overlay: undefined, ...position, childCount });
+			const covering = overlayCovering(without, 'left');
+			const wco = new DOMRect(covering.x, 0, covering.width, Math.max(without.top, 0) + 10);
+			const withOverlay = openSubmenu({ overlay: wco, ...position, childCount });
+			assert.deepStrictEqual({
+				startsInBand: without.top < wco.height && without.bottom > wco.height,
+				withoutOverlay: describe(without, wco),
+				withOverlay: describe(withOverlay, wco),
+			}, {
+				startsInBand: true,
+				withoutOverlay: { ...clear, clearOfLeftButtons: false },
+				withOverlay: clear,
+			});
+		});
+
+		test('submenus already clear of the buttons are not moved', () => {
+			const wco = overlay();
+			const position = { left: 200, top: 100 };
+			const without = openSubmenu({ overlay: undefined, ...position });
+			const withOverlay = openSubmenu({ overlay: wco, ...position });
+			assert.deepStrictEqual({
+				withOverlay: describe(withOverlay, wco),
+				position: [withOverlay.left, withOverlay.top],
+			}, {
+				withOverlay: clear,
+				position: [without.left, without.top],
+			});
+		});
+
+		test('nested submenus also move clear of the buttons', () => {
+			// The first-level submenu sits in the usable titlebar area, clear of both
+			// strips, while the nested submenu expands into the right strip. Only
+			// overlay handling at the nested level can move the nested submenu.
+			const [parent, nested] = openSubmenus({ overlay: undefined, left: 0, top: 0, nested: true });
+			const x = parent.left - 10;
+			const wco = new DOMRect(x, 0, nested.left + 10 - x, 30);
+			const [parentWithOverlay, nestedWithOverlay] = openSubmenus({ overlay: wco, left: 0, top: 0, nested: true });
+			assert.deepStrictEqual({
+				parent: describe(parent, wco),
+				parentPosition: [parentWithOverlay.left, parentWithOverlay.top],
+				nestedWithoutOverlay: describe(nested, wco),
+				nestedWithOverlay: describe(nestedWithOverlay, wco),
+			}, {
+				parent: clear,
+				parentPosition: [parent.left, parent.top],
+				nestedWithoutOverlay: { ...clear, clearOfRightButtons: false },
+				nestedWithOverlay: clear,
+			});
+		});
+	});
+
+	test('stationary pointer down switches a high contrast menu from focus to hover styling', () => {
+		const host = append(document.body, $('.hc-black'));
+		host.style.setProperty('--vscode-menu-selectionBorder', '#f38518');
+		host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		host.style.setProperty('--vscode-strokeThickness', '1px');
+		disposables.add(toDisposable(() => host.remove()));
+		const menu = disposables.add(new Menu(host, [disposables.add(new Action('first', 'First'))], {}, unthemedMenuStyles));
+		menu.focus(true);
+		const menuElement = host.querySelector<HTMLElement>('.monaco-menu')!;
+		menuElement.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key: 'ArrowDown', keyCode: 40, bubbles: true }));
+		const item = host.querySelector<HTMLElement>('.action-item')!;
+		const label = item.querySelector<HTMLElement>('.action-menu-item')!;
+		const describe = () => ({
+			keyboard: menuElement.classList.contains('keyboard-navigation'),
+			mouse: menuElement.classList.contains('mouse-navigation'),
+			outline: getWindow(label).getComputedStyle(label).outlineStyle,
+		});
+		const keyboard = describe();
+		const actionsList = menuElement.querySelector<HTMLElement>('.monaco-action-bar.vertical')!;
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true }));
+		const deadSpace = describe();
+		item.classList.add('hovered');
+		item.dispatchEvent(new MouseEvent(EventType.MOUSE_DOWN, { bubbles: true }));
+		const pointer = describe();
+		item.classList.remove('hovered');
+		actionsList.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+		const pointerAway = describe();
+
+		assert.deepStrictEqual({ keyboard, deadSpace, pointer, pointerAway }, {
+			keyboard: { keyboard: true, mouse: false, outline: 'solid' },
+			deadSpace: { keyboard: true, mouse: false, outline: 'solid' },
+			pointer: { keyboard: false, mouse: true, outline: 'dashed' },
+			pointerAway: { keyboard: false, mouse: true, outline: 'solid' },
+		});
+	});
+
+	test('keyboard navigation restores the focus outline after pointer navigation', () => {
+		for (const theme of ['hc-black', 'hc-light']) {
+			const host = append(document.body, $(`.${theme}`));
+			host.style.setProperty('--vscode-menu-selectionBorder', '#007fd4');
+			host.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+			host.style.setProperty('--vscode-strokeThickness', '1px');
+			disposables.add(toDisposable(() => host.remove()));
+			const menu = disposables.add(new Menu(host, [
+				disposables.add(new Action('first', 'First')),
+				disposables.add(new Action('second', 'Second')),
+			], {}, unthemedMenuStyles));
+			menu.focus(true);
+			const menuElement = host.querySelector<HTMLElement>('.monaco-menu')!;
+			const items = [...host.querySelectorAll<HTMLElement>('.action-item')];
+			const firstItem = items[0];
+			firstItem.classList.add('hovered');
+
+			const states = [
+				{ key: 'ArrowDown', keyCode: 40 },
+				{ key: 'ArrowUp', keyCode: 38 },
+				{ key: 'Home', keyCode: 36 },
+				{ key: 'End', keyCode: 35 },
+			].map(({ key, keyCode }) => {
+				firstItem.dispatchEvent(new MouseEvent(EventType.MOUSE_MOVE, { bubbles: true, movementX: 1 }));
+				const focusedItem = host.querySelector<HTMLElement>('.action-item.focused > .action-menu-item')!;
+				focusedItem.dispatchEvent(new KeyboardEvent(EventType.KEY_DOWN, { key, keyCode, bubbles: true }));
+				const nextFocusedItem = host.querySelector<HTMLElement>('.action-item.focused > .action-menu-item')!;
+				return {
+					focused: items.indexOf(nextFocusedItem.parentElement!),
+					keyboard: menuElement.classList.contains('keyboard-navigation'),
+					mouse: menuElement.classList.contains('mouse-navigation'),
+					outline: getWindow(nextFocusedItem).getComputedStyle(nextFocusedItem).outlineStyle,
+				};
+			});
+
+			assert.deepStrictEqual(states, [1, 1, 0, 1].map(focused => ({
+				focused, keyboard: true, mouse: false, outline: 'solid',
+			})), theme);
+		}
+	});
+
 	test('high contrast selection outline does not apply to nested submenu items (#327543)', () => {
 		const host = append(document.body, $('div'));
 		disposables.add(toDisposable(() => host.remove()));
@@ -328,7 +670,10 @@ suite('Menu', () => {
 
 		const themeRoot = shadowRoot.appendChild($('.hc-black'));
 		themeRoot.style.setProperty('--vscode-menu-selectionBorder', 'yellow');
-		const actionBar = append(append(themeRoot, $('.monaco-menu')), $('.monaco-action-bar.vertical'));
+		themeRoot.style.setProperty('--vscode-contrastActiveBorder', 'orange');
+		themeRoot.style.setProperty('--vscode-strokeThickness', '1px');
+		const menu = append(themeRoot, $('.monaco-menu'));
+		const actionBar = append(menu, $('.monaco-action-bar.vertical'));
 		const focusedAction = append(actionBar, $('.action-item.focused'));
 		const focusedMenuItem = append(focusedAction, $('a.action-menu-item'));
 
@@ -336,11 +681,26 @@ suite('Menu', () => {
 		const nestedMenuItem = append(append(submenuActionBar, $('.action-item')), $('a.action-menu-item'));
 
 		const window = getWindow(host);
+		const readOutline = (element: HTMLElement) => {
+			const style = window.getComputedStyle(element);
+			return {
+				color: style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+			};
+		};
+		const keyboard = readOutline(focusedMenuItem);
+		focusedAction.classList.add('hovered');
+		menu.classList.add('mouse-navigation');
+		const pointer = readOutline(focusedMenuItem);
 		assert.deepStrictEqual({
-			focused: window.getComputedStyle(focusedMenuItem).outlineStyle,
+			keyboard,
+			pointer,
 			nested: window.getComputedStyle(nestedMenuItem).outlineStyle,
 		}, {
-			focused: 'solid',
+			keyboard: { color: 'rgb(255, 255, 0)', offset: '-1px', style: 'solid', width: '1px' },
+			pointer: { color: 'rgb(255, 165, 0)', offset: '-1px', style: 'dashed', width: '1px' },
 			nested: 'none',
 		});
 	});

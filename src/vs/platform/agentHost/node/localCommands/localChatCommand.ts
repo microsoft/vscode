@@ -10,7 +10,7 @@ import { createDecorator } from '../../../instantiation/common/instantiation.js'
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostChatContributions } from '../../common/agentHostChatContributionsService.js';
 import { ActionType, StateAction } from '../../common/state/sessionActions.js';
-import { isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
+import { isAhpChatChannel, ResponsePartKind, ToolCallStatus, ToolResultContentType, type ISessionWithDefaultChat, type Message, type Turn, type URI as ProtocolURI } from '../../common/state/sessionState.js';
 import { IAgentHostLocalTurns } from '../agentHostLocalTurns.js';
 import { IAgentHostPeerChatPersistenceService } from '../agentHostPeerChatStore.js';
 import { IAgentHostSessionTitleController } from '../agentHostSessionTitleController.js';
@@ -27,7 +27,9 @@ export interface ILocalChatCommandRequest {
 	readonly turnChannel: ProtocolURI;
 	/** The turn identifier opened by the reducer for this message. */
 	readonly turnId: string;
-	/** The raw user message text. */
+	/** The actor that produced the message. */
+	readonly origin: Message['origin'];
+	/** The raw message text. */
 	readonly text: string;
 }
 

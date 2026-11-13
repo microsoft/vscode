@@ -482,48 +482,52 @@ export interface ISessionDatabase extends IDisposable {
 	/** Reads one embedded resource's bytes and stored MIME type on demand. */
 	readToolResultResourceContent(toolCallId: string, ordinal: number): Promise<{ content: Uint8Array; mimeType?: string } | undefined>;
 
-	// ---- Session metadata ------------------------------------------------
+	// ---- Metadata (session-global unless a turn is specified) -------------
+
+	/** Reads a key across own turns, keyed by host and provider event ids, after previously submitted writes. */
+	getTurnMetadata(key: string): Promise<Map<string, string>>;
 
 	/**
-	 * Read a metadata value by key.
+	 * Read a metadata value by key in the given turn, or session-global when omitted.
 	 * Returns `undefined` if no value has been stored for the key.
 	 */
-	getMetadata(key: string): Promise<string | undefined>;
+	getMetadata(key: string, turnId?: string): Promise<string | undefined>;
 
 	/**
 	 * Gets a bulk of metadata. For example `getMetadataObject({ foo: true }) ->  { foo: 'data' }`
 	 */
-	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
+	getMetadataObject<T extends Record<string, unknown>>(obj: T, turnId?: string): Promise<{ [K in keyof T]: string | undefined }>;
 
 	/** Gets every metadata value whose key starts with `prefix`. */
-	getMetadataByPrefix(prefix: string): Promise<Record<string, string>>;
+	getMetadataByPrefix(prefix: string, turnId?: string): Promise<Record<string, string>>;
 
 	/** Sets `set` and deletes `remove` in one transaction. */
-	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void>;
+	applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void>;
 
 	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.
+	 * Turn-scoped writes lazily create the owner and follow its deletion/remapping lifecycle.
 	 */
-	setMetadata(key: string, value: string): Promise<void>;
+	setMetadata(key: string, value: string, turnId?: string): Promise<void>;
 
 	/** Atomically replaces a metadata value using its latest stored value. */
-	updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void>;
+	updateMetadata(key: string, update: (value: string | undefined) => string, turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically store multiple metadata key-value pairs.
 	 */
-	setMetadataValues(values: Readonly<Record<string, string>>): Promise<void>;
+	setMetadataValues(values: Readonly<Record<string, string>>, turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically delete metadata keys.
 	 */
-	deleteMetadata(keys: readonly string[]): Promise<void>;
+	deleteMetadata(keys: readonly string[], turnId?: string): Promise<void>;
 
 	/**
 	 * Atomically stores metadata values only when `key` is absent. Values named
 	 * by `copies` are read from their source keys and copied when present.
 	 */
-	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>): Promise<boolean>;
+	setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies?: Readonly<Record<string, string>>, turnId?: string): Promise<boolean>;
 
 	/**
 	 * Atomically stores metadata and advances the durable catalog relay snapshot.
@@ -556,7 +560,7 @@ export interface ISessionDatabase extends IDisposable {
 	getChatDraft(chat: URI): Promise<Message | undefined>;
 
 	/**
-	 * Bulk-remaps turn IDs using the provided old→new mapping.
+	 * Bulk-remaps turn IDs using an old host ID or provider event ID → new host ID mapping.
 	 * Used after copying a database file for a forked session. The copy is
 	 * another chat's database, so the source's foreign rows, other chats'
 	 * host-persisted turns and the row owner are dropped from it.

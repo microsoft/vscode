@@ -6,15 +6,17 @@
   "main": "./out/index.js",
   "private": true,
   "scripts": {
-    "compile": "cd ../automation && npm run compile && cd ../scenario && node ../../node_modules/typescript/bin/tsc6",
-    "watch-automation": "cd ../automation && npm run watch",
+    "compile": "cd ../automation && pnpm run compile && cd ../scenario && node ../../node_modules/typescript/bin/tsc6",
+    "watch-automation": "cd ../automation && pnpm run watch",
     "watch-scenario": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
     "watch": "npm-run-all2 -lp watch-automation watch-scenario"
   },
   "dependencies": {
+    "@vscode/sqlite3": "5.1.12-vscode",
     "minimist": "^1.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "npm-run-all2": "^8.0.4"
   }
 }

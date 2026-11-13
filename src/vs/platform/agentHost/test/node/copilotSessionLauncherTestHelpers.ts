@@ -7,6 +7,7 @@ import { stub } from 'sinon';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../base/test/common/mock.js';
+import type { ICopilotHomeService } from '../../../environment/common/copilotHome.js';
 import type { IFileService } from '../../../files/common/files.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { type ITelemetryService, TelemetryLevel } from '../../../telemetry/common/telemetry.js';
@@ -19,6 +20,8 @@ import type { IAgentHostSessionOpenTelemetry } from '../../node/agentHostSession
 import type { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
 import { CopilotSessionLauncher, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
+import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
+import type { ICopilotApiService } from '../../node/shared/copilotApiService.js';
 
 export const testRuntime: ICopilotSessionRuntime = {
 	chatUri: URI.parse(buildDefaultChatUri('copilot:/sess-1')),
@@ -29,6 +32,7 @@ export const testRuntime: ICopilotSessionRuntime = {
 	handleExitPlanModeRequest: async () => { throw new Error('Unexpected exit plan mode request'); },
 	handleUserInputRequest: async () => { throw new Error('Unexpected user input request'); },
 	handleElicitationRequest: async () => { throw new Error('Unexpected elicitation request'); },
+	handleShellAuthenticationRequest: async () => { throw new Error('Unexpected shell authentication request'); },
 	adoptLaunchConnectorReconcile: () => { },
 	handleMcpAuthRequest: async () => { throw new Error('Unexpected MCP auth request'); },
 	requestUnsandboxedCommandConfirmation: async () => false,
@@ -54,7 +58,7 @@ export const noopSessionOpenTelemetry: IAgentHostSessionOpenTelemetry = {
 	sdkResumeFallbackCreated: () => { },
 };
 
-export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, fileService: IFileService = upcastPartial<IFileService>({})): CopilotSessionLauncher {
+export function createTestLauncher(managedSettingsPermissions?: IAgentHostManagedSettingsPermissions, rootValues: Record<string, unknown> = {}, logService: ILogService = new NullLogService(), sessionOpenTelemetry: IAgentHostSessionOpenTelemetry = noopSessionOpenTelemetry, configuration?: IAgentConfigurationService, telemetryService?: ITelemetryService, fileService: IFileService = upcastPartial<IFileService>({}), accountService?: ICopilotAccountService): CopilotSessionLauncher {
 	const configurationService = configuration ?? upcastPartial<IAgentConfigurationService>({
 		getRootValue: stub().callsFake((_schema: unknown, key: string) => rootValues[key]),
 		getRootConfigValues: () => rootValues,
@@ -62,6 +66,8 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		getChatConfigValues: () => undefined,
 		resolveConfigurationOwner: (session: string) => session,
 		getSessionSandboxPolicy: () => undefined,
+		getSessionSandboxPaths: () => undefined,
+		setSessionSandboxPaths: () => { },
 		getSessionSandboxEnabled: () => undefined,
 		getChatSandboxEnabled: () => undefined,
 		setSessionSandboxPolicy: () => { },
@@ -84,5 +90,8 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		}),
 		sessionOpenTelemetry,
 		telemetryService ?? upcastPartial<ITelemetryService>({ telemetryLevel: TelemetryLevel.USAGE }),
+		upcastPartial<ICopilotHomeService>({ home: URI.file('/copilot-home') }),
+		accountService ?? upcastPartial<ICopilotAccountService>({}),
+		upcastPartial<ICopilotApiService>({}),
 	);
 }

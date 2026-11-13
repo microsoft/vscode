@@ -39,6 +39,7 @@ import { IProgressService, ProgressLocation } from '../../../../platform/progres
 import { resolveCommandsContext } from './editorCommandsContext.js';
 import { IListService } from '../../../../platform/list/browser/listService.js';
 import { prepareMoveCopyEditors } from './editor.js';
+import { getEditorsTransferVeto, getGroupTransferVeto, showEditorTransferVeto, transferToNewWindow } from './editorTransferVeto.js';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -2624,22 +2625,31 @@ abstract class BaseMoveCopyEditorToNewWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const listService = accessor.get(IListService);
 
+		const dialogService = accessor.get(IDialogService);
+
 		const resolvedContext = resolveCommandsContext(args, editorService, editorGroupsService, listService);
 		if (!resolvedContext.groupedEditors.length) {
 			return;
 		}
 
-		const auxiliaryEditorPart = await editorGroupsService.createAuxiliaryEditorPart();
-
+		// Only the selected editors are asked whether they can go: others of the group stay where they are
 		const { group, editors } = resolvedContext.groupedEditors[0]; // only single group supported for move/copy for now
-		const editorsWithOptions = prepareMoveCopyEditors(group, editors, resolvedContext.preserveFocus);
-		if (this.move) {
-			group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
-		} else {
-			group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
-		}
+		await transferToNewWindow({
+			getVeto: target => getEditorsTransferVeto(editors, group.id, target, { copy: !this.move }),
+			showVeto: veto => showEditorTransferVeto(dialogService, veto),
+			createPart: () => editorGroupsService.createAuxiliaryEditorPart(),
+			isSourceAlive: () => editorGroupsService.getGroup(group.id) === group,
+			transfer: auxiliaryEditorPart => {
+				const editorsWithOptions = prepareMoveCopyEditors(group, editors, resolvedContext.preserveFocus);
+				if (this.move) {
+					group.moveEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
+				} else {
+					group.copyEditors(editorsWithOptions, auxiliaryEditorPart.activeGroup);
+				}
 
-		auxiliaryEditorPart.activeGroup.focus();
+				auxiliaryEditorPart.activeGroup.focus();
+			},
+		});
 	}
 }
 
@@ -2690,15 +2700,22 @@ abstract class BaseMoveCopyEditorGroupToNewWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const dialogService = accessor.get(IDialogService);
 		const activeGroup = editorGroupService.activeGroup;
 
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+		await transferToNewWindow({
+			getVeto: target => getGroupTransferVeto(activeGroup, target, { copy: !this.move }),
+			showVeto: veto => showEditorTransferVeto(dialogService, veto),
+			createPart: () => editorGroupService.createAuxiliaryEditorPart(),
+			isSourceAlive: () => editorGroupService.getGroup(activeGroup.id) === activeGroup,
+			transfer: auxiliaryEditorPart => {
+				editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
+					mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+				});
 
-		editorGroupService.mergeGroup(activeGroup, auxiliaryEditorPart.activeGroup, {
-			mode: this.move ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+				auxiliaryEditorPart.activeGroup.focus();
+			},
 		});
-
-		auxiliaryEditorPart.activeGroup.focus();
 	}
 }
 

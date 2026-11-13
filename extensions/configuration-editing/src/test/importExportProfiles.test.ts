@@ -6,22 +6,23 @@
 import * as vscode from 'vscode';
 import * as assert from 'assert';
 import 'mocha';
+import { GitHubError, type GitHubGist, type GitHubGistFile } from '@vscode/internal-github';
 import { GitHubGistProfileContentHandler } from '../importExportProfiles';
 
 type GitHubApi = NonNullable<ConstructorParameters<typeof GitHubGistProfileContentHandler>[0]>;
 type AuthenticationApi = NonNullable<ConstructorParameters<typeof GitHubGistProfileContentHandler>[1]>;
 
-function gist(files: vscode.GitHubGistFile[]): vscode.GitHubGist {
+function gist(files: GitHubGistFile[]): GitHubGist {
 	return { id: 'gist-id', htmlUrl: vscode.Uri.parse('https://gist.github.com/gist-id'), files };
 }
 
-function file(content: string, overrides: Partial<vscode.GitHubGistFile> = {}): vscode.GitHubGistFile {
+function file(content: string, overrides: Partial<GitHubGistFile> = {}): GitHubGistFile {
 	return { content, isBinary: false, truncated: false, ...overrides };
 }
 
 suite('GitHub gist profile content handler', () => {
 
-	function setup(options: { readonly read?: () => Promise<vscode.GitHubGist>; readonly create?: () => Promise<vscode.GitHubGist>; readonly acquire?: () => Promise<void> } = {}) {
+	function setup(options: { readonly read?: () => Promise<GitHubGist>; readonly create?: () => Promise<GitHubGist>; readonly acquire?: () => Promise<void> } = {}) {
 		const calls: unknown[][] = [];
 		const cancellation = new vscode.CancellationTokenSource();
 		const github: GitHubApi = {
@@ -70,7 +71,7 @@ suite('GitHub gist profile content handler', () => {
 	});
 
 	test('reports save failures and still releases the client', async () => {
-		const failure = new vscode.GitHubError('The selected GitHub session is not available to this extension.', 'authentication');
+		const failure = new GitHubError('The selected GitHub session is not available to this extension.', 'authentication');
 		const { handler, calls, token, cancellation } = setup({ create: () => Promise.reject(failure) });
 		await assert.rejects(handler.saveProfile('profile', '{}', token), error => error === failure);
 		cancellation.dispose();
@@ -98,13 +99,13 @@ suite('GitHub gist profile content handler', () => {
 			async () => gist([]),
 			async () => gist([file('{"partial', { truncated: true })]),
 			async () => gist([file('e30=', { isBinary: true })]),
-			async () => { throw new vscode.GitHubError('Not Found', 'notFound', 404); },
+			async () => { throw new GitHubError('Not Found', 'notFound', 404); },
 		]) {
 			const { handler, cancellation } = setup({ read });
 			results.push(await handler.readProfile('gist-id'));
 			cancellation.dispose();
 		}
-		const { handler, calls, cancellation } = setup({ acquire: () => Promise.reject(new vscode.GitHubError('Busy', 'rateLimit')) });
+		const { handler, calls, cancellation } = setup({ acquire: () => Promise.reject(new GitHubError('Busy', 'rateLimit')) });
 		results.push(await handler.readProfile('gist-id'));
 		cancellation.dispose();
 		assert.deepStrictEqual({ results, calls }, { results: [null, null, null, null, null], calls: [['getAnonymousClient', false]] });

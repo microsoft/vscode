@@ -18,6 +18,7 @@ import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
 import { ChatWindowNotifier } from '../../browser/chatWindowNotifier.js';
 import { IChatResponseErrorDetails, IChatService } from '../../common/chatService/chatService.js';
 import { ChatConfiguration, ChatNotificationMode } from '../../common/constants.js';
+import { setChatNotificationResource } from '../../common/chatNotification.js';
 import { IChatModel, IChatPendingRequest, IChatRequestModel, IChatRequestNeedsInputInfo, IChatResponseModel, IResponse } from '../../common/model/chatModel.js';
 import { IChatAgentResult } from '../../common/participants/chatAgents.js';
 import { IHostService, IToastOptions, IToastResult } from '../../../../services/host/browser/host.js';
@@ -156,6 +157,16 @@ suite('ChatWindowNotifier', () => {
 		await flushNotifications();
 
 		assert.deepStrictEqual(host.toasts, []);
+	});
+
+	test('routes completion notifications to the latest destination of a moved model', async () => {
+		const { model, endLastResponse } = createModel(store, 'original');
+		const host = createNotifier(model);
+		setChatNotificationResource(model, URI.parse('test:/parent#first-destination'));
+		endLastResponse();
+		setChatNotificationResource(model, URI.parse('test:/parent#current-destination'));
+		await flushNotifications();
+		assert.deepStrictEqual(host.toasts.map(toast => toast.dedupeKey), ['chat-session:test:/parent#current-destination:idle']);
 	});
 
 	test('does not notify for an idle model that has never run', async () => {

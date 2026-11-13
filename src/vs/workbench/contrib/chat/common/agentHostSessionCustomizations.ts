@@ -27,7 +27,21 @@ import {
 	type ToolCallState,
 	type Turn,
 } from '../../../../platform/agentHost/common/state/sessionState.js';
-import { ISessionChatCustomization, SessionCustomizationKind } from './sessionChatCustomizations.js';
+import { getSkillCustomizations } from '../../../../platform/agentHost/common/customizationEnablement.js';
+import { readCustomizationDiscoveryMeta } from '../../../../platform/agentHost/common/meta/customizationDiscoveryMeta.js';
+import { AICustomizationSource, AICustomizationSources } from './aiCustomizationWorkspaceService.js';
+import { ISessionChatCustomization, SessionCustomizationKind } from '../../../common/sessionChatCustomizations.js';
+
+/** Maps host-reported discovery provenance to the shared customization source. */
+export function getAgentHostCustomizationSource(customization: Customization | ChildCustomization): AICustomizationSource | undefined {
+	switch (readCustomizationDiscoveryMeta(customization)?.source) {
+		case 'repository': return AICustomizationSources.local;
+		case 'user': return AICustomizationSources.user;
+		case 'plugin': return AICustomizationSources.plugin;
+		case 'builtin': return AICustomizationSources.builtin;
+		default: return undefined;
+	}
+}
 
 /**
  * A reference to a customization extracted from a chat's output stream.
@@ -65,13 +79,18 @@ export function sessionChatCustomizationsEqual(a: readonly ISessionChatCustomiza
 	return a === b || (a.length === b.length && a.every((customization, i) => sessionChatCustomizationEqual(customization, b[i])));
 }
 
+/** Maps a `vscode-agent-host-file:` URI, which names a published same-host plugin resource, back to client space; other URIs are unchanged. */
+export function fromAgentHostFileUri(uri: URI, resourceUris: Pick<IAgentHostResourceUriMapper, 'fromAgentHost'>): URI {
+	return uri.scheme === AGENT_HOST_FILE_SCHEME ? resourceUris.fromAgentHost(uri.with({ scheme: Schemas.file })) : uri;
+}
+
 /** Resolves host-authored resources and this client's plugin sources; foreign client sources are opaque. */
 export function getAgentHostCustomizationUri(uri: URI, connection: { readonly clientId?: string; readonly resourceUris: IAgentHostResourceUriMapper }, container?: Pick<PluginCustomization, 'clientId'>): URI | undefined {
 	if (container?.clientId !== undefined) {
 		if (container.clientId !== connection.clientId) {
 			return undefined;
 		}
-		return uri.scheme === AGENT_HOST_FILE_SCHEME ? connection.resourceUris.fromAgentHost(uri.with({ scheme: Schemas.file })) : uri;
+		return fromAgentHostFileUri(uri, connection.resourceUris);
 	}
 	return connection.resourceUris.fromAgentHost(uri);
 }
@@ -281,6 +300,11 @@ export class CustomizationIndex {
 			this._add(customization, uri => getAgentHostCustomizationUri(uri, connection, customization.type === CustomizationType.Plugin ? customization : undefined));
 			for (const child of container?.children ?? []) {
 				this._add(child, uri => getAgentHostCustomizationUri(uri, connection));
+			}
+		}
+		for (const { skill, container } of getSkillCustomizations(customizations ?? [])) {
+			if (container.type === CustomizationType.McpServer) {
+				this._add(skill, uri => getAgentHostCustomizationUri(uri, connection));
 			}
 		}
 		this._reuseResolvedPaths(previous);

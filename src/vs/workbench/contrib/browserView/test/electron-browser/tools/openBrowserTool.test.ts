@@ -15,6 +15,7 @@ import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkF
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IRemoteExplorerService } from '../../../../../services/remote/common/remoteExplorerService.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { IChatModel, IChatRequestModel } from '../../../../chat/common/model/chatModel.js';
 import { BrowserViewSharingState, IBrowserViewModel, IBrowserViewWorkbenchCreateOptions, IBrowserViewWorkbenchService } from '../../../common/browserView.js';
 import { OpenBrowserTool } from '../../../electron-browser/tools/openBrowserTool.js';
 import { BrowserEditorInput } from '../../../common/browserEditorInput.js';
@@ -212,6 +213,35 @@ suite('OpenBrowserTool', () => {
 		});
 	});
 
+	test('waits for the Playwright page after sharing an existing tab', async () => {
+		let summaryArguments: readonly [string, string, string, number] | undefined;
+		const sharedModel = upcastPartial<IBrowserViewModel>({ id: 'shared-id', url: 'http://localhost:3000/' });
+		const editor = upcastPartial<BrowserEditorInput>({
+			resolve: async () => upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Available, setSharedWithAgent: async () => sharedModel }),
+		});
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({
+				waitForPageAndGetSummary: async (...args) => {
+					summaryArguments = args;
+					return 'Page summary';
+				}
+			}),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({}),
+			upcastPartial<IRemoteExplorerService>({}),
+			upcastPartial<AgentNetworkFilterService>({}),
+			upcastPartial<IChatService>({}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({}),
+		);
+
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+		await tool['_shareExistingPage']('session-id', editor);
+
+		assert.deepStrictEqual(summaryArguments, ['session-id', 'shared-id', 'http://localhost:3000/', 5000]);
+	});
+
 	test('reuses only existing pages on the network a new page would use', async () => {
 		// The lookup only considers real browser editors, whose identity and state are getters.
 		const page = (id: string, network: IBrowserViewNetwork | undefined): BrowserEditorInput => Object.create(BrowserEditorInput.prototype, {
@@ -256,6 +286,56 @@ suite('OpenBrowserTool', () => {
 
 		// Reused local pages tell the model that `localhost` is the user's machine.
 		assert.deepStrictEqual(reused, { supported: ['remote-page'], unsupported: ['local-page', 'local network notice'] });
+	});
+
+	test('does not prompt to share an existing page for a subagent invocation', async () => {
+		const model = upcastPartial<IBrowserViewModel>({ sharingState: BrowserViewSharingState.Available, isDirectlyShareable: true });
+		const page: BrowserEditorInput = Object.create(BrowserEditorInput.prototype, {
+			id: { value: 'unshared-page' },
+			url: { value: 'https://example.com/' },
+			title: { value: 'unshared-page' },
+			model: { value: model },
+			resolve: { value: async () => model },
+		});
+		const sessionResource = URI.parse('chat:session');
+		const request = upcastPartial<IChatRequestModel>({ id: 'request' });
+		const result: { appended: number; created: number } = { appended: 0, created: 0 };
+		const tool = new OpenBrowserTool(
+			upcastPartial<IPlaywrightService>({ waitForPageAndGetSummary: async () => 'Page summary' }),
+			upcastPartial<IEditorService>({}),
+			upcastPartial<IBrowserViewWorkbenchService>({
+				resolveNetwork: () => undefined,
+				getNetworkStatus: () => ({ label: 'local', connected: true, proxySupported: true }),
+				getContextualBrowserViews: () => new Map([[page.id, page]]),
+				createBrowserView: async () => {
+					result.created++;
+					return upcastPartial<BrowserEditorInput>({ id: 'new-page' });
+				},
+			}),
+			upcastPartial<IRemoteExplorerService>({}),
+			upcastPartial<AgentNetworkFilterService>({ isUriAllowed: () => true }),
+			upcastPartial<IChatService>({
+				getSession: () => upcastPartial<IChatModel>({ getRequests: () => [request] }),
+				appendProgress: () => { result.appended++; },
+			}),
+			new TestConfigurationService(),
+			upcastPartial<ILogService>({}),
+			upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: true }),
+		);
+
+		await tool.invoke(
+			upcastPartial<IToolInvocation>({
+				parameters: { url: 'https://example.com/' },
+				context: { sessionResource },
+				chatRequestId: 'request',
+				subAgentInvocationId: 'subagent-call',
+			}),
+			async () => 0,
+			upcastPartial<ToolProgress>({ report: () => { } }),
+			CancellationToken.None,
+		);
+
+		assert.deepStrictEqual(result, { appended: 0, created: 1 });
 	});
 
 	test('rechecks policy before existing-page discovery', async () => {

@@ -10,7 +10,7 @@ import { SyncDescriptor } from '../../../../../platform/instantiation/common/des
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService, IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { AbstractCustomView, ICustomViewDescriptor } from '../../browser/customView.js';
+import { AbstractCustomView, ICustomViewDescriptor } from '../../../../../workbench/contrib/sessions/browser/customView.js';
 import { CustomViewService } from '../../browser/customViewService.js';
 
 class TestCustomView extends AbstractCustomView {
@@ -100,6 +100,35 @@ suite('Sessions - CustomViewService', () => {
 			openings: ['explicit', 'history', 'explicit'],
 			descriptors: [undefined, 'view'],
 		});
+	});
+
+	test('publishes the state of each opening and keeps the shown opening when the view declines a state', () => {
+		const service = createService();
+		disposables.add(service.registerCustomView({ ...descriptor('view'), acceptsState: state => state !== 'removed' }));
+		const openings: (string | undefined)[] = [];
+		disposables.add(autorun(reader => openings.push(service.activeCustomViewOpen.read(reader)?.state)));
+
+		service.showCustomView('view', { state: 'first' });
+		service.showCustomView('view', { state: 'removed', source: 'history' });
+		service.showCustomView('view', { state: 'second' });
+		service.showCustomView('view');
+
+		assert.deepStrictEqual(openings, [undefined, 'first', 'second', undefined]);
+	});
+
+	test('a declined opening keeps the shown view as the one to restore', () => {
+		const storageService = disposables.add(new InMemoryStorageService());
+		const firstService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(firstService.registerCustomView(descriptor('automations')));
+		disposables.add(firstService.registerCustomView({ ...descriptor('canvas'), acceptsState: () => false }));
+		firstService.showCustomView('automations');
+		firstService.showCustomView('canvas', { source: 'history', state: 'removed' });
+		const shown = firstService.activeCustomView.get()?.id;
+
+		const restoredService = disposables.add(new CustomViewService(new NullLogService(), storageService));
+		disposables.add(restoredService.registerCustomView(descriptor('automations')));
+
+		assert.deepStrictEqual({ shown, restored: restoredService.activeCustomView.get()?.id }, { shown: 'automations', restored: 'automations' });
 	});
 
 	test('ignores an unknown id and drops the active view when it is unregistered', () => {

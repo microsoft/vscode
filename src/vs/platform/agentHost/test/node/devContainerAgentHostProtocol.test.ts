@@ -10,7 +10,7 @@ import { CancellationError } from '../../../../base/common/errors.js';
 import { OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { DevContainerCloseConnectionNotification, DevContainerConnectExtensionMethod, DevContainerDisconnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerSandboxSupportNotification, DevContainerRelayCloseNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, DevContainerUserStateNotification } from '../../common/agentHostExtensionProtocol.js';
 import type { IDevContainerAgentHostConnectResult } from '../../common/devContainerAgentHost.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { DevContainerAgentHostProtocol, normalizeDevContainerWorkspaceFolder } from '../../node/devContainerAgentHostProtocol.js';
@@ -70,11 +70,16 @@ suite('DevContainerAgentHostProtocol', () => {
 		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
 		await Promise.resolve();
 		service.sandboxSupport.fire({ connectionId: service.connects[0].connectionId, supported: false });
+		service.userState.fire({ connectionId: service.connects[0].connectionId, stage: 'link', outcome: 'failed', reason: 'script', exitCode: 1 });
 		await result.error(new Error('Unsupported sandbox startup'));
 		await rejected;
+		service.userState.fire({ connectionId: service.connects[0].connectionId, stage: 'userCommands', outcome: 'succeeded' });
 		assert.deepStrictEqual(notifications, [{
 			method: DevContainerSandboxSupportNotification,
 			params: { connectionId: config.connectionId, supported: false },
+		}, {
+			method: DevContainerUserStateNotification,
+			params: { connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', exitCode: 1 },
 		}]);
 	});
 
@@ -84,15 +89,19 @@ suite('DevContainerAgentHostProtocol', () => {
 			await pending.p;
 			throw new Error('Unsupported sandbox startup');
 		}));
-		const observed: boolean[] = [];
+		const observed: unknown[] = [];
 		store.add(client.onDidChangeSandboxSupport(event => observed.push(event.supported)));
+		store.add(client.onDidReportUserState(event => observed.push(event)));
 		const request = client.connect(config);
 		const rejected = assert.rejects(request, /Unsupported sandbox startup/);
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: false });
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' });
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'unknown', outcome: 'failed' });
 		await pending.complete();
 		await rejected;
 		client.handleNotification(DevContainerSandboxSupportNotification, { connectionId: config.connectionId, supported: true });
-		assert.deepStrictEqual(observed, [false]);
+		client.handleNotification(DevContainerUserStateNotification, { connectionId: config.connectionId, stage: 'userCommands', outcome: 'succeeded' });
+		assert.deepStrictEqual(observed, [false, { connectionId: config.connectionId, stage: 'mount', outcome: 'failed', reason: 'volume', target: 'workspaces' }]);
 	});
 
 	test('isolates IDs and notifications between transports', async () => {

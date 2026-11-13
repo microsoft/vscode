@@ -5,7 +5,7 @@
 
 import { URI } from '../../../base/common/uri.js';
 import { IRange } from '../core/range.js';
-import { IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
+import { DiffFallbackReason, IDocumentDiff, IDocumentDiffProviderOptions } from '../diff/documentDiffProvider.js';
 import { LinesDiffValidity } from '../diff/verifyLinesDiff.js';
 import { IChange } from '../diff/legacyLinesDiffComputer.js';
 import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from '../languages.js';
@@ -25,6 +25,12 @@ export interface IStringEditFromDiff {
 	readonly isCoarse: boolean;
 }
 
+export interface IStringDiffOptions {
+	readonly maxComputationTimeMs: number;
+	/** Preserve matching characters instead of coalescing display changes. Only supported by the built-in advanced algorithm. */
+	readonly computeRawChanges?: boolean;
+}
+
 export interface IEditorWorkerService {
 	readonly _serviceBrand: undefined;
 
@@ -32,7 +38,7 @@ export interface IEditorWorkerService {
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
 	/**
-	 * Implementation in {@link EditorWorker.computeDiff}.
+	 * Implementation in {@link EditorWorker.$computeDiff}.
 	 * If `verify` is set, the worker also checks that the diff reproduces the modified text, see {@link IDocumentDiff.validity}.
 	 * This is linear in the document size, so it should only be requested for a sample of diffs.
 	 */
@@ -44,8 +50,8 @@ export interface IEditorWorkerService {
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
 	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
 
-	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit>;
-	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff>;
+	computeStringEditFromDiff(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<StringEdit>;
+	computeStringEditFromDiffWithMetadata(original: string, modified: string, options: IStringDiffOptions, algorithm: DiffAlgorithmName): Promise<IStringEditFromDiff>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;
@@ -66,6 +72,8 @@ export interface IDiffComputationResult {
 	moves: ITextMove[];
 	/** Only set if verification was requested. */
 	validity?: LinesDiffValidity;
+	/** Set if the result of the built-in algorithm was used instead of the requested one. */
+	fallback?: DiffFallbackReason;
 }
 
 export type ILineChange = [

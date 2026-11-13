@@ -63,7 +63,7 @@ suite('Copilot SDK - customization discovery', function () {
 				})),
 			}, {
 				native: [],
-				published: [{ name: 'preToolUse', enabled: true, source: 'repository', readable: false }],
+				published: [{ name: 'preToolUse', enabled: true, source: 'repository', readable: true }],
 			});
 		} finally {
 			store.clear();
@@ -113,6 +113,9 @@ suite('Copilot SDK - customization discovery', function () {
 			const customizations = await discovery.discover(client, CancellationToken.None);
 			const children = customizations.flatMap(item => item.type === CustomizationType.McpServer ? [item] : item.children ?? []);
 			assert.deepStrictEqual({
+				plugins: customizations.filter(item => item.type === CustomizationType.Plugin).map(item => ({
+					name: item.name, children: item.children?.map(child => child.type),
+				})).sort((a, b) => a.name.localeCompare(b.name)),
 				hooks: children.filter(item => item.type === CustomizationType.Hook).map(item => ({
 					name: item.name, enabled: item.enabled, source: readCustomizationDiscoveryMeta(item)?.source,
 					readable: hasReadableCustomizationContent(URI.parse(item.uri)),
@@ -122,7 +125,11 @@ suite('Copilot SDK - customization discovery', function () {
 					enabled: readCustomizationDiscoveryMeta(item)?.defaultEnabled,
 				})),
 			}, {
-				hooks: [{ name: 'sessionStart', enabled: true, source: 'plugin', readable: false }],
+				plugins: [
+					{ name: 'hooks-inventory', children: [CustomizationType.Hook] },
+					{ name: 'mcp-inventory', children: [CustomizationType.McpServer] },
+				],
+				hooks: [{ name: 'sessionStart', enabled: true, source: 'plugin', readable: true }],
 				mcp: [{ name: 'inventory-server', state: McpServerStatus.Stopped, source: 'plugin', enabled: true }],
 			});
 			for (const { plugin } of installations) {

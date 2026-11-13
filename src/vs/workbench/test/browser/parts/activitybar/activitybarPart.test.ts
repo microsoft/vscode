@@ -5,27 +5,61 @@
 
 import assert from 'assert';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestColorTheme, TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { TestStorageService } from '../../../common/workbenchTestServices.js';
-import { TestHostService, TestLayoutService } from '../../workbenchTestServices.js';
+import { TestHostService, TestLayoutService, TestMenuService, workbenchInstantiationService } from '../../workbenchTestServices.js';
 import { ActivitybarPart, ActivityBarCompositeBar } from '../../../../browser/parts/activitybar/activitybarPart.js';
 import { IViewSize } from '../../../../../base/browser/ui/grid/grid.js';
-import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, LayoutSettings, ModernUIDensity, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
+import { COMPACT_FLOATING_PANEL_OUTER_MARGIN, isCompactMenuInTitlebar, IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts, Position } from '../../../../services/layout/browser/layoutService.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
-import { IConfigurationChangeEvent } from '../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IPaneCompositePart } from '../../../../browser/parts/paneCompositePart.js';
 import { IPaneCompositeBarOptions } from '../../../../browser/parts/paneCompositeBar.js';
 import { Event, Emitter } from '../../../../../base/common/event.js';
 import { IPaneComposite } from '../../../../common/panecomposite.js';
 import { Extensions, PaneCompositeDescriptor } from '../../../../browser/panecomposite.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ViewContainerLocation } from '../../../../common/views.js';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IActivityService } from '../../../../services/activity/common/activity.js';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BACKGROUND, MODERN_ACTIVITY_BAR_BACKGROUND, MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND } from '../../../../common/theme.js';
+import { editorBackground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Dimension } from '../../../../../base/browser/dom.js';
 import { GlobalCompositeBar } from '../../../../browser/parts/globalCompositeBar.js';
+import { IMenu, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
+import { CustomMenubarControl } from '../../../../browser/parts/titlebar/menubarControl.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { getMenuBarVisibility, hasNativeMenu, hasNativeTitlebar } from '../../../../../platform/window/common/window.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { setFullscreen } from '../../../../../base/browser/browser.js';
+
+function stubMenubarServices(instantiationService: TestInstantiationService): void {
+	// The custom menu bar expects the main menu to have at least one (possibly empty) group.
+	instantiationService.stub(IMenuService, new class extends TestMenuService {
+		override createMenu(): IMenu {
+			return { onDidChange: Event.None, dispose: () => undefined, getActions: () => [['', []]] };
+		}
+	}());
+	instantiationService.stub(IUpdateService, new class extends mock<IUpdateService>() {
+		override readonly onStateChange = Event.None;
+		override get state() { return { type: StateType.Uninitialized as const }; }
+	}());
+}
+
+// On web, the first CustomMenubarControl lazily registers a global focus action that is never
+// unregistered. Create one before the suite snapshots the registries so it is not reported as a leak.
+{
+	const disposables = new DisposableStore();
+	const instantiationService = workbenchInstantiationService(undefined, disposables);
+	stubMenubarServices(instantiationService);
+	disposables.add(instantiationService.createInstance(CustomMenubarControl));
+	disposables.dispose();
+}
 
 interface ILayoutTestHarness {
 	menuBarContainer: HTMLElement | undefined;
@@ -34,6 +68,7 @@ interface ILayoutTestHarness {
 	lastLayoutDimensions?: Dimension;
 	options: { orientation: ActionsOrientation };
 	compositeBar: { layout: (dimension: Dimension) => void };
+	recomputeSizesIfVisible(): void;
 }
 
 // `super.layout()` resolves through the prototype chain, so calling the extracted method
@@ -96,11 +131,12 @@ suite('ActivitybarPart', () => {
 		disposables.clear();
 	});
 
-	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false, instantiationService?: IInstantiationService): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
+	function createActivitybarPart(compact: boolean, floatingPanelsEnabled = false, sideBarPosition = Position.LEFT, colors: { [id: string]: string | undefined } = {}, modernUICompact = false, instantiationService?: IInstantiationService, tabStyle = ModernUIEditorTabStyle.Pill): { part: ActivitybarPart; configService: TestConfigurationService; layoutService: TestFloatingPanelsLayoutService; hostService: TestHostService } {
 		const configService = new TestConfigurationService({
 			[LayoutSettings.ACTIVITY_BAR_COMPACT]: compact,
 			[LayoutSettings.MODERN_UI]: floatingPanelsEnabled,
 			[LayoutSettings.MODERN_UI_DENSITY]: modernUICompact ? ModernUIDensity.Compact : ModernUIDensity.Default,
+			[LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE]: tabStyle,
 		});
 		const storageService = disposables.add(new TestStorageService());
 		const themeService = new TestThemeService(new TestColorTheme(colors));
@@ -527,6 +563,36 @@ suite('ActivitybarPart', () => {
 		});
 	});
 
+	test('default Activity Bar keeps its own colors when connected tabs are enabled', async () => {
+		const actual = [];
+		for (const colors of [
+			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_CONNECTED_TABS_BACKGROUND]: '#ffffff80', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#123456' },
+			{ [editorBackground]: '#000000', [EDITOR_GROUP_HEADER_TABS_BACKGROUND]: '#345678' },
+			{ [editorBackground]: '#102030' },
+		]) {
+			const { part, configService, hostService } = createActivitybarPart(false, true, Position.LEFT, {
+				[MODERN_ACTIVITY_BAR_BACKGROUND]: '#abcdef',
+				[MODERN_ACTIVITY_BAR_INACTIVE_BACKGROUND]: '#654321',
+				...colors,
+			}, false, undefined, ModernUIEditorTabStyle.Connected);
+			hostService.setActiveWindow(mainWindow.vscodeWindowId);
+			const element = document.createElement('div');
+			fixture.appendChild(element);
+			part.create(element);
+			const active = element.style.backgroundColor;
+			hostService.setActiveWindow(mainWindow.vscodeWindowId + 1);
+			const inactive = element.style.backgroundColor;
+			await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+			fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+			actual.push({ active, inactive, pill: element.style.backgroundColor });
+		}
+		assert.deepStrictEqual(actual, [
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+			{ active: 'rgb(171, 205, 239)', inactive: 'rgb(101, 67, 33)', pill: 'rgb(101, 67, 33)' },
+		]);
+	});
+
 	// --- toJSON ------------------------------------------------------------
 
 	test('toJSON returns correct part type', () => {
@@ -607,7 +673,7 @@ suite('ActivitybarPart', () => {
 	// The composite bar decides how many activity icons fit before collapsing the rest into
 	// the overflow ("Additional Views") menu, so the size it is handed has to match the
 	// vertical space an item actually occupies in the current mode.
-	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
+	function capturedCompositeBarOptions(compact: boolean, floatingPanelsEnabled: boolean, modernUICompact = false, tabStyle = ModernUIEditorTabStyle.Pill): { options: IPaneCompositeBarOptions; globalActivities: { actionHeight: number; actionGap: number } } {
 		let captured: IPaneCompositeBarOptions | undefined;
 		let capturedGlobalActivities: { actionHeight: number; actionGap: number } | undefined;
 		const stubCompositeBar = { create: () => { }, layout: () => { }, dispose: () => { } };
@@ -617,7 +683,7 @@ suite('ActivitybarPart', () => {
 				capturedGlobalActivities = globalActivities;
 				return stubCompositeBar;
 			}
-		} as unknown as IInstantiationService);
+		} as unknown as IInstantiationService, tabStyle);
 
 		const el = document.createElement('div');
 		fixture.appendChild(el);
@@ -653,6 +719,49 @@ suite('ActivitybarPart', () => {
 				modernCompactDensity: { compositeSize: 40, overflowActionSize: 40, globalActivities: { actionHeight: 36, actionGap: 4 } },
 			}
 		);
+	});
+
+	test('default Activity Bar retains its existing row and overflow sizes with connected tabs', () => {
+		const actual = [];
+		for (const compactDensity of [false, true]) {
+			for (const compactIcons of [false, true]) {
+				const { options, globalActivities } = capturedCompositeBarOptions(compactIcons, true, compactDensity, ModernUIEditorTabStyle.Connected);
+				actual.push({
+					actionHeight: globalActivities.actionHeight,
+					actionGap: globalActivities.actionGap,
+					compositeSize: options.compositeSize,
+					overflowActionSize: options.overflowActionSize,
+				});
+			}
+		}
+		assert.deepStrictEqual(actual, [
+			{ actionHeight: 36, actionGap: 8, compositeSize: 44, overflowActionSize: 44 },
+			{ actionHeight: 28, actionGap: 0, compositeSize: 28, overflowActionSize: 28 },
+			{ actionHeight: 36, actionGap: 4, compositeSize: 40, overflowActionSize: 40 },
+			{ actionHeight: 28, actionGap: 0, compositeSize: 28, overflowActionSize: 28 },
+		]);
+	});
+
+	test('changing the tab style leaves the default Activity Bar dimensions unchanged', async () => {
+		const { part, configService } = createActivitybarPart(false, true, Position.LEFT, {}, false, undefined, ModernUIEditorTabStyle.Connected);
+		const element = document.createElement('div');
+		fixture.appendChild(element);
+		part.create(element);
+		const capture = () => ({
+			width: element.style.getPropertyValue('--activity-bar-width'),
+			height: element.style.getPropertyValue('--activity-bar-action-height'),
+		});
+		const connected = capture();
+		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Pill);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		const pill = capture();
+		await configService.setUserConfiguration(LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE, ModernUIEditorTabStyle.Connected);
+		fireConfigChange(configService, LayoutSettings.MODERN_UI_EDITOR_TAB_STYLE);
+		assert.deepStrictEqual({ connected, pill, restored: capture() }, {
+			connected: { width: '36px', height: '36px' },
+			pill: { width: '36px', height: '36px' },
+			restored: { width: '36px', height: '36px' },
+		});
 	});
 
 	// The gap is rendered *between* items, so N items occupy `N * height + (N - 1) * gap`.
@@ -723,6 +832,7 @@ suite('ActivitybarPart', () => {
 			globalActivities: { actionHeight: itemHeight, actionGap: gap },
 			options: { orientation: ActionsOrientation.VERTICAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
+			recomputeSizesIfVisible: () => { },
 		}, ActivitybarPart.FLOATING_ACTIVITYBAR_WIDTH, 300);
 
 		return laidOut!.height;
@@ -759,9 +869,277 @@ suite('ActivitybarPart', () => {
 			globalActivities: undefined,
 			options: { orientation: ActionsOrientation.HORIZONTAL },
 			compositeBar: { layout: dimension => { laidOut = dimension; } },
+			recomputeSizesIfVisible: () => { },
 		}, 300, 35);
 
 		assert.deepStrictEqual(laidOut, new Dimension(265, 35));
+	});
+
+	// --- compact menu ownership ------------------------------------------------
+
+	const activityBarOptions: IPaneCompositeBarOptions = {
+		partContainerClass: 'activitybar',
+		pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
+		placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
+		viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
+		orientation: ActionsOrientation.VERTICAL,
+		icon: true,
+		iconSize: 24,
+		activityHoverOptions: { position: () => HoverPosition.RIGHT },
+		preventLoopNavigation: true,
+		recomputeSizes: false,
+		fillExtraContextMenuActions: () => { },
+		compositeSize: 48,
+		colors: () => ({
+			activeForegroundColor: undefined,
+			inactiveForegroundColor: undefined,
+			activeBorderColor: undefined,
+			activeBackground: undefined,
+			badgeBackground: undefined,
+			badgeForeground: undefined,
+			dragAndDropBorder: undefined,
+			activeBackgroundColor: undefined,
+			inactiveBackgroundColor: undefined,
+			activeBorderBottomColor: undefined,
+		}),
+		overflowActionSize: 48,
+	};
+
+	// Compact menus are unsupported where the platform forces a native menu (e.g. native macOS).
+	const compactSupported = getMenuBarVisibility(new TestConfigurationService({ 'window.menuBarVisibility': 'compact' })) === 'compact';
+
+	function createActivityBarCompositeBar(menuBarVisibility: string, activityBarLocation: string, sideBarLocation = 'left', windowConfig: Record<string, string> = {}) {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		// `window` settings are nested because helpers such as `hasNativeTitlebar` read `getValue('window')`.
+		const windowConfiguration: Record<string, string> = { menuBarVisibility, ...windowConfig };
+		const configurationService = new TestConfigurationService({
+			window: windowConfiguration,
+			[LayoutSettings.ACTIVITY_BAR_LOCATION]: activityBarLocation,
+			'workbench.sideBar.location': sideBarLocation,
+		});
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IWorkbenchLayoutService, new TestFloatingPanelsLayoutService());
+		stubMenubarServices(instantiationService);
+		instantiationService.stub(IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+			override readonly onDidChangeContainerLocation = Event.None;
+			override readonly onDidChangeViewContainers = Event.None;
+			override getViewContainersByLocation() { return []; }
+		});
+		instantiationService.stub(IActivityService, new class extends mock<IActivityService>() {
+			override readonly onDidChangeActivity = Event.None;
+			override getViewContainerActivities() { return []; }
+		});
+
+		const bar = disposables.add(instantiationService.createInstance(ActivityBarCompositeBar, ViewContainerLocation.Sidebar, activityBarOptions, Parts.ACTIVITYBAR_PART, new StubPaneCompositePart(), undefined));
+		const parent = document.createElement('div');
+		fixture.appendChild(parent);
+		bar.create(parent);
+
+		let focusCount = 0;
+		(bar as unknown as { focus(): void }).focus = () => { focusCount++; };
+
+		const setLocation = (location: string) => {
+			configurationService.setUserConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION, location);
+			fireConfigChange(configurationService, LayoutSettings.ACTIVITY_BAR_LOCATION);
+		};
+		const setWindowSetting = (name: string, value: string) => {
+			windowConfiguration[name] = value;
+			fireConfigChange(configurationService, `window.${name}`);
+		};
+		const setVisibility = (visibility: string) => setWindowSetting('menuBarVisibility', visibility);
+
+		return {
+			bar,
+			parent,
+			configurationService,
+			setLocation,
+			setVisibility,
+			setWindowSetting,
+			menubars: () => parent.querySelectorAll('.menubar').length,
+			focusCount: () => focusCount,
+		};
+	}
+
+	function pressKey(target: HTMLElement, key: string, keyCode: number): void {
+		target.dispatchEvent(new KeyboardEvent('keydown', { key, keyCode, bubbles: true } as KeyboardEventInit));
+	}
+
+	test('activity bar owns the compact menu exactly when the titlebar does not, across location changes', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
+		const harness = createActivityBarCompositeBar('compact', 'default');
+		const observed: { location: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
+		const record = (location: string) => observed.push({ location, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
+
+		record('default');
+		for (const location of ['top', 'bottom', 'default', 'top', 'default', 'hidden']) {
+			harness.setLocation(location);
+			record(location);
+		}
+
+		assert.deepStrictEqual(observed, [
+			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
+			{ location: 'top', activityBarMenubars: 0, titlebarOwns: true },
+			{ location: 'bottom', activityBarMenubars: 0, titlebarOwns: true },
+			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
+			{ location: 'top', activityBarMenubars: 0, titlebarOwns: true },
+			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
+			{ location: 'hidden', activityBarMenubars: 1, titlebarOwns: false },
+		]);
+	});
+
+	test('activity bar takes the compact menu when the custom title bar is hidden and releases it when shown', function () {
+		const windowConfig = {
+			titleBarStyle: 'native',
+			menuStyle: 'custom',
+			customTitleBarVisibility: 'auto',
+		};
+		const precondition = new TestConfigurationService({ window: { menuBarVisibility: 'compact', ...windowConfig } });
+		if (isWeb || isMacintosh) {
+			this.skip();
+		}
+		assert.deepStrictEqual({ nativeTitlebar: hasNativeTitlebar(precondition), nativeMenu: hasNativeMenu(precondition), menuBarVisibility: getMenuBarVisibility(precondition) }, { nativeTitlebar: true, nativeMenu: false, menuBarVisibility: 'compact' });
+		const harness = createActivityBarCompositeBar('compact', 'top', 'left', windowConfig);
+		const observed: { step: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
+		const record = (step: string) => observed.push({ step, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
+
+		try {
+			record('initial');
+			harness.setWindowSetting('customTitleBarVisibility', 'never');
+			record('hidden');
+			harness.setWindowSetting('customTitleBarVisibility', 'auto');
+			record('shown');
+			harness.setWindowSetting('customTitleBarVisibility', 'never');
+			record('hiddenAgain');
+			harness.setWindowSetting('customTitleBarVisibility', 'windowed');
+			record('windowed');
+			setFullscreen(true, mainWindow);
+			record('fullscreen');
+			setFullscreen(false, mainWindow);
+			record('exitFullscreen');
+			setFullscreen(true, mainWindow);
+			record('fullscreenAgain');
+			setFullscreen(false, mainWindow);
+			record('exitFullscreenAgain');
+		} finally {
+			setFullscreen(false, mainWindow);
+		}
+
+		const titlebar = { activityBarMenubars: 0, titlebarOwns: true };
+		const activityBar = { activityBarMenubars: 1, titlebarOwns: false };
+		assert.deepStrictEqual(observed, [
+			{ step: 'initial', ...titlebar },
+			{ step: 'hidden', ...activityBar },
+			{ step: 'shown', ...titlebar },
+			{ step: 'hiddenAgain', ...activityBar },
+			{ step: 'windowed', ...titlebar },
+			{ step: 'fullscreen', ...activityBar },
+			{ step: 'exitFullscreen', ...titlebar },
+			{ step: 'fullscreenAgain', ...activityBar },
+			{ step: 'exitFullscreenAgain', ...titlebar },
+		]);
+	});
+
+	for (const location of ['top', 'bottom']) {
+		test(`activity bar does not install the compact menu when created with the activity bar at the ${location}`, function () {
+			if (!compactSupported) {
+				this.skip();
+			}
+			const harness = createActivityBarCompositeBar('compact', location);
+			const atCreation = harness.menubars();
+			harness.setLocation('default');
+			const afterMovingToSide = harness.menubars();
+
+			assert.deepStrictEqual({ atCreation, afterMovingToSide }, { atCreation: 0, afterMovingToSide: 1 });
+		});
+	}
+
+	test('activity bar does not install the compact menu for non-compact menu bar visibility', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
+		const classic = createActivityBarCompositeBar('classic', 'default');
+		const toggle = createActivityBarCompositeBar('toggle', 'default');
+		const compact = createActivityBarCompositeBar('compact', 'default');
+		const compactBefore = compact.menubars();
+		compact.setVisibility('classic');
+		const compactAfterClassic = compact.menubars();
+		compact.setVisibility('compact');
+		const compactAfterCompact = compact.menubars();
+
+		assert.deepStrictEqual(
+			{ classic: classic.menubars(), toggle: toggle.menubars(), compactBefore, compactAfterClassic, compactAfterCompact },
+			{ classic: 0, toggle: 0, compactBefore: 1, compactAfterClassic: 0, compactAfterCompact: 1 }
+		);
+	});
+
+	test('compact menu keyboard navigation works after reinstall and is removed with the menu', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
+		const harness = createActivityBarCompositeBar('compact', 'default');
+		const firstContainer = harness.parent.querySelector<HTMLElement>('.menubar')!;
+
+		harness.setLocation('top');
+		pressKey(firstContainer, 'ArrowDown', 40);
+		const focusAfterUninstall = harness.focusCount();
+
+		harness.setLocation('default');
+		const reinstalled = harness.parent.querySelector<HTMLElement>('.menubar')!;
+		pressKey(reinstalled, 'ArrowDown', 40);
+		pressKey(reinstalled, 'ArrowRight', 39);
+		pressKey(reinstalled, 'ArrowUp', 38);
+
+		assert.deepStrictEqual(
+			{
+				firstContainerDetached: !firstContainer.isConnected,
+				focusAfterUninstall,
+				reinstalledIsNewElement: reinstalled !== firstContainer,
+				reinstalledIsFirstChild: reinstalled.parentElement?.firstElementChild === reinstalled,
+				focusAfterReinstall: harness.focusCount(),
+			},
+			{
+				firstContainerDetached: true,
+				focusAfterUninstall: 0,
+				reinstalledIsNewElement: true,
+				reinstalledIsFirstChild: true,
+				focusAfterReinstall: 2,
+			}
+		);
+	});
+
+	test('disposing the activity bar removes the compact menu control', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
+		const harness = createActivityBarCompositeBar('compact', 'default');
+		const before = harness.menubars();
+		const container = harness.parent.querySelector<HTMLElement>('.menubar')!;
+		harness.bar.dispose();
+		pressKey(container, 'ArrowDown', 40);
+
+		assert.deepStrictEqual({ before, focusAfterDispose: harness.focusCount() }, { before: 1, focusAfterDispose: 0 });
+	});
+
+	test('compact menu opens away from the sidebar edge', function () {
+		if (!compactSupported) {
+			this.skip();
+		}
+		const openMenu = (sideBarLocation: string) => {
+			const harness = createActivityBarCompositeBar('compact', 'default', sideBarLocation);
+			const button = harness.parent.querySelector<HTMLElement>('.menubar .menubar-menu-button')!;
+			button.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+			const holder = harness.parent.querySelector<HTMLElement>('.menubar-menu-items-holder');
+			const result = { opened: !!holder, opensLeftward: holder?.style.left === 'auto' };
+			harness.bar.dispose();
+			return result;
+		};
+
+		assert.deepStrictEqual(
+			{ left: openMenu('left'), right: openMenu('right') },
+			{ left: { opened: true, opensLeftward: false }, right: { opened: true, opensLeftward: true } }
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

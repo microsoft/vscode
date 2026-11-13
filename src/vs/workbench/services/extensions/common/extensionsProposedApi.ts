@@ -16,6 +16,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { Extensions, IExtensionFeatureMarkdownRenderer, IExtensionFeaturesRegistry, IRenderedData } from '../../extensionManagement/common/extensionFeatures.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Mutable } from '../../../../base/common/types.js';
+import { extensionsAllowedAnyApiProposal } from './extensionsProposedApiExceptions.js';
 
 export class ExtensionsProposedApi {
 
@@ -76,6 +77,11 @@ export class ExtensionsProposedApi {
 			});
 		}
 
+
+		if (extensionsAllowedAnyApiProposal.has(key)) {
+			// hard-coded exception: the extension uses the proposals it declares
+			return;
+		}
 
 		if (this._productEnabledExtensions.has(key)) {
 			// NOTE that proposals that are listed in product.json override whatever is declared in the extension

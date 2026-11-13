@@ -13,8 +13,8 @@ import { NullLogService } from '../../../log/common/log.js';
 import type { IAgentServerToolHost } from '../../common/agentServerTools.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
-import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
+import { chatTurnStarted } from '../common/chatActionBuilders.js';
+import { buildChatUri, buildDefaultChatUri, SessionStatus, type ToolDefinition } from '../../common/state/sessionState.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { IAgentSdkDownloader } from '../../node/agentSdkDownloader.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -38,7 +38,7 @@ function makeSdk(): { sdk: IClaudeAgentSdkService; recorded: RecordedTool[] } {
 	const recorded: RecordedTool[] = [];
 	const sdk = {
 		createSdkMcpServer: async (options: { name: string }) =>
-			({ name: options.name, instance: { __fake: true } } as unknown as McpSdkServerConfigWithInstance),
+		({ name: options.name, instance: { __fake: true } } as unknown as McpSdkServerConfigWithInstance),
 		tool: async (name: string, _desc: string, _schema: unknown, handler: (args: Record<string, unknown>, extra: unknown) => Promise<CallToolResult>, options?: Parameters<IClaudeAgentSdkService['tool']>[4]) => {
 			const t = { name, handler, options };
 			recorded.push(t);
@@ -136,10 +136,7 @@ suite('claudeServerToolMcpServer / buildServerToolMcpServer', () => {
 			defaultChat: buildDefaultChatUri(sessionUri),
 		});
 		stateManager.addChat(sessionUri, chatUri, creationTimeChatStorageResource(sessionUri, chatUri, buildDefaultChatUri(sessionUri)));
-		stateManager.dispatchServerAction(chatUri, {
-			type: ActionType.ChatTurnStarted, turnId: 'artifact-tools', startedAt: new Date(0).toISOString(),
-			message: { text: 'Manage the recorded artifacts', origin: { kind: MessageKind.User } },
-		});
+		stateManager.dispatchServerAction(chatUri, chatTurnStarted('artifact-tools', 'Manage the recorded artifacts', new Date(0).toISOString()));
 		let enabled = true;
 		const host = new AgentServerToolHost(stateManager, [createArtifactServerToolGroup({
 			isEnabled: () => enabled,

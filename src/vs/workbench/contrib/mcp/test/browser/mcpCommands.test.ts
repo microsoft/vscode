@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { constObservable } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { McpServerStatus } from '../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -15,7 +16,7 @@ import { AICustomizationManagementCommands, AICustomizationManagementSection } f
 import { ContributionEnablementState } from '../../../chat/common/enablement.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { findLocalMcpServer, McpBrowseCommand, McpBrowsePageCommand, ShowInstalledMcpServersCommand } from '../../browser/mcpCommands.js';
+import { findLocalMcpServer, McpAuthenticateAgentHostServerCommand, McpBrowseCommand, McpBrowsePageCommand, ShowInstalledMcpServersCommand } from '../../browser/mcpCommands.js';
 import { IMcpServer, IMcpService, IMcpWorkbenchService, InstalledMcpServersViewId } from '../../common/mcpTypes.js';
 
 type AgentHostMcpServer = ReturnType<IAgentHostCustomizationService['getMcpServers']>[number];
@@ -54,6 +55,25 @@ function agentHostServer(id: string, name: string): AgentHostMcpServer {
 
 suite('MCP commands', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('sign-in revives the linked session and authenticates its exact server directly', async () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		const sessionResource = URI.parse('agent-host-copilotcli://remote-host/other-session');
+		const calls: { resource: URI; serverId: string }[] = [];
+		instantiationService.stub(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+			override async authenticateMcpServer(resource: URI, serverId: string): Promise<boolean> {
+				calls.push({ resource, serverId });
+				return false;
+			}
+		}());
+		const result = await instantiationService.invokeFunction(accessor =>
+			new McpAuthenticateAgentHostServerCommand().run(accessor, sessionResource.toJSON(), 'session/opaque-server-id'));
+
+		assert.deepStrictEqual({ result, calls }, {
+			result: false,
+			calls: [{ resource: sessionResource, serverId: 'session/opaque-server-id' }],
+		});
+	});
 
 	test('findLocalMcpServer matches exact, unambiguous definition IDs and labels', () => {
 		const byId = new TestMcpServer('extension.server', 'Extension Server');

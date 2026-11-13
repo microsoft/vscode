@@ -11,7 +11,7 @@ import { IRange, Range } from '../../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { PositionOffsetTransformer } from '../../../../../editor/common/core/text/positionToOffset.js';
 import { isLocation } from '../../../../../editor/common/languages.js';
-import { ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequest, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
+import { chatAgentLeader, ChatRequestDynamicVariablePart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, chatVariableLeader, IParsedChatRequest, IParsedChatRequestPart } from '../requestParser/chatParserTypes.js';
 import { IChatRequestVariableEntry, isAgentHostCompletionVariableEntry, isPastedTextArtifact } from './chatVariableEntries.js';
 import { IDynamicVariable } from './chatVariables.js';
 
@@ -55,6 +55,12 @@ export interface IInlineAttachmentAnchor {
 	 * of the pill's reference, and is unset for the prompt that is persisted.
 	 */
 	readonly promptText?: string;
+	/**
+	 * Whether the prompt says the pill's text exactly where the pill is, rather
+	 * than separated from adjacent text by spaces, as for a link, which needs no
+	 * parsing as a token of its own and may be enclosed in other text.
+	 */
+	readonly verbatim?: boolean;
 }
 
 /**
@@ -93,8 +99,9 @@ interface IProjectedAnchor {
 /**
  * Projects a chat input with inline attachment pills onto the prompt it
  * represents. A pill's text is separated from adjacent text with a space so it
- * parses as its own token. An {@link INLINE_ATTACHMENT_ANCHOR} without a pill
- * is dropped from the prompt.
+ * parses as its own token, unless the pill is {@link IInlineAttachmentAnchor.verbatim verbatim},
+ * while adjacent pills are always separated from each other. An
+ * {@link INLINE_ATTACHMENT_ANCHOR} without a pill is dropped from the prompt.
  *
  * @returns `undefined` when the input contains no anchor, in which case the
  * input already is the prompt.
@@ -114,6 +121,8 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 	const projected: IProjectedAnchor[] = [];
 	let text = '';
 	let copiedUntil = 0;
+	// Where the text of the previous pill ends in the prompt.
+	let previousEnd = -1;
 	for (let offset = input.indexOf(INLINE_ATTACHMENT_ANCHOR); offset !== -1; offset = input.indexOf(INLINE_ATTACHMENT_ANCHOR, offset + 1)) {
 		text += input.slice(copiedUntil, offset);
 		copiedUntil = offset + 1;
@@ -125,11 +134,13 @@ export function projectInlineAttachments(input: string, anchors: readonly IInlin
 			continue;
 		}
 
-		const leading = text.length > 0 && !isWhitespace(text.charAt(text.length - 1)) ? ' ' : '';
+		// A pill right after another one is separated from it, whose trailing space a pill leaves to the next one.
+		const leading = text.length > 0 && !isWhitespace(text.charAt(text.length - 1)) && (!anchor.verbatim || promptOffset === previousEnd) ? ' ' : '';
 		const next = nextPromptCharacter(input, offset + 1, anchorsByOffset);
-		const trailing = next !== undefined && next !== INLINE_ATTACHMENT_ANCHOR && !isWhitespace(next) ? ' ' : '';
+		const trailing = !anchor.verbatim && next !== undefined && next !== INLINE_ATTACHMENT_ANCHOR && !isWhitespace(next) ? ' ' : '';
 		const replacement = leading + anchor.text + trailing;
 		text += replacement;
+		previousEnd = text.length;
 		projected.push({ inputOffset: offset, promptOffset, replacement, textStart: promptOffset + leading.length, anchor });
 	}
 	text += input.slice(copiedUntil);
@@ -223,9 +234,19 @@ export function canShowAttachmentInline(attachment: IChatRequestVariableEntry): 
  * to the request once, however many pills mention it.
  */
 export function getAttachmentPromptText(attachment: IChatRequestVariableEntry): string {
-	const name = getAttachmentLabel(attachment).replace(/\r\n|\r|\n/g, ' ');
+	const name = getAttachmentPromptName(attachment);
 	const location = getAttachmentLocation(attachment);
-	return location ? `[${name.replace(/[\\[\]]/g, '\\$&')}](${location})` : name;
+	return location ? `${getMarkdownLinkLabel(name)}(${location})` : name;
+}
+
+/** The name of an attachment in the prompt sent to the model, see {@link getAttachmentPromptText}. */
+function getAttachmentPromptName(attachment: IChatRequestVariableEntry): string {
+	return getAttachmentLabel(attachment).replace(/\r\n|\r|\n/g, ' ');
+}
+
+/** The label of a Markdown link that reads as `name`, such as `[index.ts]`. */
+function getMarkdownLinkLabel(name: string): string {
+	return `[${name.replace(/[\\[\]]/g, '\\$&')}]`;
 }
 
 /** The name of an attachment, as its pill shows it. */
@@ -348,8 +369,13 @@ export function getInlineRequestAttachments(parts: readonly IParsedChatRequestPa
  * attachment again: what the prompt says in its place, see
  * {@link getAttachmentPromptText}, its mention by name, see
  * {@link getAttachmentMention}, the reference that a completion inserts for a
- * file or folder, or the link of a GitHub issue or pull request. Mentions of
- * attachments that share a name are bound to them in order.
+ * file or folder, or the link of a GitHub issue or pull request. A Markdown
+ * link that reads as an attachment's name mentions the attachment wherever the
+ * link goes, since history may keep an attachment elsewhere than the prompt
+ * said, as an agent host keeps its own copy of an image. A link is bound to the
+ * attachment that it links to however often it is mentioned, and links to a
+ * location that attachments share are bound to them in order. Other mentions of
+ * attachments that share a name are bound to the ones that remain, in order.
  */
 export function recoverAttachmentMentions(message: IParsedChatRequest, variables: readonly IChatRequestVariableEntry[]): IParsedChatRequest {
 	const referencedIds = new Set<string>();
@@ -360,11 +386,19 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 	}
 	const byMention = new Map<string, IChatRequestVariableEntry[]>();
 	const links = new Set<string>();
+	// The starts of Markdown links, such as `[index.ts](`, whose destinations follow.
+	const markdownLinks = new Set<string>();
 	for (const variable of variables) {
 		if (referencedIds.has(variable.id) || !variable.name || !canShowAttachmentInline(variable)) {
 			continue;
 		}
-		const mentions = new Set([getAttachmentPromptText(variable), getAttachmentMention(variable.name)]);
+		const name = getAttachmentPromptName(variable);
+		const markdownLink = `${getMarkdownLinkLabel(name)}(`;
+		markdownLinks.add(markdownLink);
+		const mentions = new Set([markdownLink, getAttachmentMention(variable.name), getAttachmentMention(variable.name, chatAgentLeader)]);
+		if (!getAttachmentLocation(variable)) {
+			mentions.add(name);
+		}
 		if (variable.kind === 'file' || variable.kind === 'directory') {
 			mentions.add(`${chatVariableLeader}file:${variable.name}`).add(`${chatVariableLeader}${variable.name}`);
 		}
@@ -383,18 +417,13 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 
 	const isWordCharacter = (character: string) => /[\p{L}\p{N}_-]/u.test(character);
 	const codeRanges = getMarkdownCodeRanges(message.text);
-	const positions = new PositionOffsetTransformer(message.text);
-	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
-	const occurrences = new Map<string, number>();
-	const parts: IParsedChatRequestPart[] = [];
+	const matchesByPart = new Map<IParsedChatRequestPart, IAttachmentMentionMatch[]>();
 	for (const part of message.parts) {
 		if (!(part instanceof ChatRequestTextPart)) {
-			parts.push(part);
 			continue;
 		}
 
-		// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
-		const matches: { start: number; end: number; mention: string }[] = [];
+		const matches: IAttachmentMentionMatch[] = [];
 		for (const mention of byMention.keys()) {
 			for (let start = message.text.indexOf(mention, part.range.start); start !== -1 && start + mention.length <= part.range.endExclusive; start = message.text.indexOf(mention, start + 1)) {
 				let end = start + mention.length;
@@ -403,6 +432,13 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 					while (end < part.range.endExclusive && !/\s/.test(message.text.charAt(end))) {
 						end++;
 					}
+				} else if (markdownLinks.has(mention)) {
+					// A Markdown image, `![name](...)`, shows an image rather than mentioning an attachment.
+					const linkEnd = message.text.charAt(start - 1) === '!' ? undefined : getMarkdownLinkEnd(message.text, end, part.range.endExclusive);
+					if (linkEnd === undefined) {
+						continue;
+					}
+					end = linkEnd;
 				} else if (isWordCharacter(message.text.charAt(end)) || (isWordCharacter(mention.charAt(0)) && isWordCharacter(message.text.charAt(start - 1)))) {
 					// The name of an attachment without a location is only a mention when it is not part of a longer word.
 					continue;
@@ -412,31 +448,99 @@ export function recoverAttachmentMentions(message: IParsedChatRequest, variables
 				}
 			}
 		}
+		// A longer mention, such as that of `a.tsx`, is not taken for a shorter one that it starts with, such as that of `a.ts`.
 		matches.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
-
-		let copiedUntil = part.range.start;
-		for (const { start, end, mention } of matches) {
-			if (start < copiedUntil) {
-				continue;
+		let matchedUntil = part.range.start;
+		matchesByPart.set(part, matches.filter(match => {
+			if (match.start < matchedUntil) {
+				return false;
 			}
-			const candidates = byMention.get(mention)!;
-			const occurrence = occurrences.get(mention) ?? 0;
-			occurrences.set(mention, occurrence + 1);
-			const variable = candidates[Math.min(occurrence, candidates.length - 1)];
+			matchedUntil = match.end;
+			return true;
+		}));
+	}
+
+	// Links claim the attachments they link to before the other mentions take the attachments that remain.
+	const matches = [...matchesByPart.values()].flat();
+	const bound = new Map<IAttachmentMentionMatch, IChatRequestVariableEntry>();
+	const claimed = new Set<IChatRequestVariableEntry>();
+	const bind = (match: IAttachmentMentionMatch, candidates: readonly IChatRequestVariableEntry[]) => {
+		const variable = candidates.find(candidate => !claimed.has(candidate)) ?? candidates[candidates.length - 1];
+		claimed.add(variable);
+		bound.set(match, variable);
+	};
+	for (const match of matches) {
+		if (markdownLinks.has(match.mention)) {
+			const text = message.text.slice(match.start, match.end);
+			const linked = byMention.get(match.mention)!.filter(candidate => getAttachmentPromptText(candidate) === text);
+			if (linked.length) {
+				bind(match, linked);
+			}
+		}
+	}
+	for (const match of matches) {
+		if (!bound.has(match)) {
+			bind(match, byMention.get(match.mention)!);
+		}
+	}
+
+	const positions = new PositionOffsetTransformer(message.text);
+	const toRange = (start: number, end: number) => Range.fromPositions(positions.getPosition(start), positions.getPosition(end));
+	const parts: IParsedChatRequestPart[] = [];
+	for (const part of message.parts) {
+		const partMatches = matchesByPart.get(part);
+		if (!partMatches?.length) {
+			parts.push(part);
+			continue;
+		}
+		let copiedUntil = part.range.start;
+		for (const match of partMatches) {
+			const { start, end } = match;
+			const variable = bound.get(match)!;
 			if (start > copiedUntil) {
 				parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, start), toRange(copiedUntil, start), message.text.slice(copiedUntil, start)));
 			}
-			const text = message.text.slice(start, end);
-			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(start, end), toRange(start, end), text, variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
+			parts.push(new ChatRequestDynamicVariablePart(new OffsetRange(start, end), toRange(start, end), message.text.slice(start, end), variable.id, variable.modelDescription, variable.value, variable.fullName, variable.icon, undefined, undefined, undefined, true));
 			copiedUntil = end;
 		}
-		if (copiedUntil === part.range.start) {
-			parts.push(part);
-		} else if (copiedUntil < part.range.endExclusive) {
+		if (copiedUntil < part.range.endExclusive) {
 			parts.push(new ChatRequestTextPart(new OffsetRange(copiedUntil, part.range.endExclusive), toRange(copiedUntil, part.range.endExclusive), message.text.slice(copiedUntil, part.range.endExclusive)));
 		}
 	}
 	return { text: message.text, parts };
+}
+
+/** Where in the text of a request a mention of an attachment is, see {@link recoverAttachmentMentions}. */
+interface IAttachmentMentionMatch {
+	readonly start: number;
+	readonly end: number;
+	/** The text by which the mention was found, such as `#attachment:index.ts` or `[index.ts](`. */
+	readonly mention: string;
+}
+
+/**
+ * The end of a Markdown link whose destination starts at `offset`, just past
+ * the parenthesis that closes the destination, or `undefined` when there is no
+ * destination there: it is empty, or not closed before whitespace or `endExclusive`.
+ */
+function getMarkdownLinkEnd(text: string, offset: number, endExclusive: number): number | undefined {
+	let depth = 0;
+	for (let i = offset; i < endExclusive; i++) {
+		const character = text.charAt(i);
+		if (character === '\\') {
+			i++;
+		} else if (character === '(') {
+			depth++;
+		} else if (character === ')') {
+			if (depth === 0) {
+				return i > offset ? i + 1 : undefined;
+			}
+			depth--;
+		} else if (isWhitespace(character)) {
+			return undefined;
+		}
+	}
+	return undefined;
 }
 
 

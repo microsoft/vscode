@@ -566,6 +566,12 @@ export interface ITunnelAgentHostService {
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
 	/** Requests the configured tunnel permissions without connecting to a host. */
 	signIn?(authProvider: 'github' | 'microsoft'): Promise<void>;
+
+	/**
+	 * The type of the agent host that the tunnel's gateway selected for the current or most recent connection to the
+	 * tunnel at {@link address}, or `undefined` when this service has not connected it or cannot tell.
+	 */
+	getSelectedServerType(address: string): TunnelGatewayServerType | 'unknown' | undefined;
 }
 
 /** Information about an actively hosted tunnel. */

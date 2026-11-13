@@ -1119,6 +1119,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			rows: options.rows,
 			xtermColorProvider: options.colorProvider,
 			capabilities,
+			disableShellIntegrationReporting: options.disableShellIntegrationReporting,
 			disableOverviewRuler: options.disableOverviewRuler,
 			scrollback: options.scrollback,
 			detached: true,

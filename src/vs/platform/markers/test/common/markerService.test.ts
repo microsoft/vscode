@@ -100,6 +100,53 @@ suite('Marker Service', () => {
 		assert.strictEqual(service.read().length, 0);
 	});
 
+	for (const method of ['changeOne', 'changeAll'] as const) {
+		test(`${method} prunes empty indexes and preserves remaining associations`, () => {
+			service = new markerService.MarkerService();
+			const resource = URI.parse('file:///path/shared.cs');
+			const otherResource = URI.parse('file:///path/other.cs');
+			service.changeOne('first', resource, [randomMarkerData()]);
+			service.changeOne('first', otherResource, [randomMarkerData()]);
+			service.changeOne('second', resource, [randomMarkerData()]);
+
+			const clear = (owner: string, resource: URI) => {
+				if (method === 'changeOne') {
+					service.changeOne(owner, resource, []);
+				} else {
+					service.changeAll(owner, []);
+				}
+			};
+			const snapshot = () => {
+				// Inspect backing storage because read() hides retained empty maps.
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+				const byResource = service['_data']['_byResource'];
+				// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers
+				const byOwner = service['_data']['_byOwner'];
+				return {
+					resources: byResource.size,
+					owners: byOwner.size,
+					markers: service.read().map(marker => `${marker.owner}:${marker.resource.path}`).sort()
+				};
+			};
+
+			clear('first', otherResource);
+			const afterFirstClear = snapshot();
+			clear('first', resource);
+			const afterOwnerClear = snapshot();
+			clear('second', resource);
+
+			assert.deepStrictEqual({ afterFirstClear, afterOwnerClear, afterFinalClear: snapshot() }, {
+				afterFirstClear: {
+					resources: 1,
+					owners: method === 'changeOne' ? 2 : 1,
+					markers: method === 'changeOne' ? ['first:/path/shared.cs', 'second:/path/shared.cs'] : ['second:/path/shared.cs']
+				},
+				afterOwnerClear: { resources: 1, owners: 1, markers: ['second:/path/shared.cs'] },
+				afterFinalClear: { resources: 0, owners: 0, markers: [] }
+			});
+		});
+	}
+
 	test('changeAll sends event for cleared', () => {
 
 		service = new markerService.MarkerService();

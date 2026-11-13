@@ -14,7 +14,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
@@ -100,6 +100,8 @@ export interface IOpenAgentsWindowOptions {
 	readonly folderUriIsDefault?: boolean;
 	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
 	readonly reveal?: UriComponents | 'new';
+	/** The remote authority of the editor window whose own agent host, on that remote machine, owns the revealed session. */
+	readonly revealRemoteAuthority?: string;
 	/** Session to spotlight after a contextual invitation, even when it is not opened. */
 	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
@@ -296,6 +298,12 @@ export interface ICommonNativeHostService {
 
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
+	/**
+	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents
+	 * window is not brought to the front: the Agents Launcher shows and focuses its own window.
+	 */
+	showAgentsLauncher(): Promise<void>;
+
 	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
 	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
 	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;
@@ -312,6 +320,12 @@ export interface ICommonNativeHostService {
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
+	/**
+	 * Does what a double-click on the title bar of the window does: on macOS as the system settings say, such as to zoom
+	 * or minimize the window, else maximizes or restores it. For a title area the window does not drag itself.
+	 */
+	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
+
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(options?: INativeHostOptions): Promise<boolean>;
@@ -321,11 +335,24 @@ export interface ICommonNativeHostService {
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
+	/** Shows a window hidden with {@link hideWindow} and focuses it. */
+	showWindow(options?: INativeHostOptions): Promise<void>;
+	/** Hides a window without closing it, such as a floating window that shows again later. */
+	hideWindow(options?: INativeHostOptions): Promise<void>;
+	/** Sets the opacity of a window, from 0 (transparent) to 1 (opaque). Unsupported on Linux. */
+	setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void>;
+
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
 	updateWindowControls(options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+
+	/**
+	 * Remembers the alternate location the folder of the window is at, so that
+	 * the window starts at it again after a reload or restart.
+	 */
+	setWindowFolderLocation(location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -392,7 +419,7 @@ export interface ICommonNativeHostService {
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined>;
 
 	// GitHub mobile upload API (runs in main process to avoid CORS)
 	uploadFileViaMobileApi(token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }>;

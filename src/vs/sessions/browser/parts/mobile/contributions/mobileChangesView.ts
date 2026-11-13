@@ -17,8 +17,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { comparePaths } from '../../../../../base/common/comparers.js';
 import { basename, dirname } from '../../../../../base/common/resources.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionFileChange } from '../../../../services/sessions/common/session.js';
+import { getMainWindowHost, ISessionHostService } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { ISessionFileChange } from '../../../../../workbench/services/sessions/common/session.js';
 import { IFileDiffViewData } from './mobileDiffView.js';
 
 const $ = DOM.$;
@@ -141,7 +141,7 @@ export class MobileChangesView extends Disposable {
 		workbenchContainer: HTMLElement,
 		private readonly onOpen: MobileChangesOpenHandler,
 		@IInstantiationService _instantiationService: IInstantiationService,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 	) {
 		super();
 
@@ -176,8 +176,8 @@ export class MobileChangesView extends Disposable {
 
 		// -- Subscribe to live changes -----------------------------
 		this.viewStore.add(autorun(reader => {
-			const session = this.sessionsService.activeSession.read(reader);
-			const rows = (session?.activeChat.read(reader).changes.read(reader) ?? []).map(toRow).sort(compareRows);
+			const chat = getMainWindowHost(this.sessionHostService).chat.read(reader);
+			const rows = (chat?.changes.read(reader) ?? []).map(toRow).sort(compareRows);
 			this.renderList(rows);
 		}));
 	}

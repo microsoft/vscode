@@ -13,6 +13,8 @@ import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { hasReadableCustomizationContent } from '../../../../../platform/agentHost/common/agentHostCustomizationUri.js';
 import { CustomizationMigrationCategoryId } from './customizationMigrationCategories.js';
 import { ICustomizationMigrationHint } from '../../common/promptSyntax/service/customizationMigrationService.js';
+import type { IChatWidget } from '../chat.js';
+import { hasKey } from '../../../../../base/common/types.js';
 
 // Re-export for convenience — consumers import from this file
 export { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../common/aiCustomizationWorkspaceService.js';
@@ -23,6 +25,7 @@ export const DELETE_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.delete';
 
 export type AICustomizationManagementOpenEditorTarget =
 	| AICustomizationManagementSection
+	| { readonly widget: IChatWidget }
 	| {
 		readonly section?: AICustomizationManagementSection;
 		readonly sessionType?: string;
@@ -41,13 +44,21 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 	pendingSessionType: string | undefined,
 	chatSessionResource: URI | undefined,
 	getSessionResourceForHarness: (sessionType: string) => URI,
-): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly showDiscover?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
+): { readonly section?: AICustomizationManagementSection; readonly revealUri?: URI; readonly sessionResource?: URI; readonly hasExplicitSessionResource: boolean; readonly showDiscover?: boolean; readonly searchQuery?: string; readonly migration?: boolean; readonly migrationCategory?: CustomizationMigrationCategoryId; readonly migrationHint?: ICustomizationMigrationHint } {
+	if (target && typeof target === 'object' && hasKey(target, { widget: true })) {
+		const pendingTarget = target.widget.input.pendingDelegationTarget;
+		return {
+			sessionResource: pendingTarget ? getSessionResourceForHarness(pendingTarget) : target.widget.viewModel?.sessionResource,
+			hasExplicitSessionResource: true,
+		};
+	}
 	if (isChatViewTitleActionContext(target)) {
-		return { sessionResource: target.sessionResource };
+		return { sessionResource: target.sessionResource, hasExplicitSessionResource: true };
 	}
 
 	const options = typeof target === 'string' ? { section: target } : target;
 	const sessionType = options?.sessionType ?? pendingSessionType;
+	const explicitSessionResource = options?.sessionResource;
 	return {
 		section: options?.section,
 		revealUri: options?.revealUri,
@@ -56,7 +67,8 @@ export function resolveAICustomizationManagementOpenEditorTarget(
 		migration: options?.migration,
 		migrationCategory: options?.migrationCategory,
 		migrationHint: options?.migrationHint,
-		sessionResource: options?.sessionResource ?? (sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource),
+		sessionResource: explicitSessionResource ?? (sessionType ? getSessionResourceForHarness(sessionType) : chatSessionResource),
+		hasExplicitSessionResource: explicitSessionResource !== undefined,
 	};
 }
 

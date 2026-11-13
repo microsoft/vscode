@@ -6,7 +6,7 @@
 import type { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
-import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
+import { CLI_TOOL_EVENT_HANDLERS } from '../common/copilotCLIToolInvocations';
 import {
 	createResponseEventRenderContext,
 	flushPendingAssistantMessage,

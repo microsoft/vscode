@@ -5,43 +5,11 @@
 
 import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, ITransaction, observableValue } from '../../../../base/common/observable.js';
-import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ICustomViewDescriptor } from './customView.js';
+import { ICustomViewDescriptor, ICustomViewService, ICustomViewOpenRequest } from '../../../../workbench/contrib/sessions/browser/customView.js';
 
-export const ICustomViewService = createDecorator<ICustomViewService>('customViewService');
 const ACTIVE_CUSTOM_VIEW_STORAGE_KEY = 'sessions.activeCustomView';
-
-export interface ICustomViewOpenRequest {
-	readonly descriptor: ICustomViewDescriptor;
-	readonly source: 'explicit' | 'history' | 'restore';
-}
-
-/**
- * Owns which custom view (if any) should be rendered in place of the sessions
- * grid. Only one view can be shown at a time. The Agents workbench observes
- * {@link activeCustomView} and, while it is set, renders the custom view grid
- * and hides the sessions grid, the side panel and the bottom panel.
- */
-export interface ICustomViewService {
-
-	readonly _serviceBrand: undefined;
-
-	/** The view that should currently be rendered, or `undefined` for none. */
-	readonly activeCustomView: IObservable<ICustomViewDescriptor | undefined>;
-
-	/** The current opening, including repeated explicit opens of the same view. */
-	readonly activeCustomViewOpen: IObservable<ICustomViewOpenRequest | undefined>;
-
-	registerCustomView(descriptor: ICustomViewDescriptor, options?: { readonly restore?: boolean }): IDisposable;
-
-	/** Shows the registered view with the given id, replacing any shown view. */
-	showCustomView(id: string, options?: { readonly source: 'history' }): void;
-
-	hideCustomView(tx?: ITransaction): void;
-}
 
 export class CustomViewService extends Disposable implements ICustomViewService {
 
@@ -85,16 +53,22 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 		});
 	}
 
-	showCustomView(id: string, options?: { readonly source: 'history' }): void {
+	showCustomView(id: string, options?: { readonly source?: 'history'; readonly state?: string }): void {
 		const descriptor = this._descriptors.get(id);
 		if (!descriptor) {
 			this._logService.warn(`[CustomViewService] showCustomView: no custom view registered with id '${id}'`);
 			return;
 		}
 
+		const state = options?.state;
+		if (state !== undefined && descriptor.acceptsState?.(state) === false) {
+			this._logService.trace(`[CustomViewService] showCustomView: custom view '${id}' declined its state`);
+			return;
+		}
+
 		this._desiredCustomViewId = id;
 		this._storageService.store(ACTIVE_CUSTOM_VIEW_STORAGE_KEY, id, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		this._activeCustomViewOpen.set({ descriptor, source: options?.source ?? 'explicit' }, undefined);
+		this._activeCustomViewOpen.set({ descriptor, source: options?.source ?? 'explicit', ...(state !== undefined ? { state } : {}) }, undefined);
 	}
 
 	hideCustomView(tx?: ITransaction): void {
@@ -103,5 +77,3 @@ export class CustomViewService extends Disposable implements ICustomViewService 
 		this._activeCustomViewOpen.set(undefined, tx);
 	}
 }
-
-registerSingleton(ICustomViewService, CustomViewService, InstantiationType.Delayed);

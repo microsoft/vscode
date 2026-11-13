@@ -10,16 +10,22 @@ import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { IConfigurationChangeEvent } from '../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { CwdDetectionCapability } from '../../../../platform/terminal/common/capabilities/cwdDetectionCapability.js';
+import { TerminalCapabilityStore, TerminalCapabilityStoreMultiplexer } from '../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
 import { EnvironmentVariableMutatorType, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../../platform/terminal/common/environmentVariable.js';
+import { TerminalLocation, TerminalLocationConfigValue } from '../../../../platform/terminal/common/terminal.js';
 import { IViewDescriptorService } from '../../../common/views.js';
-import { ITerminalGroupService, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
+import { TerminalEditorService } from '../../../contrib/terminal/browser/terminalEditorService.js';
 import { TerminalGroupService } from '../../../contrib/terminal/browser/terminalGroupService.js';
 import { TerminalInstanceService } from '../../../contrib/terminal/browser/terminalInstanceService.js';
 import { TerminalService } from '../../../contrib/terminal/browser/terminalService.js';
 import { IEnvironmentVariableCollectionWithPersistence, IEnvironmentVariableService } from '../../../contrib/terminal/common/environmentVariable.js';
-import { ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
+import { ITerminalConfiguration, ITerminalProfileService } from '../../../contrib/terminal/common/terminal.js';
 import { TestViewDescriptorService } from '../../../contrib/terminal/test/browser/xterm/xtermTestUtils.js';
 import { ITerminalLinkProviderService } from '../../../contrib/terminalContrib/links/browser/links.js';
 import { ITerminalQuickFixService } from '../../../contrib/terminalContrib/quickFix/browser/quickFix.js';
@@ -39,29 +45,33 @@ suite('MainThreadTerminalService', () => {
 	let service: MainThreadTerminalService;
 	let terminals: TerminalService;
 	let groups: TerminalGroupService;
+	let editors: TerminalEditorService;
+	let configurationService: TestConfigurationService;
 	let environmentVariableService: IEnvironmentVariableService;
 	let instantiationService: TestInstantiationService;
 	let input: string[];
 
 	setup(async () => {
 		input = [];
-		instantiationService = workbenchInstantiationService({
-			configurationService: () => new TestConfigurationService({
-				files: {},
-				terminal: {
-					integrated: {
-						allowInUntrustedWorkspace: true,
-						fontFamily: 'monospace',
-						scrollback: 1000,
-						fastScrollSensitivity: 2,
-						mouseWheelScrollSensitivity: 1,
-						unicodeVersion: '6',
-						commandsToSkipShell: [],
-						shellIntegration: { enabled: false },
-						tabs: { title: '${process}', description: '' }
-					}
+		configurationService = new TestConfigurationService({
+			files: {},
+			terminal: {
+				integrated: {
+					allowInUntrustedWorkspace: true,
+					defaultLocation: 'view',
+					fontFamily: 'monospace',
+					scrollback: 1000,
+					fastScrollSensitivity: 2,
+					mouseWheelScrollSensitivity: 1,
+					unicodeVersion: '6',
+					commandsToSkipShell: [],
+					shellIntegration: { enabled: false },
+					tabs: { title: '${process}', description: '' }
 				}
-			})
+			}
+		});
+		instantiationService = workbenchInstantiationService({
+			configurationService: () => configurationService
 		}, store);
 		instantiationService.stub(IViewDescriptorService, new TestViewDescriptorService());
 		instantiationService.stub(IViewsService, { isViewVisible: () => false });
@@ -71,6 +81,8 @@ suite('MainThreadTerminalService', () => {
 			override getDefaultProfileName() { return undefined; }
 		});
 		instantiationService.set(ITerminalInstanceService, store.add(instantiationService.createInstance(TerminalInstanceService)));
+		editors = store.add(instantiationService.createInstance(TerminalEditorService));
+		instantiationService.set(ITerminalEditorService, editors);
 		groups = store.add(instantiationService.createInstance(TerminalGroupService));
 		instantiationService.set(ITerminalGroupService, groups);
 		terminals = store.add(instantiationService.createInstance(TerminalService));
@@ -87,7 +99,8 @@ suite('MainThreadTerminalService', () => {
 		instantiationService.stub(ITerminalCompletionService, {});
 		service = store.add(instantiationService.createInstance(MainThreadTerminalService, AnyCallRPCProtocol<Pick<ExtHostTerminalServiceShape, '$startExtensionTerminal' | '$acceptProcessInput'>>({
 			$startExtensionTerminal: async id => {
-				service.$sendProcessReady(id, -1, '', undefined);
+				const cwd = terminals.getInstanceFromId(id)?.shellLaunchConfig.cwd;
+				service.$sendProcessReady(id, -1, typeof cwd === 'string' ? cwd : '', undefined);
 				return undefined;
 			},
 			$acceptProcessInput: (_id, data) => input.push(data)
@@ -95,6 +108,18 @@ suite('MainThreadTerminalService', () => {
 		// TerminalService initializes its editor styles asynchronously, even when the test skips.
 		await timeout(0);
 	});
+
+	async function setTerminalConfiguration(configuration: Partial<ITerminalConfiguration>): Promise<void> {
+		await configurationService.setUserConfiguration('terminal.integrated', {
+			...configurationService.getValue<ITerminalConfiguration>('terminal.integrated'),
+			...configuration
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire(new class extends mock<IConfigurationChangeEvent>() {
+			override affectsConfiguration(section: string): boolean {
+				return section.startsWith('terminal.integrated');
+			}
+		});
+	}
 
 	function createBridge(remoteAuthority: string | null, onInitialCollections: (collections: [string, ISerializableEnvironmentVariableCollection][]) => void, remoteOS = OperatingSystem.Linux): MainThreadTerminalService {
 		const rpc = AnyCallRPCProtocol<Pick<ExtHostTerminalServiceShape, '$initEnvironmentVariableCollections'>>({
@@ -271,29 +296,254 @@ suite('MainThreadTerminalService', () => {
 
 	test('a process exit removes the extension identifier', async () => {
 		await service.$createTerminal('exited-terminal', { name: 'Exited', hideFromUser: true, isExtensionCustomPtyTerminal: true });
-		const terminal = terminals.instances[0];
-		try {
-			await terminal.processReady;
-			const disposed = Event.toPromise(terminal.onDisposed);
-			service.$sendProcessExit(terminal.instanceId, 0);
-			await disposed;
-			await service.$show('exited-terminal', false);
-			assert.strictEqual(terminals.instances.length, 0);
-		} finally {
-			terminal.dispose();
-		}
+		const terminal = store.add(terminals.instances[0]);
+		await terminal.processReady;
+		const disposed = Event.toPromise(terminal.onDisposed);
+		service.$sendProcessExit(terminal.instanceId, 0);
+		await disposed;
+		await service.$show('exited-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
 	});
 
 	test('a terminal removed from its group still releases its extension identifier', async () => {
 		await service.$createTerminal('detached-terminal', { name: 'Detached', shellPath: '/test-shell' });
-		const terminal = terminals.instances[0];
+		const terminal = store.add(terminals.instances[0]);
+		groups.getGroupForInstance(terminal)!.removeInstance(terminal);
+		terminal.dispose();
+		await service.$show('detached-terminal', false);
+		assert.strictEqual(terminals.instances.length, 0);
+	});
+
+	test('splits from a parent terminal referenced by its extension identifier', async () => {
+		await service.$createTerminal('parent-terminal', { name: 'Parent', shellPath: '/test-shell' });
+		await service.$createTerminal('child-terminal', { name: 'Child', shellPath: '/test-shell', location: { parentTerminal: 'parent-terminal' } });
+		const [parent, child] = terminals.instances;
 		try {
-			groups.getGroupForInstance(terminal)!.removeInstance(terminal);
-			terminal.dispose();
-			await service.$show('detached-terminal', false);
-			assert.strictEqual(terminals.instances.length, 0);
+			assert.strictEqual(groups.getGroupForInstance(child), groups.getGroupForInstance(parent));
 		} finally {
-			terminal.dispose();
+			child.dispose();
+			parent.dispose();
+		}
+	});
+
+	test('splits from a parent terminal referenced by its instance id', async () => {
+		// Once a terminal has opened, the extension host refers to it by its instance id
+		await service.$createTerminal('parent-terminal', { name: 'Parent', shellPath: '/test-shell' });
+		const parent = terminals.instances[0];
+		await service.$createTerminal('child-terminal', { name: 'Child', shellPath: '/test-shell', location: { parentTerminal: parent.instanceId } });
+		const child = terminals.instances[1];
+		try {
+			assert.strictEqual(groups.getGroupForInstance(child), groups.getGroupForInstance(parent));
+		} finally {
+			child.dispose();
+			parent.dispose();
+		}
+	});
+
+	for (const identifier of ['extension identifier', 'instance id'] as const) {
+		for (const state of ['hidden', 'backgrounded'] as const) {
+			test(`preserves the location of a ${state} editor parent referenced by its ${identifier}`, async () => {
+				await service.$createTerminal('parent-terminal', {
+					name: 'Parent',
+					hideFromUser: state === 'hidden',
+					isExtensionCustomPtyTerminal: true,
+					location: TerminalLocation.Editor
+				});
+				const parent = store.add(terminals.instances[0]);
+				if (state === 'backgrounded') {
+					store.add(editors.getInputFromResource(parent.resource));
+					terminals.moveToBackground(parent);
+				}
+				await service.$createTerminal('child-terminal', {
+					name: 'Child',
+					isExtensionCustomPtyTerminal: true,
+					location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+				});
+				const child = store.add(terminals.foregroundInstances[0]);
+				if (child.target === TerminalLocation.Editor) {
+					store.add(editors.getInputFromResource(child.resource));
+				}
+				try {
+					assert.deepStrictEqual({
+						childLocation: child.target,
+						editorInstances: editors.instances.map(instance => instance.instanceId),
+						panelInstances: groups.instances.map(instance => instance.instanceId),
+						parentInForeground: terminals.foregroundInstances.includes(parent)
+					}, {
+						childLocation: TerminalLocation.Editor,
+						editorInstances: [child.instanceId],
+						panelInstances: [],
+						parentInForeground: false
+					});
+				} finally {
+					child.dispose();
+					parent.dispose();
+				}
+			});
+
+			for (const hideChild of [false, true]) {
+				test(`preserves the panel location of a ${state} parent referenced by its ${identifier} with an editor default and a ${hideChild ? 'hidden' : 'visible'} child`, async () => {
+					await setTerminalConfiguration({ defaultLocation: TerminalLocationConfigValue.Editor });
+					await service.$createTerminal('parent-terminal', {
+						name: 'Parent',
+						hideFromUser: state === 'hidden',
+						isExtensionCustomPtyTerminal: true,
+						location: TerminalLocation.Panel
+					});
+					const parent = store.add(terminals.instances[0]);
+					if (state === 'backgrounded') {
+						terminals.moveToBackground(parent);
+					}
+					await service.$createTerminal('child-terminal', {
+						name: 'Child',
+						hideFromUser: hideChild,
+						isExtensionCustomPtyTerminal: true,
+						location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+					});
+					const child = store.add(terminals.instances.find(instance => instance !== parent)!);
+					if (!hideChild && child.target === TerminalLocation.Editor) {
+						store.add(editors.getInputFromResource(child.resource));
+					}
+					try {
+						assert.deepStrictEqual({
+							childLocation: child.target,
+							editorInstances: editors.instances.map(instance => instance.instanceId),
+							panelInstances: groups.instances.map(instance => instance.instanceId),
+							parentInForeground: terminals.foregroundInstances.includes(parent)
+						}, {
+							childLocation: TerminalLocation.Panel,
+							editorInstances: [],
+							panelInstances: hideChild ? [] : [child.instanceId],
+							parentInForeground: false
+						});
+					} finally {
+						child.dispose();
+						parent.dispose();
+					}
+				});
+			}
+
+			for (const splitCwd of ['initial', 'inherited'] as const) {
+				test(`preserves ${splitCwd} cwd for a hidden child of a ${state} panel parent referenced by its ${identifier}`, async () => {
+					await setTerminalConfiguration({ defaultLocation: TerminalLocationConfigValue.Editor, splitCwd });
+					await service.$createTerminal('parent-terminal', {
+						name: 'Parent',
+						cwd: '/parent-initial',
+						hideFromUser: state === 'hidden',
+						isExtensionCustomPtyTerminal: true,
+						location: TerminalLocation.Panel
+					});
+					const parent = store.add(terminals.instances[0]);
+					await parent.processReady;
+					if (state === 'backgrounded') {
+						terminals.moveToBackground(parent);
+					}
+					const cwdDetection = store.add(new CwdDetectionCapability());
+					const capabilities = store.add(new TerminalCapabilityStore());
+					capabilities.add(TerminalCapability.CwdDetection, cwdDetection);
+					assert.ok(parent.capabilities instanceof TerminalCapabilityStoreMultiplexer);
+					parent.capabilities.add(capabilities);
+					cwdDetection.updateCwd('/parent-current');
+					try {
+						const children: { cwd: ITerminalInstance['shellLaunchConfig']['cwd']; location: ITerminalInstance['target'] }[] = [];
+						for (const cwd of [undefined, '/child-explicit']) {
+							const childId = cwd ? 'explicit-child-terminal' : 'child-terminal';
+							await service.$createTerminal(childId, {
+								name: childId,
+								cwd,
+								hideFromUser: true,
+								isExtensionCustomPtyTerminal: true,
+								location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+							});
+							const child = store.add(terminals.instances.find(instance => instance.shellLaunchConfig.extHostTerminalId === childId)!);
+							children.push({ cwd: child.shellLaunchConfig.cwd, location: child.target });
+						}
+						assert.deepStrictEqual({
+							children,
+							foreground: terminals.foregroundInstances.map(instance => instance.instanceId)
+						}, {
+							children: [
+								{ cwd: splitCwd === 'initial' ? '/parent-initial' : '/parent-current', location: TerminalLocation.Panel },
+								{ cwd: '/child-explicit', location: TerminalLocation.Panel }
+							],
+							foreground: []
+						});
+					} finally {
+						for (const instance of [...terminals.instances]) {
+							instance.dispose();
+						}
+					}
+				});
+			}
+		}
+
+		test(`keeps the child in the panel for a hidden panel parent referenced by its ${identifier}`, async () => {
+			await service.$createTerminal('parent-terminal', { name: 'Parent', hideFromUser: true, isExtensionCustomPtyTerminal: true });
+			const parent = store.add(terminals.instances[0]);
+			await service.$createTerminal('child-terminal', {
+				name: 'Child',
+				isExtensionCustomPtyTerminal: true,
+				location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+			});
+			const child = store.add(terminals.foregroundInstances[0]);
+			try {
+				assert.deepStrictEqual({
+					parentGroup: groups.getGroupForInstance(parent),
+					groups: groups.groups.map(group => group.terminalInstances),
+					foreground: terminals.foregroundInstances
+				}, {
+					parentGroup: undefined,
+					groups: [[child]],
+					foreground: [child]
+				});
+			} finally {
+				child.dispose();
+				parent.dispose();
+			}
+		});
+
+		test(`splits from a previously hidden parent after it is shown using its ${identifier}`, async () => {
+			await service.$createTerminal('parent-terminal', { name: 'Parent', hideFromUser: true, isExtensionCustomPtyTerminal: true });
+			const parent = store.add(terminals.instances[0]);
+			await terminals.showBackgroundTerminal(parent);
+			await service.$createTerminal('child-terminal', {
+				name: 'Child',
+				isExtensionCustomPtyTerminal: true,
+				location: { parentTerminal: identifier === 'extension identifier' ? 'parent-terminal' : parent.instanceId }
+			});
+			const child = store.add(terminals.instances.find(instance => instance.shellLaunchConfig.extHostTerminalId === 'child-terminal')!);
+			try {
+				assert.deepStrictEqual(groups.groups.map(group => group.terminalInstances), [[parent, child]]);
+			} finally {
+				child.dispose();
+				parent.dispose();
+			}
+		});
+	}
+
+	test('keeps the child in the panel for a panel parent moved to the background', async () => {
+		await service.$createTerminal('parent-terminal', { name: 'Parent', isExtensionCustomPtyTerminal: true });
+		const parent = store.add(terminals.instances[0]);
+		terminals.moveToBackground(parent);
+		await service.$createTerminal('child-terminal', {
+			name: 'Child',
+			isExtensionCustomPtyTerminal: true,
+			location: { parentTerminal: parent.instanceId }
+		});
+		const child = store.add(terminals.foregroundInstances[0]);
+		try {
+			assert.deepStrictEqual({
+				parentGroup: groups.getGroupForInstance(parent),
+				groups: groups.groups.map(group => group.terminalInstances),
+				foreground: terminals.foregroundInstances
+			}, {
+				parentGroup: undefined,
+				groups: [[child]],
+				foreground: [child]
+			});
+		} finally {
+			child.dispose();
+			parent.dispose();
 		}
 	});
 

@@ -94,6 +94,11 @@ export class ExplorerItem {
 	public nestedParent: ExplorerItem | undefined;
 	public nestedChildren: ExplorerItem[] | undefined;
 
+	private _id: string | undefined;
+	private _idResource: URI | undefined;
+	private _idRootResource: URI | undefined;
+	private _idMarkedAsFiltered = false;
+
 	constructor(
 		public resource: URI,
 		private readonly fileService: IFileService,
@@ -171,11 +176,12 @@ export class ExplorerItem {
 	}
 
 	get root(): ExplorerItem {
-		if (!this._parent) {
-			return this;
+		let item: ExplorerItem = this;
+		while (item._parent) {
+			item = item._parent;
 		}
 
-		return this._parent.root;
+		return item;
 	}
 
 	@memoize get children(): Map<string, ExplorerItem> {
@@ -183,20 +189,32 @@ export class ExplorerItem {
 	}
 
 	private updateName(value: string): void {
-		// Re-add to parent since the parent has a name map to children and the name might have changed
+		// Re-add to parent since the parent has a name map to children and the name might have changed.
+		// Callers update the resource themselves.
 		this._parent?.removeChild(this);
 		this._name = value;
-		this._parent?.addChild(this);
+		this._parent?.doAddChild(this, false);
 	}
 
 	getId(): string {
-		let id = this.root.resource.toString() + '::' + this.resource.toString();
+		// The tree asks for ids many times per item and render, so reuse the id while its
+		// inputs are unchanged. URIs are immutable, so it is enough to compare them by reference.
+		const rootResource = this.root.resource;
+		const markedAsFiltered = this.isMarkedAsFiltered();
+		if (this._id === undefined || this._idResource !== this.resource || this._idRootResource !== rootResource || this._idMarkedAsFiltered !== markedAsFiltered) {
+			let id = rootResource.toString() + '::' + this.resource.toString();
 
-		if (this.isMarkedAsFiltered()) {
-			id += '::findFilterResult';
+			if (markedAsFiltered) {
+				id += '::findFilterResult';
+			}
+
+			this._id = id;
+			this._idResource = this.resource;
+			this._idRootResource = rootResource;
+			this._idMarkedAsFiltered = markedAsFiltered;
 		}
 
-		return id;
+		return this._id;
 	}
 
 	toString(): string {
@@ -224,7 +242,8 @@ export class ExplorerItem {
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
 					const child = ExplorerItem.create(fileService, configService, filesConfigService, raw.children[i], stat, resolveTo);
-					stat.addChild(child);
+					// The file service already resolves child resources from the folder resource
+					stat.doAddChild(child, false);
 				}
 			}
 		}
@@ -271,19 +290,19 @@ export class ExplorerItem {
 			// Clear current children
 			local.children.clear();
 
-			// Merge received children
+			// Merge received children. Their resources are already resolved from the disk resource, which local now uses.
 			disk.children.forEach(diskChild => {
 				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
 				// Existing child: merge
 				if (formerLocalChild) {
 					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
-					local.addChild(formerLocalChild);
+					local.doAddChild(formerLocalChild, formerLocalChild.resource !== diskChild.resource);
 					oldLocalChildren.delete(diskChild.resource);
 				}
 
 				// New child: add
 				else {
-					local.addChild(diskChild);
+					local.doAddChild(diskChild, false);
 				}
 			});
 
@@ -299,9 +318,20 @@ export class ExplorerItem {
 	 * Adds a child element to this folder.
 	 */
 	addChild(child: ExplorerItem): void {
+		this.doAddChild(child, true);
+	}
+
+	/**
+	 * Adds a child element to this folder.
+	 * @param updateResource Whether to derive the resource of the child from this folder. Resolving a
+	 * resource is expensive for large folders, so only skip it when the resource is known to be up to date.
+	 */
+	private doAddChild(child: ExplorerItem, updateResource: boolean): void {
 		// Inherit some parent properties to child
 		child._parent = this;
-		child.updateResource(false);
+		if (updateResource) {
+			child.updateResource(false);
+		}
 		this.children.set(this.getPlatformAwareName(child.name), child);
 	}
 

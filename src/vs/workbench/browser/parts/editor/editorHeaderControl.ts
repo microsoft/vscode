@@ -49,6 +49,7 @@ export class EditorHeaderControl extends Disposable {
 		private readonly menuIds: IEditorGroupMenuIds | undefined,
 		showHeader: boolean,
 		private readonly reserveHeaderSpace: IEditorGroupViewOptions['reserveHeaderSpace'],
+		private readonly showHeaderFor: IEditorGroupViewOptions['showHeaderFor'],
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -93,10 +94,11 @@ export class EditorHeaderControl extends Disposable {
 		}
 	}
 
-	layout(width: number): void {
+	layout(width: number, left = 0): void {
 		this.updateVisibility(false);
 		if (this.headerContainer) {
 			this.headerContainer.style.width = `${Math.max(0, width)}px`;
+			this.headerContainer.style.marginLeft = left > 0 ? `${left}px` : '';
 		}
 		if (this.breadcrumbsControl?.isHidden() === false && this.breadcrumbsContainer) {
 			let breadcrumbsWidth = 0;
@@ -135,7 +137,8 @@ export class EditorHeaderControl extends Disposable {
 		this.actionsContainer.style.display = hasMenuActions ? '' : 'none';
 		this.actionsContainer.style.flex = this.breadcrumbsVisible ? '0 1 auto' : '1 1 auto';
 		this.actionsContainer.style.gridTemplateColumns = this.breadcrumbsVisible ? 'auto auto auto' : 'minmax(0, 1fr) auto auto';
-		this.visible = this.breadcrumbsVisible || hasMenuActions || this.reserveHeaderSpace?.(this.groupView.activeEditor ?? undefined) === true;
+		const activeEditor = this.groupView.activeEditor ?? undefined;
+		this.visible = (this.showHeaderFor?.(activeEditor) ?? true) && (this.breadcrumbsVisible || hasMenuActions || this.reserveHeaderSpace?.(activeEditor) === true);
 		this.headerContainer.style.display = this.visible ? '' : 'none';
 		if (relayout) {
 			this.groupView.relayout();

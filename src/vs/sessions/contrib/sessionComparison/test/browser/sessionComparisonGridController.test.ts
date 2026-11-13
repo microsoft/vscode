@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -17,13 +17,15 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { IChat, ISession } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionGridPane, SessionGridPaneKind } from '../../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { SessionComparisonGridController } from '../../browser/sessionComparisonGridController.js';
-import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../common/sessionComparison.js';
+import { HIDE_INACTIVE_COMPARISON_INPUTS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionComparisonConstants.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Session comparison grid controller', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,11 +38,15 @@ suite('Session comparison grid controller', () => {
 		readonly comparisonAvailable?: boolean;
 		readonly comparisonArchived?: boolean;
 	}) {
-		const judge = upcastPartial<IActiveSession>({ sessionId: 'judge', resource: URI.parse('test:///judge') });
-		const attempt = upcastPartial<IActiveSession>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
-		const attempt2 = upcastPartial<IActiveSession>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
-		const attempt3 = upcastPartial<IActiveSession>({ sessionId: 'attempt-3', resource: URI.parse('test:///attempt-3') });
-		const unrelated = upcastPartial<IActiveSession>({ sessionId: 'unrelated', resource: URI.parse('test:///unrelated') });
+		const judgeChat = observableValue('judgeChat', upcastPartial<IChat>({ resource: URI.parse('test:///judge') }));
+		const judge = upcastPartial<ITestSessionWithChat>({
+			sessionId: 'judge', resource: URI.parse('test:///judge'),
+			activeChat: judgeChat,
+		});
+		const attempt = upcastPartial<ITestSessionWithChat>({ sessionId: 'attempt', resource: URI.parse('test:///attempt') });
+		const attempt2 = upcastPartial<ITestSessionWithChat>({ sessionId: 'attempt-2', resource: URI.parse('test:///attempt-2') });
+		const attempt3 = upcastPartial<ITestSessionWithChat>({ sessionId: 'attempt-3', resource: URI.parse('test:///attempt-3') });
+		const unrelated = upcastPartial<ITestSessionWithChat>({ sessionId: 'unrelated', resource: URI.parse('test:///unrelated') });
 		const comparison: ISessionComparison = {
 			id: 'comparison',
 			groupId: 'group',
@@ -72,8 +78,8 @@ suite('Session comparison grid controller', () => {
 			}],
 		};
 		const focused = store.add(new Emitter<string>());
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', attempt);
-		const visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visibleSessions', options?.attemptsOnly
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', attempt);
+		const visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visibleSessions', options?.attemptsOnly
 			? [attempt, attempt2, attempt3].slice(0, options.attemptCount ?? 2)
 			: [judge, attempt]);
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', options?.comparisonAvailable === false ? [] : [comparison]);
@@ -102,15 +108,50 @@ suite('Session comparison grid controller', () => {
 			}
 		}());
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override readonly onDidFocusSession = focused.event;
+			override readonly onDidFocusPane = focused.event;
 		}());
+		// The panes of the grid, one per session it shows: a detached pane shows one chat of its session. Its id is the chat it
+		// shows of its own, else its session, else the new-session slot's.
+		const paneObjects = new Map<ITestSessionWithChat | undefined, ISessionGridPane>();
+		const paneOf = (session: ITestSessionWithChat | undefined) => {
+			let pane = paneObjects.get(session);
+			if (!pane) {
+				pane = upcastPartial<ISessionGridPane>({
+					id: session?.detachedChat?.toString() ?? session?.sessionId ?? 'new-session',
+					kind: session?.detachedChat ? SessionGridPaneKind.Detached : SessionGridPaneKind.Slot,
+					session: constObservable(session),
+					chat: session ? session.activeChat : constObservable(undefined),
+				});
+				paneObjects.set(session, pane);
+			}
+			return pane;
+		};
+		const panes = derived(reader => visibleSessions.read(reader).map(paneOf));
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-			override readonly visibleSessions = visibleSessions;
+			readonly activeSession = activeSession;
+			readonly gridShown = visibleSessions;
+			override readonly slotPanes = testGridPanes(this.gridShown);
+			override readonly panes = panes;
+			override readonly activePane = derived(reader => {
+				const active = activeSession.read(reader);
+				return panes.read(reader).find(pane => pane.session.read(reader) === active);
+			});
+			override closePane(pane: ISessionGridPane): void {
+				this.closeSession(pane.session.get());
+			}
+			override collapseToPane(pane: ISessionGridPane): void {
+				this.collapseTo(pane.session.get() as ITestSessionWithChat | undefined);
+			}
 			override closeSession(session: ISession | undefined): void {
 				if (session) {
 					closed.push(session.sessionId);
-					visibleSessions.set(visibleSessions.get().filter(candidate => candidate?.sessionId !== session.sessionId), undefined);
+					const remaining = visibleSessions.get().filter(candidate => candidate?.sessionId !== session.sessionId);
+					transaction(tx => {
+						visibleSessions.set(remaining, tx);
+						if (activeSession.get()?.sessionId === session.sessionId) {
+							activeSession.set(remaining[0], tx);
+						}
+					});
 				}
 			}
 			override showSession(resource: URI): void {
@@ -118,10 +159,12 @@ suite('Session comparison grid controller', () => {
 				shownOnly.push(session.sessionId);
 				activeSession.set(session, undefined);
 			}
-			override collapseToSession(session: IActiveSession | undefined): void {
+			collapseTo(session: ITestSessionWithChat | undefined): void {
 				collapsedTo.push(session?.sessionId);
-				visibleSessions.set([session], undefined);
-				activeSession.set(session, undefined);
+				transaction(tx => {
+					visibleSessions.set([session], tx);
+					activeSession.set(session, tx);
+				});
 			}
 		}());
 		instantiationService.stub(ISessionComparisonService, new class extends mock<ISessionComparisonService>() {
@@ -132,7 +175,7 @@ suite('Session comparison grid controller', () => {
 					: undefined;
 			}
 		}());
-		instantiationService.stub(IAgentWorkbenchLayoutService, new class extends mock<IAgentWorkbenchLayoutService>() {
+		const agentLayoutService = new class extends mock<IAgentWorkbenchLayoutService>() {
 			override readonly mainContainer = mainContainer;
 			override readonly onDidChangePartVisibility = onDidChangePartVisibility.event as IWorkbenchLayoutService['onDidChangePartVisibility'];
 			override isVisible(part: Parts): boolean {
@@ -145,10 +188,13 @@ suite('Session comparison grid controller', () => {
 			override suppressEditorPartAutoVisibility() {
 				return toDisposable(() => { });
 			}
-		}());
+		}();
+		instantiationService.stub(IAgentWorkbenchLayoutService, agentLayoutService);
+		instantiationService.stub(ISessionsHostLayoutService, agentLayoutService);
 		store.add(instantiationService.createInstance(SessionComparisonGridController));
 		return {
 			judge,
+			judgeChat,
 			attempt,
 			attempt2,
 			attempt3,
@@ -202,6 +248,11 @@ suite('Session comparison grid controller', () => {
 		fixture.partVisibility.set(Parts.EDITOR_PART, true);
 		fixture.onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true });
 		assert.strictEqual(fixture.partVisibility.get(Parts.EDITOR_PART), true);
+		fixture.judgeChat.set(upcastPartial<IChat>({ resource: fixture.judge.resource.with({ fragment: 'peer' }) }), undefined);
+		assert.deepStrictEqual({
+			editorVisible: fixture.partVisibility.get(Parts.EDITOR_PART),
+			auxiliaryBarVisible: fixture.partVisibility.get(Parts.AUXILIARYBAR_PART),
+		}, { editorVisible: true, auxiliaryBarVisible: true });
 	});
 
 	test('closes other panes when Judge becomes active without a focus event', async () => {
@@ -227,6 +278,110 @@ suite('Session comparison grid controller', () => {
 
 		assert.deepStrictEqual({ shownOnly: fixture.shownOnly, closed: fixture.closed }, { shownOnly: ['judge'], closed: ['attempt'] });
 	});
+
+	test('distinguishes nested attempt and Judge panes sharing one session', async () => {
+		const fixture = setup();
+		const resource = URI.parse('test:/parent');
+		const pane = (id: string) => upcastPartial<ITestSessionWithChat>({
+			sessionId: 'parent', resource,
+			detachedChat: resource.with({ fragment: id }),
+			activeChat: constObservable(upcastPartial<IChat>({ resource: resource.with({ fragment: id }) })),
+		});
+		const attempt = pane('attempt');
+		const judge = pane('judge');
+		transaction(tx => {
+			fixture.comparisons.set([{
+				...fixture.comparison, sessionResource: resource,
+				participants: fixture.comparison.participants.map(participant => ({
+					...participant, sessionResource: resource, chatResource: resource.with({ fragment: participant.id }),
+				})),
+			}], tx);
+			fixture.visibleSessions.set([attempt, judge], tx);
+			fixture.activeSession.set(attempt, tx);
+		});
+		await Promise.resolve();
+		const attemptPaneCount = fixture.visibleSessions.get().length;
+		fixture.activeSession.set(judge, undefined);
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			attemptPaneCount,
+			chats: fixture.visibleSessions.get().map(session => session?.activeChat.get().resource.toString()),
+			active: fixture.activeSession.get()?.activeChat.get().resource.toString(),
+		}, { attemptPaneCount: 2, chats: ['test:/parent#judge'], active: 'test:/parent#judge' });
+	});
+
+	test('an active detached Judge pane of the session its parent pane shows is the collapse survivor and the judge', async () => {
+		const fixture = setup();
+		const resource = URI.parse('test:/parent');
+		const chat = (id: string) => upcastPartial<IChat>({ resource: resource.with({ fragment: id }) });
+		const parent = upcastPartial<ITestSessionWithChat>({ sessionId: 'parent', resource, activeChat: constObservable(chat('attempt')) });
+		const judge = upcastPartial<ITestSessionWithChat>({
+			sessionId: 'parent', resource, detachedChat: chat('judge').resource, activeChat: constObservable(chat('judge')),
+		});
+		transaction(tx => {
+			fixture.comparisons.set([{
+				...fixture.comparison, sessionResource: resource,
+				participants: fixture.comparison.participants.map(participant => ({
+					...participant, sessionResource: resource, chatResource: chat(participant.id).resource,
+				})),
+			}], tx);
+			fixture.visibleSessions.set([parent, judge], tx);
+			fixture.activeSession.set(parent, tx);
+		});
+		await Promise.resolve();
+		const before = fixture.visibleSessions.get().length;
+		fixture.activeSession.set(judge, undefined);
+		await Promise.resolve();
+		assert.deepStrictEqual({
+			before,
+			survivors: fixture.visibleSessions.get().map(session => session === judge ? 'judge pane' : session === parent ? 'parent pane' : 'other'),
+			active: fixture.activeSession.get() === judge ? 'judge pane' : 'other',
+		}, { before: 2, survivors: ['judge pane'], active: 'judge pane' });
+	});
+
+	for (const nextChat of ['attempt-2', 'ordinary']) {
+		test(`restores side panes when switching from an isolated nested Judge to ${nextChat}`, async () => {
+			const fixture = setup();
+			const resource = URI.parse('test:/parent');
+			const chat = (id: string) => upcastPartial<IChat>({ resource: resource.with({ fragment: id }) });
+			const currentChat = observableValue('chat', chat('attempt-2'));
+			const parent = upcastPartial<ITestSessionWithChat>({ sessionId: 'parent', resource, activeChat: currentChat });
+			const attempt = upcastPartial<ITestSessionWithChat>({
+				sessionId: 'parent', resource, detachedChat: chat('attempt').resource, activeChat: constObservable(chat('attempt')),
+			});
+			transaction(tx => {
+				fixture.comparisons.set([{
+					...fixture.comparison, sessionResource: resource,
+					participants: fixture.comparison.participants.map(participant => ({
+						...participant, sessionResource: resource, chatResource: chat(participant.id).resource,
+					})),
+				}], tx);
+				fixture.visibleSessions.set([attempt, parent], tx);
+				fixture.activeSession.set(parent, tx);
+			});
+			await Promise.resolve();
+			const before = fixture.visibleSessions.get().length;
+			currentChat.set(chat('judge'), undefined);
+			await Promise.resolve();
+			const isolated = {
+				paneCount: fixture.visibleSessions.get().length,
+				activeChat: fixture.activeSession.get()?.activeChat.get().resource.toString(),
+				editorVisible: fixture.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: fixture.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			};
+			currentChat.set(chat(nextChat), undefined);
+			await Promise.resolve();
+			assert.deepStrictEqual({
+				before, isolated,
+				editorVisible: fixture.partVisibility.get(Parts.EDITOR_PART),
+				auxiliaryBarVisible: fixture.partVisibility.get(Parts.AUXILIARYBAR_PART),
+			}, {
+				before: 2,
+				isolated: { paneCount: 1, activeChat: 'test:/parent#judge', editorVisible: false, auxiliaryBarVisible: false },
+				editorVisible: true, auxiliaryBarVisible: true,
+			});
+		});
+	}
 
 	test('does not collapse unrelated multi-session layouts', async () => {
 		const fixture = setup({ comparisonAvailable: false });

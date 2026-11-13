@@ -194,6 +194,37 @@ suite('AllowedExtensionsService', () => {
 		assert.strictEqual(testObject.isAllowed(aLocalExtension('pub.name')) === true, true);
 	});
 
+	for (const inheritedName of ['constructor', '__proto__']) {
+		test(`should not allow an extension from publisher '${inheritedName}' that is not in the allowed list`, () => {
+			configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'ms-vscode': true });
+			const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+			assert.strictEqual(testObject.isAllowed({ id: `${inheritedName}.poc`, publisherDisplayName: undefined }) === true, false);
+			assert.strictEqual(testObject.isAllowed({ id: `${inheritedName}.poc`, publisherDisplayName: inheritedName }) === true, false);
+			assert.strictEqual(testObject.isAllowed(aLocalExtension(`${inheritedName}.poc`)) === true, false);
+			assert.strictEqual(testObject.isAllowed(aGalleryExtension('poc', { publisher: inheritedName, publisherDisplayName: inheritedName })) === true, false);
+		});
+
+		test(`should not allow an extension named '${inheritedName}' that is not in the allowed list`, () => {
+			configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { 'ms-vscode': true });
+			const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+			assert.strictEqual(testObject.isAllowed({ id: `pub.${inheritedName}`, publisherDisplayName: undefined }) === true, false);
+		});
+
+		test(`should honor an allowed list entry for publisher '${inheritedName}'`, () => {
+			configurationService.setUserConfiguration(AllowedExtensionsConfigKey, JSON.parse(`{ "${inheritedName}": true }`));
+			const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+			assert.strictEqual(testObject.isAllowed({ id: `${inheritedName}.poc`, publisherDisplayName: undefined }), true);
+			assert.strictEqual(testObject.isAllowed({ id: 'other.poc', publisherDisplayName: undefined }) === true, false);
+		});
+
+		test(`should honor a blocked list entry for publisher '${inheritedName}'`, () => {
+			configurationService.setUserConfiguration(AllowedExtensionsConfigKey, JSON.parse(`{ "${inheritedName}": false, "*": true }`));
+			const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));
+			assert.strictEqual(testObject.isAllowed({ id: `${inheritedName}.poc`, publisherDisplayName: undefined }) === true, false);
+			assert.strictEqual(testObject.isAllowed({ id: 'other.poc', publisherDisplayName: undefined }), true);
+		});
+	}
+
 	test('should trigger change event when allowed list change', async () => {
 		configurationService.setUserConfiguration(AllowedExtensionsConfigKey, { '*': false });
 		const testObject = disposables.add(new AllowedExtensionsService(aProductService(), configurationService));

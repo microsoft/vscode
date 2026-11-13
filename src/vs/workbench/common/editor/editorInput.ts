@@ -301,6 +301,18 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Indicates if this editor can be moved to a window that does not exist yet, such as one that a drag or a "Move
+	 * Editor into New Window" command creates. It is asked before that window is created; once the window exists,
+	 * {@link canMove} is asked with its group. By default editors can be moved to a new window.
+	 *
+	 * @returns `true` if the editor can be moved to a new window, or a string with a message to show to the user if
+	 * the editor cannot be moved.
+	 */
+	canMoveToNewWindow(sourceGroup: GroupIdentifier): true | string {
+		return true;
+	}
+
+	/**
 	 * Indicates if this editor can be reopened after being closed. By default
 	 * editors can be reopened. Subclasses can override to prevent this.
 	 *

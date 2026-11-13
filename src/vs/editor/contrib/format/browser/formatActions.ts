@@ -7,7 +7,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorContributionInstantiation, registerEditorAction, registerEditorContribution, ServicesAccessor } from '../../../browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../browser/services/codeEditorService.js';
@@ -105,12 +105,14 @@ export class FormatOnType implements IEditorContribution {
 
 		const model = this._editor.getModel();
 		const position = this._editor.getPosition();
+		const disposables = this._sessionDisposables.add(new DisposableStore());
 		const cts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => cts.dispose(true)));
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
 		// apply the format edits
-		const unbind = this._editor.onDidChangeModelContent((e) => {
+		const unbind = disposables.add(this._editor.onDidChangeModelContent((e) => {
 			if (e.isFlush) {
 				// a model.setValue() was called
 				// cancel only once
@@ -128,7 +130,7 @@ export class FormatOnType implements IEditorContribution {
 					return;
 				}
 			}
-		});
+		}));
 
 		getOnTypeFormattingEdits(
 			this._workerService,
@@ -147,7 +149,7 @@ export class FormatOnType implements IEditorContribution {
 				FormattingEdit.execute(this._editor, edits, true);
 			}
 		}).finally(() => {
-			unbind.dispose();
+			this._sessionDisposables.delete(disposables);
 		});
 	}
 }

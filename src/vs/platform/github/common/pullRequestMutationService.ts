@@ -593,6 +593,10 @@ export class PullRequestMutationService extends Disposable implements PullReques
 	}
 
 	private _handleCredentialInvalidation(event: GitHubCredentialInvalidation): void {
+		// Reauthorizing the same credential does not change what a preparation or rerun is waiting for.
+		if (event.reason === 'reauthorization') {
+			return;
+		}
 		if (this._preparations.size > 0 || this._unconfirmedReruns.size > 0) {
 			this._logService?.debug(`[PullRequestMutationService] Clearing mutation reconciliation state after credential invalidation (${event.reason})`);
 		}

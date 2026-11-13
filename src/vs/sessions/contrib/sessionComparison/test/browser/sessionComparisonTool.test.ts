@@ -14,10 +14,10 @@ import { IConfigurationChangeEvent } from '../../../../../platform/configuration
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ILanguageModelToolsService, IToolData, IToolResult, ToolProgress, ToolSet } from '../../../../../workbench/contrib/chat/common/tools/languageModelToolsService.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../services/sessions/common/sessionComparison.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { hashSessionIdForTelemetry } from '../../../../common/sessionsTelemetry.js';
+import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { COMPARE_AGENTS_ENABLED_SETTING, ISessionComparison, ISessionComparisonService, ISessionComparisonVerdict, SessionComparisonParticipantRole, SessionComparisonValidationSource, SessionComparisonValidationState } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
+import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { hashSessionIdForTelemetry } from '../../../../../workbench/contrib/sessions/common/sessionsTelemetry.js';
 import { CompleteSessionComparisonTool, ReadSessionComparisonTool, SessionComparisonToolContribution } from '../../browser/sessionComparisonTool.js';
 
 const progress: ToolProgress = { report: () => { } };
@@ -26,6 +26,14 @@ const thirdAttemptResource = URI.parse('test:/attempt-three');
 const attemptChatResource = URI.parse('test-chat:/attempt');
 const judgeResource = URI.parse('test:/judge');
 const synthesisResource = URI.parse('test:/synthesis');
+
+function stubComparisonService(overrides: Partial<ISessionComparisonService>): ISessionComparisonService {
+	return upcastPartial<ISessionComparisonService>({
+		getParticipantForChat: (id, resource) => overrides.getComparison?.(id)?.participants.find(participant =>
+			(participant.chatResource ?? participant.sessionResource)?.toString() === resource.toString()),
+		...overrides,
+	});
+}
 
 suite('SessionComparisonTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,7 +54,7 @@ suite('SessionComparisonTool', () => {
 		}();
 		const instantiationService = store.add(new TestInstantiationService());
 		const comparisons = observableValue<readonly ISessionComparison[]>('comparisons', []);
-		const comparisonService = upcastPartial<ISessionComparisonService>({ comparisons });
+		const comparisonService = stubComparisonService({ comparisons });
 		const configurationService = new TestConfigurationService({ [COMPARE_AGENTS_ENABLED_SETTING]: false });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		instantiationService.stub(ISessionComparisonService, comparisonService);
@@ -82,21 +90,50 @@ suite('SessionComparisonTool', () => {
 
 	test('describes the manifest-first evidence flow', () => {
 		const tool = new ReadSessionComparisonTool(
-			upcastPartial<ISessionComparisonService>({}),
+			stubComparisonService({}),
 			upcastPartial<ISessionsManagementService>({}),
 		);
 
 		assert.deepStrictEqual({
 			referenceName: tool.getToolData().toolReferenceName,
-			description: tool.getToolData().modelDescription,
+			manifestFirst: tool.getToolData().modelDescription.includes('before inspecting individual transcripts'),
+			folderlessResponses: tool.getToolData().modelDescription.includes('read and compare responses using get_session_context with the exact manifest targets'),
+			worktreeEvidence: tool.getToolData().modelDescription.includes('Read implementation code only from the listed worktrees'),
+			validationReuse: tool.getToolData().modelDescription.includes('never rerun a validation category with a clear reported result'),
 		}, {
 			referenceName: 'readAttemptComparison',
-			description: 'Read the bounded manifest for an active implementation-attempt comparison. Use this when judging or synthesizing that comparison, before inspecting individual transcripts. It returns the original task, every attempt with a semantic lifecycle status, changed-file evidence status, change summaries, authoritative worktree locations, exact targets for get_session_context, the Judge verdict mapped to attempt numbers when available, and any additional synthesis instructions. Attempt status is one of untitled, inProgress, needsInput, completed, error, or unavailable; only completed means the attempt finished successfully. Terminal commands start in the Judge or synthesis worktree, so explicitly cd to an attempt\'s listed workingDirectory in every command that inspects or validates it. Read implementation code only from the listed worktrees; transcripts are for rationale or validation evidence. A Judge must review every attempt diff, use get_session_context to identify validation the attempt already completed, never rerun a validation category with a clear reported result, and run only missing targeted validation when needed. If dependencies or build artifacts are unavailable, it must record validation as unavailable without installing dependencies or substituting another validation category. A synthesis agent must resolve the verdict\'s conflicts and treat additional synthesis instructions as user requirements. It does not return full transcripts or submit a verdict.',
+			manifestFirst: true,
+			folderlessResponses: true,
+			worktreeEvidence: true,
+			validationReuse: true,
+		});
+	});
+
+	test('folderless manifests direct response review through exact transcript targets', () => {
+		const attempt = stubAttemptSession();
+		const session = { ...attempt, workspace: constObservable(undefined) };
+		const tool = new ReadSessionComparisonTool(stubComparisonService({}), upcastPartial<ISessionsManagementService>({
+			getSession: resource => resource.toString() === attemptResource.toString() ? session : undefined,
+			getSessionContextReference: () => 'agent-host-session://copilot/attempt',
+		}));
+		const manifest = tool.getManifest({ ...stubComparison(), workspace: undefined, branch: undefined }, session);
+		assert.deepStrictEqual({
+			target: manifest.attempts[0].sessionContextTarget,
+			worktree: manifest.attempts[0].worktree,
+			readsResponses: manifest.next?.includes('Read every completed attempt response using get_session_context'),
+			noDiffRequired: manifest.next?.includes('No worktree or Git diff is required'),
+			noFabricatedResponse: manifest.next?.includes('without guessing its content'),
+			pagesCompleteResponse: manifest.next?.includes('follow nextResponseOffset until truncated is false'),
+			noPartialReview: manifest.next?.includes('Do not treat an excerpt as a fully reviewed answer'),
+			inapplicableValidation: manifest.next?.includes('notApplicable for both state and source'),
+		}, {
+			target: 'agent-host-session://copilot/attempt', worktree: undefined, readsResponses: true,
+			noDiffRequired: true, noFabricatedResponse: true, pagesCompleteResponse: true, noPartialReview: true, inapplicableValidation: true,
 		});
 	});
 
 	test('requires concise rationale without custom synthesis decisions', () => {
-		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({}));
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({}));
 		const data = tool.getToolData();
 		const schema = JSON.stringify(data.inputSchema);
 
@@ -133,7 +170,7 @@ suite('SessionComparisonTool', () => {
 		const session = stubAttemptSession();
 		const workingDirectory = URI.file('/workspace').fsPath;
 		const tool = new ReadSessionComparisonTool(
-			upcastPartial<ISessionComparisonService>({
+			stubComparisonService({
 				getComparison: id => id === comparison.id ? comparison : undefined,
 			}),
 			upcastPartial<ISessionsManagementService>({
@@ -181,7 +218,7 @@ suite('SessionComparisonTool', () => {
 		const comparison = stubComparison();
 		const hashedId = hashSessionIdForTelemetry(comparison.id);
 		const tool = new ReadSessionComparisonTool(
-			upcastPartial<ISessionComparisonService>({
+			stubComparisonService({
 				getComparison: id => id === comparison.id ? comparison : undefined,
 				comparisons: constObservable([comparison]),
 			}),
@@ -203,6 +240,200 @@ suite('SessionComparisonTool', () => {
 		}, {
 			comparisonId: comparison.id,
 			attemptCount: 1,
+		});
+	});
+
+	test('nested participants authorize the exact Judge chat and read each attempt workspace and status', async () => {
+		const base = stubComparison();
+		const parentResource = URI.parse('test:/parent');
+		const judgeChat = parentResource.with({ fragment: 'judge' });
+		const attempt = stubAttemptSession();
+		const chat = {
+			...attempt.mainChat.get(),
+			workspace: attempt.workspace,
+			changesSummary: attempt.changesSummary,
+			modelId: constObservable('nested-model'),
+		};
+		const comparison: ISessionComparison = {
+			...base, sessionResource: parentResource,
+			participants: base.participants.map(participant => ({
+				...participant, sessionResource: parentResource,
+				chatResource: participant.role === SessionComparisonParticipantRole.Judge ? judgeChat : chat.resource,
+			})),
+		};
+		const parent = upcastPartial<ISession>({
+			resource: parentResource, providerId: 'provider', chats: constObservable([chat]),
+			status: constObservable(SessionStatus.InProgress), workspace: constObservable(undefined),
+		});
+		const service = stubComparisonService({ getComparison: () => comparison });
+		const tool = new ReadSessionComparisonTool(service, upcastPartial<ISessionsManagementService>({
+			getSession: () => parent, getSessionContextReference: resource => resource.toString(),
+		}));
+		const denied = await invoke(tool, { comparisonId: comparison.id }, chat.resource);
+		const manifest = JSON.parse(getText(await invoke(tool, { comparisonId: comparison.id }, judgeChat)));
+		assert.deepStrictEqual({
+			denied: getText(denied),
+			attempts: manifest.attempts.map((entry: { status: string; sessionContextTarget: string; worktree: { workingDirectory: string }; harness: { currentModelId: string } }) => ({
+				status: entry.status, target: entry.sessionContextTarget, folder: entry.worktree.workingDirectory, model: entry.harness.currentModelId,
+			})),
+		}, {
+			denied: 'Only the Judge or synthesis session for this comparison can read its manifest.',
+			attempts: [{ status: 'completed', target: chat.resource.toString(), folder: URI.file('/workspace').fsPath, model: 'nested-model' }],
+		});
+	});
+
+	test('omits cumulative default-chat summaries but retains peer-chat summaries', async () => {
+		const base = stubComparison();
+		const attempt = stubAttemptSession();
+		const main = { ...attempt.mainChat.get(), workspace: attempt.workspace, changes: constObservable([]), changesSummary: constObservable({ files: 9, additions: 100, deletions: 20 }) };
+		const peer = { ...main, resource: main.resource.with({ fragment: 'peer' }), changesSummary: constObservable({ files: 0, additions: 0, deletions: 0 }) };
+		const parent = { ...attempt, mainChat: constObservable(main), chats: constObservable([main, peer]) };
+		const participant = base.participants.find(participant => participant.role === SessionComparisonParticipantRole.Attempt)!;
+		const judge = base.participants.find(participant => participant.role === SessionComparisonParticipantRole.Judge)!;
+		const comparison = {
+			...base,
+			participants: [...[main, peer].map((chat, index) => ({
+				...participant, id: `attempt-${index}`, sessionResource: parent.resource, chatResource: chat.resource,
+			})), judge],
+		};
+		const tool = new ReadSessionComparisonTool(stubComparisonService({ getComparison: () => comparison }), upcastPartial<ISessionsManagementService>({
+			getSession: () => parent, getSessionContextReference: resource => resource.toString(),
+		}));
+		const manifest = JSON.parse(getText(await invoke(tool, { comparisonId: comparison.id }, judge.sessionResource!)));
+		assert.deepStrictEqual(manifest.attempts.map((entry: { changesSummary?: object; changedFilesStatus: string }) => ({
+			summary: entry.changesSummary, files: entry.changedFilesStatus,
+		})), [{ summary: undefined, files: 'unavailable' }, { summary: { files: 0, additions: 0, deletions: 0 }, files: 'noChanges' }]);
+	});
+
+	test('uses the exact live participant binding for moved evaluator manifest and verdict calls', async () => {
+		const comparison = stubComparison();
+		const originalJudge = URI.parse('test:/original-judge');
+		const originalAttempt = URI.parse('test:/original-attempt');
+		let submitted: ISessionComparisonVerdict | undefined;
+		const service = stubComparisonService({
+			getComparison: () => comparison,
+			getParticipantForChat: (_id, resource) => comparison.participants.find(participant =>
+				participant.role === (resource.toString() === originalJudge.toString() ? SessionComparisonParticipantRole.Judge : SessionComparisonParticipantRole.Attempt)),
+			submitVerdict: (_id, verdict) => submitted = verdict,
+		});
+		const readTool = new ReadSessionComparisonTool(service, upcastPartial<ISessionsManagementService>({ getSession: () => undefined }));
+		const completeTool = new CompleteSessionComparisonTool(service);
+		const manifest = JSON.parse(getText(await invoke(readTool, { comparisonId: comparison.id }, originalJudge)));
+		const input = {
+			comparisonId: comparison.id, recommendedAttemptNumber: 1, explanation: 'The attempt is correct.',
+			rationale: rationaleInput(), conflicts: [],
+			attempts: [{
+				attemptNumber: 1, summary: 'Complete.',
+				validation: { tests: passedEvidence(), build: passedEvidence(), lint: passedEvidence(), diagnostics: passedEvidence() },
+				unresolvedIssues: [], notableDifferences: [],
+			}],
+		};
+		const accepted = JSON.parse(getText(await invoke(completeTool, input, originalJudge)));
+		const denied = await invoke(completeTool, input, originalAttempt);
+		assert.deepStrictEqual({
+			manifest: manifest.comparisonId,
+			accepted,
+			denied: getText(denied),
+			recommended: submitted?.recommendedParticipantId,
+		}, {
+			manifest: comparison.id,
+			accepted: { status: 'submitted', comparisonId: comparison.id },
+			denied: 'Only the judge session for this comparison can submit its verdict.',
+			recommended: 'attempt',
+		});
+	});
+
+	test('authorizes headless Judge and synthesis calls by their exact originating chats', async () => {
+		const base = stubComparison();
+		const parentResource = URI.parse('test:/parent');
+		const judgeChat = parentResource.with({ fragment: 'judge' });
+		const synthesisChat = parentResource.with({ fragment: 'synthesis' });
+		const comparison: ISessionComparison = {
+			...base,
+			participants: [...base.participants.map(participant => participant.role === SessionComparisonParticipantRole.Judge
+				? { ...participant, sessionResource: parentResource, chatResource: judgeChat }
+				: participant), {
+				id: 'synthesis',
+				role: SessionComparisonParticipantRole.Synthesis,
+				harness: base.judgeHarness!,
+				sessionResource: parentResource,
+				chatResource: synthesisChat,
+			}],
+		};
+		let submitted: ISessionComparisonVerdict | undefined;
+		const service = stubComparisonService({
+			getComparison: () => comparison,
+			submitVerdict: (_id, verdict) => submitted = verdict,
+		});
+		const readTool = new ReadSessionComparisonTool(service, upcastPartial<ISessionsManagementService>({ getSession: () => undefined }));
+		const completeTool = new CompleteSessionComparisonTool(service);
+		const judgeManifest = await invoke(readTool, { comparisonId: comparison.id }, undefined, judgeChat);
+		const synthesisManifest = await invoke(readTool, { comparisonId: comparison.id }, undefined, synthesisChat);
+		const verdict = await invoke(completeTool, verdictInput(), undefined, judgeChat);
+		const synthesisDenied = await invoke(completeTool, verdictInput(), undefined, synthesisChat);
+
+		assert.deepStrictEqual({
+			judgeManifest: JSON.parse(getText(judgeManifest)).comparisonId,
+			synthesisManifest: JSON.parse(getText(synthesisManifest)).comparisonId,
+			verdict: JSON.parse(getText(verdict)),
+			recommended: submitted?.recommendedParticipantId,
+			synthesisDenied: getText(synthesisDenied),
+		}, {
+			judgeManifest: comparison.id,
+			synthesisManifest: comparison.id,
+			verdict: { status: 'submitted', comparisonId: comparison.id },
+			recommended: 'attempt',
+			synthesisDenied: 'Only the judge session for this comparison can submit its verdict.',
+		});
+	});
+
+	for (const scenario of [
+		{ name: 'headless attempt', origin: attemptResource, context: undefined },
+		{ name: 'headless foreign chat', origin: URI.parse('test:/foreign-judge'), context: undefined },
+		{ name: 'missing caller', origin: undefined, context: undefined },
+		{ name: 'attempt with Judge presentation context', origin: attemptResource, context: judgeResource },
+		{ name: 'foreign chat with Judge presentation context', origin: URI.parse('test:/foreign-judge'), context: judgeResource },
+	]) {
+		test(`rejects unauthorized originating chats: ${scenario.name}`, async () => {
+			const comparison = stubComparison();
+			let submitted = false;
+			const service = stubComparisonService({
+				getComparison: () => comparison,
+				submitVerdict: () => submitted = true,
+			});
+			const readTool = new ReadSessionComparisonTool(service, upcastPartial<ISessionsManagementService>({}));
+			const completeTool = new CompleteSessionComparisonTool(service);
+
+			assert.deepStrictEqual({
+				read: getText(await invoke(readTool, { comparisonId: comparison.id }, scenario.context, scenario.origin)),
+				complete: getText(await invoke(completeTool, verdictInput(), scenario.context, scenario.origin)),
+				submitted,
+			}, {
+				read: 'Only the Judge or synthesis session for this comparison can read its manifest.',
+				complete: 'Only the judge session for this comparison can submit its verdict.',
+				submitted: false,
+			});
+		});
+	}
+
+	test('uses the originating Judge chat instead of a different presentation context', async () => {
+		const comparison = stubComparison();
+		let submitted = false;
+		const service = stubComparisonService({
+			getComparison: () => comparison,
+			submitVerdict: () => submitted = true,
+		});
+		const readTool = new ReadSessionComparisonTool(service, upcastPartial<ISessionsManagementService>({ getSession: () => undefined }));
+		const completeTool = new CompleteSessionComparisonTool(service);
+
+		assert.deepStrictEqual({
+			read: JSON.parse(getText(await invoke(readTool, { comparisonId: comparison.id }, attemptResource, judgeResource))).comparisonId,
+			complete: JSON.parse(getText(await invoke(completeTool, verdictInput(), attemptResource, judgeResource))),
+			submitted,
+		}, {
+			read: comparison.id,
+			complete: { status: 'submitted', comparisonId: comparison.id },
+			submitted: true,
 		});
 	});
 
@@ -230,7 +461,7 @@ suite('SessionComparisonTool', () => {
 				mainChat: constObservable({ ...session.mainChat.get(), modelId: currentModelId }),
 			};
 			const tool = new ReadSessionComparisonTool(
-				upcastPartial<ISessionComparisonService>({ getComparison: () => comparison }),
+				stubComparisonService({ getComparison: () => comparison }),
 				upcastPartial<ISessionsManagementService>({
 					getSession: resource => resource.toString() === attemptResource.toString() && scenario.sessionAvailable ? attemptSession : undefined,
 					getSessionContextReference: () => undefined,
@@ -283,7 +514,7 @@ suite('SessionComparisonTool', () => {
 			}],
 		} satisfies ISessionComparison;
 		const tool = new ReadSessionComparisonTool(
-			upcastPartial<ISessionComparisonService>({ getComparison: () => comparison }),
+			stubComparisonService({ getComparison: () => comparison }),
 			upcastPartial<ISessionsManagementService>({
 				getSession: resource => resource.toString() === attemptResource.toString()
 					? stubAttemptSession()
@@ -347,7 +578,7 @@ suite('SessionComparisonTool', () => {
 			},
 		};
 		const tool = new ReadSessionComparisonTool(
-			upcastPartial<ISessionComparisonService>({ getComparison: () => comparison }),
+			stubComparisonService({ getComparison: () => comparison }),
 			upcastPartial<ISessionsManagementService>({
 				getSession: resource => resource.toString() === synthesisResource.toString()
 					? upcastPartial<ISession>({ providerId: 'provider' })
@@ -374,7 +605,7 @@ suite('SessionComparisonTool', () => {
 	test('accepts validation categories that do not apply', async () => {
 		const comparison = stubComparison();
 		let submitted: ISessionComparisonVerdict | undefined;
-		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({
 			getComparison: () => comparison,
 			submitVerdict: (_comparisonId, verdict) => submitted = verdict,
 		}));
@@ -425,7 +656,7 @@ suite('SessionComparisonTool', () => {
 		const hashedId = hashSessionIdForTelemetry(comparison.id);
 		let submitted: ISessionComparisonVerdict | undefined;
 		let submittedComparisonId: string | undefined;
-		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({
 			getComparison: id => id === comparison.id ? comparison : undefined,
 			comparisons: constObservable([comparison]),
 			submitVerdict: (_comparisonId, verdict) => {
@@ -467,7 +698,7 @@ suite('SessionComparisonTool', () => {
 
 	test('rejects inconsistent validation evidence', async () => {
 		const comparison = stubComparison();
-		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({
 			getComparison: () => comparison,
 		}));
 
@@ -491,13 +722,13 @@ suite('SessionComparisonTool', () => {
 			}],
 		}, judgeResource);
 
-		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. Keep explanation to one sentence, provide concise comparison, validation, codeQuality, and solution rationale points, and use a consistent state and source pair for every validation category.');
+		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. attempts[0].validation.tests must pair passed/failed with attemptReport/judgeRun, notRun/unknown with attemptReport/judgeRun/unavailable, or notApplicable with notApplicable.');
 	});
 
 	test('records automatic review evidence provenance in the verdict', async () => {
 		const comparison = stubComparison();
 		let submitted: ISessionComparisonVerdict | undefined;
-		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({
 			getComparison: () => comparison,
 			submitVerdict: (_comparisonId, verdict) => submitted = verdict,
 		}));
@@ -545,7 +776,7 @@ suite('SessionComparisonTool', () => {
 	test('rejects unrelated sessions', async () => {
 		const comparison = stubComparison();
 		const tool = new ReadSessionComparisonTool(
-			upcastPartial<ISessionComparisonService>({ getComparison: () => comparison }),
+			stubComparisonService({ getComparison: () => comparison }),
 			upcastPartial<ISessionsManagementService>({}),
 		);
 
@@ -556,7 +787,7 @@ suite('SessionComparisonTool', () => {
 
 	test('rejects verbose categorized rationale', async () => {
 		const comparison = stubComparison();
-		const tool = new CompleteSessionComparisonTool(upcastPartial<ISessionComparisonService>({
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({
 			getComparison: () => comparison,
 		}));
 
@@ -583,9 +814,93 @@ suite('SessionComparisonTool', () => {
 			}],
 		}, judgeResource);
 
-		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. Keep explanation to one sentence, provide concise comparison, validation, codeQuality, and solution rationale points, and use a consistent state and source pair for every validation category.');
+		assert.strictEqual(getText(result), 'The comparison verdict input is invalid. rationale.solution must be a non-empty, single-line string of at most 180 characters.');
+	});
+
+	for (const scenario of [
+		{ field: 'explanation', value: 'x'.repeat(241), expected: 'explanation must be a non-empty, single-line string of at most 240 characters.' },
+		{ field: 'explanation', value: ' \t ', expected: 'explanation must be a non-empty, single-line string of at most 240 characters.' },
+		{ field: 'explanation', value: 'First line.\nSecond line.', expected: 'explanation must be a non-empty, single-line string of at most 240 characters.' },
+		...['comparison', 'validation', 'codeQuality', 'solution'].map(category => ({
+			field: 'rationale', value: { ...rationaleInput(), [category]: undefined },
+			expected: `rationale.${category} must be a non-empty, single-line string of at most 180 characters.`,
+		})),
+		{ field: 'conflicts', value: [false], expected: 'conflicts[0] must be a string.' },
+		{ field: 'attempts', value: undefined, expected: 'attempts must be an array with one finding per attemptNumber from readAttemptComparison.' },
+		{ field: 'decisionSections', value: [], expected: 'decisionSections is not supported; remove it and use rationale.' },
+	]) {
+		test(`reports malformed verdict field: ${scenario.expected}`, async () => {
+			const tool = new CompleteSessionComparisonTool(stubComparisonService({}));
+			const result = await invoke(tool, { ...verdictInput(), [scenario.field]: scenario.value }, judgeResource);
+
+			assert.strictEqual(getText(result), `The comparison verdict input is invalid. ${scenario.expected}`);
+		});
+	}
+
+	for (const scenario of [
+		{ field: 'unresolvedIssues', value: undefined, expected: 'attempts[0].unresolvedIssues must be an array of strings; use [] when there are none.' },
+		{ field: 'unresolvedIssues', value: 'None', expected: 'attempts[0].unresolvedIssues must be an array of strings; use [] when there are none.' },
+		{ field: 'unresolvedIssues', value: ['Valid issue', null], expected: 'attempts[0].unresolvedIssues[1] must be a string.' },
+		{ field: 'notableDifferences', value: {}, expected: 'attempts[0].notableDifferences must be an array of strings; use [] when there are none.' },
+		...['tests', 'build', 'lint', 'diagnostics'].map(category => ({
+			field: 'validation',
+			value: { ...verdictInput().attempts[0].validation, [category]: { state: 'passed', source: 'unavailable' } },
+			expected: `attempts[0].validation.${category} must pair passed/failed with attemptReport/judgeRun, notRun/unknown with attemptReport/judgeRun/unavailable, or notApplicable with notApplicable.`,
+		})),
+	]) {
+		test(`reports malformed attempt field: ${scenario.expected}`, async () => {
+			const tool = new CompleteSessionComparisonTool(stubComparisonService({}));
+			const input = verdictInput();
+			const result = await invoke(tool, {
+				...input,
+				attempts: [{ ...input.attempts[0], [scenario.field]: scenario.value }],
+			}, judgeResource);
+
+			assert.strictEqual(getText(result), `The comparison verdict input is invalid. ${scenario.expected}`);
+		});
+	}
+
+	test('accepts concise verdict strings at the schema length limits', async () => {
+		const comparison = stubComparison();
+		let submitted: ISessionComparisonVerdict | undefined;
+		const tool = new CompleteSessionComparisonTool(stubComparisonService({
+			getComparison: () => comparison,
+			submitVerdict: (_id, verdict) => submitted = verdict,
+		}));
+		const result = await invoke(tool, {
+			...verdictInput(),
+			explanation: 'x'.repeat(240),
+			rationale: { comparison: 'x'.repeat(180), validation: 'x'.repeat(180), codeQuality: 'x'.repeat(180), solution: 'x'.repeat(180) },
+		}, judgeResource);
+
+		assert.deepStrictEqual({
+			result: JSON.parse(getText(result)),
+			explanationLength: submitted?.explanation.length,
+			rationaleLengths: Object.values(submitted?.rationale ?? {}).map(point => point.length),
+		}, {
+			result: { status: 'submitted', comparisonId: comparison.id },
+			explanationLength: 240,
+			rationaleLengths: [180, 180, 180, 180],
+		});
 	});
 });
+
+function verdictInput() {
+	return {
+		comparisonId: 'comparison',
+		recommendedAttemptNumber: 1,
+		explanation: 'The implementation is correct and focused.',
+		rationale: rationaleInput(),
+		conflicts: [],
+		attempts: [{
+			attemptNumber: 1,
+			summary: 'Focused implementation with passing tests.',
+			validation: { tests: passedEvidence(), build: passedEvidence(), lint: passedEvidence(), diagnostics: passedEvidence() },
+			unresolvedIssues: [],
+			notableDifferences: [],
+		}],
+	};
+}
 
 function passedEvidence() {
 	return {
@@ -634,6 +949,7 @@ function stubComparison(): ISessionComparison {
 function stubAttemptSession(): ISession {
 	const chat = upcastPartial<IChat>({
 		resource: attemptChatResource,
+		status: constObservable(SessionStatus.Completed),
 		modelId: constObservable(undefined),
 		changes: constObservable([{
 			uri: URI.file('/workspace/src/example.ts'),
@@ -658,12 +974,13 @@ function stubAttemptSession(): ISession {
 	});
 }
 
-async function invoke(tool: ReadSessionComparisonTool | CompleteSessionComparisonTool, parameters: Record<string, unknown>, sessionResource: URI): Promise<IToolResult> {
+async function invoke(tool: ReadSessionComparisonTool | CompleteSessionComparisonTool, parameters: Record<string, unknown>, sessionResource: URI | undefined, originatingChatResource?: URI): Promise<IToolResult> {
 	return tool.invoke({
 		callId: 'call',
 		toolId: 'tool',
 		parameters,
-		context: { sessionResource },
+		originatingChatResource,
+		context: sessionResource ? { sessionResource } : undefined,
 	}, async () => 0, progress, CancellationToken.None);
 }
 

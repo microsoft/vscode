@@ -8,23 +8,117 @@ import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/action
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { toErrorMessage } from '../../../../base/common/errorMessage.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { Action2, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
+import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { CHAT_ATTACH_CONTEXT_ACTION_ID } from '../../../../workbench/contrib/chat/common/constants.js';
-import { Menus } from '../../../browser/menus.js';
-import { getLabeledPickerResponsiveItems } from './newChatComposerInput.js';
+import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
+import { getLabeledPickerResponsiveItems } from '../../../../workbench/contrib/sessions/browser/chat/newChatComposerInput.js';
 import { createNewSessionControlToolbar } from './newSessionConfigToolbars.js';
-import { SharedChatInputComposerBusyContext } from './sharedChatInputComposer.js';
+import { SharedChatInputComposer, SharedChatInputComposerBusyContext } from '../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposer.js';
+import { ChatInputCanScheduleContext, ChatInputSupportsBackgroundContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsViewGroupingContext } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { SEND_IN_BACKGROUND_COMMAND_ID } from '../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { SessionsGrouping } from '../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
+import { SESSIONS_SEND_LATER_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { IScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 
 const COMPOSER_INITIALIZING_ACTION_ID = 'sessions.newChatComposer.initializing';
 const COMPOSER_SENDING_ACTION_ID = 'sessions.newChatComposer.sending';
 export const COMPOSER_SESSION_CONTROLS_ACTION_ID = 'sessions.newChatComposer.sessionControls';
+
+export class SendInBackgroundAction extends Action2 {
+	constructor() {
+		super({
+			id: SEND_IN_BACKGROUND_COMMAND_ID,
+			title: localize2('sessionsSharedChatInput.sendInBackground', "Send in Background"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ContextKeyExpr.and(
+				IsSessionsWindowContext,
+				ChatContextKeys.enabled,
+				ChatInputSupportsBackgroundContext,
+				ChatContextKeys.inputHasSendableContent,
+				ChatContextKeys.inputBlocked.negate(),
+				ChatContextKeys.chatSessionOptionsValid,
+			),
+			keybinding: [{
+				primary: KeyMod.Alt | KeyCode.Enter,
+				when: ChatContextKeys.inChatInput,
+				weight: KeybindingWeight.SessionsContrib,
+			}, {
+				primary: KeyMod.CtrlCmd | KeyCode.Enter,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, SessionsViewGroupingContext.isEqualTo(SessionsGrouping.Inbox)),
+				weight: KeybindingWeight.SessionsContrib,
+			}],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (widget) {
+			await SharedChatInputComposer.getBackgroundComposer(widget)?.submit(true);
+		}
+	}
+}
+
+registerAction2(SendInBackgroundAction);
+
+export class SendLaterAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.sendLater',
+			title: localize2('sessions.sendLater', "Send Later..."),
+			category: CHAT_CATEGORY,
+			icon: Codicon.clock,
+			f1: true,
+			precondition: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ChatInputCanScheduleContext, ChatContextKeys.inputHasSendableContent, ChatContextKeys.inputBlocked.negate()),
+			menu: {
+				id: MenuId.ChatExecuteSecondary,
+				group: 'navigation',
+				order: 99,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.enabled, ContextKeyExpr.equals(`config.${SESSIONS_SEND_LATER_ENABLED_SETTING}`, true), ChatInputCanScheduleContext),
+			},
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, context?: IChatExecuteActionContext): Promise<void> {
+		const widget = context?.widget ?? accessor.get(IChatWidgetService).lastFocusedWidget;
+		if (widget) {
+			const notificationService = accessor.get(INotificationService);
+			try {
+				const composer = SharedChatInputComposer.getBackgroundComposer(widget);
+				if (composer) {
+					await composer.schedule();
+				} else {
+					await accessor.get(IScheduledChatsService).scheduleChatInput(widget);
+				}
+			} catch (error) {
+				if (!isCancellationError(error)) {
+					notificationService.error(toErrorMessage(error));
+				}
+			}
+		}
+	}
+}
+
+registerAction2(SendLaterAction);
 
 MenuRegistry.appendMenuItem(Menus.NewSessionChatInputToolbar, {
 	command: { id: CHAT_ATTACH_CONTEXT_ACTION_ID, title: localize('sessionsSharedChatInput.addContext', "Add Context..."), icon: Codicon.addCompact },

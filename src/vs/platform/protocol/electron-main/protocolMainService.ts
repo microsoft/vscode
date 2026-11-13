@@ -12,6 +12,7 @@ import { TernarySearchTree } from '../../../base/common/ternarySearchTree.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { validatedIpcMain } from '../../../base/parts/ipc/electron-main/ipcMain.js';
+import { isUNCAccessAllowed } from '../../../base/node/unc.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { ILogService } from '../../log/common/log.js';
 import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
@@ -140,8 +141,10 @@ export class ProtocolMainService extends Disposable implements IProtocolMainServ
 			return callback({ path, headers });
 		}
 
-		// then check by validExtensions
-		if (this.validExtensions.has(extname(path).toLowerCase())) {
+		// then check by validExtensions, but only for UNC hosts the user allowed:
+		// UNC host restrictions only apply to node.js `fs` and Electron serves
+		// `vscode-file:` without going through it, so check the allowlist here
+		if (this.validExtensions.has(extname(path).toLowerCase()) && isUNCAccessAllowed(path)) {
 			return callback({ path, headers });
 		}
 

@@ -49,6 +49,18 @@ suite('codexUserInputMapper', () => {
 		);
 	});
 
+	test('freeform-only selections do not add an empty Codex answer', () => {
+		assert.deepStrictEqual(
+			userInputResponseFromAnswers([selectQuestion], ChatInputResponseKind.Accept, {
+				q1: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['Cherry'] },
+				},
+			}),
+			{ answers: { q1: { answers: ['Cherry'] } } },
+		);
+	});
+
 	test('declined/skipped/missing answers yield empty arrays', () => {
 		const answers: Record<string, ChatInputAnswer> = {
 			q1: { state: ChatInputAnswerState.Skipped },

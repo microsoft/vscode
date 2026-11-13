@@ -95,11 +95,13 @@ export interface ILocalModelReadyOfferInput {
 	readonly family: ILocalModelFamilyV1;
 	readonly flavor: LocalModelReadyOfferFlavor;
 	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
+	/** Whether the local Copilot host's Auto is presented as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
 }
 
 /** The ready offer's description and actions for one chat input; the primary action is always last. */
 export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInput): IChatInputNotificationBody {
-	const { status, family } = input;
+	const { status, family, autoModelFusion } = input;
 	const name = family.displayName;
 	const readyOfferId = family.readyOfferId ?? '';
 	const currentModelKind = getLocalModelCurrentModelKind(input.currentModel, status);
@@ -141,7 +143,9 @@ export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInpu
 		const tooSlow = family.autoCapable && status.active?.familyId === family.familyId && status.active.autoEligible === false;
 		return {
 			description: tooSlow
-				? localize('localModel.ready.tooSlow', "It's too slow on this device for Auto, but you can select it directly.")
+				? autoModelFusion
+					? localize('localModel.ready.tooSlowFusion', "It's too slow on this device for Copilot Fusion, but you can select it directly.")
+					: localize('localModel.ready.tooSlow', "It's too slow on this device for Auto, but you can select it directly.")
 				: localize('localModel.ready.directOnly', "Select it directly to run on your device."),
 			actions: [notNow, switchToLocal(true)],
 		};
@@ -149,10 +153,14 @@ export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInpu
 
 	if (currentModelKind === 'auto') {
 		return {
-			description: localize('localModel.ready.auto', "Auto can now run some requests on this device, with cloud fallback. New Auto chats will use it."),
+			description: autoModelFusion
+				? localize('localModel.ready.autoFusion', "Copilot Fusion can now run some requests on this device, with cloud fallback. New Copilot Fusion chats will use it.")
+				: localize('localModel.ready.auto', "Auto can now run some requests on this device, with cloud fallback. New Auto chats will use it."),
 			actions: [switchToLocal(false), notNow, {
 				kind: ChatInputNotificationActionKind.Command,
-				label: localize('localModel.ready.newAutoChat', "New Auto Chat"),
+				label: autoModelFusion
+					? localize('localModel.ready.newFusionChat', "New Copilot Fusion Chat")
+					: localize('localModel.ready.newAutoChat', "New Auto Chat"),
 				commandId: LOCAL_MODEL_NEW_AUTO_CHAT_COMMAND_ID,
 				commandArgs: [readyOfferId, currentModelKind],
 				primary: true,
@@ -163,14 +171,18 @@ export function resolveLocalModelReadyOfferBody(input: ILocalModelReadyOfferInpu
 
 	const useAuto: IChatInputNotificationAction = {
 		kind: ChatInputNotificationActionKind.SwitchToModel,
-		label: localize('localModel.ready.useAuto', "Use Auto"),
+		label: autoModelFusion
+			? localize('localModel.ready.useFusion', "Use Copilot Fusion")
+			: localize('localModel.ready.useAuto', "Use Auto"),
 		matchesModel: matchesLocalCopilotAuto,
 		requireUniqueModel: true,
 		primary: false,
 		telemetryActionId: 'useAuto',
 	};
 	return {
-		description: localize('localModel.ready.server', "Run this chat on your device, or let Auto choose between local and cloud."),
+		description: autoModelFusion
+			? localize('localModel.ready.serverFusion', "Run this chat on your device, or let Copilot Fusion choose between local and cloud.")
+			: localize('localModel.ready.server', "Run this chat on your device, or let Auto choose between local and cloud."),
 		actions: [useAuto, notNow, switchToLocal(true)],
 	};
 }
@@ -292,15 +304,16 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 
 	private _createNotification(readyOfferId: string, family: ILocalModelFamilyV1, flavor: LocalModelReadyOfferFlavor, inputUri: URI | undefined): IChatInputNotification {
 		const familyId = family.familyId;
-		const resolve = (currentModel: ILanguageModelChatMetadataAndIdentifier | undefined): IChatInputNotificationBody => {
+		const resolve = (currentModel: ILanguageModelChatMetadataAndIdentifier | undefined, models: readonly ILanguageModelChatMetadataAndIdentifier[]): IChatInputNotificationBody => {
 			const status = this._status.get();
 			const current = status?.families.find(candidate => candidate.familyId === familyId);
 			if (!status || !current) {
 				return { description: undefined, actions: [] };
 			}
-			return resolveLocalModelReadyOfferBody({ status, family: current, flavor: getLocalModelReadyOfferFlavor(status, current, true) ?? flavor, currentModel });
+			const autoModelFusion = models.some(model => matchesLocalCopilotAuto(model) && !!model.metadata.autoModelFusion);
+			return resolveLocalModelReadyOfferBody({ status, family: current, flavor: getLocalModelReadyOfferFlavor(status, current, true) ?? flavor, currentModel, autoModelFusion });
 		};
-		const initial = resolve(undefined);
+		const initial = resolve(undefined, []);
 		return {
 			id: LOCAL_MODEL_READY_OFFER_NOTIFICATION_PREFIX + readyOfferId,
 			telemetryId: 'localModel.ready',
@@ -316,7 +329,7 @@ export class LocalModelReadyNotificationContribution extends Disposable {
 				const current = this._status.get()?.families.find(candidate => candidate.familyId === familyId);
 				return !context.modelState.currentModel || !matchesLocalModelRow(current?.install?.modelId)(context.modelState.currentModel);
 			},
-			resolveBody: context => resolve(context.modelState.currentModel),
+			resolveBody: context => resolve(context.modelState.currentModel, context.modelState.models),
 			onDidShow: context => this._recordShown(readyOfferId, context.modelState.currentModel),
 			dismissible: true,
 			onDismiss: () => this._acknowledge(readyOfferId),

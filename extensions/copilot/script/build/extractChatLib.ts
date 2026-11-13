@@ -3,15 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
+import { exec, spawnSync } from 'child_process';
 import * as fs from 'fs';
 import { glob } from 'glob';
 import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import { promisify } from 'util';
+import * as yaml from 'yaml';
+import { DependencyKind, lockChatLibDependencies, PnpmLockfile, splitLockfileDocuments } from './chatLibLockfile';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const CHAT_LIB_DIR = path.join(REPO_ROOT, 'chat-lib');
+// The root of the vscode repository, whose pnpm workspace Copilot and chat-lib are members of
+const WORKSPACE_ROOT = path.join(REPO_ROOT, '..', '..');
 const TARGET_DIR = path.join(CHAT_LIB_DIR, 'src');
 const execAsync = promisify(exec);
 
@@ -689,8 +693,7 @@ class ChatLibExtractor {
 		await fs.promises.writeFile(vscodeApiDestPath, updatedContent);
 
 		// Also copy thenable.d.ts which is referenced by vscode.d.ts
-		const vscodeRepoRoot = path.join(REPO_ROOT, '..', '..');
-		const thenableSrcPath = path.join(vscodeRepoRoot, 'src', 'typings', 'thenable.d.ts');
+		const thenableSrcPath = path.join(WORKSPACE_ROOT, 'src', 'typings', 'thenable.d.ts');
 		if (fs.existsSync(thenableSrcPath)) {
 			await fs.promises.copyFile(thenableSrcPath, path.join(vscodeDtsDestDir, 'thenable.d.ts'));
 			console.log('Copied thenable.d.ts');
@@ -737,8 +740,6 @@ class ChatLibExtractor {
 
 		const rootPackageJsonPath = path.join(REPO_ROOT, 'package.json');
 		const chatLibPackageJsonPath = path.join(CHAT_LIB_DIR, 'package.json');
-		const rootPackageLockPath = path.join(REPO_ROOT, 'package-lock.json');
-		const chatLibPackageLockPath = path.join(CHAT_LIB_DIR, 'package-lock.json');
 
 		// Read both package.json files
 		const rootPackageJson = JSON.parse(await fs.promises.readFile(rootPackageJsonPath, 'utf-8'));
@@ -753,10 +754,11 @@ class ChatLibExtractor {
 		let updatedCount = 0;
 		let removedCount = 0;
 		const changes: string[] = [];
-		const updatedPackages = new Set<string>();
+		const updatedPackages = new Map<string, DependencyKind>();
+		const removedPackages = new Set<string>();
 
 		// Update existing dependencies in chat-lib with versions from root
-		for (const depType of ['dependencies', 'devDependencies']) {
+		for (const depType of ['dependencies', 'devDependencies'] as const) {
 			if (chatLibPackageJson[depType]) {
 				const dependencyNames = Object.keys(chatLibPackageJson[depType]);
 
@@ -770,13 +772,14 @@ class ChatLibExtractor {
 							chatLibPackageJson[depType][depName] = newVersion;
 							changes.push(`  Updated ${depName}: ${oldVersion} → ${newVersion}`);
 							updatedCount++;
-							updatedPackages.add(depName);
+							updatedPackages.set(depName, depType);
 						}
 					} else {
 						// Remove dependency if it no longer exists in root
 						delete chatLibPackageJson[depType][depName];
 						changes.push(`  Removed ${depName} (no longer in root package.json)`);
 						removedCount++;
+						removedPackages.add(depName);
 					}
 				}
 
@@ -786,6 +789,11 @@ class ChatLibExtractor {
 				}
 			}
 		}
+
+		// The postinstall copies static files next to the extracted sources. chat-lib is a member of the
+		// pnpm workspace, whose installs run the install scripts of every member, so its checked-in
+		// package.json leaves the script out until there are sources. The published package declares it.
+		chatLibPackageJson.scripts = { ...chatLibPackageJson.scripts, postinstall: 'tsx script/postinstall.js' };
 
 		// Write the updated chat-lib package.json
 		await fs.promises.writeFile(
@@ -799,91 +807,47 @@ class ChatLibExtractor {
 			changes.forEach(change => console.log(change));
 		}
 
-		// Update package-lock.json for changed dependencies and their transitive dependencies
-		if (updatedPackages.size > 0 && fs.existsSync(rootPackageLockPath) && fs.existsSync(chatLibPackageLockPath)) {
-			console.log('Updating chat-lib package-lock.json for changed dependencies...');
-
-			const rootPackageLock = JSON.parse(await fs.promises.readFile(rootPackageLockPath, 'utf-8'));
-			const chatLibPackageLock = JSON.parse(await fs.promises.readFile(chatLibPackageLockPath, 'utf-8'));
-
-			// Update the root package entry with new dependencies
-			if (chatLibPackageLock.packages && chatLibPackageLock.packages['']) {
-				chatLibPackageLock.packages[''].dependencies = chatLibPackageJson.dependencies || {};
-				chatLibPackageLock.packages[''].devDependencies = chatLibPackageJson.devDependencies || {};
-			}
-
-			// Collect all packages to update (direct dependencies + their transitive dependencies)
-			const packagesToUpdate = new Set<string>();
-			const queue: string[] = [];
-
-			// Start with updated packages
-			for (const pkgName of updatedPackages) {
-				const pkgPath = `node_modules/${pkgName}`;
-				queue.push(pkgPath);
-				packagesToUpdate.add(pkgPath);
-			}
-
-			// Traverse dependency tree from root package-lock to find all transitive dependencies
-			while (queue.length > 0) {
-				const pkgPath = queue.shift()!;
-				const pkgInfo = rootPackageLock.packages?.[pkgPath];
-
-				if (pkgInfo) {
-					// Collect all dependency types
-					const deps = {
-						...pkgInfo.dependencies,
-						...pkgInfo.optionalDependencies,
-						...pkgInfo.devDependencies
-					};
-
-					for (const depName of Object.keys(deps)) {
-						// Handle nested dependencies
-						const nestedDepPath = `${pkgPath}/node_modules/${depName}`;
-						const topLevelDepPath = `node_modules/${depName}`;
-
-						let actualDepPath: string | null = null;
-						if (rootPackageLock.packages[nestedDepPath]) {
-							actualDepPath = nestedDepPath;
-						} else if (rootPackageLock.packages[topLevelDepPath]) {
-							actualDepPath = topLevelDepPath;
-						} else {
-							// Walk up the parent chain
-							const pathParts = pkgPath.split('/node_modules/');
-							for (let i = pathParts.length - 1; i >= 0; i--) {
-								const parentPath = pathParts.slice(0, i).join('/node_modules/');
-								const candidatePath = parentPath ? `${parentPath}/node_modules/${depName}` : `node_modules/${depName}`;
-								if (rootPackageLock.packages[candidatePath]) {
-									actualDepPath = candidatePath;
-									break;
-								}
-							}
-						}
-
-						if (actualDepPath && !packagesToUpdate.has(actualDepPath)) {
-							packagesToUpdate.add(actualDepPath);
-							queue.push(actualDepPath);
-						}
-					}
-				}
-			}
-
-			// Update package entries in chat-lib lock file (add new entries if not present)
-			let lockUpdatedCount = 0;
-			for (const pkgPath of packagesToUpdate) {
-				if (rootPackageLock.packages[pkgPath]) {
-					chatLibPackageLock.packages[pkgPath] = rootPackageLock.packages[pkgPath];
-					lockUpdatedCount++;
-				}
-			}
-
-			// Write the updated chat-lib package-lock.json
-			await fs.promises.writeFile(
-				chatLibPackageLockPath,
-				JSON.stringify(chatLibPackageLock, null, '\t') + '\n'
-			);
-
-			console.log(`Chat-lib package-lock.json updated: ${lockUpdatedCount} package entries updated`);
+		// Keep chat-lib's project in the root pnpm-lock.yaml in sync with the package.json written above
+		if (updatedPackages.size > 0 || removedPackages.size > 0) {
+			this.updateChatLibLockfile(updatedPackages, removedPackages);
 		}
+	}
+
+	/**
+	 * Updates chat-lib's project in the root `pnpm-lock.yaml` (chat-lib and Copilot are members of
+	 * the root pnpm workspace) after its `package.json` dependencies changed, using the versions
+	 * that Copilot's project locks (see `lockChatLibDependencies`). Nothing is resolved, also not in
+	 * the pipelines that publish chat-lib: `pnpm install --frozen-lockfile --lockfile-only` only
+	 * checks the result against the workspace's `package.json` files (and pnpm's supply-chain
+	 * policies), and writes it in pnpm's format. Then `pnpm install --frozen-lockfile
+	 * --ignore-scripts` updates chat-lib's `node_modules` to those versions: it can still hold the
+	 * versions of its previous `package.json`, which the TypeScript check below would otherwise
+	 * use. It installs only chat-lib: the workspace's other projects keep what they have.
+	 */
+	private updateChatLibLockfile(updatedPackages: ReadonlyMap<string, DependencyKind>, removedPackages: ReadonlySet<string>): void {
+		const lockfilePath = path.join(WORKSPACE_ROOT, 'pnpm-lock.yaml');
+		if (!fs.existsSync(lockfilePath)) {
+			throw new Error(`Cannot update ${lockfilePath}: it doesn't exist.`);
+		}
+
+		console.log('Updating chat-lib in pnpm-lock.yaml for changed dependencies...');
+		// Only the lockfile of the projects changes: the documents before it are written back as they are
+		const { leadingDocuments, lockfile: projectsLockfile } = splitLockfileDocuments(fs.readFileSync(lockfilePath, 'utf-8'));
+		const lockfile = yaml.parse(projectsLockfile) as PnpmLockfile;
+		const toImporterId = (folder: string) => path.relative(WORKSPACE_ROOT, folder).split(path.sep).join('/');
+		const locked = lockChatLibDependencies(lockfile, toImporterId(REPO_ROOT), toImporterId(CHAT_LIB_DIR), updatedPackages, removedPackages);
+		fs.writeFileSync(lockfilePath, leadingDocuments + yaml.stringify(lockfile));
+		console.log(`Locked ${locked} chat-lib dependencies to Copilot's versions`);
+
+		const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
+		const chatLibName = JSON.parse(fs.readFileSync(path.join(CHAT_LIB_DIR, 'package.json'), 'utf-8')).name as string;
+		for (const args of [['install', '--lockfile-only', '--ignore-scripts', '--frozen-lockfile'], ['install', '--ignore-scripts', '--frozen-lockfile', '--filter', chatLibName]]) {
+			const result = spawnSync(pnpm, args, { cwd: WORKSPACE_ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
+			if (result.error || result.status !== 0) {
+				throw new Error(`pnpm ${args.join(' ')} failed in ${WORKSPACE_ROOT} (${result.error?.message ?? `exit code ${result.status}`}; see its output above). If pnpm reports that the lockfile is not up to date, the pnpm-lock.yaml of ${WORKSPACE_ROOT} doesn't match the package.json files of its workspace: run \`pnpm install\` there, then extract again.`);
+			}
+		}
+		console.log('pnpm-lock.yaml and node_modules updated');
 	}
 
 	private async compileTypeScript(): Promise<void> {

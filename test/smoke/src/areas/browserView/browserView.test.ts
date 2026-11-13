@@ -317,8 +317,9 @@ export function setup(logger: Logger): void {
 			await workbenchPage.locator('.tab', { hasText: 'Browser Smoke Sharing' }).click();
 			await unshareButton.waitFor();
 
+			const previousSessionResource = await app.workbench.chat.getChatViewSessionResource();
 			await app.workbench.quickaccess.runCommand('smoketest.openLocalChat');
-			await app.workbench.chat.waitForChatView();
+			await app.workbench.chat.waitForNewLocalChatViewSession(previousSessionResource, 600);
 			await app.workbench.chat.sendMessage('[scenario:browser-sharing-click-success]');
 			const successToolResult = await waitForScenarioToolResult(mockServer, 'browser-sharing-click-success');
 			assert.doesNotMatch(successToolResult, /not found/i);
@@ -450,6 +451,8 @@ function preseedSettings(userDataDir: string | undefined, mockServerUrl: string)
 		'chat.disableAIFeatures': false,
 		'chat.tools.riskAssessment.enabled': false,
 		'github.copilot.chat.backgroundAgent.enabled': true,
+		// The extension-host Copilot CLI provider is being retired; run as after its removal.
+		'github.copilot.chat.cli.legacyProvider.enabled': false,
 		'window.menuStyle': 'custom',
 		'workbench.browser.experimentalUserTools.enabled': true,
 		'workbench.editorAssociations': {
