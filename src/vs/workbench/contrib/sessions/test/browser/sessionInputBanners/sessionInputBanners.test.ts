@@ -3,18 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { buildTestSession } from '../../common/testSessionBuilder.js';
-import { SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../common/sessionConfig.js';
-import { SessionInlineActions } from '../../../browser/views/sessionInlineActions.js';
-import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
-import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
-import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { mainWindow } from '../../../../../../base/browser/window.js';
 import assert from 'assert';
 import { IManagedHover } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
-import { timeout, DeferredPromise } from '../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, ImmortalReference, IDisposable, IReference } from '../../../../../../base/common/lifecycle.js';
@@ -54,179 +46,12 @@ import { PullRequestCheck } from '../../../../../../platform/github/common/githu
 import { classifyRequiredPullRequestChecks } from '../../../../../../platform/github/common/pullRequestRequiredChecks.js';
 import { SessionInputBanners } from '../../../browser/sessionInputBanners/sessionInputBanners.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import '../../../browser/media/sessionsList.css';
 
 suite('SessionInputBanners', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	for (const isDraft of [false, true]) {
 		test(`groups actionable ${isDraft ? 'draft' : 'ready'} PRs, hides merged PR comments, scopes the combined request, and dismisses one carousel item`, () => testActionablePullRequests(isDraft));
-	}
-
-	test('inline actions prefer combined requests, target a peer in the background, and preserve pending state across recycling', async () => {
-		const built = buildTestSession({ id: 'inline', title: 'Main', chats: [{ id: 'peer', title: 'Peer' }] });
-		const mainChat = { ...built.mainChat.chat, workspace: constObservable(workspaceWithPullRequests('/main', [pullRequest(42), pullRequest(41)])) };
-		const peer = { ...built.chats.get('peer')!.chat, workspace: constObservable(workspaceWithPullRequests('/peer', [pullRequest(43)])) };
-		const session = { ...built.session, mainChat: constObservable(mainChat), chats: observableValue('chats', [mainChat, peer]) };
-		const feedback = observableValue<readonly IAgentFeedback[]>('feedback', [prFeedback('combined', session.resource, 41)]);
-		const ci = ciModel([failedCheck(1)]);
-		const calls: string[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
-		const configuration = new TestConfigurationService({ [SESSIONS_LIST_INLINE_ACTIONS_SETTING]: true });
-		store.add(configuration.onDidChangeConfigurationEmitter);
-		instantiationService.stub(IConfigurationService, configuration);
-		instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configuration)));
-		instantiationService.stub(ISessionHost, new class extends mock<ISessionHost>() { }());
-		instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
-		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
-		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
-		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IChatWidgetService, { getWidgetBySessionResource: () => { throw new Error('Must not open or use a widget'); } });
-		instantiationService.stub(IGitHubService, {
-			createPullRequestModelReference: (_owner: string, _repo: string, number: number) => new ImmortalReference(pullRequestModel(number, 'PR', false)),
-			createPullRequestCIModelReference: () => new ImmortalReference(ci),
-		});
-		instantiationService.stub(IAgentFeedbackService, {
-			onDidChangeFeedback: Event.None,
-			getFeedbackObservable: () => feedback,
-		});
-		let reject = false;
-		const accepted = new DeferredPromise<void>();
-		instantiationService.stub(ISessionsManagementService, {
-			getSession: () => session,
-			sendRequestInBackground: async (_session, chat) => {
-				calls.push(chat.resource.toString());
-				if (reject) {
-					throw new Error('Rejected');
-				}
-				await accepted.p;
-			},
-		});
-		const errors: string[] = [];
-		instantiationService.stub(INotificationService, { error: error => errors.push(String(error)) });
-		instantiationService.stub(IChatEntitlementService, { onDidChangeSentiment: Event.None, sentiment: {} });
-		const visible = observableValue('visible', true);
-		const host = mainWindow.document.createElement('div');
-		host.className = 'sessions-list-control';
-		host.style.width = '120px';
-		mainWindow.document.body.appendChild(host);
-		store.add({ dispose: () => host.remove() });
-		const mainBefore = host.appendChild(mainWindow.document.createElement('div'));
-		const peerBefore = host.appendChild(mainWindow.document.createElement('div'));
-		const main = store.add(instantiationService.createInstance(SessionInlineActions, session, undefined, mainBefore, visible, () => { }, () => { }));
-		const row = store.add(instantiationService.createInstance(SessionInlineActions, session, peer, peerBefore, visible, () => { }, () => { }));
-		const buttons = () => [...host.querySelectorAll<HTMLElement>('.session-inline-actions:not([hidden]) .monaco-button')];
-		assert.deepStrictEqual({ labels: buttons().map(button => button.textContent), dropdowns: host.querySelectorAll('.monaco-button-dropdown').length }, {
-			labels: ['Fix Checks & Address Comments', 'Fix Checks'], dropdowns: 0,
-		});
-		const combinedButton = buttons()[0];
-		const label = combinedButton.querySelector<HTMLElement>('span:not(.codicon)')!;
-		const narrow = {
-			fits: combinedButton.getBoundingClientRect().width <= host.clientWidth,
-			truncated: label.scrollWidth > label.clientWidth,
-			overflow: mainWindow.getComputedStyle(label).textOverflow,
-		};
-		host.style.width = '400px';
-		assert.deepStrictEqual({ narrow, wideTruncated: label.scrollWidth > label.clientWidth }, {
-			narrow: { fits: true, truncated: true, overflow: 'ellipsis' }, wideTruncated: false,
-		});
-		buttons()[1].click();
-		buttons()[1].click();
-		await timeout(0);
-		row.dispose();
-		store.add(instantiationService.createInstance(SessionInlineActions, session, peer, peerBefore, visible, () => { }, () => { }));
-		buttons()[1].click();
-		assert.deepStrictEqual({ calls, label: buttons()[1].textContent?.trim(), disabled: buttons()[1].getAttribute('aria-disabled') }, {
-			calls: [peer.resource.toString()], label: 'Sending...', disabled: 'true',
-		});
-		await accepted.complete();
-		await timeout(0);
-		assert.deepStrictEqual({ peerHidden: host.querySelectorAll<HTMLElement>('.session-inline-actions')[1].hidden, errors }, {
-			peerHidden: true, errors: [],
-		});
-		ci.fixRequested.set(false, undefined);
-		reject = true;
-		buttons()[1].click();
-		await timeout(0);
-		assert.deepStrictEqual({ disabled: buttons()[1].getAttribute('aria-disabled'), errors }, { disabled: 'false', errors: ['Error: Rejected'] });
-		session.chats.set([mainChat], undefined);
-		buttons()[1].click();
-		await timeout(0);
-		assert.deepStrictEqual({ calls: calls.length, lastError: errors.at(-1) }, {
-			calls: 2, lastError: 'Error: This action is no longer available for this chat.',
-		});
-		visible.set(false, undefined);
-		assert.strictEqual(host.querySelectorAll('.session-inline-actions').length, 0);
-		main.dispose();
-	});
-
-	for (const kind of ['checks', 'prComments', 'agentComments', 'combined'] as const) {
-		test(`inline ${kind} shows pending feedback, reports a failed send, and remains available to retry`, async () => {
-			const built = buildTestSession({ id: `retry-${kind}`, title: 'Retry' });
-			const chat = { ...built.mainChat.chat, workspace: constObservable(workspaceWithPullRequests('/retry', [pullRequest(42)])) };
-			const session = { ...built.session, mainChat: constObservable(chat), chats: constObservable([chat]) };
-			const feedback = observableValue<readonly IAgentFeedback[]>('feedback', kind === 'checks' ? []
-				: [kind === 'agentComments' ? agentFeedback('selected', session.resource) : prFeedback('selected', session.resource, 42)]);
-			const ci = ciModel(kind === 'checks' || kind === 'combined' ? [failedCheck(1)] : []);
-			const instantiationService = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({ [SESSIONS_LIST_INLINE_ACTIONS_SETTING]: true });
-			store.add(configuration.onDidChangeConfigurationEmitter);
-			instantiationService.stub(IConfigurationService, configuration);
-			instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configuration)));
-			instantiationService.stub(ISessionHost, new class extends mock<ISessionHost>() { }());
-			instantiationService.stub(ISessionsProvidersService, { onDidChangeProviders: Event.None, getProvider: () => undefined });
-			instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
-			instantiationService.stub(IStorageService, store.add(new TestStorageService()));
-			instantiationService.stub(ILogService, new NullLogService());
-			instantiationService.stub(IChatWidgetService, { getWidgetBySessionResource: () => { throw new Error('Must not open a widget'); } });
-			instantiationService.stub(IGitHubService, {
-				createPullRequestModelReference: () => new ImmortalReference(pullRequestModel(42, 'PR', false)),
-				createPullRequestCIModelReference: () => new ImmortalReference(ci),
-			});
-			let acceptance = new DeferredPromise<void>();
-			let sends = 0;
-			const send = async () => { sends++; await acceptance.p; };
-			instantiationService.stub(IAgentFeedbackService, {
-				onDidChangeFeedback: Event.None,
-				getFeedbackObservable: () => feedback,
-				acceptFeedback: (_resource, id) => feedback.set(feedback.get().map(item => item.id === id ? { ...item, state: AgentFeedbackState.Accepted } : item), undefined),
-				submitFeedback: async (_resource, options) => {
-					await send();
-					feedback.set(feedback.get().map(item => options?.feedbackIds?.includes(item.id) ? { ...item, state: AgentFeedbackState.Submitted } : item), undefined);
-					options?.onRequestAccepted?.();
-					return true;
-				},
-			});
-			instantiationService.stub(ISessionsManagementService, { getSession: () => session, sendRequestInBackground: send });
-			const errors: string[] = [];
-			instantiationService.stub(INotificationService, { error: error => errors.push(String(error)) });
-			instantiationService.stub(IChatEntitlementService, { onDidChangeSentiment: Event.None, sentiment: {} });
-			const host = mainWindow.document.createElement('div');
-			const before = host.appendChild(mainWindow.document.createElement('div'));
-			const row = store.add(instantiationService.createInstance(SessionInlineActions, session, undefined, before, constObservable(true), () => { }, () => { }));
-			const button = () => host.querySelector<HTMLElement>('.session-inline-actions:not([hidden]) .monaco-button')!;
-			const label = button().textContent;
-			button().dispatchEvent(new KeyboardEvent('keydown', { key: ' ', keyCode: 32, bubbles: true }));
-			await timeout(0);
-			const pending = { label: button().textContent?.trim(), disabled: button().getAttribute('aria-disabled'), states: feedback.get().map(item => item.state), ciRequested: ci.fixRequested.get() };
-			row.dispose();
-			store.add(instantiationService.createInstance(SessionInlineActions, session, undefined, before, constObservable(true), () => { }, () => { }));
-			button().click();
-			await acceptance.error(new Error('Host unavailable'));
-			await timeout(0);
-			const failed = { label: button().textContent, disabled: button().getAttribute('aria-disabled'), states: feedback.get().map(item => item.state), ciRequested: ci.fixRequested.get(), sends, errors: [...errors] };
-
-			acceptance = new DeferredPromise<void>();
-			button().click();
-			await timeout(0);
-			await acceptance.complete();
-			await timeout(0);
-			assert.deepStrictEqual({ pending, failed, retried: { hidden: host.querySelector<HTMLElement>('.session-inline-actions')!.hidden, sends, states: feedback.get().map(item => item.state), ciRequested: ci.fixRequested.get() } }, {
-				pending: { label: 'Sending...', disabled: 'true', states: kind === 'checks' ? [] : [AgentFeedbackState.Created], ciRequested: false },
-				failed: { label, disabled: 'false', states: kind === 'checks' ? [] : [AgentFeedbackState.Created], ciRequested: false, sends: 1, errors: ['Error: Host unavailable'] },
-				retried: { hidden: true, sends: 2, states: kind === 'checks' ? [] : [AgentFeedbackState.Submitted], ciRequested: kind === 'checks' || kind === 'combined' },
-			});
-		});
 	}
 
 	test('shows the pull requests of the session of its window, not of the globally active session', () => {

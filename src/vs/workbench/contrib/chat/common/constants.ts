@@ -167,6 +167,7 @@ export enum ChatConfiguration {
 	AgentsHandoffTipMode = 'chat.agentsHandoffTip.mode',
 	AgentsHandoffTipDelaySeconds = 'chat.agentsHandoffTip.delaySeconds',
 	BtwTipEnabled = 'chat.btwTip.enabled',
+	AutomateTipEnabled = 'chat.automateTip.enabled',
 	SendInBackgroundTipEnabled = 'chat.sendInBackgroundTip.enabled',
 	CopilotCliCommandEnabled = 'chat.copilotCliCommand.enabled',
 

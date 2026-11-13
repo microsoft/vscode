@@ -678,9 +678,9 @@ export class ScheduledChatsService extends Disposable implements IScheduledChats
 
 	private async pickTime(anchor?: HTMLElement): Promise<Date | undefined> {
 		const now = Date.now();
-		const choices = [30, 60, 24 * 60].map(minutes => {
+		const choices = [10, 30, 60, 24 * 60].map(minutes => {
 			const date = new Date(now + minutes * 60_000);
-			return { label: minutes === 30 ? localize('sendLater.thirtyMinutes', "In 30 Minutes") : minutes === 60 ? localize('sendLater.oneHour', "In 1 Hour") : localize('sendLater.tomorrow', "In 24 Hours"), description: formatTime(date.toISOString()), date };
+			return { label: minutes === 10 ? localize('sendLater.tenMinutes', "In 10 Minutes") : minutes === 30 ? localize('sendLater.thirtyMinutes', "In 30 Minutes") : minutes === 60 ? localize('sendLater.oneHour', "In 1 Hour") : localize('sendLater.tomorrow', "In 24 Hours"), description: formatTime(date.toISOString()), date };
 		});
 		const picked = await this.quickInputService.pick([...choices, { label: localize('sendLater.customTime', "Choose Date and Time..."), description: '', date: undefined }], { title: localize('sendLater.title', "Send Later"), placeHolder: localize('sendLater.pickTime', "Choose when to send. Times use this device's time zone."), anchor, anchorPosition: anchor ? 'above' : undefined });
 		if (!picked || picked.date) {
