@@ -85,8 +85,7 @@ export function withAgentHostAutomationHistoryState(meta: Record<string, unknown
 export const AgentHostScheduledChatExistingConversationCapabilityMetaKey = 'vscode.scheduledChatExistingConversation';
 
 const AgentHostScheduledChatMetaKey = 'vscode.scheduledChat';
-const AgentHostScheduledChatConversationMetaKey = 'vscode.scheduledChatConversation';
-const AgentHostOneTimeReceiptsMetaKey = 'vscode.oneTimeReceipts';
+const AgentHostOneTimeRunMetaKey = 'vscode.oneTimeRun';
 
 /** Existing chat that receives a scheduled chat. The host neither creates nor owns its session. */
 export interface IAgentHostScheduledChatConversation {
@@ -94,14 +93,9 @@ export interface IAgentHostScheduledChatConversation {
 	readonly chat: string;
 }
 
-/** Host-owned one-time receipts, retained after run history is pruned. */
-export interface IAgentHostOneTimeReceipts {
-	/** Run that consumed the one-time occurrence. */
-	readonly run?: string;
-	/** When the run's message was accepted for dispatch. */
-	readonly dispatchedAt?: string;
-	/** When the run positively failed before its message was submitted. */
-	readonly dispatchRejectedAt?: string;
+/** Marks a definition or run as a scheduled chat. */
+export interface IAgentHostScheduledChat {
+	readonly conversation?: IAgentHostScheduledChatConversation;
 }
 
 /** Whether the host can deliver scheduled chats into an existing chat. */
@@ -109,74 +103,49 @@ export function supportsAgentHostScheduledChatExistingConversation(result: Initi
 	return result?._meta?.[AgentHostScheduledChatExistingConversationCapabilityMetaKey] === true;
 }
 
-/** Whether a definition or run is a VS Code scheduled chat rather than an ordinary automation. */
-export function isAgentHostScheduledChat(value: { readonly _meta?: Record<string, unknown> } | undefined): boolean {
-	return value?._meta?.[AgentHostScheduledChatMetaKey] === true;
+/** Reads the scheduled-chat marker; `null` when present but malformed. */
+export function getAgentHostScheduledChat(value: { readonly _meta?: Record<string, unknown> } | undefined): IAgentHostScheduledChat | null | undefined {
+	const marker = value?._meta?.[AgentHostScheduledChatMetaKey];
+	if (marker === undefined) {
+		return undefined;
+	}
+	if (marker === true) {
+		return {};
+	}
+	const conversation = marker && typeof marker === 'object' ? (marker as { conversation?: unknown }).conversation : undefined;
+	const { session, chat } = conversation && typeof conversation === 'object' ? conversation as Record<string, unknown> : {};
+	return typeof session === 'string' && typeof chat === 'string' ? { conversation: { session, chat } } : null;
 }
 
 /** Sets or clears the scheduled-chat marker while preserving unrelated metadata. */
-export function withAgentHostScheduledChat(meta: Record<string, unknown> | undefined, scheduledChat: boolean): Record<string, unknown> {
+export function withAgentHostScheduledChat(meta: Record<string, unknown> | undefined, scheduledChat: IAgentHostScheduledChat | undefined): Record<string, unknown> {
 	const result = { ...meta };
 	if (scheduledChat) {
-		result[AgentHostScheduledChatMetaKey] = true;
+		result[AgentHostScheduledChatMetaKey] = scheduledChat.conversation ? { conversation: { ...scheduledChat.conversation } } : true;
 	} else {
 		delete result[AgentHostScheduledChatMetaKey];
 	}
 	return result;
 }
 
-/** Whether a definition supplies an existing-chat target, even a malformed one. */
-export function hasAgentHostScheduledChatConversation(definition: AutomationDefinition): boolean {
-	return definition._meta?.[AgentHostScheduledChatConversationMetaKey] !== undefined;
+/** Run that consumed a one-time automation's occurrence. */
+export function getAgentHostOneTimeRun(automation: AutomationEntry): string | undefined {
+	const run = automation._meta?.[AgentHostOneTimeRunMetaKey];
+	return typeof run === 'string' ? run : undefined;
 }
 
-export function getAgentHostScheduledChatConversation(definition: AutomationDefinition): IAgentHostScheduledChatConversation | undefined {
-	const value = definition._meta?.[AgentHostScheduledChatConversationMetaKey];
-	if (!value || typeof value !== 'object') {
-		return undefined;
-	}
-	const { session, chat } = value as Record<string, unknown>;
-	return typeof session === 'string' && typeof chat === 'string' ? { session, chat } : undefined;
-}
-
-/** Sets or clears the existing-chat target while preserving unrelated metadata. */
-export function withAgentHostScheduledChatConversation(meta: Record<string, unknown> | undefined, conversation: IAgentHostScheduledChatConversation | undefined): Record<string, unknown> {
-	const result = { ...meta };
-	if (conversation) {
-		result[AgentHostScheduledChatConversationMetaKey] = { session: conversation.session, chat: conversation.chat };
-	} else {
-		delete result[AgentHostScheduledChatConversationMetaKey];
-	}
-	return result;
-}
-
-export function getAgentHostOneTimeReceipts(automation: AutomationEntry): IAgentHostOneTimeReceipts {
-	const value = automation._meta?.[AgentHostOneTimeReceiptsMetaKey];
-	if (!value || typeof value !== 'object') {
-		return {};
-	}
-	const { run, dispatchedAt, dispatchRejectedAt } = value as Record<string, unknown>;
-	return {
-		...(typeof run === 'string' ? { run } : {}),
-		...(typeof dispatchedAt === 'string' ? { dispatchedAt } : {}),
-		...(typeof dispatchRejectedAt === 'string' ? { dispatchRejectedAt } : {}),
-	};
-}
-
-export function withAgentHostOneTimeReceipts(meta: Record<string, unknown> | undefined, receipts: IAgentHostOneTimeReceipts): Record<string, unknown> {
-	return { ...meta, [AgentHostOneTimeReceiptsMetaKey]: { ...receipts } };
+export function withAgentHostOneTimeRun(meta: Record<string, unknown> | undefined, run: string): Record<string, unknown> {
+	return { ...meta, [AgentHostOneTimeRunMetaKey]: run };
 }
 
 /**
- * Automation session origin carrying VS Code's scheduled-chat provenance.
- * The protocol's automation session origin has no `_meta`, so VS Code hosts and clients
- * exchange this extra member directly.
+ * The protocol's automation session origin has no `_meta`, so VS Code hosts
+ * and clients exchange scheduled-chat provenance as this extra member.
  */
-export interface IAgentHostAutomationSessionOrigin {
+interface IAgentHostAutomationSessionOrigin {
 	readonly purpose?: 'scheduledChat';
 }
 
-/** Creates an automation session origin, marking scheduled chats for VS Code clients. */
 export function agentHostAutomationSessionOrigin(automation: string, run: string, scheduledChat: boolean): AutomationSessionOrigin {
 	const origin: AutomationSessionOrigin & IAgentHostAutomationSessionOrigin = {
 		kind: SessionOriginKind.Automation,

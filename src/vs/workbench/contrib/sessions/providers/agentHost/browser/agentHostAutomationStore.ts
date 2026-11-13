@@ -17,7 +17,7 @@ import { AgentSession } from '../../../../../../platform/agentHost/common/agent.
 import { generateUuid, isUUID } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
-import { getAgentHostAutomationCreationId, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, getAgentHostOneTimeReceipts, getAgentHostScheduledChatConversation, isAgentHostScheduledChat, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostScheduledChatExistingConversation, withAgentHostAutomationCreationId, withAgentHostAutomationScheduleKind, withAgentHostScheduledChat, withAgentHostScheduledChatConversation } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationCreationId, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, getAgentHostOneTimeRun, getAgentHostScheduledChat, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostScheduledChatExistingConversation, withAgentHostAutomationCreationId, withAgentHostAutomationScheduleKind, withAgentHostScheduledChat } from '../../../../../../platform/agentHost/common/meta/agentHostAutomationsMeta.js';
 import { applyLegacyAutomationSessionConfig } from '../../../../../../platform/agentHost/common/automationConfig.js';
 import { validateAutomationRunAt, validateDurableAutomationMessage } from '../../../../../../platform/agentHost/common/automationRequest.js';
 import { isCustomizationEnabled } from '../../../../../../platform/agentHost/common/customizationEnablement.js';
@@ -590,21 +590,22 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		const modelId = this._projectModelId(state.definition.session.model?.id, state.definition.session.provider);
 		const newestRun = state.runs[0];
 		const schedule = projectSchedule(state.definition);
-		const hostConversation = getAgentHostScheduledChatConversation(state.definition);
+		const scheduledChat = getAgentHostScheduledChat(state.definition);
+		const hostConversation = scheduledChat?.conversation;
 		const conversation = hostConversation && this._boundaryMapper?.conversationFromHost?.(
 			URI.parse(hostConversation.session), URI.parse(hostConversation.chat));
-		const receipts = getAgentHostOneTimeReceipts(state);
+		const oneTimeRun = getAgentHostOneTimeRun(state);
+		const delivery = projectOneTimeDelivery(state.runs.find(run => run.resource === oneTimeRun), !!hostConversation);
 		return {
 			id: this._resourceId(state.resource),
 			...(getAgentHostAutomationCreationId(state.definition) ? { creationId: getAgentHostAutomationCreationId(state.definition) } : {}),
 			name: state.definition.title,
 			prompt: state.definition.message.text,
-			...(isAgentHostScheduledChat(state.definition) ? { purpose: 'scheduledChat' as const } : {}),
+			...(scheduledChat ? { purpose: 'scheduledChat' as const } : {}),
 			request: this._mapMessage(state.definition.message, false, state.definition.session.provider),
 			...(conversation ? { conversation } : {}),
-			...(receipts.run ? { oneTimeRunId: this._resourceId(receipts.run) } : {}),
-			...(receipts.dispatchedAt ? { oneTimeDispatchedAt: receipts.dispatchedAt } : {}),
-			...(receipts.dispatchRejectedAt ? { oneTimeDispatchRejectedAt: receipts.dispatchRejectedAt } : {}),
+			...(oneTimeRun ? { oneTimeRunId: this._resourceId(oneTimeRun) } : {}),
+			...delivery,
 			schedule,
 			...(schedule.interval === 'custom' || schedule.interval === 'once' && !this.supportsOneTimeAutomation.get()
 				? { readOnlyReason: localize('agentHostAutomation.customSchedule', "This automation uses a schedule that cannot be edited in VS Code.") } : {}),
@@ -737,7 +738,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		}
 		const resource = current.resource;
 		const definition = this._definitionFromDescriptor(descriptor, current.definition, resetSessionTemplate);
-		const scope = !getAgentHostScheduledChatConversation(current.definition) && (customizationIds !== undefined || !this._isCustomizationTargetUnchanged(descriptor.target, current.definition, definition.session.provider))
+		const scope = !getAgentHostScheduledChat(current.definition)?.conversation && (customizationIds !== undefined || !this._isCustomizationTargetUnchanged(descriptor.target, current.definition, definition.session.provider))
 			? this._acquireCustomizationScope(descriptor.target, definition.session.provider)
 			: undefined;
 		try {
@@ -888,7 +889,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 		if (descriptor.creationId) {
 			meta = withAgentHostAutomationCreationId(meta, descriptor.creationId);
 		}
-		const existingConversation = existing && getAgentHostScheduledChatConversation(existing);
+		const existingConversation = existing && getAgentHostScheduledChat(existing)?.conversation;
 		let conversation = existingConversation;
 		if (descriptor.conversation) {
 			const session = this._boundaryMapper?.resolveBackendSession?.(descriptor.conversation.sessionResource);
@@ -903,7 +904,7 @@ export class AgentHostAutomationStore extends Disposable implements ISessionsPro
 				throw new Error(localize('agentHostAutomation.followupImmutable', "A scheduled follow-up cannot change its conversation."));
 			}
 		}
-		meta = withAgentHostScheduledChatConversation(withAgentHostScheduledChat(meta, descriptor.purpose === 'scheduledChat'), conversation);
+		meta = withAgentHostScheduledChat(meta, descriptor.purpose === 'scheduledChat' ? { ...(conversation ? { conversation } : {}) } : undefined);
 		return {
 			title: descriptor.name,
 			message: { ...message, origin: { kind: MessageKind.Automation } },
@@ -1307,6 +1308,26 @@ function isTerminalRun(run: AutomationRunSummary): boolean {
 }
 
 const cronWeekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+
+/**
+ * Derives Send Later delivery from the one-time run. A new-session run is
+ * linked to its session just before its message is sent, and an existing-chat
+ * run completes when the chat queue accepts the message. A new-session run that
+ * failed without a session never sent its message, so it is safe to recover.
+ */
+function projectOneTimeDelivery(run: AutomationRunSummary | undefined, conversation: boolean): { readonly oneTimeDispatchedAt?: string; readonly oneTimeDispatchRejectedAt?: string } {
+	const lifecycle = run?.lifecycle;
+	if (lifecycle?.status === AutomationRunStatus.Completed && (conversation || run!.primarySession)) {
+		return { oneTimeDispatchedAt: lifecycle.completedAt };
+	}
+	if (lifecycle?.status === AutomationRunStatus.Running && !conversation && run!.primarySession) {
+		return { oneTimeDispatchedAt: lifecycle.startedAt };
+	}
+	if (lifecycle?.status === AutomationRunStatus.Failed && !conversation && !run!.primarySession) {
+		return { oneTimeDispatchRejectedAt: lifecycle.completedAt };
+	}
+	return {};
+}
 
 // Projects Agent Host triggers into the editor-facing schedule model.
 function projectSchedule(definition: AutomationDefinition): IAutomationSchedule {

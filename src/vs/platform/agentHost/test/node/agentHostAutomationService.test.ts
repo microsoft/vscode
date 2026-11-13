@@ -48,7 +48,7 @@ import { SCHEDULED_WORK_WAKE_NETWORK_CAP_MS, SCHEDULED_WORK_WAKE_SETTLE_MS } fro
 import type { IAgentHostMcpAuthenticationRequest } from '../../common/agentHostExtensionProtocol.js';
 import { McpAuthRequiredReason, McpServerStatus, SessionOriginKind, type Customization, type McpAuthRequirement } from '../../common/state/protocol/channels-session/state.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
-import { getAgentHostAutomationHistoryState, getAgentHostOneTimeReceipts, getAgentHostScheduledChatConversation, isAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostScheduledChat, withAgentHostScheduledChatConversation, type IAgentHostScheduledChatConversation } from '../../common/meta/agentHostAutomationsMeta.js';
+import { getAgentHostAutomationHistoryState, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../../common/meta/agentHostAutomationsMeta.js';
 
 class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
@@ -59,7 +59,7 @@ class RecordingAutomationTelemetry extends NullTelemetryServiceShape {
 }
 
 function scheduledChatMeta(conversation?: IAgentHostScheduledChatConversation): Record<string, unknown> {
-	return withAgentHostScheduledChatConversation(withAgentHostScheduledChat(undefined, true), conversation);
+	return withAgentHostScheduledChat(undefined, conversation ? { conversation } : {});
 }
 
 suite('AgentHostAutomationService', () => {
@@ -2455,8 +2455,8 @@ suite('AgentHostAutomationService', () => {
 			createSession: async (_template, run) => {
 				creates++;
 				const stored = storageService.get<{ catalog: { automations: AutomationEntry[] } }>('automations')!;
-				assert.deepStrictEqual({ receipt: getAgentHostOneTimeReceipts(stored.catalog.automations[0]).run, next: stored.catalog.automations[0].nextRunAt, scheduledChat: isAgentHostScheduledChat(run) },
-					{ receipt: run.resource, next: undefined, scheduledChat: true });
+				assert.deepStrictEqual({ receipt: getAgentHostOneTimeRun(stored.catalog.automations[0]), next: stored.catalog.automations[0].nextRunAt, scheduledChat: getAgentHostScheduledChat(run) },
+					{ receipt: run.resource, next: undefined, scheduledChat: {} });
 				return URI.parse('mock:/once');
 			},
 			startSession: async (_session, message) => {
@@ -2475,8 +2475,8 @@ suite('AgentHostAutomationService', () => {
 		await restarted.handleConfigurationChanged();
 		await timeout(120_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ creates, next: entry.nextRunAt, runs: entry.runs.length, status: entry.runs[0].lifecycle.status, editable: entry.operations.includes(AutomationOperation.Update), dispatchedAt: getAgentHostOneTimeReceipts(entry).dispatchedAt },
-			{ creates: 1, next: undefined, runs: 1, status: AutomationRunStatus.Failed, editable: false, dispatchedAt: '2026-01-01T00:01:00.000Z' });
+		assert.deepStrictEqual({ creates, next: entry.nextRunAt, runs: entry.runs.length, status: entry.runs[0].lifecycle.status, editable: entry.operations.includes(AutomationOperation.Update), session: entry.runs[0].primarySession },
+			{ creates: 1, next: undefined, runs: 1, status: AutomationRunStatus.Failed, editable: false, session: 'mock:/once' });
 	}));
 
 	test('scheduled follow-up queues the exact busy peer chat once and never owns or deletes its session', async () => {
@@ -2524,16 +2524,15 @@ suite('AgentHostAutomationService', () => {
 			channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId,
 		})));
 		await timeout(0);
-		const entry = stateManager.getAutomationCatalogState()!.entries[0];
 		const run = stateManager.getAutomationRunState(first.resource)!;
 		const peer = stateManager.getChatState(conversation.chat)!;
 		assert.deepStrictEqual({
 			sameRun: first.resource === second.resource, submissions, status: run.lifecycle.status,
-			sessions: run.sessions, dispatched: !!getAgentHostOneTimeReceipts(entry).dispatchedAt,
+			sessions: run.sessions,
 			active: peer.activeTurn?.id, queued: peer.queuedMessages,
 			mainQueue: stateManager.getChatState(mainChat)?.queuedMessages,
 		}, {
-			sameRun: true, submissions: 1, status: AutomationRunStatus.Completed, sessions: [], dispatched: true,
+			sameRun: true, submissions: 1, status: AutomationRunStatus.Completed, sessions: [],
 			active: 'unrelated',
 			queued: [{ id: first.resource, kind: PendingMessageKind.Queued, message: { text: message.text, origin: message.origin, attachments: message.attachments, _meta: message._meta } }],
 			mainQueue: undefined,
@@ -2568,7 +2567,7 @@ suite('AgentHostAutomationService', () => {
 			{ submitted: false, status: AutomationRunStatus.Cancelled });
 	});
 
-	test('follow-up target failure has a positive safe recovery receipt but uncertain submission does not', async () => {
+	test('follow-up target or submission failure fails the run without owning a session', async () => {
 		for (const attempted of [false, true]) {
 			const resource = `ahp-automation:/followup-${attempted}`;
 			const service = createService({
@@ -2588,8 +2587,8 @@ suite('AgentHostAutomationService', () => {
 			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: resource, requestId: resource });
 			await timeout(0);
 			const entry = stateManager.getAutomationCatalogState()!.entries.find(entry => entry.resource === resource)!;
-			assert.deepStrictEqual({ status: entry.runs[0].lifecycle.status, rejected: !!getAgentHostOneTimeReceipts(entry).dispatchRejectedAt, dispatched: !!getAgentHostOneTimeReceipts(entry).dispatchedAt },
-				{ status: AutomationRunStatus.Failed, rejected: !attempted, dispatched: false });
+			assert.deepStrictEqual({ status: entry.runs[0].lifecycle.status, sessions: entry.runs[0].sessionCount },
+				{ status: AutomationRunStatus.Failed, sessions: 0 });
 			service.dispose();
 		}
 	});
@@ -2603,7 +2602,7 @@ suite('AgentHostAutomationService', () => {
 		const service = createService({ supportsExistingConversation: true, prepareConversation: async () => () => { } });
 		await assert.rejects(service.handleCreate({
 			...createAction(),
-			definition: { ...definition(), _meta: { ...scheduledChatMeta(), 'vscode.scheduledChatConversation': { session: 'mock:/existing' } }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+			definition: { ...definition(), _meta: { 'vscode.scheduledChat': { conversation: { session: 'mock:/existing' } } }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
 		}), /requires supported/);
 		assert.strictEqual(stateManager.getAutomationCatalogState()?.entries.length ?? 0, 0);
 	});
@@ -2669,7 +2668,7 @@ suite('AgentHostAutomationService', () => {
 		systemWake.setFullyAwake(true);
 		await timeout(60_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ creates, runs: entry.runs.length, next: entry.nextRunAt, receipt: getAgentHostOneTimeReceipts(entry).run },
+		assert.deepStrictEqual({ creates, runs: entry.runs.length, next: entry.nextRunAt, receipt: getAgentHostOneTimeRun(entry) },
 			{ creates: 0, runs: 0, next: undefined, receipt: undefined });
 	}));
 
@@ -2689,7 +2688,7 @@ suite('AgentHostAutomationService', () => {
 		await assert.rejects(service.handleRemove({ type: ActionType.AutomationRemoved, resource: createAction().resource }));
 		await timeout(120_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ sameRun: first.resource === second.resource, receipt: getAgentHostOneTimeReceipts(entry).run, next: entry.nextRunAt, runs: entry.runs.length },
+		assert.deepStrictEqual({ sameRun: first.resource === second.resource, receipt: getAgentHostOneTimeRun(entry), next: entry.nextRunAt, runs: entry.runs.length },
 			{ sameRun: true, receipt: first.resource, next: undefined, runs: 1 });
 	}));
 
@@ -2702,7 +2701,7 @@ suite('AgentHostAutomationService', () => {
 		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { enabled: false } });
 		await timeout(120_000);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ enabled: entry.definition.enabled, receipt: getAgentHostOneTimeReceipts(entry).run, runs: entry.runs.length, next: entry.nextRunAt },
+		assert.deepStrictEqual({ enabled: entry.definition.enabled, receipt: getAgentHostOneTimeRun(entry), runs: entry.runs.length, next: entry.nextRunAt },
 			{ enabled: false, receipt: undefined, runs: 0, next: undefined });
 	}));
 
@@ -2763,7 +2762,7 @@ suite('AgentHostAutomationService', () => {
 		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { _meta: scheduledChatMeta() } }), /existing conversation target/);
 		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { _meta: {} } }), /existing conversation target/);
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
-		assert.deepStrictEqual({ scheduledChat: isAgentHostScheduledChat(entry.definition), conversation: getAgentHostScheduledChatConversation(entry.definition) }, { scheduledChat: true, conversation });
+		assert.deepStrictEqual(getAgentHostScheduledChat(entry.definition), { conversation });
 	});
 
 	test('migrates scheduled-chat fields stored before one-time triggers were standardized', async () => {
@@ -2792,17 +2791,15 @@ suite('AgentHostAutomationService', () => {
 		const entry = stateManager.getAutomationCatalogState()!.entries[0];
 		const legacy = entry as AutomationEntry & { oneTimeRun?: unknown; definition: { purpose?: unknown; conversation?: unknown } };
 		assert.deepStrictEqual({
-			scheduledChat: isAgentHostScheduledChat(entry.definition),
-			conversation: getAgentHostScheduledChatConversation(entry.definition),
-			receipts: getAgentHostOneTimeReceipts(entry),
-			runScheduledChat: isAgentHostScheduledChat(stateManager.getAutomationRunState(run.resource)),
+			scheduledChat: getAgentHostScheduledChat(entry.definition),
+			oneTimeRun: getAgentHostOneTimeRun(entry),
+			runScheduledChat: getAgentHostScheduledChat(stateManager.getAutomationRunState(run.resource)),
 			legacyFields: [legacy.oneTimeRun, legacy.definition.purpose, legacy.definition.conversation],
 			editable: entry.operations.includes(AutomationOperation.Update),
 		}, {
-			scheduledChat: true,
-			conversation,
-			receipts: { run: run.resource, dispatchedAt: '2027-01-01T10:00:01.000Z' },
-			runScheduledChat: true,
+			scheduledChat: { conversation },
+			oneTimeRun: run.resource,
+			runScheduledChat: {},
 			legacyFields: [undefined, undefined, undefined],
 			editable: false,
 		});

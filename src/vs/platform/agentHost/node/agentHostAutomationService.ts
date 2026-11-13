@@ -45,7 +45,7 @@ import { AuthenticateTargetKind } from '../common/state/sessionProtocol.js';
 import { getMcpServerCustomizations } from './shared/mcpCustomizationController.js';
 import { McpServerStatus, type AutomationSessionOrigin, type McpAuthRequirement } from '../common/state/protocol/channels-session/state.js';
 import type { IAgentHostMcpAuthenticationRequest } from '../common/agentHostExtensionProtocol.js';
-import { agentHostAutomationSessionOrigin, getAgentHostAutomationHistoryState, getAgentHostOneTimeReceipts, getAgentHostScheduledChatConversation, hasAgentHostScheduledChatConversation, isAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeReceipts, withAgentHostScheduledChat, withAgentHostScheduledChatConversation, type IAgentHostScheduledChatConversation } from '../common/meta/agentHostAutomationsMeta.js';
+import { agentHostAutomationSessionOrigin, getAgentHostAutomationHistoryState, getAgentHostOneTimeRun, getAgentHostScheduledChat, withAgentHostAutomationHistoryState, withAgentHostOneTimeRun, withAgentHostScheduledChat, type IAgentHostScheduledChat, type IAgentHostScheduledChatConversation } from '../common/meta/agentHostAutomationsMeta.js';
 import { readMcpServerConnectorName } from '../common/meta/mcpCustomizationMeta.js';
 
 const STORAGE_KEY = 'automations';
@@ -280,11 +280,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (historyState) {
 			return historyState === 'retained' ? [AutomationOperation.Remove] : [];
 		}
-		if (isAgentHostScheduledChat(automation.definition) && !automation.definition.enabled) {
+		if (getAgentHostScheduledChat(automation.definition) && !automation.definition.enabled) {
 			return [AutomationOperation.Remove];
 		}
 		return [
-			...(getAgentHostOneTimeReceipts(automation).run ? [] : [AutomationOperation.Update]),
+			...(getAgentHostOneTimeRun(automation) ? [] : [AutomationOperation.Update]),
 			...(automation.runs.some(run => !isTerminalLifecycle(run.lifecycle)) ? [] : [AutomationOperation.Remove]),
 			...(this._isAutomationsEnabled() ? [AutomationOperation.Run] : []),
 		];
@@ -326,7 +326,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const owner = this._runProviders.get(run.resource);
 			if ((owner === undefined || owner === provider) && (run.primarySession === session || run.sessions.includes(session))
 				|| creation?.session === session && creation.provider === provider) {
-				return agentHostAutomationSessionOrigin(run.automation, run.resource, isAgentHostScheduledChat(run));
+				return agentHostAutomationSessionOrigin(run.automation, run.resource, !!getAgentHostScheduledChat(run));
 			}
 		}
 		return undefined;
@@ -352,12 +352,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (this._oneTimeCreationResources.has(action.resource)) {
 			throw new Error(`One-time automation identity has already been used: ${action.resource}`);
 		}
-		if (isAgentHostScheduledChat(definition) && !definition.enabled) {
+		if (getAgentHostScheduledChat(definition) && !definition.enabled) {
 			throw new Error('A scheduled chat must be enabled when created.');
 		}
 
 		const timestamp = new Date().toISOString();
-		const customizations = getAgentHostScheduledChatConversation(definition) ? [] : await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
+		const customizations = getAgentHostScheduledChat(definition)?.conversation ? [] : await this._customizations.capture(clientId, definition.session.customizations, undefined, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		const automation = this._withInitialScheduleState({
 			resource: action.resource,
 			definition,
@@ -390,7 +390,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error(`Automation not found: ${action.resource}`);
 		}
 		this._requireOperation(existing, AutomationOperation.Update);
-		const oneTimeRun = getAgentHostOneTimeReceipts(existing).run;
+		const oneTimeRun = getAgentHostOneTimeRun(existing);
 		if (oneTimeRun) {
 			throw new Error(`One-time automation has already started: ${oneTimeRun}`);
 		}
@@ -403,14 +403,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			},
 			modifiedAt: new Date(Math.max(Date.now(), Date.parse(existing.modifiedAt) + 1)).toISOString(),
 		};
-		if (!equals(getAgentHostScheduledChatConversation(existing.definition), getAgentHostScheduledChatConversation(automation.definition))) {
-			throw new Error('An automation cannot change its existing conversation target.');
-		}
-		if (isAgentHostScheduledChat(existing.definition) !== isAgentHostScheduledChat(automation.definition)) {
-			throw new Error('An automation cannot become or stop being a scheduled chat.');
+		if (!equals(getAgentHostScheduledChat(existing.definition), getAgentHostScheduledChat(automation.definition))) {
+			throw new Error('An automation cannot change its scheduled-chat purpose or existing conversation target.');
 		}
 		this._validateDefinition(automation.definition);
-		if (!getAgentHostScheduledChatConversation(automation.definition) && action.changes.session !== undefined) {
+		if (!getAgentHostScheduledChat(automation.definition)?.conversation && action.changes.session !== undefined) {
 			automation.customizations = await this._customizations.capture(clientId, action.changes.session.customizations, existing, clientId !== undefined && this._clientConnections.isLocalClient(clientId));
 		}
 		if (action.changes.triggers !== undefined || action.changes.enabled !== undefined) {
@@ -478,7 +475,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			const receipt = requestId ? this._historyDeletionReceipts.get(requestId) : undefined;
 			return receipt?.automation === resource ? receipt.sessions : [];
 		}
-		if (getAgentHostScheduledChatConversation(existing.definition)) {
+		if (getAgentHostScheduledChat(existing.definition)?.conversation) {
 			legacySessions = [];
 		}
 		if (this._historyDeletions.has(resource)) {
@@ -514,7 +511,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		const deletions = new Map(this._historyDeletions);
 		if (deleteHistory) {
 			const sessions = new Map<string, { session: string; provider?: string }>();
-			for (const run of getAgentHostScheduledChatConversation(existing.definition) ? [] : runs) {
+			for (const run of getAgentHostScheduledChat(existing.definition)?.conversation ? [] : runs) {
 				for (const session of new Set([...run.sessions, ...(run.primarySession ? [run.primarySession] : [])])) {
 					sessions.set(session, { session, provider: this._runProviders.get(run.resource) });
 				}
@@ -877,7 +874,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			for (const trigger of automation.definition.triggers) {
 				if (trigger.kind === AutomationTriggerKind.Schedule) {
 					cursors[trigger.id] = nextAutomationCronOccurrence(trigger.schedule.expression, trigger.schedule.timeZone, now).toISOString();
-				} else if (trigger.kind === AutomationTriggerKind.OneTime && !getAgentHostOneTimeReceipts(automation).run) {
+				} else if (trigger.kind === AutomationTriggerKind.OneTime && !getAgentHostOneTimeRun(automation)) {
 					cursors[trigger.id] = validateAutomationRunAt(trigger.runAt);
 				}
 			}
@@ -897,7 +894,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const catalog = this._catalog;
 		this._executionAvailabilityWatcher.value = autorun(reader => {
-			const available = catalog.entries.filter(automation => getAgentHostScheduledChatConversation(automation.definition)
+			const available = catalog.entries.filter(automation => getAgentHostScheduledChat(automation.definition)?.conversation
 				? this._execution.supportsExistingConversation
 				: this._execution.isSessionTemplateAvailable(getExecutionSessionTemplate(automation.definition), reader));
 			this._scheduleTimer.clear();
@@ -961,7 +958,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			for (const trigger of current.definition.triggers) {
 				if (trigger.kind === AutomationTriggerKind.OneTime) {
 					const runAt = Date.parse(trigger.runAt);
-					if (!getAgentHostOneTimeReceipts(current).run && runAt <= nowTimestamp) {
+					if (!getAgentHostOneTimeRun(current) && runAt <= nowTimestamp) {
 						const catchUp = nowTimestamp - runAt >= 60_000;
 						if (!catchUp || trigger.misfirePolicy !== AutomationMisfirePolicy.Skip) {
 							const run = this._createRunState(automation.resource, {
@@ -1115,7 +1112,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			throw new Error(`Automation not found: ${params.automation}`);
 		}
 		this._requireOperation(automation, AutomationOperation.Run);
-		const oneTimeRun = getAgentHostOneTimeReceipts(automation).run;
+		const oneTimeRun = getAgentHostOneTimeRun(automation);
 		if (oneTimeRun) {
 			const run = this._runs.get(oneTimeRun);
 			if (!run) {
@@ -1162,7 +1159,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			resource: URI.from({ scheme: 'ahp-automation-run', path: `/${generateUuid()}` }).toString(),
 			automation,
 			origin,
-			...(isAgentHostScheduledChat(this._catalog?.entries.find(entry => entry.resource === automation)?.definition) ? { _meta: withAgentHostScheduledChat(undefined, true) } : {}),
+			...(getAgentHostScheduledChat(this._catalog?.entries.find(entry => entry.resource === automation)?.definition) ? { _meta: withAgentHostScheduledChat(undefined, {}) } : {}),
 			lifecycle: { status: AutomationRunStatus.Pending, createdAt },
 			sessions: [],
 		};
@@ -1173,7 +1170,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			return;
 		}
 		this._startingRuns.add(initialRun.resource);
-		let dispatchAttempted = false;
 		try {
 			await this._startup;
 			const entry = this._catalog?.entries.find(candidate => candidate.resource === initialRun.automation);
@@ -1181,7 +1177,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				throw new Error(`Automation not found: ${initialRun.automation}`);
 			}
 			definition = entry.definition;
-			const conversation = getAgentHostScheduledChatConversation(definition);
+			const conversation = getAgentHostScheduledChat(definition)?.conversation;
 			if (conversation) {
 				if (!this._execution.supportsExistingConversation || !this._execution.prepareConversation) {
 					throw new Error('Scheduling follow-ups in an existing conversation is unavailable.');
@@ -1193,12 +1189,9 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				const submit = await this._execution.prepareConversation(conversation, definition.message, running.resource);
 				await this._enqueueMutation(async () => {
 					if (isTerminalLifecycle(this._runs.get(running.resource)!.lifecycle)) {
-						await this._recordOneTimeDispatch(running, true);
 						return;
 					}
-					dispatchAttempted = true;
 					submit();
-					await this._recordOneTimeDispatch(running);
 					const current = this._runs.get(running.resource)!;
 					if (!isTerminalLifecycle(current.lifecycle)) {
 						const lifecycle: AutomationRunLifecycle = {
@@ -1241,9 +1234,7 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 				...(definition.message.model === undefined && template.model !== undefined ? { model: template.model } : {}),
 				...(template.agent !== undefined ? { agent: template.agent } : {}),
 			};
-			dispatchAttempted = true;
 			await this._execution.startSession(session, message);
-			await this._enqueueMutation(() => this._recordOneTimeDispatch(running));
 		} catch (error) {
 			try {
 				await this._enqueueMutation(async () => {
@@ -1252,9 +1243,6 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 						await this._recoverRun(initialRun.resource, error);
 					} else {
 						await this._failRun(initialRun.resource, error);
-					}
-					if (!dispatchAttempted) {
-						await this._recordOneTimeDispatch(initialRun, true);
 					}
 				});
 			} catch (persistError) {
@@ -1590,26 +1578,11 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 	}
 
 	private _consumeOneTime(automation: AutomationEntry, run: AutomationRunState): AutomationEntry {
-		if (getAgentHostOneTimeReceipts(automation).run || !automation.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)) {
+		if (getAgentHostOneTimeRun(automation) || !automation.definition.triggers.some(trigger => trigger.kind === AutomationTriggerKind.OneTime)) {
 			return automation;
 		}
-		const consumed = { ...automation, nextRunAt: undefined, _meta: withAgentHostOneTimeReceipts(withScheduleCursors(automation._meta, {}), { run: run.resource }) };
+		const consumed = { ...automation, nextRunAt: undefined, _meta: withAgentHostOneTimeRun(withScheduleCursors(automation._meta, {}), run.resource) };
 		return { ...consumed, operations: this._operationsForItem(consumed) };
-	}
-
-	private async _recordOneTimeDispatch(run: AutomationRunState, rejected = false): Promise<void> {
-		const catalog = this._requireCatalog();
-		const existing = catalog.entries.find(entry => entry.resource === run.automation);
-		const receipts = existing && getAgentHostOneTimeReceipts(existing);
-		if (!existing || !receipts || receipts.run !== run.resource || receipts.dispatchedAt || receipts.dispatchRejectedAt) {
-			return;
-		}
-		const timestamp = new Date().toISOString();
-		const automation = { ...existing, _meta: withAgentHostOneTimeReceipts(existing._meta, { ...receipts, ...(rejected ? { dispatchRejectedAt: timestamp } : { dispatchedAt: timestamp }) }) };
-		const next = automationReducer(catalog, { type: ActionType.AutomationSet, automation }, this._log);
-		await this._persist(next, this._runs, this._manualRunRequests, this._runProviders, this._sessionCreations);
-		this._catalog = next;
-		this._publishAutomation(next, automation.resource);
 	}
 
 	private _configurationTelemetry(template: AutomationSessionTemplate): IAutomationConfigurationTelemetry {
@@ -1680,13 +1653,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		if (oneTime && definition.triggers.length !== 1) {
 			throw new Error('A one-time automation must have exactly one trigger.');
 		}
-		const scheduledChat = isAgentHostScheduledChat(definition);
+		const scheduledChat = getAgentHostScheduledChat(definition);
 		if (scheduledChat && !oneTime) {
 			throw new Error('A scheduled chat requires a one-time trigger.');
 		}
-		const conversation = getAgentHostScheduledChatConversation(definition);
-		if (hasAgentHostScheduledChatConversation(definition) && (!conversation || !this._execution.supportsExistingConversation || !oneTime || !scheduledChat
-			|| !conversation.session || !conversation.chat)) {
+		const conversation = scheduledChat?.conversation;
+		if (scheduledChat === null || conversation && (!this._execution.supportsExistingConversation || !conversation.session || !conversation.chat)) {
 			throw new Error('An existing conversation requires supported one-time scheduled-chat execution and exact session and chat resources.');
 		}
 		if (oneTime) {
@@ -1780,27 +1752,18 @@ interface ILegacyScheduledChatAutomation extends AutomationEntry {
 
 /** Moves scheduled-chat fields stored before AHP standardized one-time triggers into `_meta`. */
 function migrateLegacyScheduledChat(stored: AutomationEntry): AutomationEntry {
-	const { definition: { purpose, conversation, ...definition }, oneTimeRun, oneTimeDispatchedAt, oneTimeDispatchRejectedAt, ...automation } = stored as ILegacyScheduledChatAutomation;
-	if (purpose === undefined && conversation === undefined && oneTimeRun === undefined && oneTimeDispatchedAt === undefined && oneTimeDispatchRejectedAt === undefined) {
+	const { definition: { purpose, conversation, ...definition }, oneTimeRun, oneTimeDispatchedAt: _dispatchedAt, oneTimeDispatchRejectedAt: _rejectedAt, ...automation } = stored as ILegacyScheduledChatAutomation;
+	if (purpose === undefined && conversation === undefined && oneTimeRun === undefined && _dispatchedAt === undefined && _rejectedAt === undefined) {
 		return stored;
 	}
-	let definitionMeta = definition._meta;
-	if (purpose === 'scheduledChat') {
-		definitionMeta = withAgentHostScheduledChat(definitionMeta, true);
-	}
 	const target = conversation && typeof conversation === 'object' ? conversation as Record<string, unknown> : undefined;
-	if (typeof target?.['session'] === 'string' && typeof target['chat'] === 'string') {
-		definitionMeta = withAgentHostScheduledChatConversation(definitionMeta, { session: target['session'], chat: target['chat'] });
-	}
-	const receipts = {
-		...(typeof oneTimeRun === 'string' ? { run: oneTimeRun } : {}),
-		...(typeof oneTimeDispatchedAt === 'string' ? { dispatchedAt: oneTimeDispatchedAt } : {}),
-		...(typeof oneTimeDispatchRejectedAt === 'string' ? { dispatchRejectedAt: oneTimeDispatchRejectedAt } : {}),
-	};
+	const scheduledChat: IAgentHostScheduledChat | undefined = purpose !== 'scheduledChat' ? undefined
+		: typeof target?.['session'] === 'string' && typeof target['chat'] === 'string' ? { conversation: { session: target['session'], chat: target['chat'] } } : {};
+	const definitionMeta = scheduledChat ? withAgentHostScheduledChat(definition._meta, scheduledChat) : definition._meta;
 	return {
 		...automation,
 		definition: { ...definition, ...(definitionMeta ? { _meta: definitionMeta } : {}) },
-		...(Object.keys(receipts).length > 0 ? { _meta: withAgentHostOneTimeReceipts(automation._meta, receipts) } : {}),
+		...(typeof oneTimeRun === 'string' ? { _meta: withAgentHostOneTimeRun(automation._meta, oneTimeRun) } : {}),
 	};
 }
 
@@ -1810,7 +1773,7 @@ function migrateLegacyScheduledChatRun(stored: AutomationRunState): AutomationRu
 	if (purpose === undefined) {
 		return stored;
 	}
-	return purpose === 'scheduledChat' ? { ...run, _meta: withAgentHostScheduledChat(run._meta, true) } : run;
+	return purpose === 'scheduledChat' ? { ...run, _meta: withAgentHostScheduledChat(run._meta, {}) } : run;
 }
 
 function migrateStoredAutomation(stored: AutomationEntry): AutomationEntry {
