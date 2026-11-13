@@ -361,11 +361,11 @@ export class RemoteConnectionsSharing extends Disposable {
 
 	/** The name other clients see for this computer with the configured connection method. */
 	get name(): string | undefined {
-		return this.usesGitHubEnvironment ? this._environmentName : this.getState().tunnelName ?? this._tunnelName;
+		return this.getNameForMethod(this.usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel');
 	}
 
 	getNameForMethod(method: Exclude<RemoteConnectionsMethod, 'off'>): string | undefined {
-		return method === 'githubEnvironment' ? this._environmentName : this._tunnelName;
+		return method === 'githubEnvironment' ? this._environmentName : this.getState().tunnelName ?? this._tunnelName;
 	}
 
 	get namesLoaded(): boolean {
@@ -491,20 +491,21 @@ export class RemoteConnectionsSharing extends Disposable {
 		return { result: 'failed', failure: getRemoteConnectionsToggleFailure(error, reason), errorMessage: toErrorMessage(error) };
 	}
 
-	async rename(): Promise<void> {
-		const currentName = this.name;
+	async rename(method?: Exclude<RemoteConnectionsMethod, 'off'>): Promise<void> {
+		const targetMethod = method ?? (this.usesGitHubEnvironment ? 'githubEnvironment' : 'devTunnel');
+		const currentName = this.getNameForMethod(targetMethod);
 		if (!currentName || this.getState().isConnecting) {
 			return;
 		}
 		try {
-			if (this.usesGitHubEnvironment) {
+			if (targetMethod === 'githubEnvironment') {
 				const name = await this._quickInputService.input({
 					title: localize('remoteConnections.rename', "Change Sharing Name"),
 					prompt: localize('remoteConnections.renamePrompt', "Enter the sharing name other devices will see."),
 					value: currentName,
 					validateInput: async value => validateSharingName('githubEnvironment', value),
 				});
-				if (name !== undefined && name.trim() !== currentName && !this._store.isDisposed && this.usesGitHubEnvironment) {
+				if (name !== undefined && name.trim() !== currentName && !this._store.isDisposed && (method !== undefined || this.usesGitHubEnvironment)) {
 					await this._missionControlSharingService.setEnvironmentName(name);
 				}
 			} else {

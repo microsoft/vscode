@@ -7,23 +7,21 @@ import * as dom from '../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../base/browser/keyboardEvent.js';
 import { status } from '../../../../../../base/browser/ui/aria/aria.js';
 import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { Button, ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.js';
+import { Button } from '../../../../../../base/browser/ui/button/button.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { Radio } from '../../../../../../base/browser/ui/radio/radio.js';
 import { DropdownMenuActionViewItem } from '../../../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { ITableRenderer } from '../../../../../../base/browser/ui/table/table.js';
 import { Action, Separator, SubmenuAction, toAction } from '../../../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../../../base/common/observable.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
-import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
@@ -55,6 +53,7 @@ import { getGitHubEnvironmentLabel, getRemoteActivityTime, getRemoteAvailability
 import { RemotesCards } from './remotesCards.js';
 import { RemoteEnvironmentDetails, RemoteEnvironmentDetailsMode } from './remoteEnvironmentDetails.js';
 import './media/remotesWidget.css';
+import '../../../browser/media/disclosure.css';
 
 const remoteSetupOverview = {
 	label: localize('remotes.docs.overview', "Run and manage remote agent sessions"),
@@ -73,8 +72,8 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 		documentation: { label: localize('remotes.docs.wsl', "Install WSL"), href: WSL_INSTALL_DOCS_URL },
 	},
 	tunnel: {
-		label: localize('remotes.empty.tunnels', "No Dev Tunnels found for this account."),
-		description: localize('remotes.empty.tunnels.description', "Share a Dev Tunnel on another computer, then sign in with the same account."),
+		label: localize('remotes.empty.tunnels', "Connect to another computer with a Dev Tunnel"),
+		description: localize('remotes.empty.tunnels.description', "No tunnels found. Enable Remote Tunnel Access in VS Code on the other computer, then sign in here with the same account."),
 		documentation: { label: localize('remotes.docs.tunnels', "Dev tunnel setup guide"), href: 'https://aka.ms/vscode-agent-tunnel' },
 	},
 	environment: {
@@ -84,7 +83,7 @@ const remoteSetup: Record<RemoteKind, { readonly label: string; readonly descrip
 	},
 };
 
-const horizontalScrollbarSize = 10;
+const compactTableWidth = 700;
 const scrollbarGutterWidth = 16;
 export const RemotesDetailsExpandedContext = new RawContextKey<boolean>('remotesDetailsExpanded', false);
 
@@ -93,17 +92,13 @@ export class RemotesWidget extends Disposable {
 	protected readonly table: WorkbenchTable<IRemoteTableRow>;
 	private readonly tableContainer: HTMLElement;
 	private readonly tableInner: HTMLElement;
-	private readonly tableScrollable: DomScrollableElement;
-	private readonly tableMinWidth: number;
+	private emptyRowWidth = 0;
 	private readonly cards: RemotesCards;
 	private readonly viewSwitcher: Radio;
 	private viewMode: 'list' | 'cards' = 'list';
 	private readonly message: HTMLElement;
 	private readonly heading: HTMLElement;
 	private readonly headingTitle: HTMLElement;
-	private readonly headingToggle: ButtonWithIcon;
-	private readonly overviewBody: HTMLElement;
-	readonly collapsed = observableValue(this, false);
 	private readonly messageText: HTMLElement;
 	private readonly emptyStateBody: HTMLElement;
 	private readonly emptyStateDisposables = this._register(new DisposableStore());
@@ -167,25 +162,15 @@ export class RemotesWidget extends Disposable {
 		this.kinds = getVisibleRemoteKinds(operatingSystem);
 		this.domNode = dom.append(container, dom.$('.remotes-widget'));
 		this.overview = dom.append(this.domNode, dom.$('.remotes-overview'));
+		this.overview.classList.add('remotes-overview');
 		this.detailsContainer = dom.append(this.domNode, dom.$('.remotes-details-page'));
 		this.detailsContainer.hidden = true;
 		this.heading = dom.append(this.overview, dom.$('.remotes-heading'));
+		this.heading.classList.add('remotes-heading');
 		this.heading.hidden = true;
 		this.headingTitle = dom.append(this.heading, dom.$('h2.remotes-heading-title', { id: generateUuid() }));
-		this.headingToggle = this._register(new ButtonWithIcon(this.headingTitle, {}));
-		this.headingToggle.element.classList.add('remotes-section-toggle');
-		this.headingToggle.icon = Codicon.chevronDown;
-		this.headingToggle.element.setAttribute('aria-expanded', 'true');
-		const overviewBody = this.overviewBody = dom.append(this.overview, dom.$('.remotes-overview-body', { id: generateUuid() }));
-		this.headingToggle.element.setAttribute('aria-controls', overviewBody.id);
-		this._register(this.headingToggle.onDidClick(() => {
-			const collapsed = !this.collapsed.get();
-			this.overviewBody.hidden = collapsed;
-			this.headingToggle.element.setAttribute('aria-expanded', String(!collapsed));
-			this.headingToggle.icon = collapsed ? Codicon.chevronRight : Codicon.chevronDown;
-			this.collapsed.set(collapsed, undefined);
-			this.layout();
-		}));
+		this.headingTitle.classList.add('remotes-heading-title');
+		const overviewBody = dom.append(this.overview, dom.$('.remotes-overview-body'));
 		const searchRow = dom.append(overviewBody, dom.$('.remotes-search-row'));
 		const filters = dom.append(searchRow, dom.$('.remotes-filters'));
 		const searchControls = dom.append(filters, dom.$('.remotes-search-controls'));
@@ -287,52 +272,63 @@ export class RemotesWidget extends Disposable {
 		this.messageText = dom.append(this.message, dom.$('span', { role: 'status' }));
 		this.emptyStateBody = dom.append(this.message, dom.$('.remotes-empty-state-body'));
 		this.tableContainer = dom.append(overviewBody, dom.$('.remotes-table-container'));
-		const viewport = dom.$('.remotes-table-viewport');
-		this.tableInner = dom.append(viewport, dom.$('.remotes-table-inner'));
-		this.tableScrollable = this._register(new DomScrollableElement(viewport, {
-			horizontal: ScrollbarVisibility.Auto,
-			vertical: ScrollbarVisibility.Hidden,
-			useShadows: false,
-			scrollYToX: true,
-			horizontalScrollbarSize,
-		}));
-		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
+		this.tableInner = dom.append(this.tableContainer, dom.$('.remotes-table-inner'));
 
 		let label = localize('remotes.tableLabel', "Remote environments. Columns: Status, Name, Connection method, Activity, System, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
+		const compact = () => this.tableContainer.classList.contains('remotes-table-compact');
 		const columnDefinitions = [
 			{ id: 'status', label: '', weight: 0, minimumWidth: 32, maximumWidth: 32 },
-			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.35, minimumWidth: 200 },
-			{ id: 'type', label: remoteConnectionMethodLabel, weight: 0.25, minimumWidth: 224 },
-			{ id: 'activity', label: localize('remotes.activityColumn', "Activity"), weight: 0.3, minimumWidth: 256 },
-			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 0.1, minimumWidth: 88 },
-			{ id: 'actions', label: '', weight: 0, minimumWidth: 256, maximumWidth: 256 },
+			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.35, minimumWidth: 100, maximumWidth: Number.POSITIVE_INFINITY },
+			{ id: 'type', label: remoteConnectionMethodLabel, weight: 0.25, get minimumWidth() { return compact() ? 0 : 144; }, get maximumWidth() { return compact() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'activity', label: localize('remotes.activityColumn', "Activity"), weight: 0.3, get minimumWidth() { return compact() ? 0 : 88; }, get maximumWidth() { return compact() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'system', label: localize('remotes.systemColumn', "System"), weight: 0.1, get minimumWidth() { return compact() ? 0 : 64; }, get maximumWidth() { return compact() ? 0 : Number.POSITIVE_INFINITY; } },
+			{ id: 'actions', label: '', weight: 0, get minimumWidth() { return compact() ? 64 : 256; }, get maximumWidth() { return this.minimumWidth; } },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
 			column.id, (entry, action) => this.runRowAction(entry, action), actionHoverDelegate,
-			instantiationService, hoverService, openerService,
+			instantiationService, hoverService, openerService, () => Math.max(0, this.tableContainer.clientWidth - columnDefinitions[0].minimumWidth - 20 - scrollbarGutterWidth),
 		));
+		const emptyRowMeasure = dom.$('.remotes-empty-row-measure', { 'aria-hidden': 'true', inert: '' });
+		const emptyRow = dom.append(emptyRowMeasure, dom.$('div'));
+		const nameRenderer = renderers[1];
+		const emptyTemplate = nameRenderer.renderTemplate(dom.append(emptyRow, dom.$('div')));
+		this._register(toDisposable(() => nameRenderer.disposeTemplate(emptyTemplate)));
 		const scrollbarGutterRenderer: ITableRenderer<IRemoteTableRow, void> = {
 			templateId: 'remotes-scrollbar-gutter',
-			renderTemplate: container => { container.setAttribute('aria-hidden', 'true'); },
+			renderTemplate: container => {
+				container.classList.add('remotes-scrollbar-gutter');
+				container.setAttribute('aria-hidden', 'true');
+			},
 			renderElement: () => { },
 			disposeTemplate: () => { },
 		};
 		const columns = [...columnDefinitions.map((column, index) => ({
 			...column,
+			get minimumWidth() { return column.minimumWidth; },
+			get maximumWidth() { return column.maximumWidth; },
+			tooltip: column.label,
 			templateId: renderers[index].templateId, project: (row: IRemoteTableRow) => row,
 		})), {
 			label: '', weight: 0, minimumWidth: scrollbarGutterWidth, maximumWidth: scrollbarGutterWidth,
 			templateId: scrollbarGutterRenderer.templateId, project: (row: IRemoteTableRow) => row,
 		}];
-		this.tableMinWidth = columns.reduce((sum, column) => sum + column.minimumWidth, 0);
 		this.table = this._register(instantiationService.createInstance(WorkbenchTable<IRemoteTableRow>,
 			'RemotesTable', this.tableInner, {
 			headerRowHeight: 31, // Includes the header's bottom border.
-			getHeight: row => row.entry.type === 'group' ? 32 : row.entry.type === 'empty' ? row.entry.documentation ? 76 : 54 : 36,
+			getHeight: row => {
+				if (row.entry.type === 'empty') {
+					nameRenderer.renderElement(row, 0, emptyTemplate);
+					this.domNode.appendChild(emptyRowMeasure);
+					const height = emptyRowMeasure.offsetHeight + 24;
+					emptyRowMeasure.remove();
+					return height;
+				}
+				return row.entry.type === 'group' ? 32 : 36;
+			},
 		}, columns, [...renderers, scrollbarGutterRenderer], {
 			identityProvider: { getId: row => row.id },
 			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: row => row.entry.type === 'remote' ? row.entry.remote.name : row.entry.label },
@@ -748,7 +744,7 @@ export class RemotesWidget extends Disposable {
 				},
 				// Setup guidance only helps while the group is empty; the group's info action still opens it.
 				...(hasRemotes ? {} : {
-					description: localize('remotes.tunnels.signInDescription', "Sign in to {0} with the account used to enable the tunnel on the remote computer.", providerLabel),
+					description: localize('remotes.tunnels.signInDescription', "Sign in to {0} with the same account you use for Remote Tunnel Access on the other computer.", providerLabel),
 					documentation: remoteSetup.tunnel.documentation,
 				}),
 			};
@@ -1157,13 +1153,7 @@ export class RemotesWidget extends Disposable {
 	setHeading(label: string | undefined): void {
 		this.heading.hidden = !label;
 		this.overview.classList.toggle('remotes-section', !!label);
-		this.headingToggle.label = label ?? '';
-		if (!label && this.collapsed.get()) {
-			this.overviewBody.hidden = false;
-			this.headingToggle.element.setAttribute('aria-expanded', 'true');
-			this.headingToggle.icon = Codicon.chevronDown;
-			this.collapsed.set(false, undefined);
-		}
+		this.headingTitle.textContent = label ?? '';
 		if (label) {
 			this.domNode.setAttribute('role', 'region');
 			this.domNode.setAttribute('aria-labelledby', this.headingTitle.id);
@@ -1218,8 +1208,6 @@ export class RemotesWidget extends Disposable {
 	focus(): void {
 		if (this.details.value) {
 			this.details.value.focus();
-		} else if (this.collapsed.get()) {
-			this.headingToggle.focus();
 		} else {
 			this.searchInput.focus();
 		}
@@ -1228,9 +1216,6 @@ export class RemotesWidget extends Disposable {
 	layout(): void {
 		if (this.details.value) {
 			this.details.value.layout();
-			return;
-		}
-		if (this.collapsed.get()) {
 			return;
 		}
 		this.searchInput.paddingRight = this.searchInput.actionsWidth + 4;
@@ -1243,13 +1228,21 @@ export class RemotesWidget extends Disposable {
 		if (this.domNode.clientWidth > 0 && this.domNode.clientHeight > 0) {
 			const contentOffset = Math.max(0, this.tableContainer.getBoundingClientRect().top - this.domNode.getBoundingClientRect().top);
 			const height = Math.max(0, this.domNode.clientHeight - contentOffset);
-			const width = Math.max(this.tableMinWidth, this.tableContainer.clientWidth);
-			const tableHeight = Math.max(0, height - (width > this.tableContainer.clientWidth ? horizontalScrollbarSize : 0));
+			const width = this.tableContainer.clientWidth;
+			const compact = width < compactTableWidth;
+			const activeElement = dom.getActiveElement();
+			if (compact && !this.tableContainer.classList.contains('remotes-table-compact') && dom.isHTMLElement(activeElement) && this.tableContainer.contains(activeElement) && activeElement.closest('.monaco-button')) {
+				this.table.domFocus();
+			}
+			this.tableContainer.classList.toggle('remotes-table-compact', compact);
 			this.tableContainer.style.height = `${height}px`;
-			this.tableInner.style.height = `${tableHeight}px`;
+			this.tableInner.style.height = `${height}px`;
 			this.tableInner.style.width = `${width}px`;
-			this.table.layout(tableHeight, width);
-			this.tableScrollable.scanDomNode();
+			if (this.emptyRowWidth !== this.tableContainer.clientWidth) {
+				this.emptyRowWidth = this.tableContainer.clientWidth;
+				this.table.splice(0, this.table.length, this.rows);
+			}
+			this.table.layout(height, width);
 		}
 	}
 

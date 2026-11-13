@@ -101,7 +101,7 @@ export class RemotesCards extends Disposable {
 				const details = row.entry.type === 'group' ? dom.$<HTMLDetailsElement>('details.remotes-card-slot', { role: 'listitem' }) : undefined;
 				const element = details ?? dom.$('.remotes-card-slot', { role: 'listitem' });
 				element.dataset.remoteCardId = row.id;
-				const summary = details ? dom.append(details, dom.$('summary.remotes-card-summary')) : undefined;
+				const summary = details ? dom.append(details, dom.$('summary.remotes-card-summary.agent-sessions-interactive.agent-sessions-interactive-list.sessions-disclosure')) : undefined;
 				const body = dom.append(summary ?? element, dom.$('.remotes-card'));
 				const children = details ? dom.append(details, dom.$('.remotes-card-grid', { role: 'list' })) : undefined;
 				let collapsed: boolean | undefined;
@@ -121,15 +121,28 @@ export class RemotesCards extends Disposable {
 				});
 				const metadata = dom.$('.remotes-card-metadata');
 				const focusTarget = summary ?? element;
-				const nameTemplate = cells.find(cell => cell.template.column === 'name')?.template;
+				const header = dom.$('.remotes-card-header');
 				for (const { template } of cells) {
 					if (template.column === 'type' || template.column === 'system' || template.column === 'activity') {
 						metadata.appendChild(template.container);
-					} else if (template.column === 'status' && nameTemplate?.column === 'name') {
-						nameTemplate.nameRow.prepend(template.container);
+					} else if (template.column === 'name' || template.column === 'status') {
+						header.appendChild(template.container);
 					}
 				}
+				body.prepend(header);
 				body.insertBefore(metadata, cells[cells.length - 1].template.container);
+				if (row.entry.type === 'remote') {
+					element.classList.add('agent-sessions-interactive', 'agent-sessions-interactive-list', 'agent-sessions-interactive-bordered');
+					const actions = cells[cells.length - 1].template.container;
+					store.add(dom.addDisposableListener(actions, dom.EventType.MOUSE_ENTER, () => element.classList.add('remotes-card-actions-hover')));
+					store.add(dom.addDisposableListener(actions, dom.EventType.MOUSE_LEAVE, () => element.classList.remove('remotes-card-actions-hover')));
+					store.add(dom.addDisposableListener(actions, dom.EventType.FOCUS_IN, () => element.classList.add('remotes-card-actions-focus')));
+					store.add(dom.addDisposableListener(actions, dom.EventType.FOCUS_OUT, event => {
+						if (!dom.isHTMLElement(event.relatedTarget) || !actions.contains(event.relatedTarget)) {
+							element.classList.remove('remotes-card-actions-focus');
+						}
+					}));
+				}
 				store.add(dom.addDisposableListener(element, dom.EventType.FOCUS_IN, event => {
 					if (!summary || event.target === summary) {
 						this.setFocusedId(row.id);

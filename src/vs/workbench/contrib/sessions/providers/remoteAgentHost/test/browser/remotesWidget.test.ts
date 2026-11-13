@@ -417,6 +417,32 @@ suite('RemotesWidget', () => {
 		});
 	});
 
+	test('cards lead with name and status and reveal actions when keyboard focus enters', () => {
+		const { parent, widget } = createWidget(OperatingSystem.Windows, 'status');
+		feedbackStyles(parent);
+		widget.setViewMode('cards');
+		const card = parent.querySelector<HTMLElement>('.remotes-cards [data-remote-id="tunnel:laptop"]')!;
+		const actions = card.querySelector<HTMLElement>('.remotes-actions-column')!;
+		const style = () => {
+			const computed = dom.getWindow(actions).getComputedStyle(actions);
+			return { opacity: computed.opacity, pointerEvents: computed.pointerEvents };
+		};
+		const rest = style();
+		getConnectionAction(card.parentElement!, 'tunnel:laptop').focus();
+		const focused = style();
+		assert.deepStrictEqual({
+			header: [...card.querySelectorAll('.remotes-card-header .remotes-name, .remotes-card-header .remotes-status-column')].map(element => element.textContent),
+			rest, focused,
+			actionVisible: actions.getBoundingClientRect().height > 0,
+			statusIcon: card.querySelector('.remotes-status-column .codicon')?.className,
+		}, {
+			header: ['Laptop', 'Available'],
+			rest: { opacity: '0', pointerEvents: 'none' },
+			focused: { opacity: '1', pointerEvents: 'auto' },
+			actionVisible: true, statusIcon: 'codicon codicon-circle',
+		});
+	});
+
 	test('cards navigate native disclosure groups and preserve empty-state recovery', async () => {
 		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'status');
 		widget.setViewMode('cards');
@@ -442,7 +468,7 @@ suite('RemotesWidget', () => {
 		}, { collapsed: true, focusedRemote: 'ssh:build', message: 'No environments match your filters.', empty: 'No environments found.', cardsHidden: true, refreshes: 0 });
 	});
 
-	test('many cards scroll within narrow layouts and keep action buttons beside overflow', () => {
+	test('many cards scroll within narrow layouts and keep footer actions within the card', () => {
 		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'status', 1400);
 		feedbackStyles(parent);
 		parent.style.height = '300px';
@@ -460,18 +486,23 @@ suite('RemotesWidget', () => {
 			first.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', keyCode: 35, bubbles: true, cancelable: true }));
 			const focused = dom.getActiveElement()!;
 			const actions = focused.querySelector<HTMLElement>('.remotes-actions-column')!;
-			const controls = [...actions.querySelectorAll<HTMLElement>(':scope > :not([hidden])')].map(control => control.getBoundingClientRect());
+			const controls = [...actions.querySelectorAll<HTMLElement>(':scope > .monaco-button:not([hidden])')].map(control => control.getBoundingClientRect());
 			const bounds = actions.getBoundingClientRect();
+			const overflow = actions.querySelector<HTMLElement>('.monaco-toolbar')!.getBoundingClientRect();
+			const name = focused.querySelector<HTMLElement>('.remotes-name')!.getBoundingClientRect();
 			return {
 				noHorizontalOverflow: cards.scrollWidth <= cards.clientWidth,
 				scrolled: cards.scrollTop > 0,
 				lastReached: focused.querySelector<HTMLElement>('[data-remote-id]')?.dataset.remoteId,
 				actionsFit: controls.every(control => control.left >= bounds.left && control.right <= bounds.right),
 				sameActionRow: Math.max(...controls.map(control => control.top)) < Math.min(...controls.map(control => control.bottom)),
+				overflowBelowName: overflow.top >= name.bottom,
+				overflowFitsActions: overflow.left >= bounds.left && overflow.right <= bounds.right && overflow.bottom <= bounds.bottom,
 			};
 		});
 		assert.deepStrictEqual(results, Array.from({ length: 2 }, () => ({
 			noHorizontalOverflow: true, scrolled: true, lastReached: 'ssh:29', actionsFit: true, sameActionRow: true,
+			overflowBelowName: true, overflowFitsActions: true,
 		})));
 	});
 
@@ -658,28 +689,39 @@ suite('RemotesWidget', () => {
 		});
 	});
 
-	test('collapsing the top-level environments section preserves search, view and discovery updates', () => {
+	test('the plain environments heading preserves search, view and discovery updates', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'default');
+		parent.style.setProperty('--vscode-fontSize-heading3', '13px');
+		parent.style.setProperty('--vscode-fontWeight-semiBold', '600');
 		widget.setHeading('Other environments');
 		widget.setSearchQuery('build');
 		widget.setViewMode('cards');
-		const toggle = parent.querySelector<HTMLElement>('.remotes-section-toggle')!;
+		const toggle = parent.querySelector<HTMLElement>('.remotes-heading')!;
 		const body = parent.querySelector<HTMLElement>('.remotes-overview-body')!;
 		toggle.click();
+		await timeout(0);
 		model.remotes.set([...model.remotes.get()], undefined);
 		widget.focus();
-		const collapsed = { expanded: toggle.getAttribute('aria-expanded'), hidden: body.hidden, focused: dom.getActiveElement() === toggle };
-		toggle.click();
 		assert.deepStrictEqual({
-			collapsed, expanded: toggle.getAttribute('aria-expanded'), hidden: body.hidden,
+			hidden: body.hidden,
+			disclosure: toggle.tagName === 'SUMMARY' || toggle.parentElement?.tagName === 'DETAILS',
+			titleFont: dom.getWindow(toggle).getComputedStyle(toggle.querySelector('h2')!).fontSize,
+			titleWeight: dom.getWindow(toggle).getComputedStyle(toggle.querySelector('h2')!).fontWeight,
+			border: dom.getWindow(toggle).getComputedStyle(toggle).borderTopStyle,
 			query: parent.querySelector<HTMLInputElement>('input')!.value,
 			cards: !parent.querySelector<HTMLElement>('.remotes-cards-container')!.hidden,
 			ids: [...parent.querySelectorAll<HTMLElement>('.remotes-cards [data-remote-id]')].map(element => element.dataset.remoteId),
 			connects: model.connectionChanges,
 		}, {
-			collapsed: { expanded: 'false', hidden: true, focused: true }, expanded: 'true', hidden: false,
+			hidden: false, disclosure: false, titleFont: '13px', titleWeight: '600', border: 'none',
 			query: 'build', cards: true, ids: ['ssh:build'], connects: [],
 		});
+		widget.setHeading(undefined);
+		widget.focus();
+		assert.deepStrictEqual({
+			hidden: body.hidden, headingDisplay: dom.getWindow(toggle).getComputedStyle(toggle).display,
+			focused: dom.getActiveElement() === parent.querySelector('input'),
+		}, { hidden: false, headingDisplay: 'none', focused: true });
 	});
 
 	test('Ordering, Grouping and Reset Filters use the requested submenus and preserve search in both views', async () => {
@@ -1021,12 +1063,12 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			assert.deepStrictEqual({ initial, focusRetained, documentation }, {
 				initial: {
-					message: 'No Dev Tunnels found for this account.',
-					description: `Sign in to ${providerLabel} with the account used to enable the tunnel on the remote computer.`,
+					message: 'Connect to another computer with a Dev Tunnel',
+					description: `Sign in to ${providerLabel} with the same account you use for Remote Tunnel Access on the other computer.`,
 					controls: [`Sign in to ${providerLabel}`],
 					detachedActions: 0,
 					guide: { tag: 'A', role: 'button', href: 'https://aka.ms/vscode-agent-tunnel', externalIcon: false },
-					guideBelowActions: false,
+					guideBelowActions: true,
 					guideLeftAligned: true,
 				},
 				focusRetained: true,
@@ -1034,6 +1076,44 @@ suite('RemotesWidget', () => {
 			});
 		});
 	}
+
+	test('empty method guidance wraps within the viewport and grows without clipping in list and cards', async () => {
+		const { parent, model, widget } = createWidget(OperatingSystem.Windows, 'type', 1400);
+		feedbackStyles(parent);
+		parent.style.setProperty('--vscode-fontSize-label1', '12px');
+		parent.style.setProperty('--vscode-codiconFontSize-compact', '12px');
+		parent.style.setProperty('--vscode-strokeThickness', '1px');
+		model.remotes.set(model.remotes.get().filter(remote => remote.kind !== 'tunnel'), undefined);
+		model.tunnelAuthenticationRequired.set('github', undefined);
+		widget.setVisible(true);
+		await timeout(0);
+		toggleMethodGroup(parent, 'Dev Tunnels');
+		const results = (['list', 'cards'] as const).flatMap(mode => {
+			widget.setViewMode(mode);
+			return [1400, 360, 700].map(width => {
+				parent.style.width = `${width}px`;
+				widget.layout();
+				const root = parent.querySelector(mode === 'list' ? '.remotes-table-container' : '.remotes-cards')!;
+				const row = root.querySelector<HTMLElement>('.remotes-empty-row')!;
+				const content = row.querySelector<HTMLElement>('.remotes-name-content')!;
+				const description = row.querySelector<HTMLElement>('.remotes-empty-description')!;
+				const bounds = row.getBoundingClientRect();
+				const contentBounds = content.getBoundingClientRect();
+				const parentBounds = parent.getBoundingClientRect();
+				return {
+					mode, width,
+					fitsRow: contentBounds.top >= bounds.top && contentBounds.bottom <= bounds.bottom,
+					fitsViewport: contentBounds.left >= parentBounds.left && contentBounds.right <= parentBounds.right,
+					wrapped: dom.getWindow(description).getComputedStyle(description).whiteSpace === 'normal',
+					unclipped: description.scrollWidth <= description.clientWidth && description.scrollHeight <= description.clientHeight,
+					guideVisible: row.querySelector<HTMLElement>('.remotes-empty-actions')!.getBoundingClientRect().bottom <= bounds.bottom,
+				};
+			});
+		});
+		assert.deepStrictEqual(results, (['list', 'cards'] as const).flatMap(mode => [1400, 360, 700].map(width => ({
+			mode, width, fitsRow: true, fitsViewport: true, wrapped: true, unclipped: true, guideVisible: true,
+		}))));
+	});
 
 	test('tunnel sign-in is offered on intent and does not block other environments', async () => {
 		const { parent, model, widget } = createWidget(OperatingSystem.Windows);
@@ -1070,7 +1150,7 @@ suite('RemotesWidget', () => {
 		}, {
 			initial: { messageHidden: true, signIn: false }, reached: true,
 			busy: { calls: 1, label: 'Signing in...' },
-			recovered: { signIn: false, message: 'No Dev Tunnels found for this account.', refreshes: 2, changes: [] },
+			recovered: { signIn: false, message: 'Connect to another computer with a Dev Tunnel', refreshes: 2, changes: [] },
 			restored: 1, messageHidden: true,
 		});
 	});
@@ -1267,16 +1347,16 @@ suite('RemotesWidget', () => {
 			};
 		};
 		const expected = [
-			{ label: 'Connected', icon: 'codicon codicon-debug-connected-compact', color: 'rgb(34, 136, 34)' },
-			{ label: 'Available', icon: 'codicon codicon-circle-large-outline', color: 'rgb(34, 102, 204)' },
+			{ label: 'Connected', icon: 'codicon codicon-circle-filled', color: 'rgb(34, 136, 34)' },
+			{ label: 'Available', icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)' },
 			{ label: 'Offline', icon: 'codicon codicon-circle-slash-compact', color: 'rgb(136, 136, 136)' },
-			{ label: 'Available', icon: 'codicon codicon-circle-large-outline', color: 'rgb(34, 102, 204)' },
+			{ label: 'Available', icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)' },
 			{ label: 'Offline', icon: 'codicon codicon-circle-slash-compact', color: 'rgb(136, 136, 136)' },
-			{ label: 'Connected', icon: 'codicon codicon-debug-connected-compact', color: 'rgb(34, 136, 34)' },
+			{ label: 'Connected', icon: 'codicon codicon-circle-filled', color: 'rgb(34, 136, 34)' },
 			{ label: undefined },
 			{ label: undefined },
-			{ label: 'Available', icon: 'codicon codicon-circle-large-outline', color: 'rgb(34, 102, 204)' },
-			{ label: 'Available', icon: 'codicon codicon-circle-large-outline', color: 'rgb(34, 102, 204)' },
+			{ label: 'Available', icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)' },
+			{ label: 'Available', icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)' },
 		];
 		const actual = states.map(remote => {
 			model.remotes.set([remote], undefined);
@@ -1332,20 +1412,20 @@ suite('RemotesWidget', () => {
 			metadata: { observedAt: now, lastActivityAt: now - 60_000, lastConnectedAt: now - 120_000, observedSessionCount: 3 },
 		};
 		const values = [];
-		let clipped = false;
+		let clippedWithoutEllipsis = false;
 		for (const availability of ['online', 'offline'] as const) {
 			for (const connectionStatus of [RemoteAgentHostConnectionStatus.connected, RemoteAgentHostConnectionStatus.disconnected]) {
 				model.remotes.set([{ ...remote, availability, connectionStatus }], undefined);
 				values.push(parent.querySelector('[data-remote-id] .remotes-activity-column')?.textContent);
 				const activity = parent.querySelector<HTMLElement>('.remotes-table-container [data-remote-id] .remotes-activity-column .remotes-metadata > span')!;
-				clipped ||= activity.scrollWidth > activity.clientWidth;
+				clippedWithoutEllipsis ||= activity.scrollWidth > activity.clientWidth && dom.getWindow(activity).getComputedStyle(activity).textOverflow !== 'ellipsis';
 				widget.setViewMode('cards');
 				values.push(parent.querySelector('.remotes-cards [data-remote-id] .remotes-activity-column')?.textContent);
 				widget.setViewMode('list');
 			}
 		}
 		model.remotes.set([{ ...remote, metadata: { observedAt: now }, connectionStatus: RemoteAgentHostConnectionStatus.disconnected }], undefined);
-		assert.deepStrictEqual({ values, clipped, unknown: parent.querySelector('[data-remote-id] .remotes-activity-column')?.textContent }, {
+		assert.deepStrictEqual({ values, clippedWithoutEllipsis, unknown: parent.querySelector('[data-remote-id] .remotes-activity-column')?.textContent }, {
 			values: [
 				'3 sessions \u00b7 Last activity 1 min ago', '3 sessions \u00b7 Last activity 1 min ago',
 				'Last connected 2 mins ago', 'Last connected 2 mins ago',
@@ -1353,7 +1433,7 @@ suite('RemotesWidget', () => {
 				'Last connected 2 mins ago', 'Last connected 2 mins ago',
 			],
 			unknown: '',
-			clipped: false,
+			clippedWithoutEllipsis: false,
 		});
 		await organize(parent, 'remotes.sort.activity');
 		model.remotes.set([
@@ -1389,7 +1469,7 @@ suite('RemotesWidget', () => {
 			offlineColor: dom.getWindow(offline).getComputedStyle(offline).color,
 			noGroupingDropdown: parent.querySelector('.remotes-group-by') === null,
 		}, {
-			icons: ['codicon codicon-debug-connected-compact', 'codicon codicon-circle-large-outline', 'codicon codicon-circle-slash-compact'],
+			icons: ['codicon codicon-circle-filled', 'codicon codicon-circle', 'codicon codicon-circle-slash-compact'],
 			counts: ['1', '2', '1'], colors: ['rgb(34, 170, 34)', 'rgb(34, 102, 255)', 'rgb(136, 136, 136)'],
 			offlineColor: 'rgb(221, 221, 221)', noGroupingDropdown: true,
 		});
@@ -1403,8 +1483,8 @@ suite('RemotesWidget', () => {
 				size: dom.getWindow(icon).getComputedStyle(icon).fontSize,
 			};
 		}), [
-			{ icon: 'codicon codicon-debug-connected-compact', compactGap: true, size: '12px' },
-			{ icon: 'codicon codicon-circle-large-outline', compactGap: true, size: '12px' },
+			{ icon: 'codicon codicon-circle-filled', compactGap: true, size: '12px' },
+			{ icon: 'codicon codicon-circle', compactGap: true, size: '12px' },
 			{ icon: 'codicon codicon-circle-slash-compact', compactGap: true, size: '12px' },
 		]);
 	});
@@ -1518,7 +1598,7 @@ suite('RemotesWidget', () => {
 	});
 
 	for (const width of [360, 900, 1400]) {
-		test(`keeps column headers readable from startup through resizing at width ${width}`, () => {
+		test(`fits readable columns without horizontal scrolling from startup through resizing at width ${width}`, () => {
 			const { parent, widget } = createWidget(OperatingSystem.Windows, 'status', width);
 			parent.style.setProperty('--vscode-spacing-size100', '10px');
 			parent.style.setProperty('--vscode-fontWeight-semiBold', '600');
@@ -1527,16 +1607,53 @@ suite('RemotesWidget', () => {
 			const layouts = [width, 360, 1400, width].map(layoutWidth => {
 				parent.style.width = `${layoutWidth}px`;
 				widget.layout();
-				return headers.filter(header => {
+				const clippedHeaders = headers.filter(header => header.getBoundingClientRect().width > 0).filter(header => {
 					const range = document.createRange();
 					range.selectNodeContents(header);
 					const style = dom.getWindow(header).getComputedStyle(header);
 					return range.getBoundingClientRect().width > header.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
 				}).map(header => header.textContent);
+				const container = parent.querySelector<HTMLElement>('.remotes-table-container')!;
+				const table = container.querySelector<HTMLElement>('.monaco-table')!;
+				const row = table.querySelector<HTMLElement>('[data-remote-id]')!;
+				return {
+					clippedHeaders,
+					fitsViewport: table.getBoundingClientRect().width === container.clientWidth,
+					noHorizontalOverflow: container.scrollWidth === container.clientWidth && row.scrollWidth === row.clientWidth,
+					actionsReachable: row.querySelector<HTMLElement>('.remotes-actions-column')!.getBoundingClientRect().right <= container.getBoundingClientRect().right,
+				};
 			});
-			assert.deepStrictEqual(layouts, [[], [], [], []]);
+			assert.deepStrictEqual(layouts, Array.from({ length: 4 }, () => ({
+				clippedHeaders: [], fitsViewport: true, noHorizontalOverflow: true, actionsReachable: true,
+			})));
 		});
 	}
+
+	test('compact lists retain session and connection actions in the menu and recover focus on resize', async () => {
+		const { parent, widget, model, sessionActions } = createWidget(OperatingSystem.Windows, 'status', 1400);
+		parent.querySelector<HTMLElement>('[data-remote-id="ssh:build"] .remotes-new-session')!.focus();
+		parent.style.width = '360px';
+		widget.layout();
+		const compact = {
+			focusRecovered: dom.getActiveElement() === parent.querySelector('.monaco-table .monaco-list'),
+			buttonHidden: dom.getWindow(parent).getComputedStyle(getConnectionAction(parent, 'ssh:build')).display === 'none',
+		};
+		runMenuAction(parent, 'ssh:build', 'newSession');
+		await timeout(0);
+		runMenuAction(parent, 'ssh:build', 'actions');
+		await timeout(0);
+		parent.style.width = '1400px';
+		widget.layout();
+		const connect = getConnectionAction(parent, 'ssh:build');
+		assert.deepStrictEqual({
+			compact, sessionActions, connections: model.connectionChanges,
+			restored: { label: connect.textContent?.trim(), visible: dom.getWindow(connect).getComputedStyle(connect).display !== 'none' },
+		}, {
+			compact: { focusRecovered: true, buttonHidden: true },
+			sessionActions: ['open', 'agenthost-remote-build'], connections: [{ id: 'ssh:build', connected: false }],
+			restored: { label: 'Connect', visible: true },
+		});
+	});
 
 	test('keeps trailing content and actions clear of the vertical scrollbar through resizing', async () => {
 		const { parent, widget, model } = createWidget(OperatingSystem.Windows, 'status', 1400);
@@ -1561,8 +1678,6 @@ suite('RemotesWidget', () => {
 					canRemove: true, availability: 'online' as const, connectionStatus, lastConnectionError,
 				})), undefined);
 				widget.layout();
-				const viewport = parent.querySelector<HTMLElement>('.remotes-table-viewport')!;
-				viewport.scrollLeft = viewport.scrollWidth;
 				await timeout(0);
 				const table = parent.querySelector<HTMLElement>('.monaco-table')!;
 				const scrollbar = table.querySelector<HTMLElement>('.monaco-list .scrollbar.vertical')!;
@@ -1716,7 +1831,7 @@ suite('RemotesWidget', () => {
 	});
 
 	for (const width of [700, 360]) {
-		test(`can scroll the complete final empty row above the bottom scrollbar at width ${width}`, async () => {
+		test(`can scroll the complete final empty row into the viewport at width ${width}`, async () => {
 			const { parent, widget, model } = createWidget(OperatingSystem.Linux);
 			parent.style.width = `${width}px`;
 			parent.style.height = '220px';
@@ -1735,7 +1850,7 @@ suite('RemotesWidget', () => {
 			await timeout(0);
 			const empty = parent.querySelector<HTMLElement>('.remotes-empty-row')!;
 			assert.ok(empty, 'The final empty SSH row is rendered after scrolling');
-			const bottom = parent.querySelector('.remotes-table-container')!.getBoundingClientRect().bottom - 10;
+			const bottom = parent.querySelector('.remotes-table-container')!.getBoundingClientRect().bottom;
 			assert.ok(empty.getBoundingClientRect().bottom <= bottom, 'The entire empty row is inside the visible viewport');
 			const link = empty.querySelector<HTMLElement>('.monaco-link')!;
 			link.focus();
@@ -1788,12 +1903,17 @@ suite('RemotesWidget', () => {
 				const warning = getConnectionAction(parent, 'ssh:build');
 				const cell = warning.parentElement!;
 				const overflow = cell.querySelector<HTMLElement>('.codicon-toolbar-more')!;
+				const visible = dom.getWindow(warning).getComputedStyle(warning).display !== 'none';
 				return {
-					left: warning.getBoundingClientRect().left,
+					left: visible ? warning.getBoundingClientRect().left : undefined,
 					separated: warning.getBoundingClientRect().right < overflow.getBoundingClientRect().left,
 				};
 			});
-			assert.deepStrictEqual(positions, positions.map(() => ({ left: positions[0].left, separated: true })));
+			assert.deepStrictEqual(positions, [
+				{ left: width < 700 ? undefined : positions[1].left, separated: true },
+				{ left: positions[1].left, separated: true },
+				{ left: positions[1].left, separated: true },
+			]);
 		});
 	}
 
@@ -2419,7 +2539,7 @@ suite('RemotesWidget', () => {
 					hiddenFromScreenReader: indicator.getAttribute('aria-hidden'),
 				};
 			};
-			const connected = { icon: 'codicon codicon-debug-connected-compact', color: 'rgb(34, 170, 34)', hiddenFromScreenReader: 'true' };
+			const connected = { icon: 'codicon codicon-circle-filled', color: 'rgb(34, 170, 34)', hiddenFromScreenReader: 'true' };
 			runMenuAction(parent, 'ssh:build', action);
 			const details = read('.remotes-recovery-status .remotes-connection-indicator');
 			parent.style.setProperty('--vscode-testing-iconPassed', '#00ff00');
@@ -2432,7 +2552,7 @@ suite('RemotesWidget', () => {
 				details: connected,
 				themeChanged: { ...connected, color: 'rgb(0, 255, 0)' },
 				themeRemoved: connected,
-				disconnected: { icon: 'codicon codicon-circle-large-outline', color: 'rgb(34, 102, 204)', hiddenFromScreenReader: 'true' },
+				disconnected: { icon: 'codicon codicon-circle', color: 'rgb(34, 102, 204)', hiddenFromScreenReader: 'true' },
 			});
 		});
 
@@ -2915,7 +3035,7 @@ suite('RemotesWidget', () => {
 			};
 		});
 		assert.deepStrictEqual(states, [
-			{ status: 'Connected', icon: 'codicon codicon-debug-connected-compact', guidance: undefined, documentation: undefined, actions: [['New Session', 'false'], ['Disconnect', 'false']] },
+			{ status: 'Connected', icon: 'codicon codicon-circle-filled', guidance: undefined, documentation: undefined, actions: [['New Session', 'false'], ['Disconnect', 'false']] },
 			{ status: 'Reconnecting', icon: 'codicon codicon-loading-compact codicon-modifier-spin', guidance: undefined, documentation: undefined, actions: [] },
 			{ status: 'Connection failed', icon: 'codicon codicon-warning', guidance: undefined, documentation: 'SSH connection guide', actions: [['Retry Connection', 'false'], ['Open SSH Configuration', 'false']] },
 			{ status: 'Update required', icon: 'codicon codicon-warning', guidance: undefined, documentation: 'Remote agent connection troubleshooting', actions: [] },
@@ -3996,6 +4116,7 @@ suite('RemotesWidget', () => {
 			widget.setViewMode('cards');
 			const bounds = widget.domNode.getBoundingClientRect();
 			const heading = parent.querySelector('.remotes-heading')!.getBoundingClientRect();
+			const headingTitle = parent.querySelector('.remotes-heading-title')!.getBoundingClientRect();
 			const search = parent.querySelector('.remotes-search-controls')!.getBoundingClientRect();
 			const filters = parent.querySelector('.remotes-header-actions')!.getBoundingClientRect();
 			const cards = parent.querySelector('.remotes-cards')!.getBoundingClientRect();
@@ -4005,7 +4126,7 @@ suite('RemotesWidget', () => {
 			const last = [...parent.querySelectorAll('.remotes-card[data-remote-id]')].find(card => card.getBoundingClientRect().top === first.getBoundingClientRect().top && Math.abs(card.getBoundingClientRect().right - parent.querySelector('.remotes-search-row')!.getBoundingClientRect().right) < 1);
 			return {
 				headingAbove: heading.bottom < search.top && heading.bottom < filters.top,
-				leftAligned: heading.left === bounds.left && search.left === bounds.left + 24 && cards.left === search.left,
+				leftAligned: heading.left === bounds.left && search.left === headingTitle.left && cards.left === search.left,
 				cardsBelow: cards.top > Math.max(filters.bottom, search.bottom),
 				actionsAligned: Math.abs(title.left - button.left) < 1,
 				rightAligned: !!last,
@@ -4143,7 +4264,7 @@ suite('RemotesWidget', () => {
 			documentation,
 			accessibleGuidance: widget.getAccessibilityContent().includes('SSH setup guide: https://aka.ms/vscode-agent-ssh'),
 		}, {
-			labels: ['No Dev Tunnels found for this account.', 'No WSL 2 distributions found.', 'No SSH hosts configured.'],
+			labels: ['Connect to another computer with a Dev Tunnel', 'No WSL 2 distributions found.', 'No SSH hosts configured.'],
 			counts: ['0', '0', '0'],
 			documentation: [
 				'https://aka.ms/vscode-agent-tunnel',

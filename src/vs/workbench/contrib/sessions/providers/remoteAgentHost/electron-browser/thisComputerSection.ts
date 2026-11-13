@@ -12,28 +12,25 @@ import { AnchorAlignment } from '../../../../../../base/browser/ui/contextview/c
 import { HoverStyle } from '../../../../../../base/browser/ui/hover/hover.js';
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { InputBox, MessageType } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { IRadioOptionItem, Radio } from '../../../../../../base/browser/ui/radio/radio.js';
-import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWindows, OS, OperatingSystem } from '../../../../../../base/common/platform.js';
-import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
 import { WorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
 import { GitHubEnvironmentsEnabledSettingId } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
+import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { Link } from '../../../../../../platform/opener/browser/link.js';
 import { showWindowLogActionId } from '../../../../../services/log/common/logConstants.js';
 import { RemoteTunnelCommandIds } from '../../../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
-import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { devTunnelSharingClients, getOffDetail, gitHubEnvironmentSharingClients, gitHubEnvironmentSharingDiscovery, GitHubEnvironmentsAvailability, RemoteConnectionsMethod, RemoteConnectionsSharing, RemoteConnectionsState, validateSharingName } from '../../../../chat/electron-browser/remoteConnectionsSharing.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TOGGLE_REMOTE_CONNECTIONS_COMMAND_ID } from '../../../common/sessionCommands.js';
@@ -58,11 +55,10 @@ const sharingChoices: Record<SharingMethod, { label: string; points: readonly st
 	},
 };
 
-/** The local-computer summary and its sharing settings page. */
+/** The local-computer summary and inline sharing choices. */
 export class ThisComputerSection extends Disposable {
 	readonly domNode: HTMLElement;
 	private readonly details: HTMLElement;
-	private readonly scrollable: DomScrollableElement;
 	private readonly sharing: RemoteConnectionsSharing;
 	private readonly name: HTMLElement;
 	private readonly rename: Action;
@@ -75,23 +71,12 @@ export class ThisComputerSection extends Disposable {
 	private readonly radio: Radio;
 	private readonly status: HTMLElement;
 	private readonly preview: HTMLElement;
-	private readonly pageDescription: HTMLElement;
 	private readonly policy: HTMLElement;
 	private readonly feedback: HTMLElement;
 	private readonly feedbackContainer: HTMLElement;
 	private readonly feedbackLog: HTMLElement;
 	private readonly applyButton: ButtonWithIcon;
 	private readonly cancelButton: Button;
-	private readonly backAction: Action;
-	private readonly backToolbar: WorkbenchToolBar;
-	private readonly navigation: HTMLElement;
-	private readonly headingToggle: ButtonWithIcon;
-	private readonly summaryHeader: HTMLElement;
-	private collapsed = false;
-	private readonly nameInput: InputBox;
-	private readonly nameHint: HTMLElement;
-	private nameDrafts: Partial<Record<SharingMethod, string>> = {};
-	private initialNameDraft: string | undefined;
 	private readonly policyText = localize('thisComputer.policyDisabled', "Sharing through GitHub Environments is disabled by your organization. Contact your administrator.");
 	private methods: readonly SharingMethod[] = [];
 	private itemsKey = '';
@@ -118,7 +103,6 @@ export class ThisComputerSection extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@IPreferencesService preferencesService: IPreferencesService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IContextViewService contextViewService: IContextViewService,
 	) {
 		super();
 		const state = this._register(instantiationService.createInstance(RemoteConnectionsState));
@@ -127,40 +111,17 @@ export class ThisComputerSection extends Disposable {
 		const titleId = generateUuid();
 		this.domNode = dom.append(container, dom.$('section.remotes-this-computer', { 'aria-labelledby': titleId }));
 		this._register(toDisposable(() => this.domNode.remove()));
-		this.navigation = dom.append(this.domNode, dom.$('.remotes-task-navigation'));
 		const hoverDelegate = this._register(createInstantHoverDelegate());
-		this.backAction = this._register(new Action('remotes.back', localize('thisComputer.back', "Back to Remote Environments"),
-			ThemeIcon.asClassName(Codicon.arrowLeft), true, () => this.close()));
-		this.backToolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(this.navigation, dom.$('.remotes-task-back')), {
-			ariaLabel: localize('thisComputer.navigation', "Page navigation"), hoverDelegate,
-		}));
-		this.backToolbar.setActions([this.backAction]);
-		const heading = dom.append(this.navigation, dom.$('.remotes-task-heading'));
-		const taskTitleId = generateUuid();
-		dom.append(heading, dom.$('h2.remotes-task-title', { id: taskTitleId }, localize('thisComputer.sharingTitle', "Share this computer")));
 		const system = OS === OperatingSystem.Windows ? localize('thisComputer.windows', "Windows")
 			: OS === OperatingSystem.Macintosh ? localize('thisComputer.mac', "macOS") : localize('thisComputer.linux', "Linux");
-		const sectionHeading = dom.append(this.domNode, dom.$('.remotes-this-computer-heading'));
-		const sectionTitle = dom.append(sectionHeading, dom.$('h2.remotes-this-computer-title', { id: titleId }));
-		this.headingToggle = this._register(new ButtonWithIcon(sectionTitle, { hoverDelegate }));
-		this.headingToggle.element.classList.add('remotes-section-toggle');
-		this.headingToggle.label = localize('thisComputer.title', "This computer");
-		this.headingToggle.icon = Codicon.chevronDown;
-		this.headingToggle.element.setAttribute('aria-expanded', 'true');
-		const header = this.summaryHeader = dom.append(this.domNode, dom.$('.remotes-this-computer-header', { id: generateUuid() }));
-		this.headingToggle.element.setAttribute('aria-controls', header.id);
-		this._register(this.headingToggle.onDidClick(() => {
-			this.collapsed = !this.collapsed;
-			this.headingToggle.element.setAttribute('aria-expanded', String(!this.collapsed));
-			this.headingToggle.icon = this.collapsed ? Codicon.chevronRight : Codicon.chevronDown;
-			this.update();
-			this.onDidChangeExpansion(this.showingOptions);
-		}));
+		const heading = dom.append(this.domNode, dom.$('.remotes-this-computer-heading'));
+		dom.append(heading, dom.$('h2.remotes-this-computer-title', { id: titleId }, localize('thisComputer.title', "This computer")));
+		const header = dom.append(this.domNode, dom.$('.remotes-this-computer-header'));
 		const summary = dom.append(header, dom.$('.remotes-this-computer-summary'));
 		const nameRow = dom.append(summary, dom.$('.remotes-this-computer-name-row'));
 		this.name = dom.append(nameRow, dom.$('.remotes-this-computer-name'));
 		const hoverLifecycleOptions = { groupId: generateUuid() };
-		this._register(hoverService.setupDelayedHover(this.name, () => ({ content: this.sharing.name ?? '', style: HoverStyle.Pointer }), hoverLifecycleOptions));
+		this._register(hoverService.setupDelayedHover(this.name, () => ({ content: this.sharingName ?? '', style: HoverStyle.Pointer }), hoverLifecycleOptions));
 		this.renameContainer = dom.append(nameRow, dom.$('.remotes-this-computer-rename'));
 		this.rename = this._register(new Action('remotes.renameThisComputer', localize('thisComputer.rename', "Change Sharing Name"), ThemeIcon.asClassName(Codicon.edit), true, () => this.renameComputer()));
 		this.renameToolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, this.renameContainer, {
@@ -226,7 +187,7 @@ export class ThisComputerSection extends Disposable {
 		this.optionsButton.setTitle(localize('thisComputer.optionsDetail', "Stop sharing, then choose another connection method"));
 		this.optionsButton.setAriaLabel(localize('thisComputer.options', "Change Connection Method"));
 		this.details = dom.append(this.domNode, dom.$('section.remotes-sharing-details', { id: generateUuid() }));
-		this.details.setAttribute('aria-labelledby', taskTitleId);
+		this.details.setAttribute('aria-labelledby', titleId);
 		this.details.hidden = true;
 		this.shareButton.element.setAttribute('aria-controls', this.details.id);
 		this._register(this.shareButton.onDidClick(() => this.toggleOptions()));
@@ -236,14 +197,11 @@ export class ThisComputerSection extends Disposable {
 			}
 		}));
 		const body = dom.$('.remotes-sharing-body');
-		this.pageDescription = dom.append(body, dom.$('p.remotes-this-computer-description', { id: generateUuid() },
-			localize('thisComputer.shareOverview', "Let your other devices use this computer's agent sessions, tools, and files. Work runs here, so keep VS Code running and this computer awake and online.")));
-		this.scrollable = this._register(new DomScrollableElement(body, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
-		dom.append(this.details, this.scrollable.getDomNode()).classList.add('remotes-sharing-scroll');
+		this.details.appendChild(body);
 		const typeField = dom.append(body, dom.$('.remotes-sharing-type-field'));
 		const methodTitleId = generateUuid();
-		dom.append(typeField, dom.$('h3.remotes-sharing-question', { id: methodTitleId },
-			localize('thisComputer.sharingQuestion', "Choose a connection method to start sharing")));
+		dom.append(typeField, dom.$('p.remotes-sharing-instruction', { id: methodTitleId },
+			localize('thisComputer.sharingInstruction', "Choose how to connect to this computer from another device.")));
 		this.radio = this._register(new Radio({ items: [], allowNoSelection: true, hoverDelegate }));
 		this.radio.domNode.classList.add('remotes-sharing-choices', 'remotes-method-choices');
 		this.radio.domNode.setAttribute('aria-labelledby', methodTitleId);
@@ -251,10 +209,6 @@ export class ThisComputerSection extends Disposable {
 		this._register(this.radio.onDidSelect(index => {
 			if (!this.applying) {
 				this.selectedMethod = this.methods[index];
-				if (this.selectedMethod && this.initialNameDraft !== undefined) {
-					this.nameDrafts[this.selectedMethod] = this.initialNameDraft;
-					this.initialNameDraft = undefined;
-				}
 				this.changeFailed = false;
 				this.feedback.textContent = '';
 				this.update();
@@ -266,34 +220,7 @@ export class ThisComputerSection extends Disposable {
 		this._register(instantiationService.createInstance(Link, this.policy, {
 			label: localize('thisComputer.viewSetting', "View Setting"), href: '#',
 		}, { opener: () => { void preferencesService.openSettings({ query: `@id:${GitHubEnvironmentsEnabledSettingId}` }); } }));
-		const nameField = dom.append(body, dom.$('.remotes-sharing-name-field'));
-		const nameLabel = dom.append(nameField, dom.$('label.remotes-sharing-question', undefined,
-			localize('thisComputer.nameLabel', "Sharing name")));
-		this.nameInput = this._register(new InputBox(nameField, contextViewService, {
-			inputBoxStyles: defaultInputBoxStyles,
-			ariaLabel: localize('thisComputer.nameLabel', "Sharing name"),
-			placeholder: localize('thisComputer.namePlaceholder', "Sharing name"),
-			validationOptions: {
-				validation: value => {
-					const content = this.selectedMethod && this.sharing.namesLoaded ? validateSharingName(this.selectedMethod, value) : undefined;
-					return content ? { content, type: MessageType.ERROR } : null;
-				},
-			},
-		}));
-		this.nameHint = dom.append(nameField, dom.$('p.remotes-sharing-name-hint', { id: generateUuid() }));
-		this.nameInput.inputElement.id = generateUuid();
-		nameLabel.setAttribute('for', this.nameInput.inputElement.id);
-		this._register(dom.addDisposableListener(this.nameInput.inputElement, dom.EventType.INPUT, () => {
-			if (!this.isBusy) {
-				if (this.selectedMethod) {
-					this.nameDrafts[this.selectedMethod] = this.nameInput.value;
-				} else {
-					this.initialNameDraft = this.nameInput.value;
-				}
-				this.updateNameValidation();
-			}
-		}));
-		this.feedbackContainer = dom.append(body, dom.$('.remotes-sharing-feedback-container'));
+		this.feedbackContainer = dom.append(this.domNode, dom.$('.remotes-sharing-feedback-container'));
 		this.feedback = dom.append(this.feedbackContainer, dom.$('p.remotes-sharing-feedback', { id: generateUuid(), role: 'status', 'aria-atomic': 'true' }));
 		this.feedbackLog = dom.append(this.feedbackContainer, dom.$('span'));
 		this._register(instantiationService.createInstance(Link, this.feedbackLog, {
@@ -304,7 +231,7 @@ export class ThisComputerSection extends Disposable {
 				await commandService.executeCommand(this.failedMethod === 'devTunnel' ? RemoteTunnelCommandIds.showLog : showWindowLogActionId);
 			}
 		}));
-		const footer = dom.append(body, dom.$('.remotes-sharing-footer'));
+		const footer = dom.append(controls, dom.$('.remotes-sharing-footer'));
 		this.cancelButton = this._register(new Button(footer, { ...defaultButtonStyles, secondary: true, hoverDelegate }));
 		this.cancelButton.label = localize('thisComputer.cancel', "Cancel");
 		this._register(this.cancelButton.onDidClick(() => this.close()));
@@ -312,7 +239,7 @@ export class ThisComputerSection extends Disposable {
 		this.applyButton.label = localize('thisComputer.start', "Start Sharing");
 		this.applyButton.icon = Codicon.radioTower;
 		this.applyButton.iconElement.setAttribute('aria-hidden', 'true');
-		this.applyButton.element.setAttribute('aria-describedby', `${this.pageDescription.id} ${this.feedback.id}`);
+		this.applyButton.element.setAttribute('aria-describedby', this.feedback.id);
 		this.stopButton.element.setAttribute('aria-describedby', this.feedback.id);
 		this._register(this.applyButton.onDidClick(() => {
 			if (this.applyButton.enabled && this.selectedMethod) {
@@ -322,7 +249,6 @@ export class ThisComputerSection extends Disposable {
 		if (isWindows) {
 			footer.prepend(this.applyButton.element);
 		}
-		body.appendChild(this.feedbackContainer);
 		const help = dom.append(body, dom.$('p.remotes-sharing-help'));
 		this._register(instantiationService.createInstance(Link, help, {
 			label: localize('thisComputer.sharingGuide', "Choose how to connect"),
@@ -350,17 +276,13 @@ export class ThisComputerSection extends Disposable {
 		}
 		const active = this.sharing.activeMethod;
 		this.selectedMethod = active === 'off' ? undefined : active;
-		this.nameDrafts = {};
-		this.initialNameDraft = undefined;
 		this.itemsKey = '';
 		this.showingOptions = true;
 		this.changeFailed = false;
 		this.feedback.textContent = '';
 		this.update();
 		this.onDidChangeExpansion(true);
-		this.layout();
-		this.scrollable.setScrollPosition({ scrollTop: 0 });
-		this.backToolbar.focus();
+		this.radio.focusActiveItem();
 	}
 
 	close(): void {
@@ -380,16 +302,12 @@ export class ThisComputerSection extends Disposable {
 		this.renaming = true;
 		this.update();
 		try {
-			await this.sharing.rename();
+			await this.sharing.rename(this.showingOptions ? this.selectedMethod : undefined);
 		} finally {
 			this.renaming = false;
 			if (!this._store.isDisposed) {
 				this.update();
-				if (this.showingOptions) {
-					(this.renameContainer.hidden ? this.backToolbar : this.renameToolbar).focus();
-				} else {
-					this.focus();
-				}
+				this.renameToolbar.focus();
 			}
 		}
 	}
@@ -408,7 +326,7 @@ export class ThisComputerSection extends Disposable {
 		this.update();
 		let error: string | undefined;
 		try {
-			error = await this.sharing.selectMethod(method, method !== 'off' && this.showingOptions ? this.nameInput.value : undefined);
+			error = await this.sharing.selectMethod(method, method !== 'off' && this.showingOptions ? this.sharingName : undefined);
 		} finally {
 			this.applying = false;
 			if (!this._store.isDisposed) {
@@ -426,7 +344,6 @@ export class ThisComputerSection extends Disposable {
 						this.feedback.textContent = localize('thisComputer.sharingFailureDetail', "{0} {1}", this.feedback.textContent, error);
 					}
 					this.update();
-					this.layout();
 				}
 			}
 		}
@@ -478,14 +395,13 @@ export class ThisComputerSection extends Disposable {
 		} else {
 			this.radio.domNode.setAttribute('aria-describedby', this.policy.id);
 		}
-		const name = this.sharing.name;
+		const name = this.sharingName;
 		this.name.textContent = name ?? '';
 		this.name.hidden = !name;
-		this.renameContainer.hidden = this.showingOptions || active === 'off' || !name;
-		this.rename.enabled = !!name && active !== 'off' && !state.isConnecting && !this.isBusy;
+		this.renameContainer.hidden = !name;
+		this.rename.enabled = !!name && !state.isConnecting && !this.isBusy;
 		this.details.hidden = !this.showingOptions;
-		this.summaryHeader.hidden = this.collapsed;
-		this.navigation.hidden = !this.showingOptions;
+		this.applyButton.element.parentElement!.hidden = !this.showingOptions;
 		this.domNode.classList.toggle('sharing-expanded', this.showingOptions);
 		this.domNode.classList.toggle('sharing-active', active !== 'off');
 		this.preview.hidden = active !== 'githubEnvironment';
@@ -504,15 +420,11 @@ export class ThisComputerSection extends Disposable {
 			: active === 'off' ? localize('thisComputer.notShared', "Not shared")
 				: state.isConnecting ? localize('thisComputer.starting', "Starting sharing via {0}...", sharingChoices[active].label)
 					: localize('thisComputer.sharedVia', "Sharing via {0}", sharingChoices[active].label);
-		const feedbackParent = this.showingOptions ? this.pageDescription.parentElement! : this.domNode;
-		if (this.feedbackContainer.parentElement !== feedbackParent) {
-			if (this.showingOptions) {
-				this.cancelButton.element.parentElement!.after(this.feedbackContainer);
-			} else {
-				feedbackParent.appendChild(this.feedbackContainer);
-			}
+		const nameError = this.showingOptions && this.selectedMethod && name ? validateSharingName(this.selectedMethod, name) : undefined;
+		if (!this.changeFailed) {
+			this.feedback.textContent = nameError ?? '';
 		}
-		this.feedbackContainer.hidden = !this.changeFailed || this.collapsed && !this.showingOptions;
+		this.feedbackContainer.hidden = !this.changeFailed && !nameError;
 		this.feedbackContainer.classList.toggle('sharing-failed', this.changeFailed);
 		this.feedbackLog.hidden = !this.changeFailed;
 		this.applyButton.label = active === 'off' ? localize('thisComputer.start', "Start Sharing") : localize('thisComputer.switch', "Switch Method");
@@ -520,30 +432,16 @@ export class ThisComputerSection extends Disposable {
 		this.applyButton.setTitle(active === 'off'
 			? localize('thisComputer.startDetail', "Share this computer using the selected connection method and sharing name")
 			: localize('thisComputer.switchDetail', "Stop sharing with the current method and start with the selected method"));
-		this.nameInput.setEnabled(!this.isBusy && this.sharing.namesLoaded);
-		this.nameInput.value = this.selectedMethod ? this.nameDrafts[this.selectedMethod] ?? this.sharing.getNameForMethod(this.selectedMethod) ?? '' : this.initialNameDraft ?? name ?? '';
-		this.updateNameValidation();
+		this.applyButton.enabled = !this.isBusy && !state.isConnecting && !!this.selectedMethod
+			&& this.sharing.namesLoaded && !!name && !nameError
+			&& this.selectedMethod !== active
+			&& (this.selectedMethod !== 'githubEnvironment' || availability === 'enabled');
 		this.cancelButton.enabled = !this.isBusy;
-		this.backAction.enabled = !this.isBusy;
 		this.details.setAttribute('aria-busy', String(this.isBusy));
-		this.layout();
 	}
 
-	private updateNameValidation(): void {
-		const method = this.selectedMethod;
-		const error = this.nameInput.validate();
-		const showHint = !this.sharing.namesLoaded || method === 'devTunnel';
-		this.nameHint.textContent = !this.sharing.namesLoaded ? localize('thisComputer.loadingName', "Loading sharing names...")
-			: localize('thisComputer.tunnelNameHint', "Use up to 20 letters, numbers, underscores, or dashes.");
-		this.nameHint.classList.toggle('not-applicable', !showHint);
-		if (showHint) {
-			this.nameInput.inputElement.setAttribute('aria-describedby', this.nameHint.id);
-		} else {
-			this.nameInput.inputElement.removeAttribute('aria-describedby');
-		}
-		this.applyButton.enabled = !this.isBusy && !this.sharing.getState().isConnecting && !!method
-			&& this.sharing.namesLoaded && !error && method !== this.sharing.activeMethod
-			&& (method !== 'githubEnvironment' || this.sharing.gitHubEnvironmentsAvailability === 'enabled');
+	private get sharingName(): string | undefined {
+		return this.showingOptions && this.selectedMethod ? this.sharing.getNameForMethod(this.selectedMethod) : this.sharing.name;
 	}
 
 	private getItem(method: SharingMethod, availability: GitHubEnvironmentsAvailability): IRadioOptionItem {
@@ -561,25 +459,18 @@ export class ThisComputerSection extends Disposable {
 	focus(): void {
 		if (this.showingOptions) {
 			this.radio.focusActiveItem();
-		} else if (this.collapsed) {
-			this.headingToggle.focus();
 		} else {
 			(this.sharing.activeMethod === 'off' ? this.shareButton : this.stopButton).focus();
 		}
 	}
 
-	layout(): void {
-		this.scrollable.scanDomNode();
-	}
-
 	getAccessibilityContent(): string {
-		const summary = [this.showingOptions ? localize('thisComputer.sharingTitle', "Share this computer") : localize('thisComputer.title', "This computer"),
-		...(this.showingOptions ? [] : [this.sharing.name ?? '']), this.status.textContent ?? '',
+		const summary = [localize('thisComputer.title', "This computer"),
+		this.sharingName ?? '', this.status.textContent ?? '',
 		...(this.preview.hidden ? [] : [this.preview.textContent ?? '']),
 		...(this.feedbackContainer.hidden ? [] : [this.feedback.textContent ?? ''])];
 		return [...summary, ...(this.showingOptions ? [
-			this.pageDescription.textContent ?? '',
-			localize('thisComputer.sharingQuestion', "Choose a connection method to start sharing"),
+			localize('thisComputer.sharingInstruction', "Choose how to connect to this computer from another device."),
 			...this.methods.map(method => {
 				const choice = sharingChoices[method];
 				return localize('thisComputer.accessibleChoice', "{0}. {1}. {2}", choice.label,
@@ -587,8 +478,6 @@ export class ThisComputerSection extends Disposable {
 					method === this.selectedMethod ? localize('thisComputer.selected', "Selected") : '');
 			}),
 			...(this.policy.hidden ? [] : [this.policyText]),
-			localize('thisComputer.accessibleName', "Sharing name: {0}", this.nameInput.value),
-			!this.sharing.namesLoaded || this.selectedMethod === 'devTunnel' ? this.nameHint.textContent ?? '' : '',
 		] : [])].join('\n');
 	}
 }

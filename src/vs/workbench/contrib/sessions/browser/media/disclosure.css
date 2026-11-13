@@ -3,6 +3,42 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.sessions-section-summary:not([hidden]) {
+	display: flex;
+	align-items: center;
+	gap: var(--vscode-spacing-size60);
+	width: fit-content;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	list-style: none;
+}
+
+.sessions-section-summary::-webkit-details-marker {
+	display: none;
+}
+
+.sessions-section-chevron {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize);
+	height: var(--vscode-codiconFontSize);
+	font-size: var(--vscode-codiconFontSize);
+	transform-origin: center;
+}
+
+.sessions-section[open] > .sessions-section-summary > .sessions-section-chevron {
+	transform: rotate(90deg);
+}
+
+.sessions-section-title {
+	margin: 0;
+	font-size: var(--vscode-fontSize-heading3);
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
 /* High contrast uses a dashed boundary for transient pointer hover. */
 .monaco-workbench:is(.hc-black, .hc-light) .sessions-disclosure:not(summary):is(:hover, .hovered):not([aria-expanded='true'], :focus-visible, .focus-visible),
 .monaco-workbench:is(.hc-black, .hc-light) details:not([open]) > summary.sessions-disclosure:is(:hover, .hovered):not(:focus-visible, .focus-visible),

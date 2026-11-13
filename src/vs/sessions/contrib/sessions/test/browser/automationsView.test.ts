@@ -2538,9 +2538,9 @@ suite('AutomationsCardsWidget', () => {
 			templateSummary: widget.element.querySelector('.automations-template-section-summary')?.className,
 			templateCard: widget.element.querySelector('.automations-template-card')?.className,
 		}, {
-			ownershipSummary: 'automations-ownership-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
+			ownershipSummary: 'automations-ownership-summary sessions-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
 			card: 'automations-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
-			templateSummary: 'automations-template-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
+			templateSummary: 'automations-template-section-summary sessions-section-summary agent-sessions-interactive agent-sessions-interactive-list sessions-disclosure',
 			templateCard: 'automations-template-card agent-sessions-interactive agent-sessions-interactive-list agent-sessions-interactive-bordered',
 		});
 	});

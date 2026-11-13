@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { OS } from '../../../../../../base/common/platform.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../nls.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -36,6 +38,7 @@ export class RemotesEditor extends EditorPane {
 
 	private container: HTMLElement | undefined;
 	private content: HTMLElement | undefined;
+	private scrollable: DomScrollableElement | undefined;
 	private thisComputerContainer: HTMLElement | undefined;
 	private tableContainer: HTMLElement | undefined;
 	private disabledMessage: HTMLElement | undefined;
@@ -69,8 +72,12 @@ export class RemotesEditor extends EditorPane {
 
 	protected override createEditor(parent: HTMLElement): void {
 		this.container = dom.append(parent, dom.$('.remotes-editor'));
-		this.content = dom.append(this.container, dom.$('.remotes-editor-content'));
+		this.content = dom.$('.remotes-editor-content');
+		this.scrollable = this._register(new DomScrollableElement(this.content, { horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Auto }));
+		this.container.appendChild(this.scrollable.getDomNode());
 		this.thisComputerContainer = dom.append(this.content, dom.$('.remotes-editor-this-computer'));
+		const resizeObserver = this._register(new dom.DisposableResizeObserver('RemotesEditor.thisComputer', () => this.layoutContents(), dom.getWindow(this.container)));
+		this._register(resizeObserver.observe(this.thisComputerContainer));
 		this.tableContainer = dom.append(this.content, dom.$('.remotes-editor-table'));
 		this.disabledMessage = dom.append(this.container, dom.$('p.remotes-editor-disabled', { role: 'status', tabindex: '0' }));
 		this.disabledMessage.textContent = localize('remotes.editorDisabled', "Remote agent hosts are disabled.");
@@ -127,7 +134,6 @@ export class RemotesEditor extends EditorPane {
 			const widget = this.widget.value;
 			this.detailsVisibility.value = autorun(reader => {
 				widget.detailsVisible.read(reader);
-				widget.collapsed.read(reader);
 				this.layoutContents();
 			});
 		}
@@ -165,9 +171,6 @@ export class RemotesEditor extends EditorPane {
 	}
 
 	getAccessibilityContent(): string {
-		if (this.thisComputer.value?.isExpanded) {
-			return this.thisComputer.value.getAccessibilityContent();
-		}
 		if (this.widget.value?.detailsVisible.get()) {
 			return this.widget.value.getAccessibilityContent();
 		}
@@ -178,7 +181,7 @@ export class RemotesEditor extends EditorPane {
 
 	override focus(): void {
 		super.focus();
-		if (this.thisComputer.value?.isExpanded) {
+		if (!this.widget.value?.detailsVisible.get() && this.thisComputer.value?.isExpanded) {
 			this.thisComputer.value.focus();
 		} else if (this.widget.value) {
 			this.widget.value.focus();
@@ -195,16 +198,10 @@ export class RemotesEditor extends EditorPane {
 	}
 
 	private layoutContents(): void {
-		const sharing = !!this.thisComputer.value?.isExpanded;
 		if (this.thisComputerContainer) {
 			this.thisComputerContainer.hidden = !this.thisComputer.value || !!this.widget.value?.detailsVisible.get();
-			this.thisComputerContainer.classList.toggle('showing-sharing', sharing);
 		}
-		if (this.tableContainer) {
-			this.tableContainer.hidden = sharing;
-			this.tableContainer.classList.toggle('section-collapsed', !!this.widget.value?.collapsed.get() && !this.widget.value.detailsVisible.get());
-		}
-		this.thisComputer.value?.layout();
 		this.widget.value?.layout();
+		this.scrollable?.scanDomNode();
 	}
 }

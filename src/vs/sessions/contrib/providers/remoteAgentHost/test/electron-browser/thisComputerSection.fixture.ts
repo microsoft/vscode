@@ -83,7 +83,6 @@ async function render({ container, disposableStore, theme }: ComponentFixtureCon
 			const method = state.selectMethod ?? (state.policyDisabled || state.failSharing ? 'devTunnel' : 'githubEnvironment');
 			container.querySelector<HTMLElement>(`[data-sharing-method="${method}"]`)!.click();
 		}
-		section.layout();
 		await waitForFixtureCondition(() => section.isExpanded && ['githubEnvironment', 'devTunnel'].every(method =>
 			!!container.querySelector(`[data-sharing-method="${method}"] .remotes-sharing-choice-description li`)?.textContent),
 			'Both sharing methods should be explained before capture');

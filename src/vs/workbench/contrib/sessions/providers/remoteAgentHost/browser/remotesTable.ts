@@ -90,8 +90,8 @@ const remoteKindIcons: Record<RemoteKind, ThemeIcon> = {
 const connectionProgressIcon = ThemeIcon.modify(Codicon.loading, 'spin');
 
 export const remoteStatusGroups = [
-	{ key: 'ready', label: localize('remotes.ready', "Connected"), icon: Codicon.debugConnectedCompact, description: localize('remotes.ready.detail', "Connected from this window and ready to start or continue sessions.") },
-	{ key: 'available', label: localize('remotes.available', "Available"), icon: Codicon.circleLargeOutline, description: localize('remotes.available.detail', "A live endpoint was found, or this environment can be started by connecting. Sign-in and compatibility are verified when connecting.") },
+	{ key: 'ready', label: localize('remotes.ready', "Connected"), icon: Codicon.circleFilled, description: localize('remotes.ready.detail', "Connected from this window and ready to start or continue sessions.") },
+	{ key: 'available', label: localize('remotes.available', "Available"), icon: Codicon.circle, description: localize('remotes.available.detail', "A live endpoint was found, or this environment can be started by connecting. Sign-in and compatibility are verified when connecting.") },
 	{ key: 'offline', label: localize('remotes.offline', "Offline"), icon: Codicon.circleSlashCompact, description: localize('remotes.offline.detail', "No reachable endpoint was found at the last check. Bring the environment online, then refresh.") },
 ] as const;
 
@@ -259,6 +259,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 		private readonly instantiationService: IInstantiationService,
 		private readonly hoverService: IHoverService,
 		private readonly openerService: IOpenerService,
+		private readonly emptyContentWidth?: () => number,
 	) {
 		this.templateId = `remotes.${column}`;
 	}
@@ -423,6 +424,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				if (group) {
 					const indicator = dom.append(template.label, dom.$('span'));
 					renderStatusIndicator(indicator, group.icon, group.key === 'ready' ? 'connected' : group.key);
+					if (!tableCell) {
+						dom.append(template.label, dom.$('span', undefined, group.label));
+					}
 					template.elementDisposables.add(this.hoverService.setupDelayedHover(template.label, {
 						content: group.label, style: HoverStyle.Pointer,
 					}, { groupId: this.hoverGroupId }));
@@ -441,6 +445,9 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				dom.clearNode(template.label);
 				if (label) {
+					if (template.column === 'activity' && !template.container.classList.contains('monaco-table-td')) {
+						dom.append(template.label, renderIcon(Codicon.history)).setAttribute('aria-hidden', 'true');
+					}
 					dom.append(template.label, dom.$('span', undefined, label));
 				}
 				template.container.hidden = !label;
@@ -467,7 +474,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 			}
 			case 'name': {
 				const offline = entry.type === 'remote' && isRemoteOffline(entry.remote);
-				const rowElement = template.container.parentElement!;
+				const rowElement = template.container.closest<HTMLElement>('.remotes-card') ?? template.container.parentElement!;
 				rowElement.classList.toggle('remotes-group-row', entry.type === 'group');
 				rowElement.classList.toggle('remotes-ready-group', entry.type === 'group' && entry.id === 'remote-status-ready');
 				rowElement.classList.toggle('remotes-available-group', entry.type === 'group' && entry.id === 'remote-status-available');
@@ -479,6 +486,7 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 				}
 				template.icon.hidden = !template.icon.hasChildNodes();
 				rowElement.classList.toggle('remotes-empty-row', entry.type === 'empty');
+				template.content.style.maxWidth = entry.type === 'empty' && this.emptyContentWidth ? `${this.emptyContentWidth()}px` : '';
 				rowElement.classList.toggle('remotes-row-hidden', entry.type === 'remote' && entry.remote.hidden === true);
 				rowElement.classList.toggle('remotes-row-picker-unavailable', entry.type === 'remote' && !!entry.remote.pickerUnavailableReason);
 				if (entry.type === 'remote') {
