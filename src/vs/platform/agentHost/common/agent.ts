@@ -1940,6 +1940,8 @@ export interface IAgentChatAdoptionResult {
 	};
 	/** Set when the adopted chat ran in a worktree that no longer exists and can be recreated. */
 	readonly worktree?: IAgentAdoptedWorktree;
+	/** The adopted chat's own creation and last-modified times, so registration does not stamp it with the adoption time. */
+	readonly timestamps?: { readonly startTime: number; readonly modifiedTime: number };
 	/** Diagnostic reason behind {@link adopted}. */
 	readonly reason?: AgentChatAdoptionReason;
 	/** Bounded provenance evidence; a missing marker alone does not prove an external session. */

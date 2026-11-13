@@ -7718,7 +7718,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}, SessionStateMirrorFlush.Immediate);
 			await this._adoptLegacyTurnUsage(session, sessionId);
 			this._logService.info(`[Copilot] Adopted legacy session ${sessionId}: project=${project ? project.uri.fsPath : '(unresolved)'} archived=${archived} title=${adoptedTitle !== undefined ? (cliName ? 'name' : customTitle ? 'custom' : 'summary') : 'none'} worktreeBridged=${!!adoptedWorktree}`);
-			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}) };
+			const startTime = sdkMetadata?.startTime ? new Date(sdkMetadata.startTime).getTime() : NaN;
+			const modifiedTime = sdkMetadata?.modifiedTime ? new Date(sdkMetadata.modifiedTime).getTime() : NaN;
+			const timestamps = Number.isFinite(startTime) && Number.isFinite(modifiedTime) ? { startTime, modifiedTime } : undefined;
+			return { adopted: true, eligible: true, reason: 'adopted', listVisible, ...(adoptedWorktree ? { worktree: adoptedWorktree } : {}), ...(timestamps ? { timestamps } : {}) };
 		});
 	}
 

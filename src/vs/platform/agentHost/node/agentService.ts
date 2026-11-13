@@ -14579,18 +14579,12 @@ export class AgentService extends Disposable implements IAgentService {
 			// list at all. A registration that cannot be made durable fails the
 			// migration: continuing would leave exactly the orphan this prevents.
 			if (adopted && !registeredSession) {
-				let surfaced: IAgentSessionMetadata | undefined;
-				try {
-					surfaced = await this._registeredSessionMetadata(agent, session, /* external */ false);
-				} catch (err) {
-					this._logService.warn(`[AgentService] Failed to read adopted session ${sessionStr} metadata before registration`, err);
-				}
 				// Register with the legacy chat's own timestamps: the registry's modified
 				// time only advances, so the adoption time would permanently replace when
 				// the user last worked in the chat and make every adopted chat look new.
 				const registeredAt = Date.now();
-				const startTime = surfaced && Number.isFinite(surfaced.startTime) ? surfaced.startTime : registeredAt;
-				const modifiedTime = surfaced && Number.isFinite(surfaced.modifiedTime) ? surfaced.modifiedTime : startTime;
+				const startTime = adoption.timestamps?.startTime ?? registeredAt;
+				const modifiedTime = adoption.timestamps?.modifiedTime ?? registeredAt;
 				await this._retryRegistryMutation(
 					() => this._sessionRegistry.register(session, { provider: agent.id, startTime, modifiedTime, source: 'restore' }, { checkTombstone: true }),
 					`adoption registration for ${sessionStr}`,
@@ -14602,6 +14596,7 @@ export class AgentService extends Disposable implements IAgentService {
 				// row now — before the slower `_restoreSessionState` — so the session is
 				// never absent from both lists during the handoff.
 				try {
+					const surfaced = await this._registeredSessionMetadata(agent, session, /* external */ false);
 					if (surfaced) {
 						await this._announceSurfacedSession(surfaced, agent.id);
 					}

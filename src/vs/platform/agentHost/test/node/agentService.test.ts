@@ -26703,7 +26703,7 @@ suite('AgentService (node dispatcher)', () => {
 					return [];
 				}
 				async ensureChatAdopted(_chat: URI, _context: URI | IAgentChatContext): Promise<IAgentChatAdoptionResult> {
-					return { adopted: true, eligible: true };
+					return { adopted: true, eligible: true, timestamps: { startTime: 1_000, modifiedTime: 2_000 } };
 				}
 				override async getChatMetadata(chat: URI): Promise<IAgentChatMetadata> {
 					return { chat, startTime: 1_000, modifiedTime: 2_000, summary: 'Adopted' };
