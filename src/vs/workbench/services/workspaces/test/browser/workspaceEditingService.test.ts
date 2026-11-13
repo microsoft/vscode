@@ -12,6 +12,7 @@ import { UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../../p
 import { IResolvedFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 
 suite('WorkspaceEditingService', () => {
 
@@ -193,6 +194,65 @@ suite('WorkspaceEditingService', () => {
 			await pending;
 
 			assert.deepStrictEqual(switched.map(u => u?.toString()), [primary.toString()]);
+		});
+
+		function createIdleService(resolution: DeferredPromise<IResolvedFolderLocation>) {
+			const primary = URI.file('/work/project');
+			return new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async () => { } },
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { confirm: async () => ({ confirmed: true }) },
+				undefined,
+				{ extUri },
+				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
+				undefined, undefined, undefined,
+				{ canSetLocation: () => true, resolveLocation: () => resolution.p, setLocation: () => { } },
+				{ isWorkspaceTrustEnabled: () => true }
+			);
+		}
+
+		const waiterCount = (service: BrowserWorkspaceEditingService) => (service as unknown as { folderLocationIdleWaiters: unknown[] }).folderLocationIdleWaiters.length;
+
+		test('whenFolderLocationIdle resolves when the pending switch rejects', async () => {
+			const resolution = new DeferredPromise<IResolvedFolderLocation>();
+			const service = ds.add(createIdleService(resolution));
+
+			const pending = service.setFolderLocation(URI.file('/work/alt')).then(() => 'applied', () => 'rejected');
+			const waiting = service.whenFolderLocationIdle();
+			resolution.error(new Error('failed'));
+
+			assert.deepStrictEqual({ result: await pending, waiters: (await waiting, waiterCount(service)) }, { result: 'rejected', waiters: 0 });
+		});
+
+		test('a cancelled whenFolderLocationIdle settles and removes its waiter while the switch is still pending', async () => {
+			const resolution = new DeferredPromise<IResolvedFolderLocation>();
+			const service = ds.add(createIdleService(resolution));
+			const cts = ds.add(new CancellationTokenSource());
+
+			const pending = service.setFolderLocation(URI.file('/work/alt'));
+			const waiting = service.whenFolderLocationIdle(cts.token);
+			const before = waiterCount(service);
+			cts.cancel();
+			await waiting;
+			const after = waiterCount(service);
+			resolution.error(new Error('cleanup'));
+			await pending.catch(() => { });
+
+			assert.deepStrictEqual({ before, after }, { before: 1, after: 0 });
+		});
+
+		test('disposing the service settles the waiters of a switch that never settles', async () => {
+			const resolution = new DeferredPromise<IResolvedFolderLocation>();
+			const service = createIdleService(resolution);
+
+			const pending = service.setFolderLocation(URI.file('/work/alt')).catch(() => { });
+			const waiting = service.whenFolderLocationIdle();
+			service.dispose();
+			await waiting;
+			resolution.error(new Error('cleanup'));
+			await pending;
+
+			assert.strictEqual(waiterCount(service), 0);
 		});
 
 		test('an idle-only return does nothing while a switch is in flight', async () => {

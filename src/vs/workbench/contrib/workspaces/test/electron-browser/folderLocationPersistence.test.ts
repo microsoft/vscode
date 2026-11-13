@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { extUri } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -38,7 +39,7 @@ suite('FolderLocationPersistenceContribution', () => {
 		readonly locationMissing?: boolean;
 		readonly stat?: () => Promise<{ isDirectory: boolean }>;
 		readonly resolveLocation?: () => Promise<IResolvedFolderLocation | undefined>;
-		readonly whenFolderLocationIdle?: () => Promise<void>;
+		readonly whenFolderLocationIdle?: (token?: CancellationToken) => Promise<void>;
 		readonly multiRoot?: boolean;
 		readonly confirmed?: IResolvedFolderLocation;
 		readonly setFolderLocation?: (location: URI, options?: { readonly ifIdle?: boolean }) => Promise<void>;
@@ -371,6 +372,35 @@ suite('FolderLocationPersistenceContribution', () => {
 			assert.deepStrictEqual({ persisted: fixture.persistedCalls, notifications: fixture.notifications.length }, { persisted: [], notifications: 0 });
 		}));
 	}
+
+	test('disposing while the fallback waits for a competing switch stops it without a retry or notice', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const request = createManualRequest();
+		let waiting = 0;
+		let released = false;
+		const holder: { fixture?: ReturnType<typeof createFixture> } = {};
+		holder.fixture = createFixture({
+			persisted,
+			locationMissing: true,
+			providerAvailable: true,
+			whenFolderLocationIdle: token => {
+				waiting++;
+				return new Promise<void>(resolve => {
+					request.manual.p.then(() => { released = true; resolve(); }, () => { released = true; resolve(); });
+					const listener = token?.onCancellationRequested(() => { waiting--; listener?.dispose(); resolve(); });
+				});
+			},
+			setFolderLocation: request.skipWhilePending(() => holder.fixture!)
+		});
+
+		await timeout(FOLDER_LOCATION_RESTORE_TIMEOUT + 1);
+		const blocked = waiting;
+		holder.fixture.contribution.dispose();
+		await timeout(1);
+
+		assert.deepStrictEqual(
+			{ blocked, waiting, released, persisted: holder.fixture.persistedCalls, notifications: holder.fixture.notifications.length, returns: holder.fixture.returns.length },
+			{ blocked: 1, waiting: 0, released: false, persisted: [], notifications: 0, returns: 0 });
+	}));
 
 	test('a location already confirmed at construction is respected and persisted', async () => {
 		const other: IResolvedFolderLocation = { uri: URI.file('/work/project-other'), label: 'Other', providerId: 'test', builtIn: true };

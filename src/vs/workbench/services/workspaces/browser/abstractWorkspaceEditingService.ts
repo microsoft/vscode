@@ -150,11 +150,31 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		}
 	}
 
-	whenFolderLocationIdle(): Promise<void> {
-		if (this.pendingFolderLocationRequests === 0) {
+	whenFolderLocationIdle(token?: CancellationToken): Promise<void> {
+		if (this.pendingFolderLocationRequests === 0 || token?.isCancellationRequested) {
 			return Promise.resolve();
 		}
-		return new Promise<void>(resolve => this.folderLocationIdleWaiters.push(resolve));
+		return new Promise<void>(resolve => {
+			const listener = token?.onCancellationRequested(() => {
+				const index = this.folderLocationIdleWaiters.indexOf(waiter);
+				if (index >= 0) {
+					this.folderLocationIdleWaiters.splice(index, 1);
+				}
+				waiter();
+			});
+			const waiter = () => {
+				listener?.dispose();
+				resolve();
+			};
+			this.folderLocationIdleWaiters.push(waiter);
+		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+		const waiters = this.folderLocationIdleWaiters;
+		this.folderLocationIdleWaiters = [];
+		waiters.forEach(waiter => waiter());
 	}
 
 	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI): Promise<void> {
