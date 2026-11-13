@@ -223,6 +223,7 @@ interface ChatPetSpriteElement {
 	redrawFrame?: () => void;
 }
 
+/** Supplies shared appearance, geometry, and animation services to a subagent pet. */
 interface SubagentPetHost {
 	readonly layer: HTMLElement;
 	readonly overlay: HTMLElement;
@@ -1277,22 +1278,26 @@ export class ChatPetHopController extends Disposable {
 
 /** Owns the appearance, animation and lifecycle of one subagent pet. */
 class SubagentPet extends Disposable {
+	/** Overlay element positioned at the pet's landing coordinates. */
 	readonly element: HTMLElement;
 	private readonly canvas: HTMLCanvasElement;
 	private readonly image: HTMLImageElement;
 	private readonly eyes: HTMLElement;
 	private readonly _sprite: ChatPetSpriteElement;
+	/** Resources for the active pet or its disappearance effect. */
 	private readonly _activity = this._register(new DisposableStore());
-	private readonly _animation = this._activity.add(new MutableDisposable<IDisposable>());
+	private readonly _spriteAnimation = this._activity.add(new MutableDisposable<IDisposable>());
 	private readonly _fallAnimation = this._activity.add(new MutableDisposable<IDisposable>());
 	private readonly _accessoryListener = this._activity.add(new MutableDisposable<IDisposable>());
 	private readonly _respawnTimer = this._activity.add(new RunOnceScheduler(() => this._advanceRespawn(), RESPAWN_EFFECT_REDUCED_MOTION_DURATION));
-	private readonly _blink: ChatPetBlinkController;
+	private readonly _blinkController: ChatPetBlinkController;
 	private _state: 'idle' | 'splat' = 'idle';
+	/** Tracks relocation after the pet loses its supporting platform. */
 	private _respawnPhase: 'none' | 'falling' | 'despawning' | 'respawning' = 'none';
 	private _accessory: ReturnType<typeof getChatPetAccessory> | undefined;
 	private _accessoryImage: HTMLImageElement | undefined;
 
+	/** Creates a pet at the given overlay-relative landing position. */
 	constructor(private readonly _host: SubagentPetHost, public left: number, public top: number) {
 		super();
 		const scale = 0.5 * _host.scale;
@@ -1311,13 +1316,13 @@ class SubagentPet extends Disposable {
 		for (const eye of this.eyes.children) {
 			(eye.firstElementChild as HTMLElement | null)?.style.removeProperty('transform');
 		}
-		this._blink = this._activity.add(new ChatPetBlinkController(blinking => this.eyes.classList.toggle('blink', blinking), _host.random));
+		this._blinkController = this._activity.add(new ChatPetBlinkController(blinking => this.eyes.classList.toggle('blink', blinking), _host.random));
 		this._activity.add(_host.onDidChangeAnimationVisibility(() => this.updateBlink()));
 		const firstPupil = this.eyes.firstElementChild?.firstElementChild;
 		if (firstPupil) {
 			this._activity.add(dom.addDisposableListener(firstPupil, 'animationend', event => {
 				if ((event as AnimationEvent).animationName === 'chat-pet-tall-eye-blink') {
-					this._blink.onAnimationComplete();
+					this._blinkController.onAnimationComplete();
 				}
 			}));
 		}
@@ -1333,12 +1338,15 @@ class SubagentPet extends Disposable {
 		}
 	}
 
+	/** Returns whether the pet is being relocated. */
 	isRespawning(): boolean { return this._respawnPhase !== 'none'; }
 
+	/** Enables blinking only while the idle pet is visible. */
 	updateBlink(): void {
-		this._blink.setEnabled(this._respawnPhase === 'none' && this._state === 'idle' && this._host.enabled && !this._host.motionReduced && this._host.isAnimationVisible(this.element));
+		this._blinkController.setEnabled(this._respawnPhase === 'none' && this._state === 'idle' && this._host.enabled && !this._host.motionReduced && this._host.isAnimationVisible(this.element));
 	}
 
+	/** Applies changes to the shared color, motion, variant, and accessory. */
 	updateAppearance(motionChanged: boolean, variantChanged: boolean, accessoryChanged: boolean): void {
 		this._sprite.color = this._host.color;
 		this.eyes.style.color = getChatPetEyeColor(this._host.color);
@@ -1358,6 +1366,7 @@ class SubagentPet extends Disposable {
 		}
 	}
 
+	/** Falls to an overlay-relative position, optionally starting relocation on landing. */
 	fallTo(top: number, respawn = false): void {
 		const previousTop = this.element.getBoundingClientRect().top - this._host.overlay.getBoundingClientRect().top;
 		this._respawnPhase = respawn ? 'falling' : 'none';
@@ -1400,7 +1409,7 @@ class SubagentPet extends Disposable {
 		setChatPetImageSource(image, source.url);
 	}
 
-	private _getSource(): ChatPetSpriteSource {
+	private _getSpriteSource(): ChatPetSpriteSource {
 		const sources = this._respawnPhase === 'despawning' || this._respawnPhase === 'respawning'
 			? getRespawnSpriteSources(this._host.variant) : getChatPetSpriteSources(this._host.variant)[this._state];
 		return this._host.motionReduced ? sources.reducedMotion : sources.animated;
@@ -1408,13 +1417,13 @@ class SubagentPet extends Disposable {
 
 	private _setState(state: 'idle' | 'splat'): void {
 		this._respawnTimer.cancel();
-		this._animation.clear();
+		this._spriteAnimation.clear();
 		this._state = state;
 		this.updateBlink();
 		if (this._host.motionReduced) {
 			this.eyes.classList.remove('bobbed');
 		}
-		setChatPetImageSource(this.image, this._getSource().url);
+		setChatPetImageSource(this.image, this._getSpriteSource().url);
 	}
 
 	private _updateAccessory(): void {
@@ -1437,7 +1446,7 @@ class SubagentPet extends Disposable {
 	private _onImageLoad(): void {
 		if (this._respawnPhase === 'despawning' || this._respawnPhase === 'respawning') {
 			this.eyes.classList.remove('tracking', 'bobbed');
-			this._host.startAnimation(this._getSource(), this._sprite, this._animation, () => this._advanceRespawn(), this._respawnPhase === 'despawning');
+			this._host.startAnimation(this._getSpriteSource(), this._sprite, this._spriteAnimation, () => this._advanceRespawn(), this._respawnPhase === 'despawning');
 			if (this._host.motionReduced) {
 				this._respawnTimer.schedule();
 			}
@@ -1447,9 +1456,9 @@ class SubagentPet extends Disposable {
 			this._setState('idle');
 			return;
 		}
-		const source = this._getSource();
+		const source = this._getSpriteSource();
 		this.eyes.classList.toggle('tracking', this._state === 'idle');
-		this._host.startAnimation(source, this._sprite, this._animation, this._state === 'splat' ? () => this._setState('idle') : undefined, false, frameIndex => {
+		this._host.startAnimation(source, this._sprite, this._spriteAnimation, this._state === 'splat' ? () => this._setState('idle') : undefined, false, frameIndex => {
 			this.eyes.classList.toggle('bobbed', this._state === 'idle' && !this._host.motionReduced && (source.accessoryRigFrame ?? frameIndex) >= 20);
 		}, (context, frameIndex) => {
 			if (this._accessoryImage?.complete && this._accessoryImage.naturalWidth > 0 && this._accessory) {
@@ -1474,6 +1483,7 @@ class SubagentPet extends Disposable {
 		};
 	}
 
+	/** Advances relocation from disappearance to reappearance and landing. */
 	private _advanceRespawn(): void {
 		const overlay = this._host.overlay.getBoundingClientRect();
 		const input = this._host.getDragBounds();
@@ -1499,7 +1509,9 @@ export class ChatPetWidget extends Disposable {
 
 	/** Active subagent pets keyed by request and tool call identity. */
 	private readonly _subagentPets = new Map<string, SubagentPet>();
-	private _activeSubagents: ReadonlySet<string> = new Set();
+	/** Active subagent identities, including those waiting for an available pet slot. */
+	private _activeSubagentIds: ReadonlySet<string> = new Set();
+	/** Disappearing pets still occupy a slot until their effect finishes. */
 	private _despawningSubagentPetCount = 0;
 	/** Chat model currently supplying active subagents. */
 	private _subagentPetModel: IChatModel | undefined;
@@ -2058,7 +2070,7 @@ export class ChatPetWidget extends Disposable {
 
 			if (!enabled) {
 				this._subagentPetResizeScheduler.cancel();
-				this._activeSubagents = new Set();
+				this._activeSubagentIds = new Set();
 				this._despawningSubagentPetCount = 0;
 				for (const subagentPet of this._subagentPets.values()) {
 					subagentPet.element.remove();
@@ -2136,17 +2148,17 @@ export class ChatPetWidget extends Disposable {
 				return;
 			}
 			observableSignalFromEvent(this, model.onDidChange).read(reader);
-			const subagents = new Set<string>();
+			const activeSubagentIds = new Set<string>();
 			let initializing = true;
 			for (const request of model.getRequests()) {
 				const response = request.response;
 				if (!response) {
 					continue;
 				}
-				let previous = new Set<string>();
+				let previousResponseSubagentIds = new Set<string>();
 				reader.store.add(autorun(reader => {
 					observableSignalFromEvent(this, response.onDidChange).read(reader);
-					const current = new Set<string>();
+					const responseSubagentIds = new Set<string>();
 					for (const part of response.response.value) {
 						if (part.kind !== 'toolInvocation') {
 							continue;
@@ -2155,23 +2167,23 @@ export class ChatPetWidget extends Disposable {
 						part.state.read(reader);
 						const data = part.toolSpecificData;
 						if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
-							current.add(JSON.stringify([request.id, part.toolCallId]));
+							responseSubagentIds.add(JSON.stringify([request.id, part.toolCallId]));
 						}
 					}
-					for (const id of previous) {
-						subagents.delete(id);
+					for (const id of previousResponseSubagentIds) {
+						activeSubagentIds.delete(id);
 					}
-					for (const id of current) {
-						subagents.add(id);
+					for (const id of responseSubagentIds) {
+						activeSubagentIds.add(id);
 					}
-					previous = current;
+					previousResponseSubagentIds = responseSubagentIds;
 					if (!initializing) {
-						this._updateSubagentPets(subagents);
+						this._updateSubagentPets(activeSubagentIds);
 					}
 				}));
 			}
 			initializing = false;
-			this._updateSubagentPets(subagents);
+			this._updateSubagentPets(activeSubagentIds);
 		}));
 
 		this._register(autorun(reader => {
@@ -3234,18 +3246,18 @@ export class ChatPetWidget extends Disposable {
 		const { overlay, movement, platforms, floor } = bounds;
 		const minimumLeft = bounds.left;
 		const maximumLeft = Math.max(minimumLeft, bounds.right - size);
-		const petLeft = this._button.element.offsetLeft;
-		const beforePet = Math.max(0, Math.min(maximumLeft, petLeft - size) - minimumLeft);
-		const afterPetStart = Math.max(minimumLeft, petLeft + this._getDisplaySize());
-		const afterPet = Math.max(0, maximumLeft - afterPetStart);
-		const available = beforePet + afterPet;
+		const mainPetLeft = this._button.element.offsetLeft;
+		const beforeMainPet = Math.max(0, Math.min(maximumLeft, mainPetLeft - size) - minimumLeft);
+		const afterMainPetStart = Math.max(minimumLeft, mainPetLeft + this._getDisplaySize());
+		const afterMainPet = Math.max(0, maximumLeft - afterMainPetStart);
+		const available = beforeMainPet + afterMainPet;
 		const minimumTop = Math.max(movement.top - overlay.top, bounds.bottom - SUBAGENT_PET_MAX_STACKING_HEIGHT);
 		const attempts = Math.max(1, Math.ceil(available / Math.max(1, size / 2)));
 		const start = this._random() * available;
 		let best: { left: number; top: number } | undefined;
 		for (let index = 0; index < attempts; index++) {
 			const offset = available > 0 ? (start + index * available / attempts) % available : 0;
-			const left = available > 0 ? (offset < beforePet ? minimumLeft + offset : afterPetStart + offset - beforePet) : minimumLeft;
+			const left = available > 0 ? (offset < beforeMainPet ? minimumLeft + offset : afterMainPetStart + offset - beforeMainPet) : minimumLeft;
 			const landing = getChatPetFallTarget(overlay.left + left, -size, size, size, platforms, floor);
 			let top = landing.top - overlay.top;
 			for (const otherSubagentPet of this._subagentPets.values()) {
@@ -3267,24 +3279,24 @@ export class ChatPetWidget extends Disposable {
 		return { ...best!, top: Math.max(best!.top, minimumTop) };
 	}
 
-	/** Creates and removes subagent pets to match the active subagent identities. */
-	private _updateSubagentPets(subagents: ReadonlySet<string>): void {
-		this._activeSubagents = new Set(subagents);
+	/** Keeps existing pets for active subagents and fills available slots up to the limit. */
+	private _updateSubagentPets(activeSubagentIds: ReadonlySet<string>): void {
+		this._activeSubagentIds = new Set(activeSubagentIds);
 		let removed = false;
 		let added = false;
 		for (const [id, subagentPet] of this._subagentPets) {
-			if (!subagents.has(id)) {
+			if (!activeSubagentIds.has(id)) {
 				removed = true;
 				this._subagentPets.delete(id);
 				this._despawningSubagentPetCount++;
 				subagentPet.despawn(() => {
 					this._subagentPetEffects.delete(subagentPet);
 					this._despawningSubagentPetCount--;
-					this._updateSubagentPets(this._activeSubagents);
+					this._updateSubagentPets(this._activeSubagentIds);
 				});
 			}
 		}
-		for (const id of subagents) {
+		for (const id of activeSubagentIds) {
 			if (this._subagentPets.size + this._despawningSubagentPetCount >= SUBAGENT_PET_MAX_COUNT) {
 				break;
 			}
@@ -3353,6 +3365,7 @@ export class ChatPetWidget extends Disposable {
 		}
 	}
 
+	/** Schedules one bounds check for the current group of subagent pets. */
 	private _scheduleSubagentPetResize(): void {
 		if (this._subagentPets.size && !this._subagentPetResizeScheduler.isScheduled()) {
 			this._subagentPetResizeScheduler.schedule();
