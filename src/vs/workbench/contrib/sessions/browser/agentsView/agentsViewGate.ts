@@ -13,8 +13,8 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { sessionsListConfiguration } from '../sessionsConfiguration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { sessionsListConfigurationProperties } from '../sessionsConfiguration.js';
 import { ViewPane } from '../../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneContainer.js';
@@ -40,6 +40,12 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
 
+/** The settings of the sessions list and of the sessions it opens, as the Agents window registers them. */
+const sessionsListConfiguration: IConfigurationNode = {
+	id: 'sessionsList',
+	properties: sessionsListConfigurationProperties,
+};
+
 /** The container of the Sessions view in an editor window, whose title shows the actions of the sessions header. */
 class AgentsViewPaneContainer extends ViewPaneContainer {
 
@@ -52,7 +58,7 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 	}
 
 	protected override createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewPane {
-		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped, allowWorktreeGrouping: true };
+		const sessionsViewOptions: IViewletViewOptions & ISessionsViewOptions = { ...options, headerInTitle: true, showCustomizations: false, scoped: this.scoped };
 		return super.createView(viewDescriptor, sessionsViewOptions);
 	}
 }

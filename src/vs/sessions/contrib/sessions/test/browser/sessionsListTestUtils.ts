@@ -90,12 +90,8 @@ export class TestSessionsManagementService extends mock<ISessionsManagementServi
 		return this.sessions;
 	}
 
-	override getAllSessions(): ISession[] {
-		return [...this.sessions, ...this.unlistedSessions];
-	}
-
 	override getSession(resource: URI): ISession | undefined {
-		return this.getAllSessions().find(session => session.resource.toString() === resource.toString());
+		return [...this.sessions, ...this.unlistedSessions].find(session => session.resource.toString() === resource.toString());
 	}
 
 	override getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {

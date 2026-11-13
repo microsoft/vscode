@@ -34,7 +34,7 @@ import { ISessionRepositoryPicker } from '../sessionRepositoryPicker.js';
 import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { SessionsManagementService } from '../sessionsManagementService.js';
-import { ISessionsNavigationHost } from '../sessionsNavigationHost.js';
+import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { EditorWindowSessionsProvidersService } from './editorWindowSessionsProvidersService.js';
 import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } from '../sessionsRecentWorkspacesService.js';
@@ -79,13 +79,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			markdownDescription: localize('chat.agentsView.enabled', "Controls whether the Sessions view of the Agents window shows in the Primary Side Bar of editor windows. Requires a reload to take effect."),
 		},
 	},
 });
 
 // The services of the Sessions view. They are only created once the view shows, which it only does while the setting is on.
-registerSingleton(ISessionsNavigationHost, EditorWindowSessionsNavigationHost, InstantiationType.Delayed);
+registerSingleton(ISessionsNavigationService, EditorWindowSessionsNavigationHost, InstantiationType.Delayed);
 registerSingleton(ISessionsHostLayoutService, EditorWindowSessionsHostLayout, InstantiationType.Delayed);
 registerSingleton(ISessionsProvidersService, EditorWindowSessionsProvidersService, InstantiationType.Delayed);
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Delayed);

@@ -21,7 +21,7 @@ import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -268,35 +268,6 @@ suite('Sessions - SessionsViewPane', () => {
 			selected: SessionsGrouping.Inbox,
 			restored: SessionsGrouping.Inbox,
 			changed: SessionsGrouping.Workspace,
-		});
-	});
-
-	test('restores Worktree grouping only in a view that offers it', () => {
-		const configurationService = new TestConfigurationService();
-		disposables.add(configurationService.onDidChangeConfigurationEmitter);
-		const storageService = disposables.add(new InMemoryStorageService());
-		const host = {
-			currentGrouping: undefined as SessionsGrouping | undefined,
-			configurationService,
-			storageService,
-			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
-			updateHeaderLayout: () => { },
-		};
-		const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
-		setGrouping.call(host, SessionsGrouping.Worktree);
-		const saved = storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
-		assert.deepStrictEqual({
-			saved,
-			editorWindow: getStoredSessionsGrouping(saved, true),
-			agentsWindow: getStoredSessionsGrouping(saved, false),
-			unknown: getStoredSessionsGrouping('unknown-grouping', true),
-			workspace: getStoredSessionsGrouping(SessionsGrouping.Workspace, false),
-		}, {
-			saved: SessionsGrouping.Worktree,
-			editorWindow: SessionsGrouping.Worktree,
-			agentsWindow: undefined,
-			unknown: undefined,
-			workspace: SessionsGrouping.Workspace,
 		});
 	});
 

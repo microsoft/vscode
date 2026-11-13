@@ -118,7 +118,7 @@ export class ClosedItemHistory extends Disposable {
 		// The recorded session may be a stale incarnation that left the grid with
 		// its slot, and a provider can drop it from its catalog without ever
 		// firing `onDidDeleteSession`.
-		const session = this._sessionsManagementService.getAllSessions().find(s => s.sessionId === item.session.sessionId);
+		const session = this._sessionsManagementService.getSessions().find(s => s.sessionId === item.session.sessionId);
 		if (!session) {
 			return;
 		}
