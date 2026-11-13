@@ -334,7 +334,7 @@ export interface IGitOptions {
 	env?: { [key: string]: string };
 }
 
-function getGitErrorCode(stderr: string): string | undefined {
+export function getGitErrorCode(stderr: string): string | undefined {
 	if (/Another git process seems to be running in this repository|If no other git process is currently running/.test(stderr)) {
 		return GitErrorCodes.RepositoryIsLocked;
 	} else if (/Authentication failed/i.test(stderr)) {
@@ -351,7 +351,7 @@ function getGitErrorCode(stderr: string): string | undefined {
 		return GitErrorCodes.CantAccessRemote;
 	} else if (/branch '.+' is not fully merged/.test(stderr)) {
 		return GitErrorCodes.BranchNotFullyMerged;
-	} else if (/Couldn\'t find remote ref/.test(stderr)) {
+	} else if (/Couldn\'t find remote ref/i.test(stderr)) {
 		return GitErrorCodes.NoRemoteReference;
 	} else if (/A branch named '.+' already exists/.test(stderr)) {
 		return GitErrorCodes.BranchAlreadyExists;
