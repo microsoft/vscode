@@ -108,6 +108,29 @@ suite('aiCustomizationListWidget', () => {
 		assert.deepStrictEqual(focusChanges, [[firstItem], [group]]);
 	});
 
+	test('moves focus that is kept inside a collapsed group to the first visible item', () => {
+		type Entry = { type: 'group-header'; id: string } | { type: 'item'; id: string };
+		const collapsedGroup: Entry = { type: 'group-header', id: 'user' };
+		const hiddenItem: Entry = { type: 'item', id: 'hidden' };
+		const expandedGroup: Entry = { type: 'group-header', id: 'workspace' };
+		const visibleItem: Entry = { type: 'item', id: 'visible' };
+		let focus: Entry[] = [hiddenItem];
+		const focusChanges: Entry[][] = [];
+		const list = {
+			getFocus: () => focus,
+			setFocus: (entries: Entry[]) => {
+				focus = entries;
+				focusChanges.push(entries);
+			},
+		};
+		const isVisible = (entry: Entry) => entry !== hiddenItem;
+
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+		focusFirstCustomizationTreeItem(list, [collapsedGroup, hiddenItem, expandedGroup, visibleItem], entry => entry.type === 'item', isVisible);
+
+		assert.deepStrictEqual(focusChanges, [[visibleItem]]);
+	});
+
 	test('keeps editable source sections visible until search filtering starts', () => {
 		assert.deepStrictEqual({
 			agents: getAlwaysVisibleCustomizationGroupKeys(AICustomizationManagementSection.Agents, false),
