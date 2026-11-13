@@ -31,18 +31,19 @@ jobs:
   # It runs for pull requests and for the merge groups of the merge queue of main. Pull
   # requests to main run every job except the Windows ones ("Windows / *", "Copilot - Test
   # (Windows)" and "chat-lib - Test (Windows)"), which the merge queue runs. Pull requests to
-  # release branches, which have no merge queue, run them too. The merge queue runs every
-  # job, on runners of its own, so that the pull requests cannot hold up the merges:
+  # release branches, which have no merge queue, run them too. The merge queue and the pull
+  # requests to release branches run every job on dedicated runners, so that the pull
+  # requests to main cannot hold up the merges:
   #
-  # |         | Pull requests                       | Merge queue                                     |
+  # |         | Pull requests to main               | Merge queue, pull requests to release branches  |
   # | ------- | ----------------------------------- | ----------------------------------------------- |
   # | Linux   | vscode-large-runners-ubuntu-8-core  | vscode-large-runners-ubuntu-8-core-merge-queue  |
   # | Windows | vscode-large-runners-windows-8-core | vscode-large-runners-windows-8-core-merge-queue |
   #
   # Each job picks its runner with the expression of *linux-runner (on Detect Changes)
   # or *windows-runner (on the Windows test jobs), and passes it on to the reusable test
-  # workflows. The merge queue runners need the image and size of the pull request
-  # runners, so that the workspace images work on them (see
+  # workflows. The dedicated runners need the image and size of the other runners, so
+  # that the workspace images work on them (see
   # .github/workflows/workspace_image/README.md). Windows / Electron-Smoke (WSL) runs on
   # its 1ES pool in either case. .github/rulesets/main-merge-queue.json configures the
   # merge queue.
@@ -60,7 +61,7 @@ jobs:
   # job: the Ripple job reports a broken ripple.
   changes:
     name: Detect Changes
-    runs-on: &linux-runner ${{ github.event_name == 'merge_group' && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
+    runs-on: &linux-runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
     outputs:
       # The commit of the base branch that a merge group forks from (see the Find the base step).
       merge-group-base: ${{ steps.base.outputs.merge-group-base }}
@@ -706,7 +707,7 @@ jobs:
       # Pull requests to release branches find no images of their branch, and install everything. The
       # merge queue, which has no base_ref, uses the images of main.
       workspace_image_branch: ${{ github.base_ref || 'main' }}
-      runner: &windows-runner ${{ github.event_name == 'merge_group' && 'vscode-large-runners-windows-8-core-merge-queue' || 'vscode-large-runners-windows-8-core' }}
+      runner: &windows-runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-windows-8-core-merge-queue' || 'vscode-large-runners-windows-8-core' }}
 
   copilot-check-test-cache:
     name: Copilot - Check Test Cache

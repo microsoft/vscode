@@ -31,8 +31,8 @@ concurrency:
 jobs:
   playwright:
     name: Playwright Fixture Tests
-    # The merge queue runs on runners of its own, like pr.yml (see the comment at the top of its jobs)
-    runs-on: &runner ${{ github.event_name == 'merge_group' && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
+    # The merge queue and the pull requests to release branches run on dedicated runners, like pr.yml (see the comment at the top of its jobs)
+    runs-on: &runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
     steps:
       # The jobs start from a workspace image of main, like the test jobs of pr.yml (see
       # .github/workflows/workspace_image/README.md): its dependencies are installed, and its .git

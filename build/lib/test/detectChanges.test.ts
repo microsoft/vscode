@@ -487,9 +487,9 @@ suite('Detect Changes', () => {
 		]);
 	});
 
-	test('pull requests to main skip the Windows jobs, which the merge queue runs with every other job on runners of its own', () => {
+	test('pull requests to main skip the Windows jobs, which the merge queue runs, and the merge queue and pull requests to release branches run on dedicated runners', () => {
 		const { jobs } = loadWorkflow();
-		const runner = (os: string) => `\${{ github.event_name == 'merge_group' && 'vscode-large-runners-${os}-8-core-merge-queue' || 'vscode-large-runners-${os}-8-core' }}`;
+		const runner = (os: string) => `\${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-${os}-8-core-merge-queue' || 'vscode-large-runners-${os}-8-core' }}`;
 		const runsOn = [
 			...Object.values(jobs).map(job => job['runs-on']),
 			...[...testJobs().values()].map(test => resolveInput(test, test.job['runs-on'])),

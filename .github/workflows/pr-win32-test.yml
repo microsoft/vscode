@@ -46,7 +46,7 @@ on:
         type: string
         default: main
       runner:
-        description: The runner of the jobs except Electron-Smoke (WSL), which runs on its 1ES pool. The merge queue passes runners of its own (see the top of pr.yml)
+        description: The runner of the jobs except Electron-Smoke (WSL), which runs on its 1ES pool. The merge queue and the pull requests to release branches pass dedicated runners (see the top of pr.yml)
         type: string
         default: vscode-large-runners-windows-8-core
 

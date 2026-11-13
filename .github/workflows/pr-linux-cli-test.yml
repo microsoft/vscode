@@ -13,7 +13,7 @@ on:
         type: boolean
         default: true
       runner:
-        description: The runner of the jobs. The merge queue passes runners of its own (see the top of pr.yml)
+        description: The runner of the jobs. The merge queue and the pull requests to release branches pass dedicated runners (see the top of pr.yml)
         type: string
         default: vscode-large-runners-ubuntu-8-core
 
