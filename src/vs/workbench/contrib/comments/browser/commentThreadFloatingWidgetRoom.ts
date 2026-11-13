@@ -35,17 +35,22 @@ export class FloatingWidgetRoom extends Disposable {
 	}
 
 	/**
-	 * The height of the area that the editor is shown in, which the editor can grow as tall as.
+	 * The part of the document that is in view, in document coordinates. The editor is as tall as its content, so the
+	 * view that it's shown in scrolls instead, and may show only part of the editor, or more than the editor.
 	 */
-	getViewportHeight(): number {
-		return dom.getWindow(this._editor.getContainerDomNode()).innerHeight;
+	getViewport(): { top: number; height: number } {
+		const editorNode = this._editor.getContainerDomNode();
+		const view = dom.findParentWithClass(editorNode, 'multiDiffEditor');
+		const viewRect = view?.getBoundingClientRect() ?? { top: 0, height: dom.getWindow(editorNode).innerHeight };
+		return { top: this._editor.getScrollTop() + viewRect.top - editorNode.getBoundingClientRect().top, height: viewRect.height };
 	}
 
 	/**
-	 * How far down the widgets can go: as far below the content as the editor can grow.
+	 * How far down the widgets can go. The editor grows to make room for them, so they can go as far below the content
+	 * as the window is tall, which is taller than any widget.
 	 */
 	getScrollableHeight(): number {
-		return this._getContentBottom() + this.getViewportHeight();
+		return this._getContentBottom() + dom.getWindow(this._editor.getContainerDomNode()).innerHeight;
 	}
 
 	/**

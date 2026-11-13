@@ -513,7 +513,9 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	}
 
 	/**
-	 * Scrolls the editor so that the commented code and the widget are visible, if they aren't already.
+	 * Scrolls the editor so that the commented code and the widget are visible, if they aren't already. An editor that
+	 * grows with its content can't scroll the view that it's shown in, so when its code is in that view, the widget is
+	 * placed again within the view instead, if it reaches below it.
 	 */
 	private _revealInEditor(): void {
 		if (!this._layout) {
@@ -521,7 +523,16 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		}
 		const height = this._resizable.size.height;
 		const widgetTop = this._getDocumentTop(this._layout, height);
-		const scrollTop = getRevealScrollTop(this._codeGeometry.getVerticalBounds(), { top: widgetTop, bottom: widgetTop + height }, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
+		const code = this._codeGeometry.getVerticalBounds();
+		const viewport = this._host.getRoom()?.getViewport();
+		if (viewport && code.top >= viewport.top && code.bottom <= viewport.top + viewport.height) {
+			const viewportBottom = viewport.top + viewport.height;
+			if (!this._layout.isChosenByUser && widgetTop + height > viewportBottom - EDGE_MARGIN) {
+				this._placeAmongOtherWidgets(undefined, viewportBottom);
+			}
+			return;
+		}
+		const scrollTop = getRevealScrollTop(code, { top: widgetTop, bottom: widgetTop + height }, this.editor.getScrollTop(), this.editor.getLayoutInfo().height);
 		if (scrollTop !== undefined) {
 			this.editor.setScrollTop(scrollTop);
 		}
@@ -537,8 +548,9 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	 * Where the widget goes and how large it is until the user moves or resizes it. The widget is laid out to measure
 	 * its content, and may be left at another width than the layout's until the layout is applied.
 	 * @param obstacles The areas that other widgets take up, which the widget is placed around.
+	 * @param maxBottom How far down the widget can go, when that's less far than the editor can scroll through.
 	 */
-	private _computeDefaultLayout(obstacles: readonly IFloatingWidgetObstacle[]): ICommentThreadFloatingWidgetLayout {
+	private _computeDefaultLayout(obstacles: readonly IFloatingWidgetObstacle[], maxBottom?: number): ICommentThreadFloatingWidgetLayout {
 		this._sizeModel.resetGrowth();
 		this._sizeModel.captureEditorSize(this._measureEditorSize());
 		const bounds = this._getHorizontalBounds();
@@ -554,7 +566,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 			maxRight: bounds.right,
 			code,
 			obstacles,
-			scrollableHeight: this._getScrollableHeight()
+			scrollableHeight: maxBottom ?? this._getScrollableHeight()
 		};
 		const isNewComment = !this._commentThread.comments?.length;
 		// Laying the widget out makes the browser lay it out, so its size at the default width is measured at most once.
@@ -576,15 +588,16 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	 * where it is while it was hidden. Widgets that the user moved or resized stay where they are. Widgets that aren't in
 	 * the way stay where they are as well, so placing a widget only moves the ones that it must.
 	 * @param layoutChosenByUser Where the user put the widget, when the user moved or resized it.
+	 * @param maxBottom How far down the widget can go, when that's less far than the editor can scroll through.
 	 */
-	private _placeAmongOtherWidgets(layoutChosenByUser?: ICommentThreadFloatingWidgetLayout): void {
+	private _placeAmongOtherWidgets(layoutChosenByUser?: ICommentThreadFloatingWidgetLayout, maxBottom?: number): void {
 		const otherWidgets = this._host.getOtherWidgets(this);
 		if (layoutChosenByUser) {
 			this._layout = layoutChosenByUser;
 			this._applySize();
 			this._render();
 		} else {
-			this._placeAutomatically(otherWidgets);
+			this._placeAutomatically(otherWidgets, maxBottom);
 		}
 		const placed = this.getDocumentRect();
 		if (!placed) {
@@ -615,8 +628,9 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 	/**
 	 * Places the widget where it goes until the user moves or resizes it, around the given other widgets that the user
 	 * moved or resized, or that are for code that doesn't start after its own.
+	 * @param maxBottom How far down the widget can go, when that's less far than the editor can scroll through.
 	 */
-	private _placeAutomatically(otherWidgets: readonly ReviewFloatingWidget[]): void {
+	private _placeAutomatically(otherWidgets: readonly ReviewFloatingWidget[], maxBottom?: number): void {
 		const codeTop = this._codeGeometry.getVerticalBounds().top;
 		const obstacles: IFloatingWidgetObstacle[] = [];
 		for (const widget of otherWidgets) {
@@ -625,7 +639,7 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 				obstacles.push(rect);
 			}
 		}
-		this._layout = this._computeDefaultLayout(obstacles);
+		this._layout = this._computeDefaultLayout(obstacles, maxBottom);
 		this._storeLayout();
 		this._applySize();
 		this._render();
@@ -722,7 +736,8 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 		const growthChanged = this._sizeModel.updateGrowth(heights);
 		const height = this._setHeight(this._sizeModel.getHeight(heights, layout.height), heights);
 		if (growthChanged) {
-			this._sizeModel.updateUpwardShift(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, this.editor.getScrollTop(), this._getViewportHeight());
+			const viewport = this._getViewport();
+			this._sizeModel.updateUpwardShift(layout.offsetTop, this._codeGeometry.getVerticalBounds(), height, viewport.top, viewport.height);
 		}
 	}
 
@@ -774,15 +789,15 @@ export class ReviewFloatingWidget extends Disposable implements ICommentThreadEd
 
 	private _measureEditorSize(): ISize {
 		const bounds = this._getHorizontalBounds();
-		return { width: Math.max(0, bounds.right - bounds.left), height: this._getViewportHeight() };
+		return { width: Math.max(0, bounds.right - bounds.left), height: this._getViewport().height };
 	}
 
 	/**
-	 * The height of the area that the widget is shown in: the editor, or the area that an editor that grows with its
-	 * content is shown in.
+	 * The part of the document that is in view, in document coordinates: the editor's viewport or, for an editor that
+	 * grows with its content, the part of the editor that the view it's shown in shows.
 	 */
-	private _getViewportHeight(): number {
-		return this._host.getRoom()?.getViewportHeight() ?? this.editor.getLayoutInfo().height;
+	private _getViewport(): { top: number; height: number } {
+		return this._host.getRoom()?.getViewport() ?? { top: this.editor.getScrollTop(), height: this.editor.getLayoutInfo().height };
 	}
 
 	/**
