@@ -246,6 +246,11 @@ async function getOverridingSkillNames(
  * the picker before that state exists, so this mirrors the same eligibility
  * rules used by {@link resolveCustomizationRefs} without waiting for the host
  * to parse the plugin or synthetic bundle.
+ *
+ * Pass `enumerated` when the caller already ran
+ * {@link enumerateLocalCustomizationsForHarness} for the same session type
+ * and options, to avoid listing every customization folder again. Its roots
+ * don't matter here, as they only filter built-in skills.
  */
 export async function resolveLocalCustomAgents(
 	fileService: IFileService,
@@ -254,12 +259,13 @@ export async function resolveLocalCustomAgents(
 	agentPluginService: IAgentPluginService,
 	sessionType: string,
 	options: ILocalCustomizationSyncOptions | undefined,
+	enumerated?: readonly ILocalCustomizationFile[],
 ): Promise<readonly AgentCustomization[]> {
 	const plugins = agentPluginService.plugins.get();
 	const result: AgentCustomization[] = [];
 	const parser = new PromptFileParser();
 	const pending: Promise<void>[] = [];
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
+	enumerated ??= await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options);
 
 	for (const agent of enumerated) {
 		if (agent.type !== PromptsType.agent || agent.disabled) {
@@ -357,6 +363,11 @@ function isStandaloneSkillOrAgent(file: ISyncableFile): boolean {
  * VS Code forwards (user, workspace, or extension-contributed), go into a
  * separate standalone bundle so that the host does not deliver them as
  * plugin-provided content.
+ *
+ * Pass `enumerated` when the caller already ran
+ * {@link enumerateLocalCustomizationsForHarness} for the same session type,
+ * options and `workingDirectories`, to avoid listing every customization
+ * folder again.
  */
 export async function resolveCustomizationRefs(
 	fileService: IFileService,
@@ -370,8 +381,9 @@ export async function resolveCustomizationRefs(
 	options: ILocalCustomizationSyncOptions | undefined,
 	workingDirectories?: readonly URI[],
 	windowRemoteAuthority: string | null = null,
+	enumerated?: readonly ILocalCustomizationFile[],
 ): Promise<ClientPluginCustomization[]> {
-	const enumerated = await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, workingDirectories);
+	enumerated ??= await enumerateLocalCustomizationsForHarness(promptsService, syncProvider, sessionType, CancellationToken.None, options, workingDirectories);
 	const enabled = enumerated.filter(e => !e.disabled);
 
 	const plugins = agentPluginService.plugins.get();
