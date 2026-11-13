@@ -347,6 +347,10 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				const clientPluginUri = plugin?.clientId !== undefined ? getAgentHostCustomizationUri(URI.parse(plugin.uri), target, plugin) : undefined;
 				const channel = server.channel;
 				const handleMcpRequest = target.handleMcpRequest;
+				const runtimePlugin = plugin && readRuntimePluginEnablement(plugin);
+				const waitingForSessionStart = runtimePlugin !== undefined && runtimePlugin.globalEnabled !== false
+					&& runtimePlugin.effectiveEnabled === undefined && plugin?.load?.kind === CustomizationLoadStatus.Loading
+					&& isCustomizationEnabled(server);
 				return {
 					id: this._scopedMcpServerId(sessionResource, server.id),
 					name: server.name,
@@ -365,6 +369,7 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 					isClientBundled: clientPluginUri !== undefined && target.isBundledMcpServer(clientPluginUri.toString(), server.name),
 					owningPluginClientId: plugin?.clientId,
 					disabledReason: getCustomizationDisabledReason(server, plugin),
+					...(waitingForSessionStart ? { waitingForSessionStart: true } : {}),
 					status: server.state.kind,
 					authenticating: this._isAutoAuthenticatingMcpServer(sessionResource, target, server),
 					state: server.state,
