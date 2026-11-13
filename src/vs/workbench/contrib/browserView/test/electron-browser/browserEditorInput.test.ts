@@ -11,7 +11,8 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork, IBrowserViewNetworkFileSystem } from '../../../../../platform/browserView/common/browserView.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { BrowserEditorInput, BrowserEditorSerializer, IBrowserEditorInputData } from '../../common/browserEditorInput.js';
@@ -36,6 +37,10 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 
 	resolveNetwork(): undefined {
 		return undefined;
+	}
+
+	getNetworkFileSystem(): IBrowserViewNetworkFileSystem {
+		return { scheme: 'vscode-remote', caseSensitive: true };
 	}
 
 	async acquireNetwork(): Promise<IReference<undefined>> {
@@ -474,6 +479,34 @@ suite('BrowserEditorInput', () => {
 					}
 				}
 			}
+		});
+	});
+
+	test('follows renames of agent host files and uses the network of the resolved model', async () => {
+		const associatedResource = toAgentHostUri(URI.file('/repo/index.html'), 'host');
+		const target = toAgentHostUri(URI.file('/repo/renamed.html'), 'host');
+		const session = { scope: BrowserViewStorageScope.Workspace, network: { authority: 'host' } } as const;
+		const input = createInput({ id: 'agent-host', associatedResource, session, url: 'file:///repo/index.html?view=preview#content' });
+		const before = await input.rename(1, target);
+		input.model = new class extends mock<IBrowserViewModel>() {
+			override readonly network = undefined;
+			override readonly onDidChangeFavicon = Event.None;
+			override readonly onDidChangeLoadingState = Event.None;
+			override readonly onDidChangeTitle = Event.None;
+			override readonly onDidNavigate = Event.None;
+			override readonly onWillDispose = Event.None;
+			override readonly onDidClose = Event.None;
+			override dispose() { }
+		};
+
+		assert.deepStrictEqual({
+			renamed: (before?.editor as IUntypedEditorInput).options?.viewState,
+			localModelNetwork: input.activeNetwork,
+			localModelNavigation: getBrowserPageResourceNavigationError(input, 'file:///repo/index.html?x=1'),
+		}, {
+			renamed: { url: 'file:///repo/renamed.html?view=preview#content', title: undefined, favicon: undefined, session },
+			localModelNetwork: undefined,
+			localModelNavigation: 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.',
 		});
 	});
 });

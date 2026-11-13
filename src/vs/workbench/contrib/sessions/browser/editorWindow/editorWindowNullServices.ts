@@ -22,10 +22,10 @@ function notAvailable(): Promise<never> {
 }
 
 /**
- * The custom views of an editor window with the Sessions view: it shows none, so the sessions list offers none of the
+ * The custom views of an editor window: it shows none, so the sessions list offers none of the
  * entries that open one, such as Automations.
  */
-export class AgentsViewCustomViewService implements ICustomViewService {
+export class EditorWindowCustomViewService implements ICustomViewService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -41,8 +41,8 @@ export class AgentsViewCustomViewService implements ICustomViewService {
 	hideCustomView(): void { }
 }
 
-/** The automations of an editor window with the Sessions view: it has none, so the sessions list shows no Automations entry. */
-export class AgentsViewAutomationService implements IAutomationService {
+/** The automations of an editor window: it has none, so the sessions list shows no Automations entry. */
+export class EditorWindowAutomationService implements IAutomationService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -66,8 +66,8 @@ export class AgentsViewAutomationService implements IAutomationService {
 	canDeleteAutomation(): boolean { return false; }
 }
 
-/** The pinned canvases of an editor window with the Sessions view: it has none, so the sessions list shows none. */
-export class AgentsViewPinnedCanvasService implements IPinnedCanvasService {
+/** The pinned canvases of an editor window: it has none, so the sessions list shows none. */
+export class EditorWindowPinnedCanvasService implements IPinnedCanvasService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -88,10 +88,10 @@ export class AgentsViewPinnedCanvasService implements IPinnedCanvasService {
 }
 
 /**
- * The feedback on the changes of agent sessions in an editor window with the Sessions view: the window offers none, as the
+ * The feedback on the changes of agent sessions in an editor window: the window offers none, as the
  * Agents window's diff editors do, so the chats it shows have none to show or send.
  */
-export class AgentsViewAgentFeedbackService implements IAgentFeedbackService {
+export class EditorWindowAgentFeedbackService implements IAgentFeedbackService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -140,8 +140,8 @@ export class AgentsViewAgentFeedbackService implements IAgentFeedbackService {
 	async addFeedbackAndSubmit(): Promise<void> { }
 }
 
-/** The aquarium of an editor window with the Sessions view: it has none, as only the Agents window shows it. */
-export class AgentsViewAquariumService implements IAquariumService {
+/** The aquarium of an editor window: it has none, as only the Agents window shows it. */
+export class EditorWindowAquariumService implements IAquariumService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -158,8 +158,8 @@ export class AgentsViewAquariumService implements IAquariumService {
 	simulateStreak(): void { }
 }
 
-/** The pull request reviews of agent sessions in an editor window with the Sessions view: it loads none, as only the Agents window does. */
-export class AgentsViewCodeReviewService implements ICodeReviewService {
+/** The pull request reviews of agent sessions in an editor window: it loads none, as only the Agents window does. */
+export class EditorWindowCodeReviewService implements ICodeReviewService {
 
 	declare readonly _serviceBrand: undefined;
 

@@ -89,6 +89,8 @@ import { getAgentHostEffectiveChatConfig, hostAppliesSessionConfigToDefaultChat,
 import { AgentHostBackgroundShellOutputs } from '../../../../chat/browser/agentSessions/agentHost/agentHostBackgroundShells.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { AgentHostCanvas } from '../../../../canvases/common/agentHostCanvas.js';
+import { openCanvasWithExtensionConsent } from '../../../../canvases/common/agentHostCanvasConsent.js';
+import type { ICanvasOpenOptions } from '../../../../../common/canvasReference.js';
 import { ChatMode } from '../../../../chat/common/chatModes.js';
 import { IChatSendRequestOptions, IChatService, type IChatModelReference } from '../../../../chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../chat/common/chatSessionsService.js';
@@ -8056,17 +8058,17 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return canvases?.map(canvas => this._toSessionCanvasDefinition(canvas));
 	}
 
-	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void> {
+	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void> {
 		const target = this._getCanvasChatTarget(sessionId, chatResource);
 		const connection = this.connection;
 		if (!connection?.openSessionCanvas) {
 			throw new Error(localize('openCanvasUnavailable', "Opening canvases is unavailable for this session."));
 		}
-		await connection.openSessionCanvas(target.session, {
+		await openCanvasWithExtensionConsent(this._dialogService, answer => connection.openSessionCanvas!(target.session, {
 			canvasId: canvas.canvasId,
 			extensionId: canvas.extensionId,
 			instanceId,
-		}, target.chat);
+		}, target.chat, answer), options);
 	}
 
 	async closeCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void> {

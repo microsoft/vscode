@@ -34,7 +34,7 @@ import { IChatSubmitRequestHandlerService } from '../../../chat/browser/chatSubm
 import { combineVoiceInput } from '../../../chat/browser/voiceClient/voiceInputUtils.js';
 import { ChatDynamicVariableModel } from '../../../chat/browser/attachments/chatDynamicVariables.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../chat/browser/attachments/chatVariables.js';
-import { IChatExecuteActionContext } from '../../../chat/browser/actions/chatExecuteActions.js';
+import { createChatInputToolbarContext } from '../../../chat/browser/actions/chatExecuteActions.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { compactCodiconsIn } from '../../../chat/browser/chatIcons.js';
 import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
@@ -518,7 +518,9 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 				? this._scopedInstantiationService.createInstance(ComposerStatusActionViewItem, action, options)
 				: undefined,
 		}));
-		statusToolbar.context = { widget: this._widget } satisfies IChatExecuteActionContext;
+		if (this._widget) {
+			statusToolbar.context = createChatInputToolbarContext(this._widget);
+		}
 
 		const updateVisibility = () => {
 			const repositoryControlCount = repositoryControlsContainer.parentElement === secondaryControlsContainer

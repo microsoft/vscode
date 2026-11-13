@@ -8885,8 +8885,8 @@ suite('WorkspacePicker - Allowed folders', () => {
 		allowedFolders.set([URI.file('/local/vscode'), URI.file('/local/tools')], undefined);
 
 		assert.deepStrictEqual({ oneFolder, oneFolderChat, multiRoot: snapshot().items }, {
-			oneFolder: { items: ['Chat', '', '/local/vscode'], trigger: { hidden: false, readOnly: 'false', popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
-			oneFolderChat: { hidden: false, readOnly: 'false', popup: 'listbox', ariaLabel: 'Workspace: Chat' },
+			oneFolder: { items: ['Chat', '', '/local/vscode'], trigger: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
+			oneFolderChat: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'Workspace: Chat' },
 			multiRoot: ['Chat', '', '/local/vscode', '/local/tools'],
 		});
 	});
@@ -8916,6 +8916,36 @@ suite('WorkspacePicker - Allowed folders', () => {
 			inNewWorktree: { items: ['local/vscode', 'a (feature-a)', '---', 'New Worktree *'], trigger: 'Workspace: local/vscode - New Worktree' },
 			folderAgain: { items: ['local/vscode *', 'a (feature-a)', '---', 'New Worktree'], trigger: 'Workspace: local/vscode' },
 			selected: false,
+		});
+	});
+
+	test('picking another folder after New Worktree selects it, also where leaving New Worktree selects the first folder again as its configuration changes', async () => {
+		const newWorktree = { selected: true };
+		const { picker } = createPicker(['/local/a', '/local/b'], undefined, {
+			newWorktree: {
+				isAvailable: () => true,
+				isSelected: () => newWorktree.selected,
+				setSelected: selected => {
+					newWorktree.selected = selected;
+					// As the composer does as the draft's configuration changes: it selects the draft's folder again
+					picker.setSelectedWorkspace(URI.file('/local/a'), { fireEvent: false });
+				},
+			},
+		});
+		picker.setSelectedWorkspace(URI.file('/local/a'), { fireEvent: false });
+		const picked = await picker.dispatchFolder(URI.file('/local/b'), 'local-1');
+
+		assert.deepStrictEqual({ picked, selected: picker.selectedFolderUri?.path, newWorktree: newWorktree.selected }, { picked: true, selected: '/local/b', newWorktree: false });
+	});
+
+	test('is read-only for its one folder only once the folder is selected', () => {
+		const { picker, snapshot } = createPicker(['/local/vscode']);
+		const unselected = snapshot();
+		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
+
+		assert.deepStrictEqual({ unselected: { readOnly: unselected.readOnly, items: unselected.items }, selected: { readOnly: snapshot().readOnly } }, {
+			unselected: { readOnly: null, items: ['/local/vscode'] },
+			selected: { readOnly: 'true' },
 		});
 	});
 
@@ -8955,4 +8985,68 @@ suite('WorkspacePicker - Allowed folders', () => {
 
 		assert.strictEqual(picker.selectedFolderUri?.path, '/local/tools');
 	});
+});
+
+suite('WebWorkspacePicker - Allowed folders', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	/** A web picker of an editor window's composer, with a recent workspace outside the window's folders it must not offer. */
+	function createPicker(folders: readonly string[], phone: boolean) {
+		const providersService = disposables.add(new MockSessionsProvidersService());
+		const provider = createMockProvider('local-1', { group: SESSION_WORKSPACE_GROUP_LOCAL });
+		providersService.setProviders([provider]);
+		const storage = disposables.add(new TestStorageService());
+		seedStorage(storage, [{ uri: URI.file('/local/recent'), providerId: provider.id, checked: false }]);
+		const workbench = document.createElement('div');
+		workbench.classList.toggle('phone-layout', phone);
+		document.body.appendChild(workbench);
+		disposables.add(toDisposable(() => workbench.remove()));
+		let shows = 0;
+		const actionWidgetService = upcastPartial<IActionWidgetService>({ isVisible: false, hide: () => { }, show: () => { shows++; }, updateItems: () => { } });
+		const picker = createTestPicker(
+			disposables, providersService, storage, undefined, TestWebWorkspacePicker,
+			undefined, undefined, undefined, { restoreFromSessions: false, allowedFolders: constObservable(folders.map(folder => URI.file(folder))) },
+			undefined, actionWidgetService, undefined, upcastPartial<IAgentHostFilterService>({ onDidChange: Event.None, selectedHost: hostEntry(provider.id), rediscover: async () => false }),
+			upcastPartial<IWorkbenchLayoutService>({ mainContainer: workbench }),
+		);
+		assert.ok(picker instanceof TestWebWorkspacePicker);
+		picker.setSelectedWorkspace(URI.file(folders[0]), { fireEvent: false });
+		const trigger = document.createElement('button');
+		workbench.appendChild(trigger);
+		const open = async () => {
+			picker.showPicker(false, trigger);
+			await timeout(0);
+			const sheet = workbench.querySelector('.mobile-picker-sheet');
+			const state = {
+				items: picker.getItems().map(item => item.item?.folderUri?.path ?? item.label ?? item.kind),
+				popups: shows,
+				sheet: sheet ? Array.from(sheet.querySelectorAll('.mobile-picker-sheet-label')).map(row => row.textContent) : undefined,
+			};
+			workbench.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click();
+			await timeout(300);
+			return state;
+		};
+		return { open };
+	}
+
+	test('on a desktop browser, offers only the window\'s folders and does not open for one', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const oneFolder = await createPicker(['/local/vscode'], false).open();
+		const twoFolders = await createPicker(['/local/vscode', '/local/tools'], false).open();
+
+		assert.deepStrictEqual({ oneFolder, twoFolders }, {
+			oneFolder: { items: ['/local/vscode'], popups: 0, sheet: undefined },
+			twoFolders: { items: ['/local/vscode', '/local/tools'], popups: 1, sheet: undefined },
+		});
+	}));
+
+	test('on a phone, opens no sheet for one folder, and a sheet of only the window\'s folders, without browse actions, for several', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const oneFolder = await createPicker(['/local/vscode'], true).open();
+		const twoFolders = await createPicker(['/local/vscode', '/local/tools'], true).open();
+
+		assert.deepStrictEqual({ oneFolder, twoFolders }, {
+			oneFolder: { items: ['/local/vscode'], popups: 0, sheet: undefined },
+			twoFolders: { items: ['/local/vscode', '/local/tools'], popups: 0, sheet: ['local/vscode', 'local/tools'] },
+		});
+	}));
 });
