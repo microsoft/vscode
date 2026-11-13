@@ -58,6 +58,7 @@ suite('SessionsListModelService', () => {
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let sessionDeletedEmitter: Emitter<ISession>;
+	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let sessions: ISession[];
 	let instantiationService: TestInstantiationService;
 	let storageService: InMemoryStorageService;
@@ -74,6 +75,7 @@ suite('SessionsListModelService', () => {
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
+		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
@@ -81,8 +83,30 @@ suite('SessionsListModelService', () => {
 			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onDidDeleteSession: sessionDeletedEmitter.event,
+			onDidReplaceSession: sessionReplacedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+	});
+
+	test('pin and manual order follow a session replaced by one with another ID, and back', () => {
+		const local = createSession('local');
+		const relay = createSession('relay');
+		service.pinSession(local);
+		service.applySortChanges('updated', new Map([[local.sessionId, 42]]), []);
+		const state = () => ({
+			local: { pinned: service.isSessionPinned(local), order: service.hasSortOverride(local.sessionId, 'updated') },
+			relay: { pinned: service.isSessionPinned(relay), order: service.hasSortOverride(relay.sessionId, 'updated') },
+		});
+
+		sessionReplacedEmitter.fire({ from: local, to: relay });
+		const handedOff = state();
+		sessionReplacedEmitter.fire({ from: relay, to: local });
+
+		assert.deepStrictEqual({ handedOff, handedBack: state(), order: service.getSortKey(local, 'updated') }, {
+			handedOff: { local: { pinned: false, order: false }, relay: { pinned: true, order: true } },
+			handedBack: { local: { pinned: true, order: true }, relay: { pinned: false, order: false } },
+			order: 42,
+		});
 	});
 
 	test('migrates pin and manual order from a previous identity without reapplying later', () => {
@@ -1214,7 +1238,7 @@ suite('SessionsListModelService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -1229,7 +1253,7 @@ suite('SessionsListModelService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
@@ -1251,6 +1275,7 @@ suite('SessionsListModelService', () => {
 			getSession: resource => resource.toString() === creator.resource.toString() ? creator : undefined,
 			onDidChangeSessions: Event.None,
 			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+		onDidReplaceSession: Event.None,
 		});
 
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
@@ -1272,7 +1297,7 @@ suite('SessionsListModelService', () => {
 			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storageService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
-			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 			disposables.add(instantiationService.createInstance(SessionsListModelService));
 			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
 		};
@@ -1306,6 +1331,7 @@ suite('SessionsListModelService', () => {
 				getSession: () => undefined,
 				onDidChangeSessions: Event.None,
 				onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+				onDidReplaceSession: Event.None,
 				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 			});
@@ -1366,6 +1392,7 @@ suite('SessionsListModelService', () => {
 					getSession: () => undefined,
 					onDidChangeSessions: Event.None,
 					onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+					onDidReplaceSession: Event.None,
 					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 				});

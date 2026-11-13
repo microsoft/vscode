@@ -521,20 +521,29 @@ suite('Sessions chat window provider', () => {
 		assert.deepStrictEqual({ afterChanges, afterAdded: lookups.count - before }, { afterChanges: 0, afterAdded: 1 });
 	});
 
-	test('a chat follows its session as it is replaced by another object with the same ID, such as a pending session that is committed, which comes only as a change', async () => {
+	test('a chat follows its session as it is replaced by another object with the same ID, such as a pending session that is committed, which comes as a change, also after it is announced as a replacement', async () => {
 		const store = disposables.add(new DisposableStore());
-		const pending = createSession('session', [createChat('main')]);
-		const sessions = [pending];
-		const { provider, onDidChangeSessions } = createProvider(store, sessions);
-		const content = store.add((await provider.resolveContent(pending.resource))!);
-		const chat = asWindowChat((await content.resolveChat(URI.parse('test:/main')))!);
-		const before = chat.session.get() === pending;
+		const follows = async (announced: boolean) => {
+			const pending = createSession('session', [createChat('main')]);
+			const sessions = [pending];
+			const { provider, onDidChangeSessions, onDidReplaceSession } = createProvider(store, sessions);
+			const content = store.add((await provider.resolveContent(pending.resource))!);
+			const chat = asWindowChat((await content.resolveChat(URI.parse('test:/main')))!);
+			const before = chat.session.get() === pending;
 
-		const committed = createSession('session', [createChat('main')]);
-		sessions[0] = committed;
-		onDidChangeSessions.fire({ added: [], changed: [committed], removed: [] });
+			const committed = createSession('session', [createChat('main')]);
+			sessions[0] = committed;
+			if (announced) {
+				onDidReplaceSession.fire({ from: pending, to: committed });
+			}
+			onDidChangeSessions.fire({ added: [], changed: [committed], removed: [] });
+			return { before, after: chat.session.get() === committed };
+		};
 
-		assert.deepStrictEqual({ before, after: chat.session.get() === committed }, { before: true, after: true });
+		assert.deepStrictEqual({ changed: await follows(false), announced: await follows(true) }, {
+			changed: { before: true, after: true },
+			announced: { before: true, after: true },
+		});
 	});
 
 	test('a chat is read once it shows: while it is the active chat of its window, also of a window without focus, and its editor shows it; a chat marked unread stays unread until its next turn ends, which marks it read while it shows', async () => {

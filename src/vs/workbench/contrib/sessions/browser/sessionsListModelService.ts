@@ -219,6 +219,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
 
 		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
+		// A session replaced by one with another ID, such as one its host hands off to another connection, continues as it
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this.migrateIdentities([[from.sessionId, to.sessionId]])));
 		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
 			const sessions = this.sessionsManagementService.getSessions();
 			this.migratePreviousIdentities(sessions);
@@ -279,6 +281,11 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Legacy read-state migration --
 
 	private migratePreviousIdentities(sessions: readonly ISession[]): void {
+		this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])));
+	}
+
+	/** Moves the list state of each `[from, to]` session ID to `to`, where `to` has none of that state of its own. */
+	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[]): void {
 		let changed = false;
 		let inboxChanged = false;
 		const inbox = new Map(this._inboxState.get());
@@ -294,24 +301,22 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				changed = true;
 			}
 		};
-		for (const session of sessions) {
-			for (const previous of session.previousIdentities ?? []) {
-				if (previous.sessionId === session.sessionId) {
-					continue;
+		for (const [from, to] of identities) {
+			if (from === to) {
+				continue;
+			}
+			for (const set of sets) {
+				if (set.delete(from)) {
+					set.add(to);
+					changed = true;
 				}
-				for (const set of sets) {
-					if (set.delete(previous.sessionId)) {
-						set.add(session.sessionId);
-						changed = true;
-					}
-				}
-				move(this._sortOverrides.created, previous.sessionId, session.sessionId);
-				move(this._sortOverrides.updated, previous.sessionId, session.sessionId);
-				move(this._updatedDefaultPlacements, previous.sessionId, session.sessionId);
-				if (inbox.has(previous.sessionId)) {
-					move(inbox, previous.sessionId, session.sessionId);
-					inboxChanged = true;
-				}
+			}
+			move(this._sortOverrides.created, from, to);
+			move(this._sortOverrides.updated, from, to);
+			move(this._updatedDefaultPlacements, from, to);
+			if (inbox.has(from)) {
+				move(inbox, from, to);
+				inboxChanged = true;
 			}
 		}
 		if (changed) {

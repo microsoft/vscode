@@ -200,6 +200,11 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			heldChat.hold(this.chat.get(), this._boundCheck());
 		}
 
+		// Once it knows its session, only sessions added, removed or replaced can change where its chat is: what changes in its
+		// session it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
+		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.
+		const sessionsChanged = observableSignal(this);
+
 		// A session replaced by one with another ID, such as one its host hands off to another connection, is removed right
 		// after: the chat follows to the chat of the replacement that continues it, rather than ending with the session.
 		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to, chats }) => {
@@ -214,16 +219,16 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 			}
 			this._knownSession = to;
 			this._knownSessionRemoved = false;
-			if (!isEqual(next, current)) {
+			if (isEqual(next, current)) {
+				// Its chat stays, such as in a session replaced under the same ID, whose change that follows passes it by as
+				// the change of the session it knows already
+				sessionsChanged.trigger(undefined);
+			} else {
 				this.chat.set(next, undefined);
 				heldChat.hold(next, this._boundCheck());
 			}
 		}));
 
-		// Once it knows its session, only sessions added, removed or replaced can change where its chat is: what changes in its
-		// session it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
-		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.
-		const sessionsChanged = observableSignal(this);
 		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
 			const known = this._knownSession;
 			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
