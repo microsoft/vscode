@@ -195,7 +195,7 @@ suite('PromptToolsCodeLensProvider', () => {
 		assert.deepStrictEqual(offeredTools.map(tool => [tool.label, tool.checked]), [
 			['All Tools', false], ['execute', false], ['read', true], ['edit', false], ['search', false],
 			['agent', false], ['web', false], ['todo', false],
-			['read_file', true], ['*', false], ['*', false],
+			['*', false], ['*', false], ['read_file', true],
 		]);
 	});
 
@@ -212,13 +212,21 @@ suite('PromptToolsCodeLensProvider', () => {
 		});
 	});
 
-	test('spec-defined namespaces do not override explicit inventory restrictions', async () => {
+	test('spec-defined namespaces remain selectable despite conflicting inventory entries', async () => {
 		inventory = [
 			{ name: 'github/*', availability: 'disabled' },
 			{ name: 'playwright/*', availability: 'unavailable' },
 		];
-		await runLens(createModel('target: github-copilot\ntools: [read]'));
-		assert.deepStrictEqual(offeredGroups.map(group => group.label), ['All Tools', 'Built-In']);
+		selectedNames = ['github/*', 'playwright/*'];
+		const model = createModel('target: github-copilot\ntools: [read]');
+		await runLens(model);
+		assert.deepStrictEqual({
+			groups: offeredGroups.map(group => group.label),
+			content: model.getValue(),
+		}, {
+			groups: ['All Tools', 'Built-In', 'github', 'playwright'],
+			content: '---\ntarget: github-copilot\ntools: [\'github/*\', \'playwright/*\']\n---\n',
+		});
 	});
 
 	test('groups unqualified tools and namespaced tools without losing reference names', async () => {
@@ -240,11 +248,11 @@ suite('PromptToolsCodeLensProvider', () => {
 			allTools: '*',
 			groups: [
 				['Built-In', ['execute', 'read', 'edit', 'search', 'agent', 'web', 'todo'].map(name => [name, name])],
+				['github', [['github/*', '*']]],
+				['playwright', [['playwright/*', '*']]],
 				['vscode', [['vscode/usages', 'usages'], ['vscode/runTask', 'runTask']]],
 				['browser', [['browser/openBrowserPage', 'openBrowserPage']]],
 				['custom', [['custom/nested/tool', 'nested/tool']]],
-				['github', [['github/*', '*']]],
-				['playwright', [['playwright/*', '*']]],
 			],
 			content: '---\ntarget: github-copilot\ntools: [vscode/runTask, custom/nested/tool]\n---\n',
 			pickerDisposed: true,
@@ -394,7 +402,7 @@ suite('PromptToolsCodeLensProvider', () => {
 		assert.deepStrictEqual(results, [
 			['vscode/usages', 'vscode/runTask'],
 			['vscode/usages'],
-			['*', 'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', 'vscode/usages', 'vscode/runTask', 'browser/openBrowserPage', 'github/*', 'playwright/*'],
+			['*', 'execute', 'read', 'edit', 'search', 'agent', 'web', 'todo', 'github/*', 'playwright/*', 'vscode/usages', 'vscode/runTask', 'browser/openBrowserPage'],
 		]);
 	});
 

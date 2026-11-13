@@ -446,7 +446,7 @@ export class RemoteGitHubEnvironmentSharingService extends Disposable implements
 		const accountIds = new Set(sessions.map(session => session.account.id));
 		if (accountIds.size !== 1) {
 			const message = localize('remoteGitHubEnvironment.accountRequired', "Select a GitHub account for Copilot and sign in with the required permissions to share this remote as a GitHub environment.");
-			throw accountIds.size ? new Error(message) : new GitHubEnvironmentAccountUnavailableError(message);
+			throw accountIds.size ? new Error(message) : new GitHubEnvironmentAccountUnavailableError(message, 'signInRequired');
 		}
 		this._hadAccount = true;
 		return sessions[0];

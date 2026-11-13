@@ -42,6 +42,22 @@ export function getTreeNodeElement<T>(node: ITreeNode<T>): T {
 	return node.element;
 }
 
+/**
+ * Whether the entry has a row in the tree, that is, it is not inside a
+ * collapsed group.
+ */
+export function isCustomizationTreeEntryVisible<T>(tree: { hasElement(element: T): boolean; getParentElement(element: T): T | null; isCollapsed(element: T): boolean }, entry: T): boolean {
+	if (!tree.hasElement(entry)) {
+		return false;
+	}
+	for (let parent = tree.getParentElement(entry); parent; parent = tree.getParentElement(parent)) {
+		if (tree.isCollapsed(parent)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 export function getCustomizationTreeAriaLabel(label: string, count: number, collapsed: boolean): string {
 	return localize(
 		'customizationTreeGroupAriaLabel',

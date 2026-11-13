@@ -224,21 +224,21 @@ export class AgentHostManagementService implements IAgentHostManagementService {
 		return this._runMutation(() => this._agentService.retryManagedPlugins!(provider, session, chat));
 	}
 
-	listPluginMarketplaces(provider: AgentProvider, session: URI, chat?: URI) {
+	listPluginMarketplaces(provider: AgentProvider, session?: URI, chat?: URI) {
 		if (!this._agentService.listPluginMarketplaces) {
 			throw new Error('Agent Host plugin marketplace inventory is unavailable');
 		}
 		return this._agentService.listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: AgentProvider, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(provider: AgentProvider, session: URI | undefined, source: string, chat?: URI) {
 		if (!this._agentService.addPluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace registration is unavailable');
 		}
 		return this._runMutation(() => this._agentService.addPluginMarketplace!(provider, session, source, chat));
 	}
 
-	browsePluginMarketplace(provider: AgentProvider, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(provider: AgentProvider, session: URI | undefined, name: string, chat?: URI) {
 		if (!this._agentService.browsePluginMarketplace) {
 			throw new Error('Agent Host plugin marketplace browse is unavailable');
 		}

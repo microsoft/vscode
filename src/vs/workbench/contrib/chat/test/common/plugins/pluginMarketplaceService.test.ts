@@ -810,6 +810,20 @@ suite('PluginMarketplaceService - Agent Plugin direct install probes', () => {
 		assert.strictEqual(result?.name, 'compatible-plugin');
 	});
 
+	for (const [source, descriptor] of [
+		['owner/compatible#feature/beta', { kind: PluginSourceKind.GitHub, repo: 'owner/compatible', ref: 'feature/beta' }],
+		['https://example.com/compatible.git#release/v1', { kind: PluginSourceKind.GitUrl, url: 'https://example.com/compatible.git', ref: 'release/v1' }],
+	] as const) {
+		test(`retains the revision in a standalone plugin descriptor: ${source}`, async () => {
+			const fileService = new ProbeFileService();
+			const repoDir = URI.file('/repos/compatible');
+			seedCompatibleManifest(fileService, repoDir);
+			const service = createService(fileService);
+			const plugin = await service.readSinglePluginManifest(repoDir, parseMarketplaceReference(source)!);
+			assert.deepStrictEqual(plugin?.sourceDescriptor, descriptor);
+		});
+	}
+
 	test('recognizes a local directory with a compatible schema revision', async () => {
 		const fileService = new ProbeFileService();
 		const repoDir = URI.file('/plugins/compatible');

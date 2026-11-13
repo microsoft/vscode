@@ -2814,7 +2814,9 @@ export class SessionsService extends Disposable implements ISessionsService {
 			const target = targets[idx];
 			let session: ISession | null | undefined;
 			if (!target.resource) {
-				session = null; // empty new-session slot
+				const draft = this.sessionsManagementService.newSession.get();
+				// Workspace restoration can populate the composer before the persisted grid is applied.
+				session = draft && this._slotSessions.get().some(visible => visible?.sessionId === draft.sessionId) ? draft : null;
 			} else if (idx === activeIdx) {
 				session = activeSession;
 			} else {

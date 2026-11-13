@@ -5,6 +5,9 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { TextEdit, TextReplacement } from '../../../common/core/edits/textEdit.js';
+import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 import { OffsetRange } from '../../../common/core/ranges/offsetRange.js';
 import { StringText } from '../../../common/core/text/abstractText.js';
 import { Random } from './random.js';
@@ -13,6 +16,30 @@ suite('TextEdit', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('inverse', () => {
+		test('insertion of a surrogate pair', () => {
+			const source = new StringText('abc');
+			const edit = TextEdit.insert(new Position(1, 2), '😀');
+
+			assert.strictEqual(edit.inverse(source).applyToString(edit.apply(source)), source.value);
+		});
+
+		test('multiline replacement ending in surrogate pairs', () => {
+			const source = new StringText('abc\ndef');
+			const edit = TextEdit.replace(new Range(1, 2, 2, 2), 'x\n😀𝄞');
+
+			assert.strictEqual(edit.inverse(source).applyToString(edit.apply(source)), source.value);
+		});
+
+		test('multiple replacements containing surrogate pairs on the same line', () => {
+			const source = new StringText('abcd');
+			const edit = new TextEdit([
+				new TextReplacement(new Range(1, 2, 1, 2), '😀'),
+				new TextReplacement(new Range(1, 3, 1, 4), '𝄞'),
+			]);
+
+			assert.strictEqual(edit.inverse(source).applyToString(edit.apply(source)), source.value);
+		});
+
 		function runTest(seed: number): void {
 			const rand = Random.create(seed);
 			const source = new StringText(rand.nextMultiLineString(10, new OffsetRange(0, 10)));
@@ -35,6 +62,20 @@ suite('TextEdit', () => {
 		for (let seed = 0; seed < 20; seed++) {
 			test(`test ${seed}`, () => runTest(seed));
 		}
+	});
+
+	suite('removeCommonPrefixAndSuffix', () => {
+		test('preserves surrogate pairs around the changed text', () => {
+			const source = new StringText('😀abc𝄞');
+			const replacement = new TextReplacement(new Range(1, 1, 1, 8), '😀axc𝄞');
+			const reduced = replacement.removeCommonPrefixAndSuffix(source);
+
+			assert.deepStrictEqual({ range: reduced.range, text: reduced.text, result: reduced.toEdit().apply(source) }, {
+				range: new Range(1, 4, 1, 5),
+				text: 'x',
+				result: '😀axc𝄞',
+			});
+		});
 	});
 
 	suite('compose', () => {

@@ -28,7 +28,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ContextKeyValue, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isHTMLElement } from '../../../../base/browser/dom.js';
+import { addDisposableListener, EventType, getActiveElement, getWindow, getWindowById, IDimension, isAncestor, isAncestorOfActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
@@ -737,7 +737,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 		}
 	}
 
-	private async applyState(state: IEditorPartsUIState | 'empty'): Promise<boolean> {
+	private async applyState(state: IEditorPartsUIState | 'empty', options?: { preserveFocus?: boolean }): Promise<boolean> {
 
 		// Before closing windows, try to close as many editors as
 		// possible, but skip over those that would trigger a dialog
@@ -753,7 +753,7 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 				await group.closeAllEditors({ excludeConfirming: true, force: true });
 			}
 
-			const closed = (part as unknown as IAuxiliaryEditorPart).close(); // will move remaining editors to main part
+			const closed = (part as unknown as IAuxiliaryEditorPart).close(options); // will move remaining editors to main part
 			if (!closed) {
 				return false; // this indicates that closing was vetoed
 			}
@@ -885,22 +885,39 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 			return false;
 		}
 
+		// Applying removes the editors in place, so focus that is inside of an editor
+		// part would be lost: it is recovered afterwards if it ended up lost or still in an editor.
+		const isEditorFocus = () => this.parts.some(part => {
+			const container = part.getContainer();
+			return !part.isTransient && !!container && isAncestorOfActiveElement(container);
+		});
+
 		// Apply state: begin with auxiliary windows first because it helps to keep
 		// editors around that need confirmation by moving them into the main part.
 		// Also, in rare cases, the auxiliary part may not be able to apply the state
 		// for certain editors that cannot move to the main part.
-		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary);
+		const applied = await this.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.auxiliary, options);
 		if (!applied) {
 			return false;
 		}
 		await this.mainPart.applyState(workingSetState === 'empty' ? workingSetState : workingSetState.main, options);
 
 		// Restore Focus unless instructed otherwise
-		if (!options?.preserveFocus) {
+		{
 			const mostRecentActivePart = this.mostRecentActiveParts.find(part => !part.isTransient); // parts owned by someone else are not part of working sets
 			if (mostRecentActivePart) {
 				await mostRecentActivePart.whenReady;
-				mostRecentActivePart.activeGroup.focus();
+
+				// The editors of the new state open without being awaited: focus can only reach
+				// the active editor once it is there.
+				await mostRecentActivePart.activeGroup.whenRestored;
+
+				// With preserved focus, only recover focus that is lost or still in an editor
+				// part: the user may have moved it elsewhere while the state was applied.
+				const activeElement = getActiveElement();
+				if (!options?.preserveFocus || !activeElement || activeElement === activeElement.ownerDocument.body || isEditorFocus()) {
+					mostRecentActivePart.activeGroup.focus();
+				}
 			}
 		}
 
@@ -959,6 +976,10 @@ export class EditorParts extends MultiWindowParts<EditorPart, IEditorPartsMement
 
 	get sideGroup(): IEditorSideGroup {
 		return this.activePart.sideGroup;
+	}
+
+	get supportsSplitting(): boolean {
+		return this.activePart.supportsSplitting;
 	}
 
 	get groups(): IEditorGroupView[] {

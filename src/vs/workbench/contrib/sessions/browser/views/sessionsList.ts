@@ -6,6 +6,7 @@
 import { SessionInlineActions } from './sessionInlineActions.js';
 import { getPendingSessionActions, getPendingSessionAriaLabel, IPendingSessionItem, IPendingSessionSection, isPendingSessionItem, matchesPendingSession, PendingSessionRenderer } from './pendingSessions.js';
 import '../media/sessionsList.css';
+import '../media/disclosure.css';
 import { SessionGroupAppearancePicker } from './sessionGroupAppearancePicker.js';
 import { findSearchWords, getSessionSearchHint, ISessionSearchDocument, ISessionSearchField, ISessionSearchHint, ISessionSearchMatch, ISessionsListSearchResults, matchSessionSearch, SessionsListFindController, SessionsListSearchQuery, SessionsListSearchTelemetry, SessionSearchFieldKind, toSearchFilterData } from './sessionsListSearch.js';
 import * as DOM from '../../../../../base/browser/dom.js';
@@ -90,7 +91,7 @@ import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/ho
 import { inheritableSessionTarget, ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { getMainWindowHost, ISessionHostService, shownChatOf } from '../../../../services/sessions/browser/sessionHost.js';
 import { getSessionComparisonChat, getSessionComparisonHarnessDisplayLabel, getSessionComparisonHarnessLabel, getSessionComparisonParticipantsInDisplayOrder, ISessionComparison, ISessionComparisonService, SessionComparisonParticipantRole } from '../../common/sessionComparison.js';
-import { ISessionsService } from '../sessionsService.js';
+import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionListModelChangeEvent, ISessionsListModelService, SessionListModelChangeKind, SessionSortEntry, SessionSortMode } from '../sessionsListModelService.js';
 import { getSessionGroupIdOfSection, getSessionGroupSectionId, ISessionGroup, ISessionGroupAppearance, ISessionGroupPlacement, ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionSectionOrderService } from '../../../../services/sessions/browser/sessionSectionOrderService.js';
@@ -1735,7 +1736,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	constructor(
 		private readonly options: {
-			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
+			grouping: () => SessionsGrouping; isPinned: (session: ISession) => boolean; isRenderedInCustomGroup?: (session: ISession) => boolean; getGroupConnectorPosition?: (session: ISession) => SessionGroupConnectorPosition | undefined; getComparisonAttemptLabel?: (session: ISession) => string | undefined; shouldShowComparisonAttemptStatus?: (session: ISession, reader: IReader) => boolean; slotPanes: IObservable<readonly ISessionGridPane[]>; getMultiSelectedSessions: (session: ISession) => ISession[]; showHover: boolean; onDidChangeHoverVisibility?: (visible: boolean) => void; useCompactQuickChatRows: boolean; compact: () => boolean; approvalRowMaxLines: number; aggregateChatApprovals: boolean; toolbarMenuId: MenuId | undefined; toolbarTelemetrySource: string; inlineRename: boolean; contextViewService?: IContextViewService; handleToolbarAction?: (action: IAction, session: ISession) => boolean | Promise<boolean>; onDidDoubleClickRename?: (session: ISession) => void; onDidFinishRename?: () => void; onDidRequestRename?: (session: ISession) => void; activeGuideSessionIds?: IObservable<ReadonlySet<string>>;
 			/** Whether status presentation derives from the main chat instead of the aggregate session. */
 			deriveStatusFromMainChat?: boolean;
 			/** The chat the main window shows, whose row is the open one. */
@@ -1906,6 +1907,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		if (!isSessionItem(element)) {
 			return;
 		}
+		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', node.collapsible);
 		this.renderSession(element, template, node.filterData && createMatches(node.filterData));
 	}
 
@@ -2002,7 +2004,18 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 				if (triage && DOM.isHTMLElement(hover.content)) {
 					DOM.append(hover.content, $('div', undefined, triage));
 				}
-				return withSessionsListHoverPresentation(hover);
+				const presentedHover = withSessionsListHoverPresentation(hover);
+				return {
+					...presentedHover,
+					onDidShow: () => {
+						presentedHover.onDidShow?.();
+						this.options.onDidChangeHoverVisibility?.(true);
+					},
+					onDidHide: () => {
+						presentedHover.onDidHide?.();
+						this.options.onDidChangeHoverVisibility?.(false);
+					},
+				};
 			}, { groupId: 'sessions-list' }));
 		}
 
@@ -3006,6 +3019,7 @@ export class SessionSectionRenderer implements ITreeRenderer<SessionListItem, Fu
 	private renderSection(element: ISessionSection, collapsible: boolean, collapsed: boolean, template: ISessionSectionTemplate): void {
 		template.elementDisposables.clear();
 		this.renderedSections.set(template, element);
+		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', collapsible);
 		setSessionGroupDepth(template.container, this.getGroupDepth(element));
 		template.container.classList.remove(SESSION_HEADER_DROP_TARGET_CLASS);
 		template.container.classList.remove('session-section-shortcut');
@@ -3333,6 +3347,7 @@ class SessionGroupRenderer implements ITreeRenderer<SessionListItem, FuzzyScore,
 		if (!isSessionGroupItem(element)) {
 			return;
 		}
+		template.container.closest('.monaco-list-row')?.classList.toggle('sessions-disclosure-row', node.collapsible);
 		template.elementDisposables.clear();
 		renderSessionHeaderToolbar(template, element, this.delegate.select);
 		this.renderedGroups.set(template, element);
@@ -4903,7 +4918,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsNavigationService private readonly _sessionsNavigationService: ISessionsNavigationService,
 		@ISessionHostService sessionHostService: ISessionHostService,
 		@ICustomViewService private readonly customViewService: ICustomViewService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
@@ -5061,7 +5076,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				shouldShowComparisonAttemptStatus: (s, reader) => this.shouldShowComparisonAttemptStatus(s, reader),
 				isRenderedInExternalSection: s => this.isRenderedInExternalSection(s),
 				getEnvironmentBadgeLabel: s => this.getEnvironmentBadgeLabel(s),
-				slotPanes: this._sessionsService.slotPanes,
+				slotPanes: this._sessionsNavigationService.slotPanes,
 				getMultiSelectedSessions: s => this.getMultiSelectedSessions(s),
 				handleToolbarAction: async (action, session) => {
 					if (!this.isInboxLayout()) {
@@ -7950,7 +7965,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			if (request.chat) {
 				open = this.options.onChatOpen
 					? this.options.onChatOpen(request.session, request.chat, request.preserveFocus, request.sideBySide)
-					: this._sessionsService.openChat(request.session, request.chat.resource, { preserveFocus: request.preserveFocus }).catch(onUnexpectedError);
+					: this._sessionsNavigationService.openChat(request.session, request.chat.resource, { preserveFocus: request.preserveFocus }).catch(onUnexpectedError);
 			} else {
 				open = this.options.onSessionOpen(request.session.resource, request.preserveFocus, request.sideBySide);
 			}
@@ -10593,6 +10608,10 @@ function partitionByDate<T>(entries: readonly T[], sorting: SessionsSorting, get
 export interface ISessionsFlatListOptions {
 	readonly overrideStyles?: IStyleOverride<IListStyles>;
 	readonly showSessionHover?: boolean;
+	/** Session shown as selected in this list, without moving DOM focus. */
+	readonly activeSession?: IObservable<ISession | undefined>;
+	/** Reports when a rich session hover is shown or hidden. */
+	readonly onDidChangeSessionHoverVisibility?: (visible: boolean) => void;
 	/** Called when a session row is opened (clicked / activated). */
 	onSessionOpen(resource: URI, preserveFocus: boolean, sideBySide: boolean): void;
 	/**
@@ -10672,7 +10691,7 @@ export class SessionsFlatList extends Disposable {
 	constructor(
 		container: HTMLElement,
 		private readonly options: ISessionsFlatListOptions,
-		@ISessionsService private readonly _sessionsService: ISessionsService,
+		@ISessionsNavigationService private readonly _sessionsNavigationService: ISessionsNavigationService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
@@ -10713,9 +10732,10 @@ export class SessionsFlatList extends Disposable {
 			{
 				grouping: () => SessionsGrouping.Date,
 				isPinned: s => this._sessionsListModelService.isSessionPinned(s),
-				slotPanes: this._sessionsService.slotPanes,
+				slotPanes: this._sessionsNavigationService.slotPanes,
 				getMultiSelectedSessions: s => [s],
 				showHover: this.options.showSessionHover ?? true,
+				onDidChangeHoverVisibility: this.options.onDidChangeSessionHoverVisibility,
 				useCompactQuickChatRows,
 				compact: () => false,
 				approvalRowMaxLines: this.options.approvalRowMaxLines ?? DEFAULT_APPROVAL_ROW_MAX_LINES,
@@ -10781,6 +10801,13 @@ export class SessionsFlatList extends Disposable {
 				twistieAdditionalCssClass: () => 'force-no-twistie',
 			}
 		));
+		if (this.options.activeSession) {
+			const activeSession = this.options.activeSession;
+			this._register(autorun(reader => {
+				activeSession.read(reader);
+				this._syncActiveSessionSelection();
+			}));
+		}
 
 		this._register(this.tree.onDidOpen(e => {
 			const element = e.element;
@@ -10850,6 +10877,13 @@ export class SessionsFlatList extends Disposable {
 	setSessions(sessions: readonly ISession[]): void {
 		this._sessions = sessions;
 		this.tree.setChildren(null, sessions.map(session => ({ element: session })));
+		this._syncActiveSessionSelection();
+	}
+
+	private _syncActiveSessionSelection(): void {
+		const activeSessionId = this.options.activeSession?.get()?.sessionId;
+		const activeSession = activeSessionId ? this._sessions.find(session => session.sessionId === activeSessionId) : undefined;
+		this.tree.setSelection(activeSession && this.tree.hasElement(activeSession) ? [activeSession] : []);
 	}
 
 	/** The total pixel height required to render all current rows without scrolling. */
@@ -10866,6 +10900,10 @@ export class SessionsFlatList extends Disposable {
 	}
 
 	focus(): void {
+		const session = this.tree.getFocus()[0] ?? this.tree.getSelection()[0] ?? this._sessions[0];
+		if (session && this.tree.hasElement(session)) {
+			this.tree.setFocus([session]);
+		}
 		this.tree.domFocus();
 	}
 

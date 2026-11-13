@@ -1093,6 +1093,16 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
 		});
 
+		test('keeps spec-defined github-copilot namespaces recognized when inventories also contain them', async () => {
+			copilotToolInventory = [
+				{ name: 'github/*', availability: 'disabled' },
+				{ name: 'playwright/*', availability: 'unavailable' },
+			];
+			otherCopilotToolInventory = [];
+			const content = '---\ndescription: Test\ntarget: github-copilot\ntools: [github/*, playwright/*]\n---';
+			assert.deepStrictEqual(await validate(content, PromptsType.agent), []);
+		});
+
 		test('github-copilot tool validation remains fail-open until every inventory is ready', async () => {
 			const content = [
 				'---',
