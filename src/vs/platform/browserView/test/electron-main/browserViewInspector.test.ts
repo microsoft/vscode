@@ -89,6 +89,22 @@ suite('BrowserViewInspector', () => {
 		return { inspector, main, child, targets, webContents, attachCalls };
 	}
 
+	const iframeTarget: CDPTargetInfo = { targetId: 'child', type: 'iframe', title: '', url: '', attached: true, canAccessOpener: false };
+
+	function createFrame(state = { detached: false }) {
+		return new class extends mock<Electron.WebFrameMain>() {
+			override get detached() { return state.detached; }
+			override readonly url = 'https://example.com';
+			override readonly ipc = new EventEmitter() as Electron.IpcMain;
+			override isDestroyed() { return false; }
+			override postMessage() { }
+		};
+	}
+
+	function contextCreated(uniqueId: string, frameId: string): CDPEvent {
+		return { method: 'Runtime.executionContextCreated', params: { context: { uniqueId, auxData: { isDefault: true, frameId } } } };
+	}
+
 	test('releases a closed child session without removing the main session listener', async () => {
 		const { inspector, main, child, targets } = createInspector();
 		await inspector.toggleElementSelection(true);
@@ -145,13 +161,6 @@ suite('BrowserViewInspector', () => {
 
 	test('attaches on first element selection and adopts frames that were ready earlier', async () => {
 		const { inspector, main, child, targets, webContents, attachCalls } = createInspector();
-		const createFrame = () => new class extends mock<Electron.WebFrameMain>() {
-			override readonly detached = false;
-			override readonly url = 'https://example.com';
-			override readonly ipc = new EventEmitter() as Electron.IpcMain;
-			override isDestroyed() { return false; }
-			override postMessage() { }
-		};
 		const mainFrame = createFrame();
 		const iframe = createFrame();
 		(webContents as EventEmitter & { mainFrame?: Electron.WebFrameMain }).mainFrame = mainFrame;
@@ -162,10 +171,10 @@ suite('BrowserViewInspector', () => {
 		webContents.emit('ipc-message', { senderFrame: iframe }, 'vscode:browserView:preloadReady', 'iframe-token');
 
 		await inspector.toggleElementSelection(true);
-		targets.fire({ targetId: 'child', type: 'iframe', title: '', url: '', attached: true, canAccessOpener: false });
+		targets.fire(iframeTarget);
 		await Promise.resolve();
-		main.fireEvent({ method: 'Runtime.executionContextCreated', params: { context: { uniqueId: 'main-context', auxData: { isDefault: true, frameId: 'main-frame' } } } });
-		child.fireEvent({ method: 'Runtime.executionContextCreated', params: { context: { uniqueId: 'iframe-context', auxData: { isDefault: true, frameId: 'iframe-frame' } } } });
+		main.fireEvent(contextCreated('main-context', 'main-frame'));
+		child.fireEvent(contextCreated('iframe-context', 'iframe-frame'));
 		await new Promise<void>(resolve => setImmediate(resolve));
 
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect adopted frames without exposing test-only API.
@@ -180,22 +189,6 @@ suite('BrowserViewInspector', () => {
 		await inspector.toggleElementSelection(true);
 		assert.strictEqual(attachCalls.count, 1);
 	});
-
-	const iframeTarget: CDPTargetInfo = { targetId: 'child', type: 'iframe', title: '', url: '', attached: true, canAccessOpener: false };
-
-	function createFrame(state = { detached: false }) {
-		return new class extends mock<Electron.WebFrameMain>() {
-			override get detached() { return state.detached; }
-			override readonly url = 'https://example.com';
-			override readonly ipc = new EventEmitter() as Electron.IpcMain;
-			override isDestroyed() { return false; }
-			override postMessage() { }
-		};
-	}
-
-	function contextCreated(uniqueId: string, frameId: string): CDPEvent {
-		return { method: 'Runtime.executionContextCreated', params: { context: { uniqueId, auxData: { isDefault: true, frameId } } } };
-	}
 
 	test('adopts an iframe target discovered by another consumer before first use', async () => {
 		const { inspector, child, webContents, attachCalls } = createInspector(undefined, [iframeTarget]);
