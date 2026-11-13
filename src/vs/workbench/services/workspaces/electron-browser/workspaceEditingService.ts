@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IWorkspaceFolderLocationService } from '../../../../platform/workspace/common/folderLocations.js';
 import { localize } from '../../../../nls.js';
 import { IWorkspaceEditingService } from '../common/workspaceEditing.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -29,7 +30,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { WorkingCopyBackupService } from '../../workingCopy/common/workingCopyBackupService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchConfigurationService } from '../../configuration/common/configuration.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataProfileService } from '../../userDataProfile/common/userDataProfile.js';
@@ -62,8 +63,10 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 		@IUserDataProfilesService userDataProfilesService: IUserDataProfilesService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@ILogService logService: ILogService,
+		@IWorkspaceFolderLocationService workspaceFolderLocationService: IWorkspaceFolderLocationService,
+		@IWorkspaceTrustEnablementService workspaceTrustEnablementService: IWorkspaceTrustEnablementService,
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService, userDataProfilesService, userDataProfileService, logService, workspaceFolderLocationService, workspaceTrustEnablementService);
 
 		this.registerListeners();
 	}

@@ -41,6 +41,8 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { LayoutSettings } from '../../../../../services/layout/browser/layoutService.js';
 import { WindowTitle } from '../../../../../browser/parts/titlebar/windowTitle.js';
+import { IFolderLocation } from '../../../../../../platform/workspace/common/folderLocations.js';
+import { CommandCenterLabel } from '../../../../../browser/parts/titlebar/commandCenterLabel.js';
 import { ChatAIDisabledSettingId, ChatConfiguration } from '../../../common/constants.js';
 import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IChatWidgetService } from '../../chat.js';
@@ -360,6 +362,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				attentionCount: attentionNeededSessions.length,
 				attentionText,
 				label,
+				folderLocation: this._windowTitle.folderLocationInfo ? { description: this._windowTitle.folderLocationInfo.description, icon: this._windowTitle.folderLocationInfo.icon?.id } : undefined,
 				isFilteredToUnread,
 				isFilteredToInProgress,
 				isFilteredToNeedsInput,
@@ -559,7 +562,17 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 
 		const hoverLabel = localize('askAnythingPlaceholder', "Ask anything or describe what to build");
 
-		label.textContent = defaultLabel;
+		// While the folder is at an alternate location, the label shows the location layout
+		const folderLocation = !isCompactMode && progressText ? undefined : this._windowTitle.folderLocationInfo;
+		const commandCenterLabel = disposables.add(this.instantiationService.createInstance(CommandCenterLabel, label, getDefaultHoverDelegate('mouse')));
+		const showLabel = (text: string, location: IFolderLocation | undefined) => {
+			commandCenterLabel.update(text, location);
+			// The button's own name overrides its descendants, so it has to carry the location
+			inputArea.setAttribute('aria-label', location
+				? localize('openQuickAccessAtFolderLocation', "Open Quick Access, {0}", label.getAttribute('aria-label') ?? text)
+				: localize('openQuickAccess', "Open Quick Access"));
+		};
+		showLabel(defaultLabel, folderLocation);
 		inputArea.appendChild(label);
 
 		if (isCompactMode) {
@@ -585,14 +598,14 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 				disposables.add(addDisposableListener(inputArea, EventType.MOUSE_ENTER, () => {
 					reset(leftIcon, renderIcon(Codicon.searchSparkle));
 					leftIcon.classList.remove('has-attention');
-					label.textContent = hoverLabel;
+					showLabel(hoverLabel, undefined);
 					label.classList.remove('has-progress');
 					sendIcon.classList.remove('hidden');
 				}));
 
 				disposables.add(addDisposableListener(inputArea, EventType.MOUSE_LEAVE, () => {
 					reset(leftIcon, renderIcon(Codicon.searchSparkle));
-					label.textContent = defaultLabel;
+					showLabel(defaultLabel, folderLocation);
 					sendIcon.classList.add('hidden');
 				}));
 			}
@@ -1399,29 +1412,7 @@ export class AgentTitleBarStatusWidget extends BaseActionViewItem {
 	 * Falls back to file name when tabs are hidden, or "Search" when empty.
 	 */
 	private _getLabel(): string {
-		const { prefix, suffix } = this._windowTitle.getTitleDecorations();
-
-		// Base label: custom title, workspace name, or file name when tabs are hidden
-		let label = this._windowTitle.workspaceName;
-		if (this._windowTitle.isCustomTitleFormat()) {
-			label = this._windowTitle.getWindowTitle();
-		} else if (!label && this.editorGroupsService.partOptions.showTabs === 'none') {
-			label = this._windowTitle.fileName ?? '';
-		}
-
-		if (!label) {
-			label = localize('agentStatusWidget.search', "Search");
-		}
-
-		// Apply prefix and suffix decorations
-		if (prefix) {
-			label = localize('label1', "{0} {1}", prefix, label);
-		}
-		if (suffix) {
-			label = localize('label2', "{0} {1}", label, suffix);
-		}
-
-		return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+		return this._windowTitle.getCommandCenterLabel({ showFileName: this.editorGroupsService.partOptions.showTabs === 'none', fileNameAsFallback: true });
 	}
 
 	// #endregion

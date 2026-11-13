@@ -36,6 +36,7 @@
 		"src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts",
 		"src/vs/sessions/contrib/chat/browser/chatBackgroundTint.ts",
 		"src/vs/sessions/contrib/chat/browser/getThemeColorsTool.ts",
+		"src/vs/sessions/contrib/canvases/browser/pinnedCanvasService.ts",
 		"src/vs/sessions/contrib/providers/remoteAgentHost/browser/hostFilter.contribution.ts",
 		"src/vs/workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts",
 		"src/vs/workbench/contrib/sessions/browser/defaultSessionRepositoryPicker.ts",
