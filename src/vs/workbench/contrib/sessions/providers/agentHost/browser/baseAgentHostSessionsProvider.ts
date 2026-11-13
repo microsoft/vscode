@@ -5547,11 +5547,13 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._listedSessionChanges.input = filter.onDidChangeSessions;
 	}
 
+	/** The sessions it lists: those of {@link getAllSessions}, or of them those in its listing scope. Subclasses that list sessions their own way override {@link getAllSessions}, not this. */
 	getSessions(): ISession[] {
 		const listingScope = this._listingScope.value;
 		return listingScope ? listingScope.getSessions() : this.getAllSessions();
 	}
 
+	/** Every session it knows, also those its listing scope hides; for looking a session up, and what it lists without a scope. */
 	getAllSessions(): ISession[] {
 		this._ensureSessionCache();
 		// Filter at read time (rather than evicting from the cache) so a gate

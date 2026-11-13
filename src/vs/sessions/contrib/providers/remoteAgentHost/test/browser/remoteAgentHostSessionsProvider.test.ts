@@ -582,6 +582,34 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		return { runtime, catalog, storage };
 	}
 
+	test('without a listing scope, a provider that lists its sessions its own way finds by lookup exactly the sessions it lists', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const ids = (sessions: readonly ISession[]) => sessions.map(session => session.sessionId).sort();
+		const listedAndFound = (provider: { getSessions(): ISession[]; getAllSessions(): ISession[] }) => ({ listed: ids(provider.getSessions()), found: ids(provider.getAllSessions()) });
+
+		// The Cloud catalog lists its task rows, not the cache of its base
+		const { catalog, runtime: sandbox } = createTaskCatalog([]);
+		catalog.setTasks([{ taskId: 'first', name: 'First' }, { taskId: 'second', name: 'Second' }]);
+		const catalogRows = listedAndFound(catalog);
+
+		// A cloud sandbox withholds a session it provisioned until it publishes it
+		sandbox.seedProvisionalSession({ session: AgentSession.uri('ahp-session', 'withheld'), provider: 'copilotcli', startTime: 0, modifiedTime: 0, summary: 'Withheld' });
+		const withheld = listedAndFound(sandbox);
+
+		// A remote host that is unreachable unpublishes its cached sessions
+		connection.addSession(createSession('cached', { summary: 'Cached' }));
+		const remote = createProvider(disposables, connection);
+		await timeout(0);
+		remote.unpublishCachedSessions();
+		const unpublished = listedAndFound(remote);
+
+		assert.deepStrictEqual({ catalogRows: catalogRows.found.length, catalog: catalogRows.found, withheld, unpublished }, {
+			catalogRows: 2,
+			catalog: catalogRows.listed,
+			withheld: { listed: [], found: [] },
+			unpublished: { listed: [], found: [] },
+		});
+	}));
+
 	test('a restored visible chat keeps its facade while runtime fields and interactivity hydrate', () => {
 		const entry = createCloudSandboxTaskSession({ taskId: 'task', name: 'Summary' });
 		const chat = entry.session.mainChat.get();

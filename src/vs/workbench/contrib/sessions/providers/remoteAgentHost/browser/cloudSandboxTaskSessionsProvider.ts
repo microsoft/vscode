@@ -173,7 +173,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	}
 	resolveWorkspace(): ISessionWorkspace | undefined { return undefined; }
 
-	override getSessions(): ISession[] {
+	override getAllSessions(): ISession[] {
 		return [
 			...[...this._tasks.values()].map(entry => entry.session),
 			...[...this._runtimeSessions.values()].filter(session => session.resource.scheme !== CLOUD_SANDBOX_TASK_SCHEME),
@@ -181,7 +181,7 @@ export class CloudSandboxTaskSessionsProvider extends BaseAgentHostSessionsProvi
 	}
 
 	override getSessionByResource(resource: URI): ISession | undefined {
-		return this.getSessions().find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
+		return this.getAllSessions().find(session => isEqual(session.resource, resource) || session.previousIdentities?.some(previous => isEqual(previous.resource, resource)));
 	}
 
 	async resolveSessionResource(resource: URI): Promise<URI | undefined> {
