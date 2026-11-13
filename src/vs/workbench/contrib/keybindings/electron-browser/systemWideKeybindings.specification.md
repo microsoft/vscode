@@ -99,8 +99,8 @@ owns the standard desktop workbench synchronization. Registered as a workbench c
 
 **`src/vs/sessions/contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.ts`**
 is the narrow Agents Window owner. It runs the shared selection over the complete resolved
-keybinding list before retaining only direct `workbench.action.openAgentsWindow` candidates. This
-preserves global first-binding-wins semantics when another command claims the same accelerator.
+keybinding list before retaining only direct `workbench.action.openAgentsWindow` and
+`workbench.action.chat.attachAppWindowScreenshot` candidates. This preserves global first-binding-wins semantics when another command claims the same accelerator.
 It synchronizes immediately after `WorkbenchPhase.AfterRestored`, debounces later keybinding
 updates, and skips unchanged payloads. The Agents owner suppresses duplicate ignored-`when`
 warnings but reports OS registration failures because it may be the only open feedback surface.
@@ -167,7 +167,8 @@ registrations. Wired up in `src/vs/code/electron-main/app.ts` with the real Elec
   path fires only its own event, so both are needed. On `ILifecycleMainService.onWillShutdown` and
   on dispose it unregisters everything. When the last window closes on macOS (the app keeps
   running), all system-wide accelerators are released; previously they stayed registered but inert.
-  An open Agents Window still owns the Open Agents Window binding after all editor windows close (see
+  An open Agents Window still owns the Open Agents Window and Attach Screenshot of App Window bindings
+  after all editor windows close (see
   [`src/vs/sessions/SYSTEM_WIDE_KEYBINDING.md`](../../../../sessions/SYSTEM_WIDE_KEYBINDING.md)).
 
 ### How the `systemWide` flag is plumbed

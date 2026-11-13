@@ -259,7 +259,14 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 		const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
 		try {
 			const [track] = stream.getVideoTracks();
-			const frame = track && await raceTimeout(new ImageCapture(track).grabFrame(), FRAME_TIMEOUT);
+			if (!track) {
+				return undefined;
+			}
+			const grab = new ImageCapture(track).grabFrame();
+			// A frame that arrives after the timeout holds the full image until it is closed.
+			const frame = await raceTimeout(grab, FRAME_TIMEOUT, () => {
+				void grab.then(late => late.close(), () => { });
+			});
 			if (!frame) {
 				return undefined;
 			}
