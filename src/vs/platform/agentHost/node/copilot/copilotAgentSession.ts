@@ -6848,8 +6848,12 @@ export class CopilotAgentSession extends Disposable {
 						if (runtimeMode) {
 							mode = runtimeMode;
 						}
+						// A skill's display prompt is only its qualified runtime name, which
+						// can differ from what the user sent (`/act-on-feedback` resolves to
+						// `/VS Code Synced Data:act-on-feedback`). The SDK persists it as the
+						// message, so keep the sent text for history to match the live turn.
+						displayPrompt ??= runtimeSlashCommand.kind === 'skill' ? prompt : result.displayPrompt;
 						prompt = result.prompt;
-						displayPrompt ??= result.displayPrompt;
 						break;
 					}
 					case 'select-subcommand':

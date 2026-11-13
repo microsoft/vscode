@@ -152,6 +152,10 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(state.activeSession);
 				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);
+				override readonly activePane = constObservable(undefined);
+				override getRecentlyOpenedSessions() {
+					return { recent: [], other: [] };
+				}
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;

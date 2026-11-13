@@ -222,8 +222,12 @@ export const enum AgentsWindowOpenSource {
 	WelcomeTryOut = 'welcomeTryOut',
 	CommandLine = 'commandLine',
 	Link = 'link',
+	AgentsLauncher = 'agentsLauncher',
 	Unknown = 'unknown',
 }
+
+/** The IPC channel on which the main process asks the Agents window to show the Agents Launcher. */
+export const AGENTS_LAUNCHER_IPC_CHANNEL = 'vscode:showAgentsLauncher';
 
 export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowOpenSource {
 	switch (value) {
@@ -241,6 +245,7 @@ export function isAgentsWindowOpenSource(value: unknown): value is AgentsWindowO
 		case AgentsWindowOpenSource.WelcomeTryOut:
 		case AgentsWindowOpenSource.CommandLine:
 		case AgentsWindowOpenSource.Link:
+		case AgentsWindowOpenSource.AgentsLauncher:
 		case AgentsWindowOpenSource.Unknown:
 			return true;
 		default:
