@@ -102,18 +102,18 @@ suite('SessionSummaryTelemetryContribution', () => {
 		const dispatch = (action: IDispatchedAction['action'], rejectionReason?: string): void => {
 			contributions.didDispatchAction({ channel: session, session, action, ...(rejectionReason ? { rejectionReason } : {}) });
 		};
-		/** Registers the session in host state, so its chat can report an active turn. */
-		const createStateSession = (): void => {
+		/** Registers a session in host state, so its chats can report an active turn and move to another session. */
+		const createStateSession = (resource = session, defaultChat = chat): void => {
 			stateManager.createSession({
-				resource: session,
+				resource,
 				provider: 'mock',
 				title: 'Test',
 				status: SessionStatus.Idle,
 				createdAt: new Date(0).toISOString(),
 				modifiedAt: new Date(0).toISOString(),
-				defaultChat: chat,
+				defaultChat,
 			});
-			stateManager.dispatchServerAction(session, { type: ActionType.SessionReady });
+			stateManager.dispatchServerAction(resource, { type: ActionType.SessionReady });
 		};
 		const events = (eventName: string) => telemetry.events.filter(event => event.eventName === eventName).map(event => event.data as Record<string, unknown>);
 		const summaries = () => events('agentHost.sessionSummary');
@@ -214,6 +214,22 @@ suite('SessionSummaryTelemetryContribution', () => {
 		]);
 	}));
 
+	test('describes the earliest-started of equally ranked turns, whatever order they end in', () => runWithFakedTimers({}, async () => {
+		const { contributions, start, complete, summaries } = createSummaries();
+		const peer: ITestTurn = { chat: buildChatUri(session, 'peer'), clientType: AgentHostClientType.AgentsWindow };
+		const first = start({ clientType: AgentHostClientType.EditorWindow });
+		await timeout(1000);
+		// A turn started later in a peer chat ends first.
+		complete(start(peer), peer);
+		await timeout(1000);
+		complete(first);
+		contributions.willShutdown();
+
+		assert.deepStrictEqual(summaries().map(summary => ({ initiatorClientType: summary.initiatorClientType, multipleClientTypes: summary.multipleClientTypes, rootTurnCount: summary.rootTurnCount })), [
+			{ initiatorClientType: AgentHostClientType.EditorWindow, multipleClientTypes: true, rootTurnCount: 2 },
+		]);
+	}));
+
 	test('attributes a period with only subagent turns to the client of the turn that started them', () => {
 		const { start, complete, dispatch, summaries } = createSummaries();
 		const subagent: ITestTurn = { chat: buildSubagentChatUri(session, 'spawning-tool-call'), subagentKind: 'task', clientType: AgentHostClientType.AgentsWindow };
@@ -295,6 +311,36 @@ suite('SessionSummaryTelemetryContribution', () => {
 			{ summaryReason: 'archived', summaryIndex: 0, createdInHostProcess: true, rootTurnCount: 1 },
 			{ summaryReason: 'shutdown', summaryIndex: 1, createdInHostProcess: true, rootTurnCount: 1 },
 			{ summaryReason: 'deleted', summaryIndex: 2, createdInHostProcess: true, rootTurnCount: 1 },
+		]);
+	});
+
+	test('counts a turn that moves with its chat toward the session it moved to', () => {
+		const { contributions, stateManager, start, complete, dispatch, createStateSession, summaries } = createSummaries();
+		const target = AgentSession.uri('mock', 'session-2').toString();
+		createStateSession();
+		createStateSession(target, buildDefaultChatUri(target));
+		dispatch({ type: ActionType.SessionReady });
+		complete(start());
+		// The turn tracker keeps the session a turn started in as its owner, and moving the session deletes it.
+		const running = start();
+		stateManager.transferSession(session, target, [chat], undefined, true);
+		complete(running);
+		contributions.willShutdown();
+
+		assert.deepStrictEqual(summaries().map(summary => ({ agentSessionId: summary.agentSessionId, summaryReason: summary.summaryReason, summaryIndex: summary.summaryIndex, createdInHostProcess: summary.createdInHostProcess, rootTurnCount: summary.rootTurnCount })), [
+			{ agentSessionId: 'session-1', summaryReason: 'deleted', summaryIndex: 0, createdInHostProcess: true, rootTurnCount: 1 },
+			{ agentSessionId: 'session-2', summaryReason: 'shutdown', summaryIndex: 0, createdInHostProcess: false, rootTurnCount: 1 },
+		]);
+	});
+
+	test('marks a session whose first send failed before it was created as created in this process', () => {
+		const { contributions, start, complete, dispatch, summaries } = createSummaries();
+		complete(start(), { result: 'error' });
+		dispatch({ type: ActionType.SessionCreationFailed, error: { errorType: 'internalError', message: 'Failed' } });
+		contributions.willShutdown();
+
+		assert.deepStrictEqual(summaries().map(summary => ({ createdInHostProcess: summary.createdInHostProcess, failedTurnCount: summary.failedTurnCount })), [
+			{ createdInHostProcess: true, failedTurnCount: 1 },
 		]);
 	});
 

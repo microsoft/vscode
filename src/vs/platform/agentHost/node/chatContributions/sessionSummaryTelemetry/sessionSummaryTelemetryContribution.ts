@@ -63,6 +63,7 @@ interface ISessionSummaryState {
 class SessionActivityPeriod {
 	private _clientContext: IAgentHostClientTelemetryContext | undefined;
 	private _clientContextRank = -1;
+	private _clientContextStart = Number.POSITIVE_INFINITY;
 	private readonly _clientTypes = new Set<AgentHostClientType>();
 	private _telemetryContext: IAgentTelemetryContext | undefined;
 	/** Turns, by chat and turn id, with an unexpected hang and no completion yet. */
@@ -185,9 +186,11 @@ class SessionActivityPeriod {
 			this._clientTypes.add(clientContext.clientType);
 		}
 		const rank = initiatorRank(clientContext, isSubagentTurn(report));
-		if (rank > this._clientContextRank) {
+		// Concurrent turns can end in any order, so the earliest-started of equally ranked turns describes the period.
+		if (rank > this._clientContextRank || (rank === this._clientContextRank && start < this._clientContextStart)) {
 			this._clientContext = clientContext;
 			this._clientContextRank = rank;
+			this._clientContextStart = start;
 		}
 	}
 }
@@ -203,6 +206,10 @@ class SessionActivityPeriod {
  * host begins a graceful shutdown. A session with nothing to report sends
  * nothing. Totals live only in memory, so a crash or forced exit loses the
  * current period, and so do turns that end after a graceful shutdown begins.
+ *
+ * A turn counts toward the session that owns its chat when the turn is
+ * reported, so a turn that moves with its chat counts toward the session it
+ * moved to.
  */
 export class SessionSummaryTelemetryContribution extends Disposable implements IAgentHostChatContribution {
 	static readonly id = 'sessionSummaryTelemetry';
@@ -220,7 +227,7 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 	) {
 		super();
 		this._register(turnTracker.onDidCompleteTurn(report => {
-			const session = rootSessionOf(report.owner);
+			const session = this._sessionOf(report);
 			this._getPeriod(session, report.provider).addTurn(report, Date.now());
 			this._armIdleTimer(session);
 		}));
@@ -228,7 +235,7 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 			if (isExpectedTurnHang(report.hangReason)) {
 				return;
 			}
-			const session = rootSessionOf(report.owner);
+			const session = this._sessionOf(report);
 			this._getPeriod(session, report.provider).addUnexpectedHang(report, Date.now());
 			this._armIdleTimer(session);
 		}));
@@ -247,15 +254,18 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 	onDidDispatchAction(dispatched: IDispatchedAction): void {
 		const action = dispatched.action;
 		// Checks the type first: this runs for every dispatched action, including each streamed delta.
-		if ((action.type !== ActionType.SessionReady && action.type !== ActionType.SessionIsArchivedChanged)
+		if ((action.type !== ActionType.SessionReady && action.type !== ActionType.SessionCreationFailed && action.type !== ActionType.SessionIsArchivedChanged)
 			|| dispatched.rejectionReason !== undefined || isAhpChatChannel(dispatched.channel)) {
 			return;
 		}
-		// Restored sessions are registered as ready without this action, so it marks a session created by this process.
-		if (action.type === ActionType.SessionReady) {
+		if (action.type === ActionType.SessionIsArchivedChanged) {
+			if (action.isArchived) {
+				this._send(dispatched.session, 'archived');
+			}
+		} else {
+			// A session this process creates becomes ready, or fails creation on its first send. Restored sessions are
+			// registered as ready without either action.
 			this._getSession(dispatched.session).createdInHostProcess = true;
-		} else if (action.isArchived) {
-			this._send(dispatched.session, 'archived');
 		}
 	}
 
@@ -263,6 +273,14 @@ export class SessionSummaryTelemetryContribution extends Disposable implements I
 		for (const session of [...this._periods.keys()]) {
 			this._send(session, 'shutdown');
 		}
+	}
+
+	/**
+	 * The root session a turn counts toward: the one that owns its chat now, so a turn that moved with its chat
+	 * counts toward the session it moved to. The tracker keeps the owner the turn started with.
+	 */
+	private _sessionOf(report: IAgentHostTurnCompletedReport | IAgentHostTurnHungReport): string {
+		return rootSessionOf(this._stateManager.getChatOwner(report.session) ?? report.owner);
 	}
 
 	private _getPeriod(session: string, provider: string): SessionActivityPeriod {
