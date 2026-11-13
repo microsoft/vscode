@@ -83,6 +83,12 @@ suite('FolderLocationsMainService', () => {
 		assert.strictEqual(service.getFolderLocation(workspace), undefined);
 	});
 
+	test('a malformed remembered uri is ignored', async () => {
+		const { service } = await create({ initial: { [extUriBiasedIgnorePathCase.getComparisonKey(workspace)]: { ...location, uri: 'file:////work/alt' } } });
+
+		assert.strictEqual(service.getFolderLocation(workspace), undefined);
+	});
+
 	test('the oldest entries age out', async () => {
 		const { service } = await create();
 		for (let i = 0; i < 105; i++) {
@@ -114,6 +120,10 @@ suite('FolderLocationsMainService', () => {
 
 		test('a remote location is not started at and is forgotten', async () => {
 			assert.deepStrictEqual(await validate(undefined, { ...location, uri: 'vscode-remote://host/work/repo.wt/feature' }), { result: { folderLocationMissing: { label: 'feature' } }, remembered: undefined, warnings: 0 });
+		});
+
+		test('a malformed location is a missing location', async () => {
+			assert.deepStrictEqual(await validate(undefined, { ...location, uri: 'file:////work/alt' }), { result: { folderLocationMissing: { label: 'feature' } }, remembered: undefined, warnings: 0 });
 		});
 
 		test('without a candidate nothing is validated or forgotten', async () => {

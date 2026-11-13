@@ -67,6 +67,15 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 			const cts = new CancellationTokenSource();
 			this._register(toDisposable(() => cts.dispose(true)));
 			this.restore(persisted, cts.token);
+		} else {
+
+			// A switch may have been confirmed before this contribution was instantiated
+			const current = this.contextService.getWorkspace();
+			const folder = current.folders[0];
+			const confirmed = folder && isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(current)) ? this.folderLocationService.getLocation(folder) : undefined;
+			if (confirmed) {
+				this.persist(confirmed);
+			}
 		}
 	}
 
