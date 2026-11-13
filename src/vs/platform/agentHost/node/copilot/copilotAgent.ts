@@ -115,7 +115,8 @@ import { AGENT_HOST_TITLE_SOURCE_AUTO, SESSION_CUSTOM_TITLE_KEY, SESSION_CUSTOM_
 import { IAgentHostCompletions } from '../agentHostCompletions.js';
 import { IAgentHostGitService, META_DIFF_BASE_BRANCH } from '../../common/agentHostGitService.js';
 import { applyMcpServerEnablement, applyMcpServerRuntimeStates, buildMcpTopLevelCustomizationId, findDiscoveredPluginMcpServer, getMcpServerCustomizations, mergeMcpServerCustomizations, type IMcpServerRuntimeState } from '../shared/mcpCustomizationController.js';
-import { readMcpServerSource, readMcpServerSourcePlugin } from '../../common/meta/mcpCustomizationMeta.js';
+import { readMcpServerSource, readMcpServerSourcePlugin, withMcpServerControllingSettingMeta, withMcpServerSourceMeta } from '../../common/meta/mcpCustomizationMeta.js';
+import { AgentHostGitHubMcpServerEnabledSettingId } from '../../common/agentService.js';
 import { readCustomizationDiscoveryMeta, withCustomizationDiscoveryMeta } from '../../common/meta/customizationDiscoveryMeta.js';
 import { IAgentHostCustomizationEnablementService } from '../agentHostCustomizationEnablementService.js';
 import { getSdkMcpServerEnablement, isCustomizationSdkEligible, resolveCustomizationEnablement, targetForMcpServer } from '../shared/customizationEnablementGate.js';
@@ -1374,6 +1375,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/** The platform whose desktop Computer Use operates: the Agent Host's own, since only the local host offers it. */
 	private readonly _hostPlatform: NodeJS.Platform = process.platform;
 	private _clientGeneration = 0;
+	/** Server names in the user's Copilot MCP configuration at its last read; `undefined` until it has been read. */
+	private _userMcpServerNames: ReadonlySet<string> | undefined;
 	private _clientStartupAuthentication: { readonly connectorsEnabled: boolean; readonly enterpriseHost: string | undefined; readonly token: string | undefined } | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
 	/**
@@ -2107,6 +2110,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _isGitHubMcpServerEnabled(): boolean {
 		return this._configurationService.getRootValue(platformRootSchema, AgentHostGitHubMcpServerEnabledConfigKey) !== false;
+	}
+
+	/** Reads the user's Copilot MCP configuration and remembers which server names it defines. */
+	private async _readUserMcpServers(client: CopilotClient): Promise<Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers']> {
+		const { servers } = await client.rpc.mcp.config.list();
+		this._userMcpServerNames = new Set(Object.keys(servers));
+		return servers;
 	}
 
 	/** Only the local desktop agent host may operate this machine's desktop. */
@@ -5238,6 +5248,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._clientStartupAuthentication = { connectorsEnabled: startupConfig.copilotConnectors, enterpriseHost: startupConfig.enterpriseHost, token: gitHubToken };
 			this._clientStarting = undefined;
 			void this._refreshDisconnectedApprovalModes(client, this._clientGeneration);
+			// Lets sessions that have not started yet tell the runtime's GitHub MCP server from a user-configured one.
+			this._readUserMcpServers(client).catch(error => this._logService.trace('[Copilot] Failed to read the user MCP configuration', error));
 			return client;
 		};
 		const clientStarting = (async () => {
@@ -10947,10 +10959,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				},
 				// MCP reconcile has no host call of its own, so read the retained host snapshot lazily.
 				hostCustomizations: () => this._retainedHostCustomizations(owner.get()),
-				getUserMcpServers: async () => {
-					const client = await this._ensureClient();
-					return (await client.rpc.mcp.config.list()).servers;
-				},
+				getUserMcpServers: async () => this._readUserMcpServers(await this._ensureClient()),
 				getInstalledPlugins: async () => {
 					const client = await this._ensureClient();
 					return (await client.rpc.plugins.list()).plugins;
@@ -10978,13 +10987,13 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private async _disabledRootMcpServers(session: URI, snapshot: IActiveClientSnapshot): Promise<readonly string[]> {
 		await this._customizationEnablementService.initializeSession(session.toString());
 		const client = await this._ensureClient();
-		let userServers: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>;
+		let userServers: Awaited<ReturnType<CopilotClient['rpc']['mcp']['config']['list']>>['servers'];
 		try {
-			userServers = await client.rpc.mcp.config.list();
+			userServers = await this._readUserMcpServers(client);
 		} catch (error) {
 			throw new CopilotMcpConfigReadError(error);
 		}
-		const rootServers = this._rootMcpCustomizations(AgentSession.id(session), snapshot.mcpServers, Object.keys(userServers.servers));
+		const rootServers = this._rootMcpCustomizations(AgentSession.id(session), snapshot.mcpServers, Object.keys(userServers));
 		const enablement = getSdkMcpServerEnablement(resolveCustomizationEnablement(
 			this._customizationEnablementService,
 			session,
@@ -11011,17 +11020,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private _rootMcpCustomizations(sessionId: string, mcpServers: AgentHostMcpServers, additionalServerNames: Iterable<string> = []): McpServerCustomization[] {
 		const serverNames = new Set([...Object.keys(mcpServers), ...additionalServerNames]);
-		if (this._isGitHubMcpServerEnabled()) {
+		const addsRuntimeGitHubServer = !serverNames.has(GITHUB_MCP_SERVER_NAME) && this._isGitHubMcpServerEnabled();
+		if (addsRuntimeGitHubServer) {
 			serverNames.add(GITHUB_MCP_SERVER_NAME);
 		}
+		// The runtime's GitHub server is built in only when the user's own Copilot MCP configuration
+		// is known not to define a server by that name; until it has been read, the source stays unknown.
+		const isRuntimeGitHubServer = addsRuntimeGitHubServer && this._userMcpServerNames !== undefined && !this._userMcpServerNames.has(GITHUB_MCP_SERVER_NAME);
 		return [...serverNames].map(name => {
 			const id = buildMcpTopLevelCustomizationId(this.id, sessionId, name);
+			const meta = isRuntimeGitHubServer && name === GITHUB_MCP_SERVER_NAME
+				? withMcpServerControllingSettingMeta(withMcpServerSourceMeta(undefined, 'builtin'), AgentHostGitHubMcpServerEnabledSettingId)
+				: undefined;
 			return {
 				type: CustomizationType.McpServer,
 				id,
 				uri: id,
 				name,
 				state: { kind: McpServerStatus.Stopped },
+				...(meta ? { _meta: meta } : {}),
 			};
 		});
 	}
