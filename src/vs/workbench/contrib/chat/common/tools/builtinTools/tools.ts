@@ -8,8 +8,10 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { ChatConfiguration } from '../../constants.js';
+import { ILanguageModelToolsConfirmationService } from '../languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../languageModelToolsService.js';
 import { AskQuestionsTool, AskQuestionsToolData } from './askQuestionsTool.js';
+import { ChatUrlFetchingConfirmationContribution } from './chatUrlFetchingConfirmation.js';
 import { ConfirmationTool, ConfirmationToolData, ConfirmationToolWithOptionsData, ModifiedFilesConfirmationTool, ModifiedFilesConfirmationToolData } from './confirmationTool.js';
 import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
@@ -25,10 +27,19 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@ILanguageModelToolsService toolsService: ILanguageModelToolsService,
+		@ILanguageModelToolsConfirmationService confirmationService: ILanguageModelToolsConfirmationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+
+		this._register(confirmationService.registerConfirmationContribution(
+			InternalFetchWebPageToolId,
+			instantiationService.createInstance(
+				ChatUrlFetchingConfirmationContribution,
+				params => (params as { urls?: string[] }).urls
+			)
+		));
 
 		const editTool = instantiationService.createInstance(EditTool);
 		this._register(toolsService.registerTool(EditToolData, editTool));

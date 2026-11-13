@@ -33,7 +33,8 @@ import { localize } from '../../../../../nls.js';
 import { ChatInteractivity, getChatCapabilities, getChatHarness, IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { getHarnessPresentationOrDefault, IHarnessPresentation } from '../../common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { clearChatReferenceDragData, fillChatReferenceDragData, fillSessionChatDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
+import { fillSessionChatDragData, fillSessionChatReferenceDragData, isSessionDragFromPaneEdge, onDidEndSessionChatDrag } from '../dnd.js';
+import { clearChatReferenceDragData } from '../../../../../platform/dnd/browser/dnd.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
@@ -134,6 +135,7 @@ export class ChatCompositeBar extends Disposable {
 	private readonly _connectedTabOverflowEdge: HTMLElement;
 	private _connectedTab: IChatTab | undefined;
 	private readonly _sessionActionsContainer: HTMLElement;
+	private readonly _sessionToolbar: MenuWorkbenchToolBar;
 	private readonly _sessionMenuArgs: unknown[] = [];
 	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
@@ -212,7 +214,7 @@ export class ChatCompositeBar extends Disposable {
 		this._tabsRow.appendChild(this._sessionActionsContainer);
 		const sessionToolbarContainer = $('.chat-composite-bar-toolbar');
 		this._sessionActionsContainer.appendChild(sessionToolbarContainer);
-		this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
+		this._sessionToolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, sessionToolbarContainer, Menus.SessionBarToolbar, {
 			hoverDelegate: this._hoverDelegate,
 			hiddenItemStrategy: HiddenItemStrategy.Ignore,
 			menuOptions: { args: this._sessionMenuArgs },
@@ -286,6 +288,7 @@ export class ChatCompositeBar extends Disposable {
 		}
 
 		this._delegate = delegate;
+		this._sessionToolbar.context = delegate?.session;
 		this._sessionMenuArgs.splice(0, this._sessionMenuArgs.length, ...(delegate?.session ? sessionMenuArgs(delegate.session, undefined, this._sessionHost) : []));
 
 		const store = new DisposableStore();
@@ -601,19 +604,10 @@ export class ChatCompositeBar extends Disposable {
 			this._cancelTabEditing();
 
 			// Group-move payload (on dataTransfer, not the shared LocalSelectionTransfer
-			// singleton) lets the chat be moved between groups / split out. It must not
-			// use the singleton because the chat-reference payload below also uses it,
-			// and the singleton holds only one payload at a time.
+			// singleton) lets the chat be moved between groups / split out, and the
+			// chat-reference payload lets it drop into an agent-host chat input.
 			fillSessionChatDragData(e, delegate.session.sessionId, chat.resource, delegate.isDetached);
-
-			// Chat-reference payload: requires the opaque backend chat URI, which
-			// only the owning agent-host provider knows. When it is unavailable
-			// (not agent-host backed, or state not yet hydrated) the drag simply
-			// carries no reference.
-			const backendChatResource = this._backendChatResource(chat);
-			if (backendChatResource) {
-				fillChatReferenceDragData(e, backendChatResource, chat.resource, chat.title.get());
-			}
+			fillSessionChatReferenceDragData(e, delegate.session, chat, this._sessionsProvidersService);
 
 			e.dataTransfer.effectAllowed = 'copyMove';
 			applyDragImage(e, tab, chat.title.get());
@@ -734,22 +728,6 @@ export class ChatCompositeBar extends Disposable {
 		return isHTMLElement(event.target) && !!event.target.closest('.chat-composite-bar-tab-input-container');
 	}
 
-	/**
-	 * Resolves the opaque backend chat URI for a chat tab so a dragged `#chat:`
-	 * reference can carry it. Reaches the owning agent-host provider by id and
-	 * asks it to look up the host-supplied backend resource. Returns `undefined`
-	 * when the session is not agent-host backed or the provider has no hydrated
-	 * state for the chat — the caller then offers no chat-reference payload.
-	 */
-	private _backendChatResource(chat: IChat): URI | undefined {
-		const session = this._delegate?.session;
-		if (!session) {
-			return undefined;
-		}
-		const provider = this._sessionsProvidersService.getProvider(session.providerId, session.sessionId);
-		return provider && isAgentHostProvider(provider) ? provider.getBackendChatResource(chat.resource) : undefined;
-	}
-
 	startFocusedTabEditing(): boolean {
 		const chatTab = this._tabs.find(tab => tab.element === tab.element.ownerDocument.activeElement);
 		if (!chatTab) {
@@ -820,7 +798,8 @@ export class ChatCompositeBar extends Disposable {
 			// own key handlers only react to keys targeting the tab itself.
 		}));
 
-		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(false)));
+		// Clicking away keeps the new name, like the rename in the sessions list.
+		store.add(addDisposableListener(inputBox.inputElement, EventType.BLUR, () => finish(true)));
 
 		store.add(addDisposableListener(inputBox.element, EventType.CLICK, e => e.stopPropagation()));
 		store.add(addDisposableListener(inputBox.element, EventType.DBLCLICK, e => e.stopPropagation()));

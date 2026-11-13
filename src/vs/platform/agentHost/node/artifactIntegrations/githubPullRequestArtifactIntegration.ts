@@ -27,6 +27,7 @@ import { ILogService } from '../../../log/common/log.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
 import { getCapturedCredentialSourceKey, IAgentHostCredentialSource, isAuthRequiredError } from '../../common/agentHostCredentials.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformRootSchema } from '../../common/agentHostSchema.js';
+import { getPullRequestRepairActivityLabel } from '../../common/systemTurnActivity.js';
 import { getPullRequestArtifactChecks, getPullRequestArtifactCheckState, getPullRequestArtifactFailedChecks, getPullRequestArtifactMissingRequiredChecks, getPullRequestArtifactThreads, GitHubPullRequestArtifactTarget, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactOptions, gitHubPullRequestArtifactWorkspaceSettingsKey, isArtifactDataObject, isCurrentPullRequestFragment, isPullRequestArtifactMergeable, isPullRequestArtifactReadyForReview, parseGitHubPullRequestArtifact, readGitHubPullRequestArtifactWorkspaceSettings } from '../../common/githubPullRequestArtifact.js';
 import { AuthRequiredReason } from '../../common/state/sessionActions.js';
 import { IAgentConfigurationService } from '../agentConfigurationService.js';
@@ -123,9 +124,20 @@ class GitHubPullRequestArtifactResource extends Disposable {
 			const failure = firstCredentialFailure(snapshot, pullRequestFragments);
 			if (failure) {
 				this.requireAuthentication(failure);
-			} else if (pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' && snapshot[fragment].complete)) {
+			} else if (snapshot.core.status === 'ready' && pullRequestFragments.every(fragment => snapshot[fragment].status === 'ready' || snapshot[fragment].status === 'error')) {
+				// Every fragment answered since the refusal and GitHub accepted the credential for the pull request;
+				// a fragment that keeps failing for another reason, such as an overloaded queue, must not hold sign-in.
 				this.authenticationError.set(undefined, undefined);
 				this.requestedAuthentication = false;
+			}
+		}));
+		this._register(this.client.credentials.onDidInvalidate(event => {
+			// A refusal an action received leaves the fragments healthy, so a same-token reauthorization produces no new
+			// observation; read the pull request again to revalidate access instead of replaying the action.
+			if (event.reason === 'reauthorization' && this.authenticationError.get()) {
+				void this.subscription.refresh(undefined, CancellationToken.None, { authoritative: true }).catch(() => {
+					// A renewed refusal reaches the snapshot and requires authentication again.
+				});
 			}
 		}));
 	}
@@ -407,8 +419,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 			refreshWorkspace.schedule();
 		}));
 		this.actions = [
-			this.promptAction('fixCI', 'github-action', localize('prArtifact.fixCI', "Fix Checks")),
-			this.promptAction('addressReviews', 'comment-discussion', localize('prArtifact.addressReviews', "Address Comments")),
+			this.promptAction('fixCI', 'lightbulb', localize('prArtifact.fixCI', "Fix Checks")),
+			this.promptAction('addressReviews', 'comment', localize('prArtifact.addressReviews', "Address Comments")),
 			this.promptAction('resolveConflicts', 'git-compare', localize('prArtifact.updateBranch', "Resolve Conflicts / Update Branch")),
 			this.codeAction('markReady', 'git-pull-request', localize('prArtifact.markReady', "Mark Ready")),
 			this.codeAction('merge', 'git-merge', localize('prArtifact.merge', "Merge")),
@@ -851,7 +863,7 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 	}
 
 	private promptAction(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', iconId: string, label: string): ArtifactAction {
-		return { id, iconId, label, kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
+		return { id, iconId, label, activityLabel: getPullRequestRepairActivityLabel(id), kind: 'prompt', prepare: (context, token) => this.preparePrompt(id, context, token) };
 	}
 
 	private async preparePrompt(id: 'addressReviews' | 'fixCI' | 'resolveConflicts', context: IArtifactActionContext, token: CancellationToken): Promise<ArtifactPreparation<ArtifactPrompt>> {
@@ -1249,7 +1261,7 @@ function checkIcon(state: ReturnType<typeof checkPresentationState>): ArtifactIc
 	return state === 'passed' ? { id: 'pass-filled-compact', colorId: 'charts.green' }
 		: state === 'failed' ? { id: 'error-compact', colorId: 'errorForeground' }
 			: state === 'skipped' ? { id: 'skip', colorId: 'descriptionForeground' }
-				: { id: 'sync-compact', colorId: 'editorWarning.foreground' };
+				: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' };
 }
 
 type PullRequestDisplayState = 'open' | 'draft' | 'merged' | 'closed';

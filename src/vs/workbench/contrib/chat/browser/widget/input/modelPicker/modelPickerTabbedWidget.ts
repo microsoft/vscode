@@ -788,7 +788,7 @@ export class TabbedModelPicker extends Disposable {
 			selectedModelId: context.selectedModelId,
 			organizationDefaultModelId: this._getOrganizationDefaultModel(context)?.identifier,
 			pinnedModelIds: context.pinnedModelIds,
-			controlModels: context.controlModels,
+			controlModels: isBuiltIn ? context.controlModels : {},
 			preferredSpeedVariants: this._preferredSpeedVariants,
 			// Only the built-in provider curates a shortlist. A provider the user added
 			// gets a tab of its own, which is already the whole of what it offers.
@@ -853,6 +853,7 @@ export class TabbedModelPicker extends Disposable {
 				alignEnd: true,
 				useManagedHover: true,
 				checked: !!comparison.state.get(),
+				preserveFocus: true,
 				render: !comparison.state.get() && !comparison.summary.get() && comparison.renderToggle
 					? button => comparison.renderToggle!(button)
 					: undefined,

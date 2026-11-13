@@ -185,11 +185,11 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 			// workspace icon under the title text (the status icon sits in the
 			// left gutter).
 			const detailParts: string[] = [];
-			if (workspace?.label) {
-				const presentationWorkspace = getSessionPresentationWorkspace(session, reader);
+			const presentationWorkspace = workspace?.label ? getSessionPresentationWorkspace(session, reader) : undefined;
+			if (presentationWorkspace?.label) {
 				const kind = getSessionWorkspaceKind(presentationWorkspace);
-				const workspaceIcon = presentationWorkspace?.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
-				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${workspace.label}`);
+				const workspaceIcon = presentationWorkspace.typeIcon ?? (kind === SessionWorkspaceKind.Virtual ? Codicon.cloud : kind === SessionWorkspaceKind.Folder ? Codicon.folder : Codicon.worktree);
+				detailParts.push(`$(${Codicon.blank.id}) $(${workspaceIcon.id}) ${presentationWorkspace.label}`);
 			} else {
 				detailParts.push(`$(${Codicon.blank.id})`);
 			}
@@ -210,6 +210,8 @@ registerAction2(class ShowSessionsPickerAction extends Action2 {
 		picker.canAcceptInBackground = true;
 		// Match on the detail row too so sessions can be found by their folder.
 		picker.matchOnDetail = true;
+		// Keep recency order and groups when filtering instead of re-sorting by label match.
+		picker.sortByLabel = false;
 
 		const disposables = new DisposableStore();
 		disposables.add(picker);

@@ -8,28 +8,33 @@ import * as sinon from 'sinon';
 import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { errorHandler } from '../../../../base/common/errors.js';
 import { Event } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock, mockObject, MockObject } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import * as editorRange from '../../../../editor/common/core/range.js';
 import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadTestingShape } from '../../common/extHost.protocol.js';
+import { NullTelemetryService } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
+import { MainContext, MainThreadCommandsShape, MainThreadTestingShape, TestRunUpdate } from '../../common/extHost.protocol.js';
 import { ExtHostCommands } from '../../common/extHostCommands.js';
 import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
+import { BatchedTestRunRpc } from '../../common/extHostTestingBatchedRpc.js';
 import { ExtHostTesting, TestRunCoordinator, TestRunDto, TestRunProfileImpl } from '../../common/extHostTesting.js';
 import { ExtHostTestItemCollection, TestItemImpl } from '../../common/extHostTestItem.js';
 import * as convert from '../../common/extHostTypeConverters.js';
-import { Location, MarkdownString, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
-import { AnyCallRPCProtocol } from '../common/testRPCProtocol.js';
+import { FileCoverage, Location, MarkdownString, Position, Range, TestMessage, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from '../../common/extHostTypes.js';
+import { MainThreadTesting } from '../../browser/mainThreadTesting.js';
+import { SingleProxyRPCProtocol, TestRPCProtocol } from '../common/testRPCProtocol.js';
 import { TestId } from '../../../contrib/testing/common/testId.js';
-import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
+import { LiveTestResult } from '../../../contrib/testing/common/testResult.js';
+import { ITestItem, ITestMessage, ITestRunTask, TestDiffOpType, TestItemExpandState, TestMessageType, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp } from '../../../contrib/testing/common/testTypes.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
-import type { TestController, TestItem, TestRunProfile, TestRunRequest } from 'vscode';
+import type { TestController, TestItem, TestRun, TestRunProfile, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
 	id: item.id,
@@ -914,6 +919,106 @@ suite('ExtHost Testing', () => {
 		// 	});
 	});
 
+	test('transfers ordered test updates and output through RPC', async () => {
+		const calls: string[] = [];
+		const receiver = new class extends mock<MainThreadTesting>() {
+			override $addTestsToRun = sinon.stub().callsFake(() => calls.push('tests'));
+			override $updateTestStateInRun = sinon.stub().callsFake(() => calls.push('state'));
+			override $appendOutputToRun = sinon.stub().callsFake(() => calls.push('output'));
+			override $appendTestMessagesInRun = sinon.stub().callsFake(() => calls.push('messages'));
+			override $applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) {
+				MainThreadTesting.prototype.$applyTestRunUpdates.call(this, controllerId, runId, updates);
+			}
+		};
+		const rpc = new TestRPCProtocol();
+		rpc.set(MainContext.MainThreadTesting, receiver);
+		await rpc.getProxy(MainContext.MainThreadTesting).$applyTestRunUpdates('ctrl', 'run', new SerializableObjectWithBuffers<TestRunUpdate[]>([
+			{ type: 'tests', tests: [] },
+			{ type: 'state', taskId: 'task', testId: 'test', state: TestResultState.Running },
+			{ type: 'output', taskId: 'task', testId: 'test', output: 'hello \u2713' },
+			{ type: 'output', taskId: 'task', testId: 'test', output: VSBuffer.wrap(new Uint8Array([0x00, 0xe2, 0x9c])) },
+			{ type: 'output', taskId: 'task', testId: 'test', output: VSBuffer.wrap(new Uint8Array([0x93, 0xff])) },
+			{ type: 'messages', taskId: 'task', testId: 'test', messages: [] },
+			{ type: 'state', taskId: 'task', testId: 'test', state: TestResultState.Passed, duration: 2 },
+		]));
+		assert.deepStrictEqual(calls, ['tests', 'state', 'output', 'output', 'output', 'messages', 'state']);
+		assert.deepStrictEqual(receiver.$appendOutputToRun.args, [
+			['run', 'task', VSBuffer.fromString('hello \u2713'), undefined, 'test'],
+			['run', 'task', VSBuffer.wrap(new Uint8Array([0x00, 0xe2, 0x9c])), undefined, 'test'],
+			['run', 'task', VSBuffer.wrap(new Uint8Array([0x93, 0xff])), undefined, 'test'],
+		]);
+	});
+
+	test('batched RPC owns byte output and flushes once on disposal', async () => {
+		const batches: string[][] = [];
+		const receiver = new class extends mock<MainThreadTesting>() {
+			override $appendOutputToRun = sinon.stub();
+			override $applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) {
+				batches.push(updates.value.map(update => update.type));
+				MainThreadTesting.prototype.$applyTestRunUpdates.call(this, controllerId, runId, updates);
+			}
+		};
+		const rpc = new TestRPCProtocol();
+		rpc.set(MainContext.MainThreadTesting, receiver);
+		const batchedRpc = ds.add(new BatchedTestRunRpc(rpc.getProxy(MainContext.MainThreadTesting)));
+		const bytes = new Uint8Array([0x00, 0xff, 0xe2]);
+		batchedRpc.add('ctrl', 'run', { type: 'output', taskId: 'task', output: VSBuffer.wrap(bytes.subarray(1)) });
+		bytes.fill(0);
+		batchedRpc.add('ctrl', 'run', { type: 'output', taskId: 'task', output: 'after' });
+		batchedRpc.dispose();
+		batchedRpc.add('ctrl', 'run', { type: 'output', taskId: 'task', output: 'ignored' });
+		await rpc.sync();
+		assert.deepStrictEqual({ batches, output: receiver.$appendOutputToRun.args }, {
+			batches: [['output', 'output']],
+			output: [
+				['run', 'task', VSBuffer.wrap(new Uint8Array([0xff, 0xe2])), undefined, undefined],
+				['run', 'task', VSBuffer.fromString('after'), undefined, undefined],
+			],
+		});
+	});
+
+
+	test('flushes controller boundaries in call order within a shared run', () => {
+		const proxy = mockObject<MainThreadTestingShape>()();
+		const rpc = ds.add(new BatchedTestRunRpc(proxy));
+		rpc.add('first', 'run', { type: 'output', taskId: 'one', output: 'one' });
+		rpc.add('second', 'run', { type: 'output', taskId: 'two', output: 'two' });
+		rpc.add('first', 'run', { type: 'output', taskId: 'three', output: 'three' });
+		rpc.flush();
+		assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([controllerId, runId, updates]) => ({ controllerId, runId, taskIds: updates.value.map((update: TestRunUpdate) => update.type === 'tests' ? undefined : update.taskId) })), [
+			{ controllerId: 'first', runId: 'run', taskIds: ['one'] },
+			{ controllerId: 'second', runId: 'run', taskIds: ['two'] },
+			{ controllerId: 'first', runId: 'run', taskIds: ['three'] },
+		]);
+	});
+
+	test('continues applying a batch after an update handler throws', async () => {
+		const calls: string[] = [];
+		const error = new Error('Unknown task');
+		const reportError = sinon.stub(errorHandler, 'onUnexpectedError');
+		const receiver = new class extends mock<MainThreadTesting>() {
+			override $updateTestStateInRun(_runId: string, taskId: string) {
+				if (taskId === 'unknown') {
+					throw error;
+				}
+				calls.push(taskId);
+			}
+			override $appendOutputToRun() { calls.push('output'); }
+			override $applyTestRunUpdates(controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) {
+				MainThreadTesting.prototype.$applyTestRunUpdates.call(this, controllerId, runId, updates);
+			}
+		};
+		const rpc = new TestRPCProtocol();
+		rpc.set(MainContext.MainThreadTesting, receiver);
+		await rpc.getProxy(MainContext.MainThreadTesting).$applyTestRunUpdates('ctrl', 'run', new SerializableObjectWithBuffers<TestRunUpdate[]>([
+			{ type: 'state', taskId: 'first', testId: 'test', state: TestResultState.Running },
+			{ type: 'state', taskId: 'unknown', testId: 'test', state: TestResultState.Running },
+			{ type: 'output', taskId: 'first', output: 'still delivered' },
+			{ type: 'state', taskId: 'last', testId: 'test', state: TestResultState.Passed },
+		]));
+		assert.deepStrictEqual({ calls, errors: reportError.args }, { calls: ['first', 'output', 'last'], errors: [[error]] });
+	});
+
 	suite('TestRunTracker', () => {
 		let proxy: MockObject<MainThreadTestingShape>;
 		let c: TestRunCoordinator;
@@ -923,6 +1028,7 @@ suite('ExtHost Testing', () => {
 		let req: TestRunRequest;
 
 		let dto: TestRunDto;
+		let clock: sinon.SinonFakeTimers;
 		// eslint-disable-next-line local/code-no-any-casts
 		const ext: IExtensionDescription = {} as any;
 
@@ -930,12 +1036,31 @@ suite('ExtHost Testing', () => {
 			for (const { id } of c.trackers) {
 				c.disposeTestRun(id);
 			}
+			clock.restore();
 		});
 
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
+			proxy.$applyTestRunUpdates.callsFake((controllerId: string, runId: string, updates: SerializableObjectWithBuffers<TestRunUpdate[]>) => {
+				for (const update of updates.value) {
+					switch (update.type) {
+						case 'tests':
+							proxy.$addTestsToRun(controllerId, runId, update.tests);
+							break;
+						case 'state':
+							proxy.$updateTestStateInRun(runId, update.taskId, update.testId, update.state, update.duration);
+							break;
+						case 'messages':
+							proxy.$appendTestMessagesInRun(runId, update.taskId, update.testId, update.messages);
+							break;
+						case 'output':
+							proxy.$appendOutputToRun(runId, update.taskId, typeof update.output === 'string' ? VSBuffer.fromString(update.output) : update.output, update.location, update.testId);
+							break;
+					}
+				}
+			});
 			cts = new CancellationTokenSource();
-			c = new TestRunCoordinator(proxy, new NullLogService());
+			c = ds.add(new TestRunCoordinator(proxy, new NullLogService()));
 
 			configuration = new TestRunProfileImpl(mockObject<MainThreadTestingShape>()(), new Map(), new Set(), Event.None, 'ctrlId', 42, 'Do Run', TestRunProfileKind.Run, () => { }, false);
 
@@ -956,6 +1081,199 @@ suite('ExtHost Testing', () => {
 				runId: 'run-id',
 				testIds: [single.root.id],
 			}, single);
+			clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+		});
+
+		test('batches ordered state, message, and output updates', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!.children.get('id-aa')!;
+			task.started(test);
+			task.appendOutput('hello', undefined, test);
+			task.failed(test, new TestMessage('failure'), 2);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+			clock.tick(0);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [['tests', 'state', 'output', 'messages', 'state']]);
+			task.passed(test, 3);
+			task.end();
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 2);
+			assert.ok(proxy.$finishedTestRunTask.calledAfter(proxy.$applyTestRunUpdates));
+			clock.tick(0);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 2);
+		});
+
+		test('flushes earlier updates before starting another task', () => {
+			const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', false);
+			first.appendOutput('hello');
+			const second = c.createTestRun(ext, 'ctrlId', single, req, 'second', false);
+			assert.ok(proxy.$startedTestRunTask.getCall(1).calledAfter(proxy.$applyTestRunUpdates.getCall(0)));
+			assert.strictEqual(proxy.$applyTestRunUpdates.firstCall.args[2].value[0].taskId, proxy.$startedTestRunTask.firstCall.args[1].id);
+			first.end();
+			second.end();
+		});
+
+		test('sends included tests before publishing coverage', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!.children.get('id-aa')!;
+			task.addCoverage(new FileCoverage(URI.file('/coverage.ts'), { covered: 1, total: 1 }, undefined, undefined, [test]));
+			assert.strictEqual(proxy.$addTestsToRun.callCount, 1);
+			assert.ok(proxy.$appendCoverage.calledAfter(proxy.$applyTestRunUpdates));
+			task.end();
+		});
+
+		test('bounds batches during a synchronous stream of updates', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!.children.get('id-aa')!;
+			for (let i = 0; i < 2048; i++) {
+				task.started(test);
+			}
+			task.end();
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.length), [1024, 1024, 1]);
+		});
+
+		for (const kind of ['string', 'bytes'] as const) {
+			test(`flushes large ${kind} output without waiting for a timer`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				task.appendOutput(kind === 'string' ? 'x'.repeat(64 * 1024) : new Uint8Array(64 * 1024));
+				assert.deepStrictEqual(proxy.$appendOutputToRun.args.map(args => args[2].byteLength), [64 * 1024]);
+				task.end();
+				clock.tick(0);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+			});
+		}
+
+		for (const kind of ['string', 'bytes'] as const) {
+			test(`batches ${kind} output as buffers and bounds its cumulative byte payload`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				const output = kind === 'string' ? '\u2713'.repeat(14 * 1024) : new Uint8Array(42 * 1024).fill(0x61);
+				task.appendOutput(output);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+				task.appendOutput(output);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+				task.end();
+				assert.deepStrictEqual({
+					batchLengths: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.length),
+					binaryOutput: proxy.$applyTestRunUpdates.args.every(([, , updates]) => updates.value.every((update: TestRunUpdate) => update.type === 'output' && update.output instanceof VSBuffer)),
+					outputSizes: proxy.$appendOutputToRun.args.map(args => args[2].byteLength),
+				}, { batchLengths: [1, 1], binaryOutput: true, outputSizes: [42 * 1024, 42 * 1024] });
+			});
+		}
+
+		test('preserves split UTF-8 byte output and its order with batched updates', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!;
+			const firstChunk = new Uint8Array([0xe2, 0x9c]);
+			task.started(test);
+			task.appendOutput('before ');
+			task.appendOutput(firstChunk, undefined, test);
+			firstChunk.fill(0);
+			task.appendOutput(new Uint8Array([0x93]), undefined, test);
+			task.appendOutput(' after');
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+			task.end();
+
+			assert.deepStrictEqual({
+				output: VSBuffer.concat(proxy.$appendOutputToRun.args.map(args => args[2])).toString(),
+				registeredBeforeOutput: proxy.$addTestsToRun.calledBefore(proxy.$appendOutputToRun),
+				byteTestIds: proxy.$appendOutputToRun.args.slice(1, 3).map(args => args[4]),
+				batches: proxy.$applyTestRunUpdates.callCount,
+			}, { output: 'before \u2713 after', registeredBeforeOutput: true, byteTestIds: ['ctrlId\0id-a', 'ctrlId\0id-a'], batches: 1 });
+		});
+
+		test('ignores byte output after the tracker is disposed', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			c.disposeTestRun(Iterable.first(c.trackers)!.id);
+			task.appendOutput(new Uint8Array([0x61]));
+			assert.strictEqual(proxy.$appendOutputToRun.called, false);
+		});
+
+
+		for (const outputLength of [100, 64 * 1024]) {
+			test(`encodes ${outputLength} string bytes once while snapshotting extension bytes`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				const clone = sinon.spy(VSBuffer.prototype, 'clone');
+				task.appendOutput('x'.repeat(outputLength));
+				assert.strictEqual(clone.callCount, 0);
+				const bytes = new Uint8Array([97, 98]);
+				task.appendOutput(bytes);
+				assert.strictEqual(clone.callCount, 1);
+				bytes.fill(0);
+				task.end();
+				assert.deepStrictEqual(proxy.$appendOutputToRun.args.map(args => args[2].toString()), ['x'.repeat(outputLength), 'ab']);
+			});
+		}
+
+		for (const target of ['message', 'registration'] as const) {
+			test(`snapshots the Markdown trust object and command array for a ${target}`, () => {
+				const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+				const item = single.root.children.get('id-a')!;
+				const commands = ['original'];
+				const trust = { enabledCommands: commands };
+				const markdown = new MarkdownString('Original message');
+				markdown.isTrusted = trust;
+				if (target === 'message') {
+					task.failed(item, new TestMessage(markdown));
+				} else {
+					item.error = markdown;
+					task.started(item);
+				}
+				commands.push('later');
+				trust.enabledCommands = ['replacement'];
+				markdown.value = 'Changed message';
+				clock.tick(0);
+				const actual = target === 'message'
+					? proxy.$appendTestMessagesInRun.firstCall.args[3][0].message
+					: proxy.$addTestsToRun.firstCall.args[2].find((test: ITestItem.Serialized) => test.extId === 'ctrlId\0id-a')!.error;
+				assert.ok(actual && typeof actual !== 'string');
+				assert.strictEqual(actual.value, 'Original message');
+				assert.deepStrictEqual(actual.isTrusted, { enabledCommands: ['original'] });
+				assert.notStrictEqual(actual.isTrusted, trust);
+				task.end();
+			});
+		}
+
+		test('bounds cumulative failure snapshot payloads before the timer fires', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!;
+			const message = TestMessage.diff('failure', 'e'.repeat(20 * 1024), 'a'.repeat(20 * 1024));
+			task.failed(test, message);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+			task.failed(test, message);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+			task.end();
+
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [
+				['tests', 'messages', 'state'], ['messages', 'state'],
+			]);
+		});
+
+		test('flushes oversized failure messages separately and resets the payload budget', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!;
+			task.failed(test, new TestMessage('x'.repeat(64 * 1024)));
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [['tests'], ['messages']]);
+			task.appendOutput('small');
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 2);
+			task.end();
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.lastCall.args[2].value.map((update: TestRunUpdate) => update.type), ['state', 'output']);
+		});
+
+		test('counts registration payloads toward the batch limit', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const test = single.root.children.get('id-a')!;
+			test.label = 'x'.repeat(64 * 1024);
+			task.started(test);
+			assert.deepStrictEqual(proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)), [['tests']]);
+			task.end();
+		});
+
+		test('flushes pending updates and cancels the timer when disposed', () => {
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'run', false);
+			const tracker = Iterable.first(c.trackers)!;
+			task.appendOutput('hello');
+			c.disposeTestRun(tracker.id);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+			clock.tick(0);
+			assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
 		});
 
 		test('tracks a run started from a main thread request', () => {
@@ -968,6 +1286,7 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task1.appendOutput('hello');
+			clock.tick(0);
 			const taskId = proxy.$appendOutputToRun.args[0]?.[1];
 			assert.deepStrictEqual([['run-id', taskId, VSBuffer.fromString('hello'), undefined, undefined]], proxy.$appendOutputToRun.args);
 			task1.end();
@@ -981,9 +1300,180 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(tracker.hasRunningTasks, false);
 		});
 
+
+		for (const flush of ['timer', 'task end', 'result disposal'] as const) {
+			test(`preserves interleaved independent run updates on ${flush}`, () => {
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, { ...req }, 'second', true);
+				const one = single.root.children.get('id-a')!.children.get('id-aa')!;
+				const two = single.root.children.get('id-a')!.children.get('id-ab')!;
+				const three = single.root.children.get('id-a')!;
+				first.started(one);
+				second.started(two);
+				first.started(three);
+				if (flush === 'timer') {
+					clock.tick(0);
+				} else if (flush === 'task end') {
+					first.end();
+				} else {
+					c.disposeTestRun(proxy.$startedExtensionTestRun.firstCall.args[0].id);
+				}
+				assert.deepStrictEqual(proxy.$updateTestStateInRun.args.map(args => args[2]), [one, two, three].map(test => TestId.fromExtHostTestItem(test, 'ctrlId').toString()));
+				second.passed(two, 1);
+				clock.tick(0);
+				assert.deepStrictEqual(proxy.$updateTestStateInRun.lastCall.args.slice(2), [TestId.fromExtHostTestItem(two, 'ctrlId').toString(), TestResultState.Passed, 1]);
+				first.end();
+				second.end();
+			});
+		}
+
+		test('flushes pending updates without visiting historical trackers', () => {
+			for (let i = 0; i < 256; i++) {
+				c.createTestRun(ext, 'ctrlId', single, { ...req }, `previous ${i}`, true).end();
+			}
+			const historicalFlushes = [...c.trackers].map(tracker => sinon.spy(tracker, 'flushUpdates'));
+			const active = c.createTestRun(ext, 'ctrlId', single, req, 'active', true);
+			const test = single.root.children.get('id-a')!;
+			active.started(test);
+			c.flushUpdates();
+			c.markTestRetired(undefined);
+			clock.tick(0);
+			assert.deepStrictEqual({
+				historicalFlushes: historicalFlushes.reduce((sum, spy) => sum + spy.callCount, 0),
+				updates: proxy.$updateTestStateInRun.args.map(args => args[2]),
+				batches: proxy.$applyTestRunUpdates.callCount,
+			}, { historicalFlushes: 0, updates: [TestId.fromExtHostTestItem(test, 'ctrlId').toString()], batches: 1 });
+			active.end();
+		});
+
+		for (const flush of ['timer', 'task end', 'result disposal'] as const) {
+			test(`preserves interleaved profile updates on ${flush}`, () => {
+				const sharedDto = new TestRunDto('ctrlId', dto.id, true, single);
+				const secondProfile = ds.add(new TestRunProfileImpl(proxy, new Map(), new Set(), Event.None, 'ctrlId', 43, 'Second', TestRunProfileKind.Run, () => { }, false));
+				const secondRequest = { ...req, profile: secondProfile };
+				c.prepareForMainThreadTestRun(ext, req, sharedDto, configuration, cts.token);
+				c.prepareForMainThreadTestRun(ext, secondRequest, sharedDto, secondProfile, cts.token);
+				const firstDisposed = sinon.stub();
+				const secondDisposed = sinon.stub();
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, secondRequest, 'second', true);
+				ds.add(first.onDidDispose(firstDisposed));
+				ds.add(second.onDidDispose(secondDisposed));
+				const one = single.root.children.get('id-a')!.children.get('id-aa')!;
+				const two = single.root.children.get('id-a')!.children.get('id-ab')!;
+				const three = single.root.children.get('id-a')!;
+				first.started(one);
+				second.started(two);
+				first.started(three);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+				if (flush === 'timer') {
+					clock.tick(0);
+				} else if (flush === 'task end') {
+					second.end();
+					assert.ok(proxy.$finishedTestRunTask.calledAfter(proxy.$applyTestRunUpdates));
+					first.passed(one);
+					clock.tick(0);
+				} else {
+					c.disposeTestRun(sharedDto.id);
+					assert.strictEqual(firstDisposed.callCount, 1);
+					assert.strictEqual(secondDisposed.callCount, 1);
+					first.started(one);
+					second.appendOutput('ignored');
+				}
+				assert.deepStrictEqual(proxy.$updateTestStateInRun.args.slice(0, 3).map(args => args[2]), [one, two, three].map(item => TestId.fromExtHostTestItem(item, 'ctrlId').toString()));
+				const count = proxy.$applyTestRunUpdates.callCount;
+				clock.tick(0);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, count);
+				if (flush !== 'result disposal') {
+					first.end();
+					second.end();
+				}
+			});
+		}
+
+		for (const firstToEnd of ['first', 'second'] as const) {
+			test(`preserves both profiles' results when the ${firstToEnd} profile ends first`, () => {
+				const sharedDto = new TestRunDto('ctrlId', dto.id, true, single);
+				const result = ds.add(new LiveTestResult(sharedDto.id, false, { group: TestRunProfileBitset.Run, targets: [] }, 0, NullTelemetryService));
+				const uriIdentity = { asCanonicalUri: (uri: URI) => uri };
+				proxy.$startedTestRunTask.callsFake((_runId: string, task: ITestRunTask) => result.addTask(task));
+				proxy.$finishedTestRunTask.callsFake((_runId: string, taskId: string) => result.markTaskComplete(taskId));
+				proxy.$addTestsToRun.callsFake((controllerId: string, _runId: string, tests: ITestItem.Serialized[]) => result.addTestChainToRun(controllerId, tests.map(test => ITestItem.deserialize(uriIdentity, test))));
+				proxy.$updateTestStateInRun.callsFake((_runId: string, taskId: string, testId: string, state: TestResultState, duration?: number) => result.updateState(testId, taskId, state, duration));
+				proxy.$appendTestMessagesInRun.callsFake((_runId: string, taskId: string, testId: string, messages: ITestMessage.Serialized[]) => {
+					for (const message of messages) {
+						result.appendMessage(testId, taskId, ITestMessage.deserialize(uriIdentity, message));
+					}
+				});
+
+				const secondProfile = ds.add(new TestRunProfileImpl(proxy, new Map(), new Set(), Event.None, 'ctrlId', 43, 'Second', TestRunProfileKind.Run, () => { }, false));
+				const secondRequest = { ...req, profile: secondProfile };
+				ds.add(c.prepareForMainThreadTestRun(ext, req, sharedDto, configuration, cts.token));
+				ds.add(c.prepareForMainThreadTestRun(ext, secondRequest, sharedDto, secondProfile, cts.token));
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, secondRequest, 'second', true);
+				const test = single.root.children.get('id-a')!.children.get('id-aa')!;
+				const testId = TestId.fromExtHostTestItem(test, 'ctrlId').toString();
+				first.started(test);
+				second.started(test);
+				first.failed(test, new TestMessage('first profile failure'), 2);
+				second.passed(test, 3);
+				assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 0);
+
+				const endingOrder = firstToEnd === 'first' ? [first, second] : [second, first];
+				endingOrder[0].end();
+				const registered = result.getStateById(testId)!;
+				assert.deepStrictEqual(registered.tasks.map(task => task.state), [TestResultState.Failed, TestResultState.Passed]);
+				endingOrder[1].end();
+				clock.tick(0);
+				const actual = result.getStateById(testId)!;
+				assert.deepStrictEqual({
+					sameItem: actual === registered,
+					states: actual.tasks.map(task => task.state),
+					durations: actual.tasks.map(task => task.duration),
+					messages: actual.tasks.map(task => task.messages.map(message => message.type === TestMessageType.Error ? message.message : undefined)),
+					computedState: actual.computedState,
+					rootState: result.getStateById('ctrlId')!.computedState,
+					counts: [result.counts[TestResultState.Unset], result.counts[TestResultState.Failed], result.counts[TestResultState.Passed]],
+				}, {
+					sameItem: true,
+					states: [TestResultState.Failed, TestResultState.Passed],
+					durations: [2, 3],
+					messages: [['first profile failure'], []],
+					computedState: TestResultState.Failed,
+					rootState: TestResultState.Failed,
+					counts: [2, 1, 0],
+				});
+			});
+		}
+
+		for (const invalidateAll of [false, true]) {
+			test(`flushes every profile sharing a run ID before retiring ${invalidateAll ? 'all results' : 'a test'}`, () => {
+				const secondProfile = ds.add(new TestRunProfileImpl(proxy, new Map(), new Set(), Event.None, 'ctrlId', 43, 'Second', TestRunProfileKind.Run, () => { }, false));
+				const secondRequest = { ...req, profile: secondProfile };
+				ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
+				ds.add(c.prepareForMainThreadTestRun(ext, secondRequest, dto, secondProfile, cts.token));
+				const first = c.createTestRun(ext, 'ctrlId', single, req, 'first', true);
+				const second = c.createTestRun(ext, 'ctrlId', single, secondRequest, 'second', true);
+				first.started(single.root.children.get('id-a')!);
+				second.started(single.root.children.get('id-b')!);
+				const calls: string[] = [];
+				proxy.$applyTestRunUpdates.callsFake(() => calls.push('updates'));
+				proxy.$markTestRetired.callsFake(() => calls.push('retire'));
+
+				c.markTestRetired(invalidateAll ? undefined : ['ctrlId\0id-a']);
+
+				assert.deepStrictEqual({ calls, runIds: proxy.$applyTestRunUpdates.args.map(args => args[1]) }, {
+					calls: ['updates', 'retire'], runIds: ['run-id'],
+				});
+				clock.tick(0);
+				assert.deepStrictEqual(calls, ['updates', 'retire']);
+				first.end();
+				second.end();
+			});
+		}
+
 		test('run cancel force ends after a timeout', () => {
-			const clock = sinon.useFakeTimers();
-			ds.add(toDisposable(() => clock.restore()));
 			const tracker = ds.add(c.prepareForMainThreadTestRun(ext, req, dto, configuration, cts.token));
 			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
 			const onEnded = sinon.stub();
@@ -1063,6 +1553,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-aa')!);
+			clock.tick(0);
 			expectedArgs.push([
 				'ctrlId',
 				tracker.id,
@@ -1075,6 +1566,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 			task1.enqueued(single.root.children.get('id-a')!.children.get('id-ab')!);
+			clock.tick(0);
 			expectedArgs.push([
 				'ctrlId',
 				tracker.id,
@@ -1086,6 +1578,7 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
+			clock.tick(0);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
 
 			task1.end();
@@ -1101,6 +1594,7 @@ suite('ExtHost Testing', () => {
 			const message1 = new TestMessage('some message');
 			message1.location = new Location(URI.file('/a.txt'), new Position(0, 0));
 			task.failed(test1, message1);
+			clock.tick(0);
 
 			const args = proxy.$appendTestMessagesInRun.args[0];
 			assert.deepStrictEqual(proxy.$appendTestMessagesInRun.args[0], [
@@ -1120,6 +1614,7 @@ suite('ExtHost Testing', () => {
 
 			// should use test location as default
 			task.failed(test2, new TestMessage('some message'));
+			clock.tick(0);
 			assert.deepStrictEqual(proxy.$appendTestMessagesInRun.args[1], [
 				args[0],
 				args[1],
@@ -1144,8 +1639,12 @@ suite('ExtHost Testing', () => {
 
 			task.failed(single.root, new TestMessage('some message'));
 			task.appendOutput('output');
+			assert.doesNotThrow(() => task.appendOutput(undefined!));
 
+			clock.tick(0);
+			assert.strictEqual(proxy.$applyTestRunUpdates.called, false);
 			assert.strictEqual(proxy.$addTestsToRun.called, false);
+			assert.strictEqual(proxy.$updateTestStateInRun.called, false);
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
 			assert.strictEqual(proxy.$appendTestMessagesInRun.called, false);
 		});
@@ -1163,6 +1662,7 @@ suite('ExtHost Testing', () => {
 
 			task1.passed(childA);
 			task1.passed(childB);
+			clock.tick(0);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, [
 				[
 					'ctrl',
@@ -1182,6 +1682,8 @@ suite('ExtHost Testing', () => {
 
 	suite('service', () => {
 		let ctrl: TestExtHostTesting;
+		let proxy: MockObject<MainThreadTestingShape & MainThreadCommandsShape>;
+		let commands: ExtHostCommands;
 
 		class TestExtHostTesting extends ExtHostTesting {
 			public getProfileInternalId(ctrl: TestController, profile: TestRunProfile) {
@@ -1196,18 +1698,124 @@ suite('ExtHost Testing', () => {
 		}
 
 		setup(() => {
-			const rpcProtocol = AnyCallRPCProtocol();
+			proxy = mockObject<MainThreadTestingShape & MainThreadCommandsShape>()();
+			const rpcProtocol = SingleProxyRPCProtocol(proxy);
+			commands = new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
+				override onExtensionError(): boolean {
+					return true;
+				}
+			});
 			ctrl = ds.add(new TestExtHostTesting(
 				rpcProtocol,
 				new NullLogService(),
-				new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
-					override onExtensionError(): boolean {
-						return true;
-					}
-				}),
+				commands,
 				new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService()),
 			));
 		});
+
+		for (const command of ['vscode.peekTestError', 'testing.openOutputPeek']) {
+			test(`publishes pending failures before executing ${command}`, async () => {
+				const controller = ds.add(ctrl.createTestController(nullExtensionDescription, 'ctrl', 'tests'));
+				const item = controller.createTestItem('test', 'test');
+				controller.items.add(item);
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				const run = controller.createTestRun(new TestRunRequestImpl());
+				try {
+					const calls: string[] = [];
+					proxy.$applyTestRunUpdates.callsFake(() => calls.push('updates'));
+					proxy.$executeCommand.callsFake(async id => { calls.push(id); return undefined; });
+					run.failed(item, new TestMessage('failure'));
+					await commands.executeCommand('unrelated.command');
+					await commands.executeCommand(command, 'ctrl\0test');
+					assert.deepStrictEqual({ calls, updates: proxy.$applyTestRunUpdates.args.flatMap(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)) }, {
+						calls: ['unrelated.command', 'updates', command], updates: ['tests', 'messages', 'state'],
+					});
+					clock.tick(0);
+					assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+				} finally {
+					run.end();
+					await ctrl.$disposeRun(proxy.$startedExtensionTestRun.firstCall.args[0].id);
+					clock.restore();
+				}
+			});
+		}
+
+		for (const rejects of [false, true]) {
+			test(`publishes final updates before a cancelled profile ${rejects ? 'rejects' : 'returns'}`, async () => {
+				const controller = ds.add(ctrl.createTestController(nullExtensionDescription, 'ctrl', 'tests'));
+				const item = controller.createTestItem('test', 'test');
+				controller.items.add(item);
+				const started = new DeferredPromise<void>();
+				const finish = new DeferredPromise<void>();
+				let run: TestRun | undefined;
+				const profile = ds.add(controller.createRunProfile('run', TestRunProfileKind.Run, async request => {
+					run = controller.createTestRun(request);
+					await started.complete();
+					await finish.p;
+					run.failed(item, new TestMessage('final failure'));
+					run.appendOutput('final output', undefined, item);
+					if (rejects) {
+						throw new Error('handler failure');
+					}
+				}));
+				const cts = ds.add(new CancellationTokenSource());
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				try {
+					const result = ctrl.$runControllerTests([{
+						controllerId: 'ctrl', runId: 'run', profileId: ctrl.getProfileInternalId(controller, profile),
+						testIds: ['ctrl\0test'], excludeExtIds: [],
+					}], cts.token);
+					await started.p;
+					cts.cancel();
+					await finish.complete();
+					const response = await result;
+					assert.deepStrictEqual({
+						response,
+						updates: proxy.$applyTestRunUpdates.args.map(([, , updates]) => updates.value.map((update: TestRunUpdate) => update.type)),
+						ended: proxy.$finishedTestRunTask.called,
+					}, { response: [rejects ? { error: 'Error: handler failure' } : {}], updates: [['tests', 'messages', 'state', 'output']], ended: false });
+					clock.tick(0);
+					assert.strictEqual(proxy.$applyTestRunUpdates.callCount, 1);
+				} finally {
+					await finish.complete();
+					run?.end();
+					await ctrl.$disposeRun('run');
+					clock.restore();
+				}
+			});
+		}
+
+		for (const invalidateAll of [false, true]) {
+			test(`sends pending run updates before retiring ${invalidateAll ? 'all results' : 'specified tests'}`, async () => {
+				const controller = ds.add(ctrl.createTestController(nullExtensionDescription, 'ctrl', 'tests'));
+				const item = controller.createTestItem('test', 'test');
+				controller.items.add(item);
+				const clock = sinon.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+				const runs = [controller.createTestRun(new TestRunRequestImpl()), controller.createTestRun(new TestRunRequestImpl())];
+				try {
+					const calls: string[] = [];
+					proxy.$applyTestRunUpdates.callsFake(() => calls.push('updates'));
+					proxy.$markTestRetired.callsFake(() => calls.push('retire'));
+					runs[0].started(item);
+					runs[1].passed(item, 1);
+					controller.invalidateTestResults(invalidateAll ? undefined : [item]);
+					assert.deepStrictEqual({ calls, ids: proxy.$markTestRetired.firstCall.args }, {
+						calls: ['updates', 'updates', 'retire'],
+						ids: [invalidateAll ? undefined : ['ctrl\0test']],
+					});
+					clock.tick(0);
+					assert.deepStrictEqual(calls, ['updates', 'updates', 'retire']);
+				} finally {
+					for (const run of runs) {
+						run.end();
+					}
+					for (const [run] of proxy.$startedExtensionTestRun.args) {
+						await ctrl.$disposeRun(run.id);
+					}
+					clock.restore();
+				}
+			});
+		}
 
 		test('disposing an observer stops its events while another observer remains live', async () => {
 			const retired = ds.add(ctrl.createTestObserver());

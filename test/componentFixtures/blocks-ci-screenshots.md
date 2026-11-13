@@ -6,6 +6,12 @@
 #### baseUI/KeyboardFocusedToggle/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/dfbb0ce3586e7a15bdb7354ff70df81563ed19b5b857c71d7a02e11ef7ad13fd)
 
+#### chat/chatCustomizationsHover/Default/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/ee82e7855b504c48ca9487cc06428fa0144b134c8a21f96f25ba1c0c34da7382)
+
+#### chat/chatCustomizationsHover/MigrationsAndMcpAuthentication/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/5e63fb51d5307fd8614817015b731adcd7f18acdaf7230aab5bde94359172c7c)
+
 #### chat/chatPetAccessoryRig/chatPetAccessoryRig/AllAccessoriesFacing/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/53dc97e97d4f9e8d02d144012794cce528d3d25d659149df8c854f7c42e54d74)
 

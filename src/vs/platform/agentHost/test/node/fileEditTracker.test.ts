@@ -7,12 +7,13 @@ import assert from 'assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { stub } from 'sinon';
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { EditArcTracker } from '../../../../base/common/editArcTracker.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { join } from '../../../../base/common/path.js';
+import { isLinux } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -184,6 +185,43 @@ suite('FileEditTracker', () => {
 			await tracker.takeCompletedEdit('turn-1', 'second', resource.fsPath, 'edit', undefined, 'model', false);
 
 			assert.deepStrictEqual({ afterFirst, afterSecond: fileEditCoordinator.isEditing(resource) }, { afterFirst: true, afterSecond: false });
+		} finally {
+			gate.release.complete();
+			compute.restore();
+		}
+	});
+
+	// Linux tells paths apart by their case, so there these edits are of two files.
+	(isLinux ? test.skip : test)('records the edits of a file in the order they completed when they spell its path differently', async () => {
+		const paths = ['/workspace/Order.txt', '/workspace/order.txt'];
+		const gate = { started: new DeferredPromise<void>(), release: new DeferredPromise<void>() };
+		const compute = stub(diffComputeService, 'computeDiffCounts').callsFake(async () => {
+			if (compute.callCount === 1) {
+				gate.started.complete();
+				await gate.release.p;
+			}
+			return { added: 1, removed: 1, changes: [] };
+		});
+		try {
+			const taken: Promise<unknown>[] = [];
+			for (const [index, path] of paths.entries()) {
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('before'));
+				await tracker.trackEditStart(path);
+				await fileService.writeFile(URI.file(path), VSBuffer.fromString('after'));
+				await tracker.completeEdit(path);
+				taken.push(tracker.takeCompletedEdit('turn-1', `tc-${index}`, path, 'edit', undefined, 'model', false));
+				await gate.started.p;
+			}
+			// The second edit would be recorded now if it didn't wait for the first.
+			await timeout(0);
+			const computedWhileFirstPersists = compute.callCount;
+			gate.release.complete();
+			await Promise.all(taken);
+
+			assert.deepStrictEqual({ computedWhileFirstPersists, recorded: (await db.getAllFileEdits()).map(edit => edit.toolCallId) }, {
+				computedWhileFirstPersists: 1,
+				recorded: ['tc-0', 'tc-1'],
+			});
 		} finally {
 			gate.release.complete();
 			compute.restore();

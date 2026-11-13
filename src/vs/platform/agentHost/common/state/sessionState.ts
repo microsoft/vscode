@@ -263,17 +263,29 @@ export interface ITurnTokenTotal {
 
 export interface IModelRoutedInfo {
 	readonly router: string;
+	/** The router's display name, when its file gives one. */
+	readonly routerLabel?: string;
+	/** The chosen route's name, when it has one. A chat stays on a named route by this name. */
+	readonly routeName?: string;
 	readonly chosenModel: string;
 	/** The user's note on the chosen model, when it decided the pick. */
 	readonly preference?: string;
 	/** The thinking effort the router chose for this turn. */
 	readonly effort?: string;
+	/** The context window the router asked for, when its file sets one and the model offers a choice. */
+	readonly contextSize?: 'default' | 'long';
+	/** That context window in tokens. */
+	readonly contextTokens?: number;
+	/** The turn ran on the model's larger context window, whether the router asked for it or the model defaults to it. */
+	readonly longContext?: boolean;
 	/** The model the router moved off on this turn. */
 	readonly switchedFrom?: string;
 	/** The router had no confident pick and used the user's first model. */
 	readonly defaulted?: boolean;
 	/** The chat stayed on the model it was already running. */
 	readonly kept?: boolean;
+	/** The router routes only a chat's first turn, so later turns keep this pick without being routed. */
+	readonly firstTurnOnly?: boolean;
 }
 
 export interface IAutoModeResolvedInfo {

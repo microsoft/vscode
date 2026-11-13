@@ -39,6 +39,7 @@ import { IssueWebReporter } from '../../browser/issueReporterService.js';
 import { IIssueReporterAttachmentUpload, IIssueReporterFileAttachment, IIssueReporterScreenshot, IIssueSubmissionHost, IssueReporterAttachment, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { internalIssueReporterUrl, parseGitHubRepository } from '../../common/issueReporterTarget.js';
 import { issueReporterAvifFixture, issueReporterGifFixture, issueReporterImageFixture, issueReporterVideoFixtures, issueReporterWebpFixture } from '../common/issueReporterMediaFixtures.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('IssueFormService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -500,6 +501,17 @@ suite('IssueFormService', () => {
 		});
 	});
 
+	test('uploads an image file that was marked up under its name, and numbers only the other screenshots', async () => {
+		const attachments = [
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'first'),
+			capturedScreenshot({ dataUrl: issueReporterGifFixture, annotatedDataUrl: issueReporterImageFixture, name: 'diagram.gif' }, 'diagram'),
+			capturedScreenshot({ dataUrl: issueReporterImageFixture }, 'second'),
+		];
+		const { service, host, data, mediaUploads } = createSubmissionService(false, false, { attachments });
+		await service.submitIssue(host, data, 'Marked-up image file', 'Description');
+		assert.deepStrictEqual(mediaUploads.map(upload => upload.name), ['screenshot-1.png', 'diagram.png', 'screenshot-2.png']);
+	});
+
 	test('keeps mixed file, capture and recording order through cached retries', async () => {
 		const attachments = [
 			attachedFile({ filePath: '/owned/report.zip', name: 'report.zip', mimeType: 'application/zip' }),
@@ -911,6 +923,7 @@ suite('IssueFormService', () => {
 		const iframe = document.createElement('iframe');
 		document.body.appendChild(iframe);
 		store.add(toDisposable(() => iframe.remove()));
+		store.add(registerTestIframe(iframe));
 		const targetWindow = iframe.contentWindow as CodeWindow;
 		const events: string[] = [];
 		instantiationService.stub(IAuxiliaryWindowService, {

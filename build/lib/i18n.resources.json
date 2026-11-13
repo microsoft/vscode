@@ -227,6 +227,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/screenshotTool",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/search",
 			"project": "vscode-workbench"
 		},
@@ -790,10 +794,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/github",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/inboxOne",
 			"project": "vscode-sessions"
 		},
 		{

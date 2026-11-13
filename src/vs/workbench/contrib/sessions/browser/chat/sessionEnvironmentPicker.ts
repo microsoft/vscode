@@ -11,7 +11,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../../base/co
 import { autorun, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { ActionListItemKind, IActionListItem } from '../../../../../platform/actionWidget/browser/actionList.js';
+import { ActionListItemKind, IActionListItem, IActionListOptions } from '../../../../../platform/actionWidget/browser/actionList.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IMenuService, MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
@@ -56,7 +56,7 @@ export function getSessionCreationEnvironments(providers: readonly ISessionsProv
 	const visible = providers.filter(provider => provider.supportsWorkspaceSelection !== false
 		&& (!isAgentHostProvider(provider) || provider.isVisibleInEnvironmentPicker?.get() !== false && !provider.devContainerSourceWorkspace));
 	const local = visible.filter(provider => provider.environment.id === 'local');
-	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider));
+	const cloud = visible.filter(provider => provider.environment.id === 'cloud' && !isAgentHostProvider(provider) && provider.sessionTypes.length > 0);
 	const environments: ISessionCreationEnvironment[] = [];
 	if (local.length) {
 		environments.push({ id: 'local', kind: 'local', label: localize('environmentPicker.local', "This Computer"), icon: Codicon.deviceDesktop, providerIds: local.map(provider => provider.id) });
@@ -106,9 +106,9 @@ export function resolveEnvironmentWorkspace(environment: ISessionCreationEnviron
 	return undefined;
 }
 
-export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider): ISessionCreationEnvironment | undefined {
+export function getDefaultSessionCreationEnvironment(environments: readonly ISessionCreationEnvironment[], folderUri: URI | undefined, providerId: string | undefined, containerRequested = false, selectedProvider?: ISessionsProvider, preserveProvider = false): ISessionCreationEnvironment | undefined {
 	const local = environments.find(environment => environment.kind === 'local');
-	if (folderUri?.scheme === Schemas.file && !containerRequested && local) {
+	if (folderUri?.scheme === Schemas.file && !containerRequested && local && !preserveProvider) {
 		return local;
 	}
 	return environments.find(environment => (environment.kind === 'container') === containerRequested && environment.providerIds.includes(providerId ?? ''))
@@ -120,6 +120,12 @@ interface IEnvironmentPickerItem {
 	readonly run: () => Promise<void>;
 	readonly checked?: boolean;
 }
+
+export const ENVIRONMENT_PICKER_LIST_OPTIONS = {
+	className: 'sessions-new-chat-picker-list',
+	minWidth: 240,
+	hideDefaultKeybindingTooltip: true,
+} as const satisfies IActionListOptions;
 
 export interface IEnvironmentPickerRenderOptions {
 	readonly focusCommand?: { readonly id: string; readonly when: ContextKeyExpression; readonly enabled: IObservable<boolean> };
@@ -286,7 +292,7 @@ export class SessionEnvironmentPicker extends Disposable {
 			getAriaLabel: item => [item.description, item.ariaDescription].reduce<string>((label, part) => typeof part === 'string' && part
 				? localize('environmentPicker.item', "{0}, {1}", label, part) : label, item.label ?? ''),
 			getWidgetAriaLabel: () => localize('environmentPicker.title', "Environment"),
-		}, { className: 'sessions-new-chat-picker-list', minWidth: 240, hideDefaultKeybindingTooltip: true });
+		}, ENVIRONMENT_PICKER_LIST_OPTIONS);
 	}
 
 	private getEnvironmentHover(environment: ISessionCreationEnvironment, label: string): string {

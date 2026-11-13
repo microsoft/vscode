@@ -380,7 +380,7 @@ export default defineThemedFixtureGroup({ path: 'chat/' }, {
 	AgentSessionsBooleanCustomAnswer: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		additionalThemes: defaultThemes,
-		expectedVisualDescriptions: ['The idle custom answer row has no input frame, except the contrast border in high-contrast themes.'],
+		expectedVisualDescriptions: ['Yes and No appear as vertical options above the custom answer editor, which uses the same input frame as other single-select questions.'],
 		virtualTime: { enabled: false },
 		render: context => renderAgentSessionsCarousel(context, createCarousel([publishDashboardQuestion])),
 	}),

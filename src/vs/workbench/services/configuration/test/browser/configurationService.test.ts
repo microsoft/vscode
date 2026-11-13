@@ -1939,6 +1939,59 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.strictEqual(testObject.getValue('configurationService.folder.newMachineOverridableSetting'), 'workspaceValue');
 	}));
 
+	test('unregistered workspace settings are ignored when untrusted until they are registered', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.lateSetting": "workspaceValue" }'));
+		await testObject.reloadConfiguration();
+		const beforeRegistration = testObject.getValue('configurationService.folder.lateSetting');
+		const node: IConfigurationNode = {
+			'id': '_test',
+			'type': 'object',
+			'properties': {
+				'configurationService.folder.lateSetting': {
+					'type': 'string',
+					'default': 'isSet'
+				}
+			}
+		};
+		configurationRegistry.registerConfiguration(node);
+		try {
+			assert.deepStrictEqual([beforeRegistration, testObject.getValue('configurationService.folder.lateSetting')], [undefined, 'workspaceValue']);
+		} finally {
+			configurationRegistry.deregisterConfigurations([node]);
+		}
+	}));
+
+	test('unregistered settings are not read from workspace when workspace is untrusted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folder = workspaceService.getWorkspace().folders[0].uri;
+		const read = () => [
+			testObject.getValue('configurationService.folder.unregisteredSetting', { resource: folder }),
+			testObject.getValue('experiments.override.test', { resource: folder }),
+			testObject.getValue('configurationService.folder.testSetting', { resource: folder }),
+		];
+
+		testObject.updateWorkspaceTrust(false);
+		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.unregisteredSetting": "userValue" }'));
+		await fileService.writeFile(joinPath(folder, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.unregisteredSetting": "workspaceValue", "experiments.override.test": "workspaceValue", "configurationService.folder.testSetting": "workspaceValue" }'));
+		await testObject.reloadConfiguration();
+		const untrusted = read();
+		const changes: boolean[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => changes.push(e.affectsConfiguration('experiments.override.test'))));
+
+		testObject.updateWorkspaceTrust(true);
+		const trusted = read();
+
+		testObject.updateWorkspaceTrust(false);
+		const untrustedAgain = read();
+
+		assert.deepStrictEqual({ untrusted, trusted, untrustedAgain, changes }, {
+			untrusted: ['userValue', undefined, 'workspaceValue'],
+			trusted: ['workspaceValue', 'workspaceValue', 'workspaceValue'],
+			untrustedAgain: ['userValue', undefined, 'workspaceValue'],
+			changes: [true, true],
+		});
+	}));
+
 	test('application settings are not read from workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "userValue" }'));
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.applicationSetting": "workspaceValue" }'));
@@ -3774,6 +3827,31 @@ suite('WorkspaceConfigurationService-Multiroot', () => {
 		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.size, 1);
 		assert.strictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[0].uri), undefined);
 		assert.deepStrictEqual(testObject.restrictedSettings.workspaceFolder?.get(testObject.getWorkspace().folders[1].uri), ['configurationService.workspace.testRestrictedSetting2']);
+	}));
+
+	test('unregistered settings are not read from workspace and workspace folders when workspace is not trusted', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const folders = testObject.getWorkspace().folders;
+		const read = () => [
+			testObject.getValue('experiments.override.test', { resource: folders[0].uri }),
+			testObject.getValue('experiments.override.folder', { resource: folders[1].uri }),
+		];
+
+		testObject.updateWorkspaceTrust(false);
+		await jsonEditingServce.write((workspaceContextService.getWorkspace().configuration!), [{ path: ['settings'], value: { 'experiments.override.test': 'workspaceValue' } }], true);
+		await fileService.writeFile(joinPath(folders[1].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "experiments.override.folder": "folderValue" }'));
+		await testObject.reloadConfiguration();
+		const untrusted = read();
+
+		const changes: boolean[] = [];
+		disposables.add(testObject.onDidChangeConfiguration(e => changes.push(e.affectsConfiguration('experiments.override'))));
+		testObject.updateWorkspaceTrust(true);
+		const trusted = read();
+
+		assert.deepStrictEqual({ untrusted, trusted, changes }, {
+			untrusted: [undefined, undefined],
+			trusted: ['workspaceValue', 'folderValue'],
+			changes: [true],
+		});
 	}));
 
 	test('remove an unregistered setting', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {

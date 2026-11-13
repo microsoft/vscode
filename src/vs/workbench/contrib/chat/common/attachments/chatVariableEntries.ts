@@ -149,15 +149,6 @@ export function toAgentHostCompletionVariableEntry(kind: AgentHostCompletionRefe
 	};
 }
 
-export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCompletionReferenceKind, name: string, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
-	switch (kind) {
-		case AgentHostCompletionReferenceKind.Skill:
-			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.uri === 'string' ? _meta.uri : undefined, _meta);
-		case AgentHostCompletionReferenceKind.Command:
-			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.command === 'string' ? _meta.command : undefined, _meta);
-	}
-}
-
 export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {
 	if (entry.kind !== 'generic') {
 		return undefined;
@@ -731,6 +722,21 @@ export function chatReferenceVariableEntryFromDynamicValue(value: IChatReference
 	};
 }
 
+/**
+ * A link to an agent session in the chat input, which its inline attachment
+ * pill shows as the session's title and status. The pill is derived from the
+ * link's text and is not attached to the request: the prompt keeps the link.
+ */
+export interface IChatRequestSessionLinkVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'sessionLink';
+	/** The `agent-host-session://` link that opens the session, which the link in the input carries. */
+	readonly value: URI;
+}
+
+export function isSessionLinkVariableEntry(entry: IChatRequestVariableEntry): entry is IChatRequestSessionLinkVariableEntry {
+	return entry.kind === 'sessionLink';
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
@@ -739,7 +745,7 @@ export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChat
 	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry | ITerminalVariableEntry
 	| IChatRequestStringVariableEntry | IChatRequestWorkspaceVariableEntry | IDebugVariableEntry | IAgentFeedbackVariableEntry
 	| IChatRequestDebugEventsVariableEntry | IChatRequestSessionReferenceVariableEntry | IBrowserViewVariableEntry | IChatRequestChatReferenceVariableEntry
-	| IChatRequestTranscriptContextVariableEntry;
+	| IChatRequestTranscriptContextVariableEntry | IChatRequestSessionLinkVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 

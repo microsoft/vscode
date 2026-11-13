@@ -2,7 +2,7 @@
 	// See https://go.microsoft.com/fwlink/?LinkId=827846
 	// for the documentation about the extensions.json format
 	"recommendations": [
-		"dbaeumer.vscode-eslint",
+		"oxc.oxc-vscode",
 		"github.vscode-pull-request-github",
 		"ms-vscode.vscode-github-issue-notebooks",
 		"ms-vscode.extension-test-runner",

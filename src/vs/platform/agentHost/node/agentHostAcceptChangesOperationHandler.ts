@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { basename, extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { basename } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
@@ -18,13 +18,10 @@ import { AHP_SESSION_NOT_FOUND, JsonRpcErrorCodes, ProtocolError } from '../comm
 import { FileEditKind, type TextRange, type URI as ProtocolURI } from '../common/state/sessionState.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { createFileEditAcceptRecord, createPartialFileEditAcceptRecord, fileEditContentEquals, getWorkingSetFileEditRecords, isFileEditAcceptRecord, readFileEditAcceptedContent, readFileEditEndContent } from './fileEditAccept.js';
+import { isFileEditPath } from './fileEditPath.js';
 import { getWorkingSetFileNonce, isPathWithinFolderScope } from './sessionDiffAggregator.js';
 import { createChangedSinceShownError } from './workingSetNonce.js';
 import { computeWorkingSetFileContents, computeWorkingSetRangeChanges } from './workingSetFileContents.js';
-
-function isFilePath(path: string | undefined, resource: URI): boolean {
-	return path !== undefined && extUriBiasedIgnorePathCase.isEqual(URI.file(path), resource);
-}
 
 /** Identifies an edit row across databases, as the Working Set does. */
 function getFileEditKey(record: IFileEditRecord): string {
@@ -108,7 +105,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 			this._logService.info(`[AgentHostAcceptChangesOperationHandler] Accepting ${target.kind === ChangesetOperationTargetKind.Range ? 'a range of the ' : ''}changes to '${resource.fsPath}' for ${owner}`);
 			await source.db.storeFileEdits([row], async readContent => {
 				// Accepting must not cover an edit recorded since the file's rows were read, as one of a turn that runs.
-				const rows = (await source.db.getAllFileEdits()).filter(record => isFilePath(record.filePath, resource));
+				const rows = (await source.db.getAllFileEdits()).filter(record => isFileEditPath(record.filePath, resource));
 				const previous = rows.at(-2);
 				if (shownNonce !== undefined && previous && shownNonce !== getWorkingSetFileNonce(previous)) {
 					throw createChangedSinceShownError(resource);
@@ -179,10 +176,10 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 	 * rename that touches `resource` is rejected.
 	 */
 	private _getFileEditRecords(records: readonly IFileEditRecord[], resource: URI, folderScope: readonly URI[] | undefined): IFileEditRecord[] {
-		if (records.some(record => record.kind === FileEditKind.Rename && (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)))) {
+		if (records.some(record => record.kind === FileEditKind.Rename && (isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource)))) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.acceptChanges.renamed', "Changes to a renamed file can't be accepted."));
 		}
-		return records.filter(record => isFilePath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
+		return records.filter(record => isFileEditPath(record.filePath, resource) && (!folderScope || isPathWithinFolderScope(record.filePath, folderScope)));
 	}
 
 	/**
@@ -194,7 +191,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 	private async _throwIfEditedByOtherChats(otherChatDatabases: readonly ISessionDatabase[], resource: URI, copied: ReadonlySet<string>): Promise<void> {
 		for (const db of otherChatDatabases) {
 			const records = await db.getAllFileEdits();
-			if (records.some(record => (isFilePath(record.filePath, resource) || isFilePath(record.originalPath, resource)) && !copied.has(getFileEditKey(record)))) {
+			if (records.some(record => (isFileEditPath(record.filePath, resource) || isFileEditPath(record.originalPath, resource)) && !copied.has(getFileEditKey(record)))) {
 				throw this._createEditedByOtherChatsError(resource);
 			}
 		}

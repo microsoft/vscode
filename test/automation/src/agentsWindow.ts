@@ -27,6 +27,7 @@ const ACTIVE_SESSION_SEND_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-sessi
 const ACTIVE_SESSION_STOP_BUTTON_ENABLED = `${ACTIVE_SESSION} .interactive-session .chat-execute-toolbar .action-item:not(.disabled) > .action-label.codicon-stop-circle`;
 const RESPONSE = `${AGENTS_WORKBENCH} .interactive-item-container.interactive-response`;
 const SESSION_LIST_ROW = `${AGENTS_WORKBENCH} .sessions-list-control .monaco-list-row`;
+const REMOTES_WIDGET = '.remotes-widget:visible';
 
 // The Agents Window active session input reuses the workbench `ChatInputPart`,
 // so its model picker renders the same `.model-picker-name` / `.model-picker-config`
@@ -222,6 +223,23 @@ export class AgentsWindow {
 		this.code.logger.log('[agentsWindow] WSL connection: folder selected');
 	}
 
+	/**
+	 * Opens the Remote Environments editor, connects the remote `name` unless it is connected, and waits for an enabled
+	 * action of its row labeled `actionLabel`.
+	 */
+	async waitForRemoteAction(name: string, actionLabel: string, timeoutMs: number = 60_000): Promise<void> {
+		await this.quickaccess.runCommand('sessions.openRemotes');
+		const widget = this.code.driver.currentPage.locator(REMOTES_WIDGET);
+		const connect = widget.getByLabel(`Connect to ${name}`, { exact: true });
+		const disconnect = widget.getByLabel(`Disconnect ${name}`, { exact: true });
+		await connect.or(disconnect).first().waitFor({ timeout: 30_000 });
+		if (await connect.isVisible()) {
+			this.code.logger.log(`[agentsWindow] Remote Environments: connecting ${name}`);
+			await connect.click();
+		}
+		await widget.locator('.action-label:not(.disabled)').and(widget.getByLabel(actionLabel, { exact: true })).waitFor({ timeout: timeoutMs });
+	}
+
 	async getRemoteConnectionDiagnostics(): Promise<string> {
 		return JSON.stringify(await this.code.driver.currentPage.evaluate(() => {
 			const activeElement = document.activeElement;
@@ -241,6 +259,61 @@ export class AgentsWindow {
 				dialogs: Array.from(document.querySelectorAll('.monaco-dialog-box')).filter(element => element.checkVisibility()).slice(0, 5).map(element => element.textContent?.slice(0, 2000)),
 			};
 		}));
+	}
+
+	/**
+	 * Logs in with `username` and `password` to every proxy login dialog until stopped, in any window, as the main
+	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `stop` returns
+	 * the details of the dialogs filled, which name the proxy.
+	 */
+	fillProxyAuthenticationDialogs(username: string, password: string): { stop(): Promise<string[]> } {
+		const details: string[] = [];
+		let stopped = false;
+		const loop = (async () => {
+			while (!stopped) {
+				let detail: string | undefined;
+				try {
+					detail = await this.tryFillProxyAuthenticationDialog(username, password);
+				} catch (error) {
+					this.code.logger.log(`[agentsWindow] Failed to log in to a proxy login dialog: ${error}`);
+				}
+				if (detail !== undefined) {
+					details.push(detail);
+				} else {
+					await new Promise(resolve => setTimeout(resolve, 250));
+				}
+			}
+		})();
+		return {
+			stop: async () => {
+				stopped = true;
+				await loop;
+				return details;
+			}
+		};
+	}
+
+	/**
+	 * Logs in to a visible proxy login dialog of any window, returning its detail, or `undefined` if no window shows one.
+	 */
+	private async tryFillProxyAuthenticationDialog(username: string, password: string): Promise<string | undefined> {
+		for (const page of this.code.driver.getAllWindows()) {
+			if (page.isClosed()) {
+				continue;
+			}
+			const dialog = page.locator('.monaco-dialog-box').filter({ hasText: 'Proxy Authentication Required' });
+			if (!await dialog.isVisible().catch(() => false)) {
+				continue;
+			}
+			const detail = (await dialog.locator('.dialog-message-detail').textContent()) ?? '';
+			this.code.logger.log(`[agentsWindow] Proxy login dialog in ${page.url()}: ${detail}`);
+			await dialog.getByPlaceholder('Username', { exact: true }).fill(username);
+			await dialog.getByPlaceholder('Password', { exact: true }).fill(password);
+			await dialog.getByRole('button', { name: 'Log In', exact: true }).click();
+			await dialog.waitFor({ state: 'hidden', timeout: 30_000 });
+			return detail;
+		}
+		return undefined;
 	}
 
 	private async fillQuickInput(title: string, value: string): Promise<void> {
@@ -363,21 +436,38 @@ export class AgentsWindow {
 		throw new Error(`Timed out selecting Dev Container. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
 	}
 
+	/**
+	 * Switches the new-session environment from Cloud to This Computer.
+	 *
+	 * The workspace handoff of a window opened with a folder can switch the
+	 * environment to This Computer on its own after startup. That re-renders the
+	 * composer and closes an open Environment picker, so each attempt is bounded
+	 * and the loop ends as soon as the picker no longer shows Cloud.
+	 */
 	private async selectLocalEnvironment(): Promise<void> {
 		const page = this.code.driver.currentPage;
-		const cloudEnvironment = page.locator(ENVIRONMENT_PICKER).filter({ hasText: /^Cloud$/ });
+		const environmentPicker = page.locator(ENVIRONMENT_PICKER);
+		const cloudEnvironment = environmentPicker.filter({ hasText: /^Cloud$/ });
+		const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
 		const deadline = Date.now() + 60_000;
+		let lastError: unknown;
 		while (await cloudEnvironment.isVisible()) {
-			await cloudEnvironment.click();
-			const localEnvironment = page.locator(WORKSPACE_PICKER_ROW).filter({ has: page.getByText('This Computer', { exact: true }) });
-			if (await localEnvironment.isVisible()) {
-				await localEnvironment.click();
-				await page.locator(ENVIRONMENT_PICKER).filter({ hasText: 'This Computer' }).waitFor();
-				return;
-			}
-			await page.keyboard.press('Escape');
 			if (Date.now() >= deadline) {
-				throw new Error('Timed out waiting for This Computer in the Environment picker');
+				throw new Error(`Timed out selecting This Computer in the Environment picker. Last error: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+			}
+			try {
+				await cloudEnvironment.click({ timeout: 5_000 });
+				if (await localEnvironment.isVisible()) {
+					await localEnvironment.click({ timeout: 5_000 });
+					await environmentPicker.filter({ hasText: 'This Computer' }).waitFor({ timeout: 15_000 });
+					return;
+				}
+				lastError = new Error('This Computer is not listed in the Environment picker');
+			} catch (error) {
+				lastError = error;
+			}
+			if (await environmentPicker.getAttribute('aria-expanded', { timeout: 5_000 }).catch(() => undefined) === 'true') {
+				await page.keyboard.press('Escape');
 			}
 			await new Promise(resolve => setTimeout(resolve, 500));
 		}
@@ -653,7 +743,30 @@ export class AgentsWindow {
 			}
 		}
 
-		await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+		await this.clickActiveSessionSendButton();
+	}
+
+	/**
+	 * Clicks the enabled send button of the active session. A modal dialog, such as a proxy login dialog opened by a
+	 * concurrent request, swallows the click, so this waits for it to close first, and clicks again if one opened in the
+	 * meantime and the prompt was not sent, which disables the send button or replaces it with the stop button.
+	 */
+	private async clickActiveSessionSendButton(): Promise<void> {
+		const page = this.code.driver.currentPage;
+		const modalDialog = page.locator('.monaco-dialog-modal-block').first();
+		const sendButton = page.locator(ACTIVE_SESSION_SEND_BUTTON_ENABLED).first();
+		for (let attempt = 1; ; attempt++) {
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			await this.code.waitAndClick(ACTIVE_SESSION_SEND_BUTTON_ENABLED);
+			if (attempt === 3 || !await modalDialog.isVisible().catch(() => false)) {
+				return;
+			}
+			await modalDialog.waitFor({ state: 'hidden', timeout: 2 * 60_000 });
+			if (await sendButton.waitFor({ state: 'detached', timeout: 5_000 }).then(() => true, () => false)) {
+				return;
+			}
+			this.code.logger.log('[agentsWindow] A modal dialog swallowed the click on the send button, clicking it again');
+		}
 	}
 
 	private async _activeSessionContainsResponse(label: string): Promise<boolean> {
