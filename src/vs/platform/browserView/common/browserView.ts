@@ -185,18 +185,22 @@ export interface IBrowserViewWindowConfiguration {
 	readonly trustAllLocalFiles: boolean;
 }
 
-/** A remote network a window's views use, with what is needed to serve the remote's files. */
-export interface IBrowserViewRemoteNetwork {
-	/** Tunnel-proxy credentials, produced by the window's local extension host, which hosts the proxy servers. */
-	readonly proxy: ITunnelProxyInfo;
+/** What is behind a remote network's files. */
+export interface IBrowserViewNetworkFileSystem {
 	/** The scheme the remote's files are read with: `vscode-remote` or `vscode-agent-host`. */
 	readonly scheme: string;
+	/** Whether the remote's file system distinguishes paths by case, which depends on its operating system. */
+	readonly caseSensitive: boolean;
+}
+
+/** A remote network a window's views use, with what is needed to serve the remote's files. */
+export interface IBrowserViewRemoteNetwork extends IBrowserViewNetworkFileSystem {
+	/** Tunnel-proxy credentials, produced by the window's local extension host, which hosts the proxy servers. */
+	readonly proxy: ITunnelProxyInfo;
 	/** Trusted folders, as paths on the remote's file system. */
 	readonly trustedRoots: readonly string[];
 	/** Whether every file on the remote is allowed, because Workspace Trust is disabled. */
 	readonly trustAllFiles: boolean;
-	/** Whether the remote's file system distinguishes paths by case, which depends on its operating system. */
-	readonly caseSensitive: boolean;
 }
 
 /** Resource schemes that address files on a remote's own file system: the window's remote, or a remote agent host. */

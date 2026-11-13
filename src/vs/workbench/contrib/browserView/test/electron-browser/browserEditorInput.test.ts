@@ -11,7 +11,7 @@ import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
-import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork } from '../../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, IBrowserViewEditorOpenOptions, IBrowserViewNavigationEvent, IBrowserViewNetwork, IBrowserViewNetworkFileSystem } from '../../../../../platform/browserView/common/browserView.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewUri } from '../../../../../platform/browserView/common/browserViewUri.js';
 import { IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -39,12 +39,8 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return undefined;
 	}
 
-	getNetworkFileScheme(): string {
-		return 'vscode-remote';
-	}
-
-	isNetworkPathCaseSensitive(): boolean {
-		return true;
+	getNetworkFileSystem(): IBrowserViewNetworkFileSystem {
+		return { scheme: 'vscode-remote', caseSensitive: true };
 	}
 
 	async acquireNetwork(): Promise<IReference<undefined>> {

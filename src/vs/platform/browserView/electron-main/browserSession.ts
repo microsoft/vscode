@@ -266,8 +266,8 @@ export class BrowserSession {
 	/**
 	 * Set trusted file roots for sessions on the local network. Remote sessions use {@link setRemoteFileAccess}.
 	 */
-	static setTrustedLocalFileRoots(roots: readonly string[], trustAllFiles: boolean): void {
-		BrowserSession._trustAllLocalFiles = trustAllFiles;
+	static setTrustedLocalFileRoots(roots: readonly string[], trustAllLocalFiles: boolean): void {
+		BrowserSession._trustAllLocalFiles = trustAllLocalFiles;
 		BrowserSession._trustedLocalFileRoots.clear();
 		for (const root of roots) {
 			if (root) {

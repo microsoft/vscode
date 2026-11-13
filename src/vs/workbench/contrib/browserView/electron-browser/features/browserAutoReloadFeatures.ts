@@ -42,7 +42,7 @@ function getFileUri(url: string): URI | undefined {
 
 /** Sessions on a remote network serve `file:` URLs from the remote's file system, which the window reads by remote or agent host URI. */
 function toWatchUri(fileUri: URI, network: IBrowserViewNetwork | undefined, browserViewWorkbenchService: IBrowserViewWorkbenchService): URI {
-	return network ? fileUrlToRemoteUri(network, browserViewWorkbenchService.getNetworkFileScheme(network), fileUri) : fileUri;
+	return network ? fileUrlToRemoteUri(network, browserViewWorkbenchService.getNetworkFileSystem(network).scheme, fileUri) : fileUri;
 }
 
 interface IBrowserAutoReloadStateChangeEvent {

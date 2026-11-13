@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteFile, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewChangeEvent, BrowserViewEventData, BrowserViewCommandId, BrowserViewPresentation, BrowserViewSessionSelector, BrowserViewStorageScope, getBrowserViewRemoteFile, getBrowserViewSessionAffinity, getBrowserViewSessionNetwork, IBrowserViewEditorOpenOptions, IBrowserViewInfo, IBrowserViewNetwork, IBrowserViewOwner, IBrowserViewNetworkFileSystem, IBrowserViewRemoteNetwork, IBrowserViewService, IBrowserViewTheme, ipcBrowserViewChannelName, reviveBrowserViewInfo, IBrowserViewSessionOptions, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 import { matchesBrowserViewSandboxSession } from '../../../../platform/browserView/common/browserViewGroup.js';
 import { BrowserRemoteProxyEnabledSettingId, BrowserViewEventEmitters, createBrowserViewEventEmitters, BrowserViewSharingState, IBrowserViewWorkbenchService, IBrowserViewModel, BrowserViewModel, IBrowserViewContextualFilter, IBrowserViewFilterContext, IBrowserViewOpenHandler, IBrowserViewWorkbenchCreateOptions, IBrowserViewNetworkProxyProvider, IBrowserViewNetworkResolver, IBrowserViewNetworkStatus, IBrowserViewSessionRequest, normalizeBrowserViewUrl } from '../common/browserView.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
@@ -188,12 +188,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		this._register(this.workspaceTrustManagementService.onDidChangeTrustedFolders(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(() => void this._updateWindowConfiguration()));
 		this._register(this.workspaceContextService.onDidChangeWorkspaceFolders(() => void this._updateWindowConfiguration()));
-		this._register(this.fileService.onDidChangeFileSystemProviderRegistrations(e => {
-			if (e.scheme === Schemas.vscodeRemote) {
-				void this._updateWindowConfiguration();
-			}
-		}));
-		this._register(this.fileService.onDidChangeFileSystemProviderCapabilities(e => {
+		this._register(Event.any<{ readonly scheme: string }>(this.fileService.onDidChangeFileSystemProviderRegistrations, this.fileService.onDidChangeFileSystemProviderCapabilities)(e => {
 			if (e.scheme === Schemas.vscodeRemote) {
 				void this._updateWindowConfiguration();
 			}
@@ -307,12 +302,12 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 		}
 		this._networkResolver = resolver;
 		const statusListener = resolver.onDidChangeNetworkStatus(() => this._onDidChangeNetworkStatus.fire());
-		const trustListener = resolver.onDidChangeFileAccess?.(() => void this._updateWindowConfiguration());
+		const fileAccessListener = resolver.onDidChangeFileAccess?.(() => void this._updateWindowConfiguration());
 		this._onDidChangeNetworkStatus.fire();
 		void this._updateWindowConfiguration();
 		return toDisposable(() => {
 			statusListener.dispose();
-			trustListener?.dispose();
+			fileAccessListener?.dispose();
 			if (this._networkResolver === resolver) {
 				this._networkResolver = undefined;
 				this._onDidChangeNetworkStatus.fire();
@@ -946,57 +941,48 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 
 	private _updateWindowConfiguration(): Promise<void> {
 		const trustedRoots = this._getTrustedFileRoots();
+		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
 		return this._browserViewService.updateWindowConfiguration(this._mainWindowId, {
 			theme: this._getTheme(),
 			keybindings: this._getKeybindings(),
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
-			remoteNetworks: this._getRemoteNetworks(trustedRoots),
+			remoteNetworks: this._getRemoteNetworks(trustedRoots, trustAllFiles),
 			trustedLocalFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
-			trustAllLocalFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
+			trustAllLocalFiles: trustAllFiles,
 		});
 	}
 
 	/** The remote networks with a published proxy, each with the trusted folders on its file system. */
-	private _getRemoteNetworks(trustedRoots: readonly URI[]): { [authority: string]: IBrowserViewRemoteNetwork } {
+	private _getRemoteNetworks(trustedRoots: readonly URI[], trustAllFiles: boolean): { [authority: string]: IBrowserViewRemoteNetwork } {
 		const remoteRoots = trustedRoots.flatMap(root => getBrowserViewRemoteFile(root) ?? []);
-		const trustAllFiles = !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled();
 		const remoteNetworks: { [authority: string]: IBrowserViewRemoteNetwork } = {};
 		for (const [authority, entry] of this._networkProxies) {
 			if (!entry.info) {
 				continue;
 			}
-			const network = { authority };
-			const scheme = this.getNetworkFileScheme(network);
+			const fileSystem = this.getNetworkFileSystem({ authority });
+			const { scheme } = fileSystem;
 			remoteNetworks[authority] = {
 				proxy: entry.info,
-				scheme,
+				...fileSystem,
 				trustedRoots: remoteRoots.filter(root => root.scheme === scheme && extUri.isEqualAuthority(root.authority, authority)).map(root => root.fileUri.path),
 				trustAllFiles: scheme === Schemas.vscodeRemote && trustAllFiles,
-				caseSensitive: this.isNetworkPathCaseSensitive(network)!,
 			};
 		}
 		return remoteNetworks;
 	}
 
-	getNetworkFileScheme(network: IBrowserViewNetwork): string {
-		return extUri.isEqualAuthority(network.authority, this.environmentService.remoteAuthority) ? Schemas.vscodeRemote : AGENT_HOST_SCHEME;
-	}
-
-	isNetworkPathCaseSensitive(network: IBrowserViewNetwork | undefined): boolean | undefined {
-		if (!network) {
-			return undefined;
+	getNetworkFileSystem(network: IBrowserViewNetwork): IBrowserViewNetworkFileSystem {
+		if (network.authority === this.environmentService.remoteAuthority) {
+			// Defaults to case-sensitive, which is the strict choice, until the remote's file system is registered.
+			const root = URI.from({ scheme: Schemas.vscodeRemote, authority: network.authority, path: '/' });
+			return {
+				scheme: Schemas.vscodeRemote,
+				caseSensitive: !this.fileService.hasProvider(root) || this.fileService.hasCapability(root, FileSystemProviderCapabilities.PathCaseSensitive)
+			};
 		}
-		if (this.getNetworkFileScheme(network) === Schemas.vscodeRemote) {
-			return this._isRemotePathCaseSensitive(network.authority);
-		}
-		return this._networkResolver?.isPathCaseSensitive?.(network) ?? true;
-	}
-
-	/** Defaults to case-sensitive, which is the strict choice, until the remote's file system is registered. */
-	private _isRemotePathCaseSensitive(authority: string): boolean {
-		const root = URI.from({ scheme: Schemas.vscodeRemote, authority, path: '/' });
-		return !this.fileService.hasProvider(root) || this.fileService.hasCapability(root, FileSystemProviderCapabilities.PathCaseSensitive);
+		return { scheme: AGENT_HOST_SCHEME, caseSensitive: this._networkResolver?.isPathCaseSensitive?.(network) ?? true };
 	}
 
 	private _getKeybindings(): { [commandId: string]: string } {

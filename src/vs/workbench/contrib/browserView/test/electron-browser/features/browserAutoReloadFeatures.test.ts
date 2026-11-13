@@ -20,7 +20,7 @@ import { IBrowserViewModel, IBrowserViewWorkbenchService } from '../../../common
 import { BrowserAutoReloadService, BrowserAutoReloadWatcher } from '../../../electron-browser/features/browserAutoReloadFeatures.js';
 
 function networkFiles(remoteAuthority?: string) {
-	return upcastPartial<IBrowserViewWorkbenchService>({ getNetworkFileScheme: (network: IBrowserViewNetwork) => network.authority === remoteAuthority ? 'vscode-remote' : 'vscode-agent-host' });
+	return upcastPartial<IBrowserViewWorkbenchService>({ getNetworkFileSystem: (network: IBrowserViewNetwork) => ({ scheme: network.authority === remoteAuthority ? 'vscode-remote' : 'vscode-agent-host', caseSensitive: true }) });
 }
 
 suite('Browser Auto Reload Features', () => {

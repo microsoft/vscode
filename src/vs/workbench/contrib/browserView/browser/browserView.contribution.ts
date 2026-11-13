@@ -9,7 +9,7 @@ import type { PreferredGroup } from '../../../services/editor/common/editorServi
 import { Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { Disposable, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
-import { IBrowserViewEditorOpenOptions, IBrowserViewNetwork } from '../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewEditorOpenOptions, IBrowserViewNetwork, IBrowserViewNetworkFileSystem } from '../../../../platform/browserView/common/browserView.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { BrowserEditorInput, IBrowserEditorInputData } from '../common/browserEditorInput.js';
 
@@ -20,12 +20,8 @@ class WebBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return undefined;
 	}
 
-	getNetworkFileScheme(): string {
-		return Schemas.vscodeRemote;
-	}
-
-	isNetworkPathCaseSensitive(): undefined {
-		return undefined;
+	getNetworkFileSystem(): IBrowserViewNetworkFileSystem {
+		return { scheme: Schemas.vscodeRemote, caseSensitive: true };
 	}
 
 	async acquireNetwork(): Promise<IReference<undefined>> {

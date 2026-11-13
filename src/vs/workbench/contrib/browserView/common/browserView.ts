@@ -65,6 +65,7 @@ import {
 	IBrowserViewHost,
 	IBrowserViewAccessibilitySnapshot,
 	IBrowserViewNetwork,
+	IBrowserViewNetworkFileSystem,
 	IBrowserViewSessionOptions,
 	getBrowserViewSessionNetwork,
 	BROWSER_REMOTE_FILE_SCHEMES,
@@ -319,7 +320,7 @@ export interface IBrowserViewNetworkResolver {
 	 * Called synchronously alongside {@link resolveNetwork}.
 	 */
 	resolveStorageAffinity?(owner: IBrowserViewOwner): string | undefined;
-	/** Roots of the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
+	/** Trusted folders on the file systems of the networks this resolver resolves views to, which tabs of any session may load files from. */
 	getTrustedFileRoots?(): readonly URI[];
 	/**
 	 * Whether the file system of a network distinguishes paths by case, or `undefined` if unknown.
@@ -381,11 +382,11 @@ export interface IBrowserViewWorkbenchService {
 	 */
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
-	/** The scheme of the URIs that read a remote network's file system: `vscode-remote` for the window's own remote, otherwise the agent host scheme. */
-	getNetworkFileScheme(network: IBrowserViewNetwork): string;
-
-	/** Whether the file system behind a remote network distinguishes paths by case (strict if unknown), or `undefined` for the local network, which follows the client. */
-	isNetworkPathCaseSensitive(network: IBrowserViewNetwork | undefined): boolean | undefined;
+	/**
+	 * The file system behind a remote network: the scheme of the URIs that read it (`vscode-remote` for the window's own remote,
+	 * otherwise the agent host scheme), and whether it distinguishes paths by case (strict if unknown).
+	 */
+	getNetworkFileSystem(network: IBrowserViewNetwork): IBrowserViewNetworkFileSystem;
 
 	/**
 	 * Hold a network's proxy until the returned reference is disposed, so

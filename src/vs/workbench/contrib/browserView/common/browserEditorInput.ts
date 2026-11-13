@@ -206,7 +206,7 @@ export class BrowserEditorInput extends EditorInput {
 			return false;
 		}
 		const network = this.activeNetwork;
-		return isBrowserViewAssociatedResourceNavigation(this._associatedResource, target, network, getBrowserViewPathComparer(this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network)));
+		return isBrowserViewAssociatedResourceNavigation(this._associatedResource, target, network, getBrowserViewPathComparer(network && this.browserViewWorkbenchService.getNetworkFileSystem(network).caseSensitive));
 	}
 
 	get url(): string | undefined {
