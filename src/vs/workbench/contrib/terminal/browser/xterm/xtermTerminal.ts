@@ -730,6 +730,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		return this._terminalConfigurationService.getFont(dom.getWindow(this.raw.element), this._core);
 	}
 
+	setBufferLineWrapped(lineIndex: number, isWrapped: boolean): void {
+		this._core._bufferService.buffer.setWrapped(lineIndex, isWrapped);
+	}
+
 	getLongestViewportWrappedLineLength(): number {
 		let maxLineLength = 0;
 		for (let i = this.raw.buffer.active.length - 1; i >= this.raw.buffer.active.viewportY; i--) {

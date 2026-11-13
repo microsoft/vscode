@@ -7,7 +7,7 @@ import { IntervalTimer } from '../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
 import { type IRemoteAgentHostEntry, IRemoteAgentHostService, type IRemoteAgentHostSSHConnection, getEntryAddress, getEntryTypeConfig, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { computeSSHConnectionKey, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { computeSSHConnectionKey, isSSHAuthenticationFailedError, isSSHHostKeyDeniedError, ISSHRemoteAgentHostService, SSHAuthMethod } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -23,7 +23,7 @@ const SSH_RECONNECT_PERIODIC_INTERVAL_MS = 60_000;
 
 /** Returns whether an SSH reconnect failure requires pausing retries. */
 export function shouldPauseSSHReconnectAfterFailure(err: unknown): boolean {
-	return isCancellationError(err) || isSSHHostKeyDeniedError(err);
+	return isCancellationError(err) || isSSHHostKeyDeniedError(err) || isSSHAuthenticationFailedError(err);
 }
 
 export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribution implements IWorkbenchContribution {
@@ -127,7 +127,7 @@ export class SSHAgentHostContribution extends ManagedReconnectAgentHostContribut
 			reconnectPolicy: getEntryTypeConfig(RemoteAgentHostEntryType.SSH).reconnect,
 			shouldPause: shouldPauseSSHReconnectAfterFailure,
 			requiresUserInitiatedResume: shouldPauseSSHReconnectAfterFailure,
-			getPauseReason: err => isSSHHostKeyDeniedError(err) ? 'host key denial' : 'user cancellation',
+			getPauseReason: err => isSSHHostKeyDeniedError(err) ? 'host key denial' : isSSHAuthenticationFailedError(err) ? 'authentication failure' : 'user cancellation',
 			doConnect: async () => {
 				try {
 					this._remoteAgentHostService.reconnect(address, true);

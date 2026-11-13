@@ -176,7 +176,8 @@ export class StatusbarEntryItem extends Disposable {
 				this.commandKeyboardListener.value = addDisposableListener(this.labelContainer, EventType.KEY_DOWN, e => {
 					const event = new StandardKeyboardEvent(e);
 					if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
-						EventHelper.stop(e);
+						// Keep the key press from reaching the keybinding service, which would apply it to a widget the command opens
+						EventHelper.stop(e, true);
 
 						this.executeCommand(command);
 					} else if (event.equals(KeyCode.Escape) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {

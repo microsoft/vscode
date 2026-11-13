@@ -24,7 +24,7 @@ import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js
 import { IRange } from '../../../../../editor/common/core/range.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, ICommandPaletteOptions, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsLinuxContext, IsWindowsContext } from '../../../../../platform/contextkey/common/contextkeys.js';
@@ -42,6 +42,8 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { NewTabButtonEntryAction, NewTabButtonHidden } from '../../../../browser/parts/editor/newTabButton.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
@@ -70,12 +72,15 @@ import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput, showClearEditingSessionConfirmation } from '../widgetHosts/editor/chatEditorInput.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { getChatSessionType, getNewChatSessionResource } from '../../common/model/chatUri.js';
-import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { isAgentHostSessionResource, localChatSessionType } from '../../common/chatSessionsService.js';
 import { getDocumentationUrl, PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
+
+/** Opens host-wide tool approvals for an agent host session; resolves false when the host is unavailable. */
+export const MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID = '_chat.agentHost.manageToolApprovals';
 
 const COPILOT_CLI_AGENT_HOST_PROVIDER_ID = 'copilotcli';
 
@@ -803,7 +808,7 @@ export function registerChatActions() {
 				}, {
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('copilot'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('new-session'), ChatContextKeys.newChatButtonExperimentIcon.notEqualsTo('comment')),
 					order: 1
 				}],
 			});
@@ -813,6 +818,24 @@ export function registerChatActions() {
 			const widgetService = accessor.get(IChatWidgetService);
 			const input = getNewChatEditorInput(accessor);
 			await widgetService.openSession(input.resource, ACTIVE_GROUP, input.options);
+		}
+	});
+
+	registerAction2(class NewChatEditorFromNewTabButtonAction extends NewTabButtonEntryAction {
+		constructor() {
+			super({
+				id: ACTION_ID_OPEN_CHAT + '.fromNewTabButton',
+				title: localize2('interactiveSession.open', "New Chat Editor"),
+				icon: Codicon.commentDiscussion,
+				order: 3,
+				when: ChatContextKeys.enabled
+			});
+		}
+
+		protected override openTab(accessor: ServicesAccessor, group: IEditorGroup): Promise<unknown> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const input = getNewChatEditorInput(accessor);
+			return widgetService.openSession(input.resource, group, input.options);
 		}
 	});
 
@@ -828,7 +851,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('copilot')),
 					order: 1
 				}],
 			});
@@ -853,7 +876,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('new-session')),
 					order: 1
 				}],
 			});
@@ -878,7 +901,7 @@ export function registerChatActions() {
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
-					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
+					when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), NewTabButtonHidden, ChatContextKeys.newChatButtonExperimentIcon.isEqualTo('comment')),
 					order: 1
 				}],
 			});
@@ -1956,6 +1979,18 @@ registerAction2(class EditToolApproval extends Action2 {
 	async run(accessor: ServicesAccessor, scope?: 'workspace' | 'profile' | 'session'): Promise<void> {
 		const confirmationService = accessor.get(ILanguageModelToolsConfirmationService);
 		const toolsService = accessor.get(ILanguageModelToolsService);
+		const commandService = accessor.get(ICommandService);
+		const notificationService = accessor.get(INotificationService);
+		if (scope === undefined) {
+			const sessionResource = accessor.get(IChatWidgetService).lastFocusedWidget?.viewModel?.sessionResource;
+			if (sessionResource && isAgentHostSessionResource(sessionResource)) {
+				if (!CommandsRegistry.getCommand(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID)
+					|| !await commandService.executeCommand<boolean>(MANAGE_AGENT_HOST_TOOL_APPROVALS_COMMAND_ID, sessionResource)) {
+					notificationService.info(localize('chat.agentHostToolApprovalsUnavailable', "Tool approvals for this agent host are not available yet. Try again once it has connected."));
+				}
+				return;
+			}
+		}
 		confirmationService.manageConfirmationPreferences([...toolsService.getAllToolsIncludingDisabled()], scope ? { defaultScope: scope } : undefined);
 	}
 });

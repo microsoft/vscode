@@ -17,6 +17,7 @@ import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
+import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { type AgentProvider, type IAgentPluginInstallation } from '../../../../../../platform/agentHost/common/agent.js';
 import { readRuntimePluginEnablement, withRuntimePluginEnablement } from '../../../../../../platform/agentHost/common/meta/pluginEnablementMeta.js';
@@ -416,6 +417,43 @@ suite('AbstractAgentHostCustomizationService', () => {
 		});
 	});
 
+	test('distinguishes MCP servers waiting for plugin activation from disabled servers', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const plugin: PluginCustomization = {
+			type: CustomizationType.Plugin, id: 'opaque-plugin', uri: 'urn:peer:plugin', name: 'Plugin',
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }],
+			load: { kind: CustomizationLoadStatus.Loading },
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, repositorySupported: true }),
+			children: [mcpServer('opaque-server', 'Server')],
+		};
+		const target = new FakeTarget([plugin]);
+		sut.setTarget(session, target);
+		const read = () => sut.getMcpServers(session).map(server => ({
+			enabled: server.enabled,
+			waitingForSessionStart: server.waitingForSessionStart,
+		}));
+		const pending = read();
+		target.customizations = [{ ...plugin, children: [{ ...mcpServer('opaque-server', 'Server'), enablement: [{ kind: CustomizationEnablementKind.Session, enabled: false }] }] }];
+		const disabledServer = read();
+		target.customizations = [{ ...plugin, _meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: false, repositorySupported: true }) }];
+		const disabledPlugin = read();
+		target.customizations = [{ ...plugin, _meta: undefined }];
+		const withoutRuntimeMetadata = read();
+		target.customizations = [{
+			...plugin, load: { kind: CustomizationLoadStatus.Loaded },
+			enablement: [{ kind: CustomizationEnablementKind.Global, enabled: true }],
+			_meta: withRuntimePluginEnablement(undefined, { provider: 'other-provider', plugin: 'opaque-source', globalEnabled: true, effectiveEnabled: true, repositorySupported: true }),
+		}];
+		assert.deepStrictEqual({ pending, disabledServer, disabledPlugin, withoutRuntimeMetadata, ready: read() }, {
+			pending: [{ enabled: false, waitingForSessionStart: true }],
+			disabledServer: [{ enabled: false, waitingForSessionStart: undefined }],
+			disabledPlugin: [{ enabled: false, waitingForSessionStart: undefined }],
+			withoutRuntimeMetadata: [{ enabled: false, waitingForSessionStart: undefined }],
+			ready: [{ enabled: true, waitingForSessionStart: undefined }],
+		});
+	});
+
 	for (const authority of ['local', 'remote-test']) {
 		test(`maps ordered ${authority} roots without changing workspace enablement URIs`, () => {
 			const sut = createSut();
@@ -704,6 +742,27 @@ suite('AbstractAgentHostCustomizationService', () => {
 			{ name: 'not-an-object', hostConfiguration: undefined },
 			{ name: 'plugin-server', hostConfiguration: undefined },
 		]);
+	});
+
+	test('exposes host permissions only when their schema is writable', () => {
+		const sut = createSut();
+		const session = URI.parse('vscode-agent-session:///session-1');
+		const permissions = { allow: ['Mcp(server)'], deny: ['Write'], ask: ['Read'] };
+		const configs: IAgentHostCustomizationTarget['rootConfig'][] = [
+			undefined,
+			{ schema: { type: 'object', properties: {} }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions', readOnly: true } } }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions', readOnly: false } } }, values: { permissions } },
+			{ schema: { type: 'object', properties: { [SessionConfigKey.Permissions]: { type: 'object', title: 'Permissions' } } }, values: {} },
+		];
+		const results = configs.map(config => {
+			sut.setTarget(session, new class extends FakeTarget {
+				readonly rootConfig = config;
+			}([]));
+			return sut.getHostPermissions(session);
+		});
+
+		assert.deepStrictEqual(results, [undefined, undefined, undefined, permissions, { allow: [], deny: [] }]);
 	});
 
 	test('preserves global and session decisions when re-enabling workspace enablement', () => {

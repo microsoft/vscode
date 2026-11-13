@@ -1042,6 +1042,8 @@ export interface IAgentService {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Stops a chat's background work entry. Resolves false when it had already finished or is not tracked. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Answers a chat's pending shell authentication prompt; `undefined` cancels it. Resolves false when it had already ended. */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	manageHostSandboxCertificate?(provider: AgentProvider, operation: AgentSandboxCertificateOperation): Promise<void>;
 	installSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
 	rotateSandboxCertificate?(chat: string, scopeId: string): Promise<void>;
@@ -1260,6 +1262,8 @@ export interface IAgentService {
 	readonly automationCapabilities: AutomationCapabilities | undefined;
 	/** Whether chats of one session may use different agents (the `multipleChatProviders.enabled` host setting). */
 	readonly multipleChatProvidersEnabled?: boolean;
+	/** Turns the `multipleChatProviders.enabled` host setting on, as a client mirroring it would. */
+	enableMultipleChatProviders?(): void;
 	listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult>;
 	runAutomation(params: RunAutomationParams): Promise<RunAutomationResult>;
 	fetchAutomationRuns(params: FetchAutomationRunsParams): Promise<FetchAutomationRunsResult>;
@@ -1481,6 +1485,8 @@ export interface IAgentConnection {
 	removeSessionArtifact?(session: URI, artifactId: string): Promise<void>;
 	/** Only for background work whose `_meta` the host marked stoppable. Resolves false when it had already finished. */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/** Only for shell authentication prompts. `undefined` cancels the prompt. Resolves false when it had already ended. */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Whether this connection can install through trusted local management or an advertised remote capability. */
 	readonly sandboxCertificateInstallationSupported?: IObservable<boolean>;
 	/** Requires installation support and explicit user consent. The advertised chat identity must not be URI-normalized. */

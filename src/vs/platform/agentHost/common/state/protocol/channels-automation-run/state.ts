@@ -225,6 +225,8 @@ export interface AutomationRunSummary {
  * @category Automation Run State
  */
 export interface AutomationRunState {
+	/** Immutable purpose copied from the admitted definition, independent of catalogue retention. */
+	purpose?: 'scheduledChat';
 	/** URI of this automation-run channel. */
 	resource: URI;
 	/** Owning `ahp-automation:` URI matching {@link AutomationEntry.resource}. */

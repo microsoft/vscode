@@ -110,6 +110,7 @@ export type AgentHostMcpTool = {
 	readonly name: string;
 	readonly title?: string;
 	readonly description?: string;
+	readonly annotations?: { readonly title?: string };
 };
 
 /**
@@ -152,6 +153,8 @@ export interface IAgentHostMcpServer {
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** The containing plugin's effective activation is unresolved until the session starts. */
+	readonly waitingForSessionStart?: boolean;
 	readonly status: McpServerStatus;
 	/**
 	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so

@@ -40,6 +40,7 @@ import { IWorkspacesManagementMainService } from '../../workspaces/electron-main
 import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from '../../window/electron-main/window.js';
 import { IPolicyService } from '../../policy/common/policy.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
+import { IFolderLocationsMainService } from './folderLocationsMainService.js';
 import { IStateService } from '../../state/node/state.js';
 import { IUserDataProfilesMainService } from '../../userDataProfile/electron-main/userDataProfile.js';
 import { ILoggerMainService } from '../../log/electron-main/loggerService.js';
@@ -838,6 +839,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IStateService stateService: IStateService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
@@ -1473,6 +1475,15 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Validate workspace
 		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
+
+		// An alternate location that is gone is not reloaded, and a notice is only shown once
+		delete configuration.folderLocationMissing;
+		delete configuration.folderLocation;
+		if (isSingleFolderWorkspaceIdentifier(configuration.workspace) && !configuration.remoteAuthority && configuration.workspace.uri.scheme === Schemas.file) {
+			const validated = await this.folderLocationsMainService.validateFolderLocation(configuration.workspace.uri, this.folderLocationsMainService.getFolderLocation(configuration.workspace.uri));
+			configuration.folderLocation = validated.folderLocation;
+			configuration.folderLocationMissing = validated.folderLocationMissing;
+		}
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;

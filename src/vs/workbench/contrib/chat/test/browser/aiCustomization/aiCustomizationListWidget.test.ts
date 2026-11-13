@@ -41,6 +41,7 @@ import { createCustomizationCardPrimaryAction, CustomizationCardListController, 
 import { getAICustomizationWorkspaceGroupForResource, getAICustomizationWorkspaceGroups } from '../../../browser/aiCustomization/aiCustomizationWorkspaceGroups.js';
 import { getCustomizationGroupAriaLabel } from '../../../browser/aiCustomization/customizationGroupHeaderRenderer.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('aiCustomizationListWidget', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -159,7 +160,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -190,7 +191,7 @@ suite('aiCustomizationListWidget', () => {
 		const secondUri = URI.file('/workspace/second');
 		const createWorkspaceService = (folders: IWorkspaceFolder[]) => new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return { id: 'test', folders };
+				return testIWorkspace({ id: 'test', folders });
 			}
 			override getWorkspaceFolder(resource: URI) {
 				return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;

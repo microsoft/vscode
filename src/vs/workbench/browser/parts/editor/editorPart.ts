@@ -33,6 +33,7 @@ import { SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { EditorAreaFocusContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext, IsTopRightEditorGroupContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -252,6 +253,8 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 
 	private _partOptions: IEditorPartOptions;
 	get partOptions(): IEditorPartOptions { return this._partOptions; }
+
+	get supportsSplitting(): boolean { return true; }
 
 	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
 		this.enforcedPartOptions.push(options);
@@ -1819,5 +1822,10 @@ export class MainEditorPart extends EditorPart {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editorPartsView, Parts.EDITOR_PART, '', mainWindow.vscodeWindowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
+	}
+
+	// The new tab button shows while its menu has entries, which the `workbench.editor.experimental.newTabButton` setting controls.
+	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
+		return { menuIds: { tabsBarAddTab: MenuId.EditorTabsBarAddTab } };
 	}
 }

@@ -61,6 +61,7 @@ import { createAgentHostRuntime, type IAgentHostRuntime } from './agentHostBoots
 import { BANG_COMMAND_PREFIX } from './agentHostBangCommand.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
+import { localProcessPathStyle } from '../common/agentHostPathStyle.js';
 import { AGENT_HOST_CLIENT_BYOK_LM_CHANNEL, createAgentHostClientByokLmConnection } from '../common/agentHostClientByokLmChannel.js';
 import { AGENT_HOST_CLIENT_PROXY_CHANNEL, createAgentHostClientProxyConnection } from '../common/agentHostClientProxyChannel.js';
 import { dirname, join } from '../../../base/common/path.js';
@@ -324,6 +325,7 @@ async function startAgentHost(): Promise<void> {
 		// MessagePort + the external endpoint, which each get their own handler).
 		const localProtocolHandlerConfig = {
 			hostLaunchKind,
+			environment: { pathStyle: localProcessPathStyle },
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -469,6 +471,7 @@ async function startAgentHost(): Promise<void> {
 				wsServer,
 				{
 					hostLaunchKind,
+					environment: { pathStyle: localProcessPathStyle },
 					defaultDirectory: URI.file(os.homedir()).toString(),
 					completionTriggerCharacters,
 					terminalCommandPrefix: BANG_COMMAND_PREFIX,
@@ -728,6 +731,7 @@ async function startWebSocketServer(
 		wsServer,
 		{
 			hostLaunchKind,
+			environment: { pathStyle: localProcessPathStyle },
 			defaultDirectory: URI.file(os.homedir()).toString(),
 			completionTriggerCharacters,
 			terminalCommandPrefix: BANG_COMMAND_PREFIX,
