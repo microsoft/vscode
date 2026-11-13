@@ -10842,6 +10842,42 @@ suite('AgentHostChatContribution', () => {
 			}));
 		}
 
+		test('live BYOK turn does not override directly resolvable prefixed raw model with turn fallback model', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const byok = createByokLanguageModelTestData();
+			const byokModel = upcastPartial<ILanguageModelChatMetadata>({
+				name: 'Claude Haiku 5.5',
+				id: 'claude-haiku-5-5',
+				vendor: 'openrouter',
+				isBYOK: true,
+			});
+			const otherPrefixedModel = upcastPartial<ILanguageModelChatMetadata>({
+				name: 'Claude Sonnet 3.7',
+				id: 'anthropic/claude-3-7-sonnet',
+				vendor: 'anthropic',
+				isBYOK: true,
+			});
+			const languageModels = new Map<string, ILanguageModelChatMetadata>([
+				...byok.languageModels,
+				['openrouter/claude-haiku-5-5', byokModel],
+				['anthropic/claude-3-7-sonnet', otherPrefixedModel],
+			]);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables, {
+				...byok,
+				languageModels,
+			});
+
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
+				userSelectedModelId: 'openrouter/claude-haiku-5-5',
+			});
+
+			fire({ type: 'chat/usage', session, turnId, usage: { model: 'anthropic/claude-3-7-sonnet', _meta: { cost: 0 } } } as ChatAction);
+			fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+
+			const result = await turnPromise;
+
+			assert.strictEqual(result.details, 'Anthropic/Claude Sonnet 3.7 • 0 credits');
+		}));
+
 		test('cancelled turn still returns model credit details from accumulated usage', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const languageModels = new Map<string, ILanguageModelChatMetadata>([
 				['agent-host-copilot:opus-4.7', upcastPartial<ILanguageModelChatMetadata>({ name: 'Opus 4.7', pricing: '15x' })],

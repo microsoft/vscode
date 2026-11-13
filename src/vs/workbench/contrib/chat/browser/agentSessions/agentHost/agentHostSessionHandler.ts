@@ -7933,7 +7933,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			return undefined;
 		};
+		const fallbackProvider = fallbackRawModelId && fallbackRawModelId.includes('/')
+			? fallbackRawModelId.slice(0, fallbackRawModelId.lastIndexOf('/'))
+			: undefined;
 		const lookupModel = (rawModelId: string | undefined): { identifier: string; model: ILanguageModelChatMetadata; resolvedFromRaw: boolean } | undefined => {
+			if (fallbackProvider && rawModelId && !rawModelId.includes('/')) {
+				const byokRaw = lookupRawModel(`${fallbackProvider}/${rawModelId}`);
+				if (byokRaw) {
+					return byokRaw;
+				}
+			}
 			const rawModel = lookupRawModel(rawModelId);
 			if (rawModel) {
 				return rawModel;
@@ -7974,7 +7983,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			toLanguageModelId: (rawModelId) => this._toLanguageModelId(sessionResource, resolveRaw(rawModelId)),
 			isFusionModel: rawModelId => this._config.provider === COPILOT_CLI_AGENT_PROVIDER_ID && isCopilotHydraFusionModelId(rawModelId),
 			toActualModelId: rawModelId => lookupRawModel(reported(rawModelId))?.identifier ?? this._toLanguageModelId(sessionResource, reported(rawModelId)),
-			toModelDisplayName: rawModelId => lookupRawModel(reported(rawModelId))?.model.name ?? this._localModels.getDisplayName(rawModelId) ?? (isCopilotFusionTier(rawModelId) ? fusionModelName(rawModelId) : undefined),
+			toModelDisplayName: rawModelId => {
+				const resolved = lookupModel(reported(rawModelId));
+				return (resolved?.resolvedFromRaw ? resolved.model.name : undefined) ?? this._localModels.getDisplayName(rawModelId) ?? (isCopilotFusionTier(rawModelId) ? fusionModelName(rawModelId) : undefined);
+			},
 			toResponseDetails: (rawModelId, usage, responseModelId) => {
 				const local = responseModelId ? undefined : localTurn(usage);
 				if (local) {
