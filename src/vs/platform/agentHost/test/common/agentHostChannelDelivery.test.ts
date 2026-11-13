@@ -401,7 +401,7 @@ suite('AgentHostChannelDelivery', () => {
 		assert.ok(sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= limits.maximumFrameBytes));
 	});
 
-	test('reassembles consecutive fragmented messages and rejects a surrogate pair split across fragments', () => {
+	test('reassembles consecutive fragmented messages and rejects only a surrogate pair split across fragments', () => {
 		const h = fixture({ release: true, receiveWindowBytes: 1024 * 1024 });
 		const acceptFragments = (text: string, size: number) => {
 			for (let offset = 0; offset < text.length; offset += size) {
@@ -417,10 +417,12 @@ suite('AgentHostChannelDelivery', () => {
 		const second = notification('b\u00e9'.repeat(100));
 		acceptFragments(JSON.stringify(first), 7);
 		acceptFragments(JSON.stringify(second), 50);
-		const split = JSON.stringify(notification('\u{1F680}'));
+		const pair = notification('\u{1F680}');
+		const split = JSON.stringify(pair);
+		acceptFragments(split, split.indexOf('\u{1F680}'));
 		acceptFragments(split, split.indexOf('\u{1F680}') + 1);
 		assert.deepStrictEqual({ received: h.received, errors: h.errors.map(error => error.message) }, {
-			received: [first, second], errors: ['Channel fragment split a surrogate pair'],
+			received: [first, second, pair], errors: ['Channel fragment split a surrogate pair'],
 		});
 	});
 
