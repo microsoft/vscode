@@ -91,6 +91,12 @@ export const enum AgentHostIpcChannels {
 	RemoteProxy = 'agentHostProxy',
 }
 
+/**
+ * IPC connection context of the Electron main process's connection to the local agent host. Unlike a renderer's
+ * connection, whose context is its client id, it serves none of the client channels, such as the proxy channel.
+ */
+export const AgentHostMainProcessConnectionContext = 'agentHost';
+
 /** VS Code IPC-only connection options, never forwarded over the Agent Host Protocol. */
 export interface IAgentHostIpcConnectionOptions {
 	readonly preferredAgentLocation?: RemoteAgentHostLocationPreference;
