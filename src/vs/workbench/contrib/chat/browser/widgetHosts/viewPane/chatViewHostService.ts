@@ -5,6 +5,7 @@
 
 import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
@@ -32,6 +33,18 @@ export class ChatViewPaneHost implements IChatViewHost {
 		const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus);
 		if (view && !view.widget && options?.waitForWidget) {
 			return raceTimeout(view.whenWidget, ChatViewPaneHost.WIDGET_TIMEOUT);
+		}
+		return view?.widget;
+	}
+
+	async revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
+		const chatView = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId);
+		if (!isEqual(chatView?.widget.viewModel?.sessionResource, sessionResource)) {
+			return undefined;
+		}
+		const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
+		if (view && !options?.preserveFocus) {
+			view.focus();
 		}
 		return view?.widget;
 	}
@@ -141,6 +154,10 @@ export class ChatViewHostService implements IChatViewHostService {
 
 	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
 		return this.host.reveal(preserveFocus, options);
+	}
+
+	async revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
+		return this.host.revealIfShowing?.(sessionResource, options);
 	}
 
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {

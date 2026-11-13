@@ -17,7 +17,7 @@ import { IEditorGroupsService } from '../../../../../services/editor/common/edit
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetViewContext, IQuickChatService } from '../../../browser/chat.js';
-import { IChatViewHostService } from '../../../browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostService } from '../../../browser/chatViewHost.js';
 import { ChatViewHostService } from '../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { IViewDescriptorService } from '../../../../../common/views.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
@@ -121,6 +121,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
 			reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; },
+			revealIfShowing: async () => undefined,
 			openSession: async (sessionResource, options) => { calls.push(`openSession ${sessionResource.toString()} preserveFocus=${options?.preserveFocus} reason=${options?.sessionTypeSelectionReason}`); return undefined; },
 		}));
 		const service = store.add(instantiationService.createInstance(ChatWidgetService));
@@ -195,6 +196,86 @@ suite('ChatWidgetService', () => {
 			quickChat: { revealed: false, focusInput: 0 },
 			inlineChat: { revealed: false, focusInput: 0 },
 			openedViews: [ChatViewId, ChatViewId, ChatViewId],
+		});
+	});
+	suite('Chat view widgets with a replacement host', () => {
+
+		const session = URI.parse('test:/session');
+
+		function setUp() {
+			const instantiationService = store.add(new TestInstantiationService());
+			const calls: string[] = [];
+			const createWidget = (sessionResource: URI | undefined) => upcastPartial<IChatWidget>({
+				visible: true,
+				viewContext: { viewId: ChatViewId },
+				location: ChatAgentLocation.Chat,
+				viewModel: sessionResource ? upcastPartial<IChatViewModel>({ sessionResource }) : undefined,
+				onDidFocus: Event.None,
+				onDidShow: Event.None,
+				onDidHide: Event.None,
+				onDidChangeViewModel: Event.None,
+			});
+			const oldWidget = createWidget(session);
+			const emptyOldWidget = createWidget(undefined);
+			const hostWidget = upcastPartial<IChatWidget>({});
+			const view = { widget: oldWidget, focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); } };
+			instantiationService.stub(IEditorGroupsService, { groups: [] });
+			instantiationService.stub(IViewsService, {
+				getViewWithId: (() => view) as unknown as IViewsService['getViewWithId'],
+				openView: (async (id: string) => { calls.push(`openView ${id}`); return view; }) as unknown as IViewsService['openView'],
+			});
+			instantiationService.stub(IQuickChatService, { sessionResource: undefined });
+			instantiationService.stub(ILayoutService, {});
+			instantiationService.stub(IEditorService, {});
+			instantiationService.stub(IChatService, { acquireExistingSession: () => undefined });
+			instantiationService.stub(ILogService, new NullLogService());
+			stubChatViewHostService(instantiationService);
+			const hostService = instantiationService.get(IChatViewHostService);
+			const service = store.add(instantiationService.createInstance(ChatWidgetService));
+			return { calls, service, hostService, oldWidget, emptyOldWidget, hostWidget };
+		}
+
+		test('a Chat view that still holds the session is not shown or returned instead of what the replacement host shows', async () => {
+			const { calls, service, hostService, oldWidget, hostWidget } = setUp();
+			store.add(hostService.registerHost(upcastPartial<IChatViewHost>({
+				reveal: async () => { calls.push('host.reveal'); return hostWidget; },
+				openSession: async () => { calls.push('host.openSession'); return hostWidget; },
+			})));
+			const registration = service.register(oldWidget);
+			store.add(registration);
+
+			const result = {
+				openSession: (await service.openSession(session)) === hostWidget,
+				revealOpenSession: (await service.openSession(session, undefined, { revealIfOpened: true })) === hostWidget,
+				revealWidget: (await service.revealWidget()) === hostWidget,
+				calls,
+			};
+
+			assert.deepStrictEqual(result, {
+				openSession: true,
+				revealOpenSession: true,
+				revealWidget: true,
+				calls: ['host.openSession', 'host.openSession', 'host.reveal'],
+			});
+		});
+
+		test('a Chat view widget without a session is revealed by the replacement host, which may show none', async () => {
+			const { calls, service, hostService, emptyOldWidget } = setUp();
+			store.add(hostService.registerHost(upcastPartial<IChatViewHost>({
+				reveal: async () => { calls.push('host.reveal'); return undefined; },
+			})));
+
+			const revealed = await service.reveal(emptyOldWidget);
+
+			assert.deepStrictEqual({ revealed, calls }, { revealed: false, calls: ['host.reveal'] });
+		});
+
+		test('without a replacement host, a Chat view that holds the session is shown as it is, without loading the session again', async () => {
+			const { calls, service, oldWidget } = setUp();
+
+			const widget = await service.openSession(session);
+
+			assert.deepStrictEqual({ shown: widget === oldWidget, calls }, { shown: true, calls: [`openView ${ChatViewId}`, 'view.focus'] });
 		});
 	});
 });

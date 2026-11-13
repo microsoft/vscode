@@ -20,7 +20,6 @@ import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService, IQuick
 import { IChatViewHostService } from '../chatViewHost.js';
 import { ChatEditor, IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
-import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 
 export class ChatWidgetService extends Disposable implements IChatWidgetService {
 
@@ -89,7 +88,8 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> {
 		const last = this.lastFocusedWidget;
-		if (last && await this.reveal(last, preserveFocus)) {
+		// The Chat view's widgets are shown by the host of its chats, which may have replaced the Chat view: what it shows is the result
+		if (last && !(isIChatViewViewContext(last.viewContext) && last.viewContext.viewId === ChatViewId) && await this.reveal(last, preserveFocus)) {
 			return last;
 		}
 
@@ -109,6 +109,9 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 		}
 
 		if (isIChatViewViewContext(widget.viewContext)) {
+			if (widget.viewContext.viewId === ChatViewId) {
+				return !!await this.chatViewHostService.reveal(preserveFocus);
+			}
 			const view = await this.viewsService.openView(widget.viewContext.viewId, !preserveFocus);
 			if (!preserveFocus) {
 				view?.focus();
@@ -177,14 +180,10 @@ export class ChatWidgetService extends Disposable implements IChatWidgetService 
 	}
 
 	private async revealSessionIfAlreadyOpen(sessionResource: URI, options?: IChatEditorOptions): Promise<IChatWidget | undefined> {
-		// Already open in chat view?
-		const chatView = this.viewsService.getViewWithId<ChatViewPane>(ChatViewId);
-		if (chatView?.widget.viewModel?.sessionResource && isEqual(chatView.widget.viewModel.sessionResource, sessionResource)) {
-			const view = await this.viewsService.openView(ChatViewId, !options?.preserveFocus);
-			if (!options?.preserveFocus) {
-				view?.focus();
-			}
-			return chatView.widget;
+		// Already open in the host of the Chat view's chats?
+		const hostWidget = await this.chatViewHostService.revealIfShowing(sessionResource, options);
+		if (hostWidget) {
+			return hostWidget;
 		}
 
 		// Already open in an editor?

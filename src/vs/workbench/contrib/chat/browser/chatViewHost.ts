@@ -59,6 +59,11 @@ export interface IChatViewHostSessionStart extends IDisposable {
 export interface IChatViewHost {
 	/** Shows the host and resolves to the widget of the chat it shows. */
 	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined>;
+	/**
+	 * Shows the host and resolves to the widget of the chat of `sessionResource` when the host already holds that chat, without
+	 * loading it again; to `undefined` when it does not. A host that does not implement it holds no chat to reveal this way.
+	 */
+	revealIfShowing?(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 	/** Shows the chat of `sessionResource` in the host and resolves to its widget; to `undefined` when it cannot show it. */
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 	/** Shows the host, or hides it while it shows. Resolves to whether it shows afterwards. */
@@ -73,6 +78,8 @@ export interface IChatViewHost {
  */
 export interface IChatViewHostService extends IChatViewHost {
 	readonly _serviceBrand: undefined;
+
+	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
