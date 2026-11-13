@@ -9,6 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { isNative } from '../../../../../base/common/platform.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -21,6 +22,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { FileChangesEvent, FileChangeType, IFileContent, IFileService, IFileStatWithMetadata } from '../../../../../platform/files/common/files.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
 import { IOverlayWebview, WebviewMessageReceivedEvent } from '../../../webview/browser/webview.js';
 import { isCustomEditorCompatibleInput } from '../../../customEditor/common/customEditor.js';
 import { AUDIO_PREVIEW_EDITOR_ID, IMAGE_PREVIEW_EDITOR_ID, VIDEO_PREVIEW_EDITOR_ID } from '../../common/mediaPreview.js';
@@ -178,7 +180,15 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		fileService.stat = async resource => ({ resource, size: reportedSize } as IFileStatWithMetadata);
 		fileService.readFile = async resource => ({ resource, value: buffer, size: buffer.byteLength } as IFileContent);
 
-		const webview = { html: '', onMessage: disposables.add(new Emitter<WebviewMessageReceivedEvent>()), message: new DeferredPromise<unknown>() };
+		const webview = { html: '', onMessage: disposables.add(new Emitter<WebviewMessageReceivedEvent>()), message: new DeferredPromise<unknown>(), openedExternally: [] as string[] };
+		instantiationService.stub(IOpenerService, new class extends mock<IOpenerService>() {
+			override async open(target: URI | string, options?: OpenOptions) {
+				if (options?.openExternal) {
+					webview.openedExternally.push(target.toString());
+				}
+				return true;
+			}
+		});
 		const input = disposables.add(instantiationService.createInstance(MediaPlayerEditorInput, kind, resource, new class extends mock<IOverlayWebview>() {
 			override readonly onMessage = webview.onMessage.event;
 			override setHtml(value: string) { webview.html = value; }
@@ -192,22 +202,70 @@ suite('Media Preview - MediaPlayerEditorInput', () => {
 		return webview;
 	}
 
+	// Files can only be opened in an external application on desktop
+	const openFile = isNative ? [{ label: 'Open File', message: 'open-externally' }] : [];
+	const openInTextEditor = { label: 'Open in Text Editor', message: 'reopen-as-text' };
+
 	test('sends the audio codecs to the webview on request, which warns if it cannot play them', async () => {
 		const disposables = store.add(new DisposableStore());
 		// A WAV file with GSM 6.10 audio
 		const webview = await createMediaPlayer(disposables, 'audio', URI.file('/media/voice.wav'), wav(uint16LE(0x0031)));
-		webview.onMessage.fire({ message: { type: 'get-audio-codecs' } });
+		webview.onMessage.fire({ message: { type: 'get-codecs' } });
 
 		assert.deepStrictEqual({
-			hasWarningRegion: webview.html.includes('<div class="codec-warning" role="status"></div>'),
+			hasWarningRegion: webview.html.includes('<div class="codec-warning-message" role="status"></div>'),
 			message: await webview.message.p,
 		}, {
 			hasWarningRegion: true,
 			message: {
-				type: 'audio-codecs',
-				mimeTypes: ['audio/wav; codecs="49"'],
-				warning: 'This audio file uses the GSM 6.10 codec, which can\'t be played in the audio preview. Open the file in an external application to listen to it.',
+				type: 'codecs',
+				video: undefined,
+				audio: {
+					mimeTypes: ['audio/wav; codecs="49"'],
+					warning: 'This audio file uses the GSM 6.10 codec, which can\'t be played in the audio preview.',
+					actions: [...openFile, openInTextEditor],
+				},
 			},
+		});
+	});
+
+	test('sends the video codecs of a WebM file to the webview on request, which warns if it cannot play them', async () => {
+		const disposables = store.add(new DisposableStore());
+		const webview = await createMediaPlayer(disposables, 'video', URI.file('/media/clip.webm'), webm([1, 'V_VP9'], [2, 'A_OPUS']));
+		webview.onMessage.fire({ message: { type: 'get-codecs' } });
+
+		// Only a video that can't be played fails to load, so only its warning offers the text editor
+		assert.deepStrictEqual(await webview.message.p, {
+			type: 'codecs',
+			video: {
+				mimeTypes: ['video/webm; codecs="vp9"'],
+				warning: 'This video uses the VP9 codec, which can\'t be played in the video preview.',
+				actions: [...openFile, openInTextEditor],
+			},
+			audio: {
+				mimeTypes: ['audio/webm; codecs="opus"'],
+				warning: 'This video\'s audio uses the Opus codec, which can\'t be played in the video preview.',
+				actions: openFile,
+			},
+		});
+	});
+
+	test('opens only local media files in an external application from the codec warning', async () => {
+		const disposables = store.add(new DisposableStore());
+		const result: Record<string, { offersOpenFile: boolean; openedExternally: string[] }> = {};
+		// The preview can show any file, such as a script disguised as a video, which the OS would run
+		for (const resource of [URI.file('/media/clip.webm'), URI.file('/media/clip.command'), URI.from({ scheme: Schemas.vscodeRemote, authority: 'host', path: '/media/clip.webm' })]) {
+			const webview = await createMediaPlayer(disposables, 'video', resource, webm([1, 'V_VP9']));
+			webview.onMessage.fire({ message: { type: 'get-codecs' } });
+			const message = await webview.message.p as { video: { actions: { message: string }[] } };
+			webview.onMessage.fire({ message: { type: 'open-externally' } });
+			result[resource.toString()] = { offersOpenFile: message.video.actions.some(action => action.message === 'open-externally'), openedExternally: webview.openedExternally };
+		}
+
+		assert.deepStrictEqual(result, {
+			'file:///media/clip.webm': { offersOpenFile: isNative, openedExternally: isNative ? ['file:///media/clip.webm'] : [] },
+			'file:///media/clip.command': { offersOpenFile: false, openedExternally: [] },
+			'vscode-remote://host/media/clip.webm': { offersOpenFile: false, openedExternally: [] },
 		});
 	});
 

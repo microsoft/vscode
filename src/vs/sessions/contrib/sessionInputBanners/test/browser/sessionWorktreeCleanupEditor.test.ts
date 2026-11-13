@@ -990,11 +990,13 @@ suite('SessionWorktreeCleanupEditor', () => {
 			assert.deepStrictEqual({
 				opened,
 				heading: container.querySelector('details > summary')?.textContent,
+				headingClass: container.querySelector('details > summary')?.className,
 				loading: container.querySelector('.session-worktree-cleanup-summary')?.textContent,
 				pickerDisabled: container.querySelector('.session-worktree-cleanup-age')?.getAttribute('aria-disabled'),
 			}, {
 				opened: true,
 				heading: 'Automatic Cleanup',
+				headingClass: 'agent-sessions-interactive agent-sessions-interactive-bordered',
 				loading: 'Measuring worktree storage...',
 				pickerDisabled: 'true',
 			});

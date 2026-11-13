@@ -197,6 +197,8 @@ suite('RemotesModel', () => {
 			shareable: observableValue<ReadonlySet<string>>(store, new Set()),
 			shares: observableValue<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>(store, new Map()),
 			environmentIds: observableValue<ReadonlySet<string>>(store, new Set()),
+			// Result of the keep-sharing prompt on disconnect: `false` means the user cancelled the disconnect.
+			disconnectConfirmed: true,
 			// Records how many removals had happened, to verify that sharing stops first.
 			events: [] as string[],
 		};
@@ -204,6 +206,10 @@ suite('RemotesModel', () => {
 			shareable: sharing.shareable,
 			shares: sharing.shares,
 			environmentIds: sharing.environmentIds,
+			confirmDisconnect: async (address, name) => {
+				sharing.events.push(`confirm disconnect ${address} (${name})`);
+				return sharing.disconnectConfirmed;
+			},
 			setShared: async (address, shared) => {
 				sharing.events.push(`${shared ? 'share' : 'unshare'} ${address} after ${removals.length + sshDisconnects.length + deletedTunnels.length} removals`);
 				const shares = new Map(sharing.shares.get());
@@ -1462,7 +1468,7 @@ suite('RemotesModel', () => {
 	}
 
 	test('environment connections prefer provider hooks and retain inventory on disconnect', async () => {
-		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider } = setup();
+		const { model, configuration, environmentAvailable, environmentHosts, environmentConnections, connectionChanges, addEnvironmentProvider, sharing } = setup();
 		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
 		environmentAvailable.set(true, undefined);
 		environmentHosts.set([{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' }], undefined);
@@ -1471,8 +1477,8 @@ suite('RemotesModel', () => {
 		addEnvironmentProvider('desktop');
 		await model.setConnected(id, true);
 		await model.setConnected(id, false);
-		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id) }, {
-			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true,
+		assert.deepStrictEqual({ environmentConnections, connectionChanges, retained: model.remotes.get().some(remote => remote.id === id), sharingEvents: sharing.events }, {
+			environmentConnections: ['desktop'], connectionChanges: [{ id, connected: true }, { id, connected: false }], retained: true, sharingEvents: [],
 		});
 	});
 
@@ -1554,6 +1560,22 @@ suite('RemotesModel', () => {
 		assert.deepStrictEqual({ events: sharing.events.slice(ids.length), shares: [...sharing.shares.get().keys()] }, {
 			events: ['unshare ssh:removed after 0 removals', 'unshare wsl:Ubuntu after 1 removals', 'unshare tunnel:laptop after 2 removals'],
 			shares: [],
+		});
+	});
+
+	test('disconnecting asks whether to keep sharing as a GitHub environment and can be cancelled', async () => {
+		const { model, sharing, connectionChanges } = setup();
+		await model.refresh(CancellationToken.None);
+		await model.setConnected('ssh:build', true);
+		sharing.disconnectConfirmed = false;
+		await model.setConnected('ssh:build', false);
+		const cancelled = model.remotes.get().find(remote => remote.id === 'ssh:build')?.connectionStatus.kind;
+		sharing.disconnectConfirmed = true;
+		await model.setConnected('ssh:build', false);
+		assert.deepStrictEqual({ cancelled, events: sharing.events, connectionChanges }, {
+			cancelled: 'connected',
+			events: ['confirm disconnect ssh:build (build)', 'confirm disconnect ssh:build (build)'],
+			connectionChanges: [{ id: 'ssh:build', connected: true }, { id: 'ssh:build', connected: false }],
 		});
 	});
 

@@ -1078,7 +1078,7 @@ suite('GitHub pull request artifact integration', () => {
 			},
 			title: 'Checks (2/4)',
 			items: [
-				{ id: 'pending', icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' } },
+				{ id: 'pending', icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' } },
 				{ id: 'failed', icon: { id: 'error-compact', colorId: 'errorForeground' } },
 				{ id: 'skipped', icon: { id: 'skip', colorId: 'descriptionForeground' } },
 				{ id: 'passed', icon: { id: 'pass-filled-compact', colorId: 'charts.green' } },
@@ -1155,7 +1155,7 @@ suite('GitHub pull request artifact integration', () => {
 			states.push({ icon: section?.icon, label: section?.label, description: section?.description, title: details.details.get().title, checksReady: arePullRequestArtifactChecksReady(snapshot) });
 		}
 		assert.deepStrictEqual(states, [
-			{ icon: { id: 'sync-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
+			{ icon: { id: 'circle-filled-compact', colorId: 'editorWarning.foreground' }, label: '0/1', description: '0 of 1 checks passed; 0 failed.', title: 'Checks (0/1)', checksReady: false },
 			{ icon: { id: 'pass-filled-compact', colorId: 'charts.green' }, label: '1/1', description: '1 of 1 checks passed; 0 failed.', title: 'Checks (1/1)', checksReady: true },
 			{ icon: { id: 'skip', colorId: 'descriptionForeground' }, label: '1/1', description: '1 of 1 checks completed without failure; 0 failed; 1 skipped.', title: 'Checks (1/1)', checksReady: true },
 		]);

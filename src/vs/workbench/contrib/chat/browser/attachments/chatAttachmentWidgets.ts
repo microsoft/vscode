@@ -1027,7 +1027,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 	private readonly _tooltipHover: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _referenceHover: (() => IGitHubResourceDetailsHover) | undefined;
 	get supportsPreview(): boolean {
-		return !!this._referenceHover && !!this.element.closest('.chat-inline-attachment');
+		return !!this._referenceHover;
 	}
 	private readonly _onDidChangePreview = this._register(new event.Emitter<void>());
 	readonly onDidChangePreview = this._onDidChangePreview.event;
@@ -1038,7 +1038,7 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 		attachment: IChatRequestVariableEntry,
 		correspondingContentReference: IChatContentReference | undefined,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
-		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver; hoverDelegate?: IHoverDelegate },
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; supportsReferencePreview?: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver; hoverDelegate?: IHoverDelegate },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
 		@ICommandService commandService: ICommandService,
@@ -1111,7 +1111,8 @@ export class DefaultChatAttachmentWidget extends AbstractChatAttachmentWidget {
 			this._setupTooltipHover(attachment.tooltip);
 		}
 
-		if (attachment.kind === 'generic' && attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX) && this.element.closest('.chat-inline-attachment')) {
+		// A pill in the text of the input always previews and opens its GitHub issue or pull request; other pills do when asked to.
+		if (attachment.kind === 'generic' && attachment.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX) && (options.supportsReferencePreview || this.element.closest('.chat-inline-attachment'))) {
 			const link = URI.parse(attachment.id.substring(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length));
 			const issue = parseGitHubReferenceTarget(link, 'issue');
 			const target = issue ?? parseGitHubReferenceTarget(link, 'pullRequest');

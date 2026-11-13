@@ -26,6 +26,7 @@ import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFolde
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { AgentHostSessionWorkingDirectorySynchronizer } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectorySynchronizer.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class MutableSessionSubscription extends Disposable implements IAgentSubscription<SessionState> {
 	private readonly _onDidChange = this._register(new Emitter<SessionState>());
@@ -141,11 +142,11 @@ suite('AgentHostSessionWorkingDirectorySynchronizer', () => {
 		const workspaceContextService = new class extends mock<IWorkspaceContextService>() {
 			override readonly onDidChangeWorkspaceFolders = onDidChangeWorkspaceFolders;
 			override getWorkspace(): IWorkspace {
-				return {
+				return testIWorkspace({
 					id: 'workspace',
 					configuration: workspaceFile,
 					folders: folders.map((uri, index) => ({ uri, index, name: uri.path, toResource: path => URI.joinPath(uri, path) } as IWorkspaceFolder)),
-				};
+				});
 			}
 		};
 		const trustService = new class extends mock<IWorkspaceTrustManagementService>() {
