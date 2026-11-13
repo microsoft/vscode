@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/scheduledChatTimePicker.css';
-import { $, addDisposableListener, append, EventType, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, reset } from '../../../../base/browser/dom.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { SelectBoxNative } from '../../../../base/browser/ui/selectBox/selectBoxNative.js';
@@ -226,6 +226,13 @@ export async function pickScheduledChatTime(quickInputService: IQuickInputServic
 		picker.anchorPosition = anchor ? 'above' : undefined;
 		const form = $('.scheduled-chat-time-picker');
 		picker.widget = form;
+		// Buttons blur themselves on Escape, which would close the picker without restoring focus to the invoking control.
+		disposables.add(addDisposableListener(form, EventType.KEY_DOWN, event => {
+			if (event.key === 'Escape') {
+				EventHelper.stop(event, true);
+				picker.hide();
+			}
+		}, true));
 
 		const fields = append(form, $('.scheduled-chat-time-fields'));
 		const initial = new Date((Math.floor(Date.now() / 900_000) + 1) * 900_000);

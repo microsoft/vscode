@@ -9,12 +9,16 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IPickOptions, IQuickInputHideEvent, IQuickInputService, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput } from '../../../../../platform/quickinput/common/quickInput.js';
 import { pickScheduledChatTime } from '../../browser/scheduledChatTimePicker.js';
 
 suite('Scheduled chat time picker', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	// Local midday mid-month, so rounding the suggestion up to the next quarter hour never crosses a day or month.
+	const fixedNow = new Date(2030, 4, 15, 12, 0).getTime();
+	const timedTest = (name: string, fn: () => Promise<void>) => test(name, () => runWithFakedTimers({ startTime: fixedNow }, fn));
 
 	function create(preset?: string) {
 		const onDidHide = store.add(new Emitter<IQuickInputHideEvent>());
@@ -22,13 +26,17 @@ suite('Scheduled chat time picker', () => {
 		const container = document.body.appendChild($('div'));
 		store.add(toDisposable(() => container.remove()));
 		let choices: readonly IQuickPickItem[] = [];
+		let focusedAtHide: Element | null | undefined;
 		const picker = upcastPartial<IQuickWidget>({
 			onDidHide: onDidHide.event,
 			show: () => {
 				container.appendChild(picker.widget as HTMLElement);
 				shown.complete();
 			},
-			hide: () => onDidHide.fire({ reason: QuickInputHideReason.Gesture }),
+			hide: () => {
+				focusedAtHide = document.activeElement;
+				onDidHide.fire({ reason: QuickInputHideReason.Gesture });
+			},
 			dispose: () => { container.replaceChildren(); },
 		});
 		const quickInput = new class extends mock<IQuickInputService>() {
@@ -65,7 +73,7 @@ suite('Scheduled chat time picker', () => {
 				},
 			};
 		};
-		return { result, ready, picker, get choices() { return choices; } };
+		return { result, ready, picker, get choices() { return choices; }, get focusedAtHide() { return focusedAtHide; } };
 	}
 
 	function today(offsetDays = 0, hours = 0, minutes = 0): Date {
@@ -73,7 +81,7 @@ suite('Scheduled chat time picker', () => {
 		return new Date(now.getFullYear(), now.getMonth(), now.getDate() + offsetDays, hours, minutes);
 	}
 
-	test('presets include short delays and tomorrow at local 9 AM with exact send times', async () => {
+	timedTest('presets include short delays and tomorrow at local 9 AM with exact send times', async () => {
 		const fixture = create('Tomorrow Morning');
 		const date = await fixture.result;
 		assert.deepStrictEqual({
@@ -87,7 +95,7 @@ suite('Scheduled chat time picker', () => {
 		});
 	});
 
-	test('calendar clicks and quarter-hour dropdown schedule a local time without text input', async () => {
+	timedTest('calendar clicks and quarter-hour dropdown schedule a local time without text input', async () => {
 		const fixture = create();
 		const { nextMonth, day, selectTime, schedule, summary, time } = await fixture.ready();
 		nextMonth.click();
@@ -110,7 +118,7 @@ suite('Scheduled chat time picker', () => {
 		});
 	});
 
-	test('calendar keyboard navigation moves by day and week, stops at today, and selects with Enter', async () => {
+	timedTest('calendar keyboard navigation moves by day and week, stops at today, and selects with Enter', async () => {
 		const fixture = create();
 		const { press, focusedDay, previousMonth, selectTime, schedule } = await fixture.ready();
 		for (let i = 0; i < 40; i++) {
@@ -136,7 +144,7 @@ suite('Scheduled chat time picker', () => {
 		});
 	});
 
-	test('exact time supports minutes outside the quarter-hour options', async () => {
+	timedTest('exact time supports minutes outside the quarter-hour options', async () => {
 		const fixture = create();
 		const { nextMonth, day, selectTime, exact, schedule } = await fixture.ready();
 		nextMonth.click();
@@ -151,7 +159,7 @@ suite('Scheduled chat time picker', () => {
 		});
 	});
 
-	test('past and incomplete times cannot be scheduled and expose a visible reason', async () => {
+	timedTest('past and incomplete times cannot be scheduled and expose a visible reason', async () => {
 		const fixture = create();
 		const { press, selectTime, exact, schedule, summary, cancel } = await fixture.ready();
 		press('ArrowLeft');
@@ -168,7 +176,18 @@ suite('Scheduled chat time picker', () => {
 		assert.deepStrictEqual({ past, incomplete, date: await fixture.result }, { past: invalid, incomplete: invalid, date: undefined });
 	});
 
-	test('dismissing the custom picker returns no date', async () => {
+	timedTest('Escape on a picker button cancels while focus is still inside the picker', async () => {
+		const fixture = create();
+		const { nextMonth } = await fixture.ready();
+		nextMonth.focus();
+		const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+		nextMonth.dispatchEvent(event);
+		assert.deepStrictEqual({ date: await fixture.result, focusedAtHide: fixture.focusedAtHide === nextMonth, handled: event.defaultPrevented }, {
+			date: undefined, focusedAtHide: true, handled: true,
+		});
+	});
+
+	timedTest('dismissing the custom picker returns no date', async () => {
 		const fixture = create();
 		await fixture.ready();
 		fixture.picker.hide();

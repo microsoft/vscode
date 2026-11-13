@@ -45,8 +45,10 @@ import { SESSIONS_DRAFTS_ENABLED_SETTING, SESSIONS_SEND_LATER_ENABLED_SETTING } 
 import { ISessionsChangeEvent, ISessionsManagementService } from '../../common/sessionsManagement.js';
 
 suite('Scheduled chat handoffs', () => {
-	// The custom picker fixture chooses the 15th of next month at 9:30 local time.
-	const customTime = () => new Date(new Date().getFullYear(), new Date().getMonth() + 1, 15, 9, 30);
+	// The custom picker fixture chooses the 15th of next month at 9:30. Tests that use it freeze the clock at a local
+	// midday mid-month, so the picker's initial suggestion never rounds into another month.
+	const fixedNow = new Date(2030, 4, 15, 12, 0).getTime();
+	const customTime = new Date(2030, 5, 15, 9, 30);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const input: IChatDraft = { inputText: 'Review the changes', attachments: [] };
 	const target: ISavedSessionDraftTarget = { providerId: 'local', sessionTypeId: 'copilot' };
@@ -273,7 +275,7 @@ suite('Scheduled chat handoffs', () => {
 	}
 
 	for (const existingChat of [false, true]) {
-		test(`anchors the time picker and custom calendar above the send controls (existing chat: ${existingChat})`, async () => {
+		test(`anchors the time picker and custom calendar above the send controls (existing chat: ${existingChat})`, () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 			const fixture = create();
 			fixture.customTime = true;
 			const source = registerInput(fixture.service);
@@ -286,7 +288,7 @@ suite('Scheduled chat handoffs', () => {
 				{ anchor: source.anchor, anchorPosition: 'above' },
 				{ anchor: source.anchor, anchorPosition: 'above' },
 			]);
-		});
+		}));
 	}
 
 	test('opening the time picker retains dropdown availability but prevents duplicate scheduling', async () => {
@@ -303,7 +305,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
-	test('rescheduling anchors both time pickers above the scheduled message', async () => {
+	test('rescheduling anchors both time pickers above the scheduled message', () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 		const fixture = create();
 		const source = registerInput(fixture.service);
 		await fixture.service.scheduleChatInput(source.widget);
@@ -315,9 +317,9 @@ suite('Scheduled chat handoffs', () => {
 			runAt: fixture.automations.get()[0].schedule.runAt,
 		}, {
 			anchors: [{ anchor, anchorPosition: 'above' }, { anchor, anchorPosition: 'above' }],
-			runAt: customTime().toISOString(),
+			runAt: customTime.toISOString(),
 		});
-	});
+	}));
 
 	test('scheduled messages belong only to their exact session and chat, and disappear after dispatch', async () => {
 		const fixture = create();
@@ -360,7 +362,7 @@ suite('Scheduled chat handoffs', () => {
 		});
 	});
 
-	test('scheduled conversation edits update text and send time without occupying the chat input', async () => {
+	test('scheduled conversation edits update text and send time without occupying the chat input', () => runWithFakedTimers({ startTime: fixedNow }, async () => {
 		const fixture = create();
 		const conversation = { sessionResource: URI.parse('agent-host-copilot:/session'), chatResource: URI.parse('agent-host-copilot:/session/secondary') };
 		fixture.sessions.set(conversation.sessionResource.toString(), session);
@@ -382,10 +384,10 @@ suite('Scheduled chat handoffs', () => {
 			recoveryText: parse(fixture.storage.get('sessions.scheduledChatHandoffs', StorageScope.PROFILE)!).handoffs[0].input.inputText,
 		}, {
 			text: 'Changed scheduled message', prompt: 'Changed scheduled message', enabled: true,
-			runAt: customTime().toISOString(), calls: ['update'], recoveredInputs: [],
+			runAt: customTime.toISOString(), calls: ['update'], recoveredInputs: [],
 			editing: undefined, anchors: [true, true], recoveryText: 'Changed scheduled message',
 		});
-	});
+	}));
 
 	test('scheduled conversation edit conflicts preserve edits and cancellation keeps the original schedule', async () => {
 		const fixture = create();
