@@ -1074,9 +1074,10 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Telemetry
 		type WindowErrorClassification = {
-			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The type of window error to understand the nature of the error better.' };
+			type: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The type of window error to understand the nature of the error better.' };
 			reason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The reason of the window error to understand the nature of the error better.' };
-			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The exit code of the window process to understand the nature of the error better' };
+			code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The exit code of the window process to understand the nature of the error better' };
+			isAgentsWindow: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the window was an Agents window, to attribute window errors to it.' };
 			owner: 'bpasero';
 			comment: 'Provides insight into reasons the vscode window had an error.';
 		};
@@ -1084,11 +1085,13 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			type: WindowError;
 			reason: string | undefined;
 			code: number | undefined;
+			isAgentsWindow: boolean;
 		};
 		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', {
 			type,
 			reason: details?.reason,
-			code: details?.exitCode
+			code: details?.exitCode,
+			isAgentsWindow: !!this._config?.isSessionsWindow
 		});
 
 		// Inform User if non-recoverable
