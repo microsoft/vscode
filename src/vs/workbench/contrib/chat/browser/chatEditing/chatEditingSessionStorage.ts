@@ -28,6 +28,22 @@ export interface StoredSessionState {
 	readonly timeline: IChatEditingTimelineState | undefined;
 }
 
+/**
+ * Whether the state holds nothing beyond what a new editing session starts
+ * with: no file contents, no entries, and a timeline with only its initial
+ * checkpoint.
+ */
+function isEmptySessionState(state: StoredSessionState): boolean {
+	const timeline = state.timeline;
+	return state.initialFileContents.size === 0
+		&& state.recentSnapshot.entries.size === 0
+		&& (!timeline || (
+			timeline.operations.length === 0
+			&& timeline.fileBaselines.length === 0
+			&& timeline.checkpoints.every(checkpoint => checkpoint.requestId === undefined)
+		));
+}
+
 export class ChatEditingSessionStorage {
 	private readonly storageKey: string;
 	constructor(
@@ -122,6 +138,11 @@ export class ChatEditingSessionStorage {
 	}
 
 	public async storeState(state: StoredSessionState): Promise<void> {
+		if (isEmptySessionState(state)) {
+			// Nothing to restore: don't leave a folder behind for every session that never edited.
+			return this.clearState();
+		}
+
 		const storageFolder = this._getStorageLocation();
 		const contentsFolder = URI.joinPath(storageFolder, STORAGE_CONTENTS_FOLDER);
 
