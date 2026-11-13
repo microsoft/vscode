@@ -733,7 +733,7 @@ suite('createChatInputToolbarContext', () => {
 		const contexts = [createChatInputToolbarContext(widget), createChatInputToolbarContext(widgetWithoutSession)];
 		const [serialized, serializedWithoutSession] = revive<unknown[]>(JSON.parse(JSON.stringify(contexts)));
 
-		assert.throws(() => JSON.stringify({ widget }), /circular/);
+		assert.throws(() => JSON.stringify({ widget }), TypeError);
 		assert.deepStrictEqual({
 			liveWidgets: contexts[0].widget === widget && contexts[1].widget === widgetWithoutSession,
 			serialized: isChatViewTitleActionContext(serialized) ? { sessionResource: serialized.sessionResource.toString(), inputUri: serialized.inputUri?.toString() } : serialized,

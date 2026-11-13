@@ -12,7 +12,7 @@ import { retry, timeout } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { isICommandActionToggleInfo } from '../../../../../platform/action/common/action.js';
@@ -42,6 +42,8 @@ import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/ac
 import { findOnboardingTarget } from '../../../../../workbench/contrib/onboarding/browser/spotlight/onboardingTarget.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { IAgentHostSessionsProvider, LocalAgentHostRegistration } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { IsPhoneLayoutContext, SessionIsArchivedContext, SessionIsReadContext, SessionItemIsMultiSelectionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
@@ -53,7 +55,7 @@ import { getSessionArchiveOnboardingTargetId, SessionItemCanAcknowledgeContext, 
 import { getInboxPullRequestMergeOperation, SessionInboxSection } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { ISessionsListModelService, SessionsListModelService } from '../../../../../workbench/contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
+import { getSessionFilterEnvironments, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
@@ -68,6 +70,7 @@ suite('Sessions - View Menu', () => {
 		sessions: readonly ISession[] = [],
 		environments: readonly ISessionEnvironment[] = [],
 		wording = ChatSessionArchiveActionWording.MarkAsDone,
+		providers?: readonly ISessionsProvider[],
 	) {
 		const configurationService = new class extends TestConfigurationService {
 			override async updateValue(key: string, value: unknown): Promise<void> {
@@ -131,7 +134,7 @@ suite('Sessions - View Menu', () => {
 			},
 			sessionsProvidersService: {
 				onDidChangeProviders: providersChanged.event,
-				getProviders: () => environments.map(environment => ({ environment })),
+				getProviders: () => providers ?? environments.map(environment => ({ id: environment.id, environment })),
 			},
 			_register: <T extends IDisposable>(disposable: T): T => store.add(disposable),
 			sessionsControl,
@@ -205,7 +208,7 @@ suite('Sessions - View Menu', () => {
 		list.setItemCollapsed({ section: 'pinned' }, false);
 		const connected = observableValue('connected', true);
 		const environments = observableValue<readonly ISessionEnvironment[]>('environments', [{ id: 'ssh:work', label: 'Workstation', isConnected: connected }]);
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, list.filters, constObservable(sessions), environments, constObservable(new Set<string>())));
 		const workspace = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const environment = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
 		const icons = () => [workspace, environment].map(trigger => {
@@ -276,13 +279,152 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
+	test('environment filters exclude this computer sharing registrations as their identity becomes known', () => {
+		const github = observableValue<LocalAgentHostRegistration | undefined>('github', undefined);
+		const tunnel = observableValue<LocalAgentHostRegistration | undefined>('tunnel', undefined);
+		const providers = [
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-github',
+				environment: { id: 'github', label: 'My Computer (GitHub)', isConnected: constObservable(false) },
+				localRegistration: github,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-tunnel',
+				environment: { id: 'tunnel', label: 'My Computer (Tunnel)' },
+				localRegistration: tunnel,
+			}),
+			upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-remote',
+				environment: { id: 'remote', label: 'Workstation', isConnected: constObservable(false) },
+				isVisibleInEnvironmentPicker: constObservable(false),
+			}),
+		];
+		const menu = createMenu([], [], ChatSessionArchiveActionWording.MarkAsDone, providers);
+		const harness = createListHarness(store, []);
+		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+		const environmentOptions = derived(reader => getSessionFilterEnvironments(providers, reader));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), menu.filters,
+			constObservable([]), derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds)));
+		const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
+		const snapshot = () => {
+			trigger.click();
+			const rows = [...mainWindow.document.querySelectorAll('.action-widget .monaco-list-row')].map(row => ({
+				label: row.querySelector('.title')?.textContent,
+				description: row.querySelector('.description')?.textContent ?? '',
+			}));
+			actionWidgetService.hide(true);
+			return {
+				inbox: rows,
+				menu: menu.snapshot(Menus.SessionsViewEnvironment).map(item => item.title),
+				applications: menu.snapshot(Menus.SessionsViewSource).map(item => item.title),
+				focused: getActiveElement() === trigger,
+			};
+		};
+		const before = snapshot();
+		transaction(tx => {
+			github.set('githubEnvironment', tx);
+			tunnel.set('devTunnel', tx);
+		});
+		assert.deepStrictEqual({ before, after: snapshot() }, {
+			before: {
+				inbox: [
+					{ label: 'All Environments', description: '' },
+					{ label: 'This Computer', description: '' },
+					{ label: 'Cloud', description: '' },
+					{ label: 'My Computer (GitHub)', description: 'Disconnected' },
+					{ label: 'My Computer (Tunnel)', description: '' },
+					{ label: 'Workstation', description: 'Disconnected' },
+				],
+				menu: ['This Computer', 'Cloud', 'My Computer (Tunnel)'],
+				applications: ['VS Code (This Computer)', 'VS Code (Cloud)', 'VS Code (My Computer (Tunnel))'],
+				focused: true,
+			},
+			after: {
+				inbox: [
+					{ label: 'All Environments', description: '' },
+					{ label: 'This Computer', description: '' },
+					{ label: 'Cloud', description: '' },
+					{ label: 'Workstation', description: 'Disconnected' },
+				],
+				menu: ['This Computer', 'Cloud'],
+				applications: ['VS Code (This Computer)', 'VS Code (Cloud)'],
+				focused: true,
+			},
+		});
+	});
+
+	for (const restored of [false, true]) {
+		test(`Inbox reconciles a ${restored ? 'restored' : 'selected'} local registration without losing unavailable remote selections`, () => {
+			const harness = createListHarness(store, []);
+			const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
+			harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
+			const storage = store.add(new InMemoryStorageService());
+			let filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+			const registration = observableValue<LocalAgentHostRegistration | undefined>('registration', undefined);
+			const localSession = buildTestSession({ id: 'local', title: 'Local', workspace: 'app' }).session;
+			const registrationSession = buildTestSession({ id: 'registration', title: 'Registration', workspace: 'app', environment: 'github' }).session;
+			const provider = upcastPartial<IAgentHostSessionsProvider>({
+				id: 'agenthost-github',
+				environment: { id: 'github', label: 'My Computer (GitHub)' },
+				localRegistration: registration,
+			});
+			const environmentOptions = derived(reader => getSessionFilterEnvironments([provider], reader));
+			if (restored) {
+				filters.setInboxEnvironment({ id: 'github', label: 'My Computer (GitHub)' });
+				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
+				filters = store.add(new SessionsListFilters(storage, store.add(new NullLogService())));
+				registration.set('githubEnvironment', undefined);
+			}
+			const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, harness.createContainer(), filters,
+				constObservable([localSession, registrationSession]),
+				derived(reader => environmentOptions.read(reader).environments), derived(reader => environmentOptions.read(reader).localEnvironmentIds)));
+			const trigger = scope.element.querySelector<HTMLElement>('.environment-picker .action-label')!;
+			if (!restored) {
+				trigger.click();
+				const item = [...mainWindow.document.querySelectorAll<HTMLElement>('.action-widget .monaco-list-row .title')]
+					.find(item => item.textContent === 'My Computer (GitHub)');
+				assert.ok(item);
+				item.click();
+				filters.setInboxWorkspace({ environment: 'github', resource: 'file:///app', label: 'app' });
+				registration.set('githubEnvironment', undefined);
+			}
+			trigger.click();
+			const rows = [...mainWindow.document.querySelectorAll('.action-widget .monaco-list-row .title')].map(row => row.textContent);
+			actionWidgetService.hide(true);
+			const normalized = {
+				scope: filters.inboxScope,
+				label: trigger.textContent,
+				workspace: scope.element.querySelector('.workspace-picker .action-label')?.textContent,
+				rows,
+				localMatches: filters.matchesInboxScope(localSession),
+				persisted: store.add(new SessionsListFilters(storage, store.add(new NullLogService()))).inboxScope,
+			};
+			filters.setInboxEnvironment({ id: 'missing', label: 'Other Computer' });
+			assert.deepStrictEqual({ normalized, unavailable: { scope: filters.inboxScope, label: trigger.textContent } }, {
+				normalized: {
+					scope: { environment: { id: 'local', label: 'This Computer' }, workspace: undefined },
+					label: 'This Computer',
+					workspace: 'All Workspaces',
+					rows: ['All Environments', 'This Computer', 'Cloud'],
+					localMatches: true,
+					persisted: { environment: { id: 'local', label: 'This Computer' } },
+				},
+				unavailable: {
+					scope: { environment: { id: 'missing', label: 'Other Computer' }, workspace: undefined },
+					label: 'Unavailable: Other Computer',
+				},
+			});
+		});
+	}
+
 	test('Inbox scope dropdowns cancel and close when hidden or disposed', () => {
 		const harness = createListHarness(store, []);
 		const actionWidgetService = store.add(harness.instantiationService.createInstance(ActionWidgetService));
 		harness.instantiationService.stub(IActionWidgetService, actionWidgetService);
 		const filters = store.add(harness.instantiationService.createInstance(SessionsListFilters));
 		const container = harness.createContainer();
-		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([])));
+		const scope = store.add(harness.instantiationService.createInstance(SessionsInboxScope, container, filters, constObservable([]), constObservable([]), constObservable(new Set<string>())));
 		const trigger = scope.element.querySelector<HTMLElement>('.workspace-picker .action-label')!;
 		const open = () => trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
 		open();
