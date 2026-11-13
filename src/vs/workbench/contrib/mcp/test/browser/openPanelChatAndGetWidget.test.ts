@@ -4,59 +4,59 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { openPanelChatAndGetWidget } from '../../browser/openPanelChatAndGetWidget.js';
 
 suite('openPanelChatAndGetWidget', () => {
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createChatWidgetService(delegate: IChatViewHostDelegate | undefined, first: IChatWidget, shown: IChatWidget | undefined): IChatWidgetService {
-		return upcastPartial<IChatWidgetService>({
-			chatViewHostDelegate: delegate,
-			revealChatView: async () => shown,
-			getWidgetsByLocations: () => shown ? [first, shown] : [first],
+	const chatViewWidget = () => upcastPartial<IChatWidget>({ viewContext: { viewId: ChatViewId } });
+	const chatEditorWidget = upcastPartial<IChatWidget>({ viewContext: {} });
+
+	/** Reveals with a host that replaces the Chat view or not, which the reveal shows `revealed`, while a chat editor exists already. */
+	function setup(options: { readonly replaced: boolean; readonly revealed: Promise<IChatWidget | undefined> }) {
+		const calls: string[] = [];
+		const added = disposables.add(new Emitter<IChatWidget>());
+		const host = { isReplaced: options.replaced };
+		const chatWidgetService = upcastPartial<IChatWidgetService>({
+			revealChatView: preserveFocus => { calls.push(`revealChatView preserveFocus=${preserveFocus}`); return options.revealed; },
+			getWidgetsByLocations: () => { calls.push('getWidgetsByLocations'); return [chatEditorWidget]; },
+			onDidAddWidget: added.event,
 		});
+		return { calls, added, host, open: () => openPanelChatAndGetWidget(upcastPartial<IChatViewHostService>(host), chatWidgetService) };
 	}
 
-	test('returns the first chat widget after revealing the Chat view, as before, while nothing replaces the Chat view', async () => {
-		const first = upcastPartial<IChatWidget>({});
-		const shown = upcastPartial<IChatWidget>({});
-
-		assert.strictEqual(await openPanelChatAndGetWidget(createChatWidgetService(undefined, first, shown)), first);
+	test('with the Chat view as the host, returns the Chat view\'s widget, not a chat editor opened before it', async () => {
+		const shown = chatViewWidget();
+		const { calls, open } = setup({ replaced: false, revealed: Promise.resolve(shown) });
+		assert.deepStrictEqual({ shown: await open() === shown, calls }, { shown: true, calls: ['revealChatView preserveFocus=false'] });
 	});
 
-	test('returns the chat widget that what replaces the Chat view shows, not the first chat widget, such as an older tab of the chat part', async () => {
-		const older = upcastPartial<IChatWidget>({});
-		const shown = upcastPartial<IChatWidget>({});
-
-		assert.strictEqual(await openPanelChatAndGetWidget(createChatWidgetService(upcastPartial<IChatViewHostDelegate>({}), older, shown)), shown);
+	test('with the Chat view as the host, waits for the Chat view\'s widget while it has none, not for a chat editor', async () => {
+		const { calls, added, open } = setup({ replaced: false, revealed: Promise.resolve(undefined) });
+		const pending = open();
+		await Promise.resolve();
+		await Promise.resolve();
+		added.fire(chatEditorWidget);
+		const shown = chatViewWidget();
+		added.fire(shown);
+		assert.deepStrictEqual({ shown: await pending === shown, calls }, { shown: true, calls: ['revealChatView preserveFocus=false'] });
 	});
 
-	test('returns no chat widget when what replaces the Chat view shows none, rather than another chat widget, such as an older chat editor', async () => {
-		const older = upcastPartial<IChatWidget>({});
-
-		assert.strictEqual(await openPanelChatAndGetWidget(createChatWidgetService(upcastPartial<IChatViewHostDelegate>({}), older, undefined)), undefined);
-	});
-
-	test('returns what the replacement of the Chat view shows, none, also when it is unregistered while it reveals, rather than another chat widget', async () => {
-		const calls: string[] = [];
+	test('with a host that replaces the Chat view, returns what it shows, also none, and waits for nothing, also when it is unregistered while it reveals', async () => {
 		const reveal = new DeferredPromise<IChatWidget | undefined>();
-		const service: { chatViewHostDelegate: IChatViewHostDelegate | undefined } & Partial<IChatWidgetService> = {
-			chatViewHostDelegate: upcastPartial<IChatViewHostDelegate>({}),
-			revealChatView: () => reveal.p,
-			getWidgetsByLocations: () => { calls.push('getWidgetsByLocations'); return [upcastPartial<IChatWidget>({})]; },
-			onDidAddWidget: Event.None,
-		};
-
-		const pending = openPanelChatAndGetWidget(upcastPartial<IChatWidgetService>(service));
-		service.chatViewHostDelegate = undefined;
+		const { calls, added, host, open } = setup({ replaced: true, revealed: reveal.p });
+		const pending = open();
+		host.isReplaced = false;
 		reveal.complete(undefined);
-
-		assert.deepStrictEqual({ widget: await pending, calls }, { widget: undefined, calls: [] });
+		const result = await pending;
+		added.fire(chatViewWidget());
+		assert.deepStrictEqual({ result, calls }, { result: undefined, calls: ['revealChatView preserveFocus=false'] });
 	});
 });

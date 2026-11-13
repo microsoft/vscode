@@ -44,12 +44,6 @@ export class MockChatWidgetService implements IChatWidgetService {
 		return Promise.resolve(undefined);
 	}
 
-	readonly chatViewHostDelegate = undefined;
-
-	setChatViewHostDelegate(): IDisposable {
-		return Disposable.None;
-	}
-
 	reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> {
 		return Promise.resolve(true);
 	}

@@ -54,6 +54,8 @@ export class ToggleShowAgentSessionsAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleShowAgentSessions',
 			title: localize2('chat.showSessions', "Show Sessions"),
+			// The sessions of the Chat view, which does not show while the Agents view replaces it
+			precondition: ChatContextKeys.agentsViewActive.negate(),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
 			menu: {
 				id: MenuId.ChatWelcomeContext,
@@ -87,7 +89,7 @@ export class SetAgentSessionsOrientationStackedAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationStacked',
 			title: localize2('chat.sessionsOrientation.stacked', "Stacked"),
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -110,7 +112,7 @@ export class SetAgentSessionsOrientationSideBySideAction extends Action2 {
 			id: 'workbench.action.chat.setAgentSessionsOrientationSideBySide',
 			title: localize2('chat.sessionsOrientation.sideBySide', "Side by Side"),
 			toggled: ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOrientation}`, 'stacked'),
-			precondition: ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true), ChatContextKeys.agentsViewActive.negate()),
 			menu: {
 				id: agentSessionsOrientationSubmenu,
 				group: 'navigation',
@@ -1140,11 +1142,6 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const sessions = accessor.get(IChatWidgetService).chatViewHostDelegate?.sessions;
-		if (!agentSessionsControl && sessions) {
-			sessions.refresh();
-			return;
-		}
 		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			control.refresh();
@@ -1170,10 +1167,6 @@ export class FindAgentSessionInViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const sessions = accessor.get(IChatWidgetService).chatViewHostDelegate?.sessions;
-		if (!agentSessionsControl && sessions) {
-			return sessions.find();
-		}
 		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			return control.openFind();
@@ -1186,12 +1179,6 @@ export class FindAgentSessionInViewerAction extends Action2 {
 abstract class UpdateChatViewWidthAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
-		// What replaces the Chat view lays out its own sessions list
-		const chatViewHostDelegate = accessor.get(IChatWidgetService).chatViewHostDelegate;
-		if (chatViewHostDelegate) {
-			return chatViewHostDelegate.sessions?.setOrientation(this.getOrientation());
-		}
-
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const viewDescriptorService = accessor.get(IViewDescriptorService);
 		const configurationService = accessor.get(IConfigurationService);
@@ -1301,6 +1288,7 @@ export class ShowAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.Stacked),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1324,6 +1312,7 @@ export class HideAgentSessionsSidebar extends UpdateChatViewWidthAction {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
 				ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(AgentSessionsViewerOrientation.SideBySide),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
@@ -1344,7 +1333,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		super({
 			id: ToggleAgentSessionsSidebar.ID,
 			title: ToggleAgentSessionsSidebar.TITLE,
-			precondition: ChatContextKeys.enabled,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.agentsViewActive.negate()),
 			f1: true,
 			category: AGENT_SESSIONS_CATEGORY,
 		});
@@ -1353,11 +1342,9 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		const viewsService = accessor.get(IViewsService);
-		const chatViewHostDelegate = accessor.get(IChatWidgetService).chatViewHostDelegate;
 
-		const currentOrientation = chatViewHostDelegate
-			? chatViewHostDelegate.sessions?.getOrientation()
-			: viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId)?.getSessionsViewerOrientation();
+		const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
+		const currentOrientation = chatView?.getSessionsViewerOrientation();
 
 		if (currentOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			await commandService.executeCommand(HideAgentSessionsSidebar.ID);
@@ -1377,7 +1364,8 @@ export class FocusAgentSessionsAction extends Action2 {
 			title: localize2('chat.focusAgentSessionsViewer.label', "Focus Agent Sessions"),
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.enabled,
-				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true)
+				ContextKeyExpr.equals(`config.${ChatConfiguration.ChatViewSessionsEnabled}`, true),
+				ChatContextKeys.agentsViewActive.negate(),
 			),
 			category: AGENT_SESSIONS_CATEGORY,
 			f1: true,
@@ -1388,12 +1376,6 @@ export class FocusAgentSessionsAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
-
-		// What replaces the Chat view focuses its own sessions list
-		const chatViewHostDelegate = accessor.get(IChatWidgetService).chatViewHostDelegate;
-		if (chatViewHostDelegate) {
-			return chatViewHostDelegate.sessions?.focus();
-		}
 
 		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
 		const focused = chatView?.focusSessions();

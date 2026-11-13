@@ -16,7 +16,12 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetViewContext, IQuickChatService, IChatViewHostDelegate } from '../../../browser/chat.js';
+import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetViewContext, IQuickChatService } from '../../../browser/chat.js';
+import { IChatViewHostService } from '../../../browser/chatViewHost.js';
+import { ChatViewHostService } from '../../../browser/widgetHosts/viewPane/chatViewHostService.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
 import { ChatVariablesService } from '../../../browser/attachments/chatVariables.js';
 import { ChatWidgetService } from '../../../browser/widget/chatWidgetService.js';
@@ -29,6 +34,14 @@ import { ToolAndToolSetEnablementMap } from '../../../common/tools/languageModel
 suite('ChatWidgetService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	/** The host of the Chat view's chats as in the workbench: the Chat view, through the stubbed views service. */
+	function stubChatViewHostService(instantiationService: TestInstantiationService): void {
+		instantiationService.stub(IViewDescriptorService, {});
+		instantiationService.stub(IWorkbenchLayoutService, {});
+		instantiationService.stub(IProgressService, {});
+		instantiationService.stub(IChatViewHostService, instantiationService.createInstance(ChatViewHostService));
+	}
+
 	test('only input-request routing prefers the full session over Inbox, preserving the submitting input context', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, {});
@@ -38,6 +51,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(ILogService, new NullLogService());
+		stubChatViewHostService(instantiationService);
 		const service = store.add(instantiationService.createInstance(ChatWidgetService));
 		const variablesService = new ChatVariablesService(service);
 		const resource = URI.parse('test:/session');
@@ -92,7 +106,7 @@ suite('ChatWidgetService', () => {
 		}, { ordinaryRouting: { default: true, inputRequests: true }, inboxOnly: true, withFullSession: true, submittingWidget: true, dynamicVariables: references, selectedTools: true, afterClosingSession: true, unrelatedSession: undefined });
 	});
 
-	test('what replaces the Chat view shows what the Chat view would, which then never opens', async () => {
+	test('shows what the Chat view would in the host of the Chat view\'s chats', async () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const calls: string[] = [];
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [] }));
@@ -105,62 +119,24 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({
+			reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; },
+			openSession: async (sessionResource, options) => { calls.push(`openSession ${sessionResource.toString()} preserveFocus=${options?.preserveFocus} reason=${options?.sessionTypeSelectionReason}`); return undefined; },
+		}));
 		const service = store.add(instantiationService.createInstance(ChatWidgetService));
 		const resource = URI.parse('test:/session');
 
-		await service.revealChatView(false);
-		const withoutDelegate = calls.splice(0);
-		const registration = service.setChatViewHostDelegate({
-			reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; },
-			openSession: async (sessionResource, preserveFocus) => { calls.push(`openSession ${sessionResource.toString()} preserveFocus=${preserveFocus}`); return undefined; },
-			toggle: async () => { },
-			newSession: async () => undefined,
-		});
 		await service.revealWidget();
 		await service.revealChatView(true);
 		await service.openSession(resource);
-		await service.openSession(resource, ChatViewPaneTarget, { preserveFocus: true });
-		const withDelegate = calls.splice(0);
-		registration.dispose();
+		await service.openSession(resource, ChatViewPaneTarget, { preserveFocus: true, sessionTypeSelectionReason: 'explicitOverride' });
 
-		assert.deepStrictEqual({ withoutDelegate, withDelegate, afterDispose: service.chatViewHostDelegate }, {
-			withoutDelegate: [`openView ${ChatViewId} focus=true`],
-			withDelegate: [
-				'reveal preserveFocus=undefined',
-				'reveal preserveFocus=true',
-				'openSession test:/session preserveFocus=undefined',
-				'openSession test:/session preserveFocus=true',
-			],
-			afterDispose: undefined,
-		});
-	});
-
-	test('the last delegate set replaces the Chat view; disposing an earlier one leaves it, and disposing it restores the Chat view', () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ groups: [] }));
-		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}));
-		instantiationService.stub(IQuickChatService, upcastPartial<IQuickChatService>({ sessionResource: undefined }));
-		instantiationService.stub(ILayoutService, {});
-		instantiationService.stub(IEditorService, {});
-		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
-		instantiationService.stub(ILogService, new NullLogService());
-		const service = store.add(instantiationService.createInstance(ChatWidgetService));
-		const delegate = (): IChatViewHostDelegate => ({ reveal: async () => undefined, openSession: async () => undefined, toggle: async () => { }, newSession: async () => undefined });
-		const first = delegate();
-		const second = delegate();
-		const name = () => service.chatViewHostDelegate === first ? 'first' : service.chatViewHostDelegate === second ? 'second' : 'none';
-
-		const firstRegistration = service.setChatViewHostDelegate(first);
-		const afterFirst = name();
-		const secondRegistration = service.setChatViewHostDelegate(second);
-		const afterSecond = name();
-		firstRegistration.dispose();
-		const afterFirstDisposed = name();
-		secondRegistration.dispose();
-
-		assert.deepStrictEqual({ afterFirst, afterSecond, afterFirstDisposed, afterSecondDisposed: name() }, {
-			afterFirst: 'first', afterSecond: 'second', afterFirstDisposed: 'second', afterSecondDisposed: 'none',
-		});
+		assert.deepStrictEqual(calls, [
+			'reveal preserveFocus=undefined',
+			'reveal preserveFocus=true',
+			'openSession test:/session preserveFocus=undefined reason=undefined',
+			'openSession test:/session preserveFocus=true reason=explicitOverride',
+		]);
 	});
 
 	test('revealWidget reuses a visible chat widget hosted outside of the chat view, such as the Agents window session chat', async () => {
@@ -176,6 +152,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IEditorService, {});
 		instantiationService.stub(IChatService, {});
 		instantiationService.stub(ILogService, new NullLogService());
+		stubChatViewHostService(instantiationService);
 		const service = store.add(instantiationService.createInstance(ChatWidgetService));
 		const createWidget = (visible: boolean, viewContext: IChatWidgetViewContext) => {
 			const focusInput = stub();

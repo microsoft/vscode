@@ -23,6 +23,10 @@ import { IManagedSettingsService } from '../../../../../platform/policy/common/c
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IViewDescriptorService } from '../../../../common/views.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { IChatViewHostService } from '../../browser/chatViewHost.js';
+import { ChatViewHostService } from '../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ContinueChatInCopilotAction } from '../../browser/actions/chatContinueInAction.js';
 import { AgentHostImportConversationStore, IAgentHostImportConversation, IAgentHostImportConversationStore } from '../../browser/agentSessions/agentHost/agentHostImportConversationStore.js';
 import { ChatViewId, IChatWidget, IChatWidgetService } from '../../browser/chat.js';
@@ -292,6 +296,10 @@ suite('Continue in Copilot policy recovery', () => {
 					beginSessionsListSuppression: () => Disposable.None,
 				}));
 				services.stub(IViewsService, { openView: views.openView });
+				// The panel is the Chat view, as in the workbench
+				services.stub(IViewDescriptorService, {});
+				services.stub(IWorkbenchLayoutService, {});
+				services.stub(IChatViewHostService, services.createInstance(ChatViewHostService));
 				const action = new ContinueChatInCopilotAction();
 				// The policy move runs on its own when the panel opens a chat, and when the user chooses it in an editor.
 				const execute = () => services.invokeFunction(accessor => action.run(accessor, { $mid: MarshalledId.ChatViewContext, sessionResource: source, inputUri, ...(sidebar ? { trigger: 'automatic' } : {}) }));

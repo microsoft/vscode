@@ -5,24 +5,23 @@
 
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
-import { IChatWidget, IChatWidgetService } from '../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { IChatWidget, IChatWidgetService, isIChatViewViewContext } from '../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../chat/browser/chatViewHost.js';
 
-
-export async function openPanelChatAndGetWidget(chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
-	// What replaces the Chat view decides which widget it shows, such as its active chat, or none: not just any chat widget.
-	// Whether something replaces it is read as the reveal starts, which is when the reveal picks its route.
-	const replaced = !!chatService.chatViewHostDelegate;
+/**
+ * Shows the host of the Chat view's chats, the Chat view or what replaces it, and resolves to the widget of the chat it
+ * shows: not just any chat widget, such as one of a chat editor. A host that replaces the Chat view answers itself, also
+ * with none; the Chat view's widget is waited for while the view has none yet.
+ */
+export async function openPanelChatAndGetWidget(chatViewHostService: IChatViewHostService, chatService: IChatWidgetService): Promise<IChatWidget | undefined> {
+	// Read as the reveal starts, which is when the reveal picks its host
+	const replaced = chatViewHostService.isReplaced;
 	const revealed = await chatService.revealChatView(false);
-	if (replaced) {
+	if (revealed || replaced) {
 		return revealed;
 	}
-	const widgets = chatService.getWidgetsByLocations(ChatAgentLocation.Chat);
-	if (widgets.length) {
-		return widgets[0];
-	}
 
-	const eventPromise = Event.toPromise(Event.filter(chatService.onDidAddWidget, e => e.location === ChatAgentLocation.Chat));
+	const eventPromise = Event.toPromise(Event.filter(chatService.onDidAddWidget, widget => isIChatViewViewContext(widget.viewContext)));
 
 	return await raceTimeout(
 		eventPromise,
