@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
-import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
@@ -556,7 +555,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances] }, { created: [], backgrounded: [] });
 	});
 
-	test('adopts the terminal the terminal view creates when its shell takes longer than the timeout to start', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('adopts the terminal the terminal view creates before its shell starts', async () => {
 		terminalViewVisible = false;
 		terminalGroupCount = 0;
 		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
@@ -570,14 +569,13 @@ suite('SessionsTerminalContribution', () => {
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
 		terminalGroupCount = 1;
 		onDidCreateInstance.fire(viewTerminal);
-		await timeout(10000);
-		ready.complete();
 		await tick();
 
 		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
-	}));
+		ready.complete();
+	});
 
-	test('adopts the Agent Host terminal the terminal view creates when its shell takes longer than the timeout to start', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('adopts the Agent Host terminal the terminal view creates before its shell starts', async () => {
 		terminalViewVisible = false;
 		terminalGroupCount = 0;
 		sessionProviders.set('agenthost-one', { id: 'agenthost-one', remoteAddress: 'ssh-remote+one' } as unknown as ISessionsProvider);
@@ -596,12 +594,11 @@ suite('SessionsTerminalContribution', () => {
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
 		terminalGroupCount = 1;
 		onDidCreateInstance.fire(viewTerminal);
-		await timeout(10000);
-		ready.complete();
 		await tick();
 
 		assert.deepStrictEqual({ created: agentHostTerminalAddresses, disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
-	}));
+		ready.complete();
+	});
 
 	test('does not create a second terminal when the terminal view is shown again while its terminal starts', async () => {
 		terminalViewVisible = false;
@@ -627,7 +624,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
 	});
 
-	test('replaces the terminal the terminal view creates outside the session cwd', async () => {
+	test('adopts the terminal the terminal view creates outside the session cwd', async () => {
 		terminalViewVisible = false;
 		terminalGroupCount = 0;
 		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
@@ -641,9 +638,9 @@ suite('SessionsTerminalContribution', () => {
 		terminalGroupCount = 1;
 		onDidCreateInstance.fire(viewTerminal);
 		await tick();
-		await tick();
 
-		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [URI.file('/worktree-a').fsPath], disposed: [viewTerminal.instanceId] });
+		// It is the terminal the view shows, for example with `terminal.integrated.cwd` set.
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [], disposed: [] });
 	});
 
 	test('does not take a terminal created elsewhere for the terminal view terminal', async () => {
@@ -666,14 +663,40 @@ suite('SessionsTerminalContribution', () => {
 			onDidCreateInstance.fire(unrelated);
 		}
 		await tick();
-		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/configured-cwd').fsPath);
+		const viewTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/worktree-a').fsPath);
 		terminalInstances.set(viewTerminal.instanceId, viewTerminal);
 		terminalGroupCount = 1;
 		onDidCreateInstance.fire(viewTerminal);
 		await tick();
+
+		// Switching to another session moves only the adopted view terminal to the background.
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-b', worktree: URI.file('/worktree-b'), providerType: AgentSessionProviders.Background }), undefined);
 		await tick();
 
-		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), disposed: disposedInstances.map(i => i.instanceId) }, { created: [URI.file('/worktree-a').fsPath], disposed: [viewTerminal.instanceId] });
+		assert.deepStrictEqual({ created: createdTerminals.map(t => t.cwd.fsPath), backgrounded: [...backgroundedInstances].includes(viewTerminal.instanceId) }, { created: [URI.file('/worktree-b').fsPath], backgrounded: true });
+	});
+
+	test('creates the terminal when the terminal view is shown again after it opened empty without creating one', async () => {
+		terminalViewVisible = false;
+		terminalGroupCount = 0;
+		activeSessionObs.set(makeAgentSession({ sessionId: 'session-a', worktree: URI.file('/worktree-a'), providerType: AgentSessionProviders.Background }), undefined);
+		await tick();
+
+		// For example with `terminal.integrated.hideOnStartup`, the view closes again without creating a terminal.
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		terminalViewVisible = false;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: false });
+		await tick();
+		const userTerminal = makeTerminalInstance(nextInstanceId++, URI.file('/elsewhere').fsPath);
+		terminalInstances.set(userTerminal.instanceId, userTerminal);
+		terminalGroupCount = 1;
+		onDidCreateInstance.fire(userTerminal);
+		terminalViewVisible = true;
+		viewVisibilityEmitter.fire({ id: TERMINAL_VIEW_ID, visible: true });
+		await tick();
+
+		assert.deepStrictEqual(createdTerminals.map(t => t.cwd.fsPath), [URI.file('/worktree-a').fsPath]);
 	});
 
 	// --- Missing local working directory: defer until it exists ---
