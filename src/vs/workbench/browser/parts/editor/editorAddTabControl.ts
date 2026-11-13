@@ -5,7 +5,7 @@
 
 import { $, addDisposableListener, EventHelper, EventType, getWindow, isHTMLElement } from '../../../../base/browser/dom.js';
 import { DropdownMenuActionViewItem } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
-import { IAction, toAction } from '../../../../base/common/actions.js';
+import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { ResolvedKeybinding } from '../../../../base/common/keybindings.js';
@@ -44,7 +44,7 @@ export interface IEditorAddTabControlOptions {
 	readonly context?: IEditorCommandsContext;
 
 	/**
-	 * Lists the entry picked last (remembered per profile) first.
+	 * Lists the entry picked last (remembered per profile) again above the entries.
 	 */
 	readonly recentFirst?: boolean;
 
@@ -99,7 +99,8 @@ export class EditorAddTabControl extends Disposable {
 			const actions = getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 			const recentEntry = options?.recentFirst ? storageService.get(recentEntryStorageKey, StorageScope.PROFILE) : undefined;
 			const recentIndex = recentEntry ? actions.findIndex(action => action.id === recentEntry) : -1;
-			return recentIndex > 0 ? [actions[recentIndex], ...actions.slice(0, recentIndex), ...actions.slice(recentIndex + 1)] : actions;
+			// The recent entry above the menu, which keeps its order, so that its entries stay where they always are
+			return recentIndex >= 0 ? [actions[recentIndex], new Separator(), ...actions] : actions;
 		};
 		const addTabAction = toAction({
 			id: addTabActionId,

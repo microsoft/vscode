@@ -1048,6 +1048,7 @@ if (isNative) {
 		.registerConfigurationMigrations([
 			['workbench.experimental.modernUIFrostedGlass', LayoutSettings.MODERN_UI_FROSTED_GLASS],
 			['workbench.experimental.modernUIFrostedGlassOpacity', LayoutSettings.MODERN_UI_FROSTED_GLASS_OPACITY],
+			['workbench.editor.experimental.newTabButton', NEW_TAB_BUTTON_SETTING],
 		].map<ConfigurationMigration>(([key, newKey]) => ({
 			key,
 			includeApplication: true,

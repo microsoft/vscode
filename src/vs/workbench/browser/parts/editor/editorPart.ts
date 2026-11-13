@@ -1822,7 +1822,7 @@ export class MainEditorPart extends EditorPart {
 		super(editorPartsView, Parts.EDITOR_PART, '', mainWindow.vscodeWindowId, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
-	// The new tab button shows while its menu has entries, which the `workbench.editor.experimental.newTabButton` setting controls.
+	// The new tab button shows while its menu has entries, which the `workbench.editor.newTabButton` setting controls.
 	protected override getGroupViewOptions(): IEditorGroupViewOptions | undefined {
 		return { menuIds: { tabsBarAddTab: MenuId.EditorTabsBarAddTab } };
 	}

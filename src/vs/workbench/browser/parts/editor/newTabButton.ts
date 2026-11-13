@@ -13,7 +13,7 @@ import { EditorTabsVisibleContext } from '../../../common/contextkeys.js';
 import { isEditorCommandsContext } from '../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 
-export const NEW_TAB_BUTTON_SETTING = 'workbench.editor.experimental.newTabButton';
+export const NEW_TAB_BUTTON_SETTING = 'workbench.editor.newTabButton';
 
 /**
  * False while the new tab button replaces the new tab buttons of individual editors, such as the `+` of a chat editor:

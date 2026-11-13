@@ -9,6 +9,7 @@ import { isSafari } from '../../../../../base/browser/browser.js';
 import { $, addDisposableListener, Dimension, EventType, ModifierKeyEmitter, reset, scheduleAtNextAnimationFrame } from '../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../base/browser/window.js';
 import { timeout } from '../../../../../base/common/async.js';
+import { Separator } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -4821,7 +4822,7 @@ suite('MultiEditorTabsControl', () => {
 		]);
 	});
 
-	test('the new tab button lists the entry picked last first and opens its menu over itself', async () => {
+	test('the new tab button lists the entry picked last above its entries and opens its menu over itself', async () => {
 		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() {
 			override async executeCommand<R>(): Promise<R> { return undefined as R; }
 		}());
@@ -4872,8 +4873,8 @@ suite('MultiEditorTabsControl', () => {
 			releasesOutside,
 		}, {
 			initially: { entries: ['test.newTabButton.first', 'test.newTabButton.second'], anchorFromButtonCenter: { x: -16, y: -19 } },
-			afterPickingSecond: ['test.newTabButton.second', 'test.newTabButton.first'],
-			inAnotherButton: ['test.newTabButton.second', 'test.newTabButton.first'],
+			afterPickingSecond: ['test.newTabButton.second', Separator.ID, 'test.newTabButton.first', 'test.newTabButton.second'],
+			inAnotherButton: ['test.newTabButton.second', Separator.ID, 'test.newTabButton.first', 'test.newTabButton.second'],
 			releasesOutside: ['received'],
 		});
 	});
