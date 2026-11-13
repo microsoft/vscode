@@ -4,15 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { extUriIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { InMemoryStorageService, IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService, Workspace, WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorGroupsService, IEditorWorkingSet } from '../../../../services/editor/common/editorGroupsService.js';
+import { IWorkingCopyBackupService } from '../../../../services/workingCopy/common/workingCopyBackup.js';
+import { IWorkingCopyIdentifier } from '../../../../services/workingCopy/common/workingCopy.js';
+import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { FOLDER_LOCATION_MAX_WORKING_SETS, FOLDER_LOCATION_WORKING_SET_NAME_PREFIX, FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, FolderLocationWorkingSetsContribution } from '../../browser/folderLocationWorkingSets.js';
 
 suite('FolderLocationWorkingSetsContribution', () => {
@@ -36,24 +40,32 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		contentOnFailure: string | undefined;
 		gate: Promise<void> | undefined;
 		auxiliaryEditors = 0;
+		/** The editors of the main part, for the backup checks. */
+		editors: { resource: URI; dirty?: boolean }[] = [];
+		backups: IWorkingCopyIdentifier[] = [];
+		readonly registered = new Set<string>();
 
 		saved(): Record<string, string> {
 			return Object.fromEntries([...this.sets.values()].map(set => [set.name, set.content]));
 		}
 	}
 
-	function createFixture(options?: { area?: EditorArea; storage?: InMemoryStorageService; folder?: URI }) {
+	function createFixture(options?: { area?: EditorArea; storage?: InMemoryStorageService; folder?: URI; otherFolders?: URI[]; whenRestored?: Promise<void> }) {
 		const errors: string[] = [];
+		const infos: string[] = [];
 		const onDidChangeCurrentLocation = ds.add(new Emitter<{ readonly reason: 'user' | 'programmatic' }>());
+		const onDidRegisterWorkingCopy = ds.add(new Emitter<{ resource: URI }>());
 		const storage = options?.storage ?? ds.add(new InMemoryStorageService());
 		const area = options?.area ?? new EditorArea();
 		let folderUri = options?.folder ?? primary;
+		const otherFolders = options?.otherFolders ?? [];
 
 		const editorGroupsService = {
+			whenRestored: options?.whenRestored ?? Promise.resolve(),
 			parts: [
-				{ get groups() { return [{ count: area.content ? 1 : 0 }]; } },
-				{ get groups() { return [{ count: area.auxiliaryEditors }]; } },
-				{ isTransient: true, groups: [{ count: 5 }] }
+				{ get groups() { return [{ count: area.content ? 1 : 0, editors: area.editors.map(editor => ({ resource: editor.resource, isDirty: () => !!editor.dirty })) }]; } },
+				{ get groups() { return [{ count: area.auxiliaryEditors, editors: [] }]; } },
+				{ isTransient: true, groups: [{ count: 5, editors: [] }] }
 			],
 			saveWorkingSet: (name: string): IEditorWorkingSet => { const id = `set-${++area.counter}`; area.sets.set(id, { name, content: area.content }); return { id, name }; },
 			getWorkingSets: () => [...area.sets].map(([id, set]) => ({ id, name: set.name })),
@@ -76,17 +88,20 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		} as unknown as IEditorGroupsService;
 
 		const contribution = ds.add(new FolderLocationWorkingSetsContribution(
-			{ onDidChangeLocation: onDidChangeCurrentLocation.event } as unknown as IWorkspaceFolderLocationService,
-			{ getWorkspace: () => new Workspace('id', [new WorkspaceFolder({ uri: folderUri, name: 'project', index: 0 })], false, null, () => false) } as unknown as IWorkspaceContextService,
+			{ onDidChangeLocation: onDidChangeCurrentLocation.event, onDidChangeCanSetLocation: Event.None, canSetLocation: () => otherFolders.length === 0 } as unknown as IWorkspaceFolderLocationService,
+			{ getWorkspace: () => new Workspace('id', [folderUri, ...otherFolders].map((uri, index) => new WorkspaceFolder({ uri, name: `folder-${index}`, index })), false, null, () => false) } as unknown as IWorkspaceContextService,
 			editorGroupsService,
 			storage as unknown as IStorageService,
-			{ asCanonicalUri: (uri: URI) => uri } as unknown as IUriIdentityService,
-			{ error: (message: string) => errors.push(message) } as unknown as ILogService
+			{ asCanonicalUri: (uri: URI) => uri, extUri: extUriIgnorePathCase } as unknown as IUriIdentityService,
+			{ error: (message: string) => errors.push(message), info: (message: string) => infos.push(message) } as unknown as ILogService,
+			{ getBackups: async () => area.backups } as unknown as IWorkingCopyBackupService,
+			{ has: (identifier: IWorkingCopyIdentifier) => area.registered.has(identifier.resource.toString()), onDidRegister: onDidRegisterWorkingCopy.event } as unknown as IWorkingCopyService
 		));
 
 		return {
-			area, errors, storage, contribution,
+			area, errors, infos, storage, contribution,
 			switchTo(uri: URI, reason: 'user' | 'programmatic' = 'programmatic') { folderUri = uri; onDidChangeCurrentLocation.fire({ reason }); },
+			registerWorkingCopy(resource: URI) { area.registered.add(resource.toString()); onDidRegisterWorkingCopy.fire({ resource }); },
 			holdApply() { let release!: () => void; area.gate = new Promise<void>(resolve => release = resolve); return () => { area.gate = undefined; release(); }; },
 			stored() { return JSON.parse(storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE)!); }
 		};
@@ -404,5 +419,112 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		}
 
 		assert.strictEqual(fixture.area.sets.size, FOLDER_LOCATION_MAX_WORKING_SETS);
+	});
+
+	test('nothing is switched before the editors are restored, also not a location change that comes in meanwhile', async () => {
+		let restored!: () => void;
+		const fixture = createFixture({ whenRestored: new Promise<void>(resolve => restored = resolve) });
+		fixture.area.content = 'P';
+		fixture.switchTo(alternate);
+		await settle();
+		const beforeRestored = { content: fixture.area.content, saved: fixture.area.saved() };
+
+		restored();
+		await settle();
+
+		assert.deepStrictEqual({ beforeRestored, content: fixture.area.content, saved: fixture.area.saved() }, {
+			beforeRestored: { content: 'P', saved: {} },
+			content: '',
+			saved: { [prefix + p]: 'P' }
+		});
+	});
+
+	test('a switch is deferred while an editor that would close has a backup that is not restored yet, and happens once it is', async () => {
+		const untitled = URI.from({ scheme: 'untitled', path: 'Untitled-1' });
+		const results: Record<string, string> = {};
+		for (const [name, editor, backup] of [['unrestored backup', { resource: untitled }, true], ['dirty editor', { resource: untitled, dirty: true }, true], ['no backup', { resource: untitled }, false]] as const) {
+			const fixture = createFixture();
+			fixture.area.content = 'P';
+			fixture.area.editors = [editor];
+			fixture.area.backups = backup ? [{ resource: untitled, typeId: '' }] : [];
+			await settle();
+			fixture.switchTo(alternate);
+			await settle();
+			results[name] = fixture.area.content;
+			if (name === 'unrestored backup') {
+				results.stored = String(fixture.storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE));
+				results.infos = String(fixture.infos.length);
+				fixture.registerWorkingCopy(untitled);
+				await settle();
+				results.afterRegister = fixture.area.content;
+			}
+		}
+
+		assert.deepStrictEqual(results, { 'unrestored backup': 'P', stored: 'undefined', infos: '1', afterRegister: '', 'dirty editor': '', 'no backup': '' });
+	});
+
+	test('stored locations that only differ in the casing of their path are the same location', async () => {
+		const storage = ds.add(new InMemoryStorageService());
+		const area = new EditorArea();
+		area.sets.set('legacy', { name: prefix + 'file:///work/Project-Alt', content: 'A1' });
+		storage.store(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, JSON.stringify({ version: 1, owner: 'file:///work/Project', entries: [{ key: 'file:///work/Project-Alt', workingSet: { id: 'legacy', name: prefix + 'file:///work/Project-Alt' } }] }), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		area.content = 'P1';
+
+		const fixture = createFixture({ area, storage, folder: primary });
+		await settle();
+		const afterStartup = area.content;
+
+		fixture.switchTo(alternate);
+		await settle();
+
+		assert.deepStrictEqual({ afterStartup, content: area.content }, { afterStartup: 'P1', content: 'A1' });
+	});
+
+	test('a workspace with more than one folder switches and saves nothing and keeps the stored working sets', async () => {
+		const first = createFixture();
+		first.area.content = 'P1';
+		first.switchTo(alternate);
+		await settle();
+		first.area.content = 'M';
+		const stored = first.storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE);
+
+		const multiRoot = createFixture({ area: first.area, storage: first.storage, folder: primary, otherFolders: [URI.file('/work/other')] });
+		await settle();
+		multiRoot.switchTo(URI.file('/work/third'));
+		await settle();
+
+		assert.deepStrictEqual({ content: multiRoot.area.content, saved: multiRoot.area.saved(), unchanged: multiRoot.storage.get(FOLDER_LOCATION_WORKING_SETS_STORAGE_KEY, StorageScope.WORKSPACE) === stored }, {
+			content: 'M',
+			saved: { [prefix + p]: 'P1' },
+			unchanged: true
+		});
+	});
+
+	test('the editor area is stored as partial while a working set is applied, so that a restart during the apply restores the saved working set of the owner', async () => {
+		const first = createFixture();
+		first.area.content = 'P1';
+		first.switchTo(alternate);
+		await settle();
+		first.area.content = 'A1';
+		first.switchTo(primary);
+		await settle();
+
+		first.holdApply();
+		first.switchTo(alternate);
+		await settle();
+		const duringApply = { partial: first.stored().partial, owner: first.stored().owner };
+
+		// The apply replaced the editors before the window restarted
+		first.area.content = 'A-PARTIAL';
+		first.area.gate = undefined;
+		const restarted = createFixture({ area: first.area, storage: first.storage, folder: primary });
+		await settle();
+
+		assert.deepStrictEqual({ duringApply, content: restarted.area.content, saved: restarted.area.saved(), partial: restarted.stored().partial }, {
+			duringApply: { partial: true, owner: p },
+			content: 'P1',
+			saved: { [prefix + p]: 'P1', [prefix + a]: 'A1' },
+			partial: undefined
+		});
 	});
 });
