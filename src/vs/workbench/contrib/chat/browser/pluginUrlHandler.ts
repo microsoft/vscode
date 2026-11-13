@@ -14,6 +14,8 @@ import { localize } from '../../../../nls.js';
 import { COPILOT_CLI_AGENT_PROVIDER_ID } from '../../../../platform/agentHost/common/agent.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceCursor, ICustomizationMarketplaceResource, ICustomizationMarketplaceService } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceSources, getEnabledCustomizationMarketplaceSources } from '../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
@@ -25,13 +27,16 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { AICustomizationManagementCommands } from '../common/aiCustomizationWorkspaceService.js';
 import { IChatSessionsService, INewSessionInAgentsWindowOptions, NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID, SessionType } from '../common/chatSessionsService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { ICustomizationHarnessService } from '../common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationMarketplaceInfo, ICustomizationMarketplaceManagementProvider } from '../common/customizationHarnessService.js';
 import { isUntitledChatSession } from '../common/model/chatUri.js';
-import { MarketplaceReferenceKind, parseMarketplaceReference, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
+import { IMarketplaceReference, MarketplaceReferenceKind, parseProviderMarketplaceReference } from '../common/plugins/marketplaceReference.js';
 import { IAgentSessionsService } from './agentSessions/agentSessionsService.js';
 import { IAgentHostNewSessionFolderService } from './agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from './agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { getProviderMarketplaceSourceId } from './aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { isDefaultPluginMarketplace } from './aiCustomization/pluginCustomizationMarketplaceProvider.js';
+
+const awesomeCopilotCatalogIdentityPrefix = 'urn:air:github.com:github:awesome-copilot:';
 
 /**
  * Handles confirmed Copilot Agent Host marketplace links: `/add-marketplace?ref=owner/repo`
@@ -50,6 +55,7 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		@IAgentHostNewSessionFolderService private readonly newSessionFolderService: IAgentHostNewSessionFolderService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomizationMarketplaceService private readonly marketplaceService: ICustomizationMarketplaceService,
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IHostService private readonly hostService: IHostService,
@@ -88,13 +94,13 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			const { confirmed } = await this.dialogService.confirm({
 				type: 'warning',
 				message: pluginName
-					? localize('confirmAddMarketplaceAndPlugin', "Add Marketplace '{0}' and Install Plugin '{1}'?", ref.displayLabel, pluginName)
+					? localize('confirmInstallPluginFromSource', "Install Plugin '{1}' from '{0}'?", ref.displayLabel, pluginName)
 					: localize('confirmAddMarketplace', "Add Plugin Marketplace '{0}'?", ref.displayLabel),
 				detail: pluginName
-					? localize('confirmMarketplacePluginLinkDetail', "An external application wants to add this marketplace and install a plugin. Plugins can run code on your machine. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue)
+					? localize('confirmPluginLinkDetail', "An external application wants to install a plugin from this source. Plugins can run code on your machine. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue)
 					: localize('confirmMarketplaceLinkDetail', "An external application wants to add this plugin marketplace. Continue only if you initiated this request and trust this source.\n\nSource: {0}", ref.rawValue),
 				primaryButton: pluginName
-					? localize('addMarketplaceAndInstallButton', "&&Add Marketplace and Install")
+					? localize('installPluginButton', "&&Install")
 					: localize('addMarketplaceButton', "&&Add Marketplace"),
 				custom: { icon: Codicon.shield },
 			});
@@ -109,32 +115,32 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			const descriptor = this.harnessService.getDescriptorForSession(session.resource);
 			const managementProvider = descriptor?.marketplaceManagementProvider;
 			const installProvider = descriptor?.marketplaceInstallProvider;
-			if (!managementProvider || (pluginName && !installProvider)) {
+			if (pluginName && !installProvider) {
 				throw new Error(localize('pluginLinkHarnessUnavailable', "The selected Copilot Agent Host session does not support marketplace management or plugin installation."));
 			}
 
-			const marketplaces = await managementProvider.list(session.backendResource);
-			const existingMarketplace = marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId);
-			const marketplace = existingMarketplace ?? await managementProvider.add(session.backendResource, ref.rawValue);
 			if (pluginName && installProvider) {
-				let cursor: string | undefined;
-				const seenCursors = new Set<string>();
-				while (true) {
-					const page = await managementProvider.queryMarketplace(session.backendResource, marketplace, { query: pluginName, cursor }, CancellationToken.None);
-					const plugin = page.items.find(item => item.installation?.kind === 'providerPlugin' && item.installation.name === pluginName);
-					if (plugin) {
-						await installProvider.install(session.backendResource, {
-							...plugin,
-							sourceId: getProviderMarketplaceSourceId(marketplace.name),
-						}, CancellationToken.None);
-						break;
+				const agentFinderPlugin = !ref.ref && isDefaultPluginMarketplace(ref)
+					? await this.resolveAgentFinderPlugin(pluginName)
+					: undefined;
+				if (agentFinderPlugin) {
+					await installProvider.install(session.backendResource, agentFinderPlugin, CancellationToken.None);
+				} else {
+					if (!managementProvider) {
+						throw new Error(localize('pluginLinkHarnessUnavailable', "The selected Copilot Agent Host session does not support marketplace management or plugin installation."));
 					}
-					if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
-						throw new Error(localize('pluginLinkPluginNotFound', "Marketplace '{0}' was added, but plugin '{1}' was not found. No plugin was installed.", marketplace.name, pluginName));
-					}
-					cursor = page.nextCursor;
-					seenCursors.add(cursor);
+					const marketplace = await this.getOrAddMarketplace(managementProvider, session.backendResource, ref);
+					const configuredPlugin = await this.findConfiguredPlugin(managementProvider, session.backendResource, marketplace, pluginName);
+					await installProvider.install(session.backendResource, {
+						...configuredPlugin,
+						sourceId: getProviderMarketplaceSourceId(marketplace.name),
+					}, CancellationToken.None);
 				}
+			} else {
+				if (!managementProvider) {
+					throw new Error(localize('pluginLinkHarnessUnavailable', "The selected Copilot Agent Host session does not support marketplace management or plugin installation."));
+				}
+				await this.getOrAddMarketplace(managementProvider, session.backendResource, ref);
 			}
 
 			await this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, {
@@ -149,6 +155,127 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 			}
 		}
 		return true;
+	}
+
+	private async resolveAgentFinderPlugin(pluginName: string): Promise<ICustomizationMarketplaceResource | undefined> {
+		const sourceId = CustomizationMarketplaceSources.AgentFinderPublicFeed.id;
+		if (!getEnabledCustomizationMarketplaceSources(this.configurationService, this.marketplaceService.sources).some(source => source.id === sourceId)) {
+			return undefined;
+		}
+
+		const requestedIdentity = pluginName.toLowerCase();
+		const matches = await this.queryAgentFinderPlugins(pluginName, item => {
+			const installation = item.installation;
+			const catalogIdentity = installation?.kind === 'providerCatalog'
+				? installation.catalogIdentity?.toLowerCase()
+				: undefined;
+			const expectedIdentity = requestedIdentity.startsWith(awesomeCopilotCatalogIdentityPrefix)
+				? requestedIdentity
+				: `${awesomeCopilotCatalogIdentityPrefix}${requestedIdentity}`;
+			return installation?.kind === 'providerCatalog' &&
+				installation.resourceKind === 'plugin' &&
+				catalogIdentity?.startsWith(awesomeCopilotCatalogIdentityPrefix) === true &&
+				catalogIdentity === expectedIdentity;
+		});
+		if (matches.length === 0 && !requestedIdentity.startsWith('urn:')) {
+			matches.push(...await this.getAgentFinderBrowsePlugins(item => {
+				const installation = item.installation;
+				const reference = installation?.kind === 'providerPlugin' && installation.marketplaceSource
+					? parseProviderMarketplaceReference(installation.marketplaceSource)
+					: undefined;
+				return installation?.kind === 'providerPlugin' &&
+					installation.name.toLowerCase() === requestedIdentity &&
+					!!reference &&
+					isDefaultPluginMarketplace(reference);
+			}));
+		}
+
+		if (matches.length === 0) {
+			throw new Error(localize('pluginLinkAgentFinderPluginNotFound', "The plugin '{0}' was not found in the GitHub Feed.", pluginName));
+		}
+		if (matches.length > 1) {
+			throw new Error(localize('pluginLinkAgentFinderPluginAmbiguous', "Multiple GitHub Feed plugins matched '{0}'.", pluginName));
+		}
+		return matches[0];
+	}
+
+	private async getAgentFinderBrowsePlugins(
+		predicate: (item: ICustomizationMarketplaceResource) => boolean,
+	): Promise<ICustomizationMarketplaceResource[]> {
+		const result = await this.marketplaceService.getBrowseSections?.({
+			sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+		}, CancellationToken.None);
+		if (result?.error) {
+			throw new Error(result.error);
+		}
+
+		const matches = new Map<string, ICustomizationMarketplaceResource>();
+		for (const section of result?.sections ?? []) {
+			for (const item of section.items) {
+				if (predicate(item)) {
+					matches.set(getCustomizationMarketplaceResourceKey(item), item);
+				}
+			}
+		}
+		return [...matches.values()];
+	}
+
+	private async queryAgentFinderPlugins(
+		query: string,
+		predicate: (item: ICustomizationMarketplaceResource) => boolean,
+	): Promise<ICustomizationMarketplaceResource[]> {
+		const matches: ICustomizationMarketplaceResource[] = [];
+		let cursor: ICustomizationMarketplaceCursor | undefined;
+		do {
+			const page = await this.marketplaceService.query({
+				sourceIds: [CustomizationMarketplaceSources.AgentFinderPublicFeed.id],
+				mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+				query,
+				pageSize: 50,
+				cursor,
+			}, CancellationToken.None);
+			if (page.sourceErrors?.length) {
+				throw new Error(page.sourceErrors.map(error => error.message).join('\n'));
+			}
+			matches.push(...page.items.filter(predicate));
+			cursor = page.nextCursor;
+		} while (matches.length < 2 && cursor);
+		return matches;
+	}
+
+	private async getOrAddMarketplace(
+		managementProvider: ICustomizationMarketplaceManagementProvider,
+		sessionResource: URI,
+		ref: IMarketplaceReference,
+	): Promise<ICustomizationMarketplaceInfo> {
+		const marketplaces = await managementProvider.list(sessionResource);
+		return marketplaces.find(marketplace => parseProviderMarketplaceReference(marketplace.source)?.canonicalId === ref.canonicalId)
+			?? managementProvider.add(sessionResource, ref.rawValue);
+	}
+
+	private async findConfiguredPlugin(
+		managementProvider: ICustomizationMarketplaceManagementProvider,
+		sessionResource: URI,
+		marketplace: ICustomizationMarketplaceInfo,
+		pluginName: string,
+	): Promise<ICustomizationMarketplaceResource> {
+		let cursor: string | undefined;
+		const seenCursors = new Set<string>();
+		while (true) {
+			const page = await managementProvider.queryMarketplace(sessionResource, marketplace, { query: pluginName, cursor }, CancellationToken.None);
+			const plugin = page.items.find(item => item.installation?.kind === 'providerPlugin' && item.installation.name === pluginName);
+			if (plugin) {
+				return {
+					...plugin,
+					sourceId: getProviderMarketplaceSourceId(marketplace.name),
+				};
+			}
+			if (!page.nextCursor || seenCursors.has(page.nextCursor)) {
+				throw new Error(localize('pluginLinkPluginNotFound', "Marketplace '{0}' was added, but plugin '{1}' was not found. No plugin was installed.", marketplace.name, pluginName));
+			}
+			cursor = page.nextCursor;
+			seenCursors.add(cursor);
+		}
 	}
 
 	private async resolveSession(): Promise<{ resource: URI; backendResource: URI } | undefined> {
@@ -207,6 +334,6 @@ export class PluginUrlHandler extends Disposable implements IWorkbenchContributi
 		} catch {
 			// Marketplace references also support plain-text owner/repo and Git URLs.
 		}
-		return (decoded && parseMarketplaceReference(decoded)) || parseMarketplaceReference(raw);
+		return (decoded && parseProviderMarketplaceReference(decoded)) || parseProviderMarketplaceReference(raw);
 	}
 }

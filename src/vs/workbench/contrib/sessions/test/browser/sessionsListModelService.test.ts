@@ -574,6 +574,27 @@ suite('SessionsListModelService', () => {
 
 	// -- Automation sessions --
 
+	test('scheduled chats bypass automation reply gating and retain their normal listing after reload', () => {
+		const scheduled: ISession = { ...createSession('scheduled', SessionStatus.InProgress, { isAutomation: true }), isScheduledChat: constObservable(true) };
+		const automation = createSession('recurring', SessionStatus.InProgress, { isAutomation: true });
+		const listed = () => [scheduled, automation].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const before = listed();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ before, after: listed() }, { before: ['scheduled'], after: ['scheduled'] });
+	});
+
+	test('explicitly hiding a scheduled chat survives reload and overrides default listing', () => {
+		const scheduled: ISession = { ...createSession('scheduled', SessionStatus.Completed, { isAutomation: true }), isScheduledChat: constObservable(true) };
+		service.hideAutomationSessions([scheduled]);
+		const hidden = service.isSessionListed(scheduled);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restored = service.isSessionListed(scheduled, undefined, true);
+		service.showAutomationSessions([scheduled]);
+		assert.deepStrictEqual({ hidden, restored, shown: service.isSessionListed(scheduled) }, { hidden: false, restored: false, shown: true });
+	});
+
 	test('lists automation sessions only while they are shown and persists the shown state', () => {
 		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
 		const otherAutomation = createSession('other-automation', SessionStatus.Completed, { isAutomation: true });

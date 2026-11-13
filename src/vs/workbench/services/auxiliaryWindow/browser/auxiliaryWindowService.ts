@@ -73,7 +73,17 @@ export interface IAuxiliaryWindowService {
 }
 
 export interface BeforeAuxiliaryWindowUnloadEvent {
+
+	/**
+	 * Prevents the window from closing and tells the user why.
+	 */
 	veto(reason: string | undefined): void;
+
+	/**
+	 * Prevents the window from closing without telling the user, for a component that asks the
+	 * user itself, for example whether to discard changes, and closes the window afterwards.
+	 */
+	vetoSilently(): void;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -174,15 +184,24 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		// Check for veto from a listening component
 		let veto: string | undefined;
+		let silentVeto = false;
 		this._onBeforeUnload.fire({
 			veto(reason) {
 				if (reason) {
 					veto = reason;
 				}
+			},
+			vetoSilently() {
+				silentVeto = true;
 			}
 		});
 		if (veto) {
 			this.handleVetoBeforeClose(e, veto);
+
+			return;
+		}
+		if (silentVeto) {
+			this.preventUnload(e);
 
 			return;
 		}

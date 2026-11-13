@@ -15,6 +15,12 @@ suite('codexPromptResolver', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('skill resources preserve slash invocation without adding file context', () => {
+		const file: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: 'file:///workspace/file.ts', label: 'file.ts' };
+		const skill: MessageAttachment = { type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review', label: '/review', displayKind: 'skill' };
+		assert.deepStrictEqual(resolveCodexInput('/review changes', [skill, file]), resolveCodexInput('/review changes', [file]));
+	});
+
 	test('plain prompt becomes a single text input', () => {
 		const { input, cleanupPaths } = resolveCodexInput('hello world', undefined);
 		assert.strictEqual(input.length, 1);

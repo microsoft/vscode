@@ -39,6 +39,7 @@ import { LoadClientCertificatesExtensionMethod, type IAgentHostClientCertificate
 import { AgentHostClientCertificatesCapabilityMetaKey } from '../common/meta/agentHostClientCertificatesMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, lookupClientProxyBasicAuthorizationParamsValidator, LookupClientProxyKerberosAuthorizationExtensionMethod, lookupClientProxyKerberosAuthorizationParamsValidator, ResolveClientProxyExtensionMethod, resolveClientProxyParamsValidator, type IAgentHostClientProxyProvider } from '../common/clientProxyProtocol.js';
 import { AgentHostClientProxyCapabilityMetaKey, servesAgentHostClientProxy } from '../common/meta/agentHostClientProxyMeta.js';
+import { AgentHostMultipleChatProvidersMetaKey } from '../common/meta/agentHostMultipleChatProvidersMeta.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import type { Credentials } from '../../request/common/request.js';
@@ -68,7 +69,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper
 import { AgentHostResourceIdentity, AgentHostResourcePermissionError, IAgentHostResourceService, LOCAL_AGENT_HOST_RESOURCE_IDENTITY } from '../common/agentHostResourceService.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest, JsonRpcResponse } from '../common/state/protocol/messages.js';
 import { ActionType, AuthRequiredReason, type ActionEnvelope, type ChatAction, type ClientAnnotationsAction, type ClientAutomationAction, type ClientAutomationRunAction, type ClientChangesetAction, type INotification, type IRootConfigChangedAction, type SessionAction, type TerminalAction } from '../common/state/sessionActions.js';
-import { getOlderHostDefaultChat } from './agentHostOlderHostCompatibility.js';
+import { getOlderHostDefaultChat, getOlderHostSkillCompletion } from './agentHostOlderHostCompatibility.js';
 import { MessageAttachmentKind, SessionSummary, ROOT_STATE_URI, StateComponents, isAhpRootChannel, isAhpChatChannel, isSessionChatArchived, isSessionStatusRead, type AgentInfo, type ClientPluginCustomization, type SessionState, type Message, type RootState } from '../common/state/sessionState.js';
 import type { AgentChatMoveDestination } from '../common/agentHostChatMove.js';
 import { ChatMoveDestinationKind } from '../common/state/protocol/channels-chat/commands.js';
@@ -1624,6 +1625,7 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 		return {
 			...(this._clientCertificates?.isEnabled() ? { [AgentHostClientCertificatesCapabilityMetaKey]: true } : {}),
 			...(this._clientProxy?.isEnabled() ? { [AgentHostClientProxyCapabilityMetaKey]: true } : {}),
+			...(this._configurationService.getValue<boolean>(ChatProvidersSettingId.Enabled) === true ? { [AgentHostMultipleChatProvidersMetaKey]: true } : {}),
 			...toAgentHostClientMeta(
 				this._transport.clientConnectionKind,
 				telemetryLevel,
@@ -2599,7 +2601,15 @@ export class AgentHostProtocolClient extends Disposable implements IAgentConnect
 	}
 
 	async completions(params: CompletionsParams): Promise<CompletionsResult> {
-		return this._sendRequest('completions', params);
+		const result = await this._sendRequest('completions', params);
+		const root = this.rootState.value;
+		return {
+			...result,
+			items: result.items.map(item => {
+				const attachment = getOlderHostSkillCompletion(item.attachment, this._initializeResult.get(), root instanceof Error ? undefined : root);
+				return attachment ? { ...item, attachment } : item;
+			}),
+		};
 	}
 
 	async listAutomationTriggerDefinitions(params: ListAutomationTriggerDefinitionsParams): Promise<ListAutomationTriggerDefinitionsResult> {

@@ -59,7 +59,7 @@ import { KeybindingResolver } from '../../../platform/keybinding/common/keybindi
 import { IKeybindingItem, KeybindingsRegistry } from '../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from '../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { USLayoutResolvedKeybinding } from '../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { IFormatterChangeEvent, ILabelService, ResourceLabelFormatter, Verbosity } from '../../../platform/label/common/label.js';
+import { IFormatterChangeEvent, ILabelService, IWorkspaceLabelDecorator, ResourceLabelFormatter, Verbosity } from '../../../platform/label/common/label.js';
 import { ILayoutService } from '../../../platform/layout/browser/layoutService.js';
 import { IListService, ListService } from '../../../platform/list/browser/listService.js';
 import { ConsoleLogger, ILogService, ILoggerService, NullLoggerService } from '../../../platform/log/common/log.js';
@@ -760,7 +760,7 @@ class StandaloneWorkspaceContextService implements IWorkspaceContextService {
 
 	constructor() {
 		const resource = URI.from({ scheme: StandaloneWorkspaceContextService.SCHEME, authority: 'model', path: '/' });
-		this.workspace = { id: STANDALONE_EDITOR_WORKSPACE_ID, folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })] };
+		this.workspace = { id: STANDALONE_EDITOR_WORKSPACE_ID, folders: [new WorkspaceFolder({ uri: resource, name: '', index: 0 })], uri: resource };
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -894,8 +894,16 @@ class StandaloneUriLabelService implements ILabelService {
 		return basename(resource);
 	}
 
-	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose: Verbosity }): string {
+	public getWorkspaceLabel(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
 		return '';
+	}
+
+	public getFolderLocationLabel(folder: URI): string | undefined {
+		return undefined;
+	}
+
+	public registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
+		return Disposable.None;
 	}
 
 	public getSeparator(scheme: string, authority?: string): '/' | '\\' {
