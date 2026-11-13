@@ -3095,6 +3095,24 @@ suite('ChatPetWidget', () => {
 			rect.right <= other.left + 0.1 || other.right <= rect.left + 0.1 || rect.bottom <= other.top + 0.1 || other.bottom <= rect.top + 0.1)));
 	});
 
+	test('subagent pets remain stacked when their size changes', () => {
+		const { widget, firstHost, overlay, service } = createHostTransitionHarness(true);
+		const tools = ['bottom', 'middle', 'top'].map(id => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel(tools)) });
+		const pets = [...overlay.querySelectorAll<HTMLElement>('.chat-subagent-pet')];
+		pets.forEach((pet, index) => setSubagentPetPosition(widget, pet, 48, -(index + 1) * 24));
+		for (const scale of [2, 1]) {
+			service.setScale(scale);
+			const rects = pets.map(pet => pet.getBoundingClientRect());
+			assert.ok(Math.abs(rects[1].bottom - rects[0].top) < 0.1);
+			assert.ok(Math.abs(rects[2].bottom - rects[1].top) < 0.1);
+		}
+	});
+
 	for (const reducedMotion of [false, true]) {
 		test(`subagent pets keep their size and only displaced pets respawn (${reducedMotion ? 'reduced motion' : 'animated'})`, async () => {
 			const { widget, firstHost, overlay, firstParent, layout } = createHostTransitionHarness(reducedMotion);

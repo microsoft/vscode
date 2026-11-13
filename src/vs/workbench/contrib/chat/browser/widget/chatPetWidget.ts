@@ -191,7 +191,7 @@ const SUBAGENT_PET_SCALE = 0.5;
 /** Maximum number of subagent pets shown at once. */
 const SUBAGENT_PET_MAX_COUNT = 10;
 /** Maximum stacking height (CSS pixels) before subagent pets share space. */
-const SUBAGENT_PET_MAX_STACKING_HEIGHT = 96;
+const SUBAGENT_PET_MAX_STACKING_HEIGHT = 500;
 /** Tolerance for fractional pixels when checking subagent pet bounds. */
 const SUBAGENT_PET_BOUNDARY_EPSILON = 0.01;
 /** Distance kept between subagent pets and the edges of their platform. */
@@ -1350,9 +1350,9 @@ class SubagentPet extends Disposable {
 	get left(): number { return this._left; }
 	get top(): number { return this._top; }
 
-	/** Updates the scale while keeping the pet's bottom edge in place. */
-	setScale(previousScale: number, scale: number): void {
-		this._top += CHAT_PET_DISPLAY_SIZE * (previousScale - scale);
+	/** Updates the scale and overlay-relative top position. */
+	setScale(scale: number, top: number): void {
+		this._top = top;
 		this.element.style.top = `${this._top}px`;
 		this.element.style.transform = `scale(${scale})`;
 	}
@@ -3428,11 +3428,22 @@ export class ChatPetWidget extends Disposable {
 
 	private _setScale(scale: number): void {
 		this._stopJumpGame('restore');
-		const previousScale = this._scale * SUBAGENT_PET_SCALE;
+		const previousSize = getSubagentPetSize(this._scale);
 		this._scale = scale;
 		const subagentPetScale = scale * SUBAGENT_PET_SCALE;
-		for (const subagentPet of this._subagentPets.values()) {
-			subagentPet.setScale(previousScale, subagentPetScale);
+		const size = getSubagentPetSize(scale);
+		const subagentPets = [...this._subagentPets.values()].map(subagentPet => ({ subagentPet, left: subagentPet.left, top: subagentPet.top })).sort((a, b) => b.top - a.top);
+		for (const [index, entry] of subagentPets.entries()) {
+			let supportTop: number | undefined;
+			if (!entry.subagentPet.isRespawning()) {
+				for (let below = 0; below < index; below++) {
+					const support = subagentPets[below];
+					if (!support.subagentPet.isRespawning() && entry.left < support.left + previousSize && entry.left + previousSize > support.left && Math.abs(entry.top + previousSize - support.top) <= SUBAGENT_PET_BOUNDARY_EPSILON) {
+						supportTop = Math.min(supportTop ?? Infinity, support.subagentPet.top - size);
+					}
+				}
+			}
+			entry.subagentPet.setScale(subagentPetScale, supportTop ?? entry.top + previousSize - size);
 		}
 		this._scheduleSubagentPetResize();
 		const displaySize = this._getDisplaySize();
