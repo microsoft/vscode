@@ -107,12 +107,14 @@ suite('Sessions - SessionsViewPane', () => {
 		const container = mainWindow.document.createElement('div');
 		const location = observableValue<ChatCustomizationsLocation>(disposables, 'chatInput');
 		const navigation = observableValue(disposables, true);
+		const customizationsAtBottom = observableValue(disposables, false);
 		const calls: Array<[string, boolean]> = [];
 		const host = {
 			layoutService: { mainContainer: container },
 			scopedContextKeyService: { contextMatchesRules: () => true },
 			chatEntitlementService: { sentimentObs: constObservable({ hidden: false }) },
 			separateNavigation: navigation,
+			customizationsAtBottom,
 			customizationsLocation: location,
 			updateCustomizationsPresentation: (presentation: string, shortcuts: boolean) => calls.push([presentation, shortcuts]),
 		};
@@ -128,7 +130,13 @@ suite('Sessions - SessionsViewPane', () => {
 		location.set('sidebar', undefined);
 		navigation.set(true, undefined);
 		refresh.call(host);
-		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true]]);
+		location.set('auto', undefined);
+		refresh.call(host);
+		customizationsAtBottom.set(true, undefined);
+		refresh.call(host);
+		navigation.set(false, undefined);
+		refresh.call(host);
+		assert.deepStrictEqual(calls, [['hidden', true], ['hidden', false], ['hidden', true], ['treatment', false], ['control', true], ['treatment', true], ['control', true], ['control', false]]);
 	});
 
 	test('floating toolbar view items follow their own draft rather than the focused session', () => {

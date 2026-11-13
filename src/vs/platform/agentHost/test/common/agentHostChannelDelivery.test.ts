@@ -401,6 +401,31 @@ suite('AgentHostChannelDelivery', () => {
 		assert.ok(sender.sent.every(frame => frame.method === 'channel/frame' && JSON.stringify(frame).length * 2 <= limits.maximumFrameBytes));
 	});
 
+	test('reassembles consecutive fragmented messages and rejects only a surrogate pair split across fragments', () => {
+		const h = fixture({ release: true, receiveWindowBytes: 1024 * 1024 });
+		const acceptFragments = (text: string, size: number) => {
+			for (let offset = 0; offset < text.length; offset += size) {
+				const frame: JsonRpcNotification = {
+					jsonrpc: '2.0', method: 'channel/frame',
+					params: { channel, data: text.slice(offset, offset + size), final: offset + size >= text.length },
+				};
+				h.delivery.accept(frame, JSON.stringify(frame).length * 2);
+				h.delivery.flushCredit();
+			}
+		};
+		const first = notification('a'.repeat(500));
+		const second = notification('b\u00e9'.repeat(100));
+		acceptFragments(JSON.stringify(first), 7);
+		acceptFragments(JSON.stringify(second), 50);
+		const pair = notification('\u{1F680}');
+		const split = JSON.stringify(pair);
+		acceptFragments(split, split.indexOf('\u{1F680}'));
+		acceptFragments(split, split.indexOf('\u{1F680}') + 1);
+		assert.deepStrictEqual({ received: h.received, errors: h.errors.map(error => error.message) }, {
+			received: [first, second, pair], errors: ['Channel fragment split a surrogate pair'],
+		});
+	});
+
 	test('control bypasses a full window and interrupts partial reassembly', () => {
 		const h = fixture();
 		const accept = (message: JsonRpcNotification) => h.delivery.accept(message, JSON.stringify(message).length * 2);

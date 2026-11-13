@@ -54,8 +54,8 @@ import '../../../../../../workbench/contrib/sessions/browser/chat/media/chatInpu
 import '../../../../../browser/media/style.css';
 import { ITestSessionWithChat, stubSessionHosts, testChatSourceOf } from '../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
-async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed' } = {}): Promise<void> {
-	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld } = options;
+async function render(context: ComponentFixtureContext, mode: string, permissions: ChatPermissionLevel, sandboxed = false, openPermissions = false, options: { readonly editor?: boolean; readonly openMode?: boolean; readonly newChat?: boolean; readonly primary?: boolean; readonly compact?: boolean; readonly combined?: boolean; readonly phoneWidth?: number; readonly withheld?: 'policy' | 'unattributed'; readonly hoveredItem?: string; readonly hoveredTrigger?: 'mode' | 'permissions' } = {}): Promise<void> {
+	const { editor = false, openMode = false, newChat = false, primary = false, compact = false, combined = true, phoneWidth, withheld, hoveredItem, hoveredTrigger } = options;
 	const { container, disposableStore, theme } = context;
 	container.classList.add('monaco-workbench', 'interactive-session', 'modern-ui', 'monaco-enable-motion');
 	if (!editor) {
@@ -296,6 +296,23 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 		overlay.style.height = '100%';
 		disposableStore.add(toDisposable(() => overlay.querySelector<HTMLButtonElement>('.mobile-picker-sheet-done')?.click()));
 	}
+	if (hoveredItem) {
+		const row = [...container.querySelectorAll<HTMLElement>('.action-widget .monaco-list-row.action')]
+			.find(candidate => candidate.querySelector('.title')?.textContent === hoveredItem);
+		if (!row) {
+			throw new Error(`Expected mode picker item: ${hoveredItem}`);
+		}
+		row.classList.add('hovered');
+		row.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, movementX: 1 }));
+	}
+	if (hoveredTrigger) {
+		const selector = hoveredTrigger === 'mode' ? '.agent-host-mode-button' : '.agent-host-permissions-button';
+		const button = toolbar.querySelector<HTMLElement>(selector);
+		if (!button) {
+			throw new Error(`Expected combined picker trigger: ${hoveredTrigger}`);
+		}
+		button.classList.add('hovered');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }, {
@@ -306,11 +323,29 @@ export default defineThemedFixtureGroup({ path: 'sessions/agentHostModePicker' }
 	SessionChatCompact: defineComponentFixture({
 		render: context => render(context, 'interactive', ChatPermissionLevel.AutoApprove, false, false, { primary: true, compact: true }),
 	}),
+	SessionChatModeHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the Interactive half of the combined Mode and Permissions control. In high contrast themes, a dashed active-contrast boundary surrounds only that actionable half.'],
+		render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, false, { primary: true, hoveredTrigger: 'mode' }),
+	}),
+	SessionChatPermissionsHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the Manual permissions half of the combined Mode and Permissions control. In high contrast themes, a dashed active-contrast boundary surrounds only that actionable half.'],
+		render: context => render(context, 'interactive', ChatPermissionLevel.Default, false, false, { primary: true, hoveredTrigger: 'permissions' }),
+	}),
 	Manual: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default) }),
 	Assisted: defineComponentFixture({ render: context => render(context, 'plan', ChatPermissionLevel.Assisted) }),
 	AllowAll: defineComponentFixture({ render: context => render(context, 'autopilot', ChatPermissionLevel.AutoApprove) }),
 	Sandboxed: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true) }),
 	Mode: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true, false, { openMode: true }) }),
+	ModeHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over Plan in the Agent Mode popup. In high contrast themes, the row uses a dashed active-contrast boundary rather than a solid keyboard-focus boundary.'],
+		render: context => render(context, 'interactive', ChatPermissionLevel.Default, true, false, { openMode: true, hoveredItem: 'Plan' }),
+	}),
 	Permissions: defineComponentFixture({ render: context => render(context, 'interactive', ChatPermissionLevel.Default, true, true) }),
 	AssistedPermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true) }),
 	SeparatePermissions: defineComponentFixture({ additionalThemes: ['darkHighContrast', 'lightHighContrast'], render: context => render(context, 'autopilot', ChatPermissionLevel.Assisted, false, true, { combined: false }) }),

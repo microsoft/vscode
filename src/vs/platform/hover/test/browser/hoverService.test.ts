@@ -715,6 +715,29 @@ suite('HoverService', () => {
 			hover.dispose();
 		});
 
+		test('should position hover using viewport coordinates for a CSS-zoomed target', () => {
+			const zoomed = fixture.appendChild(document.createElement('div'));
+			zoomed.style.cssText = 'position: fixed; top: 0; left: 0; zoom: 1.25;';
+			const clippingElement = zoomed.appendChild(document.createElement('div'));
+			clippingElement.style.cssText = 'position: absolute; top: 0; left: 40px; width: 200px; height: 40px;';
+			const target = clippingElement.appendChild(document.createElement('div'));
+			target.style.cssText = 'position: absolute; top: 8px; left: 20px; width: 40px; height: 16px;';
+
+			const hover = store.add(showHover('Zoomed target hover', target, {
+				position: { hoverPosition: HoverPosition.BELOW, clippingElement },
+			}));
+			const hoverWidget = asHoverWidget(hover);
+			const targetRect = target.getBoundingClientRect();
+
+			assert.deepStrictEqual({
+				alignedX: Math.abs(hoverWidget.x - targetRect.left) < 0.5,
+				alignedY: Math.abs(hoverWidget.y - (targetRect.bottom - 2)) < 0.5,
+			}, {
+				alignedX: true,
+				alignedY: true,
+			});
+		});
+
 	});
 
 	suite('hideHover', () => {

@@ -443,11 +443,11 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 		return; // disabled, auxiliary editor part state is tracked outside
 	}
 
-	close(): boolean {
-		return this.doClose(true /* merge all confirming editors to main part */);
+	close(options?: { preserveFocus?: boolean }): boolean {
+		return this.doClose(true /* merge all confirming editors to main part */, options);
 	}
 
-	private doClose(mergeConfirmingEditorsToMainPart: boolean): boolean {
+	private doClose(mergeConfirmingEditorsToMainPart: boolean, options?: { preserveFocus?: boolean }): boolean {
 		let result = true;
 		if (mergeConfirmingEditorsToMainPart) {
 
@@ -457,7 +457,7 @@ export class AuxiliaryEditorPartImpl extends EditorPart implements IAuxiliaryEdi
 			}
 
 			// Then merge remaining to main part
-			result = this.mergeGroupsToMainPart();
+			result = this.mergeGroupsToMainPart(undefined, options);
 			if (!result) {
 				return false; // Do not close when editors could not be merged back
 			}

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import { timeout } from '../../../../../base/common/async.js';
 import { Action, SubmenuAction, toAction, type IAction } from '../../../../../base/common/actions.js';
 import { AnchorPosition } from '../../../../../base/common/layout.js';
@@ -16,7 +17,7 @@ import { IActionListItem } from '../../../../../platform/actionWidget/browser/ac
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { computePullRequestIcon, type ChatPullRequestState } from '../../../../common/chatPullRequest.js';
-import type { IChatPillEntry, IChatPillSection } from '../../../../browser/chatPills.js';
+import { ChatPillsRow, type IChatPillEntry, type IChatPillSection } from '../../../../browser/chatPills.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatInputPills, createChatInputPillSource, StandardChatInputPillSources, type IStandardChatInputPillsData } from '../../browser/chatInputPills.js';
@@ -926,6 +927,26 @@ suite('StandardChatInputPillSources', () => {
 		assert.deepStrictEqual({ defaultHidden, userHidden: state() }, {
 			defaultHidden: { visible: false, empty: false, focusable: false },
 			userHidden: { visible: true, empty: true, focusable: true },
+		});
+	});
+
+	test('does not rescan the row when pill data updates without changing the row state', () => {
+		const scanDomNode = sinon.spy(ChatPillsRow.prototype, 'scanDomNode');
+		store.add(toDisposable(() => scanDomNode.restore()));
+		const sections = observableValue<readonly IChatPillSection[]>('artifacts', [{ title: 'Artifacts', entries: [{ id: 'plan', label: 'Plan 0', open: () => { } }] }]);
+		const pills = createPills({ artifacts: { sections } });
+		const initialScans = scanDomNode.callCount;
+
+		for (let index = 1; index <= 5; index++) {
+			sections.set([{ title: 'Artifacts', entries: [{ id: 'plan', label: `Plan ${index}`, open: () => { } }] }], undefined);
+		}
+		const afterUpdates = { visible: pills.inputPills.visible, scans: scanDomNode.callCount - initialScans };
+		sections.set([], undefined);
+
+		assert.deepStrictEqual({ initialScans, afterUpdates, afterRemoved: { visible: pills.inputPills.visible, scans: scanDomNode.callCount - initialScans } }, {
+			initialScans: 2,
+			afterUpdates: { visible: true, scans: 0 },
+			afterRemoved: { visible: false, scans: 1 },
 		});
 	});
 

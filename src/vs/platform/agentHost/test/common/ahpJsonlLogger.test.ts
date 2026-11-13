@@ -15,7 +15,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AhpJsonlLogger, AhpJsonlLogRetention, getAhpLogByteLength, isAhpJsonlLoggingEnabled, isAhpLogFileFor, stringifyAhpLogEntry } from '../../common/ahpJsonlLogger.js';
-import { RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AnswerShellAuthenticationExtensionMethod, RegisterGitHubEnvironmentExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
 
 suite('AhpJsonlLogger', () => {
 
@@ -361,6 +361,31 @@ suite('AhpJsonlLogger', () => {
 			credentials: ['<redacted>', '<redacted>'],
 			accountIds: ['42', '42'],
 			containsCredential: false, liveCredential: 'private-credential', truncated: true,
+		});
+	});
+
+	test('redacts shell authentication answers without mutating live requests, including oversized entries', async () => {
+		const fileService = createInMemoryFileService(store, Schemas.file);
+		const logger = store.add(new AhpJsonlLogger(
+			{ logsHome: URI.file('/logs'), logId: 'shell-authentication', connectionId: 'client', transport: 'websocket' },
+			fileService, new NullLogService(),
+		));
+		const request = { jsonrpc: '2.0', id: 1, method: AnswerShellAuthenticationExtensionMethod, params: { chat: 'ahp-chat://copilot/s/c', requestId: 'r', answer: 'private-password' } };
+		logger.log(request, 'c2s');
+		logger.log({ ...request, id: 2, params: { ...request.params, extra: 'x'.repeat(2 * 1024 * 1024) } }, 'c2s');
+		await logger.flush();
+		const content = (await fileService.readFile(logger.resource)).value.toString();
+		const entries = content.trim().split('\n').map(line => JSON.parse(line));
+		assert.deepStrictEqual({
+			answers: entries.map(entry => entry.params.answer),
+			requestIds: entries.map(entry => entry.params.requestId),
+			containsAnswer: content.includes(request.params.answer),
+			liveAnswer: request.params.answer,
+			truncated: entries[1]._ahpLog.truncated,
+		}, {
+			answers: ['<redacted>', '<redacted>'],
+			requestIds: ['r', 'r'],
+			containsAnswer: false, liveAnswer: 'private-password', truncated: true,
 		});
 	});
 

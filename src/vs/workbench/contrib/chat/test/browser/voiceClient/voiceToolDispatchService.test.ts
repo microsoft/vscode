@@ -931,6 +931,19 @@ suite('VoiceToolDispatchService - respondToSession', () => {
 		assert.deepStrictEqual(part.data, { region: { selectedValue: 'westus' } });
 	});
 
+	test('refuses to answer a password question by voice and leaves it open', async () => {
+		const part = new ChatQuestionCarouselData([
+			{ id: 'answer', type: 'text', title: 'Password', required: true, password: true },
+		], true, 'resolve-1');
+		const call = answerCall(part, { type: 'answer', answers: [{ question_id: 'answer', value: 'spoken-password' }] });
+
+		assert.deepStrictEqual({ result: await serviceFor(part).respondToSession(call), isUsed: part.isUsed, data: part.data }, {
+			result: { ok: false, reason: 'unsupported' },
+			isUsed: undefined,
+			data: undefined,
+		});
+	});
+
 	test('refuses an answer that leaves a required question blank', async () => {
 		// The widget will not submit this form; neither may a spoken answer.
 		const part = new ChatQuestionCarouselData([

@@ -55,6 +55,8 @@ export interface IServerToolExecutionContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
 	readonly turnId?: string;
+	/** The tool call in the chat's active turn that is executing, when the provider reports it. */
+	readonly toolCallId?: string;
 }
 
 /**
@@ -273,7 +275,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		};
 	}
 
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
@@ -282,14 +284,15 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri), name, rawArgs);
+		return group.execute(this._stateManager, this._executionContext(chatUri, toolCallId), name, rawArgs);
 	}
 
-	private _executionContext(chatUri: URI): IServerToolExecutionContext {
+	private _executionContext(chatUri: URI, toolCallId?: string): IServerToolExecutionContext {
 		return {
 			sessionUri: this._stateManager.requireChatOwner(chatUri),
 			chatUri,
 			turnId: this._stateManager.getActiveTurnId(chatUri),
+			...(toolCallId ? { toolCallId } : {}),
 		};
 	}
 

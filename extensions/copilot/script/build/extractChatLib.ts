@@ -10,7 +10,7 @@ import * as jsonc from 'jsonc-parser';
 import * as path from 'path';
 import { promisify } from 'util';
 import * as yaml from 'yaml';
-import { DependencyKind, lockChatLibDependencies, PnpmLockfile } from './chatLibLockfile';
+import { DependencyKind, lockChatLibDependencies, PnpmLockfile, splitLockfileDocuments } from './chatLibLockfile';
 
 const REPO_ROOT = path.join(__dirname, '..', '..');
 const CHAT_LIB_DIR = path.join(REPO_ROOT, 'chat-lib');
@@ -831,10 +831,12 @@ class ChatLibExtractor {
 		}
 
 		console.log('Updating chat-lib in pnpm-lock.yaml for changed dependencies...');
-		const lockfile = yaml.parse(fs.readFileSync(lockfilePath, 'utf-8')) as PnpmLockfile;
+		// Only the lockfile of the projects changes: the documents before it are written back as they are
+		const { leadingDocuments, lockfile: projectsLockfile } = splitLockfileDocuments(fs.readFileSync(lockfilePath, 'utf-8'));
+		const lockfile = yaml.parse(projectsLockfile) as PnpmLockfile;
 		const toImporterId = (folder: string) => path.relative(WORKSPACE_ROOT, folder).split(path.sep).join('/');
 		const locked = lockChatLibDependencies(lockfile, toImporterId(REPO_ROOT), toImporterId(CHAT_LIB_DIR), updatedPackages, removedPackages);
-		fs.writeFileSync(lockfilePath, yaml.stringify(lockfile));
+		fs.writeFileSync(lockfilePath, leadingDocuments + yaml.stringify(lockfile));
 		console.log(`Locked ${locked} chat-lib dependencies to Copilot's versions`);
 
 		const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
