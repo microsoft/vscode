@@ -4807,7 +4807,7 @@ export class CopilotAgentSession extends Disposable {
 					if (def.topLevelChatOnly && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
 						throw new Error('This tool can only be called from a top-level chat with a known root tool-call origin.');
 					}
-					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args);
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, invocation.toolCallId);
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
