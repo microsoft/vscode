@@ -83,14 +83,6 @@
 				"type": "boolean"
 			}
 		},
-		"requireBase64ImageAttachments": {
-			"description": "When true, requires base64-encoded image attachments instead of attachment URLs. False or unset preserves existing behavior.",
-			"type": "boolean",
-			"default": false,
-			"x-composition": {
-				"strategy": "highest-layer-wins"
-			}
-		},
 		"vscode": {
 			"description": "VS Code-specific managed preferences. Preserved by the shared runtime for VS Code to consume; the runtime and other clients do not interpret these preferences. Delivered through server-managed or file-based settings, not native MDM.",
 			"type": "object",
@@ -330,7 +322,7 @@
 					}
 				},
 				"deny": {
-					"description": "Permission rules that block matching operations. Deny takes precedence over ask and allow and is unioned across managed sources.",
+					"description": "Permission rules that block matching operations. Deny takes precedence over ask and allow and is unioned across managed sources. Shell(...), Bash(...), and PowerShell(...) rules here and in ask and allow also accept a JavaScript regular expression written as /pattern/flags.",
 					"type": "array",
 					"items": {
 						"type": "string",
