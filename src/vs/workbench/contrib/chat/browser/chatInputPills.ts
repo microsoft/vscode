@@ -415,6 +415,15 @@ export class StandardChatInputPillSources extends Disposable {
 		return this.pins.getPinned(this.pinScope.read(reader), kind, reader);
 	}
 
+	/** Pins an entry of a pill kind into a pill of its own, as its pin action does. Returns whether it could: pins need a scope. */
+	pin(kind: SessionChatPillKind, entry: Pick<IChatPillEntry, 'id' | 'label'>): boolean {
+		const scope = this.pinScope.get();
+		if (scope) {
+			this.pins.setPinned(scope, kind, entry.id, entry.label, true);
+		}
+		return !!scope;
+	}
+
 	private withPinAction(entry: IChatPillEntry, kind: SessionChatPillKind, scope: string | undefined, pinned: boolean): IChatPillEntry {
 		if (!scope) {
 			return entry;
