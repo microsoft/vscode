@@ -204,20 +204,17 @@
 	transition: opacity 160ms ease-out, background-color 160ms ease-out, color 160ms ease-out;
 }
 
-.agents-aquarium-toggle:hover {
+.agents-aquarium-toggle:is(:hover, .hovered) {
 	opacity: 1;
-	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.08));
 }
 
 /* `.monaco-workbench` prefix to match the workbench's own `button:focus`
  * rule so we win the cascade without resorting to !important. */
-.monaco-workbench button.agents-aquarium-toggle:focus {
+.monaco-workbench button.agents-aquarium-toggle:focus:not(:focus-visible) {
 	outline: none;
 }
 .monaco-workbench button.agents-aquarium-toggle:focus-visible {
 	opacity: 1;
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 2px;
 }
 
 .agents-aquarium-toggle.active {

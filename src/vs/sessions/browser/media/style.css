@@ -20,6 +20,70 @@
 	border-radius: var(--vscode-cornerRadius-small);
 }
 
+/* ---- Interactive Controls ---- */
+
+.agent-sessions-interactive:not(.agent-sessions-interactive-list):is(:hover, .hovered):not(.disabled, :disabled, [aria-disabled='true'], :active, [aria-expanded='true'], [aria-pressed='true'], .menu-visible, :focus-visible, .focus-visible) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline, transparent);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-interactive.agent-sessions-interactive-list:is(:hover, .hovered):not(.disabled, :disabled, [aria-disabled='true'], :active, [aria-expanded='true'], [aria-pressed='true'], :focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-interactive.agent-sessions-interactive-list:not(.checked, .selected, [aria-selected='true'], [aria-checked='true']):is(:hover, .hovered):not(.disabled, :disabled, [aria-disabled='true'], :active, [aria-pressed='true'], :focus-visible, .focus-visible) {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .agent-sessions-interactive:is(:active, [aria-expanded='true'], [aria-pressed='true']):not(.disabled, :disabled, [aria-disabled='true'], :focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) details[open] > summary.agent-sessions-interactive:not(.disabled, [aria-disabled='true'], :focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-interactive:is(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-interactive.agent-sessions-interactive-list:is(:focus-visible, .focus-visible) {
+	outline-color: var(--vscode-list-focusOutline, var(--vscode-focusBorder));
+}
+
+:is(.hc-black, .hc-light) .agent-sessions-interactive-bordered:is(:hover, .hovered, :active, [aria-expanded='true'], [aria-pressed='true'], :focus-visible, .focus-visible):not(.disabled, :disabled, [aria-disabled='true']) {
+	border-color: transparent;
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) details[open] > summary.agent-sessions-interactive-bordered:not(.disabled, [aria-disabled='true']) {
+	border-color: transparent;
+}
+
+:is(.hc-black, .hc-light) .agent-sessions-interactive-bordered:is(:focus-visible, .focus-visible) {
+	outline-width: calc(2 * var(--vscode-strokeThickness));
+	outline-offset: calc(-2 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .monaco-button:is(:hover, .hovered):not(.disabled, :disabled, [aria-disabled='true'], :active, [aria-expanded='true'], [aria-pressed='true'], :focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .monaco-button:is(:active, [aria-expanded='true'], [aria-pressed='true']):not(.disabled, :disabled, [aria-disabled='true'], :focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-contrastActiveBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.monaco-workbench.agent-sessions-workbench:is(.hc-black, .hc-light) .monaco-button:is(:focus-visible, .focus-visible) {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
 /* ---- Scrollbars ---- */
 
 /* Thinner, rounded scrollbar sliders scoped to the agents app.

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { getWindow } from '../../../../../../base/browser/dom.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { PromptTimelineGutterRail, restDotCount } from '../../../browser/promptTimeline/promptTimelineGutterRail.js';
@@ -67,6 +68,44 @@ suite('PromptTimelineGutterRail', () => {
 				rows: [false, false, true],
 				dots: [false, false, true],
 			},
+		});
+	});
+
+	test('keeps an active row hover visible in high contrast', () => {
+		const root = document.createElement('div');
+		root.className = 'monaco-workbench hc-black';
+		root.style.setProperty('--vscode-contrastActiveBorder', '#f38518');
+		root.style.setProperty('--vscode-focusBorder', '#007fd4');
+		root.style.setProperty('--vscode-strokeThickness', '1px');
+		document.body.appendChild(root);
+		store.add(toDisposable(() => root.remove()));
+		const rail = store.add(new PromptTimelineGutterRail());
+		root.appendChild(rail.domNode);
+		rail.setTicks([tick(0), tick(1)]);
+		rail.setActive('1');
+		const activeJump = rowParts(rail)[1].jump;
+		activeJump.classList.add('hovered');
+		const readOutline = () => {
+			const style = getWindow(activeJump).getComputedStyle(activeJump);
+			return {
+				color: style.outlineColor,
+				offset: style.outlineOffset,
+				style: style.outlineStyle,
+				width: style.outlineWidth,
+			};
+		};
+		const hovered = readOutline();
+		activeJump.classList.add('focus-visible');
+		const focusedAndHovered = readOutline();
+
+		assert.deepStrictEqual({
+			active: activeJump.parentElement?.classList.contains('active'),
+			hovered,
+			focusedAndHovered,
+		}, {
+			active: true,
+			hovered: { color: 'rgb(243, 133, 24)', offset: '-1px', style: 'dashed', width: '1px' },
+			focusedAndHovered: { color: 'rgb(0, 127, 212)', offset: '-1px', style: 'solid', width: '1px' },
 		});
 	});
 

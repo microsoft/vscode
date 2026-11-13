@@ -100,6 +100,7 @@ export const RequestAgentHostWorkspaceTrustExtensionMethod = 'vscode/requestWork
 export const RequestAgentHostMcpAuthenticationExtensionMethod = 'vscode/requestMcpAuthentication';
 export const RemoveSessionArtifactExtensionMethod = 'vscode/removeSessionArtifact';
 export const StopBackgroundWorkExtensionMethod = 'vscode/stopBackgroundWork';
+export const AnswerShellAuthenticationExtensionMethod = 'vscode/answerShellAuthentication';
 export const MeasureWorktreeDiskUsageExtensionMethod = 'vscode/measureWorktreeDiskUsage';
 export const CancelWorktreeDiskUsageExtensionMethod = 'vscode/cancelWorktreeDiskUsage';
 export const measureWorktreeDiskUsageParamsValidator = vObj({ uri: vString(), requestId: vString(), session: vOptionalProp(vString()) });
@@ -258,6 +259,13 @@ export const stopBackgroundWorkParamsValidator = vObj({
 	id: vString(),
 });
 
+/** Answers a chat's pending shell authentication prompt; without `answer`, cancels it. */
+export const answerShellAuthenticationParamsValidator = vObj({
+	chat: vString(),
+	requestId: vString(),
+	answer: vOptionalProp(vString()),
+});
+
 export const importSessionParamsValidator = vObj({ session: vString(), takeOver: vOptionalProp(vBoolean()) });
 
 /** `workspace` has the shape of the `vscode.chatWorkspace` `createChat` `_meta` value. */
@@ -396,6 +404,11 @@ export interface IAgentHostExtensionCommandMap {
 		params: ValidatorType<typeof stopBackgroundWorkParamsValidator>;
 		/** `stopped` is false when the work had already finished or the host no longer tracks it. */
 		result: { stopped: boolean };
+	};
+	[AnswerShellAuthenticationExtensionMethod]: {
+		params: ValidatorType<typeof answerShellAuthenticationParamsValidator>;
+		/** `delivered` is false when the prompt had already ended, for example because its command finished. */
+		result: { delivered: boolean };
 	};
 	'shutdown': { params: undefined; result: void };
 	'getNetworkDiagnosticsInfo': { params: undefined; result: IAgentHostNetworkDiagnosticsInfo };

@@ -105,22 +105,38 @@ suite('SessionsTitleBarWidget - Remote Host', () => {
 			providers,
 			onDidChangeProviders,
 			onDidChangeSessionTypes,
-			presentation: () => ({
-				text: container.textContent,
-				ariaLabel: container.getAttribute('aria-label'),
-				hover: container.contains(hoverService.setupManagedHover.lastCall?.args[1])
-					? hoverService.setupManagedHover.lastCall?.args[2]
-					: undefined,
-			}),
+			presentation: (truncated = true) => {
+				const hover = hoverService.setupManagedHover.lastCall;
+				const target = hover?.args[1];
+				if (target && container.contains(target)) {
+					Object.defineProperties(target, {
+						clientWidth: { configurable: true, value: 100 },
+						scrollWidth: { configurable: true, value: truncated ? 150 : 100 },
+					});
+				}
+				const hoverContent = target && container.contains(target) ? hover.args[2] : undefined;
+				return {
+					text: container.textContent,
+					ariaLabel: container.getAttribute('aria-label'),
+					hover: typeof hoverContent === 'function' ? hoverContent() : hoverContent,
+				};
+			},
 		};
 	}
 
 	test('shows the remote host name for a workspace-less chat', () => {
 		const harness = createHarness(createSession(remoteProvider.id));
-		assert.deepStrictEqual(harness.presentation(), {
-			text: 'No workspace [Remote machine]',
-			ariaLabel: 'Show Sessions: No workspace [Remote machine]',
-			hover: 'No workspace [Remote machine]',
+		assert.deepStrictEqual({ truncated: harness.presentation(), visible: harness.presentation(false) }, {
+			truncated: {
+				text: 'No workspace [Remote machine]',
+				ariaLabel: 'Show Sessions: No workspace [Remote machine]',
+				hover: 'No workspace [Remote machine]',
+			},
+			visible: {
+				text: 'No workspace [Remote machine]',
+				ariaLabel: 'Show Sessions: No workspace [Remote machine]',
+				hover: undefined,
+			},
 		});
 	});
 

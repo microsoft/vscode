@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/automationsCards.css';
+import '../../../../../workbench/contrib/sessions/browser/media/disclosure.css';
 import './automationsAccessibility.js';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
@@ -678,7 +679,7 @@ class AutomationCardsSection extends Disposable {
 		const disposables = new DisposableStore();
 		const section = $<HTMLDetailsElement>('details.automations-ownership-section');
 		section.open = true;
-		const summary = DOM.append(section, $('summary.automations-ownership-summary'));
+		const summary = DOM.append(section, $('summary.automations-ownership-summary.agent-sessions-interactive.agent-sessions-interactive-list.sessions-disclosure'));
 		const chevron = DOM.append(summary, $('span.automations-ownership-chevron'));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		chevron.setAttribute('aria-hidden', 'true');
@@ -764,7 +765,7 @@ class AutomationCardsSection extends Disposable {
 	private renderCard(automation: IAutomationDescriptor): IAutomationCardEntry {
 		const disposables = new DisposableStore();
 		const wrapper = $('.automations-card-wrapper');
-		const card = DOM.append(wrapper, $('.automations-card'));
+		const card = DOM.append(wrapper, $('.automations-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered'));
 		card.setAttribute('role', 'group');
 		const cardContextKeyService = disposables.add(this.contextKeyService.createScoped(card));
 		const canDeleteContext = AutomationCardCanDeleteContext.bindTo(cardContextKeyService);
@@ -786,12 +787,21 @@ class AutomationCardsSection extends Disposable {
 
 		const promptEl = DOM.append(main, $('.automations-card-prompt'));
 		const promptHover = disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), promptEl, () => promptEl.textContent ?? ''));
+		const promptFocusHover = disposables.add(new MutableDisposable());
 		disposables.add(DOM.addDisposableListener(main, DOM.EventType.FOCUS, () => {
 			if (main.matches(':focus-visible')) {
-				promptHover.show();
+				promptFocusHover.value = this.hoverService.showInstantHover({
+					content: promptEl.textContent ?? '',
+					target: promptEl,
+					appearance: { showPointer: true },
+					position: { hoverPosition: HoverPosition.BELOW },
+				});
 			}
 		}));
-		disposables.add(DOM.addDisposableListener(main, DOM.EventType.BLUR, () => promptHover.hide()));
+		disposables.add(DOM.addDisposableListener(main, DOM.EventType.BLUR, () => {
+			promptHover.hide();
+			promptFocusHover.clear();
+		}));
 
 		const metaEl = DOM.append(main, $('.automations-card-meta'));
 		const scheduleEl = DOM.append(metaEl, $('span.automations-card-meta-item.automations-card-schedule'));
@@ -1115,7 +1125,7 @@ class AutomationCardsSection extends Disposable {
 	private renderTemplateSection(options: IAutomationTemplateSectionOptions): IRenderedAutomationTemplateSection {
 		const section = DOM.append(this.templatesContainer, $<HTMLDetailsElement>(`details.automations-template-section.${options.className}`));
 		section.open = options.expanded;
-		const summary = DOM.append(section, $('summary.automations-template-section-summary'));
+		const summary = DOM.append(section, $('summary.automations-template-section-summary.agent-sessions-interactive.agent-sessions-interactive-list.sessions-disclosure'));
 		const chevron = DOM.append(summary, $('span.automations-template-section-chevron'));
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRight));
 		chevron.setAttribute('aria-hidden', 'true');
@@ -1353,7 +1363,7 @@ class AutomationCardsSection extends Disposable {
 	}
 
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
-		const card = DOM.append(container, $<HTMLButtonElement>('button.automations-template-card', { type: 'button' }));
+		const card = DOM.append(container, $<HTMLButtonElement>('button.automations-template-card.agent-sessions-interactive.agent-sessions-interactive-list.agent-sessions-interactive-bordered', { type: 'button' }));
 		const schedule = formatSchedule(template.schedule);
 		card.setAttribute('aria-label', template.source
 			? localize('usePluginAutomationTemplate', "Use template: {0}, {1}, from {2}", template.name, schedule, template.source.label)
