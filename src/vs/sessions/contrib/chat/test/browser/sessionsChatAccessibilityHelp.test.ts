@@ -36,7 +36,7 @@ import { SESSION_ARCHIVE_NUDGE_SETTING } from '../../../../../workbench/contrib/
 import { SessionComparisonAccessibleView, SessionsChatAccessibilityHelp } from '../../browser/sessionsChatAccessibilityHelp.js';
 import { CustomizationMarketplaceConfiguration } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { SESSIONS_LIST_PROMOTE_NEW_CHAT_ACTION_DEFAULT, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
-import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode, SESSIONS_LIST_INLINE_ACTIONS_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSION_ACTIVITY_BAR_SETTING, SESSIONS_CHAT_TABS_SETTING, SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING, SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
@@ -53,30 +53,6 @@ import { IChatNativeComponentsRenderer, registerChatNativeComponentsRenderer } f
 import { ITestSessionWithChat, testGridPane } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 suite('SessionsChatAccessibilityHelp', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('documents inline row actions only when enabled and AI is visible', () => {
-		const results = [[false, false], [true, false], [true, true]].map(([enabled, aiDisabled]) => {
-			const instantiationService = store.add(new TestInstantiationService());
-			const configuration = new TestConfigurationService({
-				[SESSIONS_LIST_INLINE_ACTIONS_SETTING]: enabled,
-				'chat.disableAIFeatures': aiDisabled,
-			});
-			store.add(configuration.onDidChangeConfigurationEmitter);
-			instantiationService.stub(IConfigurationService, configuration);
-			stubContextKeyService(instantiationService, configuration);
-			instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
-			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
-			instantiationService.stub(IAgentHostFilterService, { selectedHost: undefined });
-			instantiationService.stub(IWorkbenchLayoutService, { mainContainer: mainWindow.document.createElement('div') });
-			instantiationService.stub(ISessionsHostLayoutService, {});
-			const content = store.add(new SessionsChatAccessibilityHelp().getProvider(instantiationService)).provideContent();
-			return {
-				actions: content.includes('With sessions.list.inlineActions enabled, eligible rows show Fix Checks, Address Comments, or Fix Checks & Address Comments below the metadata.'),
-				retry: content.includes('If sending fails, an error notification appears and the action remains available to retry.'),
-			};
-		});
-		assert.deepStrictEqual(results, [{ actions: false, retry: false }, { actions: true, retry: true }, { actions: false, retry: false }]);
-	});
 
 	test('defers to webview Find help while the Find input is focused', () => {
 		const configuration = new TestConfigurationService();

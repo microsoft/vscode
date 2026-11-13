@@ -693,6 +693,11 @@ type RequestTokenUsageClassification = IAgentHostEventClassification & IAgentHos
  */
 export type AgentHostTurnHangReason = 'noProgress' | 'stalledAfterProgress' | 'waitingOnUser' | 'runningTool';
 
+/** Whether a hang reason is a legitimate wait rather than a real hang; see {@link AgentHostTurnHangReason}. */
+export function isExpectedTurnHang(reason: AgentHostTurnHangReason): boolean {
+	return reason === 'waitingOnUser' || reason === 'runningTool';
+}
+
 const turnActivityKindsByActionType = {
 	[ActionType.ChatTurnStarted]: 'chat.turnStarted',
 	[ActionType.ChatDelta]: 'chat.delta',
@@ -868,6 +873,100 @@ export interface IAgentHostHungTurnCompletedReport extends IAgentHostTurnAttribu
 	hangReportCount: number;
 	totalTimeMs: number;
 	timeAfterHangMs: number;
+}
+
+/**
+ * Why a session summary was sent: `idle` when the session had no active turn
+ * for the idle timeout, `archived` when the session was, `deleted` when the
+ * session was deleted, cleaned up as an ephemeral session, or moved into
+ * another session, and `shutdown` when the agent host began a graceful
+ * shutdown.
+ */
+export type AgentHostSessionSummaryReason = 'idle' | 'archived' | 'deleted' | 'shutdown';
+
+/**
+ * Totals for one session's activity period, summed from the reports behind
+ * `agentHost.turnCompleted` and `agentHost.turnHung`. Token and AI credit
+ * totals are `undefined` when no turn in the period reported them, and lower
+ * bounds when only some did. `missingBilledNanoAiuTurnCount` counts the turns
+ * missing from the AI credit totals.
+ */
+export interface IAgentHostSessionSummaryTotals {
+	rootTurnCount: number;
+	userTurnCount: number;
+	subagentTurnCount: number;
+	failedTurnCount: number;
+	cancelledTurnCount: number;
+	usageLimitFailedTurnCount: number;
+	failedSubagentTurnCount: number;
+	unexpectedHangTurnCount: number;
+	recoveredHangTurnCount: number;
+	steeredTurnCount: number;
+	modelCallCount: number;
+	promptTokenCount: number | undefined;
+	promptCacheTokenCount: number | undefined;
+	completionTokenCount: number | undefined;
+	rootBilledNanoAiu: number | undefined;
+	subagentBilledNanoAiu: number | undefined;
+	totalBilledNanoAiu: number | undefined;
+	missingBilledNanoAiuTurnCount: number;
+	durationMs: number;
+	activeMs: number;
+}
+
+export interface IAgentHostSessionSummaryEvent extends IAgentHostEventTelemetry, IAgentHostSessionSummaryTotals {
+	schemaVersion: number;
+	provider: string;
+	agentSessionId: string;
+	summaryReason: AgentHostSessionSummaryReason;
+	summaryIndex: number;
+	createdInHostProcess: boolean;
+	multipleClientTypes: boolean;
+}
+
+export type IAgentHostSessionSummaryClassification = IAgentHostEventClassification & {
+	schemaVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Version of the session summary contract.' };
+	provider: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The provider of the first turn in the summarized period.' };
+	agentSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The agent host session identifier, the same value as agentSessionId on the other agentHost events.' };
+	summaryReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the summary was sent: idle (no active turn for the idle timeout), archived, deleted (also when the session was cleaned up as ephemeral or moved into another session), or shutdown (graceful agent host shutdown).' };
+	summaryIndex: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Zero-based index of this summary among the summaries this agent host process sent for the session.' };
+	createdInHostProcess: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session was created in this agent host process rather than restored from an earlier one.' };
+	multipleClientTypes: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether turns in the period came from more than one known client type; a subagent turn counts as the client of the turn that started it. The initiator fields describe the earliest-started root turn with a known client type, else the earliest-started such subagent turn.' };
+	rootTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Root turns that completed in the period, including failed and cancelled turns.' };
+	userTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns that a user message started.' };
+	subagentTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Subagent turns that completed in the period.' };
+	failedTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns that ended with an error. Each also emitted agentHost.turnFailed.' };
+	cancelledTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns that were cancelled.' };
+	usageLimitFailedTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root turns in failedTurnCount that failed because a Copilot quota or rate limit was reached. Subtract it from failedTurnCount to count other failures.' };
+	failedSubagentTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Subagent turns that ended with an error.' };
+	unexpectedHangTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Root and subagent turns that agentHost.turnHung reported with an unexpected reason (noProgress or stalledAfterProgress), counted once per turn.' };
+	recoveredHangTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Turns in unexpectedHangTurnCount that completed later in the same period.' };
+	steeredTurnCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed root turns during which at least one steering message was submitted.' };
+	modelCallCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Completed upstream model responses across root and subagent turns. Each turn counts only its own responses, so nothing is counted twice.' };
+	promptTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Input tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	promptCacheTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Input tokens read from cache, summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	completionTokenCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Output tokens summed over root and subagent turns, each turn counting only its own calls; absent when no turn reported them.' };
+	rootBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to root turns, excluding their subagent calls; absent when no root turn reported it.' };
+	subagentBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'AI credits in nano-AIU billed directly to subagent turns; absent when no subagent turn reported it.' };
+	totalBilledNanoAiu: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'rootBilledNanoAiu plus subagentBilledNanoAiu; absent when neither was reported, and a lower bound when missingBilledNanoAiuTurnCount is above zero.' };
+	missingBilledNanoAiuTurnCount: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Completed root and subagent turns that made model calls but reported no AI credit usage, so they are missing from the AI credit totals.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from the first observed turn start to the last observed turn end or hang report in the period.' };
+	activeMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Sum of root turn durations in milliseconds. Concurrent root turns in different chats each count.' };
+	owner: 'Giuspepe';
+	comment: 'One summary per agent host session and activity period, summing the turn telemetry so per-session metrics need no event joins.';
+};
+
+export interface IAgentHostSessionSummaryReport {
+	readonly clientContext: IAgentHostClientTelemetryContext | undefined;
+	readonly telemetryContext: IAgentTelemetryContext | undefined;
+	readonly provider: string;
+	/** The root session the summary describes. */
+	readonly session: string;
+	readonly summaryReason: AgentHostSessionSummaryReason;
+	readonly summaryIndex: number;
+	readonly createdInHostProcess: boolean;
+	readonly multipleClientTypes: boolean;
+	readonly totals: IAgentHostSessionSummaryTotals;
 }
 
 type IAgentHostLanguageModelToolInvokedEvent = LanguageModelToolInvokedEvent & IAgentHostEventTelemetry & {
@@ -1954,7 +2053,7 @@ export class AgentHostTelemetryReporter {
 			turnId: report.turnId,
 			messageOriginKind: report.messageOriginKind,
 			hangReason: report.hangReason,
-			isExpected: report.hangReason === 'waitingOnUser' || report.hangReason === 'runningTool',
+			isExpected: isExpectedTurnHang(report.hangReason),
 			hadAnyProgress: report.hadAnyProgress,
 			lastActivityKind: normalizeTurnActivityKind(report.lastActivityKind),
 			currentStage: report.currentStage,
@@ -1998,6 +2097,22 @@ export class AgentHostTelemetryReporter {
 			totalTimeMs: report.totalTimeMs,
 			timeAfterHangMs: report.timeAfterHangMs,
 			...toFusionTurnTelemetry(report),
+		});
+	}
+
+	/** Reports one session's activity period. See {@link IAgentHostSessionSummaryTotals} for what each total sums. */
+	sessionSummary(report: IAgentHostSessionSummaryReport): void {
+		this._telemetryService.publicLog2<IAgentHostSessionSummaryEvent, IAgentHostSessionSummaryClassification>('agentHost.sessionSummary', {
+			...toInitiatorTelemetry(report.clientContext),
+			...toCopilotTelemetryData(report.telemetryContext),
+			schemaVersion: 1,
+			provider: report.provider,
+			agentSessionId: AgentSession.id(report.session),
+			summaryReason: report.summaryReason,
+			summaryIndex: report.summaryIndex,
+			createdInHostProcess: report.createdInHostProcess,
+			multipleClientTypes: report.multipleClientTypes,
+			...report.totals,
 		});
 	}
 

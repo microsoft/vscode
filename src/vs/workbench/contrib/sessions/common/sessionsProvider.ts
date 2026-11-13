@@ -28,6 +28,19 @@ import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinit
 /**
  * Event fired when sessions change within a provider.
  */
+/**
+ * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: the sessions
+ * working in one of its folders, and the sessions of the same git or GitHub repositories, such as of their worktrees, as
+ * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
+ */
+export interface ISessionsListingScope {
+	readonly folders: IObservable<readonly URI[]>;
+	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
+	readonly repositories: IObservable<readonly URI[]>;
+	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
+	readonly gitHubRepositories?: IObservable<readonly string[]>;
+}
+
 export interface ISessionChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
@@ -401,9 +414,24 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
+	 * The sessions the provider lists, within its listing scope ({@link setListingScope}); without one, every session it
+	 * knows. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Every session known to the provider, also those outside its listing scope, which {@link getSessions} leaves out,
+	 * such as the sessions of other folders in an editor window; for looking sessions up, not for listing. Without it,
+	 * {@link getSessions} lists every session.
+	 */
+	getAllSessions?(): ISession[];
+
+	/**
+	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
+	 * of an editor window's folders; {@link getAllSessions} still finds every session. Without it, the provider lists every
+	 * session also where a window scopes its listing.
+	 */
+	setListingScope?(scope: ISessionsListingScope): void;
 
 	/** Returns an already acquired execution provider without doing work during catalog reads. */
 	getSessionProvider?(sessionId: string): ISessionsProvider | undefined;
@@ -418,6 +446,12 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Event that fires when any of its sessions changes, also one its listing scope hides: see {@link getAllSessions}.
+	 * Without it, {@link onDidChangeSessions} reports every change.
+	 */
+	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
 
 	/**
 	 * Fires when a chat moved between this provider's sessions, after both

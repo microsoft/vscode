@@ -813,41 +813,6 @@
 	}
 }
 
-.sessions-list-control .session-inline-actions {
-	display: flex;
-	align-items: center;
-	min-width: 0;
-	grid-column: 1 / -1;
-
-	.monaco-button {
-		width: auto;
-		min-width: 0;
-		max-width: 100%;
-		font-size: var(--vscode-fontSize-label1);
-		overflow: hidden;
-
-		> span:not(.codicon) {
-			min-width: 0;
-			overflow: hidden;
-			white-space: nowrap;
-			text-overflow: ellipsis;
-		}
-
-		> .codicon {
-			flex-shrink: 0;
-		}
-	}
-
-	&[hidden] {
-		display: none;
-	}
-}
-
-.phone-layout .sessions-list-control .session-inline-actions .monaco-button {
-	min-height: 44px;
-	box-sizing: border-box;
-}
-
 .sessions-list-control.compact {
 	.monaco-list-row :is(.session-chat-twistie, .session-comparison-twistie, .session-comparison-attempt-twistie) {
 		top: var(--vscode-spacing-size60);
