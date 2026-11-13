@@ -290,12 +290,67 @@
 	overflow: hidden;
 }
 
+.scm-view .scm-structural-change > .scm-structural-change-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	width: var(--vscode-spacing-size160);
+	margin-right: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change > .name {
+	min-width: 0;
+}
+
+.scm-view .scm-structural-change > .scm-structural-change-metadata {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	gap: var(--vscode-spacing-size60);
+	margin-left: var(--vscode-spacing-size60);
+}
+
+.scm-view .scm-structural-change-annotation {
+	font-size: var(--vscode-fontSize-label1);
+	white-space: nowrap;
+	opacity: 0.7;
+}
+
+.scm-view .scm-structural-change-status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.scm-view .scm-structural-change-status.modified,
+.scm-view .scm-structural-change-status.renamed {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+/* Like the file badges in iconlabel.css, status letters are dimmed and use the selection foreground in a focused list. */
+.scm-view .scm-structural-change-status {
+	opacity: 0.75;
+}
+
+.scm-view .monaco-list:focus .monaco-list-row.selected .scm-structural-change-status {
+	color: inherit;
+}
+
+/*
+ * Structural status letters share the file badge box and right margin, so single letters line up with file badges.
+ * Wider badges, such as a problem count followed by a status letter, extend to the left.
+ * See https://github.com/microsoft/vscode/issues/346073
+ */
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
-.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after {
+.scm-view .monaco-list-row .history-item-change > .label-container > .monaco-icon-label::after,
+.scm-view .scm-structural-change-status {
 	margin-right: 3px;
 }
 
-.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after {
+.scm-view .monaco-list-row .resource > .name > .monaco-icon-label.monaco-decoration-text-badge::after,
+.scm-view .scm-structural-change-status {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
