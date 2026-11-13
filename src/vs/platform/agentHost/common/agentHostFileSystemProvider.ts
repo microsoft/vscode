@@ -9,9 +9,11 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import type { IAgentConnection } from './agentService.js';
+import { getAgentHostPathStyle } from './agentHostPathStyle.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
 import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
-import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
+import { ContentEncoding, PathStyle, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
 import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
@@ -23,7 +25,7 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  * Both {@link IAgentConnection} (client→server) and client-exposed
  * filesystems (server→client) satisfy this contract.
  */
-export interface IRemoteFilesystemConnection {
+export interface IRemoteFilesystemConnection extends Partial<Pick<IAgentConnection, 'initializeResult' | 'rootState'>> {
 	/** Fires when the same logical connection recovers its transport or expired relay authorization. */
 	readonly onDidReconnect?: Event<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
@@ -135,6 +137,22 @@ export function agentHostUri(authority: string, path: string): URI {
  */
 export function agentHostRemotePath(uri: URI): string {
 	return fromAgentHostUri(uri).path;
+}
+
+/**
+ * Windows file systems are case-insensitive, but this provider is path-case-sensitive
+ * as a whole because it also serves posix hosts. A Windows host may report a change
+ * with different casing than the watch (for example a lowercased drive letter, as
+ * `URI.toString()` produces), which would never match the watched resource. Re-case
+ * the event path to the watched one when they only differ by case.
+ */
+function matchWatchedPathCase(uri: URI, watchedPath: string): URI {
+	const prefix = watchedPath.endsWith('/') ? watchedPath.slice(0, -1) : watchedPath;
+	const path = uri.path;
+	if (path.length < prefix.length || (path.length > prefix.length && path[prefix.length] !== '/') || path.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) {
+		return uri;
+	}
+	return uri.with({ path: prefix + path.slice(prefix.length) });
 }
 
 // ---- Abstract base ----------------------------------------------------------
@@ -325,6 +343,7 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const handleHolder = store.add(new MutableDisposable<IDisposable>());
 		const reconnectListener = store.add(new MutableDisposable<IDisposable>());
 		const authority = resource.authority;
+		const watchedPath = this._decodeUri(resource).path;
 		const params: CreateResourceWatchParams = {
 			channel: ROOT_STATE_URI,
 			uri: this._decodeUri(resource).toString(),
@@ -388,8 +407,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					handle.dispose();
 					return;
 				}
+				// Unknown path styles stay case-sensitive.
+				const caseInsensitive = getAgentHostPathStyle(target) === PathStyle.Windows;
 				const sub = handle.onDidChange(changes => this._onDidChangeFile.fire(changes.map(c => ({
-					resource: this._encodeUri(c.resource, resource.authority),
+					resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, watchedPath) : c.resource, resource.authority),
 					type: c.type,
 					// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
 					...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),

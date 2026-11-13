@@ -12,7 +12,7 @@ import { PathStyle } from './state/protocol/common/commands.js';
 
 export const localProcessPathStyle = isWindows ? PathStyle.Windows : PathStyle.Posix;
 
-export function getAgentHostPathStyle(connection: IAgentConnection): PathStyle | undefined {
+export function getAgentHostPathStyle(connection: Partial<Pick<IAgentConnection, 'initializeResult' | 'rootState'>>): PathStyle | undefined {
 	const initializeResult = connection.initializeResult?.get();
 	const environment = initializeResult?.environment;
 	if (environment !== undefined) {

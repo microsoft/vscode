@@ -7,13 +7,14 @@ import assert from 'assert';
 import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../../../base/common/event.js';
+import { constObservable, type IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
+import { FileChangesEvent, FileChangeType, FilePermission, FileSystemProviderErrorCode, FileType, IFileChange, toFileSystemProviderErrorCode } from '../../../files/common/files.js';
 import { AgentHostFileSystemProvider, agentHostRemotePath, agentHostUri, type IRemoteFilesystemConnection, type IRemoteWatchHandle } from '../../common/agentHostFileSystemProvider.js';
 import { remoteAgentHostSessionTypeId } from '../../common/agentHostSessionType.js';
 import { AGENT_HOST_LABEL_FORMATTER, AGENT_HOST_SCHEME, agentHostAuthority, createAgentHostResourceUriMapper, createEditorRemoteAgentHostResourceUriMapper, fromAgentHostUri, identityAgentHostResourceUriMapper, isAgentHostContentRefUri, toAgentHostContentUri, toAgentHostUri } from '../../common/agentHostUri.js';
-import { ContentEncoding, ResourceType, type CreateResourceWatchParams, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
+import { ContentEncoding, PathStyle, ResourceType, type CreateResourceWatchParams, type InitializeResult, type ResourceCopyParams, type ResourceListResult, type ResourceMkdirParams, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult } from '../../common/state/protocol/commands.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
 import { ProtocolError } from '../../common/state/sessionProtocol.js';
 import { buildMcpResourceUri } from '../../common/mcpResourceUri.js';
@@ -1145,6 +1146,7 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		readonly copyCalls: ResourceCopyParams[] = [];
 		readonly watchCalls: CreateResourceWatchParams[] = [];
 		onDidReconnect?: Event<void>;
+		initializeResult?: IObservable<InitializeResult | undefined>;
 		nextWatchHandle: { onDidChange: Event<readonly IFileChange[]>; dispose(): void } | undefined;
 		watchError: unknown | undefined;
 		nextResolveResult: ResourceResolveResult = { uri: '', type: ResourceType.File, size: 42, mtime: '2026-01-15T12:34:56.789Z', etag: 'etag-1' };
@@ -1280,6 +1282,38 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		watchDisposable.dispose();
 		assert.strictEqual(handleDisposed, true, 'underlying handle should be disposed when wrapper is disposed');
 		sub.dispose();
+	});
+
+	async function fireChangeAfterWatch(pathStyle: PathStyle, watchedUri: string, changedUri: string): Promise<{ watched: URI; received: IFileChange[][] }> {
+		const { provider, connection } = setup();
+		connection.initializeResult = constObservable({ environment: { pathStyle } } as InitializeResult);
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = { onDidChange: onDidChange.event, dispose: () => onDidChange.dispose() };
+		const watched = toAgentHostUri(URI.parse(watchedUri), 'remote');
+
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+		const watchDisposable = provider.watch(watched, { recursive: false, excludes: [] });
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+
+		onDidChange.fire([{ resource: URI.parse(changedUri), type: FileChangeType.UPDATED }]);
+		watchDisposable.dispose();
+		sub.dispose();
+		return { watched, received };
+	}
+
+	test('watch on a Windows host matches changes that only differ by case', async () => {
+		const { watched, received } = await fireChangeAfterWatch(PathStyle.Windows, 'file:///C:/Users/Test/simple-test.html', URI.file('/c:/users/test/simple-test.html').toString());
+
+		assert.deepStrictEqual(received, [[{ resource: watched, type: FileChangeType.UPDATED }]]);
+		assert.strictEqual(new FileChangesEvent(received[0], false).contains(watched, FileChangeType.UPDATED), true);
+	});
+
+	test('watch on a posix host keeps paths that only differ by case distinct', async () => {
+		const { watched, received } = await fireChangeAfterWatch(PathStyle.Posix, 'file:///C:/Users/test/a.html', 'file:///c:/Users/test/a.html');
+
+		assert.deepStrictEqual(received.map(e => e.map(c => c.resource.toString())), [[toAgentHostUri(URI.parse('file:///c:/Users/test/a.html'), 'remote').toString()]]);
+		assert.strictEqual(new FileChangesEvent(received[0], false).contains(watched, FileChangeType.UPDATED), false);
 	});
 
 	test('watch tags forwarded changes with the correlation ID of the watcher', async () => {
