@@ -7,6 +7,9 @@ import type { ResolveSessionConfigResult } from '../../../../platform/agentHost/
 
 export const USE_WORKTREE_SETTING = 'sessions.useWorktree';
 
+export const SESSIONS_DRAFTS_ENABLED_SETTING = 'sessions.drafts.enabled';
+export const SESSIONS_SEND_LATER_ENABLED_SETTING = 'sessions.sendLater.enabled';
+
 export const SESSIONS_CHAT_TABS_SETTING = 'sessions.showChatTabs';
 
 export const SESSIONS_DETAILS_POSITION_SETTING = 'sessions.experimental.detailsPosition';
@@ -47,7 +50,6 @@ export const enum AutomationSessionsListMode {
 
 /** Whether agents get tools to read and organize the Agents window Sessions list. */
 export const SESSIONS_LIST_AGENT_TOOLS_SETTING = 'sessions.list.agentTools.enabled';
-export const SESSIONS_LIST_INLINE_ACTIONS_SETTING = 'sessions.list.inlineActions';
 
 export const SESSIONS_LIST_EXTERNAL_APPLICATION_BADGE_SETTING = 'sessions.list.externalApplicationBadge';
 
@@ -64,6 +66,13 @@ export const enum ExternalSessionApplicationBadgeMode {
 }
 
 export const SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING = 'sessions.sidebar.separateNavigation';
+
+/**
+ * Whether Customizations keeps its own section below the Sessions list rather than joining the separate navigation
+ * list. Only applies when {@link SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING} is enabled. Not nested under it: a
+ * setting cannot also be the parent of another setting.
+ */
+export const SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING = 'sessions.sidebar.customizationsAtBottom';
 
 export const SESSIONS_LIST_REARRANGE_TREATMENT = 'sessions.list.rearrage';
 

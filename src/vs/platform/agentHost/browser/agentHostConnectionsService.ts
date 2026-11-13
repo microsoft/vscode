@@ -4,24 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { OperatingSystem } from '../../../base/common/platform.js';
+import { IPath, posix, win32 } from '../../../base/common/path.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
-import { ILogService } from '../../log/common/log.js';
+import { ILabelService } from '../../label/common/label.js';
 import { IPathService } from '../../path/common/pathService.js';
 import { AgentSession } from '../common/agent.js';
 import { IAgentConnection, IAgentHostService } from '../common/agentService.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService, IAgentHostSessionIdentity, IAgentHostSessionResolution, IAgentHostSessionResolutionPolicy, LOCAL_AGENT_HOST_SCHEME_PREFIX } from '../common/agentHostConnectionsService.js';
 import { findRemoteAgentHostSessionTypeAuthority, isRemoteAgentHostSessionType, remoteAgentHostSessionTypeAuthorityPrefix } from '../common/agentHostSessionType.js';
-import { AGENT_HOST_SCHEME, agentHostAuthority } from '../common/agentHostUri.js';
+import { AGENT_HOST_SCHEME, agentHostAuthority, agentHostLabelFormatter } from '../common/agentHostUri.js';
 import { IRemoteAgentHostService } from '../common/remoteAgentHostService.js';
-import { getAgentHostOperatingSystem } from '../common/agentHostOperatingSystem.js';
+import { getAgentHostPathStyle } from '../common/agentHostPathStyle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { extUri, isEqual } from '../../../base/common/resources.js';
 import { getAgentHostSessionResource } from '../common/agentHostSessionIdentity.js';
+import { PathStyle } from '../common/state/protocol/common/commands.js';
 
 /**
  * Default {@link IAgentHostConnectionsService} that composes the ambient
@@ -42,23 +43,35 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 	private _resolutionBatchDepth = 0;
 	private _resolutionBatchDirty = false;
 	private readonly _connectionListeners = this._register(new DisposableMap<IAgentConnection, DisposableStore>());
+	private readonly _ambientLabelFormatter = this._register(new MutableDisposable());
 
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IPathService pathService: IPathService,
-		@ILogService private readonly _logService: ILogService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super();
 
 		this._register(pathService.registerPathProvider(AGENT_HOST_SCHEME, {
-			getOperatingSystem: resource => this._getOperatingSystem(resource),
+			getPath: resource => this._getPath(resource),
 		}));
 		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._fireConnectionsChanged()));
 		// Ambient (re)start/exit changes whether the ambient connection is ready.
-		this._register(this._agentHostService.onAgentHostStart(() => this._fireConnectionsChanged()));
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			this._updateAmbientLabelFormatter();
+			this._fireConnectionsChanged();
+		}));
 		this._register(this._agentHostService.onAgentHostExit(() => this._fireConnectionsChanged()));
+		this._updateAmbientLabelFormatter();
 		this._watchConnections();
+	}
+
+	private _updateAmbientLabelFormatter(): void {
+		const pathStyle = getAgentHostPathStyle(this._agentHostService);
+		this._ambientLabelFormatter.value = pathStyle === undefined
+			? undefined
+			: this._labelService.registerFormatter(agentHostLabelFormatter(AMBIENT_AGENT_HOST_AUTHORITY, pathStyle));
 	}
 
 	private _fireConnectionsChanged(): void {
@@ -152,23 +165,11 @@ export class AgentHostConnectionsService extends Disposable implements IAgentHos
 		return resource.scheme === AGENT_HOST_SCHEME ? resource.authority : undefined;
 	}
 
-	private async _getOperatingSystem(resource: URI): Promise<OperatingSystem | undefined> {
+	private async _getPath(resource: URI): Promise<IPath | undefined> {
 		const remote = this._remoteAgentHostService.connections.find(info => agentHostAuthority(info.address) === resource.authority);
-		if (remote?.operatingSystem !== undefined) {
-			return remote.operatingSystem;
-		}
-
 		const connection = this.getConnectionByAuthority(resource.authority);
-		if (!connection) {
-			return undefined;
-		}
-
-		try {
-			return await getAgentHostOperatingSystem(connection);
-		} catch (error) {
-			this._logService.error(`[AgentHostConnections] Failed to resolve the operating system for authority ${resource.authority}`, error);
-			return undefined;
-		}
+		const pathStyle = remote?.pathStyle ?? (connection ? getAgentHostPathStyle(connection) : undefined);
+		return pathStyle === PathStyle.Windows ? win32 : pathStyle === PathStyle.Posix ? posix : undefined;
 	}
 
 	getConnectionByAddress(address: string): IAgentConnection | undefined {

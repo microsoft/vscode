@@ -29,8 +29,8 @@ import { AuthenticateTargetKind } from '../../common/state/sessionProtocol.js';
 import { AutomationMisfirePolicy, AutomationOperation, AutomationTriggerKind, type AutomationDefinition } from '../../common/state/protocol/channels-automation/state.js';
 import { AutomationRunOriginKind, AutomationRunStatus, type AutomationRunState } from '../../common/state/protocol/channels-automation-run/state.js';
 import type { RunAutomationParams } from '../../common/state/protocol/channels-automation/commands.js';
-import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type SessionActiveClient } from '../../common/state/sessionState.js';
-import { AgentHostAutomationService, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
+import { AUTOMATION_CATALOG_URI, buildDefaultChatUri, CustomizationType, MessageAttachmentKind, MessageKind, PendingMessageKind, ResponsePartKind, ROOT_STATE_URI, SessionStatus, type ClientPluginCustomization, type Message, type SessionActiveClient } from '../../common/state/sessionState.js';
+import { AgentHostAutomationService, enqueueAutomationConversation, type IAgentHostAutomationExecution } from '../../node/agentHostAutomationService.js';
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { AgentHostStorageService, type IAgentHostStorageWriter } from '../../node/agentHostStorageService.js';
 import { IAgentHostProviderService } from '../../node/agentHostProviderService.js';
@@ -154,6 +154,9 @@ suite('AgentHostAutomationService', () => {
 			}
 		}();
 		const service = new AgentHostAutomationService({
+			supportsOneTimeAutomation: execution?.supportsOneTimeAutomation,
+			supportsExistingConversation: execution?.supportsExistingConversation,
+			prepareConversation: execution?.prepareConversation,
 			isSessionTemplateAvailable: execution?.isSessionTemplateAvailable ?? (() => true),
 			allocateSession: execution?.allocateSession ?? (async template => ({ session: URI.parse(`mock:/${generateUuid()}`), provider: template.provider ?? 'copilotcli' })),
 			createSession: execution?.createSession ?? (async () => { throw new Error('Unexpected session creation'); }),
@@ -1324,7 +1327,7 @@ suite('AgentHostAutomationService', () => {
 			definition: stateManager.getAutomationCatalogState()?.entries[0].definition,
 			operations: stateManager.getAutomationCatalogState()?.entries[0].operations,
 		}, {
-			capabilities: { create: {}, schedules: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
+			capabilities: { create: {}, schedules: {}, oneTime: {}, customizations: {}, runCancellation: {}, runHistoryLimit: 50 },
 			triggers: { items: [] },
 			definition: savedDefinition,
 			operations: [AutomationOperation.Update, AutomationOperation.Remove, AutomationOperation.Run],
@@ -2429,6 +2432,330 @@ suite('AgentHostAutomationService', () => {
 		await assert.rejects(service.handleCancel(result.resource, { type: ActionType.AutomationRunCancelRequested }), /cancel failed/);
 
 		assert.strictEqual(stateManager.getAutomationRunState(result.resource)?.lifecycle.status, AutomationRunStatus.Running);
+	});
+
+	test('one-time admission persists captured context before dispatch and never rearms after restart', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = new DeferredPromise<void>();
+		const request: Message = {
+			text: 'Review captured context',
+			origin: { kind: MessageKind.Automation },
+			attachments: [
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'image', data: 'aGVsbG8=', contentType: 'image/png' },
+				{ type: MessageAttachmentKind.Simple, label: 'selection', modelRepresentation: 'captured selection' },
+				{ type: MessageAttachmentKind.Resource, label: 'file', uri: 'file:///workspace/file.ts' },
+			],
+			_meta: { captured: 'context' },
+		};
+		let creates = 0;
+		const service = createService({
+			createSession: async (_template, run) => {
+				creates++;
+				const stored = storageService.get<{ catalog: { automations: { oneTimeRun?: string; nextRunAt?: string }[] } }>('automations')!;
+				assert.deepStrictEqual({ receipt: stored.catalog.automations[0].oneTimeRun, next: stored.catalog.automations[0].nextRunAt, purpose: run.purpose },
+					{ receipt: run.resource, next: undefined, purpose: 'scheduledChat' });
+				return URI.parse('mock:/once');
+			},
+			startSession: async (_session, message) => {
+				assert.deepStrictEqual(message, request);
+				await started.complete();
+			},
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), purpose: 'scheduledChat', message: request, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		await started.p;
+		await timeout(0);
+		service.dispose();
+		const restarted = createService({ createSession: async () => { creates++; return URI.parse('mock:/unexpected'); } });
+		await restarted.handleConfigurationChanged();
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, next: entry.nextRunAt, runs: entry.runs.length, status: entry.runs[0].lifecycle.status, editable: entry.operations.includes(AutomationOperation.Update), dispatchedAt: entry.oneTimeDispatchedAt },
+			{ creates: 1, next: undefined, runs: 1, status: AutomationRunStatus.Failed, editable: false, dispatchedAt: '2026-01-01T00:01:00.000Z' });
+	}));
+
+	test('scheduled follow-up queues the exact busy peer chat once and never owns or deletes its session', async () => {
+		const conversation = { session: 'mock:/existing', chat: 'ahp-chat:/opaque-peer' };
+		const mainChat = 'ahp-chat:/opaque-main';
+		stateManager.createSession({
+			resource: conversation.session, provider: 'mock', title: 'Existing',
+			status: SessionStatus.Idle, createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+			defaultChat: mainChat,
+		});
+		stateManager.addChat(conversation.session, conversation.chat, conversation.session);
+		stateManager.dispatchServerAction(conversation.chat, {
+			type: ActionType.ChatTurnStarted, turnId: 'unrelated', startedAt: new Date().toISOString(),
+			message: { text: 'Already running', origin: { kind: MessageKind.User } },
+		});
+		const message: Message = {
+			text: 'Captured follow-up', origin: { kind: MessageKind.Automation },
+			model: { id: 'old-model' }, agent: { uri: 'file:///old-agent.md' },
+			attachments: [
+				{ type: MessageAttachmentKind.EmbeddedResource, label: 'image', data: 'aGVsbG8=', contentType: 'image/png' },
+				{ type: MessageAttachmentKind.Simple, label: 'selection', modelRepresentation: 'captured selection' },
+				{ type: MessageAttachmentKind.Resource, label: 'file', uri: 'file:///workspace/file.ts' },
+			],
+			_meta: { captured: true },
+		};
+		let submissions = 0;
+		const service = createService({
+			supportsExistingConversation: true,
+			allocateSession: async () => { throw new Error('Must not allocate'); },
+			deleteSession: async () => { throw new Error('Must not delete'); },
+			cancelSession: async () => { throw new Error('Must not cancel'); },
+			prepareConversation: async (target, request, id) => {
+				assert.deepStrictEqual(target, conversation);
+				return () => {
+					submissions++;
+					enqueueAutomationConversation(stateManager, createTestChatOwnershipService(stateManager), target, request, id);
+				};
+			},
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), purpose: 'scheduledChat', conversation, message, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		});
+		const [first, second] = await Promise.all(['one', 'two'].map(requestId => service.runAutomation({
+			channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId,
+		})));
+		await timeout(0);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		const run = stateManager.getAutomationRunState(first.resource)!;
+		const peer = stateManager.getChatState(conversation.chat)!;
+		assert.deepStrictEqual({
+			sameRun: first.resource === second.resource, submissions, status: run.lifecycle.status,
+			sessions: run.sessions, dispatched: !!entry.oneTimeDispatchedAt,
+			active: peer.activeTurn?.id, queued: peer.queuedMessages,
+			mainQueue: stateManager.getChatState(mainChat)?.queuedMessages,
+		}, {
+			sameRun: true, submissions: 1, status: AutomationRunStatus.Completed, sessions: [], dispatched: true,
+			active: 'unrelated',
+			queued: [{ id: first.resource, kind: PendingMessageKind.Queued, message: { text: message.text, origin: message.origin, attachments: message.attachments, _meta: message._meta } }],
+			mainQueue: undefined,
+		});
+		await service.deleteAutomation(createAction().resource, true, [URI.parse(conversation.session)]);
+		assert.ok(stateManager.getChatState(conversation.chat));
+	});
+
+	test('cancelling a follow-up during target resolution does not cancel an unrelated turn', async () => {
+		const resolving = new DeferredPromise<void>();
+		const release = new DeferredPromise<void>();
+		let submitted = false;
+		const service = createService({
+			supportsExistingConversation: true,
+			prepareConversation: async () => {
+				resolving.complete();
+				await release.p;
+				return () => { submitted = true; };
+			},
+			cancelSession: async () => { throw new Error('Must not cancel the conversation'); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), purpose: 'scheduledChat', conversation: { session: 'mock:/existing', chat: 'ahp-chat:/peer' }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		});
+		const run = await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'cancel-followup' });
+		await resolving.p;
+		await service.handleCancel(run.resource, { type: ActionType.AutomationRunCancelRequested });
+		release.complete();
+		await timeout(0);
+		assert.deepStrictEqual({ submitted, status: stateManager.getAutomationRunState(run.resource)?.lifecycle.status },
+			{ submitted: false, status: AutomationRunStatus.Cancelled });
+	});
+
+	test('follow-up target failure has a positive safe recovery receipt but uncertain submission does not', async () => {
+		for (const attempted of [false, true]) {
+			const resource = `ahp-automation:/followup-${attempted}`;
+			const service = createService({
+				supportsExistingConversation: true,
+				prepareConversation: async () => {
+					if (!attempted) {
+						throw new Error('The target was deleted');
+					}
+					return () => { throw new Error('Submission acknowledgement lost'); };
+				},
+			});
+
+			await service.handleCreate({
+				...createAction(resource),
+				definition: { ...definition(), purpose: 'scheduledChat', conversation: { session: 'mock:/deleted', chat: 'ahp-chat:/deleted' }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+			});
+			await service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: resource, requestId: resource });
+			await timeout(0);
+			const entry = stateManager.getAutomationCatalogState()!.entries.find(entry => entry.resource === resource)!;
+			assert.deepStrictEqual({ status: entry.runs[0].lifecycle.status, rejected: !!entry.oneTimeDispatchRejectedAt, dispatched: !!entry.oneTimeDispatchedAt },
+				{ status: AutomationRunStatus.Failed, rejected: !attempted, dispatched: false });
+			service.dispose();
+		}
+	});
+
+	test('follow-up submission rejects missing, deleted, or moved targets without creating a chat', () => {
+		assert.throws(() => enqueueAutomationConversation(stateManager, createTestChatOwnershipService(stateManager),
+			{ session: 'mock:/missing', chat: 'ahp-chat:/missing' }, definition().message, 'followup'), /deleted, moved, or is unavailable/);
+	});
+
+	test('existing-conversation scheduling is absent and rejected without explicit host support', async () => {
+		const service = createService();
+		assert.strictEqual(service.capabilities?.existingConversation, undefined);
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), purpose: 'scheduledChat', conversation: { session: 'mock:/existing', chat: 'ahp-chat:/peer' }, triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /requires supported/);
+	});
+
+	test('remote execution does not advertise or accept one-time scheduling', async () => {
+		const service = createService({ supportsOneTimeAutomation: false });
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }] },
+		}), /unavailable on this host/);
+		assert.deepStrictEqual({ once: service.capabilities?.oneTime, conversation: service.capabilities?.existingConversation }, { once: undefined, conversation: undefined });
+	});
+
+	test('one-time restart catches up once only after provider and wake readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const ready = observableValue('ready', false);
+		const original = createService({ isSessionTemplateAvailable: (_template, reader) => ready.read(reader) });
+		await original.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		original.dispose();
+		await timeout(180_000);
+		const started = new DeferredPromise<void>();
+		let creates = 0;
+		const restarted = createService({
+			isSessionTemplateAvailable: (_template, reader) => ready.read(reader),
+			createSession: async () => { creates++; return URI.parse('mock:/catch-up'); },
+			startSession: async () => { await started.complete(); },
+		});
+		await restarted.handleConfigurationChanged();
+		ready.set(true, undefined);
+		await timeout(1);
+		assert.strictEqual(creates, 0);
+		systemWake.setFullyAwake(true);
+		await started.p;
+		await timeout(180_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, next: entry.nextRunAt, origins: entry.runs.map(run => run.origin) }, {
+			creates: 1, next: undefined,
+			origins: [{ kind: AutomationRunOriginKind.Trigger, triggerId: 'once', scheduledFor: '2026-01-01T00:01:00.000Z', catchUp: true }],
+		});
+	}));
+
+	test('one-time Send Now consumes the due occurrence and rejects a competing edit or cancel', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const started = new DeferredPromise<void>();
+		const service = createService({
+			createSession: async () => URI.parse('mock:/send-now'),
+			startSession: async () => { await started.complete(); },
+		});
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		const [first, second] = await Promise.all(['first', 'second'].map(requestId => service.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId })));
+		await started.p;
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, changes: { enabled: false } }));
+		await assert.rejects(service.handleRemove({ type: ActionType.AutomationRemoved, resource: createAction().resource }));
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ sameRun: first.resource === second.resource, receipt: entry.oneTimeRun, next: entry.nextRunAt, runs: entry.runs.length },
+			{ sameRun: true, receipt: first.resource, next: undefined, runs: 1 });
+	}));
+
+	test('one-time cancel wins before due admission and stale reschedule is rejected', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const service = createService();
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }] },
+		});
+		const expectedModifiedAt = stateManager.getAutomationCatalogState()!.entries[0].modifiedAt;
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, expectedModifiedAt, changes: { enabled: false } });
+		await assert.rejects(service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: createAction().resource, expectedModifiedAt, changes: { enabled: true } }), /changed before/);
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ enabled: entry.definition.enabled, receipt: entry.oneTimeRun, runs: entry.runs.length, next: entry.nextRunAt },
+			{ enabled: false, receipt: undefined, runs: 0, next: undefined });
+	}));
+
+	test('one-time requests reject invalid instants and non-durable attachments before persistence', async () => {
+		const service = createService();
+		for (const runAt of ['2026-02-30T00:00:00Z', '2026-01-01T00:00:00', 'invalid']) {
+			await assert.rejects(service.handleCreate({
+				...createAction(),
+				definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt }] },
+			}), /UTC/);
+		}
+		await assert.rejects(service.handleCreate({
+			...createAction(),
+			definition: {
+				...definition(),
+				message: { ...definition().message, attachments: [{ type: MessageAttachmentKind.Resource, label: 'ephemeral', uri: 'untitled:/buffer' }] },
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
+			},
+		}), /cannot be saved/);
+		assert.strictEqual(writeAttempts, 0);
+	});
+
+	test('confirmed scheduled-chat cancellation cannot be re-enabled or manually dispatched by another client', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(), purpose: 'scheduledChat',
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
+			} satisfies AutomationDefinition,
+		};
+		await service.handleCreate(action);
+		await service.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { enabled: false } });
+		service.dispose();
+		const restarted = createService();
+		await assert.rejects(restarted.handleUpdate({ type: ActionType.AutomationUpdateRequested, resource: action.resource, changes: { enabled: true } }));
+		await assert.rejects(restarted.runAutomation({ channel: AUTOMATION_CATALOG_URI, automation: action.resource, requestId: 'stale-send-now' }));
+		await assert.rejects(restarted.handleCreate(action), /already exists/);
+		await timeout(120_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ enabled: entry.definition.enabled, operations: entry.operations, runs: entry.runs, nextRunAt: entry.nextRunAt }, {
+			enabled: false, operations: [AutomationOperation.Remove], runs: [], nextRunAt: undefined,
+		});
+	}));
+
+	test('lost creation acknowledgement can be replayed after its one-time instant passes', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(), purpose: 'scheduledChat',
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z' }],
+			} satisfies AutomationDefinition,
+		};
+		await service.handleCreate(action);
+		await timeout(120_000);
+		await service.handleCreate(JSON.parse(JSON.stringify(action)));
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()!.entries.map(entry => ({ resource: entry.resource, runs: entry.runs.length })), [
+			{ resource: action.resource, runs: 0 },
+		]);
+	}));
+
+	test('one-time creation retries cannot duplicate or recreate a deleted handoff after restart', async () => {
+		const service = createService();
+		const action = {
+			...createAction(),
+			definition: {
+				...definition(),
+				triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.000Z' }],
+			} satisfies AutomationDefinition,
+		};
+		await service.handleCreate(action);
+		await service.handleCreate(action);
+		assert.strictEqual(stateManager.getAutomationCatalogState()!.entries.length, 1);
+		await service.deleteAutomation(action.resource, true);
+		service.dispose();
+		const restarted = createService();
+		await assert.rejects(restarted.handleCreate(action), /identity has already been used/);
+		assert.deepStrictEqual(stateManager.getAutomationCatalogState()!.entries, []);
 	});
 
 	test('claims a persisted missed schedule before starting its session', async () => {

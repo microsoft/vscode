@@ -20,8 +20,11 @@ suite('Copilot SDK - canvas lifecycle', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const instanceId = 'contract-instance';
 
-	/** Writes a model-free canvas provider and returns runtime clients configured to load it. */
-	async function createCanvasContract() {
+	/**
+	 * Writes a model-free canvas provider and returns runtime clients configured to load it.
+	 * A lazy provider declares its canvas in an `extension.json` sidecar, so the runtime starts it on first use.
+	 */
+	async function createCanvasContract(options?: { lazy?: boolean }) {
 		const { runtimePath, extensionSdkPath, extensionBootstrapPath } = await resolveCopilotRuntimePaths(getAppNodeModulesUri());
 		assert.ok(extensionSdkPath && extensionBootstrapPath, 'Bundled canvas extension assets must be available');
 		const root = await mkdtemp(join(tmpdir(), 'ahp-canvas-contract-'));
@@ -56,7 +59,31 @@ suite('Copilot SDK - canvas lifecycle', () => {
 		};
 		try {
 			await mkdir(extensionDirectory, { recursive: true });
-			await writeFile(join(extensionDirectory, 'extension.mjs'), `
+			if (options?.lazy) {
+				await writeFile(join(extensionDirectory, 'extension.json'), JSON.stringify({
+					version: 1,
+					initialization: 'module',
+					canvases: [{
+						id: 'contract',
+						displayName: 'Contract canvas',
+						description: 'Model-free lazy canvas lifecycle test.',
+						inputSchema: { type: 'object', properties: { label: { type: 'string' } } },
+					}],
+				}), 'utf8');
+				await writeFile(join(extensionDirectory, 'extension.mjs'), `
+import { randomUUID } from 'node:crypto';
+import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
+import declaration from './extension.json' with { type: 'json' };
+const generation = randomUUID();
+await joinSession({
+	canvases: declaration.canvases.map(canvas => createCanvas({
+		...canvas,
+		open: ({ instanceId, input }) => ({ url: \`http://127.0.0.1:43119/\${generation}/\${instanceId}?label=\${input?.label}\` }),
+	})),
+});
+`, 'utf8');
+			} else {
+				await writeFile(join(extensionDirectory, 'extension.mjs'), `
 import { randomUUID } from 'node:crypto';
 import { createCanvas, joinSession } from '@github/copilot-sdk/extension';
 const generation = randomUUID();
@@ -69,6 +96,7 @@ await joinSession({
 	})],
 });
 `, 'utf8');
+			}
 		} catch (error) {
 			await rm(root, { recursive: true, force: true });
 			throw error;
@@ -201,6 +229,83 @@ await joinSession({
 				assert.deepStrictEqual(resumed.openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })), [{ instanceId, url: restoredUrl }]);
 			}, 100, 300);
 		} finally {
+			try {
+				await session?.disconnect();
+			} finally {
+				try {
+					await client.stop();
+				} finally {
+					await rm(root, { recursive: true, force: true });
+				}
+			}
+		}
+	});
+
+	test('keeps a lazily activated canvas hidden across a resume on the same client until it is reopened', async function () {
+		this.timeout(180_000);
+		const { root, config, createClient } = await createCanvasContract({ lazy: true });
+		const client = createClient();
+		const listeners = disposables.add(new DisposableStore());
+		const input = { label: 'kept' };
+		let session: CopilotSession | undefined;
+
+		try {
+			await client.start();
+			session = await client.createSession(config);
+			await waitForContractCanvas(session);
+			const { extensionId } = await session.rpc.canvas.open({ canvasId: 'contract', instanceId, input });
+			const firstUrl = await waitForOpen(session, undefined);
+			// Closing persists this model-free session so it can be resumed.
+			await session.rpc.canvas.close({ instanceId });
+			await session.rpc.canvas.open({ canvasId: 'contract', instanceId, input });
+
+			// An Agent Host configuration refresh disconnects the SDK session and resumes it on the same client.
+			const sessionId = session.sessionId;
+			await session.disconnect();
+			session = await client.resumeSession(sessionId, config);
+			const resumed = session;
+			let liveRecords = 0;
+			listeners.add(toDisposable(resumed.on('session.canvas.recorded', () => liveRecords++)));
+			const historyRecords = async () => (await resumed.getEvents()).filter(event => event.type === 'session.canvas.recorded').length;
+			const afterResume = {
+				extensionStatus: (await resumed.rpc.extensions.list()).extensions.find(extension => extension.id === extensionId)?.status,
+				resumedOpenCanvases: resumed.openCanvases,
+				listedOpenCanvases: (await resumed.rpc.canvas.listOpen()).openCanvases,
+				historyRecords: await historyRecords(),
+			};
+
+			// The Agent Host demands the handed-over canvas again with its original input, which starts the provider.
+			const reopened = await resumed.rpc.canvas.open({ extensionId, canvasId: 'contract', instanceId, input });
+			const reopenedUrl = reopened.url ? new URL(reopened.url) : undefined;
+
+			assert.deepStrictEqual({
+				afterResume,
+				reopened: {
+					newProvider: reopened.url !== firstUrl,
+					providerInput: reopenedUrl?.searchParams.get('label'),
+					input: reopened.input,
+					listed: (await resumed.rpc.canvas.listOpen()).openCanvases.map(canvas => ({ instanceId: canvas.instanceId, url: canvas.url })),
+					historyRecords: await historyRecords(),
+					liveRecords,
+				},
+			}, {
+				afterResume: {
+					extensionStatus: 'dormant',
+					resumedOpenCanvases: [],
+					listedOpenCanvases: [],
+					historyRecords: 2,
+				},
+				reopened: {
+					newProvider: true,
+					providerInput: input.label,
+					input,
+					listed: [{ instanceId, url: reopened.url }],
+					historyRecords: 2,
+					liveRecords: 0,
+				},
+			});
+		} finally {
+			listeners.dispose();
 			try {
 				await session?.disconnect();
 			} finally {

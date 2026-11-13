@@ -13,9 +13,11 @@ import { WorkbenchContributionsRegistry } from '../../../../../../workbench/comm
 import { IWorkbenchLayoutService } from '../../../../../../workbench/services/layout/browser/layoutService.js';
 import { LifecyclePhase } from '../../../../../../workbench/services/lifecycle/common/lifecycle.js';
 import { Menus } from '../../../../../../workbench/contrib/sessions/browser/menus.js';
-import { ModelPickerToolbarsContribution } from '../../../../chat/browser/modelPicker.js';
-import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../chat/browser/sharedChatInputComposer.contribution.js';
+import { ModelPickerToolbarsContribution } from '../../../../../../workbench/contrib/sessions/browser/chat/modelPicker.js';
+import { COMPOSER_SESSION_CONTROLS_ACTION_ID, SharedChatInputComposerContribution } from '../../../../../../workbench/contrib/sessions/browser/chat/sharedChatInputComposerToolbar.js';
 import '../../browser/copilotChatSessionsActions.js';
+import '../../../../chat/browser/modelPicker.js';
+import '../../../../chat/browser/sharedChatInputComposer.contribution.js';
 
 suite('Copilot chat composer picker registration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

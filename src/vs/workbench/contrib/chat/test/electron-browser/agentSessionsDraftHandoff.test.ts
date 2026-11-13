@@ -52,6 +52,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chat
 import { CopilotHarnessIntroductionContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from '../../electron-browser/agentSessions/agentSessionsActions.js';
 import { agentsWindowHandoffConfigurationProperties } from '../../browser/agentSessionsConfiguration.js';
 import { IAgentHostEditorActivityService } from '../../electron-browser/agentSessions/agentHostEditorActivity.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('Agents Window draft handoff and Copilot introduction', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -186,7 +187,7 @@ suite('Agents Window draft handoff and Copilot introduction', () => {
 			refresh: () => { },
 		}));
 		instantiation.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
-			getWorkspace: () => ({ id: 'source', folders: [new WorkspaceFolder({ uri: URI.file('/source'), name: 'source', index: 0 })] }),
+			getWorkspace: () => (testIWorkspace({ id: 'source', folders: [new WorkspaceFolder({ uri: URI.file('/source'), name: 'source', index: 0 })] })),
 			getWorkbenchState: () => workbenchState,
 			onDidChangeWorkbenchState: workbenchStateChanged.event,
 		}));

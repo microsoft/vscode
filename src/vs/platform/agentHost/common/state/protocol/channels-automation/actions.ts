@@ -22,6 +22,8 @@ import type { AutomationDefinition, AutomationDisableCondition, AutomationEntry,
 export interface AutomationDefinitionPatch {
 	/** Replacement {@link AutomationDefinition.title}. */
 	title?: string;
+	/** Replacement {@link AutomationDefinition.purpose}. */
+	purpose?: 'scheduledChat';
 	/** Replacement {@link AutomationDefinition.message}. */
 	message?: Message;
 	/**
@@ -104,6 +106,8 @@ export interface AutomationUpdateRequestedAction {
 	resource: URI;
 	/** Editable {@link AutomationDefinition} fields to replace. */
 	changes: AutomationDefinitionPatch;
+	/** Reject the entire update if the current definition modification timestamp differs. */
+	expectedModifiedAt?: string;
 }
 
 /**

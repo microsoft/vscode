@@ -362,7 +362,18 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		this.#wireSingle(document, webviewPanel, originalDocument, codeBlockEditorProviders, webview);
 	}
 
-	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, editEpoch: number): void {
+	/**
+	 * New untitled and empty documents open in edit mode: there is nothing to read yet, so the
+	 * user wants to write. Other documents open in the last chosen mode.
+	 */
+	#getInitialReadonly(document: vscode.TextDocument): boolean {
+		if (document.uri.scheme === 'untitled' || document.getText().length === 0) {
+			return false;
+		}
+		return this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
+	}
+
+	#configureWebview(document: vscode.TextDocument, editorWebview: AuthenticatedWebview, editEpoch: number, readonly: boolean): void {
 		const webview = editorWebview.webview;
 		const codeBlockEditorResourceRoots = vscode.workspace.isTrusted
 			? this.#contributions.contributions.codeBlockEditorProviders.map(provider => provider.extension.extensionUri)
@@ -373,7 +384,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				includeWorkspaceResources: vscode.workspace.isTrusted,
 			}),
 		};
-		webview.html = this.#getHtml(document, webview, editorWebview.messageSecret, editEpoch);
+		webview.html = this.#getHtml(document, webview, editorWebview.messageSecret, editEpoch, readonly);
 	}
 
 	#wireSingle(
@@ -386,7 +397,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		let expectedWebviewContent: { readonly content: string; readonly epoch: number } | undefined;
 		let webviewText = document.getText();
 		let webviewReady = false;
-		let readonly = this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true);
+		let readonly = this.#getInitialReadonly(document);
 		let codeBlockEditorProviders: readonly CodeBlockEditorProviderDefinition[] | undefined;
 		let contributionUpdate = 0;
 		const resolveCancellation = new vscode.CancellationTokenSource();
@@ -683,7 +694,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 				expectedWebviewContent = undefined;
 				webviewText = document.getText();
 				editorWebview.reset();
-				this.#configureWebview(document, editorWebview, epoch);
+				this.#configureWebview(document, editorWebview, epoch, readonly);
 				await refreshCodeBlockEditorProviders(true, true);
 			});
 		};
@@ -742,7 +753,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			reloadWebview();
 		});
 
-		this.#configureWebview(document, editorWebview, editQueue.epoch);
+		this.#configureWebview(document, editorWebview, editQueue.epoch, readonly);
 
 		webviewPanel.onDidDispose(() => {
 			navigation.dispose();
@@ -1149,7 +1160,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 		});
 	}
 
-	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, editEpoch: number): string {
+	#getHtml(document: vscode.TextDocument, webview: vscode.Webview, messageSecret: string, editEpoch: number, readonly: boolean): string {
 		const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.js'));
 		const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this.#mediaRoot, 'editor.css'));
 		const baseUri = webview.asWebviewUri(document.uri);
@@ -1164,7 +1175,7 @@ export class MarkdownEditorProvider extends Disposable implements vscode.CustomT
 			content: document.getText(),
 			documentVersion: document.version,
 			editEpoch,
-			readonly: this.#globalState.get(MarkdownEditorProvider.#readonlyStateKey, true),
+			readonly,
 			richLinksEnabled: vscode.workspace.getConfiguration('markdown').get<boolean>('experimental.richLinks.enabled', true),
 			linkPresentationRules: vscode.window.linkPresentationRules.map(rule => ({
 				id: rule.id,

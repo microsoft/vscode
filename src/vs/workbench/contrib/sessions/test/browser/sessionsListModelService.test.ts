@@ -21,6 +21,7 @@ import { TestConfigurationService } from '../../../../../platform/configuration/
 import { timeout } from '../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ISessionAttentionService, IInboxSessionAttention, InboxNotificationPriority, InboxTab } from '../../common/sessionAttentionService.js';
+import { getSessionInboxSection, SessionInboxSection } from '../../common/sessionInbox.js';
 
 function createSession(id: string, status: SessionStatus = SessionStatus.Completed, opts?: { createdAt?: Date; updatedAt?: Date; createdBySession?: URI; isAutomation?: boolean }): ISession {
 	return {
@@ -58,6 +59,7 @@ suite('SessionsListModelService', () => {
 	let service: SessionsListModelService;
 	let sessionsChangedEmitter: Emitter<ISessionsChangeEvent>;
 	let sessionDeletedEmitter: Emitter<ISession>;
+	let sessionReplacedEmitter: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let sessions: ISession[];
 	let instantiationService: TestInstantiationService;
 	let storageService: InMemoryStorageService;
@@ -74,6 +76,7 @@ suite('SessionsListModelService', () => {
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 		sessionsChangedEmitter = disposables.add(new Emitter<ISessionsChangeEvent>());
 		sessionDeletedEmitter = disposables.add(new Emitter<ISession>());
+		sessionReplacedEmitter = disposables.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		sessions = [];
 		instantiationService.stub(ISessionsManagementService, {
 			...mock<ISessionsManagementService>(),
@@ -81,9 +84,71 @@ suite('SessionsListModelService', () => {
 			getSession: resource => sessions.find(session => session.resource.toString() === resource.toString()),
 			onDidChangeSessions: sessionsChangedEmitter.event,
 			onDidDeleteSession: sessionDeletedEmitter.event,
+			onDidReplaceSession: sessionReplacedEmitter.event,
 		});
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
 	});
+
+	test('pin and manual order follow a session replaced by one with another ID, and back', () => {
+		const local = createSession('local');
+		const relay = createSession('relay');
+		service.pinSession(local);
+		service.applySortChanges('updated', new Map([[local.sessionId, 42]]), []);
+		const state = () => ({
+			local: { pinned: service.isSessionPinned(local), order: service.hasSortOverride(local.sessionId, 'updated') },
+			relay: { pinned: service.isSessionPinned(relay), order: service.hasSortOverride(relay.sessionId, 'updated') },
+		});
+
+		sessionReplacedEmitter.fire({ from: local, to: relay });
+		const handedOff = state();
+		sessionReplacedEmitter.fire({ from: relay, to: local });
+
+		assert.deepStrictEqual({ handedOff, handedBack: state(), order: service.getSortKey(local, 'updated') }, {
+			handedOff: { local: { pinned: false, order: false }, relay: { pinned: true, order: true } },
+			handedBack: { local: { pinned: true, order: true }, relay: { pinned: false, order: false } },
+			order: 42,
+		});
+	});
+
+	for (const listedFirst of [false, true]) {
+		test(`an Inbox acknowledgement follows a session replaced by one with another ID, and back${listedFirst ? ', when the destination is listed first' : ''}`, () => {
+			const updatedAt = new Date();
+			const local = createSession('local', SessionStatus.Completed, { updatedAt });
+			const relay = createSession('relay', SessionStatus.Completed, { updatedAt });
+			const notify = (...notified: ISession[]) => attention.set(new Map(notified.map(session => [session.sessionId, {
+				tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Now, notificationIds: [`${session.sessionId}:failingCI:o/r#1:head`], isHistoricalCompletion: false,
+			}])), undefined);
+			const handOff = (from: ISession, to: ISession) => {
+				if (listedFirst) {
+					// The destination's host lists the session, which the Inbox admits automatically, before the handoff adopts it.
+					sessions = [from, to];
+					notify(from, to);
+					sessionsChangedEmitter.fire({ added: [to], removed: [], changed: [] });
+				}
+				sessions = [to];
+				sessionReplacedEmitter.fire({ from, to });
+				notify(to);
+				sessionsChangedEmitter.fire({ added: [], removed: [from], changed: [to] });
+			};
+			const acknowledged = (session: ISession) => {
+				const state = service.getInboxState(session);
+				return state?.kind === 'done' ? state.notificationIds : state?.kind;
+			};
+			sessions = [local];
+			notify(local);
+			sessionsChangedEmitter.fire({ added: [local], removed: [], changed: [] });
+			service.setInboxState([local], 'done');
+
+			handOff(local, relay);
+			const handedOff = acknowledged(relay);
+			handOff(relay, local);
+
+			assert.deepStrictEqual({ handedOff, handedBack: acknowledged(local) }, {
+				handedOff: ['relay:failingCI:o/r#1:head'],
+				handedBack: ['local:failingCI:o/r#1:head'],
+			});
+		});
+	}
 
 	test('migrates pin and manual order from a previous identity without reapplying later', () => {
 		const previous = createSession('previous');
@@ -146,10 +211,11 @@ suite('SessionsListModelService', () => {
 
 	// -- Inbox --
 
-	test('historical unread completions only bypass the cutoff when modified today locally', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
+	test('historical unread completions only bypass the cutoff when modified within the last 7 days', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const cases = [
 			{ id: 'yesterday-unread', updatedAt: new Date(2025, 11, 31, 23, 59, 59, 999), isRead: false, historical: true },
-			{ id: 'midnight-unread', updatedAt: new Date(2026, 0, 1), isRead: false, historical: true },
+			{ id: 'seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000), isRead: false, historical: true },
+			{ id: 'over-seven-days-unread', updatedAt: new Date(new Date(2026, 0, 1, 12).getTime() - 7 * 24 * 60 * 60 * 1000 - 1), isRead: false, historical: true },
 			{ id: 'today-unread', updatedAt: new Date(2026, 0, 1, 11), isRead: false, historical: true },
 			{ id: 'today-read', updatedAt: new Date(2026, 0, 1, 11), isRead: true, historical: true },
 			{ id: 'last-month-unread', updatedAt: new Date(2025, 11, 1, 11), isRead: false, historical: true },
@@ -165,8 +231,9 @@ suite('SessionsListModelService', () => {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: historical,
 		}])), undefined);
 		assert.deepStrictEqual(sessions.map(session => [session.sessionId, service.getInboxState(session)?.kind]), [
-			['yesterday-unread', 'done'],
-			['midnight-unread', undefined],
+			['yesterday-unread', undefined],
+			['seven-days-unread', undefined],
+			['over-seven-days-unread', 'done'],
 			['today-unread', undefined],
 			['today-read', 'done'],
 			['last-month-unread', 'done'],
@@ -177,7 +244,7 @@ suite('SessionsListModelService', () => {
 
 	test('historical unread completions remain in Inbox after reading and reload until dismissed', () => runWithFakedTimers({ startTime: new Date(2026, 0, 1, 12).getTime() }, async () => {
 		const isRead = observableValue('historicalRead', false);
-		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 31, 23));
+		const updatedAt = observableValue('historicalUpdatedAt', new Date(2025, 11, 1, 23));
 		const session = { ...createSession('historical'), isRead, updatedAt };
 		sessions.push(session);
 		sessionsChangedEmitter.fire({ added: [session], removed: [], changed: [] });
@@ -317,21 +384,29 @@ suite('SessionsListModelService', () => {
 		});
 	});
 
-	test('historical completions start Done while Return to Inbox persists and remains undoable', () => {
+	test('historical completions stay hidden unless explicitly acknowledged, while Return to Inbox persists and remains undoable', () => {
 		const session = createSession('historical');
 		sessions.push(session);
 		attention.set(new Map([[session.sessionId, {
 			tab: InboxTab.ReadyForYou, priority: InboxNotificationPriority.Later, notificationIds: [], isHistoricalCompletion: true,
 		}]]), undefined);
 		const initial = service.getInboxState(session)?.kind;
+		const section = () => getSessionInboxSection(session, service.getInboxState(session));
+		const historicalSection = section();
 		const undo = service.setInboxState([session], undefined);
 		const resumed = service.getInboxState(session);
 		undo();
 		const undone = service.getInboxState(session)?.kind;
+		service.setInboxState([session], 'done');
+		const acknowledgedSection = section();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restoredSection = section();
 		service.setInboxState([session], undefined);
 		service.dispose();
 		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
-		assert.deepStrictEqual({ initial, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+		assert.deepStrictEqual({ initial, historicalSection, acknowledgedSection, restoredSection, resumed, undone, restored: service.getInboxState(session), archived: session.isArchived.get() }, {
+			historicalSection: SessionInboxSection.Done, acknowledgedSection: SessionInboxSection.Acknowledged, restoredSection: SessionInboxSection.Acknowledged,
 			initial: 'done', resumed: undefined, undone: 'done', restored: undefined, archived: false,
 		});
 	});
@@ -573,6 +648,27 @@ suite('SessionsListModelService', () => {
 	});
 
 	// -- Automation sessions --
+
+	test('scheduled chats bypass automation reply gating and retain their normal listing after reload', () => {
+		const scheduled: ISession = { ...createSession('scheduled', SessionStatus.InProgress, { isAutomation: true }), isScheduledChat: constObservable(true) };
+		const automation = createSession('recurring', SessionStatus.InProgress, { isAutomation: true });
+		const listed = () => [scheduled, automation].filter(session => service.isSessionListed(session)).map(session => session.sessionId);
+		const before = listed();
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		assert.deepStrictEqual({ before, after: listed() }, { before: ['scheduled'], after: ['scheduled'] });
+	});
+
+	test('explicitly hiding a scheduled chat survives reload and overrides default listing', () => {
+		const scheduled: ISession = { ...createSession('scheduled', SessionStatus.Completed, { isAutomation: true }), isScheduledChat: constObservable(true) };
+		service.hideAutomationSessions([scheduled]);
+		const hidden = service.isSessionListed(scheduled);
+		service.dispose();
+		service = disposables.add(instantiationService.createInstance(SessionsListModelService));
+		const restored = service.isSessionListed(scheduled, undefined, true);
+		service.showAutomationSessions([scheduled]);
+		assert.deepStrictEqual({ hidden, restored, shown: service.isSessionListed(scheduled) }, { hidden: false, restored: false, shown: true });
+	});
 
 	test('lists automation sessions only while they are shown and persists the shown state', () => {
 		const automation = createSession('automation', SessionStatus.Completed, { isAutomation: true });
@@ -1193,7 +1289,7 @@ suite('SessionsListModelService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		assert.strictEqual(loadedService.isSessionPinned(createSession('s1')), true);
@@ -1208,7 +1304,7 @@ suite('SessionsListModelService', () => {
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
-		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+		instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
 
 		// Should not throw and should return empty state
@@ -1230,6 +1326,7 @@ suite('SessionsListModelService', () => {
 			getSession: resource => resource.toString() === creator.resource.toString() ? creator : undefined,
 			onDidChangeSessions: Event.None,
 			onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+			onDidReplaceSession: Event.None,
 		});
 
 		const loadedService = disposables.add(instantiationService.createInstance(SessionsListModelService));
@@ -1251,7 +1348,7 @@ suite('SessionsListModelService', () => {
 			instantiationService.stub(ISessionAttentionService, { sessionAttention: attention });
 			instantiationService.stub(IStorageService, storageService);
 			instantiationService.stub(IConfigurationService, new TestConfigurationService());
-			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event });
+			instantiationService.stub(ISessionsManagementService, { ...mock<ISessionsManagementService>(), getSessions: () => [], getSession: () => undefined, onDidChangeSessions: Event.None, onDidDeleteSession: disposables.add(new Emitter<ISession>()).event, onDidReplaceSession: Event.None });
 			disposables.add(instantiationService.createInstance(SessionsListModelService));
 			return storageService.get('sessionsListControl.chatOrder', StorageScope.PROFILE);
 		};
@@ -1285,6 +1382,7 @@ suite('SessionsListModelService', () => {
 				getSession: () => undefined,
 				onDidChangeSessions: Event.None,
 				onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+				onDidReplaceSession: Event.None,
 				markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 				markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 			});
@@ -1345,6 +1443,7 @@ suite('SessionsListModelService', () => {
 					getSession: () => undefined,
 					onDidChangeSessions: Event.None,
 					onDidDeleteSession: disposables.add(new Emitter<ISession>()).event,
+					onDidReplaceSession: Event.None,
 					markRead: async (session: ISession) => { readMarks.push(session.sessionId); },
 					markUnread: async (session: ISession) => { unreadMarks.push(session.sessionId); },
 				});

@@ -686,8 +686,8 @@ export class RemotesTableRenderer implements ITableRenderer<IRemoteTableRow, Rem
 					});
 					const secondary = showConnection ? Separator.join(
 						[...(showNewSession ? [menuAction(template.newSessionAction, 'newSession')] : []),
-							...(canConnect ? [menuAction(template.action, 'connect')] : []),
-							...(!offline ? [menuAction(template.troubleshoot, 'troubleshoot')] : [])],
+						...(canConnect ? [menuAction(template.action, 'connect')] : []),
+						...(!offline ? [menuAction(template.troubleshoot, 'troubleshoot')] : [])],
 						showGitHubEnvironment ? [menuAction(template.gitHubEnvironment, 'githubEnvironment')] : [],
 						[menuAction(template.visibility, 'toggleVisibility')],
 						showCopyAddress ? [menuAction(template.copyAddress, 'copyAddress')] : [],

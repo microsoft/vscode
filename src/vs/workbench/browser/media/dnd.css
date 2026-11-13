@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shown on a placement overlay over the inputs that take the drag instead when it moves over them. */
+.input-drop-target-hints {
+	position: absolute;
+	inset: 0;
+	/* Above the overlay's tint, so that the hints read clearly over it. */
+	z-index: 1;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.input-drop-target-hints > .input-drop-target-hint {
+	position: absolute;
+	box-sizing: border-box;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	/* Thicker than the one stroke, and as bright as the hint's text: it marks where the drag goes, as a focus indicator does. */
+	border: 2px dashed var(--vscode-editorGroup-dropIntoPromptForeground);
+}
+
+.input-drop-target-hints > .input-drop-target-hint > .input-drop-target-hint-label {
+	max-width: calc(100% - 2 * var(--vscode-spacing-size80));
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorGroup-dropIntoPromptBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-small);
+	color: var(--vscode-editorGroup-dropIntoPromptForeground);
+	background-color: var(--vscode-editorGroup-dropIntoPromptBackground);
+	line-height: normal;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* The key to hold, in what a drop overlay says, shown as a keybinding. */
+#monaco-workbench-editor-drop-overlay .editor-group-overlay-drop-into-prompt i,
+.input-drop-target-hints > .input-drop-target-hint > .input-drop-target-hint-label i {
+	padding: 0 8px;
+	border: 1px solid hsla(0,0%,80%,.4);
+	margin: 0 1px;
+	border-radius: 5px;
+	background-color: rgba(255, 255, 255, 0.05);
+	font-style: normal;
+}

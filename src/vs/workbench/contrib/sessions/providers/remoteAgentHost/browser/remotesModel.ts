@@ -758,12 +758,17 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 				if (target.kind === 'ssh') {
 					this.sshReachability.set(id, 'reachable');
 				}
-			} else if (provider?.disconnect) {
-				await provider.disconnect();
-			} else if (provider?.remoteAddress) {
-				await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
 			} else {
-				throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				if (target.kind !== 'environment' && !await this.remoteSharing.confirmDisconnect(id, this._remotes.get().find(remote => remote.id === id)?.name ?? provider?.label ?? id)) {
+					return;
+				}
+				if (provider?.disconnect) {
+					await provider.disconnect();
+				} else if (provider?.remoteAddress) {
+					await this.remoteAgentHostService.removeRemoteAgentHost(provider.remoteAddress);
+				} else {
+					throw new Error(localize('remotes.providerNotReady', "The remote provider is not ready. Try again."));
+				}
 			}
 		} catch (error) {
 			const current = this.targets.get(id);
@@ -955,7 +960,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		};
 	}
 
-	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, availability: RemoteAvailability, operatingSystem: OperatingSystem | undefined, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
+	private getMetadata(target: RemoteTarget, provider: IAgentHostSessionsProvider | undefined, status: RemoteAgentHostConnectionStatus, availability: RemoteAvailability, reader?: IReader): Pick<ICustomizationRemote, 'metadata' | 'metadataIsStale'> {
 		const key = `${metadataKeyPrefix}${this.getPickerKey(target)}`;
 		const previous = this.readMetadata(key);
 		const sessionListVersion = provider?.sessionListVersion?.read(reader) ?? 0;
@@ -972,7 +977,8 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			}
 		}
 		const next = {
-			operatingSystem: operatingSystem ?? (target.kind === 'wsl' ? OperatingSystem.Linux : previous?.operatingSystem),
+			// A host's advertised path style does not identify its operating system.
+			operatingSystem: target.kind === 'wsl' ? OperatingSystem.Linux : previous?.operatingSystem,
 			activeSessionCount: sessions?.filter(session => isActiveSessionStatus(session.status.read(reader))).length ?? previous?.activeSessionCount,
 			observedSessionCount: sessions?.filter(session => session.status.read(reader) !== SessionStatus.Untitled).length ?? previous?.observedSessionCount,
 			lastConnectedAt: justConnected ? now : previous?.lastConnectedAt,
@@ -1022,7 +1028,6 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 		const providersByAddress = new Map(providers.map(provider => [provider.remoteAddress, provider]));
 		const connectionStatuses = new Map(providers.map(provider => [provider.remoteAddress, provider.connectionStatus?.read(reader)]));
 		const connectionErrors = new Map<string, string>();
-		const operatingSystems = new Map(this.remoteAgentHostService.connections.map(connection => [connection.address, connection.operatingSystem]));
 		for (const connection of this.remoteAgentHostService.connections) {
 			connectionStatuses.set(connection.address, connection.status);
 			if (connection.lastConnectionError) {
@@ -1090,7 +1095,7 @@ export class RemotesModel extends Disposable implements IRemotesModel {
 			const hidden = this.pickerVisibility.isHidden(this.getPickerKey(target), reader);
 			remotes.push({
 				id, kind: target.kind, name, detail, canRemove, ...availability,
-				...this.getMetadata(target, provider, connectionStatus, availability.availability, operatingSystems.get(id), reader),
+				...this.getMetadata(target, provider, connectionStatus, availability.availability, reader),
 				...(target.kind === 'tunnel' ? {
 					canDelete: this.tunnelService.canDeleteTunnels && !!this.remoteTunnelStatus
 						&& !isTunnelHosted(this.remoteTunnelStatus.type === 'connected' ? this.remoteTunnelStatus.info : undefined, target.tunnel),

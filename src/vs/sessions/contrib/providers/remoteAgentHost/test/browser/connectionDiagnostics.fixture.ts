@@ -8,6 +8,7 @@ import { Action } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { ILayoutService } from '../../../../../../platform/layout/browser/layoutService.js';
 import { IChatEntitlementService } from '../../../../../../workbench/services/chat/common/chatEntitlementService.js';
@@ -218,6 +219,7 @@ function renderEmptyPicker(context: ComponentFixtureContext, experimentalMobile 
 			reg.defineInstance(IChatEntitlementService, new class extends mock<IChatEntitlementService>() {
 				override readonly sentiment = { hidden: false };
 			}());
+			reg.defineInstance(IRemoteGitHubEnvironmentSharingService, new class extends mock<IRemoteGitHubEnvironmentSharingService>() { }());
 			reg.defineInstance(ICommandService, new class extends mock<ICommandService>() {
 				override async executeCommand<T>(id: string): Promise<T> {
 					if (id === ShowConnectionDiagnosticsCommandId) {

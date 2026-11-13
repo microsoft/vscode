@@ -59,6 +59,13 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly disableMaximize?: boolean;
 	readonly noBackgroundThrottling?: boolean;
 	readonly backgroundColor?: string;
+	/**
+	 * Whether the window floats as a utility panel: on macOS a non-activating panel that also shows over full-screen
+	 * spaces, elsewhere a window without a taskbar entry. Desktop only.
+	 */
+	readonly panel?: boolean;
+	/** The opacity the window starts with, from 0 (transparent) to 1 (opaque). Desktop only, and not on Linux. */
+	readonly opacity?: number;
 }
 
 export interface IAuxiliaryWindowService {
@@ -73,7 +80,17 @@ export interface IAuxiliaryWindowService {
 }
 
 export interface BeforeAuxiliaryWindowUnloadEvent {
+
+	/**
+	 * Prevents the window from closing and tells the user why.
+	 */
 	veto(reason: string | undefined): void;
+
+	/**
+	 * Prevents the window from closing without telling the user, for a component that asks the
+	 * user itself, for example whether to discard changes, and closes the window afterwards.
+	 */
+	vetoSilently(): void;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -174,15 +191,24 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		// Check for veto from a listening component
 		let veto: string | undefined;
+		let silentVeto = false;
 		this._onBeforeUnload.fire({
 			veto(reason) {
 				if (reason) {
 					veto = reason;
 				}
+			},
+			vetoSilently() {
+				silentVeto = true;
 			}
 		});
 		if (veto) {
 			this.handleVetoBeforeClose(e, veto);
+
+			return;
+		}
+		if (silentVeto) {
+			this.preventUnload(e);
 
 			return;
 		}
@@ -382,6 +408,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,
 			options?.disableMaximize ? 'window-disable-maximize=yes' : undefined,
 			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
+			options?.panel ? 'window-panel=yes' : undefined,
+			typeof options?.opacity === 'number' ? `window-opacity=${options.opacity}` : undefined,
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);
 

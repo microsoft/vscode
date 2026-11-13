@@ -122,7 +122,7 @@ export class AquariumService extends Disposable implements IAquariumService {
 	}
 
 	mountToggle(parent: HTMLElement): IMountedToggleHandle {
-		const button = $<HTMLButtonElement>('button.agents-aquarium-toggle');
+		const button = $<HTMLButtonElement>('button.agents-aquarium-toggle.agent-sessions-interactive');
 		button.type = 'button';
 		this.updateToggleButtonVisual(button, !!this.activeRef.value);
 

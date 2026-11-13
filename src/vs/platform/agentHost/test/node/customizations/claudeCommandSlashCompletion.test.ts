@@ -84,12 +84,11 @@ suite('Claude .claude/commands → slash completion (end-to-end)', () => {
 			rangeStart: 0,
 			rangeEnd: 8,
 			attachment: {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: commandUri.toString(),
 				label: '/speckit.specify',
+				displayKind: 'skill',
 				_meta: {
-					uri: commandUri.toString(),
-					name: 'speckit.specify',
-					displayName: 'speckit.specify',
 					description: 'Create a spec',
 				},
 			},

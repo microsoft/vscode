@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isDefined } from '../../../../base/common/types.js';
-import { readCompletionAttachmentMeta, toCommandCompletionAttachmentMeta, toSkillCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
+import { readCompletionAttachmentMeta, restoreLegacySkillAttachment, toCommandCompletionAttachmentMeta } from '../../common/meta/agentCompletionAttachmentMeta.js';
 import type { ISessionDatabase } from '../../common/sessionDataService.js';
-import { MessageAttachmentKind, type MessageAttachment, type SimpleMessageAttachment, type TextRange } from '../../common/state/protocol/state.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment, type SimpleMessageAttachment, type TextRange } from '../../common/state/protocol/state.js';
 
 const completionReferencesMetadataKey = 'copilot.completionReferences';
 
 export interface ICopilotCompletionReference {
-	readonly attachment: SimpleMessageAttachment & { readonly range: TextRange };
+	readonly attachment: (SimpleMessageAttachment | MessageResourceAttachment) & { readonly range: TextRange };
 	readonly sdkAttachmentIndex?: number;
 }
 
@@ -22,12 +22,18 @@ export interface ICopilotCompletionReferenceMessage {
 
 /** Keeps completion identity and presentation, without model text or binary payloads. */
 export function getCopilotCompletionReferences(attachments: readonly MessageAttachment[] | undefined): readonly ICopilotCompletionReference[] {
-	return attachments?.flatMap(attachment => {
-		if (attachment.type !== MessageAttachmentKind.Simple || !attachment.range) {
+	return attachments?.flatMap((attachment): ICopilotCompletionReference[] => {
+		if (!attachment.range) {
+			return [];
+		}
+		if (attachment.type === MessageAttachmentKind.Resource && attachment.displayKind === 'skill') {
+			return [{ attachment: { ...attachment, range: attachment.range } }];
+		}
+		if (attachment.type !== MessageAttachmentKind.Simple) {
 			return [];
 		}
 		const meta = readCompletionAttachmentMeta(attachment);
-		if (!meta || !(meta.kind === 'command' ? meta.command : meta.uri)) {
+		if (!meta?.command) {
 			return [];
 		}
 		return [{
@@ -36,9 +42,7 @@ export function getCopilotCompletionReferences(attachments: readonly MessageAtta
 				label: attachment.label,
 				range: attachment.range,
 				...(attachment.displayKind !== undefined ? { displayKind: attachment.displayKind } : {}),
-				_meta: meta.kind === 'command'
-					? toCommandCompletionAttachmentMeta({ command: meta.command, isSkill: meta.isSkill, description: meta.description })
-					: toSkillCompletionAttachmentMeta({ uri: meta.uri, name: meta.name, displayName: meta.displayName, description: meta.description }),
+				_meta: toCommandCompletionAttachmentMeta({ command: meta.command, isSkill: meta.isSkill, description: meta.description }),
 			},
 		}];
 	}) ?? [];
@@ -51,7 +55,15 @@ export function storeCopilotCompletionReferences(db: ISessionDatabase, turnId: s
 export async function readCopilotCompletionReferences(db: ISessionDatabase | undefined): Promise<ReadonlyMap<string, ICopilotCompletionReferenceMessage>> {
 	const result = new Map<string, ICopilotCompletionReferenceMessage>();
 	for (const [id, raw] of await db?.getTurnMetadata(completionReferencesMetadataKey) ?? []) {
-		result.set(id, JSON.parse(raw) as ICopilotCompletionReferenceMessage);
+		const message = JSON.parse(raw) as ICopilotCompletionReferenceMessage;
+		result.set(id, {
+			...message,
+			references: message.references.map(reference => {
+				const attachment = reference.attachment;
+				const restored = attachment.type === MessageAttachmentKind.Simple ? restoreLegacySkillAttachment(attachment) : undefined;
+				return restored ? { ...reference, attachment: { ...restored, range: attachment.range } } : reference;
+			}),
+		});
 	}
 	return result;
 }

@@ -1294,6 +1294,7 @@ export class ChangeLanguageAction extends Action2 {
 					languageSupport.setLanguageId(languageSelection.languageId, ChangeLanguageAction.ID);
 
 					if (resource?.scheme === Schemas.untitled) {
+						// TODO@hediet: remove once `documentLanguageChanged` (see untitledDocumentTelemetry.ts) has enough data, it covers this event
 						type SetUntitledDocumentLanguageEvent = { to: string; from: string; modelPreference: string };
 						type SetUntitledDocumentLanguageClassification = {
 							owner: 'TylerLeonhardt';

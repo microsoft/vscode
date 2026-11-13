@@ -36,6 +36,7 @@ import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '.
 import '../browser/aiCustomization/copilotCanvases.contribution.js';
 import './codexCustomizationSettings.contribution.js';
 import './agentSessions/computerUseHelperApp.contribution.js';
+import './actions/chatAppWindowScreenshotActions.js';
 import { AgentSessionProviders, getAgentSessionProviderName } from '../browser/agentSessions/agentSessions.js';
 import { IAgentSessionsService } from '../browser/agentSessions/agentSessionsService.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../browser/chat.js';
@@ -53,7 +54,7 @@ import { registerExportAgentTracesDbAction } from './actions/exportAgentTracesDb
 import { registerInstallDictationModelAction } from './actions/installDictationModelAction.js';
 import { confirmSessionShutdown, getChatUnattendedRestartBlocker, getEffectiveSessionShutdownReason, shouldWarnForInFlightSessionShutdown, shouldWarnForSessionShutdown } from './chatLifecycle.js';
 import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
-import { OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, CopilotHarnessIntroductionContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
+import { AgentsLauncherAction, OpenWorkspaceInAgentsWindowAction, OpenWorkspaceInAgentsContribution, OpenAgentsWindowAction, OpenChatSessionInAgentsWindowAction, CopilotHarnessIntroductionContribution, ToggleOpenInAgentsWindowTitleBarAction, OpenWorkspaceInAgentsWindowChatTitleAction, OpenWorkspaceInAgentsWindowTitleBarAction, ResetCopilotHarnessIntroductionAction } from './agentSessions/agentSessionsActions.js';
 import { AgentsWindowInvitationContribution } from './agentSessions/agentsWindowInvitation.js';
 import { AgentHostEditorActivity, IAgentHostEditorActivityService } from './agentSessions/agentHostEditorActivity.js';
 import { NativeBuiltinToolsContribution } from './builtInTools/tools.js';
@@ -243,6 +244,7 @@ registerAction2(OpenWorkspaceInAgentsWindowChatTitleAction);
 registerAction2(OpenWorkspaceInAgentsWindowTitleBarAction);
 registerAction2(ToggleOpenInAgentsWindowTitleBarAction);
 registerAction2(OpenAgentsWindowAction);
+registerAction2(AgentsLauncherAction);
 registerAction2(OpenChatSessionInAgentsWindowAction);
 if (!product.quality) {
 	registerAction2(ResetCopilotHarnessIntroductionAction);

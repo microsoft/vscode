@@ -211,7 +211,6 @@
 		"sash"
 	],
 	// --- Workbench ---
-	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"multiDiffEditor.experimental.fileList": true,
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md

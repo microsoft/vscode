@@ -59,7 +59,7 @@ import { AgentHostCompletionReferenceKind, ChatPasteAttachmentMetadata, IChatReq
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatRequestAcceptedEvent, IChatService, IChatUserActionEvent, ResponseModelState, IRemotePendingRequest } from '../../../common/chatService/chatService.js';
 import { backfillTransferredModel, backfillRestoredPickerState, ChatService, rekeyIntendedModel } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatOpenDiagnosticsService, IChatOpenDiagnosticsService } from '../../../common/chatOpenDiagnosticsService.js';
 import { IIntendedModelSelection, ModelSelectionReason } from '../../../common/modelSelection.js';
@@ -662,6 +662,20 @@ suite('ChatService', () => {
 		service.processPendingRequests(model.sessionResource);
 		await timeout(10);
 		assert.deepStrictEqual(accepted, [true, false, false]);
+	});
+
+	test('acceptance exposes the Agent Host origin of delegated submissions', async () => {
+		const service = createChatService();
+		const model = startSessionModel(service).object;
+		const accepted: IChatRequestAcceptedEvent['agentHostMessageOrigin'][] = [];
+		testDisposables.add(service.onDidAcceptRequest(event => accepted.push(event.agentHostMessageOrigin)));
+		for (const agentHostMessageOrigin of [undefined, { kind: MessageKind.Agent }]) {
+			const sent = await service.sendRequest(model.sessionResource, 'hello', { agentHostMessageOrigin });
+			ChatSendResult.assertSent(sent);
+			await sent.data.responseCompletePromise;
+		}
+		await service.sendRequest(model.sessionResource, 'queued', { queue: ChatRequestQueueKind.Queued, pauseQueue: true, agentHostMessageOrigin: { kind: MessageKind.Tool } });
+		assert.deepStrictEqual(accepted, [undefined, { kind: MessageKind.Agent }, { kind: MessageKind.Tool }]);
 	});
 
 	async function createSurveySession(sessionType: string, provider?: string) {

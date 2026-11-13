@@ -475,7 +475,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 				const resolvedKeybindings = this._keyboardMapper.resolveKeybinding(keybinding);
 				for (let i = resolvedKeybindings.length - 1; i >= 0; i--) {
 					const resolvedKeybinding = resolvedKeybindings[i];
-					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension);
+					result[resultLen++] = new ResolvedKeybindingItem(resolvedKeybinding, item.command, item.commandArgs, when, isDefault, item.extensionId, item.isBuiltinExtension, item.systemWide);
 				}
 			}
 		}

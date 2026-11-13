@@ -21,7 +21,7 @@ import { IConfirmation, IDialogService } from '../../../../../../platform/dialog
 import { ByteSize } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { IProgress, IProgressOptions, IProgressService, IProgressStep } from '../../../../../../platform/progress/common/progress.js';
+import { IProgress, IProgressOptions, IProgressService, IProgressStep, ProgressLocation } from '../../../../../../platform/progress/common/progress.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { ISessionHostService } from '../../../../../services/sessions/browser/sessionHost.js';
@@ -1586,7 +1586,7 @@ suite('SessionWorktreeCleanupService', () => {
 		assert.strictEqual(cleanups, 0);
 	});
 
-	test('reports cleanup scheduling progress after each archived session', async () => {
+	test('shows concise scheduling progress when no caller handles it', async () => {
 		const archived: string[] = [];
 		const progressService = new TestProgressService();
 		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
@@ -1618,6 +1618,7 @@ suite('SessionWorktreeCleanupService', () => {
 			cleaned,
 			archived,
 			progress: progressService.options.map(options => ({
+				location: options.location,
 				title: options.title,
 				total: options.total,
 			})),
@@ -1626,23 +1627,26 @@ suite('SessionWorktreeCleanupService', () => {
 			cleaned: true,
 			archived: ['first', 'second'],
 			progress: [{
-				title: 'Scheduling cleanup for 3 agent session worktrees...',
-				total: undefined,
+				location: ProgressLocation.Notification,
+				title: 'Scheduling worktree cleanup...',
+				total: 3,
 			}],
 			reports: [
-				{ increment: 2 / 3 * 100, message: 'scheduled 2 of 3 worktrees' },
-				{ increment: 1 / 3 * 100, message: 'scheduled 3 of 3 worktrees' },
+				{ increment: 2, message: '2 of 3 worktrees scheduled' },
+				{ increment: 1, message: '3 of 3 worktrees scheduled' },
 			],
 		});
 	});
 
-	test('publishes confirmation and individual outcomes while continuing after scheduling failures', async () => {
+	test('publishes inline progress without a duplicate notification while continuing after scheduling failures', async () => {
 		const first = createSession('first', oldDate(), SessionStatus.Completed, false, true, 2);
 		const second = createSession('second', oldDate());
 		const third = createSession('third', oldDate());
 		const archived: string[] = [];
 		const updates: SessionWorktreeCleanupProgress[] = [];
+		const progressService = new TestProgressService();
 		const service = disposables.add(createService([first, second, third], true, () => 100, undefined, undefined, undefined, undefined, undefined, undefined, Event.None, {
+			progressService,
 			dialogService: upcastPartial<IDialogService>({ confirm: async () => ({ confirmed: true }) }),
 			onArchive: async session => {
 				archived.push(session.sessionId);
@@ -1659,6 +1663,7 @@ suite('SessionWorktreeCleanupService', () => {
 		], progress => updates.push(progress)), /Couldn't schedule cleanup for 1 worktrees\.\nsecond: host disconnected/);
 		assert.deepStrictEqual({
 			archived,
+			notifications: progressService.options,
 			updates: updates.map(progress => progress.state === 'started' ? progress : {
 				state: progress.state,
 				session: getWorktreeCleanupId(progress.candidate),
@@ -1666,6 +1671,7 @@ suite('SessionWorktreeCleanupService', () => {
 			}),
 		}, {
 			archived: ['first', 'second', 'third'],
+			notifications: [],
 			updates: [
 				{ state: 'started' },
 				{ state: 'scheduled', session: 'first', message: undefined },

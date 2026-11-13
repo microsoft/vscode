@@ -205,6 +205,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService, _configurationService, logService, gitHubService, instantiationService, sessionHostService, focusedSessionHostService, activeClientService, mcpAppToolsService, storageService, dialogService, workspaceTrustManagementService, recentWorkspacesService, uriIdentityService);
 		this.initializeDevContainerSupport(devContainerAgentHostService, sessionsProvidersService, workspaceTrustRequestService);
 		const automations = this._register(instantiationService.createInstance(ReconnectableAgentHostAutomationStore, this.id, {
+			supportsOneTimeAutomation: true,
+			supportsExistingChatAutomation: true,
 			toHost: resource => resource,
 			fromHost: resource => resource,
 			resourceSchemeForProvider: provider => this.resourceSchemeForProvider(provider),
@@ -214,6 +216,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 				const identity = this._connectionsService.resolveSessionResourceIdentity(resource);
 				return identity?.backendSessionIsAdvertised && identity.connectionAuthority === AMBIENT_AGENT_HOST_AUTHORITY ? identity.backendSession : undefined;
 			},
+			resolveBackendChat: resource => this.getBackendChatResource(resource),
+			conversationFromHost: (session, chat) => this.getAutomationConversation(session, chat),
 			onDidChangeSessionResolution: this._connectionsService.onDidChangeSessionResolution,
 			providerForResourceScheme: scheme => scheme.startsWith(LOCAL_RESOURCE_SCHEME_PREFIX) ? scheme.slice(LOCAL_RESOURCE_SCHEME_PREFIX.length) : undefined,
 		}));

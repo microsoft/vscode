@@ -47,6 +47,18 @@ function toPackageKey(snapshotKey: string): string {
 }
 
 /**
+ * Splits the contents of a `pnpm-lock.yaml` file into the lockfile of the projects, which is the
+ * last YAML document, and the documents before it, which lock the pnpm version that
+ * `packageManager` pins (https://pnpm.io/lockfile). `leadingDocuments` ends with the `---` line
+ * that starts the lockfile of the projects, and is empty if the file has a single document.
+ */
+export function splitLockfileDocuments(content: string): { leadingDocuments: string; lockfile: string } {
+	const lastSeparator = [...content.matchAll(/^---(?:\r?\n|$)/gm)].at(-1);
+	const end = lastSeparator ? lastSeparator.index + lastSeparator[0].length : 0;
+	return { leadingDocuments: content.substring(0, end), lockfile: content.substring(end) };
+}
+
+/**
  * Updates the chat-lib project (importer `chatLibImporterId`) of the repository's lockfile after the
  * extraction changed the dependencies in chat-lib's `package.json` to Copilot's, without resolving
  * anything: chat-lib and Copilot are members of the root pnpm workspace, so both share one lockfile.

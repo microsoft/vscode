@@ -5,6 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Sequencer } from '../../../base/common/async.js';
+import { structuralEquals } from '../../../base/common/equals.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Disposable, DisposableMap, DisposableStore, IReference, toDisposable } from '../../../base/common/lifecycle.js';
@@ -132,8 +133,14 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 					}
 					this.artifacts.set(request.subscription, reference.object);
 					store.add(toDisposable(() => this.artifacts.delete(request.subscription)));
+					// Models rebuild their snapshot on every change to their session; only a different snapshot is a new revision.
+					let sent: ArtifactSnapshot | undefined;
 					store.add(autorun(reader => {
 						const snapshot = reference.object.snapshot.read(reader);
+						if (sent !== undefined && structuralEquals(sent, snapshot)) {
+							return;
+						}
+						sent = snapshot;
 						this.updates.fire({ kind: 'artifact', subscription: request.subscription, revision: ++revision, snapshot });
 					}));
 					return { kind: 'artifact', subscription: request.subscription, revision, snapshot: reference.object.snapshot.get() };
@@ -145,8 +152,14 @@ export class ArtifactIntegrationServer extends Disposable implements IArtifactIn
 				}
 				this.details.set(request.subscription, details);
 				store.add(toDisposable(() => this.details.delete(request.subscription)));
+				let sentDetails: ArtifactDetails | undefined;
 				store.add(autorun(reader => {
-					this.updates.fire({ kind: 'details', subscription: request.subscription, revision: ++revision, details: details.details.read(reader), canLoadMore: !!details.loadMore });
+					const value = details.details.read(reader);
+					if (sentDetails !== undefined && structuralEquals(sentDetails, value)) {
+						return;
+					}
+					sentDetails = value;
+					this.updates.fire({ kind: 'details', subscription: request.subscription, revision: ++revision, details: value, canLoadMore: !!details.loadMore });
 				}));
 				return { kind: 'details', subscription: request.subscription, revision, details: details.details.get(), canLoadMore: !!details.loadMore };
 			} catch (error) {
@@ -254,8 +267,14 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 		const authenticating = observableValue<ReadonlySet<string>>(this, new Set());
 		let revision = -1;
 		const accept = (update: ArtifactIntegrationUpdate) => {
-			if (!store.isDisposed && isArtifactIntegrationUpdate(update) && update.subscription === subscription && update.kind === 'artifact' && update.revision > revision) {
-				revision = update.revision;
+			// Every subscription hears every update, so route on the cheap fields before validating the payload.
+			if (store.isDisposed || !isRecord(update) || update.subscription !== subscription || update.kind !== 'artifact'
+				|| update.revision <= revision || !isArtifactIntegrationUpdate(update)) {
+				return;
+			}
+			revision = update.revision;
+			const current = value.get();
+			if (current === undefined || !structuralEquals(current, update.snapshot)) {
 				value.set(update.snapshot, undefined);
 			}
 		};
@@ -407,8 +426,13 @@ export class ArtifactIntegrationClient extends Disposable implements IArtifactIn
 		const value = observableValue<ArtifactDetails | undefined>(this, undefined);
 		let revision = -1;
 		const accept = (update: ArtifactIntegrationUpdate) => {
-			if (!store.isDisposed && isArtifactIntegrationUpdate(update) && update.subscription === subscription && update.kind === 'details' && update.revision > revision) {
-				revision = update.revision;
+			if (store.isDisposed || !isRecord(update) || update.subscription !== subscription || update.kind !== 'details'
+				|| update.revision <= revision || !isArtifactIntegrationUpdate(update)) {
+				return;
+			}
+			revision = update.revision;
+			const current = value.get();
+			if (current === undefined || !structuralEquals(current, update.details)) {
 				value.set(update.details, undefined);
 			}
 		};

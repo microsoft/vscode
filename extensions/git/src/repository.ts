@@ -1982,12 +1982,6 @@ export class Repository implements Disposable {
 			// Create the worktree
 			await this.repository.addWorktree({ path: worktreePath!, commitish: commitish ?? 'HEAD', branch, noTrack });
 
-			// Update worktree root in global state
-			const newWorktreeRoot = path.dirname(worktreePath!);
-			if (defaultWorktreeRoot && !pathEquals(newWorktreeRoot, defaultWorktreeRoot)) {
-				this.globalState.update(`${Repository.WORKTREE_ROOT_STORAGE_KEY}:${this.root}`, newWorktreeRoot);
-			}
-
 			// Worktree setup is best effort and must not delay or fail creation.
 			this._setupWorktree(worktreePath!).then(undefined, err => {
 				this.logger.warn(`[Repository][createWorktree] Failed to set up worktree '${worktreePath}': ${err}`);

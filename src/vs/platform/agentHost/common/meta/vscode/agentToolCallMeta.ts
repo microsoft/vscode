@@ -11,6 +11,9 @@ import { isSandboxPathGrant, type ISandboxPathGrant } from '../../sandboxPathGra
 
 export const copilotCliToolInputContract = 'copilot-cli-v1';
 
+/** What the path of a native `view` tool call named. */
+export type ViewedResourceType = 'file' | 'directory';
+
 /** Anything carrying a tool call's `_meta` bag (persisted state or wire actions). */
 interface IHasToolCallMeta {
 	readonly _meta?: Record<string, unknown>;
@@ -28,6 +31,8 @@ export interface IToolCallMeta {
 	readonly 'vscode.toolCallDurationMs'?: number;
 	/** Declares the input schema of a native tool, never a client- or MCP-contributed implementation. */
 	readonly 'vscode.toolInputContract'?: typeof copilotCliToolInputContract;
+	/** What the path of a completed native `view` call named, which its input does not say. Absent when the runtime did not report it. */
+	readonly 'vscode.viewedResourceType'?: ViewedResourceType;
 	/** Trusted Copilot host snapshot for integrated-browser client tools. Absent for other tools and harnesses. */
 	readonly 'vscode.copilotSandboxNetworkRestrictions'?: ISandboxNetworkRestrictions;
 	readonly 'agentHost.sandboxBypass'?: boolean;
@@ -88,6 +93,7 @@ const toolCallMetaKeys = [
 	imageGenerationToolMetaKey,
 	'vscode.toolCallDurationMs',
 	'vscode.toolInputContract',
+	'vscode.viewedResourceType',
 	'vscode.copilotSandboxNetworkRestrictions',
 	'vscode.sandboxPathGrant',
 	'vscode.assistedApprovalNotice',
@@ -205,6 +211,10 @@ export function readToolCallMeta(source: IHasToolCallMeta): IToolCallMeta {
 	}
 	if (meta['vscode.toolInputContract'] === copilotCliToolInputContract) {
 		result['vscode.toolInputContract'] = copilotCliToolInputContract;
+	}
+	const viewedResourceType = meta['vscode.viewedResourceType'];
+	if (viewedResourceType === 'file' || viewedResourceType === 'directory') {
+		result['vscode.viewedResourceType'] = viewedResourceType;
 	}
 	const networkRestrictions = meta['vscode.copilotSandboxNetworkRestrictions'];
 	if (isSandboxNetworkRestrictions(networkRestrictions)) {

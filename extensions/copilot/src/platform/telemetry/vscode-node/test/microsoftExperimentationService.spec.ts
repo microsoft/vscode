@@ -13,6 +13,7 @@ import { CopilotTokenStore, ICopilotTokenStore } from '../../../authentication/c
 import { AuthProviderId, ConfigKey } from '../../../configuration/common/configurationService';
 import { DefaultsOnlyConfigurationService } from '../../../configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
+import { INTEGRATION_ID } from '../../../endpoint/common/licenseAgreement';
 import { IEnvService } from '../../../env/common/envService';
 import { IVSCodeExtensionContext } from '../../../extContext/common/extensionContext';
 import { ILogService } from '../../../log/common/logService';
@@ -26,6 +27,7 @@ vi.mock('vscode', async importOriginal => ({
 	...await importOriginal<typeof import('vscode')>(),
 	env: { appRoot: '', devDeviceId: 'test-device' },
 	workspace: { isAgentSessionsWorkspace: false },
+	extensions: { getExtension: () => undefined },
 }));
 
 vi.mock('vscode-tas-client', () => ({
@@ -65,7 +67,7 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 	function fetchAssignments() {
 		const config = vi.mocked(getExperimentationServiceFromConfig).mock.calls.at(-1)![0];
 		const userParams = Object.fromEntries(config.assignmentsFilterProviders!.flatMap(provider => [...provider.getFilters()]));
-		const init = { method: 'POST' as const, headers: {}, body: JSON.stringify({ userParams }) };
+		const init = { method: 'POST' as const, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userParams }) };
 		return (config.assignmentsFetch ?? config.fetch)!(config.assignmentsEndpoint!, init);
 	}
 
@@ -116,6 +118,24 @@ describe('MicrosoftExperimentationService endpoint routing', () => {
 	}
 
 	for (const token of [undefined, new CopilotToken(createTestExtendedTokenInfo({ endpoints: undefined }))]) {
+		it(`sends the integrator only in assignment userParams when ${token ? 'signed in' : 'signed out'}`, async () => {
+			const { service, fetcher } = createService(token);
+			await service.hasTreatments();
+			await fetchAssignments();
+			const config = vi.mocked(getExperimentationServiceFromConfig).mock.calls.at(-1)![0];
+			const legacyFilters = Object.fromEntries(config.filterProviders!.flatMap(provider => [...provider.getFilters()]));
+			expect({
+				requests: fetcher.fetch.mock.calls.map(([, options]) => ({
+					integratorId: JSON.parse(options.body!).userParams.integratorid,
+					headers: options.headers,
+				})),
+				legacyIntegratorId: legacyFilters.integratorid,
+			}).toEqual({
+				requests: [{ integratorId: INTEGRATION_ID, headers: { 'Content-Type': 'application/json' } }],
+				legacyIntegratorId: undefined,
+			});
+		});
+
 		it(`configures ${token ? 'individual routing without a token endpoint' : 'discovery when signed out'}`, async () => {
 			const { service } = createService(token);
 			await service.hasTreatments();

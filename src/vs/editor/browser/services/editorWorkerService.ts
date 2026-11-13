@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from '../../../base/common/async.js';
+import { RunOnceScheduler, timeout } from '../../../base/common/async.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { logOnceWebWorkerWarning, IWebWorkerClient, Proxied } from '../../../base/common/worker/webWorker.js';
@@ -364,7 +364,13 @@ class WorkerManager extends Disposable {
 		const stopWorkerInterval = this._register(new WindowIntervalTimer());
 		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2), mainWindow);
 
-		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
+		// check once per burst of removals, `getModels` is O(n) and many models can be disposed at once
+		const checkStopEmptyWorker = this._register(new RunOnceScheduler(() => this._checkStopEmptyWorker(), 0));
+		this._register(this._modelService.onModelRemoved(_ => {
+			if (this._editorWorkerClient && !checkStopEmptyWorker.isScheduled()) {
+				checkStopEmptyWorker.schedule();
+			}
+		}));
 	}
 
 	public override dispose(): void {

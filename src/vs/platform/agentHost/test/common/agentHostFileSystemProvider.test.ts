@@ -1282,6 +1282,25 @@ suite('AgentHostFileSystemProvider - resolve / mkdir / copy / watch', () => {
 		sub.dispose();
 	});
 
+	test('watch tags forwarded changes with the correlation ID of the watcher', async () => {
+		const { provider, connection } = setup();
+		const onDidChange = new Emitter<readonly IFileChange[]>();
+		connection.nextWatchHandle = {
+			onDidChange: onDidChange.event,
+			dispose: () => onDidChange.dispose(),
+		};
+		const received: IFileChange[][] = [];
+		const sub = provider.onDidChangeFile(c => received.push([...c]));
+		const watchDisposable = provider.watch(agentHostUri('remote', '/watched'), { recursive: false, excludes: [], correlationId: 7 });
+
+		await new Promise<void>(resolve => queueMicrotask(resolve));
+		onDidChange.fire([{ resource: URI.parse('file:///watched/a.txt'), type: FileChangeType.UPDATED }]);
+
+		assert.deepStrictEqual(received, [[{ resource: toAgentHostUri(URI.parse('file:///watched/a.txt'), 'remote'), type: FileChangeType.UPDATED, cId: 7 }]]);
+		watchDisposable.dispose();
+		sub.dispose();
+	});
+
 	test('watch forwards includes patterns to watchResource', async () => {
 		const { provider, connection } = setup();
 		const onDidChange = new Emitter<readonly IFileChange[]>();

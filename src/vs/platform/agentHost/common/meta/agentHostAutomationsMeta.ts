@@ -4,3 +4,4 @@
  *--------------------------------------------------------------------------------------------*/
 
 export { AgentHostAutomationHistoryCapabilityMetaKey, AgentHostAutomationHistoryDeletionStateCapabilityMetaKey, AgentHostAutomationHistoryReceiptsCapabilityMetaKey, AgentHostAutonomousAutomationsCapabilityMetaKey, getAgentHostAutomationHistoryState, getAgentHostAutomationScheduleKind, supportsAgentHostAutomationHistory, supportsAgentHostAutomationHistoryDeletionState, supportsAgentHostAutomationHistoryReceipts, supportsAgentHostAutonomousAutomations, withAgentHostAutomationHistoryState, withAgentHostAutomationScheduleKind, type AgentHostAutomationHistoryState } from './vscode/agentHostAutomationsMeta.js';
+export { getAgentHostAutomationCreationId, withAgentHostAutomationCreationId } from './vscode/agentHostAutomationsMeta.js';

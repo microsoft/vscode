@@ -6,7 +6,7 @@
 import { getExpirationTime, isExpired } from '../../../base/common/date.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import type { AuthenticateParams, IAgentHostAuthTokenRequest } from '../common/agent.js';
-import { normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
+import { normalizeAuthenticationScopes, type IAgentHostAuthenticationScope, type IAgentHostCredentialPrincipal, type IAgentHostCredentialSource, type IAgentHostQueuedCredentialSource, type IAgentHostScopedCredential } from '../common/agentHostCredentials.js';
 import { AhpErrorCodes, JsonRpcErrorCodes, ProtocolError } from '../common/state/sessionProtocol.js';
 
 interface IScopedCredential extends IAgentHostScopedCredential {
@@ -24,6 +24,7 @@ export class AgentHostAuthenticationScope extends Disposable implements IAgentHo
 		private readonly _checkAuthorization: () => void,
 		readonly principal?: IAgentHostCredentialPrincipal,
 		private readonly _resolveCredentials?: (resource: string) => IAgentHostCredentialSource | undefined,
+		readonly createQueuedCredentialSource?: (chat: string) => IAgentHostQueuedCredentialSource,
 	) {
 		super();
 	}

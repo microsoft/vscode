@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getDomNodePagePosition, getWindow, isAncestor, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, EventType, getDomNodePagePosition, getWindow, isHTMLElement, reset, trackFocus } from '../../../../base/browser/dom.js';
+import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event as EventUtils } from '../../../../base/common/event.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -19,57 +21,91 @@ import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived, IObservable, IReader, observableSignalFromEvent } from '../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { AnchorAlignment, AnchorPosition, IAnchor } from '../../../../base/common/layout.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { IContextMenuService, IContextViewService, IOpenContextView } from '../../../../platform/contextview/browser/contextView.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IsAuxiliaryWindowContext, LayoutModeContext } from '../../../../workbench/common/contextkeys.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionsBlockedSessionsVisibleContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
+import { SessionsCommandCenterDropdownVisibleContext, SessionsWelcomeVisibleContext } from '../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 import { getChatWindowOfHost, openPickedSessionInChatWindow, SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
-import { getWindowHost, ISessionHost } from '../../../../workbench/services/sessions/browser/sessionHost.js';
-import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, registerBlockedSessionsItemActions } from './blockedSessionsList.js';
+import { getWindowHost, ISessionHost, SessionHostKind } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { BlockedSessionsList, IBlockedSessionsHeaderActionContext, ICommandCenterSessionsHeaderActionContext, registerBlockedSessionsItemActions, SessionsCommandCenterList } from './blockedSessionsList.js';
 import { SessionActionFeedback } from './sessionActionFeedback.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from './blockedSessionsIndicatorModel.js';
 import { getSessionWorkspaceDisplayInfo, ISessionWorkspaceDisplayInfo } from '../../../browser/sessionWorkspace.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../../workbench/services/environment/browser/environmentService.js';
 import { isAgentHostProvider } from '../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { groupSessionsForPicker } from './sessionsPicker.js';
+import { ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 /**
- * Internal command behind the blocked-sessions dropdown header's "Show All
- * Sessions" action: it dismisses the dropdown (a transient context view) before
- * opening the full sessions picker so the popup doesn't linger behind it.
+ * Internal command behind the command-center dropdown header's "Show All
+ * Sessions" action.
  */
-const SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID = 'sessions.blockedSessions.showAllSessions';
+const SHOW_ALL_SESSIONS_FROM_COMMAND_CENTER_COMMAND_ID = 'sessions.commandCenter.showAllSessions';
 
 /** Internal command behind the blocked-sessions dropdown header's bulk-ignore action. */
 const IGNORE_ALL_INPUT_NEEDED_COMMAND_ID = 'sessions.blockedSessions.ignoreAllInputNeeded';
 
 /**
- * Internal command that dismisses the blocked-sessions dropdown. Bound to Escape
- * (scoped to {@link SessionsBlockedSessionsVisibleContext}) so the dropdown can
- * be closed from anywhere in the sessions window while it is open, not only when
- * focus happens to be inside it.
+ * Internal command that dismisses the command-center sessions dropdown. Bound
+ * to Escape so the dropdown can be closed even when focus is outside it.
  */
-const HIDE_BLOCKED_SESSIONS_COMMAND_ID = 'sessions.blockedSessions.hide';
+const HIDE_COMMAND_CENTER_SESSIONS_COMMAND_ID = 'sessions.commandCenter.hideSessions';
+
+const COMMAND_CENTER_DROPDOWN_SHOW_DELAY = 50;
+const COMMAND_CENTER_DROPDOWN_HIDE_DELAY = 200;
+const COMMAND_CENTER_DROPDOWN_CLOSE_ANIMATION_DURATION = 100;
+const COMMAND_CENTER_DROPDOWN_CLOSING_CLASS = 'agent-sessions-command-center-list-closing';
+const COMMAND_CENTER_PREVIEW_MAX_SESSIONS = 8;
+const sessionAttentionReminderIcon = registerIcon('sessions-session-attention-reminder', Codicon.reportQuestion, localize('sessionAttentionReminderIcon', "Icon reminding the user that another session still requires attention."));
+type CommandCenterDropdownKind = 'sessions' | 'blocked';
+
+/** Register the actions shown in the ordinary command-center sessions header. */
+export function registerCommandCenterSessionsHeaderActions(): IDisposable {
+	return combinedDisposable(
+		MenuRegistry.appendMenuItem(Menus.CommandCenterSessionsHeader, {
+			command: {
+				id: SHOW_ALL_SESSIONS_FROM_COMMAND_CENTER_COMMAND_ID,
+				title: localize('showAllSessions', "Show All Sessions"),
+				icon: Codicon.listSelection,
+			},
+			group: 'navigation',
+			order: 1,
+		}),
+		MenuRegistry.appendMenuItem(Menus.CommandCenterSessionsHeader, {
+			command: {
+				id: HIDE_COMMAND_CENTER_SESSIONS_COMMAND_ID,
+				title: localize('closeCommandCenterSessions', "Close"),
+				icon: Codicon.close,
+			},
+			group: 'z_close',
+			order: 1,
+		}),
+	);
+}
 
 /** Register the actions shown in the blocked-sessions dropdown header toolbar. */
 export function registerBlockedSessionsHeaderActions(): IDisposable {
 	return combinedDisposable(
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
 			command: {
-				id: SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID,
+				id: SHOW_ALL_SESSIONS_FROM_COMMAND_CENTER_COMMAND_ID,
 				title: localize('showAllSessions', "Show All Sessions"),
 				icon: Codicon.listSelection,
 			},
@@ -87,7 +123,7 @@ export function registerBlockedSessionsHeaderActions(): IDisposable {
 		}),
 		MenuRegistry.appendMenuItem(Menus.BlockedSessionsHeader, {
 			command: {
-				id: HIDE_BLOCKED_SESSIONS_COMMAND_ID,
+				id: HIDE_COMMAND_CENTER_SESSIONS_COMMAND_ID,
 				title: localize('closeBlockedSessions', "Close"),
 				icon: Codicon.close,
 			},
@@ -100,7 +136,7 @@ export function registerBlockedSessionsHeaderActions(): IDisposable {
 /** Register the commands invoked by the blocked-sessions header toolbar. */
 export function registerBlockedSessionsHeaderCommands(): IDisposable {
 	return combinedDisposable(
-		CommandsRegistry.registerCommand(SHOW_ALL_SESSIONS_FROM_BLOCKED_LIST_COMMAND_ID, (_accessor, context: IBlockedSessionsHeaderActionContext) => {
+		CommandsRegistry.registerCommand(SHOW_ALL_SESSIONS_FROM_COMMAND_CENTER_COMMAND_ID, (_accessor, context: ICommandCenterSessionsHeaderActionContext) => {
 			context.showAllSessions();
 		}),
 		CommandsRegistry.registerCommand(IGNORE_ALL_INPUT_NEEDED_COMMAND_ID, (_accessor, context: IBlockedSessionsHeaderActionContext) => {
@@ -110,10 +146,10 @@ export function registerBlockedSessionsHeaderCommands(): IDisposable {
 }
 
 /**
- * The currently-open blocked-sessions dropdown, shared with the Escape command so
- * it closes this specific context view.
+ * The currently-open command-center sessions dropdown, shared with the Escape
+ * command so it closes this specific context view.
  */
-let openBlockedSessionsView: IOpenContextView | undefined;
+let closeOpenCommandCenterSessionsView: (() => void) | undefined;
 
 /**
  * Minimum width of the blocked-sessions dropdown, in pixels. The dropdown is at
@@ -139,7 +175,8 @@ const BLOCKED_DROPDOWN_MAX_WIDTH_RATIO = 0.9;
  * the widget instead adopts an orange "N sessions require input" state and reveals those sessions as a
  * flat list in a dropdown anchored below the command center box. A short blink
  * animation plays whenever a new session becomes blocked. In every other case it
- * behaves as the active-session pill and opens the sessions picker on click.
+ * behaves as the active-session pill and previews recent sessions on hover. A
+ * click pins the preview; its header opens the full searchable sessions picker.
  *
  * The requires-input logic (which blocked sessions to surface, the homogeneous
  * reason, labels and when to blink) is owned by {@link BlockedSessionsIndicatorModel};
@@ -158,6 +195,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	private _container: HTMLElement | undefined;
 	private readonly _dynamicDisposables = this._register(new DisposableStore());
+	private readonly _containerDisposables = this._register(new DisposableStore());
 
 	/** Owns the blink animation's `animationend` listener, kept across re-renders. */
 	private readonly _blinkListener = this._register(new MutableDisposable());
@@ -171,16 +209,38 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	private _isQuickChat = false;
 	private readonly _sessionTitle: string | undefined;
 
-	/** The currently open blocked-sessions dropdown, if any. */
+	/** The currently open command-center sessions dropdown, if any. */
 	private _openContextView: IOpenContextView | undefined;
-	/** The blocked-sessions list rendered inside the open dropdown, if any. */
-	private _blockedList: BlockedSessionsList | undefined;
+	private _commandCenterList: BlockedSessionsList | SessionsCommandCenterList | undefined;
+	private readonly _commandCenterListDisposables = this._register(new MutableDisposable<DisposableStore>());
+	private _openDropdownKind: CommandCenterDropdownKind | undefined;
+	private _dropdownContainer: HTMLElement | undefined;
+	private _focusToReturn: HTMLElement | undefined;
+	private _dropdownPinned = false;
+	private _pointerOverAnchor = false;
+	private _pointerOverDropdown = false;
+	private _pointerOverSessionHover = false;
+	private _contextMenuVisible = false;
+	private readonly _closeDropdownAnimation = this._register(new MutableDisposable());
 
-	/** Tracks whether the blocked-sessions dropdown is open (drives the Escape keybinding). */
-	private readonly _blockedSessionsVisibleContext: IContextKey<boolean>;
+	/** Tracks whether the command-center sessions dropdown is open (drives the Escape keybinding). */
+	private readonly _commandCenterDropdownVisibleContext: IContextKey<boolean>;
+
+	private readonly _showDropdownScheduler = this._register(new RunOnceScheduler(
+		() => this._showCommandCenterDropdown(false),
+		COMMAND_CENTER_DROPDOWN_SHOW_DELAY,
+	));
+	private readonly _hideDropdownScheduler = this._register(new RunOnceScheduler(
+		() => this._hideDropdownPreview(),
+		COMMAND_CENTER_DROPDOWN_HIDE_DELAY,
+	));
 
 	/** The host of the window whose title bar shows the widget. */
 	private readonly _windowHost: ISessionHost;
+	/** The session represented by the main window's active grid pane, or by this chat window. */
+	private readonly _activeSession: IObservable<ISession | undefined>;
+	/** Ordered sessions eligible for the ordinary command-center preview. */
+	private readonly _commandCenterSessions: IObservable<readonly ISession[]>;
 
 	constructor(
 		action: SubmenuItemAction,
@@ -202,12 +262,35 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
 		@IChatWindowService private readonly chatWindowService: IChatWindowService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
+		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(undefined, action, options);
 		this._windowHost = getWindowHost(sessionHost);
+		this._activeSession = derived(this, reader => {
+			if (this._windowHost.kind !== SessionHostKind.MainWindow) {
+				return this._windowHost.session.read(reader);
+			}
+			const activePane = this.sessionsService.activePane.read(reader);
+			return activePane ? activePane.session.read(reader) : this._windowHost.session.read(reader);
+		});
+		const sessionsChangedEvent = EventUtils.any(
+			this.sessionsManagementService.onDidChangeSessions,
+			this.sessionsManagementService.onDidChangeSessionTypes,
+		);
+		const sessionsChanged = observableSignalFromEvent(this, sessionsChangedEvent);
+		this._commandCenterSessions = derived(this, reader => {
+			sessionsChanged.read(reader);
+			return this._getCommandCenterSessions(reader);
+		});
 
 		this._sessionTitle = environmentService.sessionTitle?.replace(/\s+/g, ' ').trim() || undefined;
-		this._blockedSessionsVisibleContext = SessionsBlockedSessionsVisibleContext.bindTo(contextKeyService);
+		this._commandCenterDropdownVisibleContext = SessionsCommandCenterDropdownVisibleContext.bindTo(contextKeyService);
+		this._register(contextMenuService.onDidShowContextMenu(() => {
+			this._contextMenuVisible = true;
+			this._showDropdownScheduler.cancel();
+		}));
+		this._register(contextMenuService.onDidHideContextMenu(() => this._contextMenuVisible = false));
 
 		// Replay the attention blink when the model reports a genuinely new, not-yet-
 		// visible block. Invalidate the cached render state so the identical pill is
@@ -225,24 +308,25 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
+		this._register(autorun(reader => {
+			this._commandCenterSessions.read(reader);
+			this._refreshOpenCommandCenterDropdown();
+		}));
 
 		// Re-render when the set of blocked sessions changes; it feeds the
 		// "N sessions require input" state. Keep an open dropdown in sync.
 		this._register(autorun(reader => {
-			const blocked = this._blockedIndicator.blockedSessions.read(reader);
+			this._blockedIndicator.blockedSessions.read(reader);
+			this._blockedIndicator.unacknowledgedBlockedSessions.read(reader);
+			this._blockedIndicator.reminderSessions.read(reader);
+			this._blockedIndicator.attentionSessionCount.read(reader);
 			this._sessionActionFeedback.approvedCount.read(reader);
 			this._blockedIndicator.requiresInputKind.read(reader);
-			if (this._openContextView && this._blockedList) {
-				this._blockedList.setSessions(blocked.map(entry => entry.session));
-				this.contextViewService.layout();
-			}
 			this._render();
+			this._refreshOpenCommandCenterDropdown();
 		}));
 
-		this._register(EventUtils.any(
-			this.sessionsManagementService.onDidChangeSessions,
-			this.sessionsManagementService.onDidChangeSessionTypes,
-		)(() => {
+		this._register(sessionsChangedEvent(() => {
 			this._lastRenderState = undefined;
 			this._render();
 		}));
@@ -262,6 +346,20 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 		this._container = container;
 		container.classList.add('agent-sessions-titlebar-container');
+		this._containerDisposables.clear();
+		this._containerDisposables.add(addDisposableListener(container, EventType.MOUSE_ENTER, () => {
+			this._pointerOverAnchor = true;
+			this._hideDropdownScheduler.cancel();
+			this._cancelDropdownCloseAnimation();
+			if (!this._openContextView && !this._contextMenuVisible) {
+				this._showDropdownScheduler.schedule();
+			}
+		}));
+		this._containerDisposables.add(addDisposableListener(container, EventType.MOUSE_LEAVE, () => {
+			this._pointerOverAnchor = false;
+			this._showDropdownScheduler.cancel();
+			this._scheduleDropdownPreviewHide();
+		}));
 
 		// Initial render
 		this._render();
@@ -290,18 +388,20 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		try {
 			const approvedCount = this._sessionActionFeedback.approvedCount.get();
 			const blockedCount = this._blockedIndicator.blockedSessions.get().length;
-			const requiresInput = blockedCount > 0;
-
+			const unacknowledgedBlockedCount = this._blockedIndicator.unacknowledgedBlockedSessions.get().length;
+			const reminderCount = this._blockedIndicator.reminderSessions.get().length > 0
+				? this._blockedIndicator.attentionSessionCount.get()
+				: 0;
 			// The transient "Approved N sessions" confirmation takes precedence over the
 			// requires-input state while it is showing.
 			const showApproved = approvedCount > 0;
-			const showRequiresInput = requiresInput && !showApproved;
+			const showRequiresInput = unacknowledgedBlockedCount > 0 && !showApproved;
 
 			// The attention blink fires only when the indicator model reports a
 			// *genuinely new* blocked session while the requires-input state is shown —
 			// including the very first one. `consumePendingBlink` is short-circuited so
 			// the pending blink is only consumed when it actually plays; navigating
-			// between sessions (which changes the visible set, not the model) never blinks.
+			// between sessions acknowledges an occurrence but never creates one.
 			const shouldBlink = showRequiresInput && this._blockedIndicator.consumePendingBlink();
 
 			const requiresInputKind = this._blockedIndicator.requiresInputKind.get();
@@ -312,7 +412,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				renderState = `blocked|${blockedCount}|${requiresInputKind ?? 'mixed'}`;
 			} else {
-				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._getCommandCenterTitle() ?? ''}|${this._workspaceInfo?.branch ?? ''}|${this._isQuickChat}`;
+				renderState = `normal|${this._workspaceInfo?.icon.id ?? ''}|${this._getCommandCenterTitle() ?? ''}|${this._workspaceInfo?.branch ?? ''}|${this._isQuickChat}|${reminderCount}`;
 			}
 
 			// Skip re-render if state hasn't changed
@@ -321,15 +421,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			}
 			this._lastRenderState = renderState;
 
-			// Close the open blocked-sessions dropdown only when there are no blocked
-			// sessions left to show. Note this keys off `requiresInput`, not
-			// `showRequiresInput`: approving a session shows the transient green state
-			// (suppressing `showRequiresInput`) but the dropdown must stay open while
-			// other sessions remain blocked — it just drops the approved row.
-			if (!requiresInput && this._openContextView) {
-				this._openContextView.close();
-			}
-
 			// Clear existing content
 			reset(this._container);
 			this._dynamicDisposables.clear();
@@ -337,7 +428,9 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			// Set up container as the button directly
 			this._container.removeAttribute('aria-hidden');
 			this._container.setAttribute('role', 'button');
+			this._container.setAttribute('aria-haspopup', 'tree');
 			this._container.tabIndex = 0;
+			this._updateDropdownPresentation();
 			// Preserve an in-progress blink when re-rendering the SAME requires-input
 			// pill without a new blink. Other autoruns (e.g. onDidChangeSessions)
 			// invalidate the cached render state and force a redundant rebuild of the
@@ -355,7 +448,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			} else if (showRequiresInput) {
 				this._renderRequiresInput(blockedCount, requiresInputKind, shouldBlink);
 			} else {
-				this._renderActiveSession();
+				this._renderActiveSession(reminderCount);
 			}
 		} finally {
 			this._isRendering = false;
@@ -366,16 +459,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * Render the active-session pill: workspace icon + folder. Clicking opens the
 	 * sessions picker.
 	 */
-	private _renderActiveSession(): void {
+	private _renderActiveSession(reminderCount = 0): void {
 		const container = this._container!;
 		const contextTitle = this._getCommandCenterTitle();
 		const workspaceInfo = this._workspaceInfo;
+		const attentionReminderLabel = reminderCount === 1
+			? localize('oneSessionAttentionReminder', "Another session still requires attention")
+			: reminderCount > 1
+				? localize('nSessionAttentionReminders', "{0} sessions still require attention", reminderCount)
+				: undefined;
 		const accessibleTitleWithBranch = contextTitle && workspaceInfo?.branch
 			? localize('agentSessionsSessionWithBranchAccessible', "{0}, branch {1}", contextTitle, workspaceInfo.branch)
 			: contextTitle;
-		container.setAttribute('aria-label', accessibleTitleWithBranch
+		const accessibleTitle = accessibleTitleWithBranch
 			? localize('agentSessionsShowSessionsWithTitle', "Show Sessions: {0}", accessibleTitleWithBranch)
-			: localize('agentSessionsShowSessions', "Show Sessions"));
+			: localize('agentSessionsShowSessions', "Show Sessions");
+		container.setAttribute('aria-label', attentionReminderLabel
+			? localize('agentSessionsShowSessionsWithAttention', "{0}. {1}", accessibleTitle, attentionReminderLabel)
+			: accessibleTitle);
 
 		// Session pill: workspace icon + label
 		const sessionPill = $('div.agent-sessions-titlebar-pill');
@@ -397,7 +498,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			workspaceEl.textContent = contextTitle;
 			workspaceGroup.appendChild(workspaceEl);
 			centerGroup.appendChild(workspaceGroup);
-			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), workspaceEl, contextTitle));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+				this.options.hoverDelegate ?? getDefaultHoverDelegate('element'),
+				workspaceEl,
+				() => workspaceEl.scrollWidth > workspaceEl.clientWidth ? contextTitle : undefined,
+			));
 		}
 
 		if (workspaceInfo?.branch) {
@@ -413,10 +518,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			branchEl.textContent = workspaceInfo.branch;
 			branchGroup.appendChild(branchEl);
 			centerGroup.appendChild(branchGroup);
-			this._dynamicDisposables.add(this.hoverService.setupManagedHover(this.options.hoverDelegate ?? getDefaultHoverDelegate('element'), branchEl, workspaceInfo.branch));
+			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
+				this.options.hoverDelegate ?? getDefaultHoverDelegate('element'),
+				branchEl,
+				() => branchEl.scrollWidth > branchEl.clientWidth ? workspaceInfo.branch : undefined,
+			));
 		}
 
 		sessionPill.appendChild(centerGroup);
+		if (attentionReminderLabel) {
+			const attentionMarker = $('div.agent-sessions-titlebar-attention-reminder', { 'aria-hidden': 'true' });
+			append(attentionMarker, $(`span.agent-sessions-titlebar-attention-reminder-icon${ThemeIcon.asCSSSelector(sessionAttentionReminderIcon)}`));
+			if (reminderCount > 1) {
+				const attentionCount = append(attentionMarker, $('span.agent-sessions-titlebar-attention-reminder-count'));
+				attentionCount.textContent = String(reminderCount);
+			}
+			append(sessionPill, attentionMarker);
+			this._dynamicDisposables.add(this.hoverService.setupDelayedHover(attentionMarker, { content: attentionReminderLabel, style: HoverStyle.Pointer }));
+		}
 
 		// Click handler on pill
 		this._dynamicDisposables.add(addDisposableGenericMouseDownListener(sessionPill, (e) => {
@@ -426,7 +545,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._showSessionsPicker();
+			this._toggleCommandCenterDropdown();
 		}));
 
 		container.appendChild(sessionPill);
@@ -436,7 +555,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this._showSessionsPicker();
+				this._toggleCommandCenterDropdown();
 			}
 		}));
 	}
@@ -475,7 +594,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		this._dynamicDisposables.add(addDisposableListener(pill, EventType.CLICK, (e) => {
 			e.preventDefault();
 			e.stopPropagation();
-			this._toggleBlockedSessions();
+			this._toggleCommandCenterDropdown();
 		}));
 
 		container.appendChild(pill);
@@ -484,7 +603,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			if (e.key === 'Enter' || e.key === ' ') {
 				e.preventDefault();
 				e.stopPropagation();
-				this._toggleBlockedSessions();
+				this._toggleCommandCenterDropdown();
 			}
 		}));
 
@@ -533,16 +652,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Activate the widget as its non-approved state would: reveal the blocked
-	 * sessions when the requires-input state applies, otherwise the sessions picker.
+	 * Activate the widget as its non-approved state would by toggling the
+	 * command-center sessions dropdown.
 	 */
 	private _activateDefaultAction(): void {
-		const requiresInput = this._blockedIndicator.blockedSessions.get().length > 0;
-		if (requiresInput) {
-			this._toggleBlockedSessions();
-		} else {
-			this._showSessionsPicker();
-		}
+		this._toggleCommandCenterDropdown();
 	}
 
 	/**
@@ -567,106 +681,258 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	}
 
 	/**
-	 * Toggle the blocked-sessions dropdown open/closed.
+	 * Pin an open hover preview, open a pinned dropdown, or close an already
+	 * pinned dropdown.
 	 */
-	private _toggleBlockedSessions(): void {
+	private _toggleCommandCenterDropdown(): void {
 		if (this._openContextView) {
-			this._openContextView.close();
+			if (this._dropdownPinned) {
+				this._closeCommandCenterDropdown();
+			} else {
+				this._cancelDropdownCloseAnimation();
+				this._dropdownPinned = true;
+				this._hideDropdownScheduler.cancel();
+				this._commandCenterList?.focus();
+			}
 			return;
 		}
-		this._showBlockedSessions();
+		this._showCommandCenterDropdown(true);
 	}
 
 	/**
-	 * Show the blocked sessions as a flat list in a dropdown anchored below the
-	 * command center box.
+	 * Show sessions as a flat list in a dropdown anchored below the command center.
+	 * Hover previews preserve focus; click and keyboard activation pin the dropdown
+	 * and move focus into the list.
 	 */
-	private _showBlockedSessions(): void {
+	private _showCommandCenterDropdown(pinned: boolean): void {
 		const container = this._container;
-		if (!container) {
+		if (!container || this._openContextView || (!pinned && this._contextMenuVisible)) {
 			return;
 		}
-		if (this._blockedIndicator.blockedSessions.get().length === 0) {
+		this._showDropdownScheduler.cancel();
+		this._hideDropdownScheduler.cancel();
+
+		const { kind, sessions } = this._getCommandCenterDropdownContent();
+		if (sessions.length === 0) {
+			if (pinned) {
+				this._showSessionsPicker();
+			}
 			return;
 		}
 
-		// Match the dropdown width to the command center box it hangs off, but keep
-		// it within a sensible min/max so it stays readable on wide layouts and
-		// doesn't overflow on narrow ones.
 		const width = this._computeBlockedDropdownWidth(container);
+		const targetWindow = getWindow(container);
+		const windowContainer = this.layoutService.getContainer(targetWindow);
+		const activeElement = targetWindow.document.activeElement;
+		this._focusToReturn = isHTMLElement(activeElement) ? activeElement : undefined;
+		this._dropdownPinned = pinned;
+		this.hoverService.hideHover(true);
 
 		const store = new DisposableStore();
 		this._openContextView = this.contextViewService.showContextView({
-			getAnchor: () => this._getBlockedDropdownAnchor(container),
+			getAnchor: () => this._getCommandCenterDropdownAnchor(container),
 			anchorAlignment: AnchorAlignment.LEFT,
 			anchorPosition: AnchorPosition.BELOW,
 			render: (viewContainer): IDisposable => {
-				const list = store.add(this.instantiationService.createInstance(BlockedSessionsList, viewContainer, {
-					width,
-					approvalModel: this._blockedIndicator.approvalModel,
-					ciFixModel: this._blockedIndicator.ciFixModel,
-					onSessionOpen: (resource, preserveFocus, sideBySide) => {
-						this._openContextView?.close();
-						this._openBlockedSession(resource, preserveFocus, sideBySide);
-					},
-					onIgnoreSession: session => this._blockedIndicator.ignoreSession(session),
-					onShowAllSessions: () => {
-						this._openContextView?.close();
-						this._showSessionsPicker();
-					},
-					onIgnoreAllSessions: () => this._blockedIndicator.ignoreAllSessions(),
-					onClose: () => this._openContextView?.close(),
-				}));
-				list.setSessions(this._blockedIndicator.blockedSessions.get().map(entry => entry.session));
-				store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
-				store.add(list.onDidApproveSession(approved => {
-					this._blockedIndicator.dismissApproval(approved);
-					this._sessionActionFeedback.notifyApproved();
-				}));
+				this._dropdownContainer = viewContainer;
+				this._renderCommandCenterList(viewContainer, kind, sessions, width);
 
-				// Keep the dropdown width matched to the command center box as the
-				// window resizes (the command center reflows to a new width, and the
-				// min/max clamp tracks the new window width).
-				store.add(this.layoutService.onDidLayoutActiveContainer(() => {
-					list.setWidth(this._computeBlockedDropdownWidth(container));
+				store.add(EventUtils.filter(this.layoutService.onDidLayoutContainer, event => event.container === windowContainer)(() => {
+					this._commandCenterList?.setWidth(this._computeBlockedDropdownWidth(container));
 					this.contextViewService.layout();
 				}));
 
-				// Dismiss the dropdown when a quick pick opens on top of it (e.g. the
-				// sessions picker), so it doesn't linger behind the quick input. Close
-				// our specific context view rather than whatever happens to be open.
 				store.add(this.quickInputService.onShow(() => this._openContextView?.close()));
+				store.add(addDisposableListener(viewContainer, EventType.MOUSE_ENTER, () => {
+					this._pointerOverDropdown = true;
+					this._hideDropdownScheduler.cancel();
+					this._cancelDropdownCloseAnimation();
+				}));
+				store.add(addDisposableListener(viewContainer, EventType.MOUSE_LEAVE, () => {
+					this._pointerOverDropdown = false;
+					this._scheduleDropdownPreviewHide();
+				}));
+				const focusTracker = store.add(trackFocus(viewContainer));
+				store.add(focusTracker.onDidFocus(() => this._hideDropdownScheduler.cancel()));
+				store.add(focusTracker.onDidBlur(() => this._scheduleDropdownPreviewHide()));
+				store.add(addDisposableListener(targetWindow, EventType.BLUR, () => this._openContextView?.close()));
 
-				this._blockedList = list;
 				return store;
 			},
-			focus: () => this._blockedList?.focus(),
-			onDOMEvent: (e: Event) => {
-				// Dismiss on a click outside the dropdown. Clicks on the anchor are
-				// ignored here because the anchor toggles the dropdown itself. Escape
-				// is handled by a dedicated high-weight keybinding (see
-				// HIDE_BLOCKED_SESSIONS_COMMAND_ID) so it dismisses the dropdown even
-				// when focus is outside of it.
-				if (e.type === EventType.CLICK) {
-					const target = e.target as HTMLElement | null;
-					if (target
-						&& !isAncestor(target, this.contextViewService.getContextViewElement())
-						&& !isAncestor(target, container)) {
-						this._openContextView?.close();
-					}
+			focus: pinned ? () => this._commandCenterList?.focus() : undefined,
+			onDOMEvent: (event: Event | StandardMouseEvent) => {
+				if (!(event instanceof StandardMouseEvent) || event.browserEvent.type !== EventType.CLICK) {
+					return;
+				}
+				const path = event.browserEvent.composedPath();
+				if (!path.includes(this._dropdownContainer!) && !path.includes(container)) {
+					this._closeCommandCenterDropdown();
 				}
 			},
 			onHide: () => {
-				this._blockedSessionsVisibleContext.set(false);
+				const restoreFocus = !!this._dropdownContainer?.contains(targetWindow.document.activeElement);
+				this._commandCenterDropdownVisibleContext.set(false);
+				this._closeDropdownAnimation.clear();
+				this._commandCenterListDisposables.clear();
 				store.dispose();
 				this._openContextView = undefined;
-				openBlockedSessionsView = undefined;
-				this._blockedList = undefined;
+				closeOpenCommandCenterSessionsView = undefined;
+				this._commandCenterList = undefined;
+				this._openDropdownKind = undefined;
+				this._dropdownContainer = undefined;
+				this._dropdownPinned = false;
+				this._pointerOverDropdown = false;
+				this._pointerOverSessionHover = false;
+				this._updateDropdownPresentation();
+				if (restoreFocus && this._focusToReturn?.isConnected && this._focusToReturn.ownerDocument === targetWindow.document) {
+					this._focusToReturn.focus();
+				}
+				this._focusToReturn = undefined;
 			},
-		});
+		}, windowContainer);
 
-		openBlockedSessionsView = this._openContextView;
-		this._blockedSessionsVisibleContext.set(true);
+		closeOpenCommandCenterSessionsView = () => this._closeCommandCenterDropdown();
+		this._commandCenterDropdownVisibleContext.set(true);
+		this._updateDropdownPresentation();
+	}
+
+	private _getCommandCenterDropdownContent(): { readonly kind: CommandCenterDropdownKind; readonly sessions: readonly ISession[] } {
+		if (this._blockedIndicator.unacknowledgedBlockedSessions.get().length > 0) {
+			return {
+				kind: 'blocked',
+				sessions: this._blockedIndicator.blockedSessions.get().map(entry => entry.session),
+			};
+		}
+		return { kind: 'sessions', sessions: this._commandCenterSessions.get() };
+	}
+
+	private _refreshOpenCommandCenterDropdown(): void {
+		const viewContainer = this._dropdownContainer;
+		const anchor = this._container;
+		if (!this._openContextView || !viewContainer || !anchor) {
+			return;
+		}
+		const { kind, sessions } = this._getCommandCenterDropdownContent();
+		if (sessions.length === 0) {
+			this._openContextView.close();
+			return;
+		}
+		if (kind !== this._openDropdownKind) {
+			this._renderCommandCenterList(viewContainer, kind, sessions, this._computeBlockedDropdownWidth(anchor));
+		} else {
+			this._commandCenterList?.setSessions(sessions);
+		}
+		this.contextViewService.layout();
+	}
+
+	private _renderCommandCenterList(viewContainer: HTMLElement, kind: CommandCenterDropdownKind, sessions: readonly ISession[], width: number): void {
+		const restoreFocus = !!this._commandCenterList && viewContainer.contains(viewContainer.ownerDocument.activeElement);
+		this._commandCenterListDisposables.clear();
+		reset(viewContainer);
+		const store = new DisposableStore();
+		this._commandCenterListDisposables.value = store;
+		const commonOptions = {
+			width,
+			activeSession: this._activeSession,
+			onSessionOpen: (resource: URI, preserveFocus: boolean, sideBySide: boolean) => {
+				this._openContextView?.close();
+				this._openBlockedSession(resource, preserveFocus, sideBySide);
+			},
+			onShowAllSessions: () => {
+				this._openContextView?.close();
+				this._showSessionsPicker();
+			},
+			onDidChangeSessionHoverVisibility: (visible: boolean) => {
+				this._pointerOverSessionHover = visible;
+				if (visible) {
+					this._hideDropdownScheduler.cancel();
+					this._cancelDropdownCloseAnimation();
+				} else {
+					this._scheduleDropdownPreviewHide();
+				}
+			},
+			onClose: () => this._closeCommandCenterDropdown(),
+		};
+		const list = kind === 'blocked'
+			? store.add(this.instantiationService.createInstance(BlockedSessionsList, viewContainer, {
+				...commonOptions,
+				approvalModel: this._blockedIndicator.approvalModel,
+				ciFixModel: this._blockedIndicator.ciFixModel,
+				onIgnoreSession: session => this._blockedIndicator.ignoreSession(session),
+				onIgnoreAllSessions: () => this._blockedIndicator.ignoreAllSessions(),
+			}))
+			: store.add(this.instantiationService.createInstance(SessionsCommandCenterList, viewContainer, commonOptions));
+		list.setSessions(sessions);
+		store.add(list.onDidChangeContentHeight(() => this.contextViewService.layout()));
+		store.add(list.onDidApproveSession(approved => {
+			this._blockedIndicator.dismissApproval(approved);
+			this._sessionActionFeedback.notifyApproved();
+		}));
+		this._commandCenterList = list;
+		this._openDropdownKind = kind;
+		if (restoreFocus) {
+			list.focus();
+		}
+	}
+
+	private _getCommandCenterSessions(reader: IReader): readonly ISession[] {
+		const { recent, other } = this.sessionsService.getRecentlyOpenedSessions();
+		const groups = groupSessionsForPicker(recent, other, reader);
+		const ordered = [...groups.needsInput, ...groups.unread, ...groups.recent, ...groups.other];
+		const preview = ordered.slice(0, COMMAND_CENTER_PREVIEW_MAX_SESSIONS);
+		const activeSessionId = this._activeSession.read(reader)?.sessionId;
+		const activeSession = activeSessionId ? ordered.find(session => session.sessionId === activeSessionId) : undefined;
+		if (!activeSession || preview.some(session => session.sessionId === activeSessionId)) {
+			return preview;
+		}
+		return [...preview.slice(0, -1), activeSession];
+	}
+
+	private _scheduleDropdownPreviewHide(): void {
+		if (this._openContextView && !this._dropdownPinned && !this._pointerOverAnchor && !this._pointerOverDropdown && !this._pointerOverSessionHover && !this._dropdownContainer?.contains(this._dropdownContainer.ownerDocument.activeElement)) {
+			this._hideDropdownScheduler.schedule();
+		}
+	}
+
+	private _hideDropdownPreview(): void {
+		if (this._openContextView && !this._dropdownPinned && !this._pointerOverAnchor && !this._pointerOverDropdown && !this._pointerOverSessionHover && !this._dropdownContainer?.contains(this._dropdownContainer.ownerDocument.activeElement)) {
+			this._closeCommandCenterDropdown();
+		}
+	}
+
+	private _closeCommandCenterDropdown(): void {
+		const contextView = this._openContextView;
+		if (!contextView || this._closeDropdownAnimation.value) {
+			return;
+		}
+
+		const list = this._commandCenterList?.element;
+		if (this.accessibilityService.isMotionReduced() || !list) {
+			contextView.close();
+			return;
+		}
+
+		list.classList.add(COMMAND_CENTER_DROPDOWN_CLOSING_CLASS);
+		this._closeDropdownAnimation.value = disposableTimeout(() => {
+			this._closeDropdownAnimation.clear();
+			if (this._openContextView === contextView) {
+				contextView.close();
+			}
+		}, COMMAND_CENTER_DROPDOWN_CLOSE_ANIMATION_DURATION);
+	}
+
+	private _cancelDropdownCloseAnimation(): void {
+		this._closeDropdownAnimation.clear();
+		this._commandCenterList?.element.classList.remove(COMMAND_CENTER_DROPDOWN_CLOSING_CLASS);
+	}
+
+	private _updateDropdownPresentation(): void {
+		if (!this._container) {
+			return;
+		}
+		const open = !!this._openContextView;
+		this._container.setAttribute('aria-expanded', String(open));
+		this._container.classList.toggle('agent-sessions-titlebar-dropdown-open', open);
 	}
 
 	/**
@@ -689,7 +955,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 	 * the context view a zero-width anchor positioned at the dropdown's target
 	 * left edge (the box center minus half the dropdown width).
 	 */
-	private _getBlockedDropdownAnchor(container: HTMLElement): IAnchor {
+	private _getCommandCenterDropdownAnchor(container: HTMLElement): IAnchor {
 		const position = getDomNodePagePosition(container);
 		const width = this._computeBlockedDropdownWidth(container);
 		const centerX = position.left + position.width / 2;
@@ -755,6 +1021,7 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 		// the dropdown (a transient context view) before opening the full sessions
 		// picker, so the popup doesn't linger behind it.
 		this._register(registerBlockedSessionsHeaderCommands());
+		this._register(registerCommandCenterSessionsHeaderActions());
 		this._register(registerBlockedSessionsHeaderActions());
 		this._register(registerBlockedSessionsItemActions());
 
@@ -797,21 +1064,19 @@ export function registerSessionsTitleBarMenus(): IDisposable {
 	);
 }
 
-// Escape closes the blocked-sessions dropdown while it is open. Registered as a
-// high-weight keybinding scoped to `SessionsBlockedSessionsVisibleContext` (rather
-// than relying on focus being inside the dropdown) so it reliably wins over other
-// Escape handlers, mirroring how the quick pick scopes its dismiss keybinding to an
-// "is visible" context key.
+// Escape closes the command-center sessions dropdown while it is open. Registered
+// as a high-weight keybinding scoped to its visible context rather than relying on
+// focus being inside the dropdown.
 KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: HIDE_BLOCKED_SESSIONS_COMMAND_ID,
+	id: HIDE_COMMAND_CENTER_SESSIONS_COMMAND_ID,
 	weight: KeybindingWeight.SessionsContrib + 100,
-	when: SessionsBlockedSessionsVisibleContext,
+	when: SessionsCommandCenterDropdownVisibleContext,
 	primary: KeyCode.Escape,
-	handler: (_accessor, context?: IBlockedSessionsHeaderActionContext) => {
+	handler: (_accessor, context?: ICommandCenterSessionsHeaderActionContext) => {
 		if (context) {
 			context.close();
 		} else {
-			openBlockedSessionsView?.close();
+			closeOpenCommandCenterSessionsView?.();
 		}
 	},
 });

@@ -357,7 +357,8 @@
 	gap: var(--vscode-spacing-size20);
 }
 
-.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after {
+.modern-ui.monaco-workbench .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
+.modern-ui.monaco-workbench .scm-view .scm-structural-change-status {
 	margin-right: var(--vscode-spacing-size40);
 }
 

@@ -483,6 +483,7 @@ Code OSS is a full Electron app and easily eats 1-4 GB. Always clean up.
 
 ## Troubleshooting
 
+- **pnpm bootstrap fails on Windows** - check the actual Node/pnpm paths (`Get-Command node, pnpm -All`): stale shims can bypass fnm, and Corepack's bootstrap registry can differ from npm's configured registry. Select the Node version from `.nvmrc`; if Corepack remains blocked, install the pinned pnpm through the existing registry as described in [Contributing Fixes](../../../CONTRIBUTING.md#contributing-fixes).
 - **`Daemon pid=...: listen EINVAL` from `@playwright/cli`** - the daemon's socket path (`TMPDIR` + a fixed ~33-char prefix + the `-s=` session name) exceeded the ~103-byte unix socket limit. macOS's default `TMPDIR` leaves only ~16 characters for the session name, so shorten `-s=` first. If you need a longer name, scope the override to the single command (`TMPDIR=/tmp npx @playwright/cli ...`) rather than `export`ing it, so the launcher keeps using your private per-user temp dir.
 - **"Sent env to running instance. Terminating..."** - The dynamic `--user-data-dir` should prevent this. If you see it, another Code OSS is using the same profile path; pass `--source-user-data-dir` to a different source or check that the temp copy actually happened (`ls "$(node -p 'JSON.parse(process.argv[1]).userDataDir' "$INFO")"`).
 - **Renderer ESM errors / `import { Menu } from 'electron'`** - `ELECTRON_RUN_AS_NODE` is set in your env. The launcher unsets it for the child, but if you spawn `code.sh` yourself, do the same.

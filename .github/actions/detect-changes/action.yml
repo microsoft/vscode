@@ -3,7 +3,7 @@ description: Determines which path-filtered pull request checks need to run.
 
 inputs:
   token:
-    description: GitHub token used to list the pull request files.
+    description: GitHub token used to list the files that the pull request or merge group changes.
     required: true
 
 outputs:

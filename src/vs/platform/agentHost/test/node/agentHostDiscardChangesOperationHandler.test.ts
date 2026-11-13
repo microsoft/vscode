@@ -726,6 +726,41 @@ suite('AgentHostDiscardChangesOperationHandler - last turn', () => {
 		});
 	});
 
+	test('reverts the turn\'s edits when another chat only holds copies of them, as a forked chat does', async () => {
+		const { handler, diskFileService, tracked, trackedDb, channel } = await setupLastTurn();
+		const forkDb = new TestSessionDatabase();
+		for (const record of await trackedDb.getAllFileEdits()) {
+			forkDb.addEdit({ ...record, ...(await trackedDb.readFileEditContent(record.toolCallId, record.filePath))! });
+		}
+		tracked.database = { ...tracked.database!, otherChatDatabases: [forkDb] };
+
+		await handler.invoke({
+			channel,
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.strictEqual((await diskFileService.readFile(target)).value.toString(), 'a\nb\n');
+	});
+
+	test('reverts the turn\'s edits to a file that an earlier turn renamed', async () => {
+		const { handler, diskFileService, trackedDb, stateManager, session } = setup(disposables);
+		const chat = buildDefaultChatUri(session.toString());
+		addTurn(stateManager, chat, 'turn-1');
+		addTurn(stateManager, chat, 'turn-2');
+		trackedDb.addEdit({ turnId: 'turn-1', toolCallId: 'tc1', filePath: target.fsPath, originalPath: '/repo/src/old.ts', kind: FileEditKind.Rename, addedLines: undefined, removedLines: undefined, beforeContent: undefined, afterContent: undefined });
+		trackedDb.addEdit({ turnId: 'turn-2', toolCallId: 'tc2', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString('a\nb\n'), afterContent: encodeString('a\nB\n') });
+		await diskFileService.writeFile(target, VSBuffer.fromString('a\nB\n'));
+
+		await handler.invoke({
+			channel: buildTurnChangesetUri(chat, 'turn-2'),
+			operationId: AgentHostDiscardChangesOperationHandler.OPERATION_DISCARD_CHANGES,
+			target: makeResourceTarget(target),
+		}, CancellationToken.None);
+
+		assert.strictEqual((await diskFileService.readFile(target)).value.toString(), 'a\nb\n');
+	});
+
 	test('deletes a file the last turn created and records the discard', async () => {
 		const harness = setup(disposables);
 		const chat = buildDefaultChatUri(harness.session.toString());
@@ -1885,6 +1920,50 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		});
 	});
 
+	test('discards a file\'s changes after its chat was forked, and after another chat\'s changes to it were accepted', async () => {
+		type Harness = ReturnType<typeof setupWorkingSet>;
+		// A forked chat's database starts as a copy of its parent's rows.
+		const editThenFork = async ({ edit, trackedDb }: Harness, fork: TestSessionDatabase) => {
+			edit('turn-2', 'tc1', lines(), lines({ 0: 'L1' }));
+			for (const record of await trackedDb.getAllFileEdits()) {
+				fork.addEdit({ ...record, ...(await trackedDb.readFileEditContent(record.toolCallId, record.filePath))! });
+			}
+			return lines({ 0: 'L1' });
+		};
+		const cases: Record<string, { readonly sessionChanges?: boolean; arrange(harness: Harness, peer: TestSessionDatabase): Promise<string> }> = {
+			forked: { arrange: editThenFork },
+			forkedSessionChanges: { sessionChanges: true, arrange: editThenFork },
+			otherChatAccepted: {
+				arrange: async ({ edit }, peer) => {
+					peer.addEdit({ turnId: 'peer-turn', toolCallId: 'ptc1', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(lines()), afterContent: encodeString(lines({ 4: 'P5' })) });
+					peer.addEdit(createFileEditAcceptRecord('peer-turn', target.fsPath, encodeString(lines({ 4: 'P5' }))));
+					edit('turn-2', 'tc1', lines({ 4: 'P5' }), lines({ 0: 'L1', 4: 'P5' }));
+					return lines({ 0: 'L1', 4: 'P5' });
+				},
+			},
+		};
+		const results: Record<string, unknown> = {};
+		for (const [name, { sessionChanges, arrange }] of Object.entries(cases)) {
+			const harness = setupWorkingSet();
+			const peer = new TestSessionDatabase();
+			const peerChat = buildChatUri(harness.session.toString(), 'peer');
+			harness.trackedSession.sources.push({ chat: peerChat, storage: peerChat, db: peer });
+			await harness.diskFileService.writeFile(target, VSBuffer.fromString(await arrange(harness, peer)));
+			const sources = harness.trackedSession.sources.map(source => ({ sessionUri: source.storage, db: source.db }));
+			const [shown] = await computeWorkingSetFiles(sources, new InProcessDiffComputeService());
+
+			const error = await (sessionChanges ? harness.discard(undefined, buildSessionChangesetUri(harness.session.toString())) : harness.discard(undefined, undefined, shown.nonce)).then(() => undefined, (err: Error) => err.message);
+
+			results[name] = { error, content: (await harness.diskFileService.readFile(target)).value.toString(), workingSet: (await computeWorkingSetDiffs(sources, new InProcessDiffComputeService())).length };
+		}
+
+		assert.deepStrictEqual(results, {
+			forked: { error: undefined, content: lines(), workingSet: 0 },
+			forkedSessionChanges: { error: undefined, content: lines(), workingSet: 0 },
+			otherChatAccepted: { error: undefined, content: lines({ 4: 'P5' }), workingSet: 0 },
+		});
+	});
+
 	test('rejects a file whose changes were all accepted without changing it', async () => {
 		const { edit, accept, discard, describe, diskFileService, trackedDb } = setupWorkingSet();
 		edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
@@ -1897,13 +1976,76 @@ suite('AgentHostDiscardChangesOperationHandler - working set', () => {
 		} catch (e) {
 			error = e as ProtocolError;
 		}
+		// A client that still shows the changes names them.
+		const shownBefore = await discard(undefined, undefined, 'tc1').then(() => undefined, (err: ProtocolError) => ({ code: err.code, message: err.message }));
 
-		assert.deepStrictEqual({ code: error?.code, message: error?.message, state: await describe(), rows: (await trackedDb.getAllFileEdits()).length }, {
+		assert.deepStrictEqual({ code: error?.code, message: error?.message, shownBefore, state: await describe(), rows: (await trackedDb.getAllFileEdits()).length }, {
 			code: JsonRpcErrorCodes.InvalidParams,
 			message: '\'file.ts\' has no changes that have not been accepted.',
+			shownBefore: { code: AhpErrorCodes.Conflict, message: 'The changes to \'file.ts\' were updated after they were shown. Try again.' },
 			state: { content: lines({ 0: 'L1' }), workingSet: 0, session: 1, turns: [1, 0] },
 			rows: 2,
 		});
+	});
+
+	for (const owner of ['session', 'fork'] as const) {
+		test(`leaves a file alone when its changes were kept in another chat's database after its unaccepted changes were read (working set of the ${owner})`, async () => {
+			const { edit, discard, diskFileService, trackedDb, trackedSession, stateManager, session, chat } = setupWorkingSet();
+			edit('turn-1', 'tc1', lines(), lines({ 0: 'L1' }));
+			// A forked chat's database starts as a copy of its parent's rows. The fork then changes the file too.
+			const fork = new TestSessionDatabase();
+			fork.addEdit({ turnId: 'fork-turn-1', toolCallId: 'tc1', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(lines()), afterContent: encodeString(lines({ 0: 'L1' })) });
+			fork.addEdit({ turnId: 'fork-turn-2', toolCallId: 'tc2', filePath: target.fsPath, kind: FileEditKind.Edit, addedLines: undefined, removedLines: undefined, beforeContent: encodeString(lines({ 0: 'L1' })), afterContent: encodeString(lines({ 0: 'L1', 4: 'L5' })) });
+			const forkChat = buildChatUri(session.toString(), 'fork');
+			stateManager.addChat(session.toString(), forkChat, creationTimeChatStorageResource(session.toString(), forkChat, chat), {});
+			const forkSource = { chat: forkChat, storage: forkChat, db: fork };
+			if (owner === 'fork') {
+				// A chat's own Working Set is computed from its database, with its parent's among the other chats'.
+				trackedSession.sources = [forkSource];
+				trackedSession.otherChatDatabases = [trackedDb];
+			} else {
+				trackedSession.sources.push(forkSource);
+			}
+			await diskFileService.writeFile(target, VSBuffer.fromString(lines({ 0: 'L1', 4: 'L5' })));
+			// Another client keeps the parent's change, in the parent's database, while Undo prepares the revert in the fork's.
+			const storeFileEdits = fork.storeFileEdits.bind(fork);
+			fork.storeFileEdits = (edits, beforeCommit) => {
+				trackedDb.addEdit(createFileEditAcceptRecord('turn-1', target.fsPath, encodeString(lines({ 0: 'L1' }))));
+				return storeFileEdits(edits, beforeCommit);
+			};
+
+			const error = await discard(undefined, owner === 'fork' ? buildWorkingSetChangesetUri(forkChat) : undefined).then(() => undefined, (err: Error) => err.message);
+
+			assert.deepStrictEqual({ error, content: (await diskFileService.readFile(target)).value.toString() }, {
+				error: owner === 'fork'
+					? 'Changes to \'file.ts\' can\'t be discarded because another chat in this session also changed it.'
+					: '\'file.ts\' changed while its changes were being discarded. Try again.',
+				content: lines({ 0: 'L1', 4: 'L5' }),
+			});
+		});
+	}
+
+	test('accepts the records of a chat that deleted the file again, so they do not show as changes after discarding', async () => {
+		const { discard, diskFileService, trackedDb, trackedSession, session } = setupWorkingSet();
+		const record = (turnId: string, toolCallId: string, kind: FileEditKind, before: string | undefined, after: string | undefined) => ({
+			turnId, toolCallId, filePath: target.fsPath, kind, addedLines: undefined, removedLines: undefined,
+			beforeContent: before === undefined ? undefined : encodeString(before), afterContent: after === undefined ? undefined : encodeString(after),
+		});
+		trackedDb.addEdit(record('turn-1', 'tc1', FileEditKind.Create, undefined, 'a\n'));
+		// A forked chat's database starts as a copy of its parent's rows. The fork then deletes the file, and its parent creates it again.
+		const fork = new TestSessionDatabase();
+		fork.addEdit(record('fork-turn-1', 'tc1', FileEditKind.Create, undefined, 'a\n'));
+		fork.addEdit(record('fork-turn-2', 'tc2', FileEditKind.Delete, 'a\n', undefined));
+		trackedDb.addEdit(record('turn-2', 'tc3', FileEditKind.Create, undefined, 'b\n'));
+		const forkChat = buildChatUri(session.toString(), 'fork');
+		trackedSession.sources.push({ chat: forkChat, storage: forkChat, db: fork });
+		await diskFileService.writeFile(target, VSBuffer.fromString('b\n'));
+		const workingSet = async () => (await computeWorkingSetDiffs(trackedSession.sources.map(source => ({ sessionUri: source.storage, db: source.db })), new InProcessDiffComputeService())).length;
+		const before = await workingSet();
+
+		await discard();
+
+		assert.deepStrictEqual({ before, after: await workingSet(), exists: await diskFileService.exists(target) }, { before: 1, after: 0, exists: false });
 	});
 });
 

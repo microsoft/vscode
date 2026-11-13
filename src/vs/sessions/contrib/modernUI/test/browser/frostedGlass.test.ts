@@ -393,14 +393,15 @@ suite('Agents frosted glass styles', () => {
 		const { root } = createOverlays();
 		root.classList.add('dock-detail-panel');
 		root.style.setProperty('--vscode-editorWidget-background', '#203040');
-		const surface = append(append(root, 'floating-details'), 'floating-details-surface');
+		const widget = append(root, 'floating-details');
+		const surface = append(widget, 'floating-details-surface');
 		const header = append(surface, 'floating-details-header');
 		const part = append(surface, 'part auxiliarybar floating-auxiliarybar');
 		part.style.backgroundColor = 'var(--vscode-agentsDetail-background)';
 		const body = append(append(part, 'content'), 'pane-body');
 		const list = append(body, 'monaco-list');
 		const rows = append(list, 'monaco-list-rows');
-		return { root, surface, backgrounds: [surface, header, part, body, list, rows] };
+		return { root, widget, surface, backgrounds: [surface, header, part, body, list, rows] };
 	}
 
 	test('frosts the floating panel at the configured opacity without opaque tree fills', () => {
@@ -426,6 +427,30 @@ suite('Agents frosted glass styles', () => {
 				opacity: '1',
 			})),
 			restored: solid,
+		});
+	});
+
+	(supportsGlass(document.body) ? test : test.skip)('keeps the floating Changes panel opaque and restores glass for other views', () => {
+		const { root, widget, surface } = createFloatingPanel();
+		root.style.setProperty('--vscode-editor-background', '#101010');
+		root.style.setProperty('--modern-ui-glass-opacity', '50%');
+		root.classList.add('modern-ui-frosted-glass');
+		const state = () => ({
+			background: readColor(surface).rgba,
+			paintDisplay: getWindow(surface).getComputedStyle(surface, '::before').display,
+			tint: Math.round(readColor(surface, '::before').rgba.a * 100),
+		});
+		const frosted = state();
+		widget.classList.add('changes-view-active');
+		const changes = state();
+		widget.classList.remove('changes-view-active');
+		const restored = state();
+		const opaqueBackground = getWindow(root).CSS.supports('color', 'rgb(from red r g b / 1)') ? new RGBA(32, 48, 64, 1) : new RGBA(16, 16, 16, 1);
+
+		assert.deepStrictEqual({ frosted, changes, restored }, {
+			frosted: { background: new RGBA(0, 0, 0, 0), paintDisplay: 'block', tint: 50 },
+			changes: { background: opaqueBackground, paintDisplay: 'none', tint: 50 },
+			restored: { background: new RGBA(0, 0, 0, 0), paintDisplay: 'block', tint: 50 },
 		});
 	});
 

@@ -99,6 +99,11 @@ suite('Windows State Storing', () => {
 		};
 		assertRestoring(windowState, 'folder');
 
+		// A folder location carried by state of an older version is ignored
+		const stored = getWindowsStateStoreData({ openedWindows: [{ backupPath: testBackupPath2, uiState: getUIState(), folderUri: testFolderURI }] });
+		const restored = restoreWindowsState({ ...stored, openedWindows: stored.openedWindows.map(window => ({ ...window, folderLocation: { uri: 'file:///alt', label: 'Alt', providerId: 'p' } })) });
+		assert.deepStrictEqual(Object.keys(restored.openedWindows[0]).includes('folderLocation'), false);
+
 		windowState = {
 			openedWindows: [{ backupPath: testBackupPath1, uiState: getUIState(), folderUri: testFolderURI }, { backupPath: testBackupPath1, uiState: getUIState(), folderUri: testRemoteFolderURI, remoteAuthority: 'bar' }]
 		};

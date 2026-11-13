@@ -8,11 +8,14 @@ import { createStyleSheet } from '../../../../../../../base/browser/domStyleshee
 import { status } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
-import { Emitter } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
+import { Lazy } from '../../../../../../../base/common/lazy.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition, MouseTargetType } from '../../../../../../../editor/browser/editorBrowser.js';
+import { EditorContextKeys } from '../../../../../../../editor/common/editorContextKeys.js';
 import { IClipboardCopyEvent } from '../../../../../../../editor/browser/controller/editContext/clipboardUtils.js';
 import { ICodeEditorService } from '../../../../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../../../../editor/common/config/editorOptions.js';
@@ -31,7 +34,7 @@ import { IAccessibilityService } from '../../../../../../../platform/accessibili
 import { Action2, registerAction2 } from '../../../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
-import { ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
@@ -48,6 +51,7 @@ import { ChatAttachmentModel } from '../../../attachments/chatAttachmentModel.js
 import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../attachments/chatAttachmentWidgetRegistry.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { getGitHubIssueOrPullRequestAttachments } from './chatPasteProviders.js';
+import { GitHubResourceDetailsResolver, parseGitHubReferenceTarget } from '../../../../../github/browser/githubResourceDetails.js';
 import { ChatInputSessionLinkDetector } from './chatInputSessionLinkProvider.js';
 import './media/chatInlineAttachments.css';
 
@@ -107,8 +111,9 @@ interface IInputChange {
 export interface IChatInlineAttachmentsHost {
 	/** The widget whose input contains the pills, once it is rendered. */
 	readonly widget: IChatWidget | undefined;
+	readonly sessionResource?: URI;
 	/** Creates a pill with the widget that the attachments above the input use for the attachment. */
-	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean }): IChatAttachmentWidgetInstance;
+	createAttachmentWidget(attachment: IChatRequestVariableEntry, container: HTMLElement, options: { shouldFocusClearButton: boolean; supportsDeletion: boolean; gitHubResourceDetailsResolver?: GitHubResourceDetailsResolver }): IChatAttachmentWidgetInstance;
 	/**
 	 * Removes the attachments of pills that were removed from the input, as
 	 * removing them from above the input does.
@@ -122,6 +127,8 @@ export interface IChatInlineAttachmentsHost {
 
 /** The smallest width that keeps the spacer after an anchor, which must exist to place the cursor after a pill at the end of a line. */
 const minWrapWidthInEm = 0.001;
+/** The horizontal padding of a pill, see `.chat-inline-attachment` in chatInlineAttachments.css. */
+const pillPaddingWidth = 4;
 const gitHubLinkPattern = /https?:\/\/github\.com\/[^\s/]+\/[^\s/]+\/(?:issues|pull)\/\d+[^\s]*/gi;
 const inlineAttachmentDragType = 'application/vnd.code.chat-inline-attachment';
 const sessionLinkKind: IChatRequestSessionLinkVariableEntry['kind'] = 'sessionLink';
@@ -203,6 +210,7 @@ export class ChatInlineAttachments extends Disposable {
 	 * see {@link ChatContextKeys.inputInlineAttachmentActive}.
 	 */
 	private _activePill: InlineAttachmentPill | undefined;
+	private readonly _gitHubResourceDetailsResolver = new Lazy(() => this._register(this._instantiationService.createInstance(GitHubResourceDetailsResolver)));
 	/**
 	 * Whether the cursor was placed by an edit rather than by the user, as when a
 	 * prompt is pasted or restored, in which case the pill before it is not
@@ -223,6 +231,7 @@ export class ChatInlineAttachments extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILabelService private readonly _labelService: ILabelService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IChatAttachmentWidgetRegistry private readonly _attachmentWidgetRegistry: IChatAttachmentWidgetRegistry,
 		@IProductService productService: IProductService,
 		@ILogService logService: ILogService,
@@ -311,6 +320,9 @@ export class ChatInlineAttachments extends Disposable {
 			this._updateSelectedPills();
 			const previousActive = this._activePill;
 			this._updateActivePill();
+			if (e.source === 'keyboard' && previousActive !== this._activePill && this._editor.hasTextFocus()) {
+				this._activePill?.widget?.previewHover?.show(false);
+			}
 			// The cursor crosses a pill when it is moved, rather than when an edit, such as deleting the pill, moves it.
 			this._announcePillAtCursor(e.reason === CursorChangeReason.Explicit, previousActive);
 			// Typed text that stands for an attachment becomes a pill once the cursor leaves it.
@@ -535,6 +547,25 @@ export class ChatInlineAttachments extends Disposable {
 		}
 		pill.open();
 		return true;
+	}
+
+	/** Returns a lazy, independent presentation for the editor's standard keyboard hover. */
+	getReferenceHover(range: Range): { range: Range; createContent: () => HTMLElement | undefined; onDidChange: Event<void> } | undefined {
+		for (const pill of this._pills) {
+			const pillRange = pill.range;
+			if (pillRange && Range.containsRange(pillRange, range) && pill.widget?.supportsPreview) {
+				const widget = pill.widget;
+				return {
+					range: pillRange,
+					createContent: () => {
+						widget.previewHover?.hide();
+						return widget.getPreviewHoverContent?.();
+					},
+					onDidChange: widget.onDidChangePreview ?? Event.None,
+				};
+			}
+		}
+		return undefined;
 	}
 
 	/** Shows the context menu of the pill right before the cursor for Shift+F10 and the Context Menu key, when the pill has one. */
@@ -1219,6 +1250,15 @@ export class ChatInlineAttachments extends Disposable {
 	}
 
 	private _renderPills(): void {
+		const references = [...this._pills].flatMap(pill => {
+			const entry = this._resolveEntry(pill.data);
+			return entry.kind === 'generic' && entry.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)
+				? [{ identity: entry, resource: URI.parse(entry.id.substring(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length)) }]
+				: [];
+		});
+		if (references.length || this._gitHubResourceDetailsResolver.hasValue) {
+			this._gitHubResourceDetailsResolver.value.retain(references, this._host.sessionResource?.toString() ?? this._editor.getModel()?.uri.toString());
+		}
 		if (!this._needsRender && ![...this._pills].some(pill => pill.needsRender(this._resolveEntry(pill.data)))) {
 			return;
 		}
@@ -1230,7 +1270,11 @@ export class ChatInlineAttachments extends Disposable {
 		const anchorWidth = measureAnchorWidth(`${fontInfo.fontWeight} ${fontInfo.fontSize}px ${fontInfo.fontFamily}`);
 		for (const pill of this._pills) {
 			const entry = this._resolveEntry(pill.data);
-			pill.render(entry, lineHeight, container => this._host.createAttachmentWidget(entry, container, { shouldFocusClearButton: false, supportsDeletion: true }), {
+			pill.render(entry, lineHeight, container => this._host.createAttachmentWidget(entry, container, {
+				shouldFocusClearButton: false,
+				supportsDeletion: true,
+				gitHubResourceDetailsResolver: references.length ? this._gitHubResourceDetailsResolver.value : undefined,
+			}), {
 				getClassName: width => this._widthStyles.getClassName(width),
 				// Line wrapping measures the anchor in the editor font rather than at its widened width.
 				getWrapWidthInEm: width => Math.max(0, width - anchorWidth) / fontInfo.fontSize,
@@ -1402,6 +1446,7 @@ export class ChatInlineAttachments extends Disposable {
 			}
 		}
 		if (active !== this._activePill) {
+			this._activePill?.widget?.previewHover?.hide();
 			this._activePill?.setActive(false);
 			this._activePill = active;
 			active?.setActive(true);
@@ -1466,7 +1511,13 @@ export class ChatInlineAttachments extends Disposable {
 		}
 	}
 
-	private _getHoverMessage(data: IInlineAttachmentPillData, entry: IChatRequestVariableEntry): IMarkdownString {
+	private _getHoverMessage(data: IInlineAttachmentPillData, entry: IChatRequestVariableEntry): IMarkdownString | undefined {
+		if (entry.kind === 'generic' && entry.id.startsWith(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX)) {
+			const resource = URI.parse(entry.id.substring(GITHUB_CONTEXT_ATTACHMENT_ID_PREFIX.length));
+			if (parseGitHubReferenceTarget(resource, 'issue') || parseGitHubReferenceTarget(resource, 'pullRequest')) {
+				return undefined;
+			}
+		}
 		if (isSessionLinkVariableEntry(entry)) {
 			// The pill shows the session, while the link that it stands for is what the prompt says.
 			return new MarkdownString().appendText(data.text);
@@ -1515,6 +1566,9 @@ export class ChatInlineAttachments extends Disposable {
 
 	private _clearPills(): void {
 		this._endDrag();
+		if (this._gitHubResourceDetailsResolver.hasValue) {
+			this._gitHubResourceDetailsResolver.value.retain([]);
+		}
 		for (const pill of this._pills) {
 			pill.dispose();
 		}
@@ -1548,6 +1602,7 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 	private _decorationKey: string | undefined;
 	private _width = 0;
 	private _widget: IChatAttachmentWidgetInstance | undefined;
+	get widget(): IChatAttachmentWidgetInstance | undefined { return this._widget; }
 	private _displayName: string | undefined;
 	/** The position that the pill was last laid out at. */
 	private _layoutPosition: Position | undefined;
@@ -1572,6 +1627,8 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 		// The attachment widgets are styled for attachments in this container.
 		this._container = dom.append(this._domNode, dom.$('.chat-attached-context'));
 		this._decorations = this._editor.createDecorationsCollection([{ range, options: getAnchorDecorationOptions(undefined, 0, undefined) }]);
+		this._updateMaxWidth();
+		this._register(this._editor.onDidLayoutChange(() => this._updateMaxWidth()));
 		this._editor.addContentWidget(this);
 		this._register(toDisposable(() => {
 			this._editor.removeContentWidget(this);
@@ -1693,7 +1750,7 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 
 	/** Whether opening the pill's attachment does something, see {@link canOpenAttachment}. */
 	get canOpen(): boolean {
-		return !!this._widget && !!this._renderedEntry && canOpenAttachment(this._renderedEntry);
+		return !!this._widget?.supportsPreview || (!!this._widget && !!this._renderedEntry && canOpenAttachment(this._renderedEntry));
 	}
 
 	/**
@@ -1715,6 +1772,23 @@ class InlineAttachmentPill extends Disposable implements IContentWidget {
 
 	private _measure(): number {
 		return Math.ceil(this._domNode.getBoundingClientRect().width);
+	}
+
+	/**
+	 * Keeps the pill within a row of the input, so that a pill wider than the input
+	 * shortens its label rather than making the input scroll horizontally.
+	 */
+	private _updateMaxWidth(): void {
+		const { contentWidth, verticalScrollbarWidth } = this._editor.getOption(EditorOption.layoutInfo);
+		const { typicalHalfwidthCharacterWidth } = this._editor.getOption(EditorOption.fontInfo);
+		// The pill's padding is part of its width. Lines wrap at a whole character, which loses up to a character's
+		// width, and the anchor needs another character's width to spare to stay on its row.
+		const maxWidth = Math.floor(contentWidth - verticalScrollbarWidth - pillPaddingWidth - 2 * typicalHalfwidthCharacterWidth);
+		if (maxWidth > 0) {
+			this._domNode.style.setProperty('--chat-inline-attachment-max-width', `${maxWidth}px`);
+		} else {
+			this._domNode.style.removeProperty('--chat-inline-attachment-max-width');
+		}
 	}
 
 	private _updateDecoration(): void {
@@ -1978,7 +2052,7 @@ class OpenInlineAttachmentAction extends Action2 {
 			title: localize2('chat.openInlineAttachment', "Open Inline Attachment"),
 			precondition: ChatContextKeys.enabled,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.inputInlineAttachmentActive),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.inputInlineAttachmentActive, EditorContextKeys.hoverFocused.negate()),
 				primary: KeyCode.Enter,
 				// Above sending the request, below accepting a suggestion.
 				weight: KeybindingWeight.EditorContrib + 10,

@@ -253,7 +253,7 @@ export class ArtifactActivitiesModel extends Disposable {
 }
 
 /**
- * A skipped run did nothing, so it is not shown as activity. Neither is a user's click on a general (footer) action,
+ * A skipped run did nothing, so it is not shown as activity. Neither is a user's click on a general (header) action,
  * unless its outcome is unknown and must be reconciled from the activity row.
  */
 function isVisibleActivity(run: ArtifactRun): boolean {

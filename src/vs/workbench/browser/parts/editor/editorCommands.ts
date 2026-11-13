@@ -41,6 +41,7 @@ import { OpenWithEditorPicker } from '../../../services/editor/browser/openWithE
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { IUntitledDocumentTelemetryService } from '../../../services/untitled/common/untitledDocumentTelemetry.js';
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IWorkingCopyEditorService } from '../../../services/workingCopy/common/workingCopyEditorService.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
@@ -959,6 +960,7 @@ function registerCloseEditorCommands() {
 		const editorService = accessor.get(IEditorService);
 		const editorResolverService = accessor.get(IEditorResolverService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const untitledDocumentTelemetryService = accessor.get(IUntitledDocumentTelemetryService);
 		const textFileService = accessor.get(ITextFileService);
 		const workingCopyService = accessor.get(IWorkingCopyService);
 		const workingCopyEditorService = accessor.get(IWorkingCopyEditorService);
@@ -1042,6 +1044,7 @@ function registerCloseEditorCommands() {
 					ext: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'File extension for the resource' };
 					from: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched from' };
 					to: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The editor view type the resource is switched to' };
+					untitledDocumentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The untitledDocumentId of the untitledDocument events, if the resource is untitled' };
 				};
 
 				type WorkbenchEditorReopenEvent = {
@@ -1049,13 +1052,15 @@ function registerCloseEditorCommands() {
 					ext: string;
 					from: string;
 					to: string;
+					untitledDocumentId: string | undefined;
 				};
 
 				telemetryService.publicLog2<WorkbenchEditorReopenEvent, WorkbenchEditorReopenClassification>('workbenchEditorReopen', {
 					scheme: editorToResolve.resource?.scheme ?? '',
 					ext: editorToResolve.resource ? extname(editorToResolve.resource) : '',
 					from: editor.editorId ?? '',
-					to: resolvedEditor.editor.editorId ?? ''
+					to: resolvedEditor.editor.editorId ?? '',
+					untitledDocumentId: untitledDocumentTelemetryService.getUntitledDocumentId(editorToResolve.resource),
 				});
 			}
 		}

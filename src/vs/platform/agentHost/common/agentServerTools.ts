@@ -86,9 +86,10 @@ export interface IAgentServerToolHost {
 	/**
 	 * Executes a server tool for the exact chat that invoked it, dispatching any
 	 * resulting actions, and returns the textual tool result for the agent.
+	 * `toolCallId` identifies the call in the chat's state, when the provider knows it.
 	 *
 	 * @throws if {@link toolName} is not a known server tool or the arguments
 	 * are invalid.
 	 */
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown): string | Promise<string>;
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string>;
 }

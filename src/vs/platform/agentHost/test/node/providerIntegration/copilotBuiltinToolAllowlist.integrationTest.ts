@@ -62,6 +62,7 @@ const NOT_EXERCISED: Readonly<Record<string, string>> = {
 	list_canvas_capabilities: 'canvases setting',
 	open_canvas: 'canvases setting',
 	invoke_canvas_action: 'canvases setting',
+	submit_security_review_scope: 'security-review subagent only, with the SECURITY_REVIEW_FINE_TUNED_MODEL feature flag',
 };
 
 /**

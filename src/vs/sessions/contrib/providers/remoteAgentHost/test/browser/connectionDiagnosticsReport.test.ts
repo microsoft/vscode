@@ -52,6 +52,7 @@ import { HostFilterActionViewItem } from '../../../../../../workbench/contrib/se
 import { MobileHostFilterActionViewItem } from '../../../../../../workbench/contrib/sessions/providers/remoteAgentHost/browser/mobileHostFilterActionViewItem.js';
 import { MobileHostDrawerHeaderViewItem } from '../../browser/mobileHostDrawerHeaderViewItem.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 
 suite('ConnectionDiagnosticsReport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -960,6 +961,7 @@ suite('ConnectionDiagnosticsReport', () => {
 						return undefined as T;
 					}
 				}(),
+				new class extends mock<IRemoteGitHubEnvironmentSharingService>() { }(),
 			));
 			widget.render(container);
 			const connection = container.querySelector<HTMLElement>('.agent-host-filter-connect');

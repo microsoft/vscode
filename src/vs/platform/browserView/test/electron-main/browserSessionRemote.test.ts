@@ -29,8 +29,8 @@ suite('BrowserSessionRemote', () => {
 
 	test('re-acquiring for a view replaces its proxy', async () => {
 		const { remote, applied } = createRemote();
-		remote.acquire('view', proxy(1));
-		remote.acquire('view', proxy(2));
+		remote.acquire('view', proxy(1), 1);
+		remote.acquire('view', proxy(2), 1);
 		remote.release('view');
 		await remote.whenReady;
 		assert.deepStrictEqual(applied, ['https://127.0.0.1:1', 'closeAll', 'https://127.0.0.1:2', 'closeAll', 'direct', 'closeAll']);
@@ -38,8 +38,8 @@ suite('BrowserSessionRemote', () => {
 
 	test('switches to a proxy still held by another view when the applied proxy is released', async () => {
 		const { remote } = createRemote();
-		remote.acquire('windowA', proxy(1));
-		remote.acquire('windowB', proxy(2));
+		remote.acquire('windowA', proxy(1), 1);
+		remote.acquire('windowB', proxy(2), 1);
 		const afterAcquire = remote.proxy?.port;
 		remote.release('windowB');
 		const afterRelease = remote.proxy?.port;

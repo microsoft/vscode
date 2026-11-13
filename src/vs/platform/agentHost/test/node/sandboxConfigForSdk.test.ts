@@ -630,6 +630,7 @@ suite('getAttachedLocalPaths', () => {
 		const folder = URI.file('/home/u/notes');
 		const attachments: MessageAttachment[] = [
 			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'file' },
+			{ type: MessageAttachmentKind.Resource, uri: URI.file('/skills/review/SKILL.md').toString(), label: '/review', displayKind: 'skill' },
 			{ type: MessageAttachmentKind.Resource, uri: folder.toString(), label: 'notes', displayKind: 'directory' },
 			{ type: MessageAttachmentKind.Resource, uri: file.toString(), label: 'mockup.txt', displayKind: 'selection', selection: { range: { start: { line: 0, character: 0 }, end: { line: 0, character: 1 } } } },
 			{ type: MessageAttachmentKind.Resource, uri: toAgentHostUri(URI.file('/home/u/wrapped.txt'), 'my-server').toString(), label: 'wrapped.txt' },

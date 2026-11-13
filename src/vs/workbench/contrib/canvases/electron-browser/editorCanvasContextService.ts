@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getWindow } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
@@ -13,6 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, isIChatResourceViewContext, isIChatViewViewContext } from '../../chat/browser/chat.js';
 import { ChatEditor } from '../../chat/browser/widgetHosts/editor/chatEditor.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
@@ -40,6 +42,7 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		@IEditorService editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		const widgets = observableFromEvent(this, Event.any(widgetService.onDidAddWidget, widgetService.onDidRemoveWidget), () => widgetService.getAllWidgets().slice());
@@ -170,6 +173,11 @@ export class EditorCanvasContextService extends Disposable implements ICanvasCon
 		}
 		if (isIChatViewViewContext(widget.viewContext)) {
 			return widget.viewContext.viewId === ChatViewId;
+		}
+		// The chat part beside the editor area, where a feature has one, shows chats as the Chat view does: in editors of a
+		// part of its own, not the editor area its canvases open in
+		if (this.layoutService.getContainer(mainWindow, Parts.CHAT_PART)?.contains(widget.domNode)) {
+			return true;
 		}
 		return isIChatResourceViewContext(widget.viewContext)
 			&& !widget.viewContext.isQuickChat

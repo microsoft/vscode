@@ -21,6 +21,7 @@ import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { IRemoteGitHubEnvironmentSharingService } from '../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentHostFilterConnectionStatus, IAgentHostFilterEntry, IAgentHostFilterService } from '../../../common/agentHostFilter.js';
 import { ShowConnectionDiagnosticsCommandId } from './connectionDiagnostics.js';
@@ -64,6 +65,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IRemoteGitHubEnvironmentSharingService private readonly _remoteSharing: IRemoteGitHubEnvironmentSharingService,
 	) {
 		super(undefined, action);
 
@@ -462,6 +464,13 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 		this._diagnosticsHover.value = this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._diagnosticsElement, () => label);
 	}
 
+	private async _disconnect(host: IAgentHostFilterEntry): Promise<void> {
+		// A grouped entry has no single address, and only directly connected remotes can be shared.
+		if (!host.address || await this._remoteSharing.confirmDisconnect(host.address, host.label)) {
+			await this._filterService.disconnect(host.id);
+		}
+	}
+
 	protected _showMenu(e: Event): void {
 		if (!this._dropdownElement) {
 			return;
@@ -503,7 +512,7 @@ export class HostFilterActionViewItem extends BaseActionViewItem {
 					? localize('agentHostFilter.disconnect', "Disconnect")
 					: localize('agentHostFilter.connect', "Connect"),
 				enabled: selected.status !== AgentHostFilterConnectionStatus.Connecting,
-				run: () => connected ? this._filterService.disconnect(selected.id) : this._filterService.reconnect(selected.id),
+				run: () => connected ? this._disconnect(selected) : this._filterService.reconnect(selected.id),
 			}));
 		}
 		actions.push(new Separator(), toAction({

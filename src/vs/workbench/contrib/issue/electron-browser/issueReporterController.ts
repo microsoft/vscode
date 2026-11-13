@@ -7,7 +7,7 @@ import '../browser/media/issueReporterOverlay.css';
 import { $, append, clearNode, Dimension } from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { timeout } from '../../../../base/common/async.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -25,9 +25,8 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { FileAccess, Schemas } from '../../../../base/common/network.js';
 import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IIssueReporterAttachmentImport, IssueReporterOverlay } from '../browser/issueReporterOverlay.js';
-import { getIssueReporterMediaFormat, readIssueReporterImage, readIssueReporterMediaFile } from '../browser/issueReporterMedia.js';
+import { getIssueReporterMediaFormat, readIssueReporterMediaFile } from '../browser/issueReporterMedia.js';
 import { IRecordingService, IRecordingData, RecordingState, ScreenCapturePermissionStatus, shouldShowScreenCapturePermissionSettings } from '../browser/recordingService.js';
-import { IScreenshotService } from '../browser/screenshotService.js';
 import { IIssueFormService } from '../common/issue.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IWorkbenchAssignmentService } from '../../../services/assignment/common/assignmentService.js';
@@ -46,6 +45,8 @@ import { IUserDataProfilesService } from '../../../../platform/userDataProfile/c
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IFilesConfigurationService } from '../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { IScreenshotToolService, ScreenshotToolEntryPoint, ScreenshotToolOutcome, ScreenshotToolResult } from '../../screenshotTool/browser/screenshotTool.js';
 
 /** True while a report is open, including a dedicated window or an inactive editor tab. */
 export const IssueReporterOpenContext = new RawContextKey<boolean>('issueReporterOpen', false);
@@ -84,7 +85,6 @@ export class IssueReporterController extends Disposable {
 		private readonly container: HTMLElement,
 		private readonly host: IIssueReporterHost,
 		@IRecordingService private readonly recordingService: IRecordingService,
-		@IScreenshotService private readonly screenshotService: IScreenshotService,
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -105,6 +105,7 @@ export class IssueReporterController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IScreenshotToolService private readonly screenshotToolService: IScreenshotToolService,
 	) {
 		super();
 		IssueReporterController.liveInstances.add(this);
@@ -220,48 +221,23 @@ export class IssueReporterController extends Disposable {
 		// Populate system info in background (non-blocking)
 		void this.populateSystemInfo();
 
-		// Wire screenshot capture
-		this.inputDisposables.add(wizard.onDidRequestScreenshot(async id => {
-			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
-			try {
-				// Conditionally hide the floating bar based on user setting
-				const shouldHide = wizard.shouldHideToolbarForCapture;
-				if (shouldHide) {
-					wizard.hideFloatingBar();
-
-					// Small delay to let the bar disappear before capture
-					await timeout(100, mediaCancellation.token);
-				}
-
-				const dataUrl = await this.screenshotService.captureScreenshot();
-
-				// Show bar again after capture
-				if (shouldHide && isCurrent()) {
-					disposableTimeout(() => wizard.showFloatingBar(), 1000, this.inputDisposables);
-				}
-
-				if (!dataUrl || !isCurrent()) {
-					return;
-				}
-
-				const dimensions = await this.readAttachmentImage(dataUrl, mediaCancellation.token);
-				if (!isCurrent()) {
-					return;
-				}
-				wizard.addScreenshot({ dataUrl, ...dimensions }, id);
-
-				// Bring the wizard back into focus after the capture in case
-				// the user switched editors/groups while setting up the shot.
-				await this.revealAndActivate();
-			} catch (err) {
-				if (isCurrent()) {
-					disposableTimeout(() => wizard.showFloatingBar(), 1000, this.inputDisposables);
-					this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
-				}
-			} finally {
-				wizard.completeScreenshotCapture(id);
+		// The floating bar floats above the screenshot tool, so it hides while the tool is active in its window.
+		let barHiddenForScreenshotTool = false;
+		this.inputDisposables.add(this.screenshotToolService.onDidChangeActive(({ targetWindow, active }) => {
+			if (targetWindow !== mainWindow) {
+				return;
+			}
+			if (active) {
+				barHiddenForScreenshotTool = true;
+				wizard.hideFloatingBar();
+			} else if (barHiddenForScreenshotTool) {
+				barHiddenForScreenshotTool = false;
+				wizard.showFloatingBar();
 			}
 		}));
+
+		// Wire screenshot capture
+		this.inputDisposables.add(wizard.onDidRequestScreenshot(({ id, delayed }) => this.captureWithScreenshotTool(wizard, id, delayed, StopWatch.create(false), mediaCancellation.token)));
 
 		// Wire recording start
 		this.inputDisposables.add(this.wizard.onDidRequestStartRecording(() => this.startRecording()));
@@ -317,8 +293,8 @@ export class IssueReporterController extends Disposable {
 		}));
 
 		// Wire AI title generation
-		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async (description) => {
-			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested;
+		this.inputDisposables.add(this.wizard.onDidRequestGenerateTitle(async ({ description, token }) => {
+			const isCurrent = () => this.wizard === wizard && !mediaCancellation.token.isCancellationRequested && !token.isCancellationRequested;
 			try {
 				// Wait for installed extensions to be registered so the Copilot Chat
 				// extension has had a chance to contribute its `copilot` language
@@ -355,7 +331,7 @@ export class IssueReporterController extends Disposable {
 							value: `Generate a concise issue title (max 10 words, no quotes, no prefix like "Bug:" or "Feature:") for this bug report description:\n\n${description}`,
 						}],
 					}],
-				}, mediaCancellation.token);
+				}, token);
 				if (!isCurrent()) {
 					return;
 				}
@@ -374,8 +350,55 @@ export class IssueReporterController extends Disposable {
 		}));
 	}
 
-	protected readAttachmentImage(dataUrl: string, token: CancellationToken): Promise<{ width: number; height: number }> {
-		return readIssueReporterImage(dataUrl, token);
+	/** Captures the window the report is about, never the reporter's own window, and attaches it. */
+	private async captureWithScreenshotTool(wizard: IssueReporterOverlay, id: string, delayed: boolean, stopWatch: StopWatch, token: CancellationToken): Promise<void> {
+		const isCurrent = () => this.wizard === wizard && !token.isCancellationRequested;
+		// The tool hides the bar while it is active, but the delayed capture happens before that.
+		const shouldHide = delayed && wizard.shouldHideToolbarForCapture;
+		let result: ScreenshotToolResult = { kind: 'failed', mode: delayed ? 'window' : 'none' };
+		let outcome: ScreenshotToolOutcome = 'failed';
+		try {
+			if (delayed) {
+				if (shouldHide) {
+					wizard.hideFloatingBar();
+					await timeout(100, token);
+				}
+				const image = await this.screenshotToolService.captureWindow(mainWindow);
+				if (image) {
+					result = { kind: 'captured', mode: 'window', image };
+				}
+			} else {
+				result = await this.screenshotToolService.capture(mainWindow, token);
+			}
+			if (!isCurrent()) {
+				outcome = 'cancelled';
+				return;
+			}
+			if (result.kind !== 'captured') {
+				outcome = result.kind;
+				return;
+			}
+			wizard.addScreenshot({ dataUrl: result.image.dataUrl, width: result.image.width, height: result.image.height }, id);
+			outcome = 'attached';
+			await this.revealAndActivate();
+		} catch (err) {
+			if (isCurrent()) {
+				this.logService.error('[IssueReporterEditorPane] Screenshot failed:', err);
+			} else if (outcome !== 'attached') {
+				outcome = 'cancelled';
+			}
+		} finally {
+			if (shouldHide && isCurrent()) {
+				wizard.showFloatingBar();
+			}
+			wizard.completeScreenshotCapture(id);
+			this.screenshotToolService.logCapture({
+				entryPoint: ScreenshotToolEntryPoint.IssueReporter,
+				outcome,
+				mode: result.mode,
+				durationMs: stopWatch.elapsed(),
+			});
+		}
 	}
 
 	/** Use the default-profile file root already trusted by the native resource protocol. */

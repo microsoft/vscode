@@ -5,7 +5,7 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -24,6 +24,7 @@ import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, Tempo
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import './recentRemoteFolderPruner.js';
+import { FolderLocationStatusBarContribution } from './folderLocationStatusBar.js';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the
@@ -105,6 +106,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspacesFinderContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(FolderLocationStatusBarContribution.ID, FolderLocationStatusBarContribution, WorkbenchPhase.AfterRestored);
 
 // Render "Open Workspace" button in *.code-workspace files
 

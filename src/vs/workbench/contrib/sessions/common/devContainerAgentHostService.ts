@@ -25,6 +25,9 @@ export const DevContainerIdleTimeoutSettingId = 'chat.agentHost.devContainer.idl
 /** Hidden experimental setting that enables combining Dev Container execution with a new worktree. */
 export const DevContainerWorktreeEnabledSettingId = 'chat.agentHost.devContainer.worktree.enabled';
 
+/** Experimental setting that keeps user and agent state of new Dev Containers on a volume across rebuilds. */
+export const DevContainerStateVolumeEnabledSettingId = 'chat.agentHost.devContainer.stateVolume.enabled';
+
 /** Whether new sample workspaces can be selected, independently of already-created sessions. */
 export function areDevContainerSamplesEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getValue<boolean>(DevContainerSamplesEnabledSettingId) === true

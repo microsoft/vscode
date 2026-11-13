@@ -2127,6 +2127,27 @@ suite('aiCustomizationManagementEditor', () => {
 		});
 	});
 
+	test('selecting a section by id moves focus into it unless focus is preserved', () => {
+		const editor = createTestEditor();
+		store.add(editor.editorPreviewDisposables);
+		const focused: AICustomizationManagementSection[] = [];
+		Object.assign(editor, {
+			sections: [{ id: AICustomizationManagementSection.Instructions }, { id: AICustomizationManagementSection.McpServers }],
+			sectionContextKey: { set() { } },
+			listWidget: { setSection: async () => { }, focusSearch: () => focused.push(AICustomizationManagementSection.Instructions) },
+			mcpListWidget: { setVisible() { }, focusSearch: () => focused.push(AICustomizationManagementSection.McpServers) },
+		});
+
+		editor.selectSectionById(AICustomizationManagementSection.Instructions);
+		editor.selectSectionById(AICustomizationManagementSection.McpServers);
+		editor.selectSectionById(AICustomizationManagementSection.Instructions, { preserveFocus: true });
+
+		assert.deepStrictEqual({ focused, selected: editor.selectedSection }, {
+			focused: [AICustomizationManagementSection.Instructions, AICustomizationManagementSection.McpServers],
+			selected: AICustomizationManagementSection.Instructions,
+		});
+	});
+
 	test('opens a plugin skill when section counts change while it loads', async () => {
 		type SectionItem = { readonly id: AICustomizationManagementSection; readonly label: string; readonly description: string; count: number };
 		type NavigationEditor = TestableEditor & {

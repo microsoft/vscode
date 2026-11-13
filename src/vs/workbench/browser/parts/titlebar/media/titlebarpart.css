@@ -207,6 +207,34 @@
 	text-overflow: ellipsis;
 }
 
+/* Alternate folder location: icon, name and branch-style description */
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .search-label.has-folder-location {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-name-group,
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-branch-group {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+}
+
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-name,
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-branch {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-icon,
+.monaco-workbench .part.titlebar .command-center .command-center-quick-pick .folder-location-branch-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
 /* Compact mode: left-aligned label, no icon, full width */
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-center > .window-title > .command-center .action-item.command-center-center .action-item.command-center-quick-pick.compact-mode {
 	margin: auto auto auto 0;
@@ -264,8 +292,10 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .menubar .menubar-menu-button > .menubar-menu-items-holder.monaco-menu-container,
-.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .monaco-toolbar .dropdown-action-container {
-	zoom: var(--zoom-factor); /* helps to position the menu properly when counter zooming */
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .shadow-root-host,
+.monaco-workbench .part.titlebar > .titlebar-container.counter-zoom .context-view:not(.monaco-submenu) {
+	/* Counter-zoom menus hosted in the titlebar so they match window zoom. Submenus are excluded because they inherit the zoom of their parent menu */
+	zoom: var(--zoom-factor);
 }
 
 /* Resizer */

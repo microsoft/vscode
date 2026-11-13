@@ -1,0 +1,56 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.agents-launcher {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-foreground);
+	border: var(--vscode-strokeThickness) solid var(--vscode-editorWidget-border);
+	border-radius: var(--vscode-cornerRadius-large);
+}
+
+.agents-launcher .chat-view {
+	box-sizing: border-box;
+	overflow: auto;
+	/* The picker row above the input pads itself: a smaller inset above it matches the sides and bottom. */
+	padding: var(--vscode-spacing-size40) var(--vscode-spacing-size120) var(--vscode-spacing-size120);
+}
+
+.agents-launcher .new-chat-widget-container,
+.agents-launcher .new-chat-widget-container.revealed {
+	justify-content: flex-start;
+	overflow: visible;
+	padding: 0;
+}
+
+.agents-launcher .new-chat-widget-content {
+	max-width: none;
+}
+
+.agents-launcher .new-session-welcome-message,
+.agents-launcher .new-session-below-input-surfaces,
+.agents-launcher .new-session-send-status:empty {
+	display: none;
+}
+
+.agents-launcher .new-session-workspace-picker-container,
+.agents-launcher .experimental-new-session-composer .new-session-workspace-picker-container {
+	margin-top: 0;
+}
+
+/* The status of a background start shows below the input, and takes no room until there is one. */
+.agents-launcher .new-session-send-status {
+	order: 1;
+	margin-top: var(--vscode-spacing-size80);
+	margin-bottom: 0;
+}
+
+.agents-launcher .new-chat-widget-container.revealed .new-chat-input-container,
+.agents-launcher .new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	animation: none;
+}

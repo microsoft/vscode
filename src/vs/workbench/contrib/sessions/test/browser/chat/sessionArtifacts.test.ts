@@ -10,7 +10,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, observableValue, type IReader } from '../../../../../../base/common/observable.js';
 import { isMacintosh, isWeb, isWindows } from '../../../../../../base/common/platform.js';
 import { basename, extname } from '../../../../../../base/common/resources.js';
@@ -154,7 +154,7 @@ suite('Session Artifacts', () => {
 			chat,
 			browserUrls,
 			gitHubReferences,
-			{ id: 'test-artifact-details', selected: constObservable(undefined), toggle() { }, release() { } },
+			{ id: 'test-artifact-details', selected: constObservable(undefined), activeSection: constObservable(undefined), toggle() { }, release() { }, suspend: () => Disposable.None },
 			new class extends mock<IClipboardService>() { }(),
 			configurationService,
 			new class extends mock<ILabelService>() {

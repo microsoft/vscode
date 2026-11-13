@@ -9,6 +9,7 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { registerOverlayAnchor } from '../../../../base/browser/overlayLayoutElement.js';
 import type { CodeWindow } from '../../../../base/browser/window.js';
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
+import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { IBrowserViewKeyDownEvent } from '../../../../platform/browserView/common/browserView.js';
@@ -31,8 +32,8 @@ export class WebContentsViewHost extends Disposable {
 	private _container: HTMLElement | undefined;
 	private _model: IBrowserViewModel | undefined;
 	private _editorVisible = false;
-	private _overlayObscured = false;
-	private _notificationObscured = false;
+	/** The types of the overlays that overlap the page. */
+	private _overlayTypes: ReadonlySet<BrowserOverlayType> = new Set();
 	private _hiddenAsAnchor = false;
 
 	private readonly _placeholderScreenshot = $('.browser-placeholder-screenshot');
@@ -45,6 +46,16 @@ export class WebContentsViewHost extends Disposable {
 
 	get screenshotElement(): HTMLElement { return this._placeholderScreenshot; }
 	get pauseElement(): HTMLElement { return this._overlayPauseElement; }
+
+	/** Whether overlays overlap the page, which hides it behind its placeholder. */
+	private get _obscured(): boolean {
+		return this._overlayTypes.size > 0;
+	}
+
+	/** Whether only the screenshot tool's overlay overlaps the page, which hides it without pausing it. */
+	private get _screenshotToolOnly(): boolean {
+		return this._overlayTypes.size === 1 && this._overlayTypes.has(BrowserOverlayType.ScreenshotTool);
+	}
 
 	constructor(
 		private readonly targetWindow: CodeWindow,
@@ -175,7 +186,7 @@ export class WebContentsViewHost extends Disposable {
 
 	private _shouldShowPage(): boolean {
 		return this._editorVisible
-			&& !this._overlayObscured
+			&& !this._obscured
 			&& !this._hiddenAsAnchor
 			&& !!this._model?.url
 			&& !this._model.error;
@@ -191,9 +202,9 @@ export class WebContentsViewHost extends Disposable {
 		}
 		const placeholderActive = !!this._model?.url && !this._model.error;
 		this._placeholderScreenshot.style.display = placeholderActive ? '' : 'none';
-		const pauseActive = !!this._model?.url && this._editorVisible && this._overlayObscured;
+		const pauseActive = !!this._model?.url && this._editorVisible && this._obscured && !this._screenshotToolOnly;
 		// Notifications always dim the page and show the banner; the setting covers other overlays.
-		const dim = pauseActive && (this._notificationObscured || this.configurationService.getValue<boolean>(BrowserDimOverlaySettingId) !== false);
+		const dim = pauseActive && (this._overlayTypes.has(BrowserOverlayType.Notification) || this.configurationService.getValue<boolean>(BrowserDimOverlaySettingId) !== false);
 		this._overlayPauseElement.classList.toggle('visible', dim);
 		if (!this._model) {
 			return;
@@ -229,13 +240,10 @@ export class WebContentsViewHost extends Disposable {
 		if (!this._container) {
 			return;
 		}
-		const overlays = this._overlayManager.getOverlappingOverlays(this._container);
-		const obscured = overlays.length > 0;
-		const notificationObscured = overlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
-		this._overlayPauseElement.classList.toggle('show-message', notificationObscured);
-		if (obscured !== this._overlayObscured || notificationObscured !== this._notificationObscured) {
-			this._overlayObscured = obscured;
-			this._notificationObscured = notificationObscured;
+		const types = new Set(this._overlayManager.getOverlappingOverlays(this._container).map(overlay => overlay.type));
+		this._overlayPauseElement.classList.toggle('show-message', types.has(BrowserOverlayType.Notification));
+		if (!equalSets(types, this._overlayTypes)) {
+			this._overlayTypes = types;
 			this._refresh();
 		}
 	}

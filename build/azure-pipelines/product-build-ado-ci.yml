@@ -395,6 +395,7 @@ extends:
                   - smoke-electron
                   - smoke-wsl-kerberos-proxy
                   - smoke-wsl-basic-proxy
+                  - smoke-wsl-basic-pac-proxy
             - template: build/azure-pipelines/win32/product-build-win32-ci.yml@self
               parameters:
                 VSCODE_CIBUILD: true

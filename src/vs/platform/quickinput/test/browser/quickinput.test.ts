@@ -202,6 +202,32 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.deepStrictEqual(states, controls.map(() => ({ supportsWidget: false, contentAttached: false })));
 	});
 
+	test('quick tree checkbox clicks retain focus and selection when listeners replace items', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const picker = store.add(controller.createQuickTree());
+		picker.sortByLabel = false;
+		picker.setItemTree([
+			{ id: 'first', label: 'First', checked: false },
+			{ id: 'second', label: 'Second', checked: false },
+		]);
+		store.add(picker.onDidChangeCheckboxState(() => {
+			picker.setItemTree(picker.itemTree.map(item => ({ ...item })));
+		}));
+		picker.show();
+		const list = fixture.querySelector<HTMLElement>('.quick-input-tree > .monaco-list')!;
+		const tree = getRegisteredLists().find(widget => widget.getHTMLElement() === list);
+		if (!(tree instanceof ObjectTree)) {
+			throw new Error('Expected the Quick Input tree');
+		}
+		fixture.querySelectorAll<HTMLElement>('.quick-input-tree-entry .monaco-checkbox')[1].click();
+		const replacement = picker.itemTree[1];
+		assert.deepStrictEqual({
+			checked: picker.checkedLeafItems.map(item => item.id),
+			focused: tree.getFocus()[0] === replacement,
+			selected: tree.getSelection()[0] === replacement,
+		}, { checked: ['second'], focused: true, selected: true });
+	});
+
 	test('quick widgets retain their content when shown again without disturbing focus on updates', () => {
 		const picker = store.add(controller.createQuickWidget());
 		const content = mainWindow.document.createElement('input');

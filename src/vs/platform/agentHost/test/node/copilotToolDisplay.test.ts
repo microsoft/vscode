@@ -523,6 +523,7 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: undefined,
+				mcpServerName: 'GitHub',
 			},
 			fallback: 'GitHub: issue_read',
 			toolName: 'issue_read',

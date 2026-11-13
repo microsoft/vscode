@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+import { ISessionsNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsNavigationService.js';
+import { SessionsServiceNavigationService } from '../../../../workbench/contrib/sessions/browser/sessionsServiceNavigationService.js';
 import { IAgentHostCustomizationService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
 import { AgentHostCustomizationService } from '../../../../workbench/contrib/sessions/browser/agentHostCustomizationService.js';
 import { ISessionsService, SessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
@@ -21,6 +23,8 @@ import { ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService } fro
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { SessionsManagementService } from '../../../../workbench/contrib/sessions/browser/sessionsManagementService.js';
 import { ISessionChangesStatsCache, SessionChangesStatsCache } from '../../../../workbench/services/sessions/common/sessionChangesStatsCache.js';
+import { ISessionDraftsService, SessionDraftsService } from '../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { IScheduledChatsService, ScheduledChatsService } from '../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 
 // The session services are implemented in modules that do not register themselves, so that a window loads them only
 // when its entry point imports this module.
@@ -31,6 +35,7 @@ registerSingleton(ISessionsListModelService, SessionsListModelService, Instantia
 registerSingleton(ISessionChangesStatsCache, SessionChangesStatsCache, InstantiationType.Delayed);
 registerSingleton(ISessionOpenTelemetryService, SessionOpenTelemetryService, InstantiationType.Delayed);
 registerSingleton(ISessionsService, SessionsService, InstantiationType.Eager);
+registerSingleton(ISessionsNavigationService, SessionsServiceNavigationService, InstantiationType.Delayed);
 registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
 registerSingleton(ISessionSectionOrderService, SessionSectionOrderService, InstantiationType.Delayed);
@@ -38,3 +43,5 @@ registerSingleton(ISessionGroupsService, SessionGroupsService, InstantiationType
 registerSingleton(ISessionsRecentWorkspacesService, SessionsRecentWorkspacesService, InstantiationType.Delayed);
 registerSingleton(ISessionComparisonService, SessionComparisonService, InstantiationType.Delayed);
 registerSingleton(ISessionsManagementService, SessionsManagementService, InstantiationType.Eager);
+registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
+registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);

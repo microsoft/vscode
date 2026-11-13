@@ -41,7 +41,7 @@ import { ICustomizationItemConfig, readCustomizationCount, CUSTOMIZATION_ITEMS }
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../../../workbench/contrib/chat/common/customizationsLocation.js';
-import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
 import { observeVisibleSectionBadge, observeVisibleSectionsBadge } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
 import { ChatCustomizationsTelemetry } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
@@ -287,11 +287,11 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		const updateLocation = () => location.set(resolveChatCustomizationsLocation(
 			configurationService.getValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation),
 			true,
-			configurationService.getValue<boolean>(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING),
+			configurationService.getValue<boolean>(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) && !configurationService.getValue<boolean>(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING),
 		));
 		updateLocation();
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsLocation) || event.affectsConfiguration(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING)) {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsLocation) || event.affectsConfiguration(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) || event.affectsConfiguration(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING)) {
 				updateLocation();
 			}
 		}));

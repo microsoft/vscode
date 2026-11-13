@@ -566,6 +566,11 @@ export interface IChatQuestion {
 	required?: boolean;
 	validation?: IChatQuestionValidation;
 	detailedMessage?: string | IMarkdownString;
+	/** Plain text shown before the description as written, with its line breaks. It is never rendered as Markdown. */
+	context?: string;
+	/** A short plain-text note shown just above the answer, with an optional icon. */
+	note?: { readonly text: string; readonly icon?: ThemeIcon };
+	password?: boolean;
 }
 
 /** Answer shape for a single-select question. */
@@ -2195,6 +2200,8 @@ export interface IChatRequestSubmittedEvent {
 export interface IChatRequestAcceptedEvent {
 	readonly chatSessionResource: URI;
 	readonly isNewSession: boolean;
+	/** Actor that produced an Agent Host message, e.g. an agent delegating to another session. Absent for direct sends. */
+	readonly agentHostMessageOrigin?: MessageOrigin;
 }
 
 export const IChatService = createDecorator<IChatService>('IChatService');

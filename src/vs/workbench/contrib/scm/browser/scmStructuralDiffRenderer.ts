@@ -1,0 +1,139 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { $, append } from '../../../../base/browser/dom.js';
+import { IconLabel } from '../../../../base/browser/ui/iconLabel/iconLabel.js';
+import { HoverStyle } from '../../../../base/browser/ui/hover/hover.js';
+import { ITreeNode } from '../../../../base/browser/ui/tree/tree.js';
+import { ICompressibleTreeRenderer } from '../../../../base/browser/ui/tree/objectTree.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { FuzzyScore, createMatches } from '../../../../base/common/filters.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { SymbolKinds } from '../../../../editor/common/languages.js';
+import { SCMStructuralDiffElement, SCMStructuralDiffNode, getSCMStructuralDiffAriaLabel, getSCMStructuralDiffChange, getSCMStructuralDiffChangeAnnotation, getSCMStructuralDiffLabel } from '../common/scmStructuralDiff.js';
+import { ICodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
+import { ScrollType } from '../../../../editor/common/editorCommon.js';
+import { IEditorOptions, TextEditorSelectionSource } from '../../../../platform/editor/common/editor.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { localize } from '../../../../nls.js';
+import { DEFAULT_EDITOR_ASSOCIATION } from '../../../common/editor.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import '../../../../editor/contrib/symbolIcons/browser/symbolIcons.js';
+
+interface StructuralDiffTemplate extends IDisposable {
+	readonly icon: HTMLElement;
+	readonly label: IconLabel;
+	readonly metadata: HTMLElement;
+	readonly annotation: HTMLElement;
+	readonly status: HTMLElement;
+	readonly elementDisposables: DisposableStore;
+}
+
+export class SCMStructuralDiffRenderer implements ICompressibleTreeRenderer<SCMStructuralDiffElement, FuzzyScore, StructuralDiffTemplate> {
+	static readonly TEMPLATE_ID = 'scmStructuralDiff';
+	readonly templateId = SCMStructuralDiffRenderer.TEMPLATE_ID;
+	private readonly hoverGroupId = generateUuid();
+
+	constructor(@IHoverService private readonly hoverService: IHoverService) { }
+
+	renderTemplate(container: HTMLElement): StructuralDiffTemplate {
+		const disposables = new DisposableStore();
+		const row = append(container, $('.resource.scm-structural-change'));
+		const icon = append(row, $('.scm-structural-change-icon'));
+		icon.setAttribute('aria-hidden', 'true');
+		const label = disposables.add(new IconLabel(append(row, $('.name')), { supportHighlights: true }));
+		const metadata = append(row, $('.scm-structural-change-metadata'));
+		metadata.setAttribute('aria-hidden', 'true');
+		const annotation = append(metadata, $('span.scm-structural-change-annotation'));
+		const status = append(metadata, $('.scm-structural-change-status'));
+		status.setAttribute('aria-hidden', 'true');
+		const elementDisposables = disposables.add(new DisposableStore());
+		return { icon, label, metadata, annotation, status, elementDisposables, dispose: () => disposables.dispose() };
+	}
+
+	renderElement(node: ITreeNode<SCMStructuralDiffElement, FuzzyScore>, _index: number, template: StructuralDiffTemplate): void {
+		const element = node.element;
+		const item = element.type === 'structuralDiff' ? element.node.modifiedItem ?? element.node.originalItem : undefined;
+		const change = getSCMStructuralDiffChange(element);
+		const annotation = getSCMStructuralDiffChangeAnnotation(element);
+		template.elementDisposables.clear();
+		template.icon.className = 'scm-structural-change-icon';
+		template.icon.classList.add(...ThemeIcon.asClassNameArray(item ? SymbolKinds.toIcon(item.kind) : Codicon.warning));
+		template.icon.classList.toggle('codicon-colored', !!item);
+		template.label.setLabel(getSCMStructuralDiffLabel(element), item?.detail, {
+			title: getSCMStructuralDiffAriaLabel(element),
+			matches: createMatches(node.filterData),
+			labelEscapeNewLines: true,
+		});
+		template.annotation.textContent = annotation?.label ?? '';
+		template.annotation.style.display = annotation ? '' : 'none';
+		template.status.className = 'scm-structural-change-status';
+		template.status.textContent = '';
+		template.metadata.style.display = change ? '' : 'none';
+		if (change) {
+			template.status.textContent = change.type === 'added'
+				? localize('structuralDiff.addedMarker', "A")
+				: change.type === 'deleted'
+					? localize('structuralDiff.deletedMarker', "D")
+					: change.type === 'renamed'
+						? localize('structuralDiff.renamedMarker', "R")
+						: localize('structuralDiff.modifiedMarker', "M");
+			template.status.classList.add(change.type);
+			template.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(template.metadata, {
+				content: annotation?.description ?? change.label,
+				style: HoverStyle.Mouse,
+			}, { groupId: this.hoverGroupId }));
+		}
+	}
+
+	disposeElement(_node: ITreeNode<SCMStructuralDiffElement, FuzzyScore>, _index: number, template: StructuralDiffTemplate): void {
+		template.elementDisposables.clear();
+	}
+
+	renderCompressedElements(): void {
+		throw new Error('Structural change nodes cannot be compressed');
+	}
+
+	disposeTemplate(template: StructuralDiffTemplate): void {
+		template.dispose();
+	}
+}
+
+export async function openSCMStructuralDiff(element: SCMStructuralDiffNode, options: IEditorOptions, editorService: IEditorService, isCurrent: () => boolean, sideBySide = false): Promise<void> {
+	if (!isCurrent()) {
+		return;
+	}
+	const pane = await editorService.openEditor({
+		original: { resource: element.resource.multiDiffEditorOriginalUri! },
+		modified: { resource: element.resource.multiDiffEditorModifiedUri! },
+		options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
+	}, sideBySide ? SIDE_GROUP : undefined);
+	const control = pane?.getControl();
+	if (!isDiffEditor(control) || !isCurrent()) {
+		return;
+	}
+	const { originalItem, modifiedItem } = element.node;
+	let target: ICodeEditor;
+	let range: IRange;
+	if (modifiedItem) {
+		target = control.getModifiedEditor();
+		range = modifiedItem.selectionRange ?? modifiedItem.range;
+	} else if (control.renderSideBySide || !element.deletedAt) {
+		target = control.getOriginalEditor();
+		range = originalItem!.selectionRange ?? originalItem!.range;
+	} else {
+		// An inline diff hides the original editor and shows deleted text where it was deleted from the modified document.
+		target = control.getModifiedEditor();
+		range = Range.fromPositions(element.deletedAt);
+	}
+	target.setSelection(range, TextEditorSelectionSource.NAVIGATION);
+	target.revealRangeInCenterIfOutsideViewport(range, ScrollType.Smooth);
+	if (!options.preserveFocus) {
+		target.focus();
+	}
+}

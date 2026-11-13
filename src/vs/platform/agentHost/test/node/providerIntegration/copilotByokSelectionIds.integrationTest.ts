@@ -7,7 +7,7 @@ import assert from 'assert';
 import { mkdtemp, rm } from 'fs/promises';
 import { tmpdir } from 'os';
 import { CopilotClient } from '@github/copilot-sdk';
-import { Emitter } from '../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../log/common/log.js';
 import { getByokLmAgentModelId, isByokLmAgentModelId, type IByokLmModelInfo } from '../../../common/agentHostByokLm.js';
@@ -44,7 +44,7 @@ suite('Agent Host Provider Integration - Copilot BYOK selection ids', function (
 		const baseDirectory = await mkdtemp(`${tmpdir()}/byok-selection-ids-`);
 		const models = store.add(new Emitter<IByokLmModelInfo[]>());
 		const registry = new ByokLmBridgeRegistry();
-		const registration = registry.register('client', { chat: async () => ({ output: [] }), onDidChangeModels: models.event });
+		const registration = registry.register('client', { chat: async () => ({ output: [] }), onDidChangeModels: models.event, onDidDelta: Event.None });
 		models.fire(byokModels);
 		const proxy = new ByokLmProxyService(new NullLogService(), registry);
 		const handle = await proxy.start();

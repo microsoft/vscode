@@ -23,7 +23,7 @@ import { logBrowserOpen } from '../../../../platform/browserView/common/browserV
 import { LRUCachedFunction } from '../../../../base/common/cache.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { BrowserViewStorageScope, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
+import { BrowserViewStorageScope, getBrowserViewPathComparer, IBrowserViewNetwork, isBrowserViewAssociatedResourceNavigation, remoteUrlToFileUrl, splitUrlSuffix, toBrowserViewSessionOptions } from '../../../../platform/browserView/common/browserView.js';
 
 const LOADING_SPINNER_SVG = (color: string | undefined) => `
 	<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
@@ -189,10 +189,24 @@ export class BrowserEditorInput extends EditorInput {
 		return this._initialData.session;
 	}
 
-	/** The remote network this view was opened for, or `undefined` for the local network. */
+	/** The remote network this tab was requested to open on, or `undefined` for the local network. Fixed by the saved session, unlike {@link activeNetwork}. */
 	get network(): IBrowserViewNetwork | undefined {
 		const session = this._initialData.session;
 		return session?.scope === BrowserViewStorageScope.Global ? undefined : session?.network;
+	}
+
+	/** The network the page actually runs on, which may be the local network the requested {@link network} fell back to. Falls back to the request before the model resolves. */
+	get activeNetwork(): IBrowserViewNetwork | undefined {
+		return this.model ? this.model.network : this.network;
+	}
+
+	/** Whether navigating to {@link target} keeps the page on the {@link associatedResource}, apart from its query and fragment. */
+	isAssociatedResourceNavigation(target: string): boolean {
+		if (!this._associatedResource) {
+			return false;
+		}
+		const network = this.activeNetwork;
+		return isBrowserViewAssociatedResourceNavigation(this._associatedResource, target, network, getBrowserViewPathComparer(network && this.browserViewWorkbenchService.getNetworkFileSystem(network).caseSensitive));
 	}
 
 	get url(): string | undefined {
@@ -400,9 +414,10 @@ export class BrowserEditorInput extends EditorInput {
 
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl)) {
-			const currentResource = URI.parse(currentUrl);
-			renamedUrl = target.with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
+		if (currentUrl && this.isAssociatedResourceNavigation(currentUrl)) {
+			// Map the target to the URL the page displays first, then carry over the page's query and fragment as written.
+			const { query, fragment } = splitUrlSuffix(currentUrl);
+			renamedUrl = splitUrlSuffix(remoteUrlToFileUrl(this.activeNetwork, target.toString())).base + query + fragment;
 		}
 		return {
 			editor: {

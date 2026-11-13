@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'mocha';
-import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors } from '../git';
+import { findGit, Git, GitStatusParser, parseGitCommits, parseGitFileLog, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes, parseCoAuthors, getWorktreePathFromGitdir } from '../git';
 import * as assert from 'assert';
+import * as path from 'path';
 import { LogOutputChannel, window } from 'vscode';
 import { splitInChunks } from '../util';
 
@@ -650,6 +651,20 @@ suite('git', () => {
 				{ mode: '100644', object: '257cc5642cb1a054f08cc83f2d943e56fd3ebe99', stage: '0', file: 'what.js' },
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
+			]);
+		});
+	});
+
+	suite('getWorktreePathFromGitdir', () => {
+		test('absolute and relative gitdir', function () {
+			const worktreeGitDirPath = path.resolve('/repo/.git/worktrees/feature');
+
+			assert.deepStrictEqual([
+				getWorktreePathFromGitdir(worktreeGitDirPath, '/worktrees/feature/.git'),
+				getWorktreePathFromGitdir(worktreeGitDirPath, '../../../../worktrees/feature/.git')
+			], [
+				'/worktrees/feature',
+				path.resolve('/worktrees/feature')
 			]);
 		});
 	});

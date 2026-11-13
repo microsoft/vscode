@@ -16,6 +16,12 @@ export interface IXtermCore {
 		onUserInput: IEvent<void>;
 	};
 
+	_bufferService: {
+		buffer: {
+			setWrapped(lineIndex: number, isWrapped: boolean): void;
+		};
+	};
+
 	viewport?: {
 		readonly scrollBarWidth: number;
 		_innerRefresh(): void;

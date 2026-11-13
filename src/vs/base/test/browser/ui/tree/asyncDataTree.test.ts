@@ -509,6 +509,82 @@ suite('AsyncDataTree', function () {
 		});
 	});
 
+	suite('issue #347997 - expanding a stale node while an ancestor refresh is in flight', () => {
+
+		function createTree() {
+			const container = document.createElement('div');
+			const pending = new Map<string, () => void>();
+			const requests: string[] = [];
+			const dataSource = new class implements IAsyncDataSource<Element, Element> {
+				hasChildren(element: Element): boolean {
+					return !!element.children && element.children.length > 0;
+				}
+				getChildren(element: Element): Promise<Element[]> {
+					requests.push(element.id);
+					return new Promise(c => pending.set(element.id, () => c(element.children || [])));
+				}
+			};
+			const model = new Model({
+				id: 'root',
+				children: [
+					{ id: 'a', children: [{ id: 'aa' }] },
+					{ id: 'b', children: [{ id: 'ba' }] }
+				]
+			});
+			const tree = store.add(new AsyncDataTree<Element, Element>('test', container, new VirtualDelegate(), [new Renderer()], dataSource, { identityProvider: new IdentityProvider() }));
+			tree.layout(200);
+			const resolve = async (id: string) => {
+				const complete = pending.get(id);
+				assert.ok(complete, `getChildren(${id}) should be pending`);
+				pending.delete(id);
+				complete();
+				await timeout(0);
+			};
+			const state = () => ({
+				rows: [...container.querySelectorAll('.monaco-list-row')].map(row => row.textContent),
+				requests: requests.splice(0),
+				pending: [...pending.keys()]
+			});
+			return { tree, model, resolve, state };
+		}
+
+		test('expanding it before the refresh reaches it fetches its children once', async () => {
+			const { tree, model, resolve, state } = createTree();
+			const pSetInput = tree.setInput(model.root);
+			await resolve('root');
+			await pSetInput;
+			state();
+
+			const pRefresh = tree.updateChildren(model.root);
+			tree.toggleCollapsed(model.get('a')); // the user expands `a` before the refresh fetched the children of the root
+			await resolve('root');
+			await resolve('a');
+			await pRefresh;
+
+			assert.deepStrictEqual(state(), { rows: ['a', 'aa', 'b'], requests: ['root', 'a'], pending: [] });
+		});
+
+		test('expanding it after the refresh sampled it as collapsed keeps it expanded', async () => {
+			const { tree, model, resolve, state } = createTree();
+			const pSetInput = tree.setInput(model.root);
+			await resolve('root');
+			await pSetInput;
+			const pExpandB = tree.expand(model.get('b'));
+			await resolve('b');
+			await pExpandB;
+			state();
+
+			const pRefresh = tree.updateChildren(model.root);
+			await resolve('root'); // the refresh samples `a` as collapsed and waits for the children of `b`
+			tree.toggleCollapsed(model.get('a'));
+			await resolve('b');
+			await pRefresh;
+			await resolve('a');
+
+			assert.deepStrictEqual(state(), { rows: ['a', 'aa', 'b', 'ba'], requests: ['root', 'b', 'a'], pending: [] });
+		});
+	});
+
 	test('issue #78388 - tree should react to hasChildren toggles', async () => {
 		const container = document.createElement('div');
 		const model = new Model({

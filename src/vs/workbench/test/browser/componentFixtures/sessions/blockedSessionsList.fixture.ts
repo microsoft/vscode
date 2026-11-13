@@ -19,6 +19,7 @@ import { EditorMarkdownCodeBlockRenderer } from '../../../../../editor/browser/w
 import { IChat, IGitHubInfo, ISession, ISessionChangeset, ISessionChangesSummary, ISessionFileChange, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../../contrib/sessions/common/sessionsManagement.js';
 import { ISessionsService } from '../../../../contrib/sessions/browser/sessionsService.js';
+import { ISessionsNavigationService } from '../../../../contrib/sessions/browser/sessionsNavigationService.js';
 import { ISessionsListModelService } from '../../../../contrib/sessions/browser/sessionsListModelService.js';
 import { ISessionsProvidersService } from '../../../../contrib/sessions/browser/sessionsProvidersService.js';
 import { BlockedSessionsList, registerBlockedSessionsItemActions } from '../../../../../sessions/contrib/sessions/browser/blockedSessionsList.js';
@@ -30,7 +31,7 @@ import { IChatModel } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IAgentSession, IAgentSessionsModel } from '../../../../contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, IAgentSessionApprovalInfo } from '../../../../contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { ITestSessionWithChat, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
+import { ITestSessionWithChat, navigationServiceOf, stubSessionHosts, testGridPanes } from '../../../../contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../fixtureUtils.js';
 
 // The blocked-sessions list reuses the shared session-row styles.
@@ -252,10 +253,12 @@ function renderBlockedList(ctx: ComponentFixtureContext, sessions: readonly ISes
 					}
 				}();
 			}());
-			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
+			const sessionsService = new class extends mock<ISessionsService>() {
 				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);
-			}());
+			}();
+			reg.defineInstance(ISessionsService, sessionsService);
+			reg.defineInstance(ISessionsNavigationService, navigationServiceOf(sessionsService));
 			reg.defineInstance(ISessionsListModelService, createMockListModelService());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override markRead(): Promise<void> { return Promise.resolve(); }

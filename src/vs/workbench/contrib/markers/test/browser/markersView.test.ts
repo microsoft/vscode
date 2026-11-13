@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Event } from '../../../../../base/common/event.js';
+import { spy } from 'sinon';
+import { Event, Relay } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
+import { LanguageService } from '../../../../../editor/common/services/languageService.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { MarkerService } from '../../../../../platform/markers/common/markerService.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
@@ -46,16 +49,15 @@ suite('MarkersView', () => {
 		const markerService = disposables.add(new MarkerService());
 		instantiationService.stub(IMarkerService, markerService);
 		const view = disposables.add(instantiationService.createInstance(MarkersView, { id: Markers.MARKERS_VIEW_ID, title: 'Problems' }));
-		const labels = disposables.add(instantiationService.createInstance(ResourceLabels, view));
-		instantiationService.stubInstance(ResourceLabels, labels);
-		instantiationService.stubInstance(ResourceMarkersRenderer, disposables.add(new ResourceMarkersRenderer(labels, Event.None)));
+		const createInstance = spy(view['instantiationService'], 'createInstance');
+		disposables.add(toDisposable(() => createInstance.restore()));
 		disposables.add(toDisposable(() => view.element.remove()));
 		document.body.appendChild(view.element);
 		view.render();
 		view.setVisible(true);
 		view.orthogonalSize = 400;
 		view.layout(800);
-		return { view, markerService };
+		return { view, markerService, createInstance, languageService: instantiationService.get(ILanguageService) as LanguageService };
 	}
 
 	async function update(view: MarkersView, markerService: MarkerService, resource: URI, message: string): Promise<void> {
@@ -67,6 +69,49 @@ suite('MarkersView', () => {
 	function currentMarkers(view: MarkersView): Marker[] {
 		return resources.flatMap(resource => view['markersModel'].getResourceMarkers(resource)?.markers ?? []);
 	}
+
+	test('releases tree labels, renderers and relay subscriptions on repeated switches and disposal', async () => {
+		const relayInput = spy(Relay.prototype, 'input', ['set']);
+		disposables.add(toDisposable(() => relayInput.set.restore()));
+		const { view, markerService, createInstance, languageService } = createView(MarkersViewMode.Table);
+		await update(view, markerService, resources[0], 'first');
+		const listeners = () => languageService['_onDidChange']['_size'];
+		const initialListeners = listeners();
+		const labels: ResourceLabels[] = [];
+		const renderers: ResourceMarkersRenderer[] = [];
+
+		for (let iteration = 0; iteration < 3; iteration++) {
+			view.setViewMode(MarkersViewMode.Tree);
+			const treeLabels = createInstance.returnValues.findLast((instance): instance is ResourceLabels => instance instanceof ResourceLabels)!;
+			labels.push(treeLabels);
+			const renderer = createInstance.returnValues.findLast((instance): instance is ResourceMarkersRenderer => instance instanceof ResourceMarkersRenderer)!;
+			renderers.push(renderer);
+			const relay: Relay<never> = relayInput.set.lastCall.thisValue;
+			assert.deepStrictEqual({
+				freshLabels: new Set(labels).size,
+				freshRenderers: new Set(renderers).size,
+				disposed: treeLabels['_store'].isDisposed,
+				rendererDisposed: renderer['disposables'].isDisposed,
+				relayListening: relay['listening'],
+				relayListeners: relay['emitter'].hasListeners(),
+				listeners: listeners()
+			}, { freshLabels: iteration + 1, freshRenderers: iteration + 1, disposed: false, rendererDisposed: false, relayListening: true, relayListeners: true, listeners: initialListeners + 1 });
+
+			if (iteration < 2) {
+				view.setViewMode(MarkersViewMode.Table);
+			} else {
+				view.dispose();
+			}
+
+			assert.deepStrictEqual({
+				disposed: labels.map(labels => labels['_store'].isDisposed),
+				renderersDisposed: renderers.map(renderer => renderer['disposables'].isDisposed),
+				relayListening: relay['listening'],
+				relayListeners: relay['emitter'].hasListeners(),
+				listeners: listeners()
+			}, { disposed: labels.map(() => true), renderersDisposed: renderers.map(() => true), relayListening: false, relayListeners: false, listeners: initialListeners });
+		}
+	});
 
 	for (const viewMode of [MarkersViewMode.Tree, MarkersViewMode.Table]) {
 		suite(viewMode, () => {

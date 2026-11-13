@@ -56,6 +56,7 @@ suite('AquariumService', () => {
 		const initial = {
 			visible: service.actionVisible.get(),
 			display: button?.style.display,
+			classes: button?.className,
 		};
 		const hidden = service.toggleActionVisibility();
 		const afterHide = {
@@ -76,7 +77,7 @@ suite('AquariumService', () => {
 			shown,
 			afterShow,
 		}, {
-			initial: { visible: true, display: '' },
+			initial: { visible: true, display: '', classes: 'agents-aquarium-toggle agent-sessions-interactive' },
 			hidden: false,
 			afterHide: { visible: false, display: 'none', stored: false },
 			shown: true,

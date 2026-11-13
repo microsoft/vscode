@@ -84,6 +84,8 @@ export interface IAgentHostExitContext {
 	/** The main process lifecycle phase. */
 	readonly lifecyclePhase: number;
 	readonly windowCount: number;
+	/** Whether an Agents window that requested a connection to the agent host was still open. */
+	readonly agentsWindowConnected: boolean;
 	/** Why the most recently observed operating system session end was happening. The session end may have been cancelled. */
 	readonly osSessionEnd: AgentHostOsSessionEnd;
 	/** Milliseconds between the most recently observed operating system session end and the exit. */

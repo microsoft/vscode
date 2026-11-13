@@ -7,6 +7,7 @@ import assert from 'assert';
 import { isSafari } from '../../../../../../../base/browser/browser.js';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../../base/common/uri.js';
@@ -45,6 +46,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
+	let submittedByUser: boolean | undefined;
 	let codeEditorService: ICodeEditorService;
 
 	/** Returns the answer editors rendered under the given root, in DOM order. */
@@ -77,8 +79,9 @@ suite('ChatQuestionCarouselPart', () => {
 		codeEditorService = instantiationService.get(ICodeEditorService);
 		const options: IChatQuestionCarouselOptions = {
 			...optionsOverrides,
-			onSubmit: (answers) => {
+			onSubmit: (answers, byUser) => {
 				submittedAnswers = answers;
+				submittedByUser = byUser;
 				onSubmit?.();
 			}
 		};
@@ -92,6 +95,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	teardown(() => {
 		submittedAnswers = null;
+		submittedByUser = undefined;
 	});
 
 	suite('Basic Rendering', () => {
@@ -711,6 +715,46 @@ suite('ChatQuestionCarouselPart', () => {
 			});
 		});
 
+		test('renders the context and note as plain text around the description and answer', () => {
+			const context = 'Command:\nsudo -A tee "$(whoami)" <<\'EOF\'\n\n# Heading\n[link](https://example.com) $(lock) <b>bold</b>\nEOF';
+			createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'sudo needs a password', context, description: 'Password:', note: { icon: Codicon.lock, text: 'Your answer goes only to sudo.' } }]));
+			const body = widget.domNode.querySelector('.chat-question-body-scrollable')!;
+			const contextElement = body.querySelector('.chat-question-context');
+			const note = body.querySelector('.chat-question-note');
+
+			assert.deepStrictEqual({
+				context: contextElement?.textContent,
+				contextElements: contextElement?.childElementCount,
+				note: note?.textContent,
+				noteIcon: [...note?.querySelectorAll('.codicon') ?? []].map(icon => ({ lock: icon.classList.contains('codicon-lock'), ariaHidden: icon.getAttribute('aria-hidden') })),
+				order: [...body.querySelectorAll('.chat-question-description, .chat-question-note, .chat-question-answers')].map(element => element.classList.contains('chat-question-context') ? 'context' : element.className),
+			}, {
+				context,
+				contextElements: 0,
+				note: 'Your answer goes only to sudo.',
+				noteIcon: [{ lock: true, ariaHidden: 'true' }],
+				order: ['context', 'chat-question-description', 'chat-question-note', 'chat-question-answers'],
+			});
+		});
+
+		test('password questions use a masked input whose answer only submitting passes on', () => {
+			const carousel = new ChatQuestionCarouselData([{ id: 'secret', type: 'text', title: 'Password', required: true, password: true, defaultValue: 'prefilled' }], true);
+			createWidget(carousel);
+			const input = widget.domNode.querySelector<HTMLInputElement>('.chat-question-answers input')!;
+			const rendered = { type: input.type, value: input.value, autocomplete: input.autocomplete, answerEditors: getAnswerEditors().length };
+			input.value = 'private-password';
+			input.dispatchEvent(new Event('input'));
+			const drafts = carousel.draftAnswers;
+			getFooterButtons()[0].click();
+
+			assert.deepStrictEqual({ rendered, drafts, submitted: submittedAnswers?.get('secret'), shown: widget.domNode.textContent?.includes('private-password') }, {
+				rendered: { type: 'password', value: '', autocomplete: 'off', answerEditors: 0 },
+				drafts: {},
+				submitted: 'private-password',
+				shown: false,
+			});
+		});
+
 		test('boolean custom answers use the single-select freeform input and normal primary button', () => {
 			createWidget(createMockCarousel([{ id: 'q1', type: 'singleSelect', title: 'Proceed?', options: booleanOptions, allowFreeformInput: true }]));
 			setAnswer('Only on staging');
@@ -1017,6 +1061,30 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(result, true, 'skip() should return true when allowSkip is true');
 			assert.ok(submittedAnswers instanceof Map, 'Skip should call onSubmit with a Map');
 			assert.strictEqual(submittedAnswers?.get('q1'), 'default answer', 'Skip should return default values');
+		});
+
+		test('only the person\'s own submission or dismissal is reported as theirs', () => {
+			const outcomes: { answers: unknown; byUser: boolean | undefined }[] = [];
+			const settle = (act: () => void) => {
+				createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }], true));
+				act();
+				outcomes.push({ answers: submittedAnswers && [...submittedAnswers], byUser: submittedByUser });
+			};
+
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click());
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-close')!.click());
+			settle(() => widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })));
+			// Defaults submitted when another message is sent, and a dismissal made for the person.
+			settle(() => widget.skip());
+			settle(() => widget.ignore());
+
+			assert.deepStrictEqual(outcomes, [
+				{ answers: [['q1', 'default answer']], byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: [['q1', 'default answer']], byUser: undefined },
+				{ answers: undefined, byUser: false },
+			]);
 		});
 
 		test('skip fails when allowSkip is false', () => {

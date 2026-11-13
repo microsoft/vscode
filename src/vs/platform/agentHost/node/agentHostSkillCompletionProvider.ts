@@ -14,7 +14,6 @@ import { getSkillCustomizations, isCustomizationEnabled, isSkillEligibleForUserI
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { CompletionItem, CompletionItemKind, CompletionsParams } from '../common/state/protocol/commands.js';
 import { MessageAttachmentKind } from '../common/state/protocol/state.js';
-import { toSkillCompletionAttachmentMeta } from '../common/meta/agentCompletionAttachmentMeta.js';
 import { readSkillArgumentHint } from '../common/meta/skillCustomizationMeta.js';
 import { CustomizationType, PluginCustomization, SkillCustomization, type Customization } from '../common/state/sessionState.js';
 import { CompletionTriggerCharacter, IAgentHostCompletionItemProvider, type IAgentHostCompletionContext } from './agentHostCompletions.js';
@@ -82,15 +81,16 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 				rangeStart: leading.rangeStart,
 				rangeEnd: leading.rangeEnd,
 				attachment: {
-					type: MessageAttachmentKind.Simple,
+					type: MessageAttachmentKind.Resource,
+					uri: skill.uri,
 					label: '/' + skill.slashCommandName,
-					_meta: toSkillCompletionAttachmentMeta({
-						uri: skill.uri,
-						name: skill.name,
-						displayName: skill.slashCommandName,
-						description: skill.description,
-						argumentHint: skill.argumentHint,
-					}),
+					displayKind: 'skill',
+					...(skill.description !== undefined || skill.argumentHint !== undefined ? {
+						_meta: {
+							...(skill.description !== undefined ? { description: skill.description } : {}),
+							...(skill.argumentHint !== undefined ? { argumentHint: skill.argumentHint } : {}),
+						},
+					} : {}),
 				},
 			}));
 	}
@@ -138,7 +138,6 @@ export class AgentHostSkillCompletionProvider extends Disposable implements IAge
 		const isMcpSkill = container.type === CustomizationType.McpServer;
 		return {
 			slashCommandName: slashCommandName,
-			name: skill.name,
 			description: isMcpSkill
 				? localize('mcpSkillDescription', "{0} (MCP: {1})", skill.description ?? skill.name, readMcpServerDisplayName(container) ?? container.name)
 				: skill.description,
@@ -154,7 +153,6 @@ function isSyncedCustomization(container: PluginCustomization): boolean {
 
 interface SlashCommmandCandidate {
 	readonly slashCommandName: string;
-	readonly name: string;
 	readonly description: string | undefined;
 	readonly argumentHint: string | undefined;
 	readonly uri: string;

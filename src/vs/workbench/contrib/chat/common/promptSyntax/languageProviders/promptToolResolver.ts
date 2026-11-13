@@ -40,16 +40,13 @@ export async function resolveAgentFileTools(target: Target, harnessService: ICus
 	const tools: IAgentFileTool[] = [
 		...knownGithubCopilotTools.map(tool => ({ ...tool, availability: 'available' as const, harnessId: 'github-copilot' })),
 		{ name: '*', availability: 'available', harnessId: 'github-copilot' },
+		...knownGithubCopilotToolNamespaces.map(tool => ({ ...tool, availability: 'available' as const, harnessId: 'github-copilot' })),
 	];
-	tools.push(...inventories.flatMap((inventory, index) => inventory?.map(tool => ({
+	const staticToolNames = new Set(tools.map(tool => tool.name));
+	tools.push(...inventories.flatMap((inventory, index) => inventory?.filter(tool => !staticToolNames.has(tool.name)).map(tool => ({
 		...tool,
 		harnessId: descriptors[index].id,
 	})) ?? []));
-	for (const namespace of knownGithubCopilotToolNamespaces) {
-		if (!tools.some(tool => tool.name === namespace.name)) {
-			tools.push({ ...namespace, availability: 'available', harnessId: 'github-copilot' });
-		}
-	}
 	return {
 		tools,
 		isResolved: descriptors.length > 0 && inventories.every(inventory => inventory !== undefined),

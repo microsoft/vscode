@@ -103,15 +103,15 @@ suite('Comment thread floating widget', () => {
 			assert.deepStrictEqual(computeFloatingWidgetPlacement(request), { top: 420, left: 592, centered: true });
 		});
 
-		test('places the widget below the code when there is no room next to it', () => {
+		test('places the widget below the code, at the right edge of the editor, when there is no room next to it', () => {
 			assert.deepStrictEqual({
 				longCode: computeFloatingWidgetPlacement({ ...request, code: { top: 500, left: 60, width: 560, height: 40 } }),
 				indentedCode: computeFloatingWidgetPlacement({ ...request, code: { top: 500, left: 700, width: 280, height: 20 } }),
 				narrowEditor: computeFloatingWidgetPlacement({ ...request, maxRight: 500 }),
 			}, {
-				longCode: { top: 548, left: 60, centered: false },
+				longCode: { top: 548, left: 592, centered: false },
 				indentedCode: { top: 528, left: 592, centered: false },
-				narrowEditor: { top: 548, left: 60, centered: false },
+				narrowEditor: { top: 548, left: 92, centered: false },
 			});
 		});
 
@@ -137,7 +137,7 @@ suite('Comment thread floating widget', () => {
 				besideOtherWidget: computeFloatingWidgetPlacement({ ...request, besideCode: true, obstacles: [{ top: 480, left: 400, width: 300, height: 100, codeTop: 440 }] }),
 			}, {
 				room: { top: 500, left: 384, centered: false },
-				noRoom: { top: 548, left: 60, centered: false },
+				noRoom: { top: 548, left: 592, centered: false },
 				besideOtherWidget: { top: 588, left: 384, centered: false },
 			});
 		});

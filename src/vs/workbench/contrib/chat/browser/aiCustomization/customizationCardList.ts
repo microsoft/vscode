@@ -22,13 +22,18 @@ export interface ICustomizationCardListItem {
 	readonly contextMenuAction?: HTMLElement;
 }
 
+/**
+ * Focuses the first visible item unless a visible entry is already focused,
+ * for example when focus was kept on an entry inside a collapsed group.
+ */
 export function focusFirstCustomizationTreeItem<T>(
 	list: { getFocus(): readonly (T | null)[]; setFocus(elements: T[]): void },
 	entries: readonly T[],
 	isItem: (entry: T) => boolean,
+	isVisible: (entry: T) => boolean = () => true,
 ): void {
-	if (list.getFocus().length === 0) {
-		const firstItem = entries.find(isItem) ?? entries[0];
+	if (!list.getFocus().some(entry => entry !== null && isVisible(entry))) {
+		const firstItem = entries.find(entry => isItem(entry) && isVisible(entry)) ?? entries[0];
 		if (firstItem) {
 			list.setFocus([firstItem]);
 		}

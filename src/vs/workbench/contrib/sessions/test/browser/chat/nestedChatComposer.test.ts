@@ -10,6 +10,8 @@ import { IManagedHoverContentOrFactory } from '../../../../../../base/browser/ui
 import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { errorHandler, setUnexpectedErrorHandler } from '../../../../../../base/common/errors.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -53,7 +55,7 @@ suite('Sessions - New Nested Session composer', () => {
 	}
 
 	/** Picks the list entry whose label matches, the way a user does in the action widget. */
-	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'describeNoWorkspace' | 'folderExists'>> & { recentFolders?: readonly URI[] } = {}) {
+	function createControls(value: IObservable<INestedChatWorkspaceSupport | undefined>, folderInfo: INestedChatFolderInfo = git, host: Partial<Pick<INestedChatWorkspaceHost, 'describeFolder' | 'describeNoWorkspace' | 'folderExists' | 'resolveFolder'>> & { recentFolders?: readonly URI[] } = {}) {
 		let pick: string | undefined;
 		const shown: string[][] = [];
 		const accessibilityProviderKeys: string[][] = [];
@@ -102,7 +104,7 @@ suite('Sessions - New Nested Session composer', () => {
 		store.add(toDisposable(() => setupManagedHover.restore()));
 		const controls = store.add(instantiationService.createInstance(NestedChatWorkspaceControls, {
 			support: value,
-			resolveFolder: async () => folderInfo,
+			resolveFolder: host.resolveFolder ?? (async () => folderInfo),
 			getBranches: async () => ['main', 'release'],
 			getFolderSources: () => ({ recentFolders: host.recentFolders ?? [URI.file('/recent')], canOpenLocalFolder: true }),
 			describeNoWorkspace: host.describeNoWorkspace ?? (() => getNoWorkspaceChoicePresentation(undefined)),
@@ -443,9 +445,114 @@ suite('Sessions - New Nested Session composer', () => {
 		answerAll();
 
 		assert.deepStrictEqual({ whileReading, sent: await sent }, {
-			whileReading: { kind: 'folder', folder: other, isolation: 'folder' },
+			whileReading: { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: 'main' },
 			sent: { kind: 'folder', folder: other, isolation: 'worktree', baseBranch: 'main' },
 		});
+	});
+
+	test('keeps repository controls and their selection stable while refreshing the same folder for another harness', async () => {
+		const answers: ((info: INestedChatFolderInfo) => void)[] = [];
+		const h = createControls(constObservable(support(repo)), git, {
+			resolveFolder: () => new Promise(resolve => answers.push(resolve)),
+		});
+		answers.shift()!(git);
+		await h.controls.resolveWorkspace();
+		await h.pickIsolation('New Worktree');
+		const before = { state: h.state(), repository: h.repositoryState() };
+
+		h.controls.refresh();
+		const refreshing = { state: h.state(), repository: h.repositoryState() };
+		h.controls.refresh();
+		const refreshingAgain = { state: h.state(), repository: h.repositoryState() };
+		const superseded = answers.shift()!;
+		answers.shift()!(git);
+		await h.controls.resolveWorkspace();
+		superseded({ supportsWorktree: false, defaultBranch: undefined });
+		await Promise.resolve();
+
+		assert.deepStrictEqual({
+			refreshing,
+			refreshingAgain,
+			refreshed: { state: h.state(), repository: h.repositoryState() },
+		}, { refreshing: before, refreshingAgain: before, refreshed: before });
+	});
+
+	test('a selection made during refresh is not overwritten by the refreshed folder', async () => {
+		const refreshed = new DeferredPromise<INestedChatFolderInfo>();
+		let resolveFolder = async () => git;
+		const h = createControls(constObservable(support(repo)), git, { resolveFolder: () => resolveFolder() });
+		await h.controls.resolveWorkspace();
+		await h.pickIsolation('New Worktree');
+		resolveFolder = () => refreshed.p;
+		h.controls.refresh();
+		await h.pickIsolation('Branch');
+		await refreshed.complete(git);
+		assert.strictEqual(await h.controls.resolveWorkspace(), undefined);
+	});
+
+	test('a send waits for a superseding refresh before using its capabilities or handling its failure', async () => {
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		const errors: Error[] = [];
+		setUnexpectedErrorHandler(error => errors.push(error));
+		const results: { sentBeforeLatest: boolean; workspace: INestedChatWorkspace | undefined; worktreeOffered: boolean }[] = [];
+		const failure = new Error('Folder resolution failed');
+		try {
+			for (const fails of [false, true]) {
+				const superseded = new DeferredPromise<INestedChatFolderInfo>();
+				const refreshed = new DeferredPromise<INestedChatFolderInfo>();
+				let resolveFolder = async () => git;
+				const h = createControls(constObservable(support(repo)), git, { resolveFolder: () => resolveFolder() });
+				await h.controls.resolveWorkspace();
+				await h.pickIsolation('New Worktree');
+				resolveFolder = () => superseded.p;
+				h.controls.refresh();
+				let sentSettled = false;
+				const sent = h.controls.resolveWorkspace().then(workspace => {
+					sentSettled = true;
+					return workspace;
+				});
+				resolveFolder = () => refreshed.p;
+				h.controls.refresh();
+				await superseded.complete(git);
+				await new Promise(resolve => setTimeout(resolve, 0));
+				const sentBeforeLatest = sentSettled;
+				if (fails) {
+					await refreshed.error(failure);
+				} else {
+					await refreshed.complete({ supportsWorktree: false, defaultBranch: undefined });
+				}
+				results.push({ sentBeforeLatest, workspace: await sent, worktreeOffered: h.state().worktreeOffered });
+			}
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+		assert.deepStrictEqual({ results, errors }, {
+			results: [{ sentBeforeLatest: false, workspace: undefined, worktreeOffered: false }, { sentBeforeLatest: false, workspace: undefined, worktreeOffered: false }],
+			errors: [failure],
+		});
+	});
+
+	test('a send waits for the latest folder existence check after a refresh is superseded', async () => {
+		const superseded = new DeferredPromise<boolean>();
+		const refreshed = new DeferredPromise<boolean>();
+		let folderExists = async () => true;
+		const h = createControls(constObservable(support(repo)), git, { folderExists: () => folderExists() });
+		await h.controls.resolveWorkspace();
+		await h.pickIsolation('New Worktree');
+		folderExists = () => superseded.p;
+		h.controls.refresh();
+		let sentSettled = false;
+		const sent = h.controls.resolveWorkspace().then(workspace => {
+			sentSettled = true;
+			return workspace;
+		});
+		folderExists = () => refreshed.p;
+		h.controls.refresh();
+		await superseded.complete(true);
+		await new Promise(resolve => setTimeout(resolve, 0));
+		const sentBeforeLatest = sentSettled;
+		await refreshed.complete(false);
+		assert.deepStrictEqual({ sentBeforeLatest, workspace: await sent }, { sentBeforeLatest: false, workspace: { kind: 'scratch' } });
 	});
 
 	/** The input's shared harness picker, rendering its slot like the real one. */

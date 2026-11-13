@@ -458,7 +458,7 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 			continuation = this._beginContinuation(pending);
 			pending.continuationTurnId = continuation.turnId;
 			if (pending.showTransition) {
-				pending.transition = this._createWorkspaceTransition(pending);
+				pending.transition = await this._createWorkspaceTransition(pending);
 			}
 			pending.resolvedWorkingDirectory = pending.chatOnly
 				? pending.replaceSessionWorkspace
@@ -1091,15 +1091,29 @@ export class SessionWorkspaceConversionService extends Disposable implements ISe
 		return continuation;
 	}
 
-	private _createWorkspaceTransition(pending: IPendingSessionWorkspaceConversion): IAgentWorkspaceTransitionRecord {
+	private async _createWorkspaceTransition(pending: IPendingSessionWorkspaceConversion): Promise<IAgentWorkspaceTransitionRecord> {
 		const workspaceName = basename(pending.workspaceFolder) || pending.workspaceFolder.path;
+		const isWorktree = pending.isolation || await this._isExistingWorktree(pending.workspaceFolder);
 		return {
 			content: pending.isolation
 				? localize('agentHost.chatIsolationTransitionLabel', "Workspace changed to a new worktree of {0}", workspaceName)
 				: localize('agentHost.workspaceTransitionLabel', "Workspace changed to {0}", workspaceName),
-			workspaceKind: pending.isolation ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
+			workspaceKind: isWorktree ? AgentSystemNotificationWorkspaceKind.Worktree : AgentSystemNotificationWorkspaceKind.Folder,
 			workspaceName,
 		};
+	}
+
+	/** Whether the folder is an existing linked Git worktree, such as one that an agent created earlier. */
+	private async _isExistingWorktree(folder: URI): Promise<boolean> {
+		if (!this._worktreeIsolation.supported) {
+			return false;
+		}
+		try {
+			return !!await this._worktreeIsolation.resolveExternalWorktreeProject(folder);
+		} catch (error) {
+			this._logService.warn(`[SessionWorkspaceConversionService] Failed to check whether ${folder.toString()} is a worktree: ${toErrorMessage(error)}`);
+			return false;
+		}
 	}
 
 	private async _continueConversion(continuation: IDeferredAgentHostTurn | undefined, pending: IPendingSessionWorkspaceConversion, converted: boolean, error?: unknown): Promise<void> {

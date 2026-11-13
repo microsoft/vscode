@@ -1,10 +1,8 @@
-# System-wide Open Agents Window keybinding
+# System-wide keybindings in the Agents Window
 
 ## Scope
 
-The Agents Window is a narrow renderer owner of direct user system-wide keybindings for
-`workbench.action.openAgentsWindow`. This keeps the shortcut active when the Agents Window remains
-after all standard editor windows close.
+The Agents Window is a narrow renderer owner of direct system-wide keybindings for `workbench.action.openAgentsWindow`, `workbench.action.agentsLauncher` and `workbench.action.chat.attachAppWindowScreenshot`: the user's, and the default keybinding of Attach Screenshot of App Window, which is system-wide while `chat.appWindowScreenshots.enabled` is on. This keeps those shortcuts active when the Agents Window remains after all standard editor windows close.
 
 The shared selection, renderer synchronization, native-host IPC, and Electron main-process
 registration mechanisms are specified in
@@ -12,9 +10,9 @@ registration mechanisms are specified in
 
 ## Ownership
 
-The Agents Window runs the shared global first-binding-wins selection before retaining direct Open
-Agents Window candidates. It does not own `runCommands` wrappers or system-wide bindings for other
-commands.
+The Agents Window runs the shared global first-binding-wins selection before retaining direct candidates for Open Agents Window, Show Agents Launcher and Attach Screenshot of App Window. It does not own `runCommands` wrappers or system-wide bindings for other commands.
+
+When an editor window and the Agents Window both own an accelerator, a trigger goes to the focused owner, then to the owner that was active last, then to the lowest window id (see the shared specification). While another app is in front, Attach Screenshot of App Window therefore attaches the screenshot to a chat in the window that the user just left.
 
 On macOS, the Agents Window chat tip provider promotes `ctrl+cmd+a` when no effective selected user
 system-wide Open Agents Window binding exists and the tip has not been dismissed on that machine.
@@ -31,7 +29,7 @@ later keybinding changes.
 Open Agents Window force-reveals the window through the native host, because a system-wide trigger
 usually fires while VS Code is inactive or hidden and does not focus any window itself.
 
-Rejected Open Agents Window bindings are logged in the Agents Window. OS registration failures are
+Rejected bindings for these commands are logged in the Agents Window. OS registration failures are
 reported by each renderer owner so an Agents-only process retains a visible failure surface. When
 an editor and the Agents Window both own the same failing accelerator, both windows may display the
 same warning.
@@ -44,8 +42,7 @@ The Agents Window profile reads the default profile's keybindings:
   after that editor closes.
 - A binding configured in the default profile remains owned by the Agents Window even while an
   editor uses a custom profile without that binding.
-- If those profiles assign the same accelerator to different system-wide commands, the existing
-  focused-owner and deterministic fallback routing rules decide which owner receives the trigger.
+- If those profiles assign the same accelerator to different system-wide commands, the shared routing rules (focused owner, then the owner that was active last, then the lowest window id) decide which owner receives the trigger.
 
 These profile effects are intentional consequences of the Agents Window's default-profile
 resource contract; the Agents owner does not inspect or merge keybindings from editor profiles.

@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
+import { structuralEquals } from '../../../../base/common/equals.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableFromEvent, observableFromEventOpts } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
@@ -121,7 +122,8 @@ export function createClientArtifactRuntime(
 		acquireSession: async session => {
 			await activateIntegrations?.();
 			const reference = connection.getSubscription(StateComponents.Session, URI.parse(session), 'artifactIntegrations');
-			const value = observableFromEvent(reference, Event.any(reference.object.onDidChange, reference.object.onDidError ?? Event.None), (): ArtifactSessionState => {
+			// Session state changes far more often than its artifacts; every artifact model refreshes on each new value.
+			const value = observableFromEventOpts({ owner: reference, equalsFn: structuralEquals }, Event.any(reference.object.onDidChange, reference.object.onDidError ?? Event.None), (): ArtifactSessionState => {
 				const error = reference.object.value instanceof Error ? reference.object.value : undefined;
 				const state = reference.object.verifiedValue;
 				return {

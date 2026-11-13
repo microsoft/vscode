@@ -9,7 +9,7 @@ import { mainWindow } from '../../../../../base/browser/window.js';
 import { assert } from '../../../../../base/common/assert.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
-import { autorun, constObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { IChatWidgetFixtureHandle, renderChatWidget } from '../../../../../workbench/test/browser/componentFixtures/chat/chatWidget.fixture.js';
@@ -213,6 +213,13 @@ async function renderSessionsGrid(context: ComponentFixtureContext, options: { b
 		readonly activeSession = observableValue<ITestSessionWithChat | undefined>(this, left);
 		readonly gridShown = observableValue<readonly ITestSessionWithChat[]>(this, sessions);
 		override readonly slotPanes = testGridPanes(this.gridShown);
+		override readonly activePane = derived(this, reader => {
+			const activeSession = this.activeSession.read(reader);
+			return this.slotPanes.read(reader).find(pane => pane.session.read(reader) === activeSession);
+		});
+		override getRecentlyOpenedSessions() {
+			return { recent: sessions, other: [] };
+		}
 		/** Makes the pane of `session` the active one, as focusing it does. */
 		activate(session: ITestSessionWithChat | undefined): void {
 			this.activeSession.set(session, undefined);

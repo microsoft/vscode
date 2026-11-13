@@ -2665,6 +2665,26 @@ suite('EnableAIFeaturesInWorkspaceAction', () => {
 		assert.strictEqual(updatedValue.value, false, 'workspace setting should be set to false');
 	});
 
+	test('test enable AI in workspace is enabled after disabling AI in workspace', async () => {
+		const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configurationService.setUserConfiguration(ChatAIDisabledSettingId, false);
+
+		const chatExtension = aLocalExtension('copilot-chat', { publisher: 'GitHub' }, { type: ExtensionType.System });
+		await instantiationService.get(IWorkbenchExtensionEnablementService).setEnablement([chatExtension], EnablementState.DisabledWorkspace);
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [chatExtension]);
+
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		await workbenchService.queryLocal();
+		const copilotChat = workbenchService.local.find(e => e.identifier.id === 'github.copilot-chat');
+		assert.ok(copilotChat);
+		assert.strictEqual(copilotChat.enablementState, EnablementState.DisabledWorkspace);
+
+		const testObject: ExtensionsActions.EnableAIFeaturesInWorkspaceAction = disposables.add(instantiationService.createInstance(ExtensionsActions.EnableAIFeaturesInWorkspaceAction));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+		testObject.extension = copilotChat;
+		assert.ok(testObject.enabled);
+	});
+
 });
 
 function aWorkbenchExtension(state: ExtensionState, origin: ExtensionBlockingOrigin, galleryProperties: Partial<IGalleryExtension> = {}): Extension {

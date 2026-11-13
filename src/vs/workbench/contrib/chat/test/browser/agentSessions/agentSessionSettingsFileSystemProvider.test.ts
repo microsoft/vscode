@@ -6,8 +6,8 @@
 import assert from 'assert';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { Disposable, DisposableStore, IReference } from '../../../../../../base/common/lifecycle.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -18,6 +18,7 @@ import { Registry } from '../../../../../../platform/registry/common/platform.js
 import { NullLogService, ILogService } from '../../../../../../platform/log/common/log.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileSystemProviderErrorCode, toFileSystemProviderErrorCode } from '../../../../../../platform/files/common/files.js';
@@ -195,7 +196,7 @@ suite('AgentSessionSettingsFileSystemProvider (editor-window per-session adapter
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createConnectionsService(agentHostService: IAgentHostService): AgentHostConnectionsService {
-		return store.add(new AgentHostConnectionsService(agentHostService, new NullRemoteAgentHostService(), new TestPathService(), new NullLogService()));
+		return store.add(new AgentHostConnectionsService(agentHostService, new NullRemoteAgentHostService(), new TestPathService(), upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None })));
 	}
 
 	function createHarness(initialState?: SessionState | Error, configurationService: IConfigurationService = new TestConfigurationService(), backendSession = BACKEND_SESSION) {

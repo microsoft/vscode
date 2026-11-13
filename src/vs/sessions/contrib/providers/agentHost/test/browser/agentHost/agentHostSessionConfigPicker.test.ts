@@ -68,7 +68,7 @@ import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contri
 import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 // The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
 import '../../../browser/agentHostSessionConfigPicker.contribution.js';
-import { InSessionHostScopeContext, ISessionHost } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
+import { InSessionHostScopeContext, ISessionHost, ISessionHostService } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, testChatSourceOf, testGridPanes } from '../../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 import { IChatSessionFileChange2 } from '../../../../../../../workbench/common/chatSessionFileChange.js';
 
@@ -320,6 +320,7 @@ function setupServices(
 		},
 	} as Partial<IActionWidgetService> as IActionWidgetService);
 	instantiationService.stub(IHoverService, NullHoverService);
+	instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ hosts: constObservable<readonly ISessionHost[]>([]) }));
 	instantiationService.stub(IKeybindingService, new MockKeybindingService());
 	instantiationService.stub(ISessionInputPickerVisibility, store.add(new SessionInputPickerVisibility()));
 	instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -1192,7 +1193,7 @@ suite('Agent Host Session Config Picker', () => {
 				rows: [
 					'Branch · Works alongside your 5 uncommitted files',
 					'New Worktree · Recommended · Creates a separate copy for this session',
-					'[5 Uncommitted Files]',
+					'[5 Modified Files]',
 					'app.ts',
 					'README.md',
 					'todo.ts',
@@ -1201,7 +1202,7 @@ suite('Agent Host Session Config Picker', () => {
 				header: undefined,
 				className: 'sessions-chat-isolation-listed-changes',
 			},
-			ariaLabel: 'app.ts, 5 Uncommitted Files',
+			ariaLabel: 'app.ts, 5 Modified Files',
 			calls: [
 				'shown:uncommittedFilesCount',
 				'opened:uncommittedFilesCount',
@@ -1256,6 +1257,31 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
+	test('isolation picker recommends New Worktree with a secondary badge once the user has started a session in a new worktree', async () => {
+		const services = setupServices(store);
+		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.InlineHint);
+		services.instantiationService.stub(IWorktreeSuggestionService, suggestions);
+		services.provider.config = makeRepoConfig('main', 'folder');
+		services.workspaceObs.set(makeWorkspace(3), undefined);
+		const { container } = renderAttachedPicker(store, services);
+		const trigger = isolationSlot(container)!.querySelector<HTMLElement>('.action-label')!;
+		const recommendation = async () => {
+			trigger.click();
+			await timeout(0);
+			const worktree = services.actionWidget.items.find(item => item.item?.value === 'worktree');
+			return { badge: worktree?.badge, className: worktree?.className };
+		};
+
+		const firstTime = await recommendation();
+		suggestions.worktreeSessionCreated.set(true, undefined);
+		const afterWorktreeSession = await recommendation();
+
+		assert.deepStrictEqual({ firstTime, afterWorktreeSession }, {
+			firstTime: { badge: 'Recommended', className: undefined },
+			afterWorktreeSession: { badge: 'Recommended', className: 'sessions-chat-config-secondary-badge' },
+		});
+	});
+
 	test('uncommitted files count lists the files once they load while its picker is open, until it closes', async () => {
 		const services = setupServices(store);
 		const suggestions = new TestWorktreeSuggestionService(WorktreeSuggestionVariant.UncommittedFilesCount, undefined, 2);
@@ -1276,8 +1302,8 @@ suite('Agent Host Session Config Picker', () => {
 
 		assert.deepStrictEqual({ whileLoading, loaded, afterClosing: rows(), updates: services.actionWidget.events.filter(event => event === 'updateItems').length }, {
 			whileLoading: ['Branch', 'New Worktree'],
-			loaded: ['Branch', 'New Worktree', '[2 Uncommitted Files]', 'app.ts', 'README.md'],
-			afterClosing: ['Branch', 'New Worktree', '[2 Uncommitted Files]', 'app.ts', 'README.md'],
+			loaded: ['Branch', 'New Worktree', '[2 Modified Files]', 'app.ts', 'README.md'],
+			afterClosing: ['Branch', 'New Worktree', '[2 Modified Files]', 'app.ts', 'README.md'],
 			updates: 1,
 		});
 	});

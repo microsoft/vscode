@@ -168,6 +168,18 @@ suite('MainThreadDocumentsAndEditors', () => {
 		assert.strictEqual(delta.newActiveEditor, undefined);
 	});
 
+	test('Model#remove', () => {
+		disposables.add(modelService.createModel('farboo', null));
+		const model = modelService.createModel('boofar', null);
+		deltas.length = 0;
+
+		model.dispose();
+
+		assert.deepStrictEqual(deltas.map(delta => ({ ...delta, removedDocuments: delta.removedDocuments?.map(uri => URI.revive(uri).toString()) })), [
+			{ removedDocuments: [model.uri.toString()] }
+		]);
+	});
+
 	test('ignore huge model', function () {
 
 		const oldLimit = TextModel._MODEL_SYNC_LIMIT;

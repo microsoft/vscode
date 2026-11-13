@@ -318,6 +318,8 @@ The managed-permissions AHP suite sends real client policy contributions rather 
 
 The synthetic managed-permissions suite checks native read-only shell approval on both platforms: `echo` and `Write-Output` complete without a callback unless a managed ask applies. Managed asks still require approval on create and cold resume, and removing them restores the read-only fast path.
 
+The synthetic credential-sponsorship suite selects GPT-5.3 Codex for its native `apply_patch` and `rg` tool contract and advertises the local fixture's Chat Completions transport for that model. It retains actual file mutations, shell credential isolation, scoped/legacy prompt parity, and cold-history assertions; legacy GPT models do not support the freeform patch tool.
+
 Client tool results that require confirmation remain in protocol state without being forwarded to the provider. Approval forwards the stored result; denial forwards a failure without the denied content. The Copilot result-confirmation scenario asserts that no continuation model request is made while the result is pending, and unit routing tests cover both decisions on default and peer chats from client and server actions.
 
 Provider availability:

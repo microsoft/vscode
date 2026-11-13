@@ -14,6 +14,8 @@ import { AccessibleViewRegistry } from '../../../../platform/accessibility/brows
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { IAquariumService } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 import { IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IScreenshotToolService } from '../../../../workbench/contrib/screenshotTool/browser/screenshotTool.js';
+import { IWorktreeSuggestionService } from '../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 import { WindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvasService.js';
 import { MobileActionWidgetService } from './mobileActionWidgetService.js';
@@ -22,6 +24,8 @@ import { MobileKeybindingService } from './mobileKeybindingService.js';
 import { MobileNullAgentHostTerminalService } from './mobileNullAgentHostTerminalService.js';
 import { MobileNullAquariumService } from './mobileNullAquariumService.js';
 import { MobileNullChatWindowService } from './mobileNullChatWindowService.js';
+import { MobileNullScreenshotToolService } from './mobileNullScreenshotToolService.js';
+import { MobileNullWorktreeSuggestionService } from './mobileNullWorktreeSuggestionService.js';
 import { MobileQuickInputService } from './mobileQuickInputService.js';
 import { ISessionsListPresentation } from '../../../../workbench/contrib/sessions/browser/sessionsListPresentation.js';
 import { ISessionRepositoryPicker } from '../../../../workbench/contrib/sessions/browser/sessionRepositoryPicker.js';
@@ -70,6 +74,8 @@ registerSingleton(IAgentHostTerminalService, MobileNullAgentHostTerminalService,
 // The aquarium easter egg does not exist on the phone. See MobileNullAquariumService.
 registerSingleton(IAquariumService, MobileNullAquariumService, InstantiationType.Delayed);
 registerSingleton(IChatWindowService, MobileNullChatWindowService, InstantiationType.Delayed);
+registerSingleton(IScreenshotToolService, MobileNullScreenshotToolService, InstantiationType.Delayed);
+registerSingleton(IWorktreeSuggestionService, MobileNullWorktreeSuggestionService, InstantiationType.Delayed);
 registerSingleton(IWindowCanvasService, WindowCanvasService, InstantiationType.Delayed);
 registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, InstantiationType.Delayed);
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);

@@ -6,7 +6,7 @@
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget } from '../../common/storage.js';
+import { InMemoryStorageService, IStorageService, IStorageTargetChangeEvent, IStorageValueChangeEvent, StorageScope, StorageTarget, TARGET_KEY } from '../../common/storage.js';
 
 export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>; teardown: (service: T) => Promise<void> }): void {
 
@@ -52,6 +52,15 @@ export function createSuite<T extends IStorageService>(params: { setup: () => Pr
 		storageService.store('testChange', 'foobar', StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'testChange');
 		strictEqual(storageValueChangeEvent?.external, false);
+	});
+
+	test('unfiltered keys include records whose target metadata has not propagated', () => {
+		storageService.store('test.independentRecord', 'content', StorageScope.PROFILE, StorageTarget.MACHINE);
+		storageService.store(TARGET_KEY, '{}', StorageScope.PROFILE, StorageTarget.MACHINE);
+		deepStrictEqual({
+			unfiltered: storageService.keys(StorageScope.PROFILE).includes('test.independentRecord'),
+			filtered: storageService.keys(StorageScope.PROFILE, StorageTarget.MACHINE).includes('test.independentRecord'),
+		}, { unfiltered: true, filtered: false });
 	});
 
 	test('Storage change event scope (all keys)', () => {

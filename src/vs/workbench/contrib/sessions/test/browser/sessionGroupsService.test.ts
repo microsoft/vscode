@@ -153,6 +153,28 @@ suite('SessionGroupsService', () => {
 		}, { migrated: group.id, previous: undefined, current: undefined, ungrouped: true });
 	});
 
+	test('group membership follows a session replaced by one with another ID, and back', () => {
+		const local = createSession('local');
+		const relay = createSession('relay');
+		const group = service.createGroup('Work', [local.sessionId]);
+		const membershipChanged: string[][] = [];
+		disposables.add(service.onDidChange(e => membershipChanged.push([...e.membershipChanged ?? []].sort())));
+
+		sessionReplacedEmitter.fire({ from: local, to: relay });
+		const handedOff = { local: service.getGroupOfSession(local.sessionId), relay: service.getGroupOfSession(relay.sessionId) };
+		sessionReplacedEmitter.fire({ from: relay, to: local });
+
+		assert.deepStrictEqual({
+			handedOff,
+			handedBack: { local: service.getGroupOfSession(local.sessionId), relay: service.getGroupOfSession(relay.sessionId) },
+			membershipChanged,
+		}, {
+			handedOff: { local: undefined, relay: group.id },
+			handedBack: { local: group.id, relay: undefined },
+			membershipChanged: [['local', 'relay'], ['local', 'relay']],
+		});
+	});
+
 	test('create group with members and look up membership', () => {
 		const group = service.createGroup('Group A', ['s1', 's2']);
 

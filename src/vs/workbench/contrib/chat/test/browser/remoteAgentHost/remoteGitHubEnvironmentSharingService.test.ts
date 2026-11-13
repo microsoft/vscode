@@ -17,6 +17,7 @@ import type { InitializeResult } from '../../../../../../platform/agentHost/comm
 import { IConfigurationChangeEvent } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IDialogService, IPrompt } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
 import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -45,6 +46,8 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		let session: AuthenticationSession = { id: 'session', accessToken: 'token-1', account: { id: 'account', label: 'Account' }, scopes: [] };
 		let signedIn = true;
 		let enabled = true;
+		// Label of the button the user picks when asked, `undefined` to cancel.
+		let promptAnswer: string | undefined;
 
 		const remoteAgentHostService = new class extends mock<IRemoteAgentHostService>() {
 			override readonly onDidChangeConnections = connectionsChanged.event;
@@ -59,7 +62,10 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 		}();
 		const service = store.add(new RemoteGitHubEnvironmentSharingService(
 			remoteAgentHostService,
-			new class extends mock<IMissionControlEnvironmentService>() { override get enabled() { return enabled; } }(),
+			new class extends mock<IMissionControlEnvironmentService>() {
+				override get enabled() { return enabled; }
+				override async refresh() { calls.push('refresh environments'); }
+			}(),
 			new class extends mock<IMissionControlAvailabilityService>() { override readonly available = observableValue('available', true); }(),
 			configuration,
 			new class extends mock<IChatEntitlementService>() { override readonly onDidChangeSentiment = Event.None; }(),
@@ -74,10 +80,18 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 			new class extends mock<IProductService>() { }(),
 			storage,
 			new NullLogService(),
+			new class extends mock<IDialogService>() {
+				override async prompt<T>(prompt: IPrompt<T>) {
+					calls.push(`prompt: ${prompt.message}`);
+					const button = prompt.buttons?.find(button => button.label.replace('&&', '') === promptAnswer);
+					return { result: await button?.run({ checkboxChecked: false }) };
+				}
+			}(),
 		));
 
 		return {
 			service, calls, storage,
+			setPromptAnswer(answer: string | undefined) { promptAnswer = answer; },
 			addRemote(address: string, capable = true) {
 				let instance = 0;
 				let unregisterFails = false;
@@ -204,6 +218,78 @@ suite('RemoteGitHubEnvironmentSharingService', () => {
 				'unregister wsl:Ubuntu account',
 				'register wsl:Ubuntu account token-1',
 				'unregister wsl:Ubuntu account',
+			],
+		});
+	});
+
+	test('asks whether to keep sharing a shared remote before disconnecting it', async () => {
+		const context = fixture();
+		store.add(context.service.registerKeepSharingHandler((address, environmentId) => context.calls.push(`keep ${address} ${environmentId}`)));
+		context.addRemote('wsl:Ubuntu');
+		const debian = context.addRemote('wsl:Debian');
+		await context.flush();
+		const notShared = await context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+		await context.service.setShared('wsl:Ubuntu', true);
+		debian.setRegistration('other');
+		await context.flush();
+		const otherAccount = await context.service.confirmDisconnect('wsl:Debian', 'Debian');
+		const answers: { answer: string; disconnect: boolean; share: string | undefined }[] = [];
+		for (const answer of [undefined, 'Keep Sharing', 'Stop Sharing']) {
+			context.setPromptAnswer(answer);
+			const disconnect = await context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+			answers.push({ answer: answer ?? 'Cancel', disconnect, share: context.snapshot().shares['wsl:Ubuntu']?.state });
+		}
+
+		assert.deepStrictEqual({ notShared, otherAccount, answers, calls: context.calls }, {
+			notShared: true,
+			otherAccount: true,
+			answers: [
+				{ answer: 'Cancel', disconnect: false, share: 'enabled' },
+				{ answer: 'Keep Sharing', disconnect: true, share: 'enabled' },
+				{ answer: 'Stop Sharing', disconnect: true, share: undefined },
+			],
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'refresh environments',
+				'keep wsl:Ubuntu environment-wsl:Ubuntu',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'unregister wsl:Ubuntu account',
+			],
+		});
+	});
+
+	test('shows a kept environment once its remote is disconnected and does not ask while sharing is disabled', async () => {
+		const context = fixture();
+		store.add(context.service.registerKeepSharingHandler((address, environmentId) => context.calls.push(`keep ${address} ${environmentId}`)));
+		const ubuntu = context.addRemote('wsl:Ubuntu');
+		await context.flush();
+		await context.service.setShared('wsl:Ubuntu', true);
+		context.setEnabled(false);
+		await context.flush();
+		const disabled = await context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+		context.setEnabled(true);
+		await context.flush();
+
+		context.setPromptAnswer('Keep Sharing');
+		const kept = await context.service.confirmDisconnect('wsl:Ubuntu', 'Ubuntu');
+		// Disconnecting removes the remote's entry.
+		ubuntu.setConnected(false);
+		ubuntu.setConfigured(false);
+		await context.flush();
+
+		assert.deepStrictEqual({ disabled, kept, disconnected: context.snapshot(), calls: context.calls }, {
+			disabled: true,
+			kept: true,
+			disconnected: { shareable: [], shares: { 'wsl:Ubuntu': { state: 'enabled', environmentId: 'environment-wsl:Ubuntu' } }, environmentIds: [] },
+			calls: [
+				'register wsl:Ubuntu account token-1',
+				'unregister wsl:Ubuntu account',
+				'register wsl:Ubuntu account token-1',
+				'prompt: Keep sharing \'Ubuntu\' as a GitHub environment?',
+				'refresh environments',
+				'keep wsl:Ubuntu environment-wsl:Ubuntu',
 			],
 		});
 	});

@@ -16,7 +16,9 @@ import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribu
 import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { ILanguageModelToolsConfirmationService } from '../../../chat/common/tools/languageModelToolsConfirmationService.js';
 import { ILanguageModelToolsService } from '../../../chat/common/tools/languageModelToolsService.js';
+import { TerminalToolId } from '../../../chat/common/tools/terminalToolIds.js';
 import { IToolResultCompressor } from '../../../chat/common/tools/toolResultCompressor.js';
 import { registerActiveInstanceAction, sharedWhenClause } from '../../../terminal/browser/terminalActions.js';
 import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenus.js';
@@ -25,6 +27,7 @@ import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentToo
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { AgentHostSandboxForwarder } from './agentHostSandboxForwarder.js';
+import { TerminalToolConfirmationContribution } from './terminalToolConfirmationContribution.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
@@ -93,6 +96,7 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IToolResultCompressor toolResultCompressor: IToolResultCompressor,
+		@ILanguageModelToolsConfirmationService private readonly _confirmationService: ILanguageModelToolsConfirmationService,
 	) {
 		super();
 
@@ -179,6 +183,7 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 			const store = new DisposableStore();
 			store.add(this._toolsService.registerToolData(runInTerminalToolData));
 			store.add(this._toolsService.registerToolImplementation(runInTerminalToolData.id, this._runInTerminalTool));
+			store.add(this._confirmationService.registerConfirmationContribution(TerminalToolId.RunInTerminal, this._instantiationService.createInstance(TerminalToolConfirmationContribution)));
 			store.add(this._toolsService.executeToolSet.addTool(runInTerminalToolData));
 			this._runInTerminalToolRegistration.value = store;
 		});

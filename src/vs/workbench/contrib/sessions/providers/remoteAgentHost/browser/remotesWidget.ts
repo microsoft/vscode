@@ -890,8 +890,8 @@ export class RemotesWidget extends Disposable {
 		const title = !show ? '' : this.query
 			? loading ? localize('remotes.empty.searching', "Looking for environments...") : localize('remotes.empty.filtered', "No environments match your filters.")
 			: loading ? localize('remotes.empty.searching', "Looking for environments...")
-					: failed ? localize('remotes.empty.refreshFailed', "Couldn't refresh environments.")
-						: localize('remotes.empty.none', "No environments found.");
+				: failed ? localize('remotes.empty.refreshFailed', "Couldn't refresh environments.")
+					: localize('remotes.empty.none', "No environments found.");
 		const context = JSON.stringify([show, this.query]);
 		this.message.setAttribute('aria-busy', String(loading || this.signingInToTunnels));
 		for (const [id, action] of this.emptyStateActions) {

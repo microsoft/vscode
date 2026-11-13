@@ -8,7 +8,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { IPolicyData } from '../../../../base/common/defaultAccount.js';
 import { ManagedSettingsData, ManagedSettingValue } from '../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { collectManagedSettingsDefinitions, COPILOT_COMMUNICATION_SUPPORT_URL_KEY, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, managedDefaultConfigurationValue, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, getManagedSupportUrl, hasManagedPermissionDenials, hasManagedSettingsDefinitions, hasRawManagedSettings, IManagedSettingsService, isManagedSettingGovernanceActive, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh } from '../../common/copilotManagedSettings.js';
+import { collectManagedSettingsDefinitions, COPILOT_ALLOWED_HARNESSES_KEY, COPILOT_COMMUNICATION_SUPPORT_URL_KEY, COPILOT_DEFAULT_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_ASSISTED_PERMISSIONS_MODE_KEY, COPILOT_DISABLE_BYPASS_PERMISSIONS_MODE_KEY, managedDefaultConfigurationValue, COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY, COPILOT_MODEL_KEY, COPILOT_OTEL_CAPTURE_IDENTITY_KEY, COPILOT_PERMISSION_RULES_KEYS, COPILOT_SANDBOX_ALLOWED_HOSTS_KEY, COPILOT_SANDBOX_ALLOW_BYPASS_KEY, COPILOT_SANDBOX_ALLOW_DEV_TOOL_ACCESS_KEY, COPILOT_SANDBOX_ALLOW_LOCAL_NETWORK_KEY, COPILOT_SANDBOX_ALLOW_OUTBOUND_KEY, COPILOT_SANDBOX_AUTH_GH_KEY, COPILOT_SANDBOX_AUTH_GIT_KEY, COPILOT_SANDBOX_DENIED_PATHS_KEY, COPILOT_SANDBOX_ENABLED_KEY, COPILOT_SANDBOX_LSP_SERVERS_KEY, COPILOT_SANDBOX_MCP_SERVERS_KEY, COPILOT_SANDBOX_READONLY_PATHS_KEY, COPILOT_SANDBOX_READWRITE_PATHS_KEY, COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY, COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_TOP_LEVEL_MODEL_KEY, MANAGED_SETTINGS_CONTROL_DEFINITIONS, getManagedSupportUrl, hasManagedPermissionDenials, hasManagedSettingsDefinitions, hasRawManagedSettings, IManagedSettingsService, isManagedSettingGovernanceActive, NullManagedSettingsService, managedModelValue, managedSettingsDisabledValue, managedSettingValue, normalizeManagedSettings, projectManagedSettings, pickManagedSettings, requiresCopilotAgentHost, resolveForceRemoteSettingsRefresh, thirdPartyAgentEnabledValue } from '../../common/copilotManagedSettings.js';
 import { PolicyDefinition } from '../../common/policy.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 
@@ -154,6 +154,47 @@ suite('Copilot managed settings projection', () => {
 			pickManagedSettings({}, { [key]: false }, { [key]: true }).values,
 			pickManagedSettings({}, {}, { [key]: true }).values,
 		], [{ [key]: false }, { [key]: false }, { [key]: true }]);
+	});
+
+	test('an allowed harnesses list permits the third-party harnesses it names and ignores other entries', () => {
+		const key = COPILOT_ALLOWED_HARNESSES_KEY;
+		const claude = thirdPartyAgentEnabledValue('claude');
+		const codex = thirdPartyAgentEnabledValue('codex');
+		const lists: readonly unknown[] = [undefined, ['claude', 'codex'], ['claude'], ['codex', 'codex'], ['future', 'claude', 7], [], ['Claude'], [['claude']], 'claude', null, { claude: true }];
+		const results = lists.map(allowedHarnesses => {
+			const raw = { vscode: { allowedHarnesses } };
+			const managedSettings = normalizeManagedSettings(raw);
+			return {
+				carried: managedSettings[key],
+				governance: hasRawManagedSettings(raw) || hasRawManagedSettings(managedSettings),
+				governed: [claude({ managedSettings, managedSettingsActive: true }), codex({ managedSettings, managedSettingsActive: true })],
+				ungoverned: [claude({ managedSettings }), codex({ managedSettings })],
+			};
+		});
+		const permitted = normalizeManagedSettings({ vscode: { allowedHarnesses: ['claude', 'codex'] } });
+		assert.deepStrictEqual({
+			results,
+			otherDenials: [
+				claude({ managedSettings: permitted, chat_preview_features_enabled: false }),
+				codex({ managedSettings: { ...permitted, [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: false } }),
+			],
+			malformedJson: ['not json', '["claude"] trailing', '["claude",]', ''].map(value => claude({ managedSettings: { [key]: value } })),
+			sameCallback: thirdPartyAgentEnabledValue('claude') === claude,
+		}, {
+			results: [
+				{ carried: undefined, governance: false, governed: [false, false], ungoverned: [undefined, undefined] },
+				{ carried: '["claude","codex"]', governance: false, governed: [undefined, undefined], ungoverned: [undefined, undefined] },
+				{ carried: '["claude"]', governance: false, governed: [undefined, false], ungoverned: [undefined, false] },
+				{ carried: '["codex","codex"]', governance: false, governed: [false, undefined], ungoverned: [false, undefined] },
+				{ carried: '["future","claude",7]', governance: false, governed: [undefined, false], ungoverned: [undefined, false] },
+				...['[]', '["Claude"]', '[["claude"]]', '"claude"', 'null', '{"claude":true}'].map(carried => (
+					{ carried, governance: false, governed: [false, false], ungoverned: [false, false] }
+				)),
+			],
+			otherDenials: [false, false],
+			malformedJson: [false, false, false, false],
+			sameCallback: true,
+		});
 	});
 
 	const definitions: IStringDictionary<PolicyDefinition> = {

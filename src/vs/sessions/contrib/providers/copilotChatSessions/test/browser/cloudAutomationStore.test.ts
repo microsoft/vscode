@@ -40,6 +40,7 @@ import { IChatEntitlementService, IChatSentiment } from '../../../../../../workb
 import { IWorkbenchGitHubService } from '../../../../../../workbench/services/github/common/githubService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
+import { IScheduledChatsService } from '../../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { ISessionsManagementService } from '../../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISession, ISessionType } from '../../../../../../workbench/services/sessions/common/session.js';
@@ -267,9 +268,10 @@ suite('CloudAutomationStore', () => {
 		const warnings: string[] = [];
 		const notifications = upcastPartial<INotificationService>({ warn: message => warnings.push(String(message)), error: message => assert.fail(String(message)) });
 		const runner = new AutomationRunner(service, providers, new NullLogService(), notifications);
+		const scheduledChats = upcastPartial<IScheduledChatsService>({ enabled: constObservable(false), getPendingRequests: () => [] });
 		const tools = {
-			list: new ListAutomationsTool(service, context.configuration, providers),
-			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService),
+			list: new ListAutomationsTool(service, context.configuration, providers, scheduledChats),
+			configure: new ConfigureAutomationTool(service, sessions, context.configuration, NullTelemetryService, scheduledChats),
 			run: new RunAutomationTool(service, runner, context.configuration),
 			delete: new DeleteAutomationTool(service, context.configuration),
 		};

@@ -63,13 +63,14 @@ suite('TerminalAutoRepliesContribution', () => {
 		let disconnected = false;
 		const lifecycleService = createLifecycleService(() => { disconnected = true; });
 		const makeBackend = (name: string): ITerminalBackend => new class extends mock<ITerminalBackend>() {
+			override async installAutoReply(): Promise<void> { }
 			override uninstallAllAutoReplies(): Promise<void> {
 				calls.push(name);
 				return cleanup.p;
 			}
 		};
 		const didRegisterBackend = store.add(new Emitter<ITerminalBackend>());
-		const configurationService = new TestConfigurationService({ 'terminal.integrated': { autoReplies: {} } });
+		const configurationService = new TestConfigurationService({ 'terminal.integrated': { autoReplies: { 'prompt': 'reply' } } });
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const contribution = store.add(new TerminalAutoRepliesContribution(configurationService, createInstanceService([makeBackend('local')], didRegisterBackend.event), lifecycleService));
 		didRegisterBackend.fire(makeBackend('remote'));
@@ -114,4 +115,67 @@ suite('TerminalAutoRepliesContribution', () => {
 			assert.deepStrictEqual({ owners: [...activeOwners], installCount }, { owners: ['live peer'], installCount: 1 });
 		}
 	}));
+
+	test('does not block shutdown when the backend never finishes cleanup', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		let cleanupStarted = false;
+		let disconnected = false;
+		const lifecycleService = createLifecycleService(() => { disconnected = true; });
+		const backend = new class extends mock<ITerminalBackend>() {
+			override async installAutoReply(): Promise<void> { }
+			override uninstallAllAutoReplies(): Promise<void> {
+				cleanupStarted = true;
+				// An unresponsive pty host never answers
+				return new Promise<void>(() => { });
+			}
+		};
+		const configurationService = new TestConfigurationService({ 'terminal.integrated': { autoReplies: { 'prompt': 'reply' } } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const contribution = store.add(new TerminalAutoRepliesContribution(configurationService, createInstanceService([backend]), lifecycleService));
+
+		await lifecycleService.shutdown();
+		contribution.dispose();
+		assert.deepStrictEqual({ cleanupStarted, disconnected }, { cleanupStarted: true, disconnected: true });
+	}));
+
+	test('does not call the backend on shutdown when no auto replies were installed', async () => {
+		const calls: string[] = [];
+		let disconnected = false;
+		const lifecycleService = createLifecycleService(() => { disconnected = true; });
+		const backend = new class extends mock<ITerminalBackend>() {
+			override async uninstallAllAutoReplies(): Promise<void> {
+				calls.push('uninstall');
+			}
+		};
+		const configurationService = new TestConfigurationService({ 'terminal.integrated': { autoReplies: {} } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const contribution = store.add(new TerminalAutoRepliesContribution(configurationService, createInstanceService([backend]), lifecycleService));
+
+		await lifecycleService.shutdown();
+		contribution.dispose();
+		assert.deepStrictEqual({ calls, disconnected }, { calls: [], disconnected: true });
+	});
+
+	test('cleans up auto replies installed by a setting change', async () => {
+		const calls: string[] = [];
+		const lifecycleService = createLifecycleService(() => { });
+		const backend = new class extends mock<ITerminalBackend>() {
+			override async installAutoReply(match: string): Promise<void> {
+				calls.push(`install ${match}`);
+			}
+			override async uninstallAllAutoReplies(): Promise<void> {
+				calls.push('uninstall');
+			}
+		};
+		const configurationService = new TestConfigurationService({ 'terminal.integrated': { autoReplies: {} } });
+		store.add(configurationService.onDidChangeConfigurationEmitter);
+		const contribution = store.add(new TerminalAutoRepliesContribution(configurationService, createInstanceService([backend]), lifecycleService));
+
+		await configurationService.setUserConfiguration('terminal.integrated', { autoReplies: { 'prompt': 'reply' } });
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: () => true, affectedKeys: new Set(), change: { keys: [], overrides: [] }, source: ConfigurationTarget.USER
+		});
+		await lifecycleService.shutdown();
+		contribution.dispose();
+		assert.deepStrictEqual(calls, ['uninstall', 'install prompt', 'uninstall']);
+	});
 });

@@ -43,8 +43,11 @@ export function getArtifactAutomationNotices(previous: ArtifactIntegrationState,
 						details.push(choice.description);
 					}
 				}
-				if (binding.configuration.grants?.[option.id]?.kind === 'agent') {
-					details.push(localize('artifactAutomationAgentGrant', "Requested by the agent and confirmed by you."));
+				const grant = binding.configuration.grants?.[option.id];
+				if (grant?.kind === 'agent') {
+					details.push(grant.autoApproved
+						? localize('artifactAutomationAgentAutoApprovedGrant', "Turned on by the agent (auto-approved).")
+						: localize('artifactAutomationAgentGrant', "Requested by the agent and confirmed by you."));
 				}
 			} else {
 				const disablement = binding.configuration.disablements[option.id];
@@ -68,6 +71,10 @@ export function getArtifactAutomationNotices(previous: ArtifactIntegrationState,
  */
 export function formatArtifactAutomationNotice(artifactLabel: string, changes: readonly ArtifactAutomationNoticeChange[], enabledRules: readonly ArtifactAutomationEnabledRules[]): Pick<ArtifactAutomationNotice, 'kind' | 'content'> {
 	const blocks: string[] = [];
+	// Opens the expanded details by saying how Autopilot acts, whenever the notice leaves a rule on.
+	const intro = changes.some(change => change.kind !== 'disabled')
+		? [localize('artifactAutomationNoticeIntro', "Autopilot keeps working automatically, sending messages to the agent in this chat when there is work to do.")]
+		: [];
 	if (changes.length === 1) {
 		const [change] = changes;
 		const title = change.kind === 'enabled'
@@ -75,9 +82,14 @@ export function formatArtifactAutomationNotice(artifactLabel: string, changes: r
 			: change.kind === 'changed'
 				? localize('artifactAutomationChangedNotice', "{0} updated for {1}", change.label, artifactLabel)
 				: localize('artifactAutomationDisabledNotice', "{0} disabled for {1}", change.label, artifactLabel);
-		blocks.push(...[title, ...change.details].map(escapeMarkdownSyntaxTokens));
+		blocks.push(...[title, ...intro, ...change.details].map(escapeMarkdownSyntaxTokens));
 	} else {
-		blocks.push(escapeMarkdownSyntaxTokens(localize('artifactAutomationUpdatedNotice', "Autopilot updated for {0} ({1} rules)", artifactLabel, changes.length)));
+		// Every enabled rule being newly enabled means that Autopilot was off before.
+		const enabledFromOff = changes.every(change => change.kind === 'enabled') && enabledRules.reduce((count, rules) => count + rules.labels.length, 0) === changes.length;
+		blocks.push(escapeMarkdownSyntaxTokens(enabledFromOff
+			? localize('artifactAutomationEnabledRulesNotice', "Autopilot enabled for {0} ({1} rules)", artifactLabel, changes.length)
+			: localize('artifactAutomationUpdatedNotice', "Autopilot updated for {0} ({1} rules)", artifactLabel, changes.length)));
+		blocks.push(...intro.map(escapeMarkdownSyntaxTokens));
 		blocks.push(changes.map(change => {
 			const title = change.kind === 'enabled'
 				? localize('artifactAutomationRuleEnabled', "{0} enabled", change.label)

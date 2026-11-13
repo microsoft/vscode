@@ -17,13 +17,14 @@ import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
+import { defaultButtonStyles, defaultCheckboxStyles, defaultInputBoxStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
+import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
 import { findQuestionValidationFailure, getDisplayedQuestionText, getOptionsWithDefaultsFirst, isBooleanQuestion } from '../../../common/chatService/chatQuestionCarouselHelpers.js';
-import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { CHAT_QUESTION_PASSWORD_MASK, ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -68,7 +69,8 @@ function escapeLeadingMarkdownBlockSyntax(value: string): string {
 }
 
 export interface IChatQuestionCarouselOptions {
-	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined) => void;
+	/** `byUser` is `true` only when the person submitted or dismissed the carousel themselves. */
+	onSubmit: (answers: Map<string, IChatQuestionAnswerValue> | undefined, byUser?: boolean) => void;
 	onDidDismiss?: (answers: ReadonlyMap<string, IChatQuestionAnswerValue>) => void;
 	dismissLabel?: string;
 	submissionAcknowledgement?: {
@@ -182,6 +184,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _singleSelectItems: Map<string, { items: HTMLElement[]; selectedIndex: number; optionIndices: number[] }> = new Map();
 	private readonly _multiSelectCheckboxes: Map<string, { checkboxes: Checkbox[]; optionIndices: number[] }> = new Map();
 	private readonly _freeformAnswerEditors: Map<string, ChatQuestionAnswerEditor> = new Map();
+	private readonly _passwordInputs: Map<string, InputBox> = new Map();
 	/** Custom answer text that a selected option overrides, kept so it survives navigating between questions. */
 	private readonly _ignoredFreeformValues = new Map<string, string>();
 	private readonly _inputBoxes: DisposableStore = this._register(new DisposableStore());
@@ -345,7 +348,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		interactiveStore.add(maximizeButton.onDidClick(() => this.toggleMaximized()));
 
 		if (this._skipAllButton) {
-			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore()));
+			interactiveStore.add(this._skipAllButton.onDidClick(() => this.ignore(true)));
 		}
 
 		// Capture phase, because buttons consume Escape themselves and would otherwise leave the card maximized.
@@ -377,7 +380,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (event.keyCode === KeyCode.Escape && this.carousel.allowSkip) {
 				e.preventDefault();
 				e.stopPropagation();
-				this.ignore();
+				this.ignore(true);
 			} else if (event.keyCode === KeyCode.Enter && (event.metaKey || event.ctrlKey)) {
 				// Cmd/Ctrl+Enter submits immediately from anywhere
 				e.preventDefault();
@@ -442,9 +445,29 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			return;
 		}
 
-		this.carousel.draftAnswers = Object.fromEntries(this._answers.entries());
+		this.carousel.draftAnswers = Object.fromEntries(this.getAnswersWithoutPasswords().entries());
 		this.carousel.draftCurrentIndex = this._currentIndex;
 		this.carousel.draftCollapsed = this._isCollapsed;
+	}
+
+	private getAnswersWithoutPasswords(): Map<string, IChatQuestionAnswerValue> {
+		const answers = new Map(this._answers);
+		for (const question of this.carousel.questions) {
+			if (question.password) {
+				answers.delete(question.id);
+			}
+		}
+		return answers;
+	}
+
+	private submitAnswers(): void {
+		this._options.onSubmit(new Map(this._answers), true);
+		for (const question of this.carousel.questions) {
+			if (question.password && this._answers.has(question.id)) {
+				this._answers.set(question.id, CHAT_QUESTION_PASSWORD_MASK);
+			}
+		}
+		this.hideAndShowSummary();
 	}
 
 	private toggleCollapsed(): void {
@@ -557,8 +580,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			if (!this.validateRequiredFields()) {
 				return;
 			}
-			this._options.onSubmit(this._answers);
-			this.hideAndShowSummary();
+			this.submitAnswers();
 		}
 	}
 
@@ -573,8 +595,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		if (!this.validateRequiredFields()) {
 			return;
 		}
-		this._options.onSubmit(this._answers);
-		this.hideAndShowSummary();
+		this.submitAnswers();
 	}
 
 	/**
@@ -669,6 +690,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._singleSelectItems.clear();
 		this._multiSelectCheckboxes.clear();
 		this._freeformAnswerEditors.clear();
+		this._passwordInputs.clear();
 		this._focusAnswer = undefined;
 
 		// Clear references to disposed elements
@@ -720,16 +742,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	 * Returns undefined to signal the carousel was ignored.
 	 *
 	 * Guarded on `carousel.isUsed` for the same reason as {@link skip}.
+	 *
+	 * @param byUser Whether the person dismissed the carousel themselves, rather than it being dismissed for them.
 	 */
-	public ignore(): boolean {
+	public ignore(byUser = false): boolean {
 		if (this._isSkipped || this.carousel.isUsed || !this.carousel.allowSkip) {
 			return false;
 		}
 		this.saveCurrentAnswer();
-		this._options.onDidDismiss?.(new Map(this._answers));
+		this._options.onDidDismiss?.(this.getAnswersWithoutPasswords());
 		this._isSkipped = true;
 
-		this._options.onSubmit(undefined);
+		this._options.onSubmit(undefined, byUser);
 
 		// Dispose interactive UI and clear DOM
 		this.clearInteractiveResources();
@@ -762,7 +786,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private getDefaultAnswerForQuestion(question: IChatQuestion): IChatQuestionAnswerValue | undefined {
 		switch (question.type) {
 			case 'text':
-				return typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
+				return typeof question.defaultValue === 'string' && !question.password ? question.defaultValue : undefined;
 
 			case 'singleSelect': {
 				const defaultOptionId = typeof question.defaultValue === 'string' ? question.defaultValue : undefined;
@@ -891,6 +915,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._singleSelectItems.clear();
 		this._multiSelectCheckboxes.clear();
 		this._freeformAnswerEditors.clear();
+		this._passwordInputs.clear();
 		this._focusAnswer = undefined;
 
 		// Clear previous content
@@ -966,6 +991,12 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			}
 		}
 
+		if (question.context) {
+			const contextEl = dom.$('.chat-question-description.chat-question-context');
+			contextEl.textContent = question.context;
+			bodyContent.appendChild(contextEl);
+		}
+
 		// Render description if present
 		if (question.description) {
 			const descriptionEl = dom.$('.chat-question-description');
@@ -984,6 +1015,16 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const renderedDetailedMessage = questionRenderStore.add(this._markdownRenderer.render(detailedMd));
 			detailedMessageEl.appendChild(renderedDetailedMessage.element);
 			bodyContent.appendChild(detailedMessageEl);
+		}
+
+		if (question.note) {
+			const noteEl = dom.append(bodyContent, dom.$('.chat-question-note'));
+			if (question.note.icon) {
+				const icon = dom.append(noteEl, dom.$('span.chat-question-note-icon'));
+				icon.classList.add(...ThemeIcon.asClassNameArray(question.note.icon));
+				icon.setAttribute('aria-hidden', 'true');
+			}
+			dom.append(noteEl, dom.$('span', undefined, question.note.text));
 		}
 
 		// Render input based on question type
@@ -1329,6 +1370,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	}
 
 	private renderTextInput(container: HTMLElement, question: IChatQuestion): void {
+		if (question.password) {
+			this.renderPasswordInput(container, question);
+			return;
+		}
+
 		// Restore previous answer if exists
 		const previousAnswer = this._answers.get(question.id);
 		const initialValue = previousAnswer !== undefined
@@ -1344,6 +1390,37 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		// Focus on input when rendered using proper DOM scheduling
 		if (this._shouldAutoFocus()) {
 			this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(editor.domNode), () => editor.focus()));
+		}
+	}
+
+	private renderPasswordInput(container: HTMLElement, question: IChatQuestion): void {
+		const placeholder = localize('chat.questionCarousel.enterPassword', "Enter password");
+		const inputBox = this._inputBoxes.add(new InputBox(container, undefined, {
+			type: 'password',
+			placeholder,
+			ariaLabel: placeholder,
+			inputBoxStyles: defaultInputBoxStyles,
+		}));
+		inputBox.inputElement.autocomplete = 'off';
+		const previousAnswer = this._answers.get(question.id);
+		if (typeof previousAnswer === 'string') {
+			inputBox.value = previousAnswer;
+		}
+		this._inputBoxes.add(inputBox.onDidChange(() => this.saveCurrentAnswer()));
+		this._inputBoxes.add(dom.addDisposableListener(inputBox.inputElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.keyCode === KeyCode.Enter && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.handleNextOrSubmit();
+			}
+		}));
+
+		this._passwordInputs.set(question.id, inputBox);
+		this._focusAnswer = () => inputBox.focus();
+
+		if (this._shouldAutoFocus()) {
+			this._inputBoxes.add(dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(inputBox.element), () => inputBox.focus()));
 		}
 	}
 
@@ -1762,6 +1839,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		switch (question.type) {
 			case 'text': {
+				if (question.password) {
+					return this._passwordInputs.get(question.id)?.value;
+				}
 				const answerEditor = this._textAnswerEditors.get(question.id);
 				return answerEditor?.value ?? (typeof question.defaultValue === 'string' ? question.defaultValue : Array.isArray(question.defaultValue) ? { selectedValues: question.defaultValue } : undefined);
 			}
@@ -2037,7 +2117,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		switch (question.type) {
 			case 'text':
-				return String(answer);
+				return question.password ? CHAT_QUESTION_PASSWORD_MASK : String(answer);
 
 			case 'singleSelect': {
 				const booleanValue = typeof answer === 'string' ? answer : (answer as IChatSingleSelectAnswer).selectedValue;

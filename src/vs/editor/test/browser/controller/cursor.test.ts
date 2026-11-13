@@ -5487,6 +5487,21 @@ suite('Editor Controller', () => {
 		});
 	});
 
+	test('issue #315131 - Parentheses inserted by a suggestion are tracked as auto-closed', () => {
+		usingCursor({
+			text: [
+				'flo'
+			],
+			languageId: autoClosingLanguageId
+		}, (editor, model, viewModel) => {
+			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
+
+			viewModel.executeEdits('suggest', [{ range: new Range(1, 1, 1, 4), text: 'floor()' }], () => [new Selection(1, 7, 1, 7)], EditSources.unknown({}));
+			editor.runCommand(CoreEditingCommands.DeleteLeft, null);
+			assert.strictEqual(model.getLineContent(1), 'floor');
+		});
+	});
+
 	test('issue #78833 - Add config to use old brackets/quotes overtyping', () => {
 		usingCursor({
 			text: [

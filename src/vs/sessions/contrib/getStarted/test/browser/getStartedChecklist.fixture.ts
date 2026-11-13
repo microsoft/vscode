@@ -12,6 +12,7 @@ import { SessionStatus } from '../../../../../workbench/services/sessions/common
 import { renderSessionsListFixture } from '../../../sessions/test/browser/sessionsListFixtureUtils.js';
 import { GET_STARTED_ITEM_IDS, GetStartedChecklistMode, GetStartedItemId } from '../../common/getStartedChecklist.js';
 import { GetStartedChecklistWidget } from '../../browser/getStartedChecklistWidget.js';
+import '../../../../browser/media/style.css';
 
 interface IChecklistFixtureState {
 	readonly done?: readonly GetStartedItemId[];
@@ -19,6 +20,7 @@ interface IChecklistFixtureState {
 	readonly finished?: boolean;
 	readonly withoutAutomations?: boolean;
 	readonly width?: number;
+	readonly interaction?: 'toggleHover' | 'itemHover' | 'itemFocus';
 }
 
 function createChecklist(instantiationService: IInstantiationService, disposableStore: DisposableStore, state: IChecklistFixtureState): GetStartedChecklistWidget {
@@ -38,12 +40,23 @@ function createChecklist(instantiationService: IInstantiationService, disposable
 	}, { focusSessionsList: () => { }, animate: false }));
 }
 
-function renderChecklist({ container, disposableStore, theme }: ComponentFixtureContext, state: IChecklistFixtureState): void {
+function renderChecklist(context: ComponentFixtureContext, state: IChecklistFixtureState): void {
+	const { container, disposableStore, theme } = context;
+	container.classList.add('monaco-workbench', 'agent-sessions-workbench');
 	container.style.width = `${state.width ?? 300}px`;
 	container.style.padding = '4px 0';
 	container.style.background = 'var(--vscode-agents-background)';
 	const instantiationService = createEditorServices(disposableStore, { colorTheme: theme });
-	container.appendChild(createChecklist(instantiationService, disposableStore, state).domNode);
+	const widget = createChecklist(instantiationService, disposableStore, state);
+	container.appendChild(widget.domNode);
+	const target = state.interaction === 'toggleHover'
+		? widget.domNode.querySelector<HTMLElement>('.get-started-toggle')
+		: widget.domNode.querySelector<HTMLElement>('.get-started-item-header');
+	if (state.interaction === 'toggleHover' || state.interaction === 'itemHover') {
+		target?.classList.add('hovered');
+	} else if (state.interaction === 'itemFocus' && target) {
+		context.focus({ focus: () => target.focus() });
+	}
 }
 
 /** Renders the checklist where the sessions view places it, around the production sessions list of a new user. */
@@ -84,6 +97,9 @@ export default defineThemedFixtureGroup({ path: 'sessions/getStarted/' }, {
 	Finished: defineComponentFixture({ render: context => renderChecklist(context, { done: GET_STARTED_ITEM_IDS, finished: true }) }),
 	WithoutAutomations: defineComponentFixture({ render: context => renderChecklist(context, { done: [GetStartedItemId.StartSession], withoutAutomations: true }) }),
 	Narrow: defineComponentFixture({ render: context => renderChecklist(context, { done: [GetStartedItemId.StartSession], width: 200 }) }),
+	ToggleHover: defineComponentFixture({ ...highContrast, render: context => renderChecklist(context, { done: [GetStartedItemId.StartSession], interaction: 'toggleHover' }) }),
+	ItemHover: defineComponentFixture({ ...highContrast, render: context => renderChecklist(context, { done: [GetStartedItemId.StartSession], interaction: 'itemHover' }) }),
+	ItemFocus: defineComponentFixture({ ...highContrast, render: context => renderChecklist(context, { done: [GetStartedItemId.StartSession], interaction: 'itemFocus' }) }),
 	AboveSessions: defineComponentFixture({ render: context => renderInSessionsView(context, GetStartedChecklistMode.AboveSessions) }),
 	BelowSessions: defineComponentFixture({ render: context => renderInSessionsView(context, GetStartedChecklistMode.BelowSessions) }),
 });

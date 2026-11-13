@@ -391,6 +391,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 				const sub = handle.onDidChange(changes => this._onDidChangeFile.fire(changes.map(c => ({
 					resource: this._encodeUri(c.resource, resource.authority),
 					type: c.type,
+					// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
+					...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),
 				}))));
 				handleHolder.value = toDisposable(() => {
 					sub.dispose();

@@ -58,6 +58,7 @@ import { ChatAIDisabledSettingId } from '../../../../../../../platform/chat/comm
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../../../platform/request/common/request.js';
@@ -627,7 +628,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		upcastPartial<IAgentHostService>({ onAgentHostStart: Event.None, onAgentHostExit: Event.None }),
 		instantiationService.get(IRemoteAgentHostService),
 		upcastPartial<IPathService>({ registerPathProvider: () => Disposable.None }),
-		new NullLogService(),
+		upcastPartial<ILabelService>({ registerFormatter: () => Disposable.None }),
 	));
 	instantiationService.stub(IAgentHostConnectionsService, resolutionService);
 	instantiationService.stub(IAgentHostFilterService, new class extends mock<IAgentHostFilterService>() {

@@ -391,7 +391,7 @@ suite('Session chat view editor', () => {
 		view.layout(400, 800, 0, 0);
 		const read = () => {
 			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
-			return { inCard: !!header && view.sessionView.element.contains(header), shown: !!header && header.style.display !== 'none', dragsSession: !!header?.draggable, titleDragsEditor: view.dragHandle === view.sessionView.headerTitleElement };
+			return { inCard: !!header && view.sessionView.element.contains(header), shown: !!header && header.style.display !== 'none', dragsSession: !!header?.draggable, headerDragsEditor: view.dragHandle === view.sessionView.headerElement };
 		};
 
 		const modes: Record<string, ReturnType<typeof read>> = {};
@@ -402,7 +402,7 @@ suite('Session chat view editor', () => {
 		window.toggleConversation();
 		const stackedConversation = read();
 
-		const shown = { inCard: true, shown: true, dragsSession: false, titleDragsEditor: true };
+		const shown = { inCard: true, shown: true, dragsSession: false, headerDragsEditor: true };
 		assert.deepStrictEqual({ modes, stackedConversation }, {
 			modes: {
 				[ChatWindowLayoutMode.SideBySide]: shown,

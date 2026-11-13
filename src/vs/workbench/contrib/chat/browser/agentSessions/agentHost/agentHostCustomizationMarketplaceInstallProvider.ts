@@ -246,11 +246,16 @@ export class AgentHostCustomizationMarketplaceInstallProvider extends Disposable
 		return this.agentHostService.listPluginMarketplaces(this.providerId, this.getBackendSession(sessionResource), this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
 	}
 
-	async add(sessionResource: URI, source: string) {
+	async add(sessionResource: URI | undefined, source: string) {
 		if (!this.agentHostService.addPluginMarketplace) {
 			throw new Error(localize('agentHost.marketplaceManagement.addUnavailable', "The selected agent does not support adding marketplaces."));
 		}
-		const result = await this.agentHostService.addPluginMarketplace(this.providerId, this.getBackendSession(sessionResource), source, this.agentHostCustomizationService.getBackendChatResource?.(sessionResource));
+		const result = await this.agentHostService.addPluginMarketplace(
+			this.providerId,
+			sessionResource ? this.getBackendSession(sessionResource) : undefined,
+			source,
+			sessionResource ? this.agentHostCustomizationService.getBackendChatResource?.(sessionResource) : undefined,
+		);
 		this.fireMarketplacesChanged();
 		return result;
 	}

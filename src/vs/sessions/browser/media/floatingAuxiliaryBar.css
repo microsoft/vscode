@@ -224,5 +224,17 @@
 				--vscode-sideBar-background: transparent;
 			}
 		}
+
+		.monaco-workbench.agent-sessions-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) .floating-details.changes-view-active .floating-details-surface {
+			background: var(--vscode-editor-background);
+
+			&::before {
+				display: none;
+			}
+
+			@supports (color: rgb(from red r g b / 1)) {
+				background: rgb(from var(--vscode-editorWidget-background) r g b / 1);
+			}
+		}
 	}
 }

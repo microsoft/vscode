@@ -65,6 +65,7 @@ class FakeWindowsMainService {
 	readonly onDidDestroyWindow;
 
 	focused: FakeCodeWindow | undefined;
+	lastActive: FakeCodeWindow | undefined;
 	readonly windows = new Map<number, FakeCodeWindow>();
 
 	constructor(store: DisposableStore) {
@@ -80,6 +81,10 @@ class FakeWindowsMainService {
 
 	getFocusedWindow(): ICodeWindow | undefined {
 		return this.focused as unknown as ICodeWindow | undefined;
+	}
+
+	getLastActiveWindow(): ICodeWindow | undefined {
+		return this.lastActive as unknown as ICodeWindow | undefined;
 	}
 
 	getWindowById(id: number): ICodeWindow | undefined {
@@ -212,6 +217,21 @@ suite('GlobalKeybindingsMainService', () => {
 		service.updateKeybindings(2, [binding('Control+Cmd+A', 'from-window-2')]);
 
 		windows.focused = window2;
+		shortcut.trigger('Control+Cmd+A');
+
+		assert.strictEqual(window1.sent.length, 0);
+		assert.strictEqual((window2.sent[0].args[0] as { id: string }).id, 'from-window-2');
+	});
+
+	test('conflict without a focused owner resolves to the owner that was active last', () => {
+		const { service, windows, shortcut } = createService();
+		const window1 = windows.addWindow(1);
+		const window2 = windows.addWindow(2);
+		service.updateKeybindings(1, [binding('Control+Cmd+A', 'from-window-1')]);
+		service.updateKeybindings(2, [binding('Control+Cmd+A', 'from-window-2')]);
+
+		windows.focused = undefined;
+		windows.lastActive = window2;
 		shortcut.trigger('Control+Cmd+A');
 
 		assert.strictEqual(window1.sent.length, 0);

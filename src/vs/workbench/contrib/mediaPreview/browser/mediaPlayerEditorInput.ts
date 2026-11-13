@@ -6,6 +6,9 @@
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { escapeDoubleQuotes } from '../../../../base/common/htmlContent.js';
+import { getMediaMime } from '../../../../base/common/mime.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isNative } from '../../../../base/common/platform.js';
 import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { escape } from '../../../../base/common/strings.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -16,6 +19,7 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { FileChangesEvent, FileChangeType, IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { EditorInputCapabilities, GroupIdentifier, IMoveResult, ISaveOptions, IUntypedEditorInput, Verbosity } from '../../../common/editor.js';
 import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
@@ -35,6 +39,18 @@ export type MediaPlayerKind = 'audio' | 'video';
 // Bounds the memory that playing a WebM file through Media Source Extensions may use, which only
 // happens after normal playback failed
 const maxMediaSourceSize = 200 * 1024 * 1024;
+
+/**
+ * Button below a codec warning, which sends a message of the given type to the editor input when clicked.
+ */
+interface ICodecWarningAction {
+	readonly label: string;
+	readonly message: 'open-externally' | 'reopen-as-text';
+}
+
+function getOpenInTextEditorLabel(): string {
+	return localize('mediaPreview.openInTextEditor', "Open in Text Editor");
+}
 
 export function isMediaPlayerKind(value: unknown): value is MediaPlayerKind {
 	return value === 'audio' || value === 'video';
@@ -92,14 +108,17 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super({ viewType: getMediaPlayerEditorId(kind), providedId: undefined, name: basename(_resource), iconPath: undefined }, webview, themeService);
 
 		this._register(webview.onMessage(e => {
 			if (e.message?.type === 'reopen-as-text') {
 				void reopenInTextEditor(this, this._editorService);
-			} else if (e.message?.type === 'get-audio-codecs') {
-				void this._postAudioCodecs();
+			} else if (e.message?.type === 'open-externally') {
+				this._openExternally();
+			} else if (e.message?.type === 'get-codecs') {
+				void this._postCodecs();
 			} else if (e.message?.type === 'get-webm-type') {
 				void this._postWebmType();
 			}
@@ -224,24 +243,34 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 	}
 
 	/**
-	 * Sends the audio codecs of the file to the webview, which warns if it can't play any of them.
-	 * The webview requests them whenever its content loads, so the warning survives the webview
-	 * being recreated, such as when the editor moves to another window.
+	 * Sends the video and audio codecs of the file to the webview, which warns if it can't play any
+	 * codec of a kind. The webview requests them whenever its content loads, so the warning survives
+	 * the webview being recreated, such as when the editor moves to another window.
 	 */
-	private async _postAudioCodecs(): Promise<void> {
+	private async _postCodecs(): Promise<void> {
 		const mediaInfo = this._mediaInfo;
 		const info = await mediaInfo;
-		const audioTracks = info?.tracks.filter(track => track.kind === 'audio') ?? [];
 		// The webview of a newer render requests its own codecs
-		if (!info || !audioTracks.length || this.isDisposed() || mediaInfo !== this._mediaInfo) {
+		if (!info || this.isDisposed() || mediaInfo !== this._mediaInfo) {
 			return;
 		}
 
-		void this.webview.postMessage({
-			type: 'audio-codecs',
-			mimeTypes: audioTracks.map(track => `audio/${info.container}; codecs="${track.codec}"`),
-			warning: this._getUnsupportedCodecWarning(audioTracks[0]),
-		});
+		const openExternally: ICodecWarningAction[] = this._canOpenExternally() ? [{ label: localize('mediaPreview.openExternally', "Open File"), message: 'open-externally' }] : [];
+		const openInTextEditor: ICodecWarningAction = { label: getOpenInTextEditorLabel(), message: 'reopen-as-text' };
+		const getCodecs = (kind: IMediaTrack['kind']) => {
+			const tracks = info.tracks.filter(track => track.kind === kind);
+			return tracks.length ? {
+				mimeTypes: tracks.map(track => `${kind}/${info.container}; codecs="${track.codec}"`),
+				warning: this._getUnsupportedCodecWarning(tracks[0]),
+				// Only a file whose own kind of track can't be played fails to load
+				actions: kind === this.kind ? [...openExternally, openInTextEditor] : openExternally,
+			} : undefined;
+		};
+		const video = this.kind === 'video' ? getCodecs('video') : undefined;
+		const audio = getCodecs('audio');
+		if (video || audio) {
+			void this.webview.postMessage({ type: 'codecs', video, audio });
+		}
 	}
 
 	/**
@@ -265,14 +294,35 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 	}
 
 	private _getUnsupportedCodecWarning(track: IMediaTrack): string {
+		if (track.kind === 'video') {
+			return track.name
+				? localize('videoPreview.unsupportedVideoCodec', "This video uses the {0} codec, which can't be played in the video preview.", track.name)
+				: localize('videoPreview.unsupportedUnknownVideoCodec', "This video uses a codec that can't be played in the video preview.");
+		}
 		if (this.kind === 'audio') {
 			return track.name
-				? localize('audioPreview.unsupportedCodec', "This audio file uses the {0} codec, which can't be played in the audio preview. Open the file in an external application to listen to it.", track.name)
-				: localize('audioPreview.unsupportedUnknownCodec', "This audio file uses a codec that can't be played in the audio preview. Open the file in an external application to listen to it.");
+				? localize('audioPreview.unsupportedCodec', "This audio file uses the {0} codec, which can't be played in the audio preview.", track.name)
+				: localize('audioPreview.unsupportedUnknownCodec', "This audio file uses a codec that can't be played in the audio preview.");
 		}
 		return track.name
-			? localize('videoPreview.unsupportedAudioCodec', "This video's audio uses the {0} codec, which can't be played in the video preview. Open the file in an external application to hear its audio.", track.name)
-			: localize('videoPreview.unsupportedUnknownAudioCodec', "This video's audio uses a codec that can't be played in the video preview. Open the file in an external application to hear its audio.");
+			? localize('videoPreview.unsupportedAudioCodec', "This video's audio uses the {0} codec, which can't be played in the video preview.", track.name)
+			: localize('videoPreview.unsupportedUnknownAudioCodec', "This video's audio uses a codec that can't be played in the video preview.");
+	}
+
+	/**
+	 * Whether the file can be opened in the application the OS associates with it. The OS picks that
+	 * application by the file's extension and the preview can show any file, so only files with a
+	 * media extension are opened, never ones that the OS would run.
+	 */
+	private _canOpenExternally(): boolean {
+		const mimeType = getMediaMime(this._resource.path);
+		return isNative && this._resource.scheme === Schemas.file && !!mimeType && /^(audio|video)\//.test(mimeType);
+	}
+
+	private _openExternally(): void {
+		if (this._canOpenExternally()) {
+			void this._openerService.open(this._resource, { openExternal: true });
+		}
 	}
 
 	private async _updateFileSize(): Promise<void> {
@@ -313,7 +363,7 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 			// The file only contains a pointer to the media, so don't try to play it
 			media = '';
 		}
-		const openInTextEditor = localize('mediaPreview.openInTextEditor', "Open in Text Editor");
+		const openInTextEditor = getOpenInTextEditorLabel();
 
 		return /* html */`<!DOCTYPE html>
 <html lang="en">
@@ -343,15 +393,52 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 			max-height: 100%;
 			min-height: 0;
 		}
-		.codec-warning:not(:empty) {
+		.codec-warning {
 			flex-shrink: 0;
 			max-width: 600px;
-			margin-bottom: var(--vscode-spacing-size80);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: var(--vscode-spacing-size120);
+		}
+		/* Separates the warning from media that still plays, such as a video whose audio can't be played */
+		body:not(.error) .codec-warning:has(.codec-warning-message:not(:empty)) {
+			margin-bottom: var(--vscode-spacing-size120);
+		}
+		.codec-warning-actions {
+			display: flex;
+			flex-wrap: wrap;
+			justify-content: center;
+			gap: var(--vscode-spacing-size80);
+		}
+		.codec-warning-actions:empty {
+			display: none;
+		}
+		.codec-warning-actions button {
 			padding: var(--vscode-spacing-size40) var(--vscode-spacing-size80);
-			border: var(--vscode-strokeThickness) solid var(--vscode-inputValidation-warningBorder);
+			border: var(--vscode-strokeThickness) solid var(--vscode-button-border, transparent);
 			border-radius: var(--vscode-cornerRadius-small);
-			color: var(--vscode-inputValidation-warningForeground);
-			background-color: var(--vscode-inputValidation-warningBackground);
+			color: var(--vscode-button-foreground);
+			background-color: var(--vscode-button-background);
+			font-family: inherit;
+			font-size: var(--vscode-fontSize-label1);
+			line-height: 16px;
+			cursor: pointer;
+		}
+		.codec-warning-actions button:hover {
+			background-color: var(--vscode-button-hoverBackground);
+		}
+		.codec-warning-actions button.secondary {
+			border-color: var(--vscode-button-secondaryBorder, var(--vscode-button-border, transparent));
+			color: var(--vscode-button-secondaryForeground);
+			background-color: var(--vscode-button-secondaryBackground);
+		}
+		.codec-warning-actions button.secondary:hover {
+			background-color: var(--vscode-button-secondaryHoverBackground);
+		}
+		.codec-warning-actions button:focus-visible {
+			outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+			outline-offset: 2px;
 		}
 		.load-error {
 			display: none;
@@ -363,14 +450,17 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 		body.error .load-error {
 			display: block;
 		}
-		/* An audio file without a playable codec fails to load, which the codec warning already explains */
-		body.error.unsupported-codec:has(audio) .load-error-message {
+		/* Media whose own kind of track can't be played fails to load, which the codec warning already explains */
+		body.error.unsupported-codec .load-error {
 			display: none;
 		}
 	</style>
 </head>
 <body${isGitLfs ? ' class="error"' : ''} data-vscode-context='{ "preventDefaultContextMenuItems": true }'>
-	<div class="codec-warning" role="status"></div>
+	<div class="codec-warning">
+		<div class="codec-warning-message" role="status"></div>
+		<div class="codec-warning-actions"></div>
+	</div>
 	${media}
 	<div class="load-error">
 		<p class="load-error-message">${escape(errorMessage)}</p>
@@ -382,16 +472,30 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 			const media = document.querySelector('audio, video');
 			const showError = () => document.body.classList.add('error');
 
-			// Browsers silently drop audio tracks they can't decode, so warn about them instead of
-			// letting the file seem broken
-			const checkAudioCodecs = ({ mimeTypes, warning }) => {
+			// Browsers don't explain why a file fails to load and silently drop audio tracks they can't
+			// decode, so warn about codecs that can't be played instead of letting the file seem broken
+			const showCodecWarning = ({ warning, actions }) => {
+				document.querySelector('.codec-warning-message').textContent = warning;
+				document.querySelector('.codec-warning-actions').replaceChildren(...actions.map(({ label, message }, index) => {
+					const button = document.createElement('button');
+					button.textContent = label;
+					// The first action is the main one
+					button.classList.toggle('secondary', index > 0);
+					button.addEventListener('click', () => vscode.postMessage({ type: message }));
+					return button;
+				}));
+			};
+			const checkCodecs = ({ video, audio }) => {
 				if (!media) {
 					return;
 				}
 				const canPlay = type => media.canPlayType(type) !== '' || (typeof MediaSource !== 'undefined' && MediaSource.isTypeSupported(type));
-				if (!mimeTypes.some(canPlay)) {
-					document.querySelector('.codec-warning').textContent = warning;
-					document.body.classList.add('unsupported-codec');
+				const isUnsupported = codecs => codecs && !codecs.mimeTypes.some(canPlay);
+				// The audio of a video that can't be played doesn't matter
+				const unsupported = isUnsupported(video) ? video : isUnsupported(audio) ? audio : undefined;
+				if (unsupported) {
+					showCodecWarning(unsupported);
+					document.body.classList.toggle('unsupported-codec', unsupported === (media instanceof HTMLVideoElement ? video : audio));
 				}
 			};
 
@@ -466,13 +570,13 @@ export class MediaPlayerEditorInput extends WebviewInput implements ICustomEdito
 			};
 
 			window.addEventListener('message', e => {
-				if (e.data?.type === 'audio-codecs') {
-					checkAudioCodecs(e.data);
+				if (e.data?.type === 'codecs') {
+					checkCodecs(e.data);
 				} else if (e.data?.type === 'webm-type') {
 					resolveWebmType?.(e.data.mimeType);
 				}
 			});
-			vscode.postMessage({ type: 'get-audio-codecs' });
+			vscode.postMessage({ type: 'get-codecs' });
 
 			let triedMediaSource = false;
 			media?.addEventListener('error', () => {

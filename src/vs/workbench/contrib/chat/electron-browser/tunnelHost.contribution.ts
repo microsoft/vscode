@@ -23,7 +23,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatContextKeyExprs, ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IRemoteTunnelStartOptions, RemoteTunnelCommandIds } from '../../remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 import { RemoteConnectionsActionViewItem } from './toggleRemoteConnectionsActionViewItem.js';
-import { getRemoteTunnelAccessState, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
+import { getRemoteConnectionsToggleFailure, getRemoteTunnelAccessState, RemoteConnectionsFailureReason, RemoteConnectionsToggleResult } from './remoteConnectionsSharing.js';
 
 export const TUNNEL_HOST_SHARING_KEY = 'tunnelHostSharing';
 export const TUNNEL_HOST_SHARING_CONTEXT = new RawContextKey<boolean>(TUNNEL_HOST_SHARING_KEY, false);
@@ -39,15 +39,7 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 		const logService = accessor.get(ILogService);
 		const notificationService = accessor.get(INotificationService);
 		const setEnabled = async (enabled: boolean): Promise<RemoteConnectionsToggleResult> => {
-			try {
-				if (enabled) {
-					await remoteTunnelService.stopTunnel();
-				}
-				await sharingService.setEnabled(enabled);
-			} catch (error) {
-				if (isCancellationError(error)) {
-					return 'completed';
-				}
+			const fail = (error: unknown, reason: RemoteConnectionsFailureReason): RemoteConnectionsToggleResult => {
 				logService.error('Failed to toggle GitHub environment sharing', error);
 				if (enabled) {
 					notificationService.error(localize('tunnelHost.enableSharingFailed', "Failed to enable GitHub environment sharing: {0}", getErrorMessage(error)));
@@ -57,7 +49,19 @@ export async function executeToggleRemoteConnections(accessor: ServicesAccessor,
 						run: () => setEnabled(false),
 					}]);
 				}
-				return 'failed';
+				return getRemoteConnectionsToggleFailure(error, reason);
+			};
+			if (enabled) {
+				try {
+					await remoteTunnelService.stopTunnel();
+				} catch (error) {
+					return isCancellationError(error) ? 'canceled' : fail(error, 'stopDevTunnel');
+				}
+			}
+			try {
+				await sharingService.setEnabled(enabled);
+			} catch (error) {
+				return isCancellationError(error) ? 'canceled' : fail(error, 'unknown');
 			}
 			return 'completed';
 		};

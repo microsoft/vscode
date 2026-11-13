@@ -254,7 +254,8 @@ suite('Automation dialog creation', () => {
 		const container = instantiationService.get(IWorkbenchLayoutService).activeContainer;
 		const buttons = Array.from(container.querySelectorAll<HTMLElement>('.automation-dialog-footer-actions .monaco-button'));
 		const saveButton = buttons.find(button => button.textContent === (options.existing ? 'Save' : 'Create'))!;
-		const cancelButton = buttons.find(button => button.textContent === 'Cancel')!;
+		const cancelButton = buttons.find(button => button.textContent === 'Cancel')
+			?? Array.from(container.querySelectorAll<HTMLElement>('.dialog-buttons .monaco-button')).find(button => button.textContent === 'Close')!;
 		disposables.add(toDisposable(() => cancelButton.click()));
 		const nameInput = container.querySelector<HTMLInputElement>('.automation-form-input-host input')!;
 		return {
@@ -1690,6 +1691,27 @@ suite('Automation dialog creation', () => {
 		});
 		dialog.cancelButton.click();
 		await dialog.result;
+	});
+
+	test('one-time definitions cannot lose their captured request or timestamp through the recurring editor', async () => {
+		const existing: IAutomationDescriptor = {
+			id: 'once', name: 'Captured request', prompt: 'Review changes', enabled: true, createdAt: '', updatedAt: '',
+			target: { kind: 'quickChat', providerId: 'host', sessionTypeId: 'copilotcli' },
+			schedule: { interval: 'once', runAt: '2027-01-01T10:00:00.000Z', scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 },
+		};
+		let commits = 0;
+		const dialog = openDialog({ existing, commit: async () => { commits++; } });
+		const presentation = {
+			editable: !!dialog.container.querySelector('input, textarea, select'),
+			scheduleVisible: dialog.container.textContent?.includes(existing.schedule.runAt!),
+			promptVisible: dialog.container.textContent?.includes(existing.prompt),
+			saveButton: !!dialog.saveButton,
+		};
+		dialog.cancelButton.click();
+		assert.deepStrictEqual({ presentation, result: await dialog.result, commits }, {
+			presentation: { editable: false, scheduleVisible: true, promptVisible: true, saveButton: false },
+			result: undefined, commits: 0,
+		});
 	});
 
 	test('duplicating foreign-time-zone Weekdays requires choosing a supported schedule', async () => {

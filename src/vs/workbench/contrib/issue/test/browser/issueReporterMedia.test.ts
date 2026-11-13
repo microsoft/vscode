@@ -37,6 +37,14 @@ suite('Issue reporter media decoding', () => {
 		]);
 	});
 
+	test('keeps the name of an image file that was marked up, with the extension of its effective format', () => {
+		assert.deepStrictEqual([
+			{ dataUrl: issueReporterImageFixture, name: 'Diagram.PNG' },
+			{ dataUrl: issueReporterAvifFixture, annotatedDataUrl: issueReporterImageFixture, name: 'photo.avif' },
+			{ dataUrl: issueReporterImageFixture, name: 'notes' },
+		].map(screenshot => getIssueReporterScreenshotFile(screenshot, 1).name), ['Diagram.PNG', 'photo.png', 'notes.png']);
+	});
+
 	for (const [name, type, mimeType, extension] of [
 		['image.PNG', '', 'image/png', 'png'],
 		['photo.JPEG', '', 'image/jpeg', 'jpeg'],

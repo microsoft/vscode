@@ -91,6 +91,19 @@ suite('AutomationRunner', () => {
 		assert.deepStrictEqual(calls, ['automation']);
 	});
 
+	test('queue admission succeeds without owning the existing conversation, even if cancellation arrives', async () => {
+		const token = disposables.add(new CancellationTokenSource());
+		const queued = { ...run, status: 'completed', sessionResource: undefined } as const;
+		const { runner, calls, errors } = setup(async () => {
+			token.cancel();
+			return { kind: 'dispatched', run: queued, whenCompleted: Promise.resolve() };
+		});
+		const operation = runner.runOnce({ ...automation, conversation: { sessionResource: run.sessionResource!, chatResource: URI.parse('agent-host-copilotcli:/peer') } }, token.token);
+		const dispatch = await operation.whenDispatched;
+		await operation.whenCompleted;
+		assert.deepStrictEqual({ dispatch, calls, errors }, { dispatch: { kind: 'queued', run: queued }, calls: ['automation'], errors: [] });
+	});
+
 	test('acknowledges cloud dispatch without inventing a run, session or completion outcome', async () => {
 		const { runner, calls, errors } = setup(async () => ({ kind: 'accepted' }));
 		const operation = runner.runOnce(automation);

@@ -13,7 +13,7 @@ import { AgentHostTerminalIgnoreDefaultAutoApproveRulesConfigKey, platformRootSc
 import { isWebFetchRule, urlApprovalsToWebFetchRules } from '../../../../../../platform/agentHost/common/permissionRules.js';
 import { isShellRule, terminalRulesToShellPermissions } from '../../../../../../platform/agentHost/common/terminalPermissionRules.js';
 import { SessionConfigKey } from '../../../../../../platform/agentHost/common/sessionConfigKeys.js';
-import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
+import { AgentHostCopilotExecutionSubagentEnabledSettingId, AgentHostCopilotExecutionSubagentModelSettingId, AgentHostCopilotLocalMemoryEnabledSettingId, AgentHostCopilotModelCapabilityOverridesSettingId, AgentHostCopilotProgressUpdatesPromptSettingId, AgentHostCopilotSdkLogLevelSettingId, AgentHostOpus48PromptEnabledSettingId, CopilotSearchSubagentEnabledSettingId, CopilotSearchSubagentGrepNudgeSettingId, CopilotSearchSubagentModelSettingId, CopilotExploreAgentEnabledSettingId, AgentHostShellToolInitScriptEnabledSettingId, CopilotStabilityOrderedPromptEnabledSettingId, CopilotSecurityReviewSecretDetectionEnabledSettingId, CopilotAutoModeTierOverrideSettingId, CopilotClaudeAdvisorEnabledSettingId, CopilotCliConfigKey, CopilotLocalIndexEnabledSettingId, DEFAULT_COPILOT_EXECUTION_SUBAGENT_MODEL, type CopilotCliModelCapabilityOverrides, type CopilotSdkLogLevelSetting } from '../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { LocalModelEnabledSettingId, LocalModelLlamaServerPathSettingId, LocalModelUseInAutoSettingId } from '../../../../../../platform/agentHost/common/localModel.js';
 import { IConfigurationService, isConfigured } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -90,6 +90,16 @@ export class AgentHostCopilotCliSettingsContribution extends Disposable implemen
 				key: CopilotCliConfigKey.StabilityOrderedPrompt,
 				computeValue: () => this._configurationService.getValue<boolean>(CopilotStabilityOrderedPromptEnabledSettingId) === true,
 				registerTriggers: (store, push) => this._pushOnSettingChange(store, push, CopilotStabilityOrderedPromptEnabledSettingId),
+			},
+			{
+				key: CopilotCliConfigKey.SecurityReviewSecretDetection,
+				// The agent host also requires an internal account per session; root config is shared across windows.
+				computeValue: () => this._defaultAccountService.policyData?.chat_preview_features_enabled !== false
+					&& this._configurationService.getValue<boolean>(CopilotSecurityReviewSecretDetectionEnabledSettingId) === true,
+				registerTriggers: (store, push) => {
+					this._pushOnSettingChange(store, push, CopilotSecurityReviewSecretDetectionEnabledSettingId);
+					store.add(this._defaultAccountService.onDidChangePolicyData(push));
+				},
 			},
 			{
 				key: CopilotCliConfigKey.ProgressUpdatesPromptDefaultControlled,

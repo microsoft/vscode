@@ -274,7 +274,7 @@ export class TitleBarAccountWidget extends BaseActionViewItem {
 		super.render(container);
 
 		this.container = container;
-		container.classList.add('sessions-account-titlebar-widget');
+		container.classList.add('sessions-account-titlebar-widget', 'agent-sessions-interactive');
 		container.setAttribute('role', 'button');
 		container.tabIndex = 0;
 

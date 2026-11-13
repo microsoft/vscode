@@ -29,6 +29,7 @@ import { IExtensionService } from '../../../../services/extensions/common/extens
 import { RemoteTunnelCommandIds, RemoteTunnelWorkbenchContribution } from '../../electron-browser/remoteTunnel.contribution.js';
 import { NotificationService } from '../../../../services/notification/common/notificationService.js';
 import { TestProgressService } from '../../../../test/browser/workbenchTestServices.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const tunnelApplicationConfig: ITunnelApplicationConfig = {
 	authenticationProviders: {
@@ -138,7 +139,7 @@ class TestDialogService extends mock<IDialogService>() {
 }
 class TestCommandService extends mock<ICommandService>() { }
 class TestWorkspaceContextService extends mock<IWorkspaceContextService>() {
-	override getWorkspace() { return { id: 'test', folders: [] }; }
+	override getWorkspace() { return testIWorkspace({ id: 'test', folders: [] }); }
 }
 class TestNotificationService extends mock<INotificationService>() { }
 

@@ -51,6 +51,7 @@ import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/
 import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
 import { IWorkspaceIdentityService, WorkspaceIdentityService } from '../../../../services/workspaces/common/workspaceIdentityService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const folderName = 'test-folder';
 const folderUri = URI.file(`/${folderName}`);
@@ -114,7 +115,7 @@ suite('Edit session sync', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ workbench: { experimental: { editSessions: { enabled: true } } } }));
 		instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 			override getWorkspace() {
-				return {
+				return testIWorkspace({
 					id: 'workspace-id',
 					folders: [{
 						uri: folderUri,
@@ -122,7 +123,7 @@ suite('Edit session sync', () => {
 						index: 0,
 						toResource: (relativePath: string) => joinPath(folderUri, relativePath)
 					}]
-				};
+				});
 			}
 			override getWorkbenchState() {
 				return WorkbenchState.FOLDER;

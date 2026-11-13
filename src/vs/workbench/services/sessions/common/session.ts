@@ -1012,6 +1012,8 @@ export interface ISession {
 	readonly isQuickChat?: IObservable<boolean>;
 	/** Whether this session is associated with an automation run. Absent means `false`. */
 	readonly isAutomation?: IObservable<boolean>;
+	/** Whether the automation dispatched a user-authored scheduled chat, which is listed like an ordinary session. */
+	readonly isScheduledChat?: IObservable<boolean>;
 	/** Whether this session is still treated as external to the current host. Absent means `false`. */
 	readonly isExternal?: IObservable<boolean>;
 	/** Connection state of the backing remote host. Absent when the session has no remote host. */

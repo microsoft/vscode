@@ -23,6 +23,12 @@ export class ChatPlanReviewData implements IChatPlanReview {
 	public draftFeedback: string | undefined;
 	public draftCollapsed: boolean | undefined;
 
+	/**
+	 * Set to `true` only when a person settled the review through its own UI. A voice answer and a dismissal
+	 * caused by cancellation or disposal leave it unset. Not persisted.
+	 */
+	public submittedByUser?: boolean;
+
 	constructor(
 		public title: string,
 		public content: string,

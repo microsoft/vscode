@@ -26,7 +26,10 @@ async function detect(files: readonly { filename: string; previous_filename?: st
 			}
 			return files;
 		},
-		rest: { pulls: { listFiles: {} } },
+		rest: {
+			pulls: { listFiles: {} },
+			repos: { compareCommitsWithBasehead: async () => assert.fail('a pull request lists its own files') },
+		},
 	}, {
 		repo: { owner: 'microsoft', repo: 'vscode' },
 		issue: { number: 1 },
@@ -271,7 +274,8 @@ suite('Agent Host PR test selection', () => {
 				});
 				return {
 					needs: 'changes',
-					if: '${{ !cancelled() }}',
+					// Pull requests to main skip the Windows jobs, which the merge queue runs.
+					if: platform === 'linux' ? '${{ !cancelled() }}' : '${{ !cancelled() && (github.event_name == \'merge_group\' || github.base_ref != \'main\') }}',
 					profile,
 					reason,
 					// Linux runs it in its own job, Windows in three shards, when the plan also selects one of its suites.

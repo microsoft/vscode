@@ -45,9 +45,11 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-const packageManagerError = checkPackageManager(process.env.npm_config_user_agent, getPinnedPnpmVersion(path.join(import.meta.dirname, '..', '..')));
+const packageManagerError = checkPackageManager(process.env.npm_config_user_agent, getPinnedPnpmVersion(path.join(import.meta.dirname, '..', '..')), process.env.pnpm_config_pm_on_fail);
 if (packageManagerError) {
-	console.error(`\x1b[1;31m*** ${packageManagerError} ***\x1b[0;0m`);
+	for (const line of packageManagerError.split('\n')) {
+		console.error(`\x1b[1;31m*** ${line}\x1b[0;0m`);
+	}
 	throw new Error();
 }
 

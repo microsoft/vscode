@@ -218,6 +218,15 @@ namespace tss {
 			}
 			return undefined;
 		}
+
+		export function skipOuterExpressions(expression: tt.Expression): tt.Expression {
+			let current = expression;
+			while (ts.isParenthesizedExpression(current) || ts.isAsExpression(current) || ts.isSatisfiesExpression(current) || ts.isTypeAssertionExpression(current)
+				|| ts.isNonNullExpression(current) || ts.isExpressionWithTypeArguments(current) || ts.isPartiallyEmittedExpression(current)) {
+				current = current.expression;
+			}
+			return current;
+		}
 	}
 
 	export namespace Declarations {

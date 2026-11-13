@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { autorun, derived, IObservable, observableFromEvent, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
+import { structuralEquals } from '../../../../../../base/common/equals.js';
+import { autorun, constObservable, derived, derivedOpts, IObservable, ISettableObservable, observableFromEvent, observableValue, observableValueOpts } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { getAgentHostArtifactIntegrationsCapability } from '../../../../../../platform/agentHost/common/meta/agentHostArtifactIntegrationMeta.js';
 import { AuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { LocalArtifactIntegrationHost } from '../../../../../../platform/artifactIntegrations/browser/localArtifactIntegrationHost.js';
-import { ArtifactActionView, ArtifactIntegrationsSettingId, ArtifactRun, IArtifactIntegrationAccess, IArtifactModel, toArtifactIntegrationDescriptor } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
+import { ArtifactActionView, ArtifactIntegrationsSettingId, ArtifactRun, ArtifactSnapshot, IArtifactIntegrationAccess, IArtifactModel, toArtifactIntegrationDescriptor } from '../../../../../../platform/artifactIntegrations/common/artifactIntegration.js';
 import { ArtifactAuthenticationHandler, ArtifactIntegrationClient, ArtifactIntegrationServer } from '../../../../../../platform/artifactIntegrations/common/artifactIntegrationProtocol.js';
 import { IArtifactIntegrationRegistry } from '../../../../../../platform/artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { CompositeArtifactModel } from '../../../../../../platform/artifactIntegrations/common/compositeArtifactModel.js';
@@ -42,8 +43,21 @@ export type ArtifactWorkspaceConfigurationSynchronizer = (
 	session: string,
 	artifactId: string,
 	workspace: IObservable<IArtifactWorkspaceConfigurationContext | undefined>,
-	model: IArtifactModel,
-) => void;
+	snapshot: IObservable<ArtifactSnapshot | undefined>,
+) => IObservable<boolean>;
+
+interface IArtifactWorkspaceConfigurationSource {
+	readonly workspace: IObservable<IArtifactWorkspaceConfigurationContext | undefined>;
+	readonly snapshot: IObservable<ArtifactSnapshot | undefined>;
+}
+
+interface IArtifactWorkspaceConfigurationWriter {
+	readonly sources: ISettableObservable<readonly IArtifactWorkspaceConfigurationSource[]>;
+	/** Whether a changed value is waiting to settle before it is published. */
+	readonly pending: IObservable<boolean>;
+	readonly release: MutableDisposable<IDisposable>;
+	readonly store: DisposableStore;
+}
 
 /** Adapts advertised chat identifiers without changing execution, history cursors, or run ownership. */
 export function mapArtifactModelChats(
@@ -55,7 +69,8 @@ export function mapArtifactModelChats(
 		? { ...run, chat: mapping.find(chat => chat.backend === run.chat)?.client.toString() }
 		: run;
 	return {
-		snapshot: derived(reader => {
+		// The chat mapping changes with every chat of the session; publish a snapshot only when its content changes.
+		snapshot: derivedOpts<ArtifactSnapshot>({ equalsFn: structuralEquals }, reader => {
 			const snapshot = model.snapshot.read(reader);
 			const mapping = chats.read(reader);
 			const mapAction = (action: ArtifactActionView): ArtifactActionView => !action.chatAvailability ? action : {
@@ -142,6 +157,7 @@ export class AgentHostArtifactIntegrations extends Disposable {
 	private readonly client = this._register(new MutableDisposable<ArtifactIntegrationClient>());
 	private readonly bridge = this._register(new MutableDisposable());
 	private readonly fallback = this._register(new MutableDisposable<IClientArtifactHost>());
+	private readonly workspaceConfigurationWriters = new Map<string, IArtifactWorkspaceConfigurationWriter>();
 	private readonly permitted;
 	private current: IAgentConnection | undefined;
 	private selected: 'host' | 'client' | undefined;
@@ -165,6 +181,12 @@ export class AgentHostArtifactIntegrations extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
+		this._register(toDisposable(() => {
+			for (const writer of this.workspaceConfigurationWriters.values()) {
+				writer.store.dispose();
+			}
+			this.workspaceConfigurationWriters.clear();
+		}));
 		const authentication = instantiationService.createInstance(AgentHostInteractiveAuthentication);
 		this.scope = JSON.stringify([profileService.currentProfile.id, targetHost]);
 		this.selectionKey = `artifactIntegrations.authority.${this.scope}`;
@@ -313,12 +335,65 @@ export class AgentHostArtifactIntegrations extends Disposable {
 				}).catch(error => this.logService.error('[ArtifactIntegrations] Could not acquire client integration', error));
 			}
 			if (workspace && this.client.value) {
-				this.synchronizeWorkspaceConfiguration?.(store, this.connection, () => this.selected === 'host', session, artifactId, workspace, reference.object);
+				store.add(this.retainWorkspaceConfiguration(session, artifactId, { workspace, snapshot: reference.object.snapshot }));
 			}
 			return { object: model, dispose: () => store.dispose() };
 		} catch (error) {
 			store.dispose();
 			throw error;
 		}
+	}
+
+	/**
+	 * Publishes an artifact's workspace configuration through one writer shared by all of its live references, using the
+	 * most recently acquired one. Separate writers would each send their own context and overwrite one another.
+	 */
+	private retainWorkspaceConfiguration(session: string, artifactId: string, source: IArtifactWorkspaceConfigurationSource): IDisposable {
+		const synchronize = this.synchronizeWorkspaceConfiguration;
+		if (!synchronize) {
+			return Disposable.None;
+		}
+		const key = JSON.stringify([session, artifactId]);
+		let writer = this.workspaceConfigurationWriters.get(key);
+		if (!writer) {
+			const sources = observableValue<readonly IArtifactWorkspaceConfigurationSource[]>(this, []);
+			const current = derived(reader => sources.read(reader).at(-1));
+			const store = new DisposableStore();
+			const pending = synchronize(store, this.connection, () => this.selected === 'host', session, artifactId,
+				derived(reader => current.read(reader)?.workspace.read(reader)),
+				derived(reader => current.read(reader)?.snapshot.read(reader)));
+			writer = { sources, pending, release: store.add(new MutableDisposable()), store };
+			this.workspaceConfigurationWriters.set(key, writer);
+		}
+		const retained = writer;
+		if (retained.release.value) {
+			// The released context was only kept to settle its publication.
+			retained.release.clear();
+			retained.sources.set([source], undefined);
+		} else {
+			retained.sources.set([...retained.sources.get(), source], undefined);
+		}
+		return toDisposable(() => {
+			const remaining = retained.sources.get().filter(candidate => candidate !== source);
+			if (remaining.length > 0) {
+				retained.sources.set(remaining, undefined);
+			} else if (this.workspaceConfigurationWriters.get(key) === retained && !retained.release.value) {
+				const disposeWriter = () => {
+					this.workspaceConfigurationWriters.delete(key);
+					retained.store.dispose();
+				};
+				if (!retained.pending.get()) {
+					disposeWriter();
+					return;
+				}
+				// Host automation outlives the reference, so a change still settling is published with the last context.
+				retained.sources.set([{ workspace: constObservable(source.workspace.get()), snapshot: constObservable(source.snapshot.get()) }], undefined);
+				retained.release.value = autorun(reader => {
+					if (!retained.pending.read(reader) && this.workspaceConfigurationWriters.get(key) === retained) {
+						disposeWriter();
+					}
+				});
+			}
+		});
 	}
 }
