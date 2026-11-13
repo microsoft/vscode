@@ -131,6 +131,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 	private folderLocationRequest = 0;
 	private pendingFolderLocationRequests = 0;
+	private folderLocationIdleWaiters: (() => void)[] = [];
 
 	async setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void> {
 		if (options?.ifIdle && this.pendingFolderLocationRequests > 0) {
@@ -141,8 +142,19 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 		try {
 			await this.doSetFolderLocation(location, options?.reason, options?.folder);
 		} finally {
-			this.pendingFolderLocationRequests--;
+			if (--this.pendingFolderLocationRequests === 0) {
+				const waiters = this.folderLocationIdleWaiters;
+				this.folderLocationIdleWaiters = [];
+				waiters.forEach(resolve => resolve());
+			}
 		}
+	}
+
+	whenFolderLocationIdle(): Promise<void> {
+		if (this.pendingFolderLocationRequests === 0) {
+			return Promise.resolve();
+		}
+		return new Promise<void>(resolve => this.folderLocationIdleWaiters.push(resolve));
 	}
 
 	private async doSetFolderLocation(location: URI, reason?: FolderLocationChangeReason, folder?: URI): Promise<void> {

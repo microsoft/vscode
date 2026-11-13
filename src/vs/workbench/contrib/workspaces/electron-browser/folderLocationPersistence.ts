@@ -76,10 +76,28 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	private async restore(persisted: IWindowFolderLocation, token: CancellationToken): Promise<void> {
 		const location = URI.parse(persisted.uri);
 
-		if (!this.isAtAlternate(location)) {
+		// The state is reconciled against the current workspace: it may have changed since startup
+		const current = this.contextService.getWorkspace();
+		const folder = current.folders[0];
+		if (!folder || !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(current))) {
+			this.nativeHostService.setWindowFolderLocation(undefined); // stale: no longer a single-folder window
+			return;
+		}
 
-			// The window could not start at the persisted location, for example because it is gone
-			this.discard(persisted);
+		const confirmed = this.folderLocationService.getLocation(folder);
+		if (confirmed) {
+			this.persist(confirmed); // already switched and confirmed, that state is authoritative
+			return;
+		}
+
+		if (!this.isAtAlternate(location)) {
+			if (this.folderLocationService.isAtAlternateLocation(folder)) {
+				this.nativeHostService.setWindowFolderLocation(undefined); // moved to another location in the meantime
+			} else {
+
+				// The window could not start at the persisted location, for example because it is gone
+				this.discard(persisted);
+			}
 			return;
 		}
 
@@ -161,30 +179,46 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	}
 
 	private async returnToPrimary(persisted: IWindowFolderLocation, primary: URI, location: URI, token: CancellationToken): Promise<void> {
-		try {
+		while (true) {
+			try {
 
-			// Does nothing while a newer switch is in flight: that one is authoritative
-			await this.workspaceEditingService.setFolderLocation(primary, { ifIdle: true });
-		} catch (error) {
+				// Does nothing while a newer switch is in flight: that one is authoritative
+				await this.workspaceEditingService.setFolderLocation(primary, { ifIdle: true });
+			} catch (error) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				if (this.isAtAlternate(location)) {
+					this.logService.error('Failed to return the folder to its primary location', error);
+				}
+				return; // otherwise the workspace changed, nothing to return from
+			}
+
 			if (token.isCancellationRequested) {
 				return;
 			}
-			if (this.isAtAlternate(location)) {
-				this.logService.error('Failed to return the folder to its primary location', error);
+
+			const workspace = this.contextService.getWorkspace();
+			const identity = toWorkspaceIdentifier(workspace);
+			const folder = workspace.folders[0];
+			if (!isSingleFolderWorkspaceIdentifier(identity) || !this.uriIdentityService.extUri.isEqual(identity.uri, primary) || !folder) {
+				return; // not the original workspace any more
 			}
-			return; // otherwise the workspace changed, nothing to return from
-		}
 
-		if (token.isCancellationRequested) {
-			return;
-		}
+			if (this.uriIdentityService.extUri.isEqual(folder.uri, primary)) {
+				this.discard(persisted); // only announce at the primary location
+				return;
+			}
 
-		// Only announce when this is still the original single-folder workspace, at its primary location
-		const workspace = this.contextService.getWorkspace();
-		const identity = toWorkspaceIdentifier(workspace);
-		const folder = workspace.folders[0];
-		if (isSingleFolderWorkspaceIdentifier(identity) && this.uriIdentityService.extUri.isEqual(identity.uri, primary) && folder && this.uriIdentityService.extUri.isEqual(folder.uri, primary)) {
-			this.discard(persisted);
+			// The request was skipped because a switch is in flight. Once it settled, retry only
+			// if the window is still stuck at the unusable location, never overriding a newer choice.
+			if (!this.isAtAlternate(location) || this.folderLocationService.getLocation(folder)) {
+				return;
+			}
+			await this.workspaceEditingService.whenFolderLocationIdle();
+			if (token.isCancellationRequested || !this.isAtAlternate(location) || this.folderLocationService.getLocation(this.contextService.getWorkspace().folders[0])) {
+				return;
+			}
 		}
 	}
 
