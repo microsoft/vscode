@@ -56,6 +56,8 @@ suite('Microsoft Copilot resource setup UI', () => {
 		{ resource: copilotEntraResources.get(copilotEntraM365Audience)!, resource_name: 'Microsoft 365 Copilot', authorization_servers: discovery.authorization_servers, scopes_supported: [`${copilotEntraM365Audience}/.default`], required: false },
 	];
 	const unrelated: ProtectedResourceMetadata = { resource: 'https://other.example', scopes_supported: ['unrelated'] };
+	/** A credential the host asks for, which unlike a service it offers carries no name. */
+	const requirement: ProtectedResourceMetadata = { resource: services[0].resource, authorization_servers: services[0].authorization_servers, scopes_supported: services[0].scopes_supported, required: false };
 
 	function fixture() {
 		const changed = store.add(new Emitter<RootState>());
@@ -121,10 +123,15 @@ suite('Microsoft Copilot resource setup UI', () => {
 					}
 					void discoveryDelivered.complete();
 					await pending?.p;
+					// Like the real host, keep advertising a requirement that was never given a credential.
+					const challenged = state.challenge;
+					const outstanding = challenged && !state.challengeSatisfiedElsewhere && !state.offered.some(offered => offered.resource === challenged.resource)
+						&& !deliveries.some(delivery => delivery.resource === challenged.resource) ? [challenged] : [];
 					if (state.publication) {
-						void state.publication.then(() => publish([discovery, ...state.offered]));
+						publish([discovery, ...outstanding]);
+						void state.publication.then(() => publish([discovery, ...outstanding, ...state.offered]));
 					} else {
-						publish([discovery, ...state.offered]);
+						publish([discovery, ...outstanding, ...state.offered]);
 					}
 				} else {
 					if (request.resource === state.challenge?.resource) {
@@ -310,19 +317,19 @@ suite('Microsoft Copilot resource setup UI', () => {
 			f.state.discovery = pendingDiscovery;
 			f.state.sessions = [f.credential(['User.Read'])];
 			f.state.offered = [services[1]];
-			f.state.challenge = services[0];
+			f.state.challenge = requirement;
 			f.state.refused = services[0];
 			f.state.consentError = consentError;
 			const cancellation = store.add(new CancellationTokenSource());
 			const pending = f.run(cancellation.token);
 			try {
 				await raceTimeout(f.consentFailed.p, 500);
-				f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: services[0], reason: AuthRequiredReason.Required });
+				f.notifications.fire({ type: NotificationType.AuthRequired, channel: ROOT_STATE_URI, resource: requirement, reason: AuthRequiredReason.Required });
 				const beforeHostResult = { returned: await raceTimeout(pending, 50) !== undefined, failureShown: f.retryShown.isSettled };
 				await pendingDiscovery.complete();
 				const result = await raceTimeout(pending, 500);
-				assert.deepStrictEqual({ beforeHostResult, success: result?.success, calls: f.calls, delivered: f.deliveries.map(request => request.resource) }, {
-					beforeHostResult: { returned: false, failureShown: false }, success: true, calls: ['signIn', 'install'], delivered: [discovery.resource, services[1].resource],
+				assert.deepStrictEqual({ beforeHostResult, success: result?.success, choices: f.state.picks.length, calls: f.calls, delivered: f.deliveries.map(request => request.resource) }, {
+					beforeHostResult: { returned: false, failureShown: false }, success: true, choices: 0, calls: ['signIn', 'install'], delivered: [discovery.resource, services[1].resource],
 				});
 			} finally {
 				cancellation.cancel();
@@ -331,6 +338,25 @@ suite('Microsoft Copilot resource setup UI', () => {
 			}
 		});
 	}
+
+	test('a requirement the host is still asking for is not mistaken for a published service', async () => {
+		const f = fixture();
+		const publication = new DeferredPromise<void>();
+		f.state.publication = publication.p;
+		f.state.sessions = [f.credential(['User.Read'])];
+		f.state.offered = [services[1]];
+		f.state.challenge = requirement;
+		f.state.refused = services[0];
+		f.state.consentError = new Error('access_denied');
+		const pending = f.run();
+		await raceTimeout(f.consentFailed.p, 500);
+		const beforePublication = { returned: await raceTimeout(pending, 50) !== undefined, failureShown: f.retryShown.isSettled, choices: f.state.picks.length };
+		await publication.complete();
+		const result = await raceTimeout(pending, 500);
+		assert.deepStrictEqual({ beforePublication, success: result?.success, choices: f.state.picks.length, delivered: f.deliveries.map(request => request.resource) }, {
+			beforePublication: { returned: false, failureShown: false, choices: 0 }, success: true, choices: 0, delivered: [discovery.resource, services[1].resource],
+		});
+	});
 
 	test('a declined permission leaves the outcome to the host, and Cancel after its failure retains sign-in', async () => {
 		const f = fixture();

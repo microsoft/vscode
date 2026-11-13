@@ -287,6 +287,14 @@ export class ChatSetupController extends Disposable {
 			const identityCredential = new DeferredPromise<AuthenticationSession | undefined>();
 			await identityCredential.complete(identity);
 			credentials.set(discovery.resource, { resource: discovery, credential: identityCredential });
+			// The host keeps advertising a requirement it was not given a credential for; that is a request, not a service it offers.
+			const offeredServices = (resources: readonly ProtectedResourceMetadata[]) => resources.filter(resource => {
+				if (!targets.has(resource.resource)) {
+					return false;
+				}
+				const challenged = credentials.get(resource.resource);
+				return !challenged || challenged.credential.isResolved || !equals(challenged.resource, resource);
+			});
 			const answerChallenge = async (resource: ProtectedResourceMetadata, reason: AuthRequiredReason | undefined, credential: DeferredPromise<AuthenticationSession | undefined>) => {
 				try {
 					// The host announces a challenge before it advertises the challenged resource.
@@ -338,12 +346,12 @@ export class ChatSetupController extends Disposable {
 				started = { resource: discovery, rootState: subscription };
 				await this.authenticateMicrosoftResource(discovery, identity, currentResources(), cancellation.token);
 				const updated = await raceTimeout(waitForState(root,
-					state => !!state && !(state instanceof Error) && state.agents.some(candidate => candidate.provider === agent.provider && candidate.protectedResources?.some(resource => targets.has(resource.resource))),
+					state => !!state && !(state instanceof Error) && offeredServices(state.agents.find(candidate => candidate.provider === agent.provider)?.protectedResources ?? []).length > 0,
 					state => state instanceof Error ? state : undefined, cancellation.token), 30_000);
 				if (!updated) {
 					throw new Error(localize('copilotDiscoveryIncomplete', "Copilot service availability could not be confirmed. Your Microsoft sign-in has been retained."));
 				}
-				const offered = currentResources().filter(resource => targets.has(resource.resource));
+				const offered = offeredServices(currentResources());
 				const choice = offered.length === 1 ? offered[0] : await this.chooseCopilotService(offered, cancellation.token);
 				if (!choice) {
 					return undefined;
