@@ -101,8 +101,9 @@ suite('Menubar', () => {
 		const result: Record<string, unknown> = {};
 		for (const [name, titleZoom] of [['plain', 1], ['counterZoomed', 1 / 1.25]] as const) {
 			const titlebar = mainWindow.document.body.appendChild($('.titlebar'));
-			// Mirrors the menubar layout in menubar.css and the title bar's counter-zoom in titlebarpart.css, which
-			// unit tests do not load. The counter-zoomed holder renders at zoom 1, like menus in a counter-zoomed title bar.
+			// Mirrors the menubar layout in menubar.css and the title bar's counter-zoom in titlebarpart.css, whose selectors
+			// need a `.menubar` inside the workbench title bar, which this fixture does not build. The counter-zoomed holder
+			// renders at zoom 1, like menus in a counter-zoomed title bar.
 			titlebar.appendChild($('style')).textContent = `
 				.titlebar .menubar-container { display: flex; }
 				.titlebar .menubar-menu-title { height: 30px; padding: 0 8px; }
@@ -248,7 +249,7 @@ suite('Menubar', () => {
 		});
 
 		test('opens menus on whole device pixels from a fractional title position (#347796)', async () => {
-			// Mirrors menubar.css, which unit tests do not load
+			// Mirrors menubar.css, whose holder rules need a `.menubar` container, which this fixture does not use
 			const style = compactContainer.appendChild($('style'));
 			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; }';
 			compactContainer.style.position = 'fixed';
