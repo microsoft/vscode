@@ -3957,15 +3957,15 @@ suite('AgentService (node dispatcher)', () => {
 			const session = URI.parse('agent-host-copilotcli:/session');
 			const provider: IAgent = copilotAgent;
 			provider.listPluginMarketplaces = async session => {
-				calls.push(['list', session.toString()]);
+				calls.push(['list', session?.toString()]);
 				return [{ name: 'marketplace', source: 'owner/repository', isDefault: false, managed: false, available: true }];
 			};
 			provider.addPluginMarketplace = async (session, source) => {
-				calls.push(['add', session.toString(), source]);
+				calls.push(['add', session?.toString(), source]);
 				return { name: 'marketplace', source, isDefault: false, managed: false, available: true };
 			};
 			provider.browsePluginMarketplace = async (session, name) => {
-				calls.push(['browse', session.toString(), name]);
+				calls.push(['browse', session?.toString(), name]);
 				return [{ name: 'plugin', description: 'Plugin description' }];
 			};
 			provider.removePluginMarketplace = async (session, name, force) => {
@@ -4006,6 +4006,18 @@ suite('AgentService (node dispatcher)', () => {
 					['refresh', session.toString(), 'marketplace'],
 				],
 			});
+
+			calls.length = 0;
+			await managementService.listPluginMarketplaces(provider.id);
+			await managementService.addPluginMarketplace(provider.id, undefined, 'owner/repository#feature/beta');
+			await managementService.browsePluginMarketplace(provider.id, undefined, 'marketplace');
+			assert.deepStrictEqual(calls, [
+				['list', undefined],
+				['add', undefined, 'owner/repository#feature/beta'],
+				['browse', undefined, 'marketplace'],
+			]);
+			provider.addPluginMarketplace = async () => { throw new Error('managed policy refused'); };
+			await assert.rejects(managementService.addPluginMarketplace(provider.id, undefined, 'owner/repository'), /managed policy refused/);
 		});
 
 		test('lists, opens and closes canvases through the owning provider', async () => {

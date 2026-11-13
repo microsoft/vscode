@@ -77,6 +77,8 @@ Per-call engine metadata comes from the runtime and passes through the router un
 
 The router adds `copilotSdkVersion`, the Copilot SDK package bundled with this Agent Host (`IProductService.copilotVersions.sdk`), to engine snapshots, replacing any value in the notification. Editor version (`editor_version`), SDK package version and runtime version stay separate; native Agent Host engine events have no extension version.
 
+Restricted router rows and standard `copilotSdk/*` rows both carry `initiatorClientType`: the client type (`editor_window` or `agents_window`) of the turn active in the SDK session when the host received the notification. It is captured before any correlation wait, so a delayed model-call row keeps that turn's client. It is `unknown` when no turn was active, as for session startup and background work between turns, or when the active turn was not started by a known VS Code window. A row that a background subagent emits after its root turn ended reports `unknown`, or the client of whichever turn is active when it arrives. Attribute `unknown` rows to a client through other rows of the same SDK session.
+
 ---
 
 ## 2. Ownership and Layering
@@ -127,6 +129,8 @@ Agents do **not** maintain the chat catalog, persist membership, know whether a 
 ### Marketplace installation inventory
 
 `IAgent.listPluginInstallations` exposes provider-owned persisted plugin records through the local management bridge. The Copilot implementation uses global SDK `plugins.list`, not session-effective `session.plugins.list` or the client's plugin discovery inventory. Disabled installations remain installed; built-ins and managed desired entries with `installed: false` do not become user installations. Session-only/client-provided plugins are not installation records. Mutations retain the selected backend session/chat routing and complete on the SDK transaction, without waiting for client discovery.
+
+Local management IPC also supports listing, adding, and browsing plugin marketplaces without a session. Copilot uses the global SDK client when no session is supplied, as it does for session-free plugin installation; it does not create a temporary chat or trust the receiving workspace. Existing session-addressed callers retain their exact chat routing. This is a local management capability, not an extension of the Agent Host Protocol.
 
 The workbench marketplace install provider projects these records into `IRecordedCustomizationMarketplaceResource` and uses their opaque direct-source IDs to disambiguate uninstall. SDK inventories expose optional resolved `rootPath` and opaque `id` metadata; neither is an enable/disable or uninstall argument. Do not infer roots from `installedFrom` (a live marketplace directory) or private cache layouts. Retained catalog selections can be associated with a unique installed name/repository/revision match; ambiguous matches are left unassociated. Catalog association is in-memory, not a reconstructed durable receipt, and plugin targets have no invented filesystem URI.
 
