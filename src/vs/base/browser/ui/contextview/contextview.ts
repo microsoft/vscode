@@ -228,12 +228,14 @@ export interface IContextViewProvider {
  * from it, so that aligning never moves the view over the anchor; a view that lines up with its
  * anchor rounds to the nearest device pixel. Either way the view only moves toward a viewport edge
  * when it has at least a device pixel of room there, and is left unaligned otherwise.
+ *
+ * `start`, `size`, `anchorStart` and `anchorSize` decide the side of the anchor the view was placed
+ * on, so they are in the coordinates and layout size the view was placed with. `roomBefore` and
+ * `roomAfter` are the rendered distances between the view and the viewport edges.
  */
-export function getDevicePixelRounding(start: number, size: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, devicePixelRatio: number): DOM.DevicePixelRounding {
+export function getDevicePixelRounding(start: number, size: number, anchorStart: number, anchorSize: number, roomBefore: number, roomAfter: number, devicePixelRatio: number): DOM.DevicePixelRounding {
 	const epsilon = 0.01;
 	const devicePixel = 1 / devicePixelRatio;
-	const roomBefore = start - viewportStart;
-	const roomAfter = viewportStart + viewportSize - (start + size);
 	if (start + size <= anchorStart + epsilon) {
 		return roomBefore >= devicePixel ? 'start' : 'none';
 	}
@@ -251,27 +253,36 @@ export function getDevicePixelRounding(start: number, size: number, anchorStart:
  * {@link DOM.alignToDevicePixels}), computed from geometry measured before the view moves so that
  * aligning forces no further layout.
  *
+ * The view is placed at `origin + (position - origin) * zoom`, so viewport and window controls
+ * clearance are checked there, with the rendered size.
+ *
  * @param position The laid-out position, in the coordinate space of `viewport` and `origin`.
- * @param size The rendered border-box size of the view.
+ * @param layoutSize The size the view was laid out with, which decides the side of the anchor it is on.
+ * @param renderedSize The rendered border-box size of the view.
  * @param anchor The rect the view is anchored to, which decides the rounding direction per axis.
  * @param viewport The visible area of the page, which the aligned view must stay inside.
  * @param origin Where the view is placed when its `top` and `left` are 0.
  * @param zoom The CSS zoom applied to the view.
  * @param devicePixelRatio The device pixel ratio of the window that shows the view.
- * @param titlebarAreaRect The visible window controls overlay, which the aligned position must not
- * cover when `position` does not. Each axis keeps its alignment where it can.
+ * @param titlebarAreaRect The visible window controls overlay, which the aligned view must not
+ * cover when the view at `position` does not. Each axis keeps its alignment where it can.
  */
-export function alignViewToDevicePixels(position: IWindowControlsOverlayPosition, size: IWindowControlsOverlaySize, anchor: IRect, viewport: IWindowControlsOverlayViewport, origin: IWindowControlsOverlayPosition, zoom: number, devicePixelRatio: number, titlebarAreaRect: IWindowControlsOverlayTitlebarRect | undefined): IWindowControlsOverlayPosition {
-	const align = (start: number, viewSize: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, originStart: number) => {
-		const rounding = getDevicePixelRounding(start, viewSize, anchorStart, anchorSize, viewportStart, viewportSize, devicePixelRatio);
-		const client = originStart - viewportStart + (start - originStart) * zoom;
-		return start + DOM.getDevicePixelAlignmentOffset(client, devicePixelRatio, rounding) / zoom;
+export function alignViewToDevicePixels(position: IWindowControlsOverlayPosition, layoutSize: IWindowControlsOverlaySize, renderedSize: IWindowControlsOverlaySize, anchor: IRect, viewport: IWindowControlsOverlayViewport, origin: IWindowControlsOverlayPosition, zoom: number, devicePixelRatio: number, titlebarAreaRect: IWindowControlsOverlayTitlebarRect | undefined): IWindowControlsOverlayPosition {
+	// Equal to `originStart + (start - originStart) * zoom`, but exactly `start` when unzoomed
+	const render = (start: number, originStart: number) => start + (start - originStart) * (zoom - 1);
+	const align = (start: number, viewLayoutSize: number, viewRenderedSize: number, anchorStart: number, anchorSize: number, viewportStart: number, viewportSize: number, originStart: number) => {
+		const rendered = render(start, originStart);
+		const rounding = getDevicePixelRounding(start, viewLayoutSize, anchorStart, anchorSize, rendered - viewportStart, viewportStart + viewportSize - (rendered + viewRenderedSize), devicePixelRatio);
+		return start + DOM.getDevicePixelAlignmentOffset(rendered - viewportStart, devicePixelRatio, rounding) / zoom;
 	};
 	const aligned = {
-		top: align(position.top, size.height, anchor.top, anchor.height, viewport.top, viewport.height, origin.top),
-		left: align(position.left, size.width, anchor.left, anchor.width, viewport.left, viewport.width, origin.left)
+		top: align(position.top, layoutSize.height, renderedSize.height, anchor.top, anchor.height, viewport.top, viewport.height, origin.top),
+		left: align(position.left, layoutSize.width, renderedSize.width, anchor.left, anchor.width, viewport.left, viewport.width, origin.left)
 	};
-	const clearOfWindowControls = (candidate: IWindowControlsOverlayPosition) => avoidWindowControlsOverlay(titlebarAreaRect, viewport, size, candidate) === candidate;
+	const clearOfWindowControls = (candidate: IWindowControlsOverlayPosition) => {
+		const rendered = { top: render(candidate.top, origin.top), left: render(candidate.left, origin.left) };
+		return avoidWindowControlsOverlay(titlebarAreaRect, viewport, renderedSize, rendered) === rendered;
+	};
 	if (!clearOfWindowControls(position)) {
 		return aligned;
 	}
@@ -688,7 +699,7 @@ export class ContextView extends Disposable {
 			this.view.classList.add(adjusted.left >= anchor.left ? 'left' : 'right');
 		}
 
-		const { top, left } = alignViewToDevicePixels(adjusted, { width: positioningOrigin.width, height: positioningOrigin.height }, anchor, viewport, positioningOrigin, zoom, containerWindow.devicePixelRatio, titlebarAreaRect);
+		const { top, left } = alignViewToDevicePixels(adjusted, view, { width: positioningOrigin.width, height: positioningOrigin.height }, anchor, viewport, positioningOrigin, zoom, containerWindow.devicePixelRatio, titlebarAreaRect);
 		this.view.style.top = `${top - positioningOrigin.top}px`;
 		this.view.style.left = `${left - positioningOrigin.left}px`;
 		this.view.style.width = 'initial';

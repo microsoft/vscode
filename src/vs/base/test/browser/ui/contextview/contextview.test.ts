@@ -374,8 +374,8 @@ suite('ContextView', () => {
 	});
 
 	test('device-pixel rounding never moves a view past the viewport (#347796)', () => {
-		// start, size, anchorStart, anchorSize, viewportStart, viewportSize at DPR 1.32
-		const round = (start: number, size: number, anchorStart: number, anchorSize: number) => getDevicePixelRounding(start, size, anchorStart, anchorSize, 0, 1002, 1.32);
+		// start, size, anchorStart, anchorSize in a 1002px viewport at DPR 1.32
+		const round = (start: number, size: number, anchorStart: number, anchorSize: number) => getDevicePixelRounding(start, size, anchorStart, anchorSize, start, 1002 - (start + size), 1.32);
 		assert.deepStrictEqual({
 			besideBefore: round(100, 50, 160, 20),
 			besideAfter: round(181, 50, 160, 20),
@@ -400,30 +400,45 @@ suite('ContextView', () => {
 		const origin = { top: 0, left: 0 };
 		const band = { x: 80, y: 0, width: 800, height: 32 };
 		const round = (value: number) => Math.round(value * 1000) / 1000;
-		const align = (position: { top: number; left: number }, size: { width: number; height: number }, anchor: { top: number; left: number; width: number; height: number }, titlebarAreaRect?: typeof band) => {
-			const aligned = alignViewToDevicePixels(position, size, anchor, viewport, origin, 1, 1.32, titlebarAreaRect);
+		type Size = { width: number; height: number };
+		type Rect = { top: number; left: number; width: number; height: number };
+		const align = (position: { top: number; left: number }, layoutSize: Size, anchor: Rect, options?: { renderedSize?: Size; titlebarAreaRect?: typeof band; zoom?: number; devicePixelRatio?: number }) => {
+			const aligned = alignViewToDevicePixels(position, layoutSize, options?.renderedSize ?? layoutSize, anchor, viewport, origin, options?.zoom ?? 1, options?.devicePixelRatio ?? 1.32, options?.titlebarAreaRect);
 			return { top: round(aligned.top), left: round(aligned.left) };
 		};
 		// The view fits below the anchor only by its fractional height, so moving it down would overflow
-		const belowAnchor = align({ top: 200.2, left: 10 }, { width: 100, height: 399.4 }, { top: 190, left: 10, width: 1, height: 10.2 });
+		const belowAnchor = align({ top: 200.2, left: 10 }, { width: 100, height: 399 }, { top: 190, left: 10, width: 1, height: 10.2 }, { renderedSize: { width: 100, height: 399.4 } });
+		// Placed above the anchor by its layout height, so it rounds away from the anchor although its rendered height reaches past the anchor's top
+		const aboveAnchor = align({ top: 300.5, left: 10 }, { width: 100, height: 200 }, { top: 500.5, left: 10, width: 1, height: 10 }, { renderedSize: { width: 100, height: 200.33 }, devicePixelRatio: 1.5 });
+		// A zoomed view whose rendered bottom is 0.15px from the viewport's, where the nearest device pixel would overflow it
+		const zoomedAtViewportEnd = align({ top: 379.84, left: 10 }, { width: 100, height: 100 }, { top: 400, left: 0, width: 1002, height: 200 }, { renderedSize: { width: 125, height: 125.05 }, zoom: 1.25 });
 		// Pushed below the titlebar band beside an anchor that spans it, where the nearest device pixel is inside the band
 		const pushed = { top: 32, left: 10 };
 		const tallAnchor = { top: 0, left: 10, width: 1, height: 40 };
+		const square = { width: 100, height: 100 };
+		// A zoomed view rendered just below the band, which is above the band before it is zoomed
+		const zoomedBelowBand = align({ top: 25.6, left: 10 }, square, tallAnchor, { renderedSize: { width: 125, height: 125 }, titlebarAreaRect: band, zoom: 1.25 });
 		// A zoomed view in a scrolled page, placed from a fractional origin, lands on whole device pixels on screen
 		const zoomedViewport = { top: 100, left: 30, width: 1002, height: 600 };
 		const zoomedOrigin = { top: 50.3, left: 20.1 };
-		const zoomed = alignViewToDevicePixels({ top: 250.3, left: 140.7 }, { width: 100, height: 100 }, { top: 240.1, left: 140.7, width: 1, height: 10.2 }, zoomedViewport, zoomedOrigin, 1.25, 1.32, undefined);
+		const zoomed = alignViewToDevicePixels({ top: 250.3, left: 140.7 }, square, { width: 125, height: 125 }, { top: 240.1, left: 140.7, width: 1, height: 10.2 }, zoomedViewport, zoomedOrigin, 1.25, 1.32, undefined);
 		const toScreenDevicePixels = (start: number, originStart: number, viewportStart: number) => round((originStart - viewportStart + (start - originStart) * 1.25) * 1.32);
 		assert.deepStrictEqual({
 			belowAnchor,
-			belowBand: align(pushed, { width: 100, height: 100 }, tallAnchor, band),
-			withoutBand: align(pushed, { width: 100, height: 100 }, tallAnchor),
+			aboveAnchor,
+			zoomedAtViewportEnd: { ...zoomedAtViewportEnd, renderedBottom: round(zoomedAtViewportEnd.top * 1.25 + 125.05) },
+			belowBand: align(pushed, square, tallAnchor, { titlebarAreaRect: band }),
+			withoutBand: align(pushed, square, tallAnchor),
+			zoomedBelowBand,
 			zoomed: { top: round(zoomed.top), left: round(zoomed.left) },
 			zoomedOnScreen: { top: toScreenDevicePixels(zoomed.top, zoomedOrigin.top, zoomedViewport.top), left: toScreenDevicePixels(zoomed.left, zoomedOrigin.left, zoomedViewport.left) },
 		}, {
 			belowAnchor: { top: 200.2, left: 9.848 },
+			aboveAnchor: { top: 300, left: 10 },
+			zoomedAtViewportEnd: { top: 379.394, left: 10.303, renderedBottom: 599.293 },
 			belowBand: { top: 32, left: 9.848 },
 			withoutBand: { top: 31.818, left: 9.848 },
+			zoomedBelowBand: { top: 25.6, left: 10.303 },
 			zoomed: { top: 250.666, left: 140.747 },
 			zoomedOnScreen: { top: 265, left: 186 },
 		});
