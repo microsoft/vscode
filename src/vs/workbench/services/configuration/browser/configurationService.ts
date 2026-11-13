@@ -225,9 +225,10 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	 * `options.trusted` is the trust of the destination, which is applied before its settings are loaded
 	 * so that restricted settings are never applied while the destination is untrusted.
 	 * `options.isCurrent` is checked when the queued switch starts: a stale switch is skipped.
+	 * `options.onApplied` is called right after the switch was applied, before the next queued edit starts.
 	 * Resolves to whether the switch was not skipped.
 	 */
-	public setFolderLocation(location: URI, options?: { readonly trusted?: boolean; readonly isCurrent?: () => boolean }): Promise<boolean> {
+	public setFolderLocation(location: URI, options?: { readonly trusted?: boolean; readonly isCurrent?: () => boolean; readonly onApplied?: () => void }): Promise<boolean> {
 		let applied = false;
 		return this.workspaceEditingQueue.queue(async () => {
 			if (options?.isCurrent && !options.isCurrent()) {
@@ -235,6 +236,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 			}
 			await this.doSetFolderLocation(location, options?.trusted);
 			applied = true;
+			options?.onApplied?.(); // runs while this switch still owns the queue, so no other switch can change the folder first
 		}).then(() => applied);
 	}
 

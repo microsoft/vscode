@@ -238,14 +238,18 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			return; // superseded by a newer invocation, or the workspace changed
 		}
 
-		// The queued switch is skipped when superseded while waiting for earlier workspace edits
-		if (await this.contextService.setFolderLocation(location, { trusted, isCurrent })) {
-			// A newer switch may have started right after this one completed: do not attach this location to its folder
-			const folder = this.contextService.getWorkspace().folders[0];
-			if (isCurrent() && folder && this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
-				this.workspaceFolderLocationService.setLocation(folder, resolved, options?.reason);
+		// The queued switch is skipped when superseded while waiting for earlier workspace edits.
+		// The location metadata is published as soon as the switch was applied, so it always follows the last applied switch.
+		await this.contextService.setFolderLocation(location, {
+			trusted,
+			isCurrent,
+			onApplied: () => {
+				const folder = this.contextService.getWorkspace().folders[0];
+				if (folder && this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
+					this.workspaceFolderLocationService.setLocation(folder, resolved, options?.reason);
+				}
 			}
-		}
+		});
 	}
 
 	async updateFolders(index: number, deleteCount?: number, foldersToAddCandidates?: IWorkspaceFolderCreationData[], donotNotifyError?: boolean): Promise<void> {

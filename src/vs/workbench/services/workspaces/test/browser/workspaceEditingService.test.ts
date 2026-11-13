@@ -88,6 +88,15 @@ suite('WorkspaceEditingService', () => {
 
 	suite('setFolderLocation', () => {
 
+		function trackingContext(primary: URI, switched: (URI | undefined)[]) {
+			let current = primary;
+			return {
+				getWorkbenchState: () => WorkbenchState.FOLDER,
+				getWorkspace: () => ({ folders: [{ uri: current }], uri: primary }),
+				setFolderLocation: async (location: URI, o?: { onApplied?: () => void }) => { switched.push(location); current = location; o?.onApplied?.(); return true; }
+			};
+		}
+
 		function createService(options: { current: URI; primaryTrusted: boolean; currentTrusted?: boolean; builtIn?: boolean; state?: WorkbenchState; confirmed?: boolean; destinationTrusted?: boolean }) {
 			const trusted: URI[] = [];
 			const prompts: string[] = [];
@@ -102,7 +111,7 @@ suite('WorkspaceEditingService', () => {
 				{
 					getWorkbenchState: () => options.state ?? WorkbenchState.FOLDER,
 					getWorkspace: () => ({ folders: [{ uri: current }], uri: URI.file('/work/project') }),
-					setFolderLocation: async (location: URI, o?: { trusted?: boolean }) => { current = location; switched.push(location); switchTrust.push(o?.trusted); return true; }
+					setFolderLocation: async (location: URI, o?: { trusted?: boolean; onApplied?: () => void }) => { current = location; switched.push(location); switchTrust.push(o?.trusted); o?.onApplied?.(); return true; }
 				},
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ confirm: async () => { prompts.push('trust'); return { confirmed: options.confirmed ?? false }; } },
@@ -169,7 +178,7 @@ suite('WorkspaceEditingService', () => {
 			const switched: (URI | undefined)[] = [];
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); return true; } },
+				trackingContext(primary, switched),
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
 				{ getUriTrustInfo: async () => ({ trusted: false }), setUrisTrust: async () => { } },
@@ -222,7 +231,7 @@ suite('WorkspaceEditingService', () => {
 			const switched: (URI | undefined)[] = [];
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); return true; } },
+				trackingContext(primary, switched),
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ confirm: () => answer.p },
 				undefined,
@@ -253,7 +262,7 @@ suite('WorkspaceEditingService', () => {
 			let identity = primary;
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders, uri: identity }), setFolderLocation: async (location: URI) => { switched.push(location); return true; } },
+				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders, uri: identity }), setFolderLocation: async (location: URI, o?: { onApplied?: () => void }) => { switched.push(location); folders = [{ uri: location }]; o?.onApplied?.(); return true; } },
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: (uri: URI) => extUri.isEqual(uri, primary) ? trustInfo.p : Promise.resolve({ trusted: false }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
@@ -312,7 +321,7 @@ suite('WorkspaceEditingService', () => {
 			const switched: (URI | undefined)[] = [];
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); return true; } },
+				trackingContext(primary, switched),
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); await grant.p; } },
@@ -342,11 +351,12 @@ suite('WorkspaceEditingService', () => {
 				{
 					getWorkbenchState: () => WorkbenchState.FOLDER,
 					getWorkspace: () => ({ folders: [{ uri: current }], uri: primary }),
-					setFolderLocation: async (location: URI) => {
+					setFolderLocation: async (location: URI, o?: { onApplied?: () => void }) => {
 						current = location;
 						if (extUri.isEqual(location, first)) {
 							await firstApplied.p;
 						}
+						o?.onApplied?.();
 						return true;
 					}
 				},
@@ -364,6 +374,48 @@ suite('WorkspaceEditingService', () => {
 			await pendingFirst;
 
 			assert.deepStrictEqual(located, [second.toString()]);
+		});
+
+		test('an applied switch publishes its location even when a newer attempt fails to resolve', async () => {
+			const primary = URI.file('/work/project');
+			const alt = URI.file('/work/alt');
+			const unknown = URI.file('/work/unknown');
+			const switched: (URI | undefined)[] = [];
+			const located: (string | undefined)[] = [];
+			const holds: DeferredPromise<void>[] = [];
+			const context = trackingContext(primary, switched);
+			const applyHeld = context.setFolderLocation;
+			context.setFolderLocation = async (location, o) => {
+				await holds[holds.length - 1].p;
+				return applyHeld(location, o);
+			};
+			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
+				undefined,
+				context,
+				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+				{ extUri },
+				undefined, undefined, undefined, undefined,
+				{
+					canSetLocation: () => true,
+					resolveLocation: async (_primary: URI, location: URI) => extUri.isEqual(location, unknown) ? undefined : { uri: location, label: 'L', providerId: 'test', builtIn: true },
+					setLocation: (_folder: unknown, location: { uri: URI } | undefined) => { located.push(location?.uri.toString()); }
+				},
+				{ isWorkspaceTrustEnabled: () => false }
+			));
+
+			const applyAfterFailedAttempt = async (location: URI) => {
+				const hold = new DeferredPromise<void>();
+				holds.push(hold);
+				const pending = service.setFolderLocation(location);
+				await timeout(0);
+				await assert.rejects(() => service.setFolderLocation(unknown));
+				hold.complete();
+				await pending;
+			};
+			await applyAfterFailedAttempt(alt);
+			await applyAfterFailedAttempt(primary);
+
+			assert.deepStrictEqual({ located, switched: switched.map(u => u?.toString()) }, { located: [alt.toString(), undefined], switched: [alt.toString(), primary.toString()] });
 		});
 
 		test('a workspace change while reading the primary trust grants no trust and does not switch', async () => {
@@ -387,7 +439,7 @@ suite('WorkspaceEditingService', () => {
 
 			const service = ds.add(new (BrowserWorkspaceEditingService as unknown as new (...args: unknown[]) => BrowserWorkspaceEditingService)(
 				undefined,
-				{ getWorkbenchState: () => WorkbenchState.FOLDER, getWorkspace: () => ({ folders: [{ uri: primary }], uri: primary }), setFolderLocation: async (location: URI) => { switched.push(location); return true; } },
+				trackingContext(primary, switched),
 				undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
 				{ extUri },
 				{ isWorkspaceTrusted: () => true, getUriTrustInfo: async (uri: URI) => ({ trusted: extUri.isEqual(uri, primary) }), setUrisTrust: async (uris: URI[]) => { trusted.push(...uris); } },
