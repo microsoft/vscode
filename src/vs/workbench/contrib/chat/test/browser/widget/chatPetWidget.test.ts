@@ -2836,8 +2836,10 @@ suite('ChatPetWidget', () => {
 	function setSubagentPetPosition(widget: ChatPetWidget, element: HTMLElement, left: number, top: number): void {
 		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Set up positions without exposing a test-only API.
 		const subagentPet = [...widget['_subagentPets'].values()].find(subagentPet => subagentPet.element === element)!;
-		subagentPet.left = left;
-		subagentPet.top = top;
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Set up the private position for layout tests.
+		subagentPet['_left'] = left;
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Set up the private position for layout tests.
+		subagentPet['_top'] = top;
 		element.style.left = `${left}px`;
 		element.style.top = `${top}px`;
 	}

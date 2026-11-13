@@ -1298,15 +1298,16 @@ class SubagentPet extends Disposable {
 	private _accessoryImage: HTMLImageElement | undefined;
 
 	/** Creates a pet at the given overlay-relative landing position. */
-	constructor(private readonly _host: SubagentPetHost, public left: number, public top: number) {
+	constructor(private readonly _host: SubagentPetHost, private _left: number, private _top: number) {
 		super();
 		const scale = 0.5 * _host.scale;
 		const size = CHAT_PET_DISPLAY_SIZE * scale;
 		this.element = dom.append(_host.layer, dom.$('.chat-subagent-pet', { 'aria-hidden': 'true' }));
-		this.element.style.left = `${left}px`;
-		this.element.style.top = `${top}px`;
+		this._register(toDisposable(() => this.element.remove()));
+		this.element.style.left = `${this._left}px`;
+		this.element.style.top = `${this._top}px`;
 		this.element.style.transform = `scale(${scale})`;
-		const distance = Math.max(0, _host.overlay.getBoundingClientRect().top + top + size);
+		const distance = Math.max(0, _host.overlay.getBoundingClientRect().top + this._top + size);
 		this.canvas = dom.append(this.element, dom.$('canvas.chat-subagent-pet-canvas')) as HTMLCanvasElement;
 		this.canvas.width = CHAT_PET_SOURCE_SIZE;
 		this.canvas.height = CHAT_PET_SOURCE_SIZE;
@@ -1334,8 +1335,18 @@ class SubagentPet extends Disposable {
 		this._activity.add(dom.addDisposableListener(this.image, 'load', () => this._onImageLoad()));
 		this._setState('idle');
 		if (!_host.motionReduced && distance > 0) {
-			this._animateFall(top - distance, top);
+			this._animateFall(this._top - distance, this._top);
 		}
+	}
+
+	get left(): number { return this._left; }
+	get top(): number { return this._top; }
+
+	/** Updates the scale while keeping the pet's bottom edge in place. */
+	setScale(previousScale: number, scale: number): void {
+		this._top += CHAT_PET_DISPLAY_SIZE * (previousScale - scale);
+		this.element.style.top = `${this._top}px`;
+		this.element.style.transform = `scale(${scale})`;
 	}
 
 	/** Returns whether the pet is being relocated. */
@@ -1371,7 +1382,7 @@ class SubagentPet extends Disposable {
 		const previousTop = this.element.getBoundingClientRect().top - this._host.overlay.getBoundingClientRect().top;
 		this._respawnPhase = respawn ? 'falling' : 'none';
 		this._fallAnimation.clear();
-		this.top = top;
+		this._top = top;
 		this.element.style.top = `${top}px`;
 		this._setState('idle');
 		if (!this._host.motionReduced && top > previousTop) {
@@ -1396,15 +1407,10 @@ class SubagentPet extends Disposable {
 		const source = this._host.motionReduced ? sources.reducedMotion : sources.animated;
 		const animation = this._activity.add(new MutableDisposable<IDisposable>());
 		const sprite: ChatPetSpriteElement = { container: this.element, canvas: this.canvas, image, color: this._host.color };
-		const finish = () => {
-			this.element.remove();
-			onComplete();
-		};
-		this._activity.add(toDisposable(() => this.element.remove()));
-		this._activity.add(dom.addDisposableListener(image, 'load', () => this._host.startAnimation(source, sprite, animation, finish, true)));
-		this._activity.add(dom.addDisposableListener(image, 'error', finish));
+		this._activity.add(dom.addDisposableListener(image, 'load', () => this._host.startAnimation(source, sprite, animation, onComplete, true)));
+		this._activity.add(dom.addDisposableListener(image, 'error', onComplete));
 		const targetWindow = dom.getWindow(this.element);
-		const timer = targetWindow.setTimeout(finish, this._host.motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
+		const timer = targetWindow.setTimeout(onComplete, this._host.motionReduced ? RESPAWN_EFFECT_REDUCED_MOTION_DURATION : RESPAWN_EFFECT_DURATION);
 		this._activity.add(toDisposable(() => targetWindow.clearTimeout(timer)));
 		setChatPetImageSource(image, source.url);
 	}
@@ -1490,15 +1496,15 @@ class SubagentPet extends Disposable {
 		const size = CHAT_PET_DISPLAY_SIZE * 0.5 * this._host.scale;
 		if (this._respawnPhase === 'despawning') {
 			this._respawnPhase = 'respawning';
-			this.left = Math.max(input.left - overlay.left, Math.min(this.left, input.right - overlay.left - size));
-			this.top = this._host.getMovementBounds().top - overlay.top;
-			this.element.style.left = `${this.left}px`;
-			this.element.style.top = `${this.top}px`;
+			this._left = Math.max(input.left - overlay.left, Math.min(this._left, input.right - overlay.left - size));
+			this._top = this._host.getMovementBounds().top - overlay.top;
+			this.element.style.left = `${this._left}px`;
+			this.element.style.top = `${this._top}px`;
 			this._setState('idle');
 		} else if (this._respawnPhase === 'respawning') {
 			const landing = this._host.getLanding(size);
-			this.left = landing.left;
-			this.element.style.left = `${this.left}px`;
+			this._left = landing.left;
+			this.element.style.left = `${this._left}px`;
 			this.fallTo(landing.top);
 			this._host.scheduleResize();
 		}
@@ -2074,9 +2080,6 @@ export class ChatPetWidget extends Disposable {
 				this._subagentPetResizeScheduler.cancel();
 				this._activeSubagentIds = new Set();
 				this._despawningSubagentPetCount = 0;
-				for (const subagentPet of this._subagentPets.values()) {
-					subagentPet.element.remove();
-				}
 				this._subagentPets.clear();
 				this._subagentPetEffects.clear();
 				this._hopController.cancel();
@@ -3413,9 +3416,7 @@ export class ChatPetWidget extends Disposable {
 		this._scale = scale;
 		const subagentPetScale = scale * 0.5;
 		for (const subagentPet of this._subagentPets.values()) {
-			subagentPet.top += CHAT_PET_DISPLAY_SIZE * (previousScale - subagentPetScale);
-			subagentPet.element.style.top = `${subagentPet.top}px`;
-			subagentPet.element.style.transform = `scale(${subagentPetScale})`;
+			subagentPet.setScale(previousScale, subagentPetScale);
 		}
 		this._scheduleSubagentPetResize();
 		const displaySize = this._getDisplaySize();
