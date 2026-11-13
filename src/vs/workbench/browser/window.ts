@@ -85,21 +85,23 @@ export abstract class BaseWindow extends Disposable {
 
 		const that = this;
 		targetWindow.HTMLElement.prototype.focus = function (this: HTMLElement, options?: FocusOptions | undefined): void {
+			const elementWindow = getWindow(this);
 
 			// Ensure the window the element belongs to is focused
 			// in scenarios where auxiliary windows are present
-			that.onElementFocus(getWindow(this));
+			that.onElementFocus(elementWindow);
 
 			// Pass to original focus() method
 			originalFocus.apply(this, [options]);
+
+			// Remember the window as the active one for when no window has focus,
+			// such as with windows that are never shown (no-op unless enabled).
+			// After focusing, so that listeners resolve the part containing the element.
+			setFallbackActiveWindow(elementWindow.vscodeWindowId);
 		};
 	}
 
 	private onElementFocus(targetWindow: CodeWindow): void {
-
-		// Remember the window as the active one for when no window has focus,
-		// such as with windows that are never shown (no-op unless enabled)
-		setFallbackActiveWindow(targetWindow.vscodeWindowId);
 
 		// Check if focus should transfer: the application currently has focus somewhere, but not in the target window.
 		if (!targetWindow.document.hasFocus() && hasAppFocus()) {

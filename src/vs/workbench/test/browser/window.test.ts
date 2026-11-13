@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { setZoomFactor, setZoomLevel } from '../../../base/browser/browser.js';
-import { enableFallbackActiveWindow, getActiveDocument, IRegisteredCodeWindow, registerExternalFocusChecker, registerWindow, trackAttributes } from '../../../base/browser/dom.js';
+import { enableFallbackActiveWindow, getActiveDocument, getActiveElement, IRegisteredCodeWindow, onDidChangeFallbackActiveWindow, registerExternalFocusChecker, registerWindow, trackAttributes } from '../../../base/browser/dom.js';
 import { IPixelRatioMonitor } from '../../../base/browser/pixelRatio.js';
 import { CodeWindow, ensureCodeWindow, mainWindow } from '../../../base/browser/window.js';
 import { timeout } from '../../../base/common/async.js';
@@ -335,5 +335,35 @@ suite('Window', () => {
 		const afterExternalFocus = getActiveDocument() === otherWindow.document;
 
 		assert.deepStrictEqual({ withExternalFocus, afterExternalFocus }, { withExternalFocus: true, afterExternalFocus: true });
+	});
+
+	test('focus in a window changes the fallback active window after the element has focus', () => {
+		const iframe = mainWindow.document.body.appendChild(mainWindow.document.createElement('iframe'));
+		store.add(toDisposable(() => iframe.remove()));
+		const otherWindow = iframe.contentWindow!;
+		ensureCodeWindow(otherWindow, 6264);
+		store.add(registerWindow(otherWindow));
+
+		const mainHasFocus = mainWindow.document.hasFocus;
+		mainWindow.document.hasFocus = () => false;
+		otherWindow.document.hasFocus = () => false;
+		store.add(toDisposable(() => mainWindow.document.hasFocus = mainHasFocus));
+
+		class FocusTestWindow extends BaseWindow {
+			constructor(window: CodeWindow) {
+				super(window, undefined, new TestHostService(), TestEnvironmentService, new TestContextMenuService(), new TestLayoutService());
+			}
+			protected override enableMultiWindowAwareTimeout(): void { }
+		}
+		store.add(new FocusTestWindow(otherWindow));
+		store.add(enableFallbackActiveWindow());
+
+		const element = otherWindow.document.body.appendChild(otherWindow.document.createElement('div'));
+		element.tabIndex = 0;
+		let activeElementOnChange: Element | null | undefined;
+		store.add(onDidChangeFallbackActiveWindow(() => activeElementOnChange = getActiveElement()));
+		element.focus();
+
+		assert.strictEqual(activeElementOnChange, element);
 	});
 });
