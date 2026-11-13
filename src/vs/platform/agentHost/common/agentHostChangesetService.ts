@@ -309,6 +309,12 @@ export interface IAgentHostChangesetService {
 	onChangesetOwnerRemoved?(owner: ProtocolURI): void;
 
 	/**
+	 * Aggregates the session's Branch summary from the Branch changesets of its current summary owners.
+	 * Runs no Git: use it when the set of owners changed and the changesets of the retained ones are current.
+	 */
+	refreshBranchSummary?(session: ProtocolURI): void;
+
+	/**
 	 * Computes the chat's Session Changes aggregate when the chat has turns
 	 * but no aggregate yet, e.g. a chat restored from a build that did not
 	 * record per-chat aggregates.

@@ -871,6 +871,33 @@ suite('GitHub pull request artifact integration', () => {
 		});
 	}));
 
+	test('probes the checkout again when the pull request reopens after closing during a probe', () => run(async store => {
+		const open = itemActionSnapshot();
+		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		f.onCheckout(async () => {
+			await entered.complete();
+			await resume.p;
+		});
+		f.refreshGitState();
+		await entered.p;
+		f.snapshot.set(closed, undefined);
+		// The close is observed while the probe is pending.
+		await timeout(100);
+		await resume.complete();
+		await timeout(0);
+		f.onCheckout(undefined);
+		f.snapshot.set(open, undefined);
+		await timeout(100);
+
+		assert.strictEqual(f.checkoutRequests.length - initial, 2);
+	}));
+
 	test('keeps an applicable merge action visible when permissions prevent execution', () => run(async store => {
 		const base = createPullRequestArtifactSnapshot();
 		const f = await fixture(store, {

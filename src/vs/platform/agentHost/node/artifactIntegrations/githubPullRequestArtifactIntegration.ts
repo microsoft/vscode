@@ -855,6 +855,8 @@ class GitHubPullRequestArtifactBinding extends Disposable implements IArtifactIn
 		if (!core || core.state !== 'open' || !chat) {
 			this.workspaceRevision++;
 			this.lastWorkspaceProbe = undefined;
+			// The pending probe is superseded and can no longer clear its own marker.
+			this.probingWorkspace = undefined;
 			this.workspaces.set({}, undefined);
 			return;
 		}

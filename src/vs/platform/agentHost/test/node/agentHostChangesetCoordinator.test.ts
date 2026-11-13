@@ -527,7 +527,8 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: environment.updateOperationsCalls.slice(baseline),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summaryBaseline),
 		}, {
-			operationRefreshes: [session, buildDefaultChatUri(session), peer],
+			// Each chat is requested by its working-directory change and again by its announced Git refresh; both run as one update.
+			operationRefreshes: [session, buildDefaultChatUri(session), buildDefaultChatUri(session), peer, peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
 		});
 
@@ -549,7 +550,8 @@ suite('ChangesetSessionCoordinator', () => {
 			operationRefreshes: environment.updateOperationsCalls.slice(afterAdd),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summariesAfterAdd),
 		}, {
-			operationRefreshes: [session, buildDefaultChatUri(session), peer],
+			// Each chat is requested by its working-directory change and again by its announced Git refresh; both run as one update.
+			operationRefreshes: [session, buildDefaultChatUri(session), buildDefaultChatUri(session), peer, peer],
 			chatSummaryRefreshes: [buildDefaultChatUri(session), peer],
 		});
 	});
@@ -593,7 +595,7 @@ suite('ChangesetSessionCoordinator', () => {
 			gitRefreshes: environment.gitStateService.refreshed.slice(gitBaseline),
 			chatSummaryRefreshes: environment.changesets.chatSummaryRefreshes.slice(summaryBaseline),
 		}, {
-			operationRefreshes: [chat],
+			operationRefreshes: [chat, chat],
 			gitRefreshes: [chat],
 			chatSummaryRefreshes: [chat],
 		});
@@ -755,8 +757,8 @@ suite('ChangesetSessionCoordinator', () => {
 
 		assert.deepStrictEqual(
 			[...environment.updateOperationsCalls.slice(baseline)].sort(),
-			[parentSession, buildDefaultChatUri(parentSession), subagentSession].sort(),
-			'a parent root change refreshes every parent operation owner once and its inheriting subagent',
+			[parentSession, buildDefaultChatUri(parentSession), buildDefaultChatUri(parentSession), subagentSession].sort(),
+			'a parent root change refreshes every parent operation owner and its inheriting subagent, the default chat again for its Git refresh',
 		);
 	});
 
@@ -1039,7 +1041,7 @@ suite('ChangesetSessionCoordinator', () => {
 			acquisitions: ['file:///repo', 'file:///repo'],
 			disposals: ['file:///repo'],
 			refreshes: [session],
-			operationRefreshes: [session, session],
+			operationRefreshes: [session, session, session],
 		});
 	});
 
@@ -1927,6 +1929,57 @@ suite('ChangesetSessionCoordinator', () => {
 		assert.deepStrictEqual(environment.gitStateService.refreshed, [archived[0]]);
 	});
 
+	test('archiving a chat that works in its own folder re-aggregates the branch summary without recomputing the folders left', async () => {
+		const environment = createEnvironment();
+		const session = AgentSession.uri('mock', 'archive-aggregates').toString();
+		const { active } = createManyWorktreeSession(environment, session);
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		environment.changesets.clearRefreshes();
+
+		environment.stateManager.dispatchServerAction(active[1], { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+
+		assert.deepStrictEqual({
+			summaryRefreshes: environment.changesets.summaryRefreshes,
+			branchRefreshes: environment.changesets.branchRefreshes,
+		}, {
+			summaryRefreshes: [session],
+			branchRefreshes: [],
+		});
+	});
+
+	test('a chat sharing the folder of an archived chat has its Branch changes refreshed by a Git refresh of the archived chat', async () => {
+		const environment = createEnvironment();
+		const session = AgentSession.uri('mock', 'shared-folder-archived').toString();
+		const defaultChat = buildDefaultChatUri(session);
+		const archived = buildChatUri(session, 'archived');
+		const sibling = buildChatUri(session, 'sibling');
+		createSession(environment.stateManager, session, 'file:///wt-0');
+		environment.stateManager.dispatchServerAction(defaultChat, { type: ActionType.ChatWorkingDirectorySet, directory: 'file:///wt-0' });
+		environment.stateManager.addChat(session, archived, creationTimeChatStorageResource(session, archived, defaultChat), { workingDirectories: ['file:///shared'] });
+		environment.stateManager.addChat(session, sibling, creationTimeChatStorageResource(session, sibling, defaultChat), { workingDirectories: ['file:///shared'] });
+		environment.stateManager.dispatchServerAction(archived, { type: ActionType.ChatIsArchivedChanged, isArchived: true });
+		environment.stateManager.setSessionConfig(session, { schema: { type: 'object', properties: {} }, values: { [SessionConfigKey.Isolation]: 'worktree' } });
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		environment.changesets.clearRefreshes();
+
+		await environment.gitStateService.refreshSessionGitState(archived);
+
+		assert.deepStrictEqual(environment.changesets.branchRefreshes, [buildBranchChangesetOwner(session, ['file:///shared'])]);
+	});
+
+	test('an announced Git refresh updates the operations of its key independently of the diffs it recomputes', async () => {
+		const environment = createEnvironment();
+		const session = AgentSession.uri('mock', 'refresh-operations').toString();
+		const { active } = createManyWorktreeSession(environment, session);
+		environment.coordinator.onFirstSubscriber(URI.parse(session));
+		await tick();
+		environment.updateOperationsCalls.length = 0;
+
+		await environment.gitStateService.refreshSessionGitState(active[2]);
+
+		assert.deepStrictEqual(environment.updateOperationsCalls, [active[2]]);
+	});
+
 	test('the branch summary of a source that is unchanged is not refreshed by reconciling it again', async () => {
 		const environment = createEnvironment();
 		const session = AgentSession.uri('mock', 'reconcile-unchanged').toString();
@@ -2210,6 +2263,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 	readonly workingDirectoryAvailable: string[] = [];
 	readonly recomputed: string[] = [];
 	readonly removedOwners: string[] = [];
+	readonly summaryRefreshes: string[] = [];
 
 	constructor(
 		private readonly _subscriptions: IAgentHostChangesetSubscriptionService,
@@ -2282,6 +2336,9 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onChangesetOwnerRemoved(owner: string): void {
 		this.removedOwners.push(owner);
 	}
+	refreshBranchSummary(session: string): void {
+		this.summaryRefreshes.push(session);
+	}
 
 	clearRefreshes(): void {
 		this.branchRefreshes.length = 0;
@@ -2291,6 +2348,7 @@ class TestChangesetService implements IAgentHostChangesetService {
 		this.workingSetRefreshes.length = 0;
 		this.chatSummaryRefreshes.length = 0;
 		this.recomputed.length = 0;
+		this.summaryRefreshes.length = 0;
 	}
 
 	getListMetadataKeys(_sessionStr: string): Record<string, true> | undefined { return undefined; }

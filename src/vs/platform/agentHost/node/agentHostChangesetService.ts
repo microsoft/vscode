@@ -501,6 +501,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		this._stateManager.setSessionSummaryChanges(session, summary);
 	}
 
+	refreshBranchSummary(session: ProtocolURI): void {
+		this._updateBranchSummary(session);
+	}
+
 	refreshBranchChangeset(session: ProtocolURI, options?: IRefreshBranchChangesetOptions): void {
 		const branchChangesetOwner = this._getBranchChangesetOwner(session);
 		if (!this._hasWorkingDirectory(branchChangesetOwner)) {
@@ -2332,8 +2336,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			if (kind === 'branch') {
 				this._unavailableBranchOwners.delete(session);
 				this._failedBranchOwners.delete(session);
+				// A result that cannot be tied to the current fingerprint must not keep an older one, which a later state could match.
 				if (branchFingerprint !== undefined && forcedRefreshes === this._branchForcedRefreshes.get(session)) {
 					this._branchDiffFingerprints.set(session, branchFingerprint);
+				} else {
+					this._branchDiffFingerprints.delete(session);
 				}
 			}
 			fileCount = diffs.length;

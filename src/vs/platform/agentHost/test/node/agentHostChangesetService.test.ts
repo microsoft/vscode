@@ -1985,6 +1985,41 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.deepStrictEqual({ withoutFingerprint, failing, recovered: diffs() }, { withoutFingerprint: 2, failing: 4, recovered: 5 });
 	});
 
+	test('a branch refresh does not reuse the files of an earlier tree after a computation that had no fingerprint', async () => {
+		const state: { fingerprint: string | undefined } = { fingerprint: 'tree-1' };
+		const { git, calls } = createCountingBranchGitService(state);
+		const { svc } = build({ workingDirectories: ['file:///repo'], git, checkpoint: NULL_CHECKPOINT_SERVICE });
+		const diffs = () => calls.filter(call => call === 'computeSessionFileDiffs').length;
+
+		await refreshBranch(svc, sessionStr);
+		// E.g. more changed paths than a fingerprint covers.
+		state.fingerprint = undefined;
+		await refreshBranch(svc, sessionStr);
+		state.fingerprint = 'tree-1';
+		await refreshBranch(svc, sessionStr);
+
+		assert.strictEqual(diffs(), 3);
+	});
+
+	test('the branch summary is aggregated again from the changesets that are current without computing them', async () => {
+		const { git, calls } = createCountingBranchGitService({ fingerprint: 'tree-1' });
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], isolation: 'worktree', git, checkpoint: NULL_CHECKPOINT_SERVICE });
+
+		await refreshBranch(svc, sessionStr);
+		const computed = stateManager.getSessionSummary(sessionStr)?.changes;
+		const diffsBefore = calls.filter(call => call === 'computeSessionFileDiffs').length;
+		stateManager.setSessionSummaryChanges(sessionStr, { files: 9, additions: 90, deletions: 90 });
+		svc.refreshBranchSummary(sessionStr);
+
+		assert.deepStrictEqual({
+			summary: stateManager.getSessionSummary(sessionStr)?.changes,
+			diffs: calls.filter(call => call === 'computeSessionFileDiffs').length - diffsBefore,
+		}, {
+			summary: computed,
+			diffs: 0,
+		});
+	});
+
 	test('a branch refresh without a replacement restores the prior error and cached files', async () => {
 		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
 		const changesetUri = buildBranchChangesetUri(buildFolderChangesetOwnerUri(sessionStr, getWorkingDirectoryScopeId(['file:///repo'])));

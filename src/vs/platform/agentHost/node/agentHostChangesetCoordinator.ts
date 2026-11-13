@@ -374,25 +374,35 @@ export class AgentHostChangesetCoordinator extends Disposable {
 
 	/** Subscribes to the branch changesets of the session's summary sources and releases those no longer needed; `refreshSources` have their changesets refreshed. */
 	private _reconcileBranchSummaryResources(session: string, refreshSources?: ReadonlySet<string>): void {
+		const ownersBefore = this._branchSummaryOwners(session);
 		const desiredSources = new Set(getSessionSummarySources(this._stateManager, session, this._chatOwnership.getDefaultChat(session)));
 		for (const source of desiredSources) {
 			this._ensureBranchSummarySubscription(source, refreshSources?.has(source) === true);
 		}
 
 		const resourcesBySource = this._branchSummaryResources.get(session);
-		if (!resourcesBySource) {
-			return;
-		}
-		for (const [source, resource] of [...resourcesBySource]) {
-			if (desiredSources.has(source)) {
-				continue;
+		if (resourcesBySource) {
+			for (const [source, resource] of [...resourcesBySource]) {
+				if (desiredSources.has(source)) {
+					continue;
+				}
+				resourcesBySource.delete(source);
+				this._releaseBranchSummaryResource(resource);
 			}
-			resourcesBySource.delete(source);
-			this._releaseBranchSummaryResource(resource);
+			if (resourcesBySource.size === 0) {
+				this._branchSummaryResources.delete(session);
+			}
 		}
-		if (resourcesBySource.size === 0) {
-			this._branchSummaryResources.delete(session);
+
+		// A changeset that is current does not publish again, so its totals join or leave the summary here.
+		const ownersAfter = this._branchSummaryOwners(session);
+		if (ownersBefore.size !== ownersAfter.size || [...ownersAfter].some(owner => !ownersBefore.has(owner))) {
+			this._changesets.refreshBranchSummary?.(session);
 		}
+	}
+
+	private _branchSummaryOwners(session: string): ReadonlySet<string> {
+		return new Set([...this._branchSummaryResources.get(session)?.values() ?? []].map(resource => resource.owner));
 	}
 
 	private _releaseBranchSummaryResource({ resource, owner }: { resource: string; owner: string }, cancelPending = true): void {
@@ -685,7 +695,7 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (hasBranchSummary) {
 			this._reconcileBranchSummaryResources(session);
 		}
-		const summaryOwners = new Set([...(session !== undefined ? this._branchSummaryResources.get(session)?.values() : undefined) ?? []].map(resource => resource.owner));
+		const summaryOwners = session !== undefined ? this._branchSummaryOwners(session) : new Set<string>();
 		for (const owner of branchOwners) {
 			if (summaryOwners.has(owner) || this._changesetSubscriptions.getSessionSubscriptions(owner).size > 0) {
 				this._changesets.refreshBranchChangeset(owner);
@@ -694,6 +704,8 @@ export class AgentHostChangesetCoordinator extends Disposable {
 		if (this._changesetSubscriptions.getSessionSubscriptions(key).has(buildUncommittedChangesetUri(key))) {
 			void this._changesets.computeUncommittedChangeset(key);
 		}
+		// Operations such as Sync follow Git state that no diff covers, like the commits ahead of or behind the upstream.
+		this._changesetOperationService.scheduleRelatedOperationsUpdate(key);
 	}
 
 	/**
