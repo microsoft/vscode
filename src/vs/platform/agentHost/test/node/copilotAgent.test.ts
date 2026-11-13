@@ -4132,22 +4132,40 @@ suite('CopilotAgent', () => {
 		assert.strictEqual(agent.getSessionPlanFile(session, peerChat), undefined);
 	});
 
-	test('publishes the runtime GitHub MCP server as built in before the SDK session starts', () => {
-		const rootMcpCustomizations = (CopilotAgent.prototype as unknown as {
-			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly McpServerCustomization[];
-		})._rootMcpCustomizations;
-		const summarize = (customizations: readonly McpServerCustomization[]) => customizations.map(server => ({ name: server.name, source: readMcpServerSource(server), setting: readMcpServerControllingSetting(server) }));
-		const context = { id: 'copilotcli', _isGitHubMcpServerEnabled: () => true };
+	test('publishes the runtime GitHub MCP server as built in before the SDK session starts only when the user does not configure one', async () => {
+		const summarizeGitHubServer = (agent: CopilotAgent, session: URI) => {
+			const servers = (agent as unknown as { _topLevelMcpServers(session: URI): { customizations: readonly McpServerCustomization[] } })._topLevelMcpServers(session).customizations;
+			const server = servers.find(candidate => candidate.name === GITHUB_MCP_SERVER_NAME);
+			return server && { source: readMcpServerSource(server), setting: readMcpServerControllingSetting(server) };
+		};
+		const run = async (userServers: Record<string, unknown>) => {
+			const client = new TestCopilotClient([]);
+			client.mcpConfigListResult = { servers: userServers } as typeof client.mcpConfigListResult;
+			const { agent } = createTestAgentContext(disposables, { copilotClient: client });
+			try {
+				const session = AgentSession.uri('copilotcli', 'not-started');
+				const unread = summarizeGitHubServer(agent, session);
+				await agent.authenticate('https://api.github.com', 'token');
+				await agent['_ensureClient']();
+				await timeout(0);
+				return { unread, read: summarizeGitHubServer(agent, session) };
+			} finally {
+				await disposeAgent(agent);
+			}
+		};
 
 		assert.deepStrictEqual({
-			runtime: summarize(rootMcpCustomizations.call(context, 'session', { docs: {} })),
-			userConfigured: summarize(rootMcpCustomizations.call(context, 'session', {}, [GITHUB_MCP_SERVER_NAME])),
+			runtime: await run({}),
+			userConfigured: await run({ [GITHUB_MCP_SERVER_NAME]: { type: 'http', url: 'https://example.test/mcp' } }),
 		}, {
-			runtime: [
-				{ name: 'docs', source: undefined, setting: undefined },
-				{ name: GITHUB_MCP_SERVER_NAME, source: 'builtin', setting: AgentHostGitHubMcpServerEnabledSettingId },
-			],
-			userConfigured: [{ name: GITHUB_MCP_SERVER_NAME, source: undefined, setting: undefined }],
+			runtime: {
+				unread: { source: undefined, setting: undefined },
+				read: { source: 'builtin', setting: AgentHostGitHubMcpServerEnabledSettingId },
+			},
+			userConfigured: {
+				unread: { source: undefined, setting: undefined },
+				read: { source: undefined, setting: undefined },
+			},
 		});
 	});
 
@@ -4158,18 +4176,21 @@ suite('CopilotAgent', () => {
 				readonly id: string;
 				_ensureClient(): Promise<{ rpc: { mcp: { config: { list(): Promise<{ servers: Record<string, unknown> }> } } } }>;
 				_isGitHubMcpServerEnabled(): boolean;
+				_readUserMcpServers(client: unknown): Promise<Record<string, unknown>>;
 				_rootMcpCustomizations(sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 				readonly _customizationEnablementService: {
 					initializeSession(session: string): Promise<void>;
 					resolve(session: string, target: { readonly name: string }): { kind: 'resolved'; enablement: readonly [{ kind: CustomizationEnablementKind.Session; enabled: boolean }]; enabled: boolean; workingDirectory: { kind: 'workspaceless' } };
 				};
 			}, session: URI, snapshot: { readonly mcpServers: Record<string, unknown> }): Promise<readonly string[]>;
+			_readUserMcpServers(client: unknown): Promise<Record<string, unknown>>;
 			_rootMcpCustomizations(this: { readonly id: string; readonly _isGitHubMcpServerEnabled: () => boolean }, sessionId: string, mcpServers: Record<string, unknown>, additionalServerNames?: Iterable<string>): readonly Customization[];
 		};
 		const result = await copilotAgentPrototype._disabledRootMcpServers.call({
 			id: 'copilotcli',
 			_ensureClient: async () => ({ rpc: { mcp: { config: { list: async () => ({ servers: {} }) } } } }),
 			_isGitHubMcpServerEnabled: () => true,
+			_readUserMcpServers: copilotAgentPrototype._readUserMcpServers,
 			_rootMcpCustomizations: copilotAgentPrototype._rootMcpCustomizations,
 			_customizationEnablementService: {
 				initializeSession: async session => { initializedSession = session; },

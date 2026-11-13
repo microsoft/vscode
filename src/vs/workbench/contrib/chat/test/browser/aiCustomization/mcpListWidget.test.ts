@@ -675,6 +675,9 @@ suite('mcpListWidget', () => {
 	test('presents client-bundled servers by the VS Code configuration they came from, not the bundle', () => {
 		const mcpResource = URI.file('/workspace/web-app/.vscode/mcp.json');
 		const configured = { id: 'workspace-playwright', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer;
+		// Another folder configures the same name, but the runtime only defines the server above.
+		const shadowed = { id: 'shadowed-playwright', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource: URI.file('/workspace/docs/.vscode/mcp.json') } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer;
+		const configuredRuntime = { definition: { id: configured.id, label: 'playwright' }, collection: { id: 'workspace-collection' }, readDefinitions: () => observableValue('definitions', {}) } as unknown as IMcpServer;
 		const contributed = { definition: { id: 'acme-docs-id', label: 'acme-docs' }, collection: { id: 'acme-collection' }, readDefinitions: () => observableValue('definitions', {}) } as unknown as IMcpServer;
 		const discoveredOrigin = URI.file('/workspace/.claude/settings.json');
 		const discovered = { definition: { id: 'discovered-id', label: 'discovered' }, collection: { id: 'discovered-collection' }, readDefinitions: () => observableValue('definitions', { server: { presentation: { origin: { uri: discoveredOrigin } } } }) } as unknown as IMcpServer;
@@ -690,7 +693,7 @@ suite('mcpListWidget', () => {
 		}();
 
 		const presentations = [bundled('playwright'), bundled('acme-docs'), bundled('discovered'), bundled('unknown'), createAgentHostServer({ name: 'playwright' })].map(server => {
-			const entry = getClientBundledMcpServerEntry(server, [configured], [contributed, discovered], [{ id: 'acme-collection', source: new ExtensionIdentifier('acme.acme-chat-kit') }, { id: 'discovered-collection', source: undefined }]);
+			const entry = getClientBundledMcpServerEntry(server, [shadowed, configured], [configuredRuntime, contributed, discovered], [{ id: 'acme-collection', source: new ExtensionIdentifier('acme.acme-chat-kit') }, { id: 'discovered-collection', source: undefined }]);
 			return entry && {
 				group: getMcpEntryGroup(entry),
 				sourceUri: getMcpEntrySourceUri(entry)?.toString(),

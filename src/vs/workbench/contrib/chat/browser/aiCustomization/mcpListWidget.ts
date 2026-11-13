@@ -1230,7 +1230,10 @@ export function getClientBundledMcpServerEntry(server: AgentHostMcpServer, local
 	if (!server.isClientBundled) {
 		return undefined;
 	}
-	const local = localServers.find(candidate => getWorkbenchServerMatchKeys(candidate).includes(server.name));
+	// Like the MCP Servers page, a configuration shadowed by another with the same name claims a server only
+	// through its own runtime definition.
+	const candidates = localServers.filter(candidate => getWorkbenchServerMatchKeys(candidate).includes(server.name));
+	const local = candidates.length === 1 ? candidates[0] : candidates.find(candidate => runtimeServers.some(runtimeServer => runtimeServer.definition.id === candidate.id));
 	if (local) {
 		return { type: 'server-item', server: local, activeSessionServer: server, localServer: runtimeServers.find(candidate => candidate.definition.id === local.id) };
 	}
