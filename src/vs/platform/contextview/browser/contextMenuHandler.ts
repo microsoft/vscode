@@ -42,10 +42,10 @@ export class ContextMenuHandler {
 		this.options = options;
 	}
 
-	showContextMenu(delegate: IContextMenuDelegate): void {
+	showContextMenu(delegate: IContextMenuDelegate): boolean {
 		const actions = delegate.getActions();
 		if (!actions.length) {
-			return; // Don't render an empty context menu
+			return false; // Don't render an empty context menu
 		}
 
 		this.focusToReturn = getActiveElement() as HTMLElement;
@@ -162,6 +162,7 @@ export class ContextMenuHandler {
 				this.lastHostedAsPopover = false;
 			}
 		}, shadowRootElement, !!shadowRootElement, delegate.useWindowContainerForShadowRoot);
+		return true;
 	}
 
 	private onActionRun(e: IRunEvent, logTelemetry: boolean): void {
