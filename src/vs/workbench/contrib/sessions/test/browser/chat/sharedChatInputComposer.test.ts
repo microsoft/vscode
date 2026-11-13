@@ -655,6 +655,25 @@ suite('SharedChatInputComposer', () => {
 		});
 	}));
 
+	test('a send waiting for its session is not sent when another prompt, such as by Run Prompt, replaces the input meanwhile, which keeps the newer prompt', () => runWithFakedTimers({}, async () => {
+		const canSendRequest = observableValue('canSendRequest', false);
+		const { composer, widget, state } = createComposer({ canSendRequest });
+		const sending = composer.submit();
+		await timeout(1000);
+		// Run Prompt sets the input programmatically, which a read-only input does not prevent.
+		(widget.setInput as (value: string) => void)('/review');
+		const duplicate = await composer.submit();
+		canSendRequest.set(true, undefined);
+		const sent = await sending;
+		assert.deepStrictEqual({ duplicate, sent, requests: state().requests, errors: state().errors, input: state().input }, {
+			duplicate: false,
+			sent: false,
+			requests: [],
+			errors: [],
+			input: { text: '/review', attachments: ['context'], enabled: true },
+		});
+	}));
+
 	test('a send whose session does not get ready in time is not sent, gives its input back as it was and says so', () => runWithFakedTimers({}, async () => {
 		const { composer, inputTransitions, state } = createComposer({ canSendRequest: false, focused: true });
 		const sent = await composer.submit(true);
