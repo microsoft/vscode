@@ -103,6 +103,7 @@ import { ElectronURLListener } from '../../platform/url/electron-main/electronUr
 import { IWebviewManagerService } from '../../platform/webview/common/webviewManagerService.js';
 import { WebviewMainService } from '../../platform/webview/electron-main/webviewMainService.js';
 import { AgentsWindowOpenSource, ChatSessionToOpen, extractChatSessionToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, parseExternalAgentsWindowNewSessionLinkUri } from '../../platform/window/common/window.js';
+import { FolderLocationsMainService, IFolderLocationsMainService } from '../../platform/windows/electron-main/folderLocationsMainService.js';
 import { getAllWindowsExcludingOffscreen, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../platform/windows/electron-main/windows.js';
 import { ICodeWindow } from '../../platform/window/electron-main/window.js';
 import { WindowsMainService } from '../../platform/windows/electron-main/windowsMainService.js';
@@ -1255,6 +1256,7 @@ export class CodeApplication extends Disposable {
 
 		// Windows
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, sqmId, devDeviceId, this.userEnv], false));
+		services.set(IFolderLocationsMainService, new SyncDescriptor(FolderLocationsMainService, undefined, true));
 		services.set(IAuxiliaryWindowsMainService, new SyncDescriptor(AuxiliaryWindowsMainService, undefined, false));
 
 		// Dialogs
