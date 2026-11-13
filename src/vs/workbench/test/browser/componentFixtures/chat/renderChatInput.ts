@@ -52,7 +52,6 @@ import '../../../../../editor/contrib/placeholderText/browser/placeholderText.cs
 import { Range } from '../../../../../editor/common/core/range.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { PlaceholderTextContribution } from '../../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 
 /** Room above the input for the pet, which stands outside it. */
 const PET_HEADROOM = 64;
@@ -159,8 +158,6 @@ export interface ChatInputFixtureOptions {
 	readonly secondaryPickerLabels?: readonly [target: string, permission: string];
 	/** Supplies a prototype next-step suggestion through Monaco's real inline-completion UI. */
 	readonly nextStepSuggestion?: string;
-	/** Focuses the input after rendering the next-step suggestion. */
-	readonly focusInput?: boolean;
 	/** Renders the next-step suggestion as accepted editable input. */
 	readonly showAcceptedNextStepSuggestion?: boolean;
 }

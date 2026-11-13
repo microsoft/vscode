@@ -25,7 +25,7 @@ import { IMenuService, MenuId, MenuItemAction } from '../../../../../platform/ac
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { MockKeybindingService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { USLayoutResolvedKeybinding } from '../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
-import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID } from '../../browser/nextUserMessageSuggestion.js';
+import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/browser/chat/nextUserMessageSuggestion.js';
 import { NextUserMessageSuggestionActionViewItem } from '../../browser/nextUserMessageSuggestionActionViewItem.js';
 import { shortNameModels } from '../../../../../workbench/test/browser/componentFixtures/chat/chatInput.fixture.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';

@@ -12,7 +12,7 @@ import { MenuEntryActionViewItem } from '../../../../platform/actions/browser/me
 import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { defaultKeybindingLabelStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID } from './nextUserMessageSuggestion.js';
+import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/chat/nextUserMessageSuggestion.js';
 
 export class NextUserMessageSuggestionActionViewItem extends MenuEntryActionViewItem {
 	private readonly _keybindingLabel = this._register(new MutableDisposable<KeybindingLabel>());

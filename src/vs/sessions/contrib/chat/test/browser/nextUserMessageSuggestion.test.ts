@@ -9,7 +9,7 @@ import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeyCodeChord, ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { constObservable } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -36,11 +36,13 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { ChatResponseModelChangeReason, IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatViewModel } from '../../../../../workbench/contrib/chat/common/model/chatViewModel.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { getSandboxPlaceholder } from '../../../../../workbench/contrib/chat/browser/widget/input/editor/chatInputSandboxContribution.js';
 import { InlineCompletionContextKeys } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
 import { Context as SuggestContext } from '../../../../../editor/contrib/suggest/browser/suggest.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID, NextUserMessageSuggestionController, shouldDismissNextUserMessageSuggestion } from '../../browser/nextUserMessageSuggestion.js';
-import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt, truncateSuggestionContext } from '../../common/nextUserMessageSuggestion.js';
+import { ACCEPT_NEXT_USER_MESSAGE_SUGGESTION_COMMAND_ID, NextUserMessageSuggestionController, shouldDismissNextUserMessageSuggestion } from '../../../../../workbench/contrib/sessions/browser/chat/nextUserMessageSuggestion.js';
+import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt, truncateSuggestionContext } from '../../../../../workbench/contrib/sessions/common/nextUserMessageSuggestion.js';
 
 suite('Sessions - Next User Message Suggestion', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -157,93 +159,106 @@ suite('Sessions - Next User Message Suggestion', () => {
 		});
 	});
 
-	test('accepts an unfocused suggestion through Monaco without submitting and clears availability', async () => {
-		await withAsyncTestCodeEditor('', { hasTextFocus: false }, async (editor, _viewModel, services) => {
-			assert.ok(editor instanceof CodeEditorWidget);
-			const inputEditor = editor;
-			const changed = store.add(new Emitter<ChatResponseModelChangeReason>());
-			const response = new class extends mock<IChatResponseModel>() {
-				override readonly id = 'response';
-				override readonly state = ResponseModelState.Complete;
-				override readonly onDidChange = changed.event;
-				override readonly response = new class extends mock<IChatResponseModel['response']>() {
-					override getFinalResponse() { return 'Would you like me to run the tests?'; }
+	for (const sandboxEnabled of [false, true]) {
+		test(`accepts an unfocused suggestion through Monaco without submitting (sandbox: ${sandboxEnabled})`, async () => {
+			await withAsyncTestCodeEditor('', { hasTextFocus: false }, async (editor, _viewModel, services) => {
+				assert.ok(editor instanceof CodeEditorWidget);
+				const inputEditor = editor;
+				const changed = store.add(new Emitter<ChatResponseModelChangeReason>());
+				const response = new class extends mock<IChatResponseModel>() {
+					override readonly id = 'response';
+					override readonly state = ResponseModelState.Complete;
+					override readonly onDidChange = changed.event;
+					override readonly response = new class extends mock<IChatResponseModel['response']>() {
+						override getFinalResponse() { return 'Would you like me to run the tests?'; }
+					}();
 				}();
-			}();
-			const request = new class extends mock<IChatRequestModel>() {
-				override readonly response = response;
-				override readonly message = { text: 'Implement the change', parts: [] };
-			}();
-			const model = new class extends mock<IChatModel>() {
-				override readonly lastRequestObs = constObservable(request);
-				override readonly onDidChange = Event.None;
-			}();
-			let placeholder: string | undefined;
-			const presented = new DeferredPromise<void>();
-			const viewModel = new class extends mock<ChatViewModel>() {
-				override get model() { return model; }
-				override get inputPlaceholder() { return placeholder; }
-				override setInputPlaceholder(value: string) {
-					placeholder = value;
-					void presented.complete();
-				}
-				override resetInputPlaceholder() { placeholder = undefined; }
-			}();
-			const inputPart = new class extends mock<ChatInputPart>() {
-				override readonly inputUri = editor.getModel()!.uri;
-				override get inputEditor() { return inputEditor; }
-			}();
-			const widget = new class extends mock<ChatWidget>() {
-				override get viewModel() { return viewModel; }
-				override get visible() { return true; }
-				override get inputPart() { return inputPart; }
-				override readonly onDidChangeViewModel = Event.None;
-				override readonly onDidChangeActiveInputEditor = Event.None;
-				override readonly onDidAcceptInput = Event.None;
-				override getInput() { return editor.getValue(); }
-				override async acceptInput(): Promise<never> { assert.fail('Accepting a suggestion must not submit'); }
-			}();
-			const context = new MockContextKeyService();
-			const languageFeatures = services.get(ILanguageFeaturesService);
-			const controller = new NextUserMessageSuggestionController(widget, languageFeatures,
-				new class extends mock<ICommandService>() { override readonly onWillExecuteCommand = Event.None; }(),
-				context,
-				new class extends mock<ILanguageModelsService>() {
-					override async selectLanguageModels() { return ['utility']; }
-					override async sendChatRequest() {
-						return { stream: AsyncIterableObject.fromArray([{ type: 'text' as const, value: 'Run the focused tests' }]), result: Promise.resolve({}) };
+				const request = new class extends mock<IChatRequestModel>() {
+					override readonly response = response;
+					override readonly message = { text: 'Implement the change', parts: [] };
+				}();
+				const model = new class extends mock<IChatModel>() {
+					override readonly lastRequestObs = constObservable(request);
+					override readonly onDidChange = Event.None;
+				}();
+				const initialPlaceholder = 'Chat with Copilot';
+				let placeholder: string | undefined = initialPlaceholder;
+				editor.updateOptions({ placeholder: getSandboxPlaceholder(initialPlaceholder, sandboxEnabled) });
+				const presented = new DeferredPromise<void>();
+				const viewModel = new class extends mock<ChatViewModel>() {
+					override get model() { return model; }
+					override get inputPlaceholder() { return placeholder; }
+					override setInputPlaceholder(value: string) {
+						placeholder = value;
+						editor.updateOptions({ placeholder: getSandboxPlaceholder(value, sandboxEnabled) });
+						void presented.complete();
 					}
-				}(),
-				new class extends mock<IWorkbenchAssignmentService>() {
-					override readonly onDidRefetchAssignments = Event.None;
-					override async getTreatment<T extends string | number | boolean>() { return true as T; }
-				}(),
-				new class extends mock<IChatEntitlementService>() {
-					override readonly onDidChangeSentiment = Event.None;
-					override readonly sentiment = {};
-				}(), new NullLogService());
-			editor.registerDisposable(controller);
-			await Promise.resolve();
-			changed.fire({ reason: 'completedRequest' });
-			await presented.p;
+					override resetInputPlaceholder() { placeholder = undefined; }
+				}();
+				const inputPart = new class extends mock<ChatInputPart>() {
+					override readonly inputUri = editor.getModel()!.uri;
+					override readonly sandboxToggleChecked = observableValue(this, sandboxEnabled);
+					override get inputEditor() { return inputEditor; }
+				}();
+				const widget = new class extends mock<ChatWidget>() {
+					override get viewModel() { return viewModel; }
+					override get visible() { return true; }
+					override get inputPart() { return inputPart; }
+					override readonly onDidChangeViewModel = Event.None;
+					override readonly onDidChangeActiveInputEditor = Event.None;
+					override readonly onDidAcceptInput = Event.None;
+					override getInput() { return editor.getValue(); }
+					override async acceptInput(): Promise<never> { assert.fail('Accepting a suggestion must not submit'); }
+				}();
+				const context = new MockContextKeyService();
+				const languageFeatures = services.get(ILanguageFeaturesService);
+				const controller = new NextUserMessageSuggestionController(widget, languageFeatures,
+					new class extends mock<ICommandService>() { override readonly onWillExecuteCommand = Event.None; }(),
+					context,
+					new class extends mock<ILanguageModelsService>() {
+						override async selectLanguageModels() { return ['utility']; }
+						override async sendChatRequest() {
+							return { stream: AsyncIterableObject.fromArray([{ type: 'text' as const, value: 'Run the focused tests' }]), result: Promise.resolve({}) };
+						}
+					}(),
+					new class extends mock<IWorkbenchAssignmentService>() {
+						override readonly onDidRefetchAssignments = Event.None;
+						override async getTreatment<T extends string | number | boolean>() { return true as T; }
+					}(),
+					new class extends mock<IChatEntitlementService>() {
+						override readonly onDidChangeSentiment = Event.None;
+						override readonly sentiment = {};
+					}(), new NullLogService());
+				editor.registerDisposable(controller);
+				await Promise.resolve();
+				changed.fire({ reason: 'completedRequest' });
+				await presented.p;
 
-			const nativeModel = new class extends mock<InlineCompletionsModel>() {
-				override async triggerExplicitly() { }
-				override async accept() { editor.setValue('Run the focused tests'); }
-			}();
-			sinon.stub(InlineCompletionsController, 'get').returns(new class extends mock<InlineCompletionsController>() {
-				override readonly model = constObservable(nativeModel);
-			}());
-			const availableBefore = context.getContextKeyValue('sessionsNextUserMessageSuggestionAvailable');
-			await controller.accept();
-			assert.deepStrictEqual({
-				availableBefore,
-				text: editor.getValue(),
-				availableAfter: context.getContextKeyValue('sessionsNextUserMessageSuggestionAvailable'),
-				placeholder: viewModel.inputPlaceholder,
-			}, { availableBefore: true, text: 'Run the focused tests', availableAfter: false, placeholder: undefined });
+				const nativeModel = new class extends mock<InlineCompletionsModel>() {
+					override async triggerExplicitly() { }
+					override async accept() { editor.setValue('Run the focused tests'); }
+				}();
+				sinon.stub(InlineCompletionsController, 'get').returns(new class extends mock<InlineCompletionsController>() {
+					override readonly model = constObservable(nativeModel);
+				}());
+				const availableBefore = context.getContextKeyValue('sessionsNextUserMessageSuggestionAvailable');
+				await controller.accept();
+				assert.deepStrictEqual({
+					availableBefore,
+					text: editor.getValue(),
+					availableAfter: context.getContextKeyValue('sessionsNextUserMessageSuggestionAvailable'),
+					placeholder: viewModel.inputPlaceholder,
+					editorPlaceholder: editor.getOption(EditorOption.placeholder),
+				}, {
+					availableBefore: true,
+					text: 'Run the focused tests',
+					availableAfter: false,
+					placeholder: initialPlaceholder,
+					editorPlaceholder: getSandboxPlaceholder(initialPlaceholder, sandboxEnabled),
+				});
+			});
 		});
-	});
+	}
 
 	test('builds a prompt from bounded untrusted fields', () => {
 		const prompt = createNextUserMessagePrompt();

@@ -3,39 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout, raceCancellation, timeout } from '../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { isEqual } from '../../../../base/common/resources.js';
-import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
-import { Position } from '../../../../editor/common/core/position.js';
-import { Range } from '../../../../editor/common/core/range.js';
-import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { InlineCompletionsProvider } from '../../../../editor/common/languages.js';
-import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { InlineCompletionsController } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
-import { hideInlineCompletionId } from '../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
-import { InlineCompletionContextKeys } from '../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { localize2 } from '../../../../nls.js';
-import { IChatWidget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatExecuteActionContext } from '../../../../workbench/contrib/chat/browser/actions/chatExecuteActions.js';
-import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { Context as SuggestContext } from '../../../../editor/contrib/suggest/browser/suggest.js';
-import { IWorkbenchAssignmentService } from '../../../../workbench/services/assignment/common/assignmentService.js';
-import { IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { ChatWidget } from '../../../../workbench/contrib/chat/browser/widget/chatWidget.js';
-import { ResponseModelState } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
-import { ChatMessageRole, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
-import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt } from '../common/nextUserMessageSuggestion.js';
+import { disposableTimeout, raceCancellation, timeout } from '../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { isEqual } from '../../../../../base/common/resources.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
+import { InlineCompletionsProvider } from '../../../../../editor/common/languages.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { InlineCompletionsController } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionsController.js';
+import { hideInlineCompletionId } from '../../../../../editor/contrib/inlineCompletions/browser/controller/commandIds.js';
+import { InlineCompletionContextKeys } from '../../../../../editor/contrib/inlineCompletions/browser/controller/inlineCompletionContextKeys.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
+import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { localize2 } from '../../../../../nls.js';
+import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
+import { IChatExecuteActionContext } from '../../../chat/browser/actions/chatExecuteActions.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { Context as SuggestContext } from '../../../../../editor/contrib/suggest/browser/suggest.js';
+import { IWorkbenchAssignmentService } from '../../../../services/assignment/common/assignmentService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatWidget } from '../../../chat/browser/widget/chatWidget.js';
+import { getSandboxPlaceholder } from '../../../chat/browser/widget/input/editor/chatInputSandboxContribution.js';
+import { ResponseModelState } from '../../../chat/common/chatService/chatService.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../chat/common/languageModels.js';
+import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../chat/common/model/chatModel.js';
+import { cleanNextUserMessageSuggestion, createNextUserMessageContext, createNextUserMessagePrompt } from '../../common/nextUserMessageSuggestion.js';
 
 const MODEL_TIMEOUT_MS = 5000;
 const FOLLOWUP_SETTLE_MS = 400;
@@ -403,11 +404,13 @@ export class NextUserMessageSuggestionController extends Disposable {
 			return false;
 		}
 		const owned = this._ownedPlaceholder;
+		const sandboxEnabled = this._widget.inputPart.sandboxToggleChecked.get();
+		const editorValue = getSandboxPlaceholder(value, sandboxEnabled);
 		if (owned) {
 			if (owned.model !== viewModel || owned.model.inputPlaceholder !== owned.value) {
 				return false;
 			}
-			this._ownedPlaceholder = { ...owned, value, editorValue: value };
+			this._ownedPlaceholder = { ...owned, value, editorValue };
 			viewModel.setInputPlaceholder(value);
 			return true;
 		}
@@ -417,10 +420,10 @@ export class NextUserMessageSuggestionController extends Disposable {
 			|| baseline.model !== viewModel
 			|| baseline.value !== viewModel.inputPlaceholder
 			|| baseline.editorValue !== inputEditor.getOption(EditorOption.placeholder)
-			|| (baseline.editorValue !== undefined && baseline.editorValue !== baseline.value)) {
+			|| (baseline.editorValue !== undefined && baseline.editorValue !== getSandboxPlaceholder(baseline.value ?? '', sandboxEnabled))) {
 			return false;
 		}
-		this._ownedPlaceholder = { model: viewModel, value, editorValue: value, previous: baseline.value };
+		this._ownedPlaceholder = { model: viewModel, value, editorValue, previous: baseline.value };
 		viewModel.setInputPlaceholder(value);
 		return true;
 	}
@@ -436,16 +439,17 @@ export class NextUserMessageSuggestionController extends Disposable {
 			return;
 		}
 		const editorPlaceholder = inputEditor.getOption(EditorOption.placeholder);
+		const previousEditorPlaceholder = owned.previous === undefined ? undefined : getSandboxPlaceholder(owned.previous, this._widget.inputPart.sandboxToggleChecked.get());
 		if (owned.previous === undefined) {
 			owned.model.resetInputPlaceholder();
 		} else {
 			owned.model.setInputPlaceholder(owned.previous);
 		}
 		if (editorPlaceholder === owned.editorValue) {
-			inputEditor.updateOptions({ placeholder: owned.previous });
+			inputEditor.updateOptions({ placeholder: previousEditorPlaceholder });
 		} else {
 			this._pendingEditorPlaceholderRestore.value = disposableTimeout(() => {
-				if (inputEditor.getOption(EditorOption.placeholder) === owned.previous) {
+				if (inputEditor.getOption(EditorOption.placeholder) === previousEditorPlaceholder) {
 					inputEditor.updateOptions({ placeholder: editorPlaceholder });
 				}
 			});
