@@ -263,28 +263,46 @@ export class AgentsWindow {
 
 	/**
 	 * Logs in with `username` and `password` to every proxy login dialog until stopped, in any window, as the main
-	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `stop` returns
-	 * the details of the dialogs filled, which name the proxy.
+	 * process shows it in the focused or last active one, leaving "Remember my credentials" unchanged. `whenIdle`
+	 * resolves once a later check of all windows finds no proxy login dialog, so keyboard input that follows cannot
+	 * reach one already shown. `stop` returns the details of the dialogs filled, which name the proxy.
 	 */
-	fillProxyAuthenticationDialogs(username: string, password: string): { stop(): Promise<string[]> } {
+	fillProxyAuthenticationDialogs(username: string, password: string): { whenIdle(): Promise<void>; stop(): Promise<string[]> } {
 		const details: string[] = [];
 		let stopped = false;
+		let passesStarted = 0;
+		const idleWaiters: { readonly minPass: number; readonly resolve: () => void }[] = [];
+		const resolveIdleWaiters = (pass: number) => {
+			for (let i = idleWaiters.length - 1; i >= 0; i--) {
+				if (pass >= idleWaiters[i].minPass) {
+					idleWaiters.splice(i, 1)[0].resolve();
+				}
+			}
+		};
 		const loop = (async () => {
 			while (!stopped) {
+				const pass = passesStarted++;
 				let detail: string | undefined;
+				let failed = false;
 				try {
 					detail = await this.tryFillProxyAuthenticationDialog(username, password);
 				} catch (error) {
+					failed = true;
 					this.code.logger.log(`[agentsWindow] Failed to log in to a proxy login dialog: ${error}`);
 				}
 				if (detail !== undefined) {
 					details.push(detail);
 				} else {
+					if (!failed) {
+						resolveIdleWaiters(pass);
+					}
 					await new Promise(resolve => setTimeout(resolve, 250));
 				}
 			}
+			resolveIdleWaiters(Number.MAX_SAFE_INTEGER);
 		})();
 		return {
+			whenIdle: () => stopped ? Promise.resolve() : new Promise<void>(resolve => idleWaiters.push({ minPass: passesStarted, resolve })),
 			stop: async () => {
 				stopped = true;
 				await loop;
