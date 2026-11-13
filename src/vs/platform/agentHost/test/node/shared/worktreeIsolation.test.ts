@@ -1290,6 +1290,30 @@ suite('WorktreeIsolation', () => {
 		});
 	});
 
+	test('a detached worktree attributes its branch-name call to the session it is created for', async () => {
+		const agentSessionIds: (string | undefined)[] = [];
+		const isolation = createIsolation(disposables, {
+			branchNameGenerator: {
+				_serviceBrand: undefined,
+				generateBranchName: async request => {
+					agentSessionIds.push(request.agentSessionId);
+					return `${branchName}-${agentSessionIds.length}`;
+				},
+			},
+		});
+		const request = {
+			workingDirectory: repoRoot,
+			config: { [SessionConfigKey.Isolation]: 'worktree', [SessionConfigKey.Branch]: 'main' },
+			prompt: 'do a thing',
+		};
+
+		await isolation.createDetachedWorktree({ ...request, ownerSession: URI.parse('copilotcli:/owner-session') });
+		// A dev container worktree is prepared before the session that uses it exists.
+		await isolation.createDetachedWorktree(request);
+
+		assert.deepStrictEqual(agentSessionIds, ['owner-session', undefined]);
+	});
+
 	test('lists retained detached paths from persisted records before and after a claim or host restart', async () => {
 		const { service } = createTrackedSessionDataService();
 		const isolation = createIsolation(disposables, { sessionDataService: service });

@@ -10,6 +10,9 @@ import { NullLogService } from '../../../log/common/log.js';
 import { ICommonProperties } from '../../../telemetry/common/telemetry.js';
 import { AgentHostRestrictedTelemetrySender, type IAgentHostInternalTelemetryContext, type IAgentHostInternalTelemetrySink, multiplexProperties, type TelemetryMeasurements, type TelemetryProps } from '../../node/agentHostRestrictedTelemetry.js';
 
+/** The standard GitHub iKey (`copilot_v0_copilot_event`). */
+const GH_STANDARD_IKEY = '7d7048df-6dd0-4048-bb23-b716c1461f8f';
+
 /** The enhanced/restricted iKey (`copilot_v0_restricted_copilot_event`). */
 const GH_ENHANCED_IKEY = '3fdd7f28-937a-48c8-9a21-ba337db23bd1';
 
@@ -160,6 +163,26 @@ suite('AgentHostRestrictedTelemetrySender', () => {
 		}, {
 			posts: [{ url: 'https://session-account.example/telemetry', iKey: GH_ENHANCED_IKEY }],
 			trackingId: 'session-account-tid',
+		});
+	});
+
+	test('context-scoped standard telemetry uses the context account instead of the mutable account', () => {
+		const { sender, posts, envelopes } = createSender();
+		sender.setRestrictedTelemetryEndpoint('https://current-account.example/telemetry');
+		sender.setCopilotTrackingId('current-account-tid');
+
+		sender.sendGHTelemetryEventForContext({ trackingId: 'session-account-tid', telemetryEndpoint: 'https://session-account.example/telemetry' }, 'agentHost.utilityModelCall', { copilot_trackingId: 'payload-tid' });
+		sender.sendGHTelemetryEventForContext({ trackingId: undefined, telemetryEndpoint: undefined }, 'agentHost.utilityModelCall');
+
+		assert.deepStrictEqual({
+			posts,
+			trackingIds: envelopes.map(envelope => envelope.data.baseData.properties.copilot_trackingId),
+		}, {
+			posts: [
+				{ url: 'https://session-account.example/telemetry', iKey: GH_STANDARD_IKEY },
+				{ url: 'https://copilot-telemetry.githubusercontent.com/telemetry', iKey: GH_STANDARD_IKEY },
+			],
+			trackingIds: ['session-account-tid', undefined],
 		});
 	});
 

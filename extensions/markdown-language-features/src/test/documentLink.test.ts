@@ -58,7 +58,8 @@ async function getLinksForFile(file: vscode.Uri): Promise<vscode.DocumentLink[]>
 		assertActiveDocumentUri(workspaceFile('b.md'));
 	});
 
-	test('Should update custom agent links after an unsaved edit', async () => {
+	// Re-enable when the server dependency includes microsoft/vscode-markdown-languageserver#28.
+	test.skip('Should update custom agent links after an unsaved edit', async () => {
 		const file = workspaceFile('linkProbe.agent.md');
 		await vscode.workspace.fs.writeFile(file, Buffer.from(`${new Array(53).fill('').join('\n')}\n[README](b.md)`));
 
