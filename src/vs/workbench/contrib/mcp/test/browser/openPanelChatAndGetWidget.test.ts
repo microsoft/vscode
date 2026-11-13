@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { Event } from '../../../../../base/common/event.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChatViewHostDelegate, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
@@ -39,5 +41,22 @@ suite('openPanelChatAndGetWidget', () => {
 		const older = upcastPartial<IChatWidget>({});
 
 		assert.strictEqual(await openPanelChatAndGetWidget(createChatWidgetService(upcastPartial<IChatViewHostDelegate>({}), older, undefined)), undefined);
+	});
+
+	test('returns what the replacement of the Chat view shows, none, also when it is unregistered while it reveals, rather than another chat widget', async () => {
+		const calls: string[] = [];
+		const reveal = new DeferredPromise<IChatWidget | undefined>();
+		const service: { chatViewHostDelegate: IChatViewHostDelegate | undefined } & Partial<IChatWidgetService> = {
+			chatViewHostDelegate: upcastPartial<IChatViewHostDelegate>({}),
+			revealChatView: () => reveal.p,
+			getWidgetsByLocations: () => { calls.push('getWidgetsByLocations'); return [upcastPartial<IChatWidget>({})]; },
+			onDidAddWidget: Event.None,
+		};
+
+		const pending = openPanelChatAndGetWidget(upcastPartial<IChatWidgetService>(service));
+		service.chatViewHostDelegate = undefined;
+		reveal.complete(undefined);
+
+		assert.deepStrictEqual({ widget: await pending, calls }, { widget: undefined, calls: [] });
 	});
 });
