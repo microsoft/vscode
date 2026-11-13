@@ -40,7 +40,7 @@ export function createAutomationsTour(signal: IObservable<boolean>): IOnboarding
 					id: 'createWithAgent',
 					targetId: 'sessions.automations.create',
 					title: localize('sessions.onboarding.automations.title', "Create with agent"),
-					description: localize('sessions.onboarding.automations.description', "Describe what you want automated, and the agent will set it up. This button closes this view and returns to the new session page."),
+					description: localize('sessions.onboarding.automations.description', "Closes Automations and starts a new session draft. Describe what you want automated and the agent sets it up."),
 					nextButtonLabel: localize('sessions.onboarding.automations.gotIt', "Got It"),
 					allowTargetInteraction: true,
 					advanceOnTargetClick: true,
