@@ -6,6 +6,7 @@
 import type { GitHubTelemetryNotification } from '@github/copilot-sdk';
 import { ITelemetryData, ITelemetryService } from '../../../telemetry/common/telemetry.js';
 import type { IAgentTelemetryContext } from '../../common/agent.js';
+import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { toCopilotTelemetryData } from '../shared/copilotSkuTelemetry.js';
 import type { CompactionTurnCorrelationOutcome, IForwardedCompactionCorrelation } from './compactionTurnCorrelation.js';
 import type { ModelCallTurnCorrelationOutcome, ModelCallTurnCorrelationRecordStatus } from './modelCallTurnCorrelation.js';
@@ -54,6 +55,7 @@ type ModelCallTurnCorrelatedClassification = {
 		"dev_device_id": { "classification": "EndUserPseudonymizedInformation", "purpose": "BusinessInsight", "comment": "Pseudonymous device identifier supplied by the runtime." },
 		"is_staff": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the user is a GitHub or Microsoft staff member.", "isMeasurement": true },
 		"restricted": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the SDK marked the event as restricted telemetry.", "isMeasurement": true },
+		"initiatorClientType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Type of VS Code client (editor_window or agents_window) that started the Agent Host turn active in the SDK session when the host received the event; unknown when no turn was active, such as during session startup or background work between turns, or when the active turn was not started by a known VS Code window." },
 		"${wildcard}": [{
 			"${prefix}": "feature.",
 			"${classification}": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Feature flag value supplied by the Copilot CLI runtime." }
@@ -665,13 +667,13 @@ export class CopilotGitHubTelemetryForwarder {
 		});
 	}
 
-	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext): void {
+	forward(notification: GitHubTelemetryNotification, agentHostTurnId?: string, correlation?: ICopilotModelCallCorrelationTelemetry, telemetryContext?: IAgentTelemetryContext, clientType = AgentHostClientType.Unknown): void {
 		if (notification.restricted) {
 			return;
 		}
 
 		const event = notification.event;
-		const data = this._toTelemetryData(notification, telemetryContext);
+		const data = this._toTelemetryData(notification, telemetryContext, clientType);
 		if (event.kind === 'response.success' || event.kind === 'response.error') {
 			if (correlation) {
 				data.ahCorrelationOutcome = correlation.ahCorrelationOutcome;
@@ -711,12 +713,12 @@ export class CopilotGitHubTelemetryForwarder {
 	 * Forwards `session_compaction_start` / `session_compaction_complete`, replacing any runtime
 	 * turn identity with the Agent Host turn that owned the compaction, as response telemetry does.
 	 */
-	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext): void {
+	forwardCompaction(notification: GitHubTelemetryNotification, correlation: IForwardedCompactionCorrelation, telemetryContext?: IAgentTelemetryContext, clientType = AgentHostClientType.Unknown): void {
 		if (notification.restricted) {
 			return;
 		}
 
-		const data = this._toTelemetryData(notification, telemetryContext);
+		const data = this._toTelemetryData(notification, telemetryContext, clientType);
 		data.ahCompactionCorrelationOutcome = correlation.outcome;
 		if (correlation.waitMs !== undefined) {
 			data.ahCompactionCorrelationWaitMs = correlation.waitMs;
@@ -729,7 +731,7 @@ export class CopilotGitHubTelemetryForwarder {
 		this._publish(notification, data);
 	}
 
-	private _toTelemetryData(notification: GitHubTelemetryNotification, telemetryContext: IAgentTelemetryContext | undefined): ITelemetryData {
+	private _toTelemetryData(notification: GitHubTelemetryNotification, telemetryContext: IAgentTelemetryContext | undefined, clientType: AgentHostClientType): ITelemetryData {
 		const event = notification.event;
 		const data: ITelemetryData = {
 			...event.client,
@@ -744,6 +746,7 @@ export class CopilotGitHubTelemetryForwarder {
 			kind: event.kind,
 			restricted: notification.restricted,
 			...toCopilotTelemetryData(telemetryContext),
+			initiatorClientType: clientType,
 		};
 		delete data.secondary_assignment_context;
 		delete data.ahCorrelationOutcome;
