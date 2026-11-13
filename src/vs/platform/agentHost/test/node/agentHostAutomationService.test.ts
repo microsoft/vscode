@@ -2648,6 +2648,22 @@ suite('AgentHostAutomationService', () => {
 		});
 	}));
 
+	test('one-time skip misfire policy drops an occurrence missed while unavailable', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
+		systemWake.setFullyAwake(false);
+		let creates = 0;
+		const service = createService({ createSession: async () => { creates++; return URI.parse('mock:/skipped'); } });
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2026-01-01T00:01:00.000Z', misfirePolicy: AutomationMisfirePolicy.Skip }] },
+		});
+		await timeout(180_000);
+		systemWake.setFullyAwake(true);
+		await timeout(60_000);
+		const entry = stateManager.getAutomationCatalogState()!.entries[0];
+		assert.deepStrictEqual({ creates, runs: entry.runs.length, next: entry.nextRunAt, receipt: getAgentHostOneTimeReceipts(entry).run },
+			{ creates: 0, runs: 0, next: undefined, receipt: undefined });
+	}));
+
 	test('one-time Send Now consumes the due occurrence and rejects a competing edit or cancel', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {
 		const started = new DeferredPromise<void>();
 		const service = createService({
@@ -2698,6 +2714,11 @@ suite('AgentHostAutomationService', () => {
 			},
 		}), /cannot be saved/);
 		assert.strictEqual(writeAttempts, 0);
+		await service.handleCreate({
+			...createAction(),
+			definition: { ...definition(), triggers: [{ id: 'once', kind: AutomationTriggerKind.OneTime, runAt: '2027-01-01T10:00:00.5+01:30' }] },
+		});
+		assert.strictEqual(stateManager.getAutomationCatalogState()!.entries[0].nextRunAt, '2027-01-01T08:30:00.500Z');
 	});
 
 	test('confirmed scheduled-chat cancellation cannot be re-enabled or manually dispatched by another client', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1), maxTaskCount: 100 }, async () => {

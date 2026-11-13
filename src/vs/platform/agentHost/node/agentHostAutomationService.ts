@@ -960,16 +960,20 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			let claimedForAutomation = false;
 			for (const trigger of current.definition.triggers) {
 				if (trigger.kind === AutomationTriggerKind.OneTime) {
-					if (!getAgentHostOneTimeReceipts(current).run && Date.parse(trigger.runAt) <= nowTimestamp) {
-						const run = this._createRunState(automation.resource, {
-							kind: AutomationRunOriginKind.Trigger,
-							triggerId: trigger.id,
-							scheduledFor: trigger.runAt,
-							...(nowTimestamp - Date.parse(trigger.runAt) >= 60_000 ? { catchUp: true } : {}),
-						}, createdAt);
-						nextRuns.set(run.resource, run);
-						automation = withRunSummary(this._consumeOneTime(automation, run), nextRuns);
-						claimed.push({ run, definition: automation.definition });
+					const runAt = Date.parse(trigger.runAt);
+					if (!getAgentHostOneTimeReceipts(current).run && runAt <= nowTimestamp) {
+						const catchUp = nowTimestamp - runAt >= 60_000;
+						if (!catchUp || trigger.misfirePolicy !== AutomationMisfirePolicy.Skip) {
+							const run = this._createRunState(automation.resource, {
+								kind: AutomationRunOriginKind.Trigger,
+								triggerId: trigger.id,
+								scheduledFor: new Date(runAt).toISOString(),
+								...(catchUp ? { catchUp: true } : {}),
+							}, createdAt);
+							nextRuns.set(run.resource, run);
+							automation = withRunSummary(this._consumeOneTime(automation, run), nextRuns);
+							claimed.push({ run, definition: automation.definition });
+						}
 						delete cursors[trigger.id];
 					}
 					continue;

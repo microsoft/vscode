@@ -1313,7 +1313,8 @@ function projectSchedule(definition: AutomationDefinition): IAutomationSchedule 
 	const { triggers } = definition;
 	const oneTime = triggers.find(trigger => trigger.kind === AutomationTriggerKind.OneTime);
 	if (oneTime && triggers.length === 1) {
-		return { interval: 'once', runAt: oneTime.runAt, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
+		const runAt = Date.parse(oneTime.runAt);
+		return { interval: 'once', runAt: Number.isFinite(runAt) ? new Date(runAt).toISOString() : oneTime.runAt, scheduleHour: 0, scheduleMinute: 0, scheduleDay: 0 };
 	}
 	const trigger = triggers.find(trigger => trigger.kind === AutomationTriggerKind.Schedule);
 	if (!trigger) {
