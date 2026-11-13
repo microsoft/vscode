@@ -10,12 +10,16 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISystemWideKeybindingCandidate, selectSystemWideKeybindings } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindings.js';
 import { SystemWideKeybindingsSynchronizer } from '../../../../workbench/contrib/keybindings/electron-browser/systemWideKeybindingsSynchronizer.js';
 
+/**
+ * Whether the Agents window registers the system-wide keybindings of the command, so that they work while it is the only
+ * window open. Other windows register every system-wide keybinding.
+ */
 function isOwnedCommand(commandId: string): boolean {
-	return commandId === OPEN_AGENTS_WINDOW_COMMAND_ID || commandId === AGENTS_LAUNCHER_COMMAND_ID;
+	return commandId === OPEN_AGENTS_WINDOW_COMMAND_ID || commandId === AGENTS_LAUNCHER_COMMAND_ID || commandId === ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID;
 }
 
 export class OpenAgentsWindowSystemWideKeybindingContribution extends Disposable implements IWorkbenchContribution {

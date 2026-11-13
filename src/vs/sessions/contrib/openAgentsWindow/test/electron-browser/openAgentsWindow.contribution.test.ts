@@ -26,7 +26,7 @@ import { INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybi
 import { INotification, INotificationHandle } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
-import { AGENTS_LAUNCHER_COMMAND_ID, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { OpenAgentsWindowSystemWideKeybindingContribution } from '../../electron-browser/openAgentsWindow.contribution.js';
 import { registerOpenAgentsWindowCommand } from '../../electron-browser/openAgentsWindowCommand.js';
 
@@ -148,6 +148,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			item(KeyMod.CtrlCmd | KeyCode.KeyB, 'runCommands', { args: { commands: [OPEN_AGENTS_WINDOW_COMMAND_ID] } }),
 			item(KeyMod.CtrlCmd | KeyCode.KeyC, OPEN_AGENTS_WINDOW_COMMAND_ID, { args: { source: AgentsWindowOpenSource.KeyboardShortcut }, when: 'editorFocus' }),
 			item(KeyMod.CtrlCmd | KeyCode.KeyD, AGENTS_LAUNCHER_COMMAND_ID),
+			item(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyS, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID),
 		]);
 
 		assert.deepStrictEqual(nativeHostService.keybindingPayloads, [[{
@@ -160,6 +161,11 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			commandId: AGENTS_LAUNCHER_COMMAND_ID,
 			args: undefined,
 			userSettingsLabel: 'cmd+d',
+		}, {
+			accelerator: 'Ctrl+Cmd+S',
+			commandId: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID,
+			args: undefined,
+			userSettingsLabel: 'ctrl+cmd+s',
 		}]]);
 	});
 

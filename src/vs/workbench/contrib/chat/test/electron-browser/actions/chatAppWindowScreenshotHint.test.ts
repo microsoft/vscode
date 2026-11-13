@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $ } from '../../../../../../base/browser/dom.js';
 import { MarkdownRenderOptions, renderMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
+import { timeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
@@ -41,11 +42,11 @@ suite('AppWindowScreenshotHint', () => {
 	const KEYBINDING = createUSLayoutResolvedKeybinding(KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.KeyS, OperatingSystem.Linux)!;
 	const KEY = KEYBINDING.getLabel();
 
-	function createHint(options: { readonly enabled?: boolean; readonly keybinding?: 'none' | 'inChat' | 'systemWide' } = {}) {
+	function createHint(options: { readonly enabled?: boolean; readonly keybinding?: 'none' | 'inChat' | 'systemWide'; readonly storageService?: TestStorageService } = {}) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.AppWindowScreenshotsEnabled]: options.enabled ?? true }));
-		const storageService = store.add(new TestStorageService());
+		const storageService = options.storageService ?? store.add(new TestStorageService());
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false });
 
@@ -120,9 +121,12 @@ suite('AppWindowScreenshotHint', () => {
 		};
 	}
 
+	/** Lets the hint claim its one showing, which it does asynchronously, across windows. */
+	const claimed = () => timeout(0);
+
 	const IN_CHAT = `Showing the agent your app? Next time, switch from your app to chat and press ${KEY} to attach a screenshot of its window.`;
 
-	test('shows once, above its own input, after other notices and until its images go', () => {
+	test('shows once, above its own input, after other notices and until its images go', async () => {
 		const hint = createHint();
 		const text: Record<string, string> = {};
 
@@ -132,6 +136,7 @@ suite('AppWindowScreenshotHint', () => {
 		hint.attach('image1');
 		text.behindNotification = hint.text();
 		notification.dispose();
+		await claimed();
 		text.afterNotification = hint.text();
 		const onboarding = hint.noticeHost.occupy(ChatInputNoticeLane.Onboarding);
 		text.behindOnboarding = hint.text();
@@ -140,6 +145,7 @@ suite('AppWindowScreenshotHint', () => {
 		hint.remove('image1');
 		text.imageRemoved = hint.text();
 		hint.attach('image2');
+		await claimed();
 		text.nextPaste = hint.text();
 
 		assert.deepStrictEqual({
@@ -165,7 +171,7 @@ suite('AppWindowScreenshotHint', () => {
 		});
 	});
 
-	test('counts the opportunity with the feature off, and shows later when it went away unseen', () => {
+	test('counts the opportunity with the feature off, and shows later when it went away unseen', async () => {
 		const off = createHint({ enabled: false });
 		off.attach('image1');
 
@@ -176,6 +182,7 @@ suite('AppWindowScreenshotHint', () => {
 		notification.dispose();
 		const afterSend = hint.text();
 		hint.attach('image2', 'drop');
+		await claimed();
 		const afterDrop = hint.text();
 		hint.capture();
 
@@ -198,14 +205,27 @@ suite('AppWindowScreenshotHint', () => {
 		});
 	});
 
-	test('names the keybinding, where it works, or the command when there is none, and links it to the command', () => {
-		const shown = (['none', 'inChat', 'systemWide'] as const).map(keybinding => {
+	test('shows in only one window when two get images at once', async () => {
+		const storageService = disposables.add(new TestStorageService());
+		const first = createHint({ storageService });
+		const second = createHint({ storageService });
+		first.attach('image1');
+		second.attach('image1');
+		await claimed();
+
+		assert.deepStrictEqual([first.text(), second.text()], [IN_CHAT, '']);
+	});
+
+	test('names the keybinding, where it works, or the command when there is none, and links it to the command', async () => {
+		const shown = [];
+		for (const keybinding of ['none', 'inChat', 'systemWide'] as const) {
 			const hint = createHint({ keybinding });
 			hint.attach('image1');
+			await claimed();
 			const text = hint.text();
 			hint.clickLink();
-			return { text, events: hint.events.slice(1), executed: hint.executed };
-		});
+			shown.push({ text, events: hint.events.slice(1), executed: hint.executed });
+		}
 
 		assert.deepStrictEqual(shown, [
 			{

@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
@@ -32,6 +32,9 @@ import { ChatConfiguration } from '../../common/constants.js';
 
 /** Remembers that the hint showed, in VS Code or in the Agents window, as it only shows once. */
 const HINT_SHOWN_STORAGE_KEY = 'chat.appWindowScreenshots.hintShown';
+
+/** Turns off chat tips, which the hint is one of. */
+const TIPS_ENABLED_SETTING = 'chat.tips.enabled';
 
 /** Which instructions the hint gives: press the keybinding in chat, press it in the other app, or run the command. */
 type AppWindowScreenshotHintCopy = 'inApp' | 'systemWide' | 'palette' | 'none';
@@ -96,6 +99,10 @@ export class AppWindowScreenshotHint extends Disposable {
 	private _copy: AppWindowScreenshotHintCopy = 'none';
 	private _shownAt: number | undefined;
 	private _loggedOpportunity = false;
+	private _leading = false;
+	/** Whether this window claimed the hint's one showing, which it does once the hint first leads. */
+	private _owned = false;
+	private _claiming = false;
 
 	constructor(
 		private readonly _target: IAppWindowScreenshotHintTarget,
@@ -128,6 +135,11 @@ export class AppWindowScreenshotHint extends Disposable {
 				this._end('used');
 			}
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if ((e.affectsConfiguration(ChatConfiguration.AppWindowScreenshotsEnabled) || e.affectsConfiguration(TIPS_ENABLED_SETTING)) && !this._isTurnedOn()) {
+				this._end('expired');
+			}
+		}));
 		// Takes the hint off screen even when the notice host is gone and won't stand it down.
 		this._register(toDisposable(() => this._clearContent()));
 	}
@@ -141,11 +153,11 @@ export class AppWindowScreenshotHint extends Disposable {
 			this._loggedOpportunity = true;
 			this._log('opportunity', e.gesture, 'none', e.attachmentIds.length, -1);
 		}
-		if (!this._configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled) || this._configurationService.getValue<boolean>('chat.tips.enabled') === false) {
+		if (!this._isTurnedOn()) {
 			return;
 		}
 		// A hint that waits or shows already is about these images too.
-		if (!this._imageIds.size && !this._canShow()) {
+		if (!this._imageIds.size && (this._appWindowScreenshotService.hasCaptured || this._wasShown())) {
 			return;
 		}
 		for (const id of e.attachmentIds) {
@@ -173,9 +185,19 @@ export class AppWindowScreenshotHint extends Disposable {
 		}
 	}
 
-	/** Whether the hint has yet to show, which it doesn't once the user has captured an app window. */
-	private _canShow(): boolean {
-		return !this._appWindowScreenshotService.hasCaptured && !this._storageService.getBoolean(HINT_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED, false);
+	/** Whether the feature and tips are on. */
+	private _isTurnedOn(): boolean {
+		return !!this._configurationService.getValue<boolean>(ChatConfiguration.AppWindowScreenshotsEnabled) && this._configurationService.getValue<boolean>(TIPS_ENABLED_SETTING) !== false;
+	}
+
+	/** Whether the hint still applies: it is turned on, the input can take the screenshot, and the user hasn't captured one yet. */
+	private _isEligible(): boolean {
+		return this._isTurnedOn() && this._target.canAttachScreenshots() && !this._appWindowScreenshotService.hasCaptured && this._hasImagesAttached();
+	}
+
+	/** Whether the hint showed, as far as this window knows: another window may have shown it a moment ago. */
+	private _wasShown(): boolean {
+		return this._storageService.getBoolean(HINT_SHOWN_STORAGE_KEY, StorageScope.APPLICATION_SHARED, false);
 	}
 
 	private _hasImagesAttached(): boolean {
@@ -183,24 +205,67 @@ export class AppWindowScreenshotHint extends Disposable {
 	}
 
 	private _setLeading(leading: boolean): void {
+		this._leading = leading;
 		if (!leading) {
 			this._clearContent();
 			return;
 		}
-		// While the hint waited for other notices, it may have shown in another window, or its images may have gone.
-		if (this._shownAt === undefined && (!this._canShow() || !this._hasImagesAttached())) {
+		if (this._shownAt !== undefined) {
+			this._render();
+			return;
+		}
+		// Things may have changed while the hint waited for other notices.
+		if (!this._isEligible() || (!this._owned && this._wasShown())) {
 			this._end('expired');
 			return;
 		}
+		if (this._owned) {
+			this._show();
+		} else {
+			void this._claimShowing();
+		}
+	}
 
-		this._render();
-		if (this._shownAt === undefined) {
-			this._shownAt = Date.now();
-			this._storageService.store(HINT_SHOWN_STORAGE_KEY, true, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
-			this._log('shown', this._gesture, this._copy, this._imageIds.size, 0);
-			if (this._configurationService.getValue<boolean>(this._environmentService.isSessionsWindow ? AccessibilityVerbositySettingId.SessionsChat : AccessibilityVerbositySettingId.Chat)) {
-				this._notice?.announce();
+	/** Claims the hint's one showing, which only one window can do, and shows it if it still leads. */
+	private async _claimShowing(): Promise<void> {
+		if (this._claiming) {
+			return;
+		}
+		this._claiming = true;
+		let owned = false;
+		try {
+			// The cached value can lag behind other windows, so the claim reads and swaps the value that they share.
+			const shown = await this._storageService.readApplicationSharedValue(HINT_SHOWN_STORAGE_KEY);
+			if (shown === undefined && !this._store.isDisposed) {
+				owned = (await this._storageService.compareAndSwapApplicationSharedValue(HINT_SHOWN_STORAGE_KEY, undefined, String(true))).swapped;
 			}
+		} finally {
+			this._claiming = false;
+		}
+		// The hint may have gone meanwhile, or another window showed it.
+		if (this._store.isDisposed || !this._imageIds.size) {
+			return;
+		}
+		if (!owned) {
+			this._end('expired');
+			return;
+		}
+		this._owned = true;
+		if (this._leading) {
+			if (this._isEligible()) {
+				this._show();
+			} else {
+				this._end('expired');
+			}
+		}
+	}
+
+	private _show(): void {
+		this._render();
+		this._shownAt = Date.now();
+		this._log('shown', this._gesture, this._copy, this._imageIds.size, 0);
+		if (this._configurationService.getValue<boolean>(this._environmentService.isSessionsWindow ? AccessibilityVerbositySettingId.SessionsChat : AccessibilityVerbositySettingId.Chat)) {
+			this._notice?.announce();
 		}
 	}
 
@@ -268,6 +333,7 @@ export class AppWindowScreenshotHint extends Disposable {
 		}
 		this._imageIds.clear();
 		this._shownAt = undefined;
+		this._owned = false;
 		this._copy = 'none';
 		// Released before the content goes, so the notice host moves focus back to the input only when it was in the hint.
 		this._claim.clear();

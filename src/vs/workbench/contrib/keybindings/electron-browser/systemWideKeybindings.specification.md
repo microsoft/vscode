@@ -33,7 +33,7 @@ While VS Code is running (even unfocused), pressing that combination runs the co
 - **Desktop only.** The flag is inert on web/server (there is no `globalShortcut` there, and the
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
-- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip and the first-use dialog of chat's Attach Screenshot of App Window write a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. They never register OS shortcuts themselves.
+- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip, and chat's Attach Screenshot of App Window through its Use App Window Screenshot Shortcut in Other Apps command and its macOS Screen Recording setup, write a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. They never register OS shortcuts themselves. The Agents window registers the system-wide keybindings of both commands, so that they work while it is the only window open.
 
 The `systemWide` boolean is declared in the `keybindings.json` JSON schema in
 `src/vs/workbench/services/keybinding/browser/keybindingService.ts`.
@@ -155,7 +155,8 @@ registrations. Wired up in `src/vs/code/electron-main/app.ts` with the real Elec
   registered **once** with a stable callback `() => this.onTrigger(accelerator)` that reads the
   **current** registry at fire time, so command/args are never captured from a stale snapshot.
 - `onTrigger(accelerator)` — resolves the target window: the focused window if it owns the
-  accelerator, otherwise the deterministic winner (lowest window id) among alive owners. Sends
+  accelerator, otherwise the window that was active last if it owns it (the user just left it for
+  another app), otherwise the deterministic winner (lowest window id) among alive owners. Sends
   `vscode:runAction` via `target.sendWhenReady(...)`. It deliberately does **not** force-focus the
   routing window — a system-wide keybinding fires while VS Code is typically unfocused, and pulling
   the routing window forward would flicker when the command opens/reveals a *different* window
@@ -187,7 +188,7 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
    enforced and surfaced (log for unsupported/duplicate, notification for ignored `when`).
 2. **Per-window registry + union registration** — multiple windows may each request the same or
    different system-wide bindings. The main service registers the union and routes a press to a
-   single window (focused owner, else deterministic lowest id). It only ever unregisters
+   single window (focused owner, else the last active owner, else deterministic lowest id). It only ever unregisters
    accelerators it owns, so it never stomps global shortcuts registered by the OS or other apps.
 3. **No force-focus on trigger** — avoids visible flicker and lets the invoked command decide what
    to surface/focus.
@@ -210,7 +211,7 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
 - `src/vs/platform/globalKeybindings/test/electron-main/globalKeybindingsMainService.test.ts` — the
   main service against a fake `IGlobalShortcutRegistry` and fake windows and lifecycle services:
   register/reconcile, dedup within a window, failed-registration reporting + retry, trigger routing
-  (focused owner, deterministic lowest-id, no force-focus, undefined args), cross-window conflict
+  (focused owner, last active owner, deterministic lowest-id, no force-focus, undefined args), cross-window conflict
   resolution, dropping a window's bindings on a normal close (everything is released once the last
   window closes) and on a crashed-window destroy (shared accelerators route to the surviving owner),
   and shutdown unregister-all. The fakes keep the two removal paths separate:

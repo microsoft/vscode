@@ -436,7 +436,8 @@ export interface ICommonNativeHostService {
 
 	/**
 	 * Lists the windows of other applications, front to back, so that the first one is the window that the user is
-	 * looking at, or the one that they left for VS Code. The windows of VS Code are never listed.
+	 * looking at, or the one that they left for VS Code. The windows of VS Code are left out, except from the window
+	 * picker of Wayland sessions, which lists every window and identifies none of them.
 	 *
 	 * Without `interactive`, this never shows system UI: it reports `permissionRequired` instead of asking for the Screen
 	 * Recording permission on macOS, and `systemPicker` instead of showing the window picker of Wayland sessions. Only set

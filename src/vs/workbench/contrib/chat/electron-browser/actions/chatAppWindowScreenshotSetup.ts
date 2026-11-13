@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import '../media/chatAppWindowScreenshotSetup.css';
-import { $, append, clearNode, getWindow } from '../../../../../base/browser/dom.js';
+import { $, append, clearNode, getWindow, isHTMLElement } from '../../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../../base/browser/ui/dialog/dialog.js';
 import { Action } from '../../../../../base/common/actions.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -182,7 +183,8 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 
 	private _render(): void {
 		const targetDocument = getWindow(this._element).document;
-		const hadFocus = targetDocument.activeElement !== targetDocument.body && this._element.contains(targetDocument.activeElement);
+		const focused = targetDocument.activeElement;
+		const hadFocus = focused !== targetDocument.body && this._element.contains(focused);
 		const product = this._productService.nameShort;
 
 		const screenRecording = this._screenRecording;
@@ -219,9 +221,13 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 		if (granted && !this._closeWhenAllowed.isScheduled()) {
 			this._closeWhenAllowed.schedule();
 		}
-		// Focus was on a control that the step removed.
-		if (hadFocus && !this._element.contains(targetDocument.activeElement)) {
-			this._focus();
+		// A control that the steps kept gets focus back, and when they removed it, focus moves to the next thing to do.
+		if (hadFocus && targetDocument.activeElement !== focused) {
+			if (isHTMLElement(focused) && this._element.contains(focused)) {
+				focused.focus();
+			} else {
+				this._focus();
+			}
 		}
 	}
 
@@ -232,8 +238,10 @@ export class AppWindowScreenshotSetupDialog extends Disposable {
 			step.status.classList.add('done', ...ThemeIcon.asClassNameArray(Codicon.passFilled));
 		}
 		// Removed, not hidden: the modal moves focus itself across every control in its body, hidden ones too.
-		clearNode(step.controls);
-		step.controls.append(...controls);
+		if (!equals(Array.from(step.controls.children), controls)) {
+			clearNode(step.controls);
+			step.controls.append(...controls);
+		}
 		step.row.setAttribute('aria-label', localize('appWindowScreenshotSetup.step', "{0}, {1}. {2}", name, state, description));
 	}
 

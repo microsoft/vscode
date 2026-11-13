@@ -183,6 +183,11 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 					windows = await this.nativeHostService.getAppWindows({ interactive: true });
 				}
 			} catch (error) {
+				if (target === 'systemPicked') {
+					// Electron rejects when the user dismisses the system's picker, which it doesn't tell apart from a failure.
+					this.logService.trace('[AppWindowScreenshot] The system picker returned no window:', error);
+					return { kind: 'cancelled', target };
+				}
 				this.logService.error('[AppWindowScreenshot] Listing the windows of other apps failed:', error);
 				return { kind: 'failed', target, window: undefined };
 			}
@@ -220,6 +225,11 @@ export class AppWindowScreenshotService extends Disposable implements IAppWindow
 			}
 			return { kind: 'captured', target, window, image };
 		} catch (error) {
+			// macOS can revoke Screen Recording while the user picks the window.
+			const permission = await this.getPermission();
+			if (permission === 'notGranted' || permission === 'restricted') {
+				return { kind: 'permissionRequired', target };
+			}
 			this.logService.error('[AppWindowScreenshot] Capturing a window failed:', error);
 			return { kind: 'failed', target, window };
 		}
