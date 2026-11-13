@@ -26,7 +26,7 @@ import { ChatRequestQueueKind, IChatSendRequestOptions, IChatService } from '../
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { MockChatEditingSession } from '../mockChatEditingSession.js';
 import { ChatModel, ChatRequestModel, ChatResponseModelChangeReason, IChatRequestDisablement, IChatResponseModel } from '../../../common/model/chatModel.js';
-import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { ChatResponseViewModel, ChatViewModel, getStickyScrollTargetItem, IChatViewModel, isPendingDividerVM, isRequestVM, isResponseVM, isScheduledRequestVM } from '../../../common/model/chatViewModel.js';
 
 interface ITestChatViewModelItem {
 	readonly id: string;
@@ -50,6 +50,7 @@ suite('ChatViewModel', () => {
 				{ id: 'pending-steering', pendingKind: ChatRequestQueueKind.Steering },
 				{ id: 'pending-divider-queued', kind: 'pendingDivider' },
 				{ id: 'pending-queued', pendingKind: ChatRequestQueueKind.Queued },
+				{ id: 'scheduled', kind: 'scheduledRequest' },
 			])?.id,
 			getStickyScrollTargetItem([pendingOnly])?.id,
 			getStickyScrollTargetItem(emptyItems)?.id,
@@ -270,6 +271,31 @@ suite('ChatViewModel', () => {
 				queued: [ChatRequestQueueKind.Queued],
 				steering: [ChatRequestQueueKind.Steering],
 				none: [],
+			});
+		});
+
+		test('scheduled messages render after the immediate queue without entering it', () => {
+			const model = store.add(instantiationService.createInstance(ChatModel, undefined, { initialLocation: ChatAgentLocation.Chat, canUseTools: true }));
+			const viewModel = store.add(instantiationService.createInstance(ChatViewModel, model, undefined));
+			model.addPendingRequest(add(model, 'queued'), ChatRequestQueueKind.Queued, {} as IChatSendRequestOptions);
+			const request = { id: 'later', text: 'Follow up', description: 'Tomorrow', attachments: [], actions: [] };
+			viewModel.setScheduledRequests([request]);
+			const first = viewModel.getItems();
+			const before = {
+				dividers: first.filter(isPendingDividerVM).map(item => item.dividerKind),
+				scheduled: first.filter(isScheduledRequestVM).map(item => item.text),
+				queued: model.getPendingRequests().map(item => item.request.id),
+			};
+			viewModel.setScheduledRequests([{ ...request, description: 'Next week' }]);
+			const updated = viewModel.getItems().find(isScheduledRequestVM)!;
+			const changed = updated.dataId !== first.find(isScheduledRequestVM)!.dataId;
+			viewModel.setScheduledRequests([]);
+			assert.deepStrictEqual({
+				before, changed, updatedDescription: updated.description,
+				remaining: viewModel.getItems().filter(isPendingDividerVM).map(item => item.dividerKind),
+			}, {
+				before: { dividers: [ChatRequestQueueKind.Queued, 'scheduled'], scheduled: ['Follow up'], queued: ['queued'] },
+				changed: true, updatedDescription: 'Next week', remaining: [ChatRequestQueueKind.Queued],
 			});
 		});
 

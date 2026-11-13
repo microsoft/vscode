@@ -515,7 +515,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
 		}
-		if (showAutomationRuns) {
+		if (session.isScheduledChat?.read(reader) || showAutomationRuns) {
 			return true;
 		}
 		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)
