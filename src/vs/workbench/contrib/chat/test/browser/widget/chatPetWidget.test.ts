@@ -2829,6 +2829,41 @@ suite('ChatPetWidget', () => {
 		}();
 	}
 
+	test('mini pets update only the changed response while tracking older subagents', () => {
+		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
+		const changes = [disposables.add(new Emitter<ChatResponseModelChangeReason>()), disposables.add(new Emitter<ChatResponseModelChangeReason>())];
+		const tools = ['older', 'current'].map(id => {
+			const tool = new ChatToolInvocation(undefined, { id, displayName: id, modelDescription: 'Subagent', source: ToolDataSource.Internal }, id, undefined, {});
+			tool.toolSpecificData = { kind: 'subagent', isActive: true };
+			return tool;
+		});
+		const reads = [0, 0];
+		const requests = tools.map((tool, index) => {
+			const response = new class extends mock<IChatResponseModel>() {
+				override readonly onDidChange = changes[index].event;
+				override readonly isPendingConfirmation = constObservable(undefined);
+				override readonly response = new class extends mock<IResponse>() {
+					override get value(): IChatProgressResponseContent[] { reads[index]++; return [tool]; }
+				}();
+			}();
+			return new class extends mock<IChatRequestModel>() { override readonly id = `request-${index}`; override readonly response = response; }();
+		});
+		const model = new class extends mock<IChatModel>() {
+			override readonly onDidChange = Event.None;
+			override readonly hasActiveRequest = constObservable(true);
+			override readonly lastRequestObs = constObservable(requests[1]);
+			override getRequests(): IChatRequestModel[] { return requests; }
+		}();
+		widget.setHost({ ...firstHost, model: constObservable(model) });
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 2);
+		reads[0] = 0;
+		changes[1].fire({ reason: 'other' });
+		assert.strictEqual(reads[0], 0);
+		tools[0].toolSpecificData = { kind: 'subagent', isActive: false };
+		changes[0].fire({ reason: 'other' });
+		assert.strictEqual(overlay.querySelectorAll('.chat-pet-subagent').length, 1);
+	});
+
 	test('shows one mini pet per active subagent and removes it when it stops', async () => {
 		const { widget, firstHost, button, overlay, service } = createHostTransitionHarness();
 		const responseChanged = disposables.add(new Emitter<ChatResponseModelChangeReason>());

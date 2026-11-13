@@ -1913,24 +1913,40 @@ export class ChatPetWidget extends Disposable {
 			}
 			observableSignalFromEvent(this, model.onDidChange).read(reader);
 			const subagents = new Set<string>();
+			let initializing = true;
 			for (const request of model.getRequests()) {
 				const response = request.response;
 				if (!response) {
 					continue;
 				}
-				observableSignalFromEvent(this, response.onDidChange).read(reader);
-				for (const part of response.response.value) {
-					if (part.kind !== 'toolInvocation') {
-						continue;
+				let previous = new Set<string>();
+				reader.store.add(autorun(reader => {
+					observableSignalFromEvent(this, response.onDidChange).read(reader);
+					const current = new Set<string>();
+					for (const part of response.response.value) {
+						if (part.kind !== 'toolInvocation') {
+							continue;
+						}
+						part.toolSpecificDataKind.read(reader);
+						part.state.read(reader);
+						const data = part.toolSpecificData;
+						if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
+							current.add(JSON.stringify([request.id, part.toolCallId]));
+						}
 					}
-					part.toolSpecificDataKind.read(reader);
-					part.state.read(reader);
-					const data = part.toolSpecificData;
-					if (data?.kind === 'subagent' && data.presentation !== 'phase' && data.hasStarted !== false && (getSubagentIsActive(data) ?? !IChatToolInvocation.isComplete(part, reader))) {
-						subagents.add(JSON.stringify([request.id, part.toolCallId]));
+					for (const id of previous) {
+						subagents.delete(id);
 					}
-				}
+					for (const id of current) {
+						subagents.add(id);
+					}
+					previous = current;
+					if (!initializing) {
+						this._updateSubagentPets(subagents);
+					}
+				}));
 			}
+			initializing = false;
 			this._updateSubagentPets(subagents);
 		}));
 
