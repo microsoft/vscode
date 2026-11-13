@@ -1,0 +1,587 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import * as fs from 'fs/promises';
+import * as os from 'os';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { join } from '../../../../base/common/path.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { NullLogService } from '../../../log/common/log.js';
+import { AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
+import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { CopilotProjectExtensionLaunchPolicy } from '../../node/copilot/copilotProjectExtensionLaunchPolicy.js';
+
+suite('CopilotProjectExtensionLaunchPolicy', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	function createPolicy(realpath: (path: string) => Promise<string> = fs.realpath) {
+		const logService = new NullLogService();
+		const stateManager = disposables.add(new AgentHostStateManager(logService));
+		const configurationService = disposables.add(new AgentConfigurationService(stateManager, logService));
+		return {
+			configurationService,
+			policy: disposables.add(new CopilotProjectExtensionLaunchPolicy(configurationService, logService, realpath)),
+		};
+	}
+
+	test('gates project launches by admission and workspace trust', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-trust-`);
+		const workspace = join(root, 'workspace');
+		const trustedAlias = join(root, 'trusted-alias');
+		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
+		const modulePath = join(extensionDirectory, 'extension.mjs');
+		await fs.mkdir(extensionDirectory, { recursive: true });
+		await fs.writeFile(modulePath, '');
+		await fs.symlink(workspace, trustedAlias, process.platform === 'win32' ? 'junction' : 'dir');
+		const { configurationService, policy } = createPolicy();
+		try {
+			const admission = disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			const missingTrustConfig = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			});
+			policy.updateTrust();
+			const untrusted = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(trustedAlias).toString()] },
+			});
+			policy.updateTrust();
+			const trusted = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: false, trustedUris: [] },
+			});
+			policy.updateTrust();
+			const trustDisabled = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			admission.dispose();
+			const noAdmission = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+
+			assert.deepStrictEqual({
+				missingTrustConfig: !!missingTrustConfig.launch,
+				untrusted: !!untrusted.launch,
+				trusted: !!trusted.launch,
+				trustDisabled: !!trustDisabled.launch,
+				noAdmission: !!noAdmission.launch,
+			}, {
+				missingTrustConfig: false,
+				untrusted: false,
+				trusted: true,
+				trustDisabled: true,
+				noAdmission: false,
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('exempts from trust only a scratch folder that is a direct child of the chats folder by canonical path', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-workspaceless-`);
+		const chats = join(root, 'chats');
+		const scratch = join(chats, 'scratch');
+		const other = join(root, 'other');
+		const linkedScratch = join(chats, 'linked');
+		const outside = join(root, 'outside');
+		const module = (folder: string) => join(folder, '.github', 'extensions', 'preview', 'extension.mjs');
+		for (const folder of [scratch, other, outside]) {
+			await fs.mkdir(join(module(folder), '..'), { recursive: true });
+			await fs.writeFile(module(folder), '');
+		}
+		// A link in the chats folder to a checkout elsewhere, as another client could leave behind.
+		await fs.symlink(outside, linkedScratch, process.platform === 'win32' ? 'junction' : 'dir');
+		const { policy } = createPolicy();
+		const launches = async (folder: string) => !!(await policy.resolveLaunch(module(folder), 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		const scratchFolder = (folder: string) => ({ folder: URI.file(folder), root: URI.file(chats) });
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(scratch), URI.file(other)], scratchFolder(scratch)));
+			disposables.add(await policy.acquireAdmission([URI.file(linkedScratch)], scratchFolder(linkedScratch)));
+			disposables.add(await policy.acquireAdmission([URI.file(other)], scratchFolder(other)));
+
+			assert.deepStrictEqual({
+				scratch: await launches(scratch),
+				otherDirectoryOfTheSameSession: await launches(other),
+				linkEscapingTheChatsFolder: await launches(linkedScratch),
+				notInTheChatsFolder: await launches(other),
+			}, {
+				scratch: true,
+				otherDirectoryOfTheSameSession: false,
+				linkEscapingTheChatsFolder: false,
+				notInTheChatsFolder: false,
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('rejects symlink escapes and trust revocation during canonicalization', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-race-`);
+		const workspace = join(root, 'workspace');
+		const untrustedDirectory = join(root, 'untrusted');
+		const extensionDirectory = join(workspace, '.github', 'extensions', 'preview');
+		const escapedDirectory = join(workspace, '.github', 'extensions', 'escaped');
+		const modulePath = join(extensionDirectory, 'extension.mjs');
+		const escapedModulePath = join(escapedDirectory, 'extension.mjs');
+		await fs.mkdir(extensionDirectory, { recursive: true });
+		await fs.mkdir(untrustedDirectory, { recursive: true });
+		await fs.writeFile(modulePath, '');
+		await fs.writeFile(join(untrustedDirectory, 'extension.mjs'), '');
+		await fs.symlink(untrustedDirectory, escapedDirectory, process.platform === 'win32' ? 'junction' : 'dir');
+		const realpathStarted = new DeferredPromise<void>();
+		const releaseRealpath = new DeferredPromise<void>();
+		let delayModuleResolution = false;
+		const { configurationService, policy } = createPolicy(async path => {
+			if (delayModuleResolution && isEqual(URI.file(path), URI.file(modulePath))) {
+				realpathStarted.complete();
+				await releaseRealpath.p;
+			}
+			return fs.realpath(path);
+		});
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(workspace), URI.file(untrustedDirectory)], undefined));
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+			});
+			policy.updateTrust();
+			const escaped = await policy.resolveLaunch(escapedModulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			delayModuleResolution = true;
+			const revokedPromise = policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await realpathStarted.p;
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] },
+			});
+			policy.updateTrust();
+			releaseRealpath.complete();
+			const revoked = await revokedPromise;
+
+			assert.deepStrictEqual({
+				escaped: !!escaped.launch,
+				revoked: !!revoked.launch,
+			}, {
+				escaped: false,
+				revoked: false,
+			});
+		} finally {
+			releaseRealpath.complete();
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('re-evaluates a launch against the latest trust when trust contracts while its roots resolve', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-contract-`);
+		const workspace = join(root, 'workspace');
+		const other = join(root, 'other');
+		const modulePath = join(workspace, '.github', 'extensions', 'preview', 'extension.mjs');
+		await fs.mkdir(join(workspace, '.github', 'extensions', 'preview'), { recursive: true });
+		await fs.mkdir(other);
+		await fs.writeFile(modulePath, '');
+		const realpathStarted = new DeferredPromise<void>();
+		const releaseRealpath = new DeferredPromise<void>();
+		const { configurationService, policy } = createPolicy(async path => {
+			if (isEqual(URI.file(path), URI.file(other))) {
+				realpathStarted.complete();
+				await releaseRealpath.p;
+			}
+			return fs.realpath(path);
+		});
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString(), URI.file(other).toString()] },
+			});
+			policy.updateTrust();
+			const launch = policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await realpathStarted.p;
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(workspace).toString()] },
+			});
+			policy.updateTrust();
+			releaseRealpath.complete();
+
+			assert.strictEqual(!!(await launch).launch, true);
+		} finally {
+			releaseRealpath.complete();
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('honors a trusted root that resolves only after an earlier decision failed to resolve it', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-late-root-`);
+		const workspace = join(root, 'workspace');
+		const trustedAlias = join(root, 'trusted-alias');
+		const modulePath = join(workspace, '.github', 'extensions', 'preview', 'extension.mjs');
+		await fs.mkdir(join(workspace, '.github', 'extensions', 'preview'), { recursive: true });
+		await fs.writeFile(modulePath, '');
+		const { configurationService, policy } = createPolicy();
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(trustedAlias).toString()] },
+			});
+			policy.updateTrust();
+			const beforeRootExists = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await fs.symlink(workspace, trustedAlias, process.platform === 'win32' ? 'junction' : 'dir');
+			const afterRootExists = await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+
+			assert.deepStrictEqual({
+				beforeRootExists: !!beforeRootExists.launch,
+				afterRootExists: !!afterRootExists.launch,
+			}, {
+				beforeRootExists: false,
+				afterRootExists: true,
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('classifies trust changes as expansions and contractions', () => {
+		const { configurationService, policy } = createPolicy();
+		const initial = policy.trustState;
+		const update = (trust: { enabled: boolean; trustedUris: string[] }) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: trust });
+			return policy.updateTrust();
+		};
+
+		assert.deepStrictEqual({
+			nothingTrusted: update({ enabled: true, trustedUris: [] }),
+			addA: update({ enabled: true, trustedUris: ['file:///a'] }),
+			addB: update({ enabled: true, trustedUris: ['file:///a', 'file:///b'] }),
+			reorder: update({ enabled: true, trustedUris: ['file:///b', 'file:///a'] }),
+			replaceAWithC: update({ enabled: true, trustedUris: ['file:///b', 'file:///c'] }),
+			removeB: update({ enabled: true, trustedUris: ['file:///c'] }),
+			disableTrust: update({ enabled: false, trustedUris: [] }),
+			enableTrust: update({ enabled: true, trustedUris: ['file:///c'] }),
+			sinceInitial: policy.trustChangeSince(initial),
+			sinceCurrent: policy.trustChangeSince(policy.trustState),
+		}, {
+			nothingTrusted: undefined,
+			addA: { expanded: true, contracted: false },
+			addB: { expanded: true, contracted: false },
+			reorder: undefined,
+			replaceAWithC: { expanded: true, contracted: true },
+			removeB: { expanded: false, contracted: true },
+			disableTrust: { expanded: true, contracted: false },
+			enableTrust: { expanded: false, contracted: true },
+			sinceInitial: { expanded: true, contracted: true },
+			sinceCurrent: undefined,
+		});
+	});
+
+	test('revokes only allowed launches that trust no longer covers, under the names the runtime gives them', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-revocation-`);
+		const repoA = join(root, 'a');
+		const repoB = join(root, 'b');
+		const module = (repo: string, name: string) => join(repo, '.github', 'extensions', name, 'extension.mjs');
+		for (const path of [module(repoA, 'stable'), module(repoB, 'doomed'), join(repoB, 'tools', 'real', 'extension.mjs')]) {
+			await fs.mkdir(join(path, '..'), { recursive: true });
+			await fs.writeFile(path, '');
+		}
+		// Discovered as `alias`, launched from where it resolves.
+		await fs.symlink(join(repoB, 'tools', 'real'), join(repoB, '.github', 'extensions', 'alias'), process.platform === 'win32' ? 'junction' : 'dir');
+		const { configurationService, policy } = createPolicy();
+		const trust = (repos: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: repos.map(repo => URI.file(repo).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		const revoked = async () => [...(await policy.reconciliationFor({ expanded: false, contracted: true })).revokedExtensionNames].sort();
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(repoA)], undefined));
+			const admissionB = await policy.acquireAdmission([URI.file(repoB)], undefined);
+			trust([repoA, repoB]);
+			const allowed = [await launches(module(repoA, 'stable')), await launches(module(repoB, 'doomed')), await launches(module(repoB, 'alias'))];
+			trust([repoA, repoB, join(root, 'unrelated')]);
+			const unrelatedRemoved = await policy.reconciliationFor(trust([repoA, repoB]));
+			const repoBRemoved = await policy.reconciliationFor(trust([repoA]));
+			const relaunchRefused = await launches(module(repoB, 'doomed'));
+			const afterRefusedRelaunch = await revoked();
+			admissionB.dispose();
+			const afterSessionEnded = await revoked();
+
+			assert.deepStrictEqual({
+				allowed,
+				unrelatedRemoved: { expanded: unrelatedRemoved.expanded, revoked: [...unrelatedRemoved.revokedExtensionNames] },
+				repoBRemoved: { expanded: repoBRemoved.expanded, revoked: [...repoBRemoved.revokedExtensionNames].sort() },
+				relaunchRefused,
+				afterRefusedRelaunch,
+				afterSessionEnded,
+			}, {
+				allowed: [true, true, true],
+				unrelatedRemoved: { expanded: false, revoked: [] },
+				repoBRemoved: { expanded: false, revoked: ['alias', 'doomed'] },
+				relaunchRefused: false,
+				// A refused relaunch says nothing about instances already running, so their records stay.
+				afterRefusedRelaunch: ['alias', 'doomed'],
+				afterSessionEnded: [],
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps revoking an extension one session runs while another session\'s launch of it is refused', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-shared-`);
+		const workspace = join(root, 'workspace');
+		const modulePath = join(workspace, '.github', 'extensions', 'shared', 'extension.mjs');
+		await fs.mkdir(join(modulePath, '..'), { recursive: true });
+		await fs.writeFile(modulePath, '');
+		const realpathStarted = new DeferredPromise<void>();
+		const releaseRealpath = new DeferredPromise<void>();
+		let delayModule = false;
+		const { configurationService, policy } = createPolicy(async path => {
+			if (delayModule && isEqual(URI.file(path), URI.file(modulePath))) {
+				realpathStarted.complete();
+				await releaseRealpath.p;
+			}
+			return fs.realpath(path);
+		});
+		const trust = (folders: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		try {
+			// Two chats of the workspace: A runs the extension, then B asks to launch it while trust is revoked.
+			disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(workspace)], undefined));
+			trust([workspace]);
+			const launchedForA = !!(await policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+			delayModule = true;
+			const launchForB = policy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await realpathStarted.p;
+			const revokedWhileBDecides = [...(await policy.reconciliationFor(trust([]))).revokedExtensionNames];
+			releaseRealpath.complete();
+			const launchedForB = !!(await launchForB).launch;
+			const revokedAfterBRefused = [...(await policy.reconciliationFor({ expanded: false, contracted: true })).revokedExtensionNames];
+
+			assert.deepStrictEqual({ launchedForA, revokedWhileBDecides, launchedForB, revokedAfterBRefused }, {
+				launchedForA: true,
+				revokedWhileBDecides: ['shared'],
+				launchedForB: false,
+				revokedAfterBRefused: ['shared'],
+			});
+		} finally {
+			releaseRealpath.complete();
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('keeps revoking extensions chats still run from folders whose own chats closed', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-borrowed-`);
+		const supplier = join(root, 'supplier');
+		const trustedConsumer = join(root, 'trusted-consumer');
+		const untrustedConsumer = join(root, 'untrusted-consumer');
+		const repository = join(root, 'repository');
+		const requested = (folder: string, name: string) => join(folder, '.github', 'extensions', name, 'extension.mjs');
+		for (const name of ['from-trusted', 'from-untrusted']) {
+			await fs.mkdir(join(supplier, 'tools', name), { recursive: true });
+			await fs.writeFile(join(supplier, 'tools', name, 'extension.mjs'), '');
+		}
+		// Each consumer discovers one of the supplier's modules through a link.
+		for (const [consumer, name] of [[trustedConsumer, 'from-trusted'], [untrustedConsumer, 'from-untrusted']]) {
+			await fs.mkdir(join(consumer, '.github', 'extensions'), { recursive: true });
+			await fs.symlink(join(supplier, 'tools', name), join(consumer, '.github', 'extensions', name), process.platform === 'win32' ? 'junction' : 'dir');
+		}
+		// The runtime discovers from a repository's root, above a chat working in one of its subfolders.
+		await fs.mkdir(join(repository, 'sub'), { recursive: true });
+		await fs.mkdir(join(repository, '.github', 'extensions', 'from-root'), { recursive: true });
+		await fs.writeFile(requested(repository, 'from-root'), '');
+		const { configurationService, policy } = createPolicy();
+		const trust = (folders: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		try {
+			// The chats running the extensions stay open.
+			disposables.add(await policy.acquireAdmission([URI.file(trustedConsumer)], undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(untrustedConsumer)], undefined));
+			disposables.add(await policy.acquireAdmission([URI.file(join(repository, 'sub'))], undefined));
+			// The chats admitting the folders the modules come from close before those folders lose trust.
+			const supplierChat = await policy.acquireAdmission([URI.file(supplier)], undefined);
+			const repositoryChat = await policy.acquireAdmission([URI.file(repository)], undefined);
+			trust([supplier, trustedConsumer, repository]);
+			const allowed = [
+				await launches(requested(trustedConsumer, 'from-trusted')),
+				await launches(requested(untrustedConsumer, 'from-untrusted')),
+				await launches(requested(repository, 'from-root')),
+			];
+			supplierChat.dispose();
+			repositoryChat.dispose();
+			const revoked = [...(await policy.reconciliationFor(trust([trustedConsumer]))).revokedExtensionNames].sort();
+
+			assert.deepStrictEqual({ allowed, revoked }, {
+				allowed: [true, true, true],
+				revoked: ['from-root', 'from-trusted', 'from-untrusted'],
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('treats a scratch folder or worktree exemption starting or ending under borrowed launches as a trust change', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-exemptions-`);
+		const chats = join(root, 'chats');
+		const scratch = join(chats, 'quick');
+		const unrelatedScratch = join(chats, 'unrelated');
+		const repository = join(root, 'repo');
+		const worktree = join(root, 'repo.worktrees', 'feature');
+		const borrower = join(root, 'borrower');
+		const requested = (name: string) => join(borrower, '.github', 'extensions', name, 'extension.mjs');
+		for (const [folder, name] of [[scratch, 'from-scratch'], [worktree, 'from-worktree']]) {
+			await fs.mkdir(join(folder, 'tools', name), { recursive: true });
+			await fs.writeFile(join(folder, 'tools', name, 'extension.mjs'), '');
+			await fs.mkdir(join(borrower, '.github', 'extensions'), { recursive: true });
+			await fs.symlink(join(folder, 'tools', name), join(borrower, '.github', 'extensions', name), process.platform === 'win32' ? 'junction' : 'dir');
+		}
+		await fs.mkdir(repository, { recursive: true });
+		await fs.mkdir(unrelatedScratch, { recursive: true });
+		const { configurationService, policy } = createPolicy();
+		configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(repository).toString()] } });
+		policy.updateTrust();
+		const changes: string[] = [];
+		disposables.add(policy.onDidChangeExemptions(change => changes.push(change.expanded ? 'expanded' : 'contracted')));
+		const launches = async () => [
+			!!(await policy.resolveLaunch(requested('from-scratch'), 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch,
+			!!(await policy.resolveLaunch(requested('from-worktree'), 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch,
+		];
+		const openSuppliers = async () => [
+			await policy.acquireAdmission([URI.file(scratch)], { folder: URI.file(scratch), root: URI.file(chats) }),
+			await policy.acquireAdmission([URI.file(worktree)], undefined, { worktree: URI.file(worktree), repository: URI.file(repository) }),
+		];
+		try {
+			// The untrusted borrower runs modules from a quick chat's scratch folder and from a worktree inheriting trust.
+			disposables.add(await policy.acquireAdmission([URI.file(borrower)], undefined));
+			const before = policy.trustState;
+			let suppliers = await openSuppliers();
+			const allowed = await launches();
+			const whileOpen = changes.splice(0);
+			suppliers.forEach(supplier => supplier.dispose());
+			const onClose = changes.splice(0);
+			const revoked = [...(await policy.reconciliationFor({ expanded: false, contracted: true })).revokedExtensionNames].sort();
+			const refusedAfterClose = await launches();
+			suppliers = await openSuppliers();
+			const onReopen = changes.splice(0);
+			const allowedAfterReopen = await launches();
+			suppliers.forEach(supplier => supplier.dispose());
+			changes.splice(0);
+			// A quick chat no launch borrows from changes nothing for others.
+			(await policy.acquireAdmission([URI.file(unrelatedScratch)], { folder: URI.file(unrelatedScratch), root: URI.file(chats) })).dispose();
+
+			assert.deepStrictEqual({
+				allowed, whileOpen, onClose, revoked, refusedAfterClose, onReopen, allowedAfterReopen,
+				unrelatedQuickChat: changes,
+				changedSinceBefore: policy.trustChangeSince(before),
+			}, {
+				allowed: [true, true],
+				whileOpen: [],
+				onClose: ['contracted', 'contracted'],
+				revoked: ['from-scratch', 'from-worktree'],
+				refusedAfterClose: [false, false],
+				onReopen: ['expanded', 'expanded'],
+				allowedAfterReopen: [true, true],
+				unrelatedQuickChat: [],
+				changedSinceBefore: { expanded: true, contracted: true },
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('re-evaluates a pending launch decision when an exemption starts while trusted folders resolve', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-pending-exemption-`);
+		const chats = join(root, 'chats');
+		const scratch = join(chats, 'quick');
+		const borrower = join(root, 'borrower');
+		const trustedElsewhere = join(root, 'elsewhere');
+		await fs.mkdir(join(scratch, 'tools', 'borrowed'), { recursive: true });
+		await fs.writeFile(join(scratch, 'tools', 'borrowed', 'extension.mjs'), '');
+		await fs.mkdir(join(borrower, '.github', 'extensions'), { recursive: true });
+		await fs.symlink(join(scratch, 'tools', 'borrowed'), join(borrower, '.github', 'extensions', 'borrowed'), process.platform === 'win32' ? 'junction' : 'dir');
+		await fs.mkdir(trustedElsewhere, { recursive: true });
+		let holdTrustedRoot = false;
+		const resolvingTrustedRoot = new DeferredPromise<void>();
+		const releaseTrustedRoot = new DeferredPromise<void>();
+		const { configurationService, policy } = createPolicy(async path => {
+			if (holdTrustedRoot && isEqual(URI.file(path), URI.file(trustedElsewhere))) {
+				resolvingTrustedRoot.complete();
+				await releaseTrustedRoot.p;
+			}
+			return fs.realpath(path);
+		});
+		configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [URI.file(trustedElsewhere).toString()] } });
+		policy.updateTrust();
+		try {
+			disposables.add(await policy.acquireAdmission([URI.file(borrower)], undefined));
+			// Another chat works in the scratch folder before the quick chat that owns it exempts it.
+			disposables.add(await policy.acquireAdmission([URI.file(scratch)], undefined));
+			holdTrustedRoot = true;
+			const launch = policy.resolveLaunch(join(borrower, '.github', 'extensions', 'borrowed', 'extension.mjs'), 'project', '/copilot-sdk/extension-bootstrap.mjs');
+			await resolvingTrustedRoot.p;
+			disposables.add(await policy.acquireAdmission([URI.file(scratch)], { folder: URI.file(scratch), root: URI.file(chats) }));
+			releaseTrustedRoot.complete();
+
+			assert.deepStrictEqual({ allowed: !!(await launch).launch }, { allowed: true });
+		} finally {
+			releaseTrustedRoot.complete();
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+
+	test('lets only the worktree the host created as the working directory inherit its repository\'s trust', async () => {
+		const root = await fs.mkdtemp(`${os.tmpdir()}/copilot-extension-worktree-`);
+		const repository = join(root, 'repo');
+		const worktree = join(root, 'repo.worktrees', 'feature');
+		const additional = join(root, 'repo.worktrees', 'additional');
+		const impostor = join(root, 'other.worktrees', 'feature');
+		const linked = join(root, 'repo.worktrees', 'linked');
+		const outside = join(root, 'outside');
+		const module = (folder: string, name: string) => join(folder, '.github', 'extensions', name, 'extension.mjs');
+		for (const path of [module(repository, 'repo-canvas'), module(worktree, 'worktree-canvas'), module(additional, 'additional-canvas'), module(impostor, 'impostor-canvas'), module(outside, 'linked-canvas')]) {
+			await fs.mkdir(join(path, '..'), { recursive: true });
+			await fs.writeFile(path, '');
+		}
+		// Named like a worktree of the repository, but resolves outside its worktrees folder.
+		await fs.symlink(outside, linked, process.platform === 'win32' ? 'junction' : 'dir');
+		const { configurationService, policy } = createPolicy();
+		const trust = (folders: string[]) => {
+			configurationService.updateRootConfig({ [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => URI.file(folder).toString()) } });
+			return policy.updateTrust() ?? { expanded: false, contracted: false };
+		};
+		const launches = async (path: string) => !!(await policy.resolveLaunch(path, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+		const created = (folder: string) => ({ worktree: URI.file(folder), repository: URI.file(repository) });
+		try {
+			// One session: the created worktree is its working directory, the other worktree an additional directory.
+			const inheriting = await policy.acquireAdmission([URI.file(worktree), URI.file(additional)], undefined, created(worktree));
+			disposables.add(await policy.acquireAdmission([URI.file(impostor)], undefined, created(impostor)));
+			disposables.add(await policy.acquireAdmission([URI.file(linked)], undefined, created(linked)));
+			trust([]);
+			const repositoryUntrusted = await launches(module(worktree, 'worktree-canvas'));
+			trust([repository]);
+			const repositoryTrusted = {
+				createdWorktree: await launches(module(worktree, 'worktree-canvas')),
+				additionalDirectory: await launches(module(additional, 'additional-canvas')),
+				impostorOutsideRepositoryWorktrees: await launches(module(impostor, 'impostor-canvas')),
+				linkEscapingRepositoryWorktrees: await launches(module(linked, 'linked-canvas')),
+			};
+			const revokedWithRepository = [...(await policy.reconciliationFor(trust([]))).revokedExtensionNames];
+			trust([repository]);
+			inheriting.dispose();
+			const readmitted = await policy.acquireAdmission([URI.file(worktree)], undefined, undefined);
+			const inheritanceEndsWithAdmission = await launches(module(worktree, 'worktree-canvas'));
+			readmitted.dispose();
+
+			assert.deepStrictEqual({ repositoryUntrusted, repositoryTrusted, revokedWithRepository, inheritanceEndsWithAdmission }, {
+				repositoryUntrusted: false,
+				repositoryTrusted: { createdWorktree: true, additionalDirectory: false, impostorOutsideRepositoryWorktrees: false, linkEscapingRepositoryWorktrees: false },
+				revokedWithRepository: ['worktree-canvas'],
+				inheritanceEndsWithAdmission: false,
+			});
+		} finally {
+			await fs.rm(root, { recursive: true, force: true });
+		}
+	});
+});

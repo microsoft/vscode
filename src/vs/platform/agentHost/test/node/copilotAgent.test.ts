@@ -20,10 +20,10 @@ import { constants as fsConstants } from 'fs';
 import * as fs from 'fs/promises';
 import * as os from 'os';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DeferredPromise, raceTimeout, timeout } from '../../../../base/common/async.js';
+import { DeferredPromise, raceTimeout, Throttler, timeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable, type IDisposable, type IReference } from '../../../../base/common/lifecycle.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -148,7 +148,8 @@ import { basename, dirname, join } from '../../../../base/common/path.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from '../../node/agentHostGitHubEndpointService.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createNoopCustomizationEnablementService } from './testCustomizationEnablementService.js';
-import { CopilotAgentSession, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotAgentSession, CopilotProjectExtensionRevocationError, type ICopilotCanvasHandoff } from '../../node/copilot/copilotAgentSession.js';
+import { CopilotProjectExtensionLaunchPolicy, type ICopilotProjectExtensionLaunchAdmission, type ICopilotProjectExtensionTrustChange, type ICopilotProjectExtensionTrustReconciliation } from '../../node/copilot/copilotProjectExtensionLaunchPolicy.js';
 import { ModelCallTurnCorrelation, type IModelCallTurnCorrelationResult } from '../../node/copilot/modelCallTurnCorrelation.js';
 import type { CompactionTurnCorrelation, ICompactionTurnCorrelationResult } from '../../node/copilot/compactionTurnCorrelation.js';
 import { addCopilotSandboxPath, createCopilotCliEnvironment } from '../../node/copilot/copilotCliEnvironment.js';
@@ -1150,6 +1151,8 @@ class MockCopilotSession {
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
+	extensionReloadCalls = 0;
+	extensionReconcileCalls = 0;
 	readonly mcpStartCalls: string[] = [];
 	readonly mcpStopCalls: string[] = [];
 	mcpStartGate: Promise<void> | undefined;
@@ -1215,6 +1218,13 @@ class MockCopilotSession {
 		},
 		extensions: {
 			list: async () => ({ extensions: this.extensions }),
+			reload: async () => {
+				this.extensionReloadCalls++;
+			},
+			reconcile: async () => {
+				this.extensionReconcileCalls++;
+				return { extensions: this.extensions };
+			},
 		},
 		canvas: {
 			list: async () => ({ canvases: this.canvases }),
@@ -5689,13 +5699,13 @@ suite('CopilotAgent', () => {
 			let initializationCalls = 0;
 			let registered = false;
 			const internals = agent as unknown as {
-				_acquireExtensionLaunchAdmission(directories: readonly URI[]): Promise<IDisposable>;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<ICopilotProjectExtensionLaunchAdmission>;
 				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
 			};
-			internals._acquireExtensionLaunchAdmission = async () => {
+			internals._acquireProjectExtensionLaunchAdmission = async () => {
 				admissionStarted.complete();
 				await releaseAdmission.p;
-				return toDisposable(() => { admissionDisposed = true; });
+				return { trustState: { expansions: 0, contractions: 0 }, dispose: () => { admissionDisposed = true; } };
 			};
 			const session = {
 				extensionLaunchDirectories: [URI.file('/workspace')],
@@ -5731,6 +5741,562 @@ suite('CopilotAgent', () => {
 			} finally {
 				releaseAdmission.complete();
 				await disposeAgent(agent);
+			}
+		});
+
+		test('reconciles extensions when trust changes immediately before registration', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const reconciliations: ICopilotProjectExtensionTrustReconciliation[] = [];
+			let registered = false;
+			const admission = new MutableDisposable();
+			const internals = agent as unknown as {
+				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void, beforeRegistration?: () => void | Promise<void>): Promise<void>;
+			};
+			const session = {
+				sessionId: 'trust-registration-race',
+				canvasRuntimeEnabled: true,
+				onDidChangeRuntimePlugins: Event.None,
+				workspacelessFolder: undefined,
+				extensionLaunchDirectories: [],
+				setExtensionLaunchAdmission: (value: ICopilotProjectExtensionLaunchAdmission) => { admission.value = value; },
+				initializeSession: async () => { },
+				reconcileProjectExtensionsAfterTrustChange: async (reconciliation: ICopilotProjectExtensionTrustReconciliation) => { reconciliations.push(reconciliation); },
+				dispose: () => { },
+			} as unknown as CopilotAgentSession;
+
+			try {
+				await internals._initializeAndRegisterSession(session, () => { registered = true; }, () => {
+					configurationService.updateRootConfig({
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: ['file:///workspace'] },
+					});
+				});
+
+				assert.deepStrictEqual({ registered, reconciliations }, { registered: true, reconciliations: [{ expanded: true, revokedExtensionNames: new Set() }] });
+			} finally {
+				admission.dispose();
+				await disposeAgent(agent);
+			}
+		});
+
+		test('reconciles project extensions when an exemption under a launch starts or ends, except while shutting down', async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_projectExtensionTrustReconciler: Throttler;
+				_reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void>;
+			};
+			const passes: ICopilotProjectExtensionTrustChange[] = [];
+			internals._reconcileProjectExtensionsAfterTrustChange = async change => { passes.push(change); };
+			// The policy fires this when a quick chat or an inheriting worktree session closes under a launch another session borrowed.
+			const exemptionChanges = (internals._projectExtensionLaunchPolicy as unknown as { _onDidChangeExemptions: Emitter<ICopilotProjectExtensionTrustChange> })._onDidChangeExemptions;
+			const settled = () => internals._projectExtensionTrustReconciler.queue(async () => { });
+			try {
+				exemptionChanges.fire({ expanded: false, contracted: true });
+				await settled();
+				const beforeShutdown = [...passes];
+				await agent.shutdown();
+				exemptionChanges.fire({ expanded: true, contracted: false });
+				await settled();
+
+				assert.deepStrictEqual({ beforeShutdown, duringShutdown: passes.slice(beforeShutdown.length) }, {
+					beforeShutdown: [{ expanded: false, contracted: true }],
+					duringShutdown: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('fails initialization only for a session that can\'t complete revoking project extensions after trust contracted during it', async () => {
+			const root = await fs.mkdtemp(`${os.tmpdir()}/trust-initialization-`);
+			const workspace = URI.file(join(root, 'workspace'));
+			const modulePath = join(workspace.fsPath, '.github', 'extensions', 'preview', 'extension.mjs');
+			await fs.mkdir(dirname(modulePath), { recursive: true });
+			await fs.writeFile(modulePath, '');
+			const { agent, configurationService } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } },
+			});
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void): Promise<void>;
+			};
+			const trust = (folders: URI[]) => configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: folders.map(folder => folder.toString()) },
+			});
+			const initialize = async (duringInitialization: () => Promise<void>) => {
+				const admission = new MutableDisposable();
+				let registered = false;
+				let disposed = false;
+				const session = {
+					sessionId: 'trust-during-initialization',
+					canvasRuntimeEnabled: true,
+					onDidChangeRuntimePlugins: Event.None,
+					workspacelessFolder: undefined,
+					createdWorktree: undefined,
+					extensionLaunchDirectories: [workspace],
+					setExtensionLaunchAdmission: (value: ICopilotProjectExtensionLaunchAdmission) => { admission.value = value; },
+					initializeSession: duringInitialization,
+					// A session throws only when it can't stop an extension whose trust was revoked; a failed retry is its own to log.
+					reconcileProjectExtensionsAfterTrustChange: async (reconciliation: ICopilotProjectExtensionTrustReconciliation) => {
+						if (reconciliation.revokedExtensionNames.size > 0) {
+							throw new Error('rpc.extensions.reload timed out');
+						}
+					},
+					dispose: () => { disposed = true; },
+				} as unknown as CopilotAgentSession;
+				try {
+					const outcome = await internals._initializeAndRegisterSession(session, () => { registered = true; }).then(() => 'resolved', (error: Error) => error.message);
+					return { outcome, registered, disposed };
+				} finally {
+					admission.dispose();
+				}
+			};
+
+			try {
+				const expansionOnly = await initialize(async () => trust([workspace]));
+				const revocation = await initialize(async () => {
+					await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+					trust([]);
+				});
+
+				assert.deepStrictEqual({ expansionOnly, revocation }, {
+					expansionOnly: { outcome: 'resolved', registered: true, disposed: false },
+					revocation: { outcome: 'rpc.extensions.reload timed out', registered: false, disposed: false },
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(root, { recursive: true, force: true });
+			}
+		});
+
+		test('stops a session and fails its initialization when it can\'t confirm a revocation, before or after it registers', async () => {
+			const { agent, configurationService } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const internals = agent as unknown as {
+				_initializeAndRegisterSession(session: CopilotAgentSession, register: () => void, beforeRegistration?: () => void | Promise<void>): Promise<void>;
+				_requestClientRestart(reason: string): Promise<boolean>;
+			};
+			const clientRestarts: string[] = [];
+			internals._requestClientRestart = async reason => {
+				clientRestarts.push(reason);
+				return true;
+			};
+			let trustedFolder = 0;
+			const changeTrust = () => configurationService.updateRootConfig({
+				[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [`file:///trusted-${++trustedFolder}`] },
+			});
+			const initialize = async (changeTrustWhile: 'initializing' | 'registering') => {
+				const admission = new MutableDisposable();
+				let registered = false;
+				let destroyed = 0;
+				let requiresRestart = false;
+				const session = {
+					sessionId: `unconfirmed-revocation-${changeTrustWhile}`,
+					get requiresRestartAfterProjectExtensionRevocation() { return requiresRestart; },
+					markProjectExtensionRevocationRequiresRestart: () => { requiresRestart = true; },
+					canvasRuntimeEnabled: true,
+					onDidChangeRuntimePlugins: Event.None,
+					workspacelessFolder: undefined,
+					createdWorktree: undefined,
+					extensionLaunchDirectories: [],
+					chatChannelUri: undefined,
+					setExtensionLaunchAdmission: (value: ICopilotProjectExtensionLaunchAdmission) => { admission.value = value; },
+					initializeSession: async () => {
+						if (changeTrustWhile === 'initializing') {
+							changeTrust();
+						}
+					},
+					reconcileProjectExtensionsAfterTrustChange: async () => { throw new CopilotProjectExtensionRevocationError(new Set(['revoked']), new Error('rpc.extensions.reload timed out')); },
+					destroySession: async () => { destroyed++; },
+					dispose: () => { },
+				} as unknown as CopilotAgentSession;
+				try {
+					// A trust change just before registration is reconciled once the session is live, as its caller starts using it.
+					const outcome = await internals._initializeAndRegisterSession(session, () => { registered = true; }, changeTrustWhile === 'registering' ? changeTrust : undefined)
+						.then(() => 'resolved', (error: Error) => error.name);
+					return { outcome, registered, destroyed };
+				} finally {
+					admission.dispose();
+				}
+			};
+
+			try {
+				const unconfirmed = 'CopilotProjectExtensionRevocationError';
+				assert.deepStrictEqual({ whileInitializing: await initialize('initializing'), whileRegistering: await initialize('registering'), clientRestarts }, {
+					whileInitializing: { outcome: unconfirmed, registered: false, destroyed: 1 },
+					whileRegistering: { outcome: unconfirmed, registered: true, destroyed: 1 },
+					clientRestarts: [],
+				});
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('holds any teardown of a session with an unconfirmed revocation to a deadline, stops the runtime that ran it, and leaves a replacement alone', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const internals = agent as unknown as {
+				_destroyLiveSession(session: CopilotAgentSession, preserveRouting?: boolean): Promise<boolean>;
+				_requestClientRestart(reason: string): Promise<boolean>;
+				_client: CopilotAgentSession['runtimeClient'] | undefined;
+				_scopedClients: DisposableMap<string, IDisposable>;
+				_chatEntriesBySdkId: DisposableMap<string, { readonly chatSession: CopilotAgentSession } & IDisposable>;
+			};
+			const clientRestarts: string[] = [];
+			internals._requestClientRestart = async reason => {
+				clientRestarts.push(reason);
+				return true;
+			};
+			const previousClient = internals._client;
+			const sharedRuntime = {} as CopilotAgentSession['runtimeClient'];
+			const replacedRuntime = {} as CopilotAgentSession['runtimeClient'];
+			const scopedRuntime = {} as CopilotAgentSession['runtimeClient'];
+			internals._client = sharedRuntime;
+			const scopedEvents: string[] = [];
+			const scopedChat = URI.parse('vendor-chat:/scoped');
+			// A chat with scoped credentials runs on a runtime of its own, which takes a while to stop.
+			internals._scopedClients.set(scopedChat.toString(), {
+				client: scopedRuntime,
+				stop: async () => {
+					scopedEvents.push('stopping');
+					await timeout(1000);
+					scopedEvents.push('stopped');
+				},
+				dispose: () => scopedEvents.push('disposed'),
+			} as unknown as IDisposable);
+			const session = (sessionId: string, runtime: CopilotAgentSession['runtimeClient'], destroySession: () => Promise<void>, flagged = true) => {
+				const revocation = new DeferredPromise<void>();
+				if (flagged) {
+					void revocation.complete();
+				}
+				return {
+					sessionId,
+					chatChannelUri: runtime === scopedRuntime ? scopedChat : URI.parse(`vendor-chat:/${sessionId}`),
+					runtimeClient: runtime,
+					workingDirectory: undefined,
+					get requiresRestartAfterProjectExtensionRevocation() { return revocation.isSettled; },
+					whenProjectExtensionRevocationRequiresRestart: revocation.p,
+					markProjectExtensionRevocationRequiresRestart: () => { void revocation.complete(); },
+					destroySession,
+				} as unknown as CopilotAgentSession;
+			};
+			// While a session's destruction hangs, a replacement registers under the same SDK session id.
+			const replacement = { chatSession: session('shared', sharedRuntime, async () => { }), dispose: () => { } };
+			internals._chatEntriesBySdkId.set('shared', replacement);
+			// Its trust reconciliation, which destruction waits for, concludes only then that it couldn't confirm a revocation.
+			let flagLate: () => void = () => { };
+			const flaggedWhileDestroying = session('flagged-late', sharedRuntime, () => {
+				flagLate();
+				return new Promise<void>(() => { });
+			}, false);
+			flagLate = () => flaggedWhileDestroying.markProjectExtensionRevocationRequiresRestart();
+			// A trust change reaches it only once the deadline of its unrelated teardown has passed.
+			const flaggedAfterDeadline = session('flagged-after-deadline', sharedRuntime, () => new Promise<void>(() => { }), false);
+
+			try {
+				const pastDeadline = internals._destroyLiveSession(flaggedAfterDeadline, true);
+				let settledBeforeFlag = false;
+				void pastDeadline.then(() => { settledBeforeFlag = !flaggedAfterDeadline.requiresRestartAfterProjectExtensionRevocation; });
+				await timeout(60_000);
+				flaggedAfterDeadline.markProjectExtensionRevocationRequiresRestart();
+				const destroyed = {
+					hangingOnSharedRuntime: await internals._destroyLiveSession(session('shared', sharedRuntime, () => new Promise<void>(() => { })), true),
+					failingOnScopedRuntime: await internals._destroyLiveSession(session('scoped', scopedRuntime, async () => { throw new Error('disconnect failed'); }), true).finally(() => scopedEvents.push('teardown returned')),
+					failingOnReplacedRuntime: await internals._destroyLiveSession(session('replaced', replacedRuntime, async () => { throw new Error('disconnect failed'); }), true),
+					flaggedWhileDestroying: await internals._destroyLiveSession(flaggedWhileDestroying, true),
+					flaggedAfterDeadline: await pastDeadline,
+				};
+
+				assert.deepStrictEqual({ destroyed, settledBeforeFlag, clientRestarts, scopedEvents, replacementKept: internals._chatEntriesBySdkId.get('shared') === replacement }, {
+					destroyed: { hangingOnSharedRuntime: false, failingOnScopedRuntime: false, failingOnReplacedRuntime: false, flaggedWhileDestroying: false, flaggedAfterDeadline: false },
+					settledBeforeFlag: false,
+					clientRestarts: ['workspace trust revocation not confirmed', 'workspace trust revocation not confirmed', 'workspace trust revocation not confirmed'],
+					// The chat can't resume the session on a new runtime before this one stopped.
+					scopedEvents: ['stopping', 'stopped', 'disposed', 'teardown returned'],
+					replacementKept: true,
+				});
+			} finally {
+				internals._client = previousClient;
+				await disposeAgent(agent);
+			}
+		}));
+
+		test('stops a runtime that may still run a canvas session whose teardown failed once workspace trust contracts', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { agent } = createTestAgentContext(disposables, { copilotClient: new TestCopilotClient([]) });
+			const internals = agent as unknown as {
+				_destroyLiveSession(session: CopilotAgentSession, preserveRouting?: boolean): Promise<boolean>;
+				_reconcileProjectExtensionsAfterTrustChange(change: { readonly expanded: boolean; readonly contracted: boolean }): Promise<void>;
+				_requestClientRestart(reason: string): Promise<boolean>;
+				_queueChat(sessionId: string, chatKey: string, operation: string, task: () => Promise<void>): Promise<void>;
+				_client: CopilotAgentSession['runtimeClient'] | undefined;
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_scopedClients: DisposableMap<string, IDisposable>;
+				_chatEntriesBySdkId: DisposableMap<string, { readonly chatSession: CopilotAgentSession } & IDisposable>;
+			};
+			const events: string[] = [];
+			internals._requestClientRestart = async reason => {
+				events.push(`shared runtime restart: ${reason}`);
+				return true;
+			};
+			const previousClient = internals._client;
+			const sharedRuntime = {} as CopilotAgentSession['runtimeClient'];
+			internals._client = sharedRuntime;
+			const scopedRuntime = (chat: URI, stopMs = 0) => {
+				const runtime = {} as CopilotAgentSession['runtimeClient'];
+				internals._scopedClients.set(chat.toString(), {
+					client: runtime,
+					stop: async () => {
+						if (stopMs) {
+							await timeout(stopMs);
+						}
+						events.push(`${chat.path} runtime stopped`);
+					},
+					dispose: () => { },
+				} as unknown as IDisposable);
+				return runtime;
+			};
+			const session = (sessionId: string, chat: URI, runtime: CopilotAgentSession['runtimeClient'], canvasRuntimeEnabled: boolean, destroySession: () => Promise<void>) => {
+				const revocation = new DeferredPromise<void>();
+				return {
+					sessionId,
+					chatChannelUri: chat,
+					runtimeClient: runtime,
+					canvasRuntimeEnabled,
+					workingDirectory: undefined,
+					isDisposed: false,
+					hasActiveTurn: false,
+					hasActiveSubagents: false,
+					takeCanvasProjection: () => undefined,
+					get requiresRestartAfterProjectExtensionRevocation() { return revocation.isSettled; },
+					whenProjectExtensionRevocationRequiresRestart: revocation.p,
+					markProjectExtensionRevocationRequiresRestart: () => { void revocation.complete(); },
+					reconcileProjectExtensionsAfterTrustChange: async () => { },
+					destroySession,
+				} as unknown as CopilotAgentSession;
+			};
+			const failDisconnect = async () => { throw new Error('disconnect failed'); };
+			const idleChat = URI.parse('vendor-chat:/idle');
+			const resumedChat = URI.parse('vendor-chat:/resumed');
+			const hungChat = URI.parse('vendor-chat:/hung');
+			const nonCanvasChat = URI.parse('vendor-chat:/non-canvas');
+			const idleRuntime = scopedRuntime(idleChat, 500);
+			const resumedRuntime = scopedRuntime(resumedChat);
+			const hungRuntime = scopedRuntime(hungChat);
+			const nonCanvasRuntime = scopedRuntime(nonCanvasChat);
+			// The chat resumed a session on the runtime whose previous session's teardown failed.
+			const resumed = session('resumed-live', resumedChat, resumedRuntime, true, async () => { events.push('/resumed live session destroyed'); });
+			internals._chatEntriesBySdkId.set('resumed-live', { chatSession: resumed, dispose: () => { } });
+
+			try {
+				const destroyed = [
+					await internals._destroyLiveSession(session('shared-orphan', URI.parse('vendor-chat:/shared'), sharedRuntime, true, failDisconnect), true),
+					await internals._destroyLiveSession(session('idle-orphan', idleChat, idleRuntime, true, failDisconnect), true),
+					await internals._destroyLiveSession(session('resumed-orphan', resumedChat, resumedRuntime, true, failDisconnect), true),
+					await internals._destroyLiveSession(session('hung', hungChat, hungRuntime, true, failDisconnect), true),
+					await internals._destroyLiveSession(session('non-canvas', nonCanvasChat, nonCanvasRuntime, false, failDisconnect), true),
+				];
+				const beforeContraction = [...events];
+				await internals._reconcileProjectExtensionsAfterTrustChange({ expanded: true, contracted: false });
+				const afterExpansion = [...events];
+				// The chat resumed the same SDK session on that runtime, and that session's own teardown now hangs in its queue.
+				const hungResumed = session('hung', hungChat, hungRuntime, true, () => new Promise<void>(() => { }));
+				internals._chatEntriesBySdkId.set('hung', { chatSession: hungResumed, dispose: () => { } });
+				void internals._queueChat('hung', 'hung', 'disposeChat', async () => { await internals._destroyLiveSession(hungResumed, true); });
+				await internals._reconcileProjectExtensionsAfterTrustChange({ expanded: false, contracted: true });
+				// Resuming the session whose teardown failed waits for its runtime to stop.
+				const resumedIdle = internals._queueChat('idle-orphan', 'idle-orphan', 'resumeSession', async () => {
+					events.push(internals._scopedClients.has(idleChat.toString()) ? '/idle resumed on the stopping runtime' : '/idle resumed on a new runtime');
+				});
+				await timeout(1000);
+				await resumedIdle;
+				const afterContraction = events.splice(0);
+				await timeout(30_000);
+				const afterHungTeardownDeadline = events.splice(0);
+
+				// A teardown that fails while a contraction pass is still resolving trust is stopped by that pass.
+				const resolving = new DeferredPromise<void>();
+				internals._projectExtensionLaunchPolicy.reconciliationFor = async change => {
+					await resolving.p;
+					return { expanded: change.expanded, revokedExtensionNames: new Set<string>() };
+				};
+				const pass = internals._reconcileProjectExtensionsAfterTrustChange({ expanded: false, contracted: true });
+				const lateChat = URI.parse('vendor-chat:/late');
+				const lateDestroyed = await internals._destroyLiveSession(session('late-orphan', lateChat, scopedRuntime(lateChat), true, failDisconnect), true);
+				void resolving.complete();
+				await pass;
+				await timeout(1000);
+
+				assert.deepStrictEqual({ destroyed, beforeContraction, afterExpansion, afterContraction, afterHungTeardownDeadline, lateDestroyed, afterLateTeardown: events }, {
+					destroyed: [false, false, false, false, false],
+					beforeContraction: [],
+					afterExpansion: [],
+					afterContraction: [
+						'shared runtime restart: workspace trust revocation not confirmed',
+						// The live session on that runtime is torn down first, once idle.
+						'/resumed live session destroyed',
+						'/resumed runtime stopped',
+						'/idle runtime stopped',
+						'/idle resumed on a new runtime',
+					],
+					// Flagged at once rather than in the queue its teardown holds, it stops its runtime at that teardown's deadline.
+					afterHungTeardownDeadline: ['/hung runtime stopped'],
+					lateDestroyed: false,
+					afterLateTeardown: [
+						// The shared runtime is still the one recorded, as its restart was only requested.
+						'shared runtime restart: workspace trust revocation not confirmed',
+						'/late runtime stopped',
+					],
+				});
+			} finally {
+				internals._client = previousClient;
+				await disposeAgent(agent);
+			}
+		}));
+
+		test('stops the runtime of a workspace-less chat whose teardown failed when releasing its admission ends its scratch folder exemption', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/trust-scratch-orphan-`));
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				userHome,
+				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } },
+			});
+			const internals = agent as unknown as {
+				_destroyLiveSession(session: CopilotAgentSession, preserveRouting?: boolean): Promise<boolean>;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<ICopilotProjectExtensionLaunchAdmission>;
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_projectExtensionTrustReconciler: Throttler;
+				_queueChat(sessionId: string, chatKey: string, operation: string, task: () => Promise<void>): Promise<void>;
+				_scopedClients: DisposableMap<string, IDisposable>;
+				_chatEntriesBySdkId: DisposableMap<string, { readonly chatSession: CopilotAgentSession } & IDisposable>;
+			};
+			const scratchFolder = URI.joinPath(workspacelessChatsRoot(userHome), 'session-id');
+			const modulePath = URI.joinPath(scratchFolder, '.github', 'extensions', 'preview', 'extension.mjs');
+			await fs.mkdir(dirname(modulePath.fsPath), { recursive: true });
+			await fs.writeFile(modulePath.fsPath, '');
+			const stopped: string[] = [];
+			const chat = URI.parse('vendor-chat:/scratch');
+			const runtime = {} as CopilotAgentSession['runtimeClient'];
+			internals._scopedClients.set(chat.toString(), { client: runtime, stop: async () => { stopped.push('scratch runtime'); }, dispose: () => { } } as unknown as IDisposable);
+			const admission = await internals._acquireProjectExtensionLaunchAdmission({ workspacelessFolder: scratchFolder, extensionLaunchDirectories: [scratchFolder] } as unknown as CopilotAgentSession);
+			const session = {
+				sessionId: 'session-id',
+				chatChannelUri: chat,
+				runtimeClient: runtime,
+				canvasRuntimeEnabled: true,
+				requiresRestartAfterProjectExtensionRevocation: false,
+				destroySession: async () => { throw new Error('disconnect failed'); },
+			} as unknown as CopilotAgentSession;
+			// Dropping the session releases its admission, as disposing a real session does.
+			internals._chatEntriesBySdkId.set('session-id', { chatSession: session, dispose: () => admission.dispose() });
+
+			try {
+				const launched = !!(await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath.fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+				const destroyed = await internals._destroyLiveSession(session, true);
+				// The trust pass the exemption's end started, then the session's queue, which it stops the runtime in.
+				await internals._projectExtensionTrustReconciler.queue(async () => { });
+				await internals._queueChat('session-id', 'session-id', 'settle', async () => { });
+
+				assert.deepStrictEqual({ launched, destroyed, stopped }, { launched: true, destroyed: false, stopped: ['scratch runtime'] });
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			}
+		});
+
+		test('exempts from workspace trust only the scratch folder the host allocated a workspace-less chat', async () => {
+			const userHome = URI.file(await fs.mkdtemp(`${os.tmpdir()}/trust-scratch-home-`));
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				userHome,
+				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [] } },
+			});
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<ICopilotProjectExtensionLaunchAdmission>;
+			};
+			const chatsRoot = workspacelessChatsRoot(userHome);
+			const launches = async (folder: URI, workspaceless: boolean) => {
+				const modulePath = URI.joinPath(folder, '.github', 'extensions', 'preview', 'extension.mjs');
+				await fs.mkdir(dirname(modulePath.fsPath), { recursive: true });
+				await fs.writeFile(modulePath.fsPath, '');
+				const admission = await internals._acquireProjectExtensionLaunchAdmission({
+					workspacelessFolder: workspaceless ? folder : undefined,
+					extensionLaunchDirectories: [folder],
+				} as unknown as CopilotAgentSession);
+				try {
+					return !!(await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath.fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+				} finally {
+					admission.dispose();
+				}
+			};
+
+			// A link named like a session's scratch folder that resolves to a checkout outside the chats root.
+			const linkedScratch = URI.joinPath(chatsRoot, 'linked-session-id');
+			await fs.mkdir(URI.joinPath(userHome, 'checkout').fsPath, { recursive: true });
+			await fs.mkdir(chatsRoot.fsPath, { recursive: true });
+			await fs.symlink(URI.joinPath(userHome, 'checkout').fsPath, linkedScratch.fsPath, process.platform === 'win32' ? 'junction' : 'dir');
+
+			try {
+				assert.deepStrictEqual({
+					defaultChatScratch: await launches(URI.joinPath(chatsRoot, 'session-id'), true),
+					peerChatScratch: await launches(URI.joinPath(chatsRoot, '6d5c0b8e-3f8a-4a51-9b77-0d2c1f5e7a10'), true),
+					chatNotWorkspaceless: await launches(URI.joinPath(chatsRoot, 'foldered-chat'), false),
+					nestedUnderChatsRoot: await launches(URI.joinPath(chatsRoot, 'other-client', 'chat'), true),
+					outsideChatsRoot: await launches(URI.joinPath(userHome, 'project'), true),
+					linkEscapingChatsRoot: await launches(linkedScratch, true),
+				}, {
+					defaultChatScratch: true,
+					peerChatScratch: true,
+					chatNotWorkspaceless: false,
+					nestedUnderChatsRoot: false,
+					outsideChatsRoot: false,
+					linkEscapingChatsRoot: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(userHome.fsPath, { recursive: true, force: true });
+			}
+		});
+
+		test('lets the worktree the host created for a session inherit its repository\'s trust for project extensions', async () => {
+			const root = URI.file(await fs.mkdtemp(`${os.tmpdir()}/trust-worktree-`));
+			const repository = URI.joinPath(root, 'repo');
+			const worktree = URI.joinPath(root, 'repo.worktrees', 'task');
+			const { agent } = createTestAgentContext(disposables, {
+				copilotClient: new TestCopilotClient([]),
+				rootConfig: { [AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: [repository.toString()] } },
+			});
+			const internals = agent as unknown as {
+				_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+				_acquireProjectExtensionLaunchAdmission(session: CopilotAgentSession): Promise<ICopilotProjectExtensionLaunchAdmission>;
+			};
+			const modulePath = URI.joinPath(worktree, '.github', 'extensions', 'preview', 'extension.mjs');
+			await fs.mkdir(dirname(modulePath.fsPath), { recursive: true });
+			await fs.mkdir(repository.fsPath, { recursive: true });
+			await fs.writeFile(modulePath.fsPath, '');
+			const launches = async (createdWorktree: { worktree: URI; repository: URI } | undefined) => {
+				const admission = await internals._acquireProjectExtensionLaunchAdmission({
+					workspacelessFolder: undefined,
+					createdWorktree,
+					extensionLaunchDirectories: [worktree],
+				} as unknown as CopilotAgentSession);
+				try {
+					return !!(await internals._projectExtensionLaunchPolicy.resolveLaunch(modulePath.fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs')).launch;
+				} finally {
+					admission.dispose();
+				}
+			};
+
+			try {
+				assert.deepStrictEqual({
+					hostCreatedWorktree: await launches({ worktree, repository }),
+					worktreeWithoutInheritance: await launches(undefined),
+				}, {
+					hostCreatedWorktree: true,
+					worktreeWithoutInheritance: false,
+				});
+			} finally {
+				await disposeAgent(agent);
+				await fs.rm(root.fsPath, { recursive: true, force: true });
 			}
 		});
 	});
@@ -12291,7 +12857,7 @@ suite('CopilotAgent', () => {
 				};
 				const sessionDataService = disposables.add(new TestSessionDataService());
 				const worktreeIsolation = new NullAgentHostWorktreeIsolation();
-				const { agent, fileService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
+				const { agent, fileService, configurationService } = createTestAgentContext(disposables, { sessionDataService, copilotClient: client, useRealResumePath: true, worktreeIsolation, rootConfig });
 				const bindChats = async (target: CopilotAgent) => {
 					await target.authenticate('https://api.github.com', 'token');
 					for (const [index, chat] of chats.entries()) {
@@ -12332,7 +12898,7 @@ suite('CopilotAgent', () => {
 					}
 				}));
 				return {
-					agent, fileService, session, chats, resources, sdkSessions, client, worktreeIsolation, sessionDataService, previous, next, secondary, sessionDirectories, resumed, continuations, reanchors, metadata, activeClient,
+					agent, fileService, configurationService, session, chats, resources, sdkSessions, client, worktreeIsolation, sessionDataService, previous, next, secondary, sessionDirectories, resumed, continuations, reanchors, metadata, activeClient,
 					sends: () => sends,
 					/** Marks the discovery runs made so far; {@link discoveriesSince} returns the folders of each later run. */
 					discoveryMark: () => client.skillDiscoveryRequests.length,
@@ -12350,6 +12916,375 @@ suite('CopilotAgent', () => {
 					},
 				};
 			}
+
+			test('reconciles only live canvas sessions whose project extensions a trust change affects, coalescing changes during a pass', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					const [first, second] = fixture.sdkSessions;
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const internals = fixture.agent as unknown as {
+						_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+						_projectExtensionTrustReconciler: Throttler;
+						_reconcilePendingProjectExtensionTrustChange(): Promise<void>;
+					};
+					// Queues the same pass the agent does, so it never replaces a pending one.
+					const settled = () => internals._projectExtensionTrustReconciler.queue(() => internals._reconcilePendingProjectExtensionTrustChange());
+					const extensionFolder = (name: string) => URI.joinPath(fixture.previous, '.github', 'extensions', name);
+					for (const name of ['stable', 'revoked', 'refused']) {
+						await fs.mkdir(extensionFolder(name).fsPath, { recursive: true });
+						await fs.writeFile(URI.joinPath(extensionFolder(name), 'extension.mjs').fsPath, '');
+					}
+					const trust = (names: string[]) => fixture.configurationService.updateRootConfig({
+						[AgentHostWorkspaceTrustConfigKey]: { enabled: true, trustedUris: names.map(name => extensionFolder(name).toString()) },
+					});
+					type Extension = MockCopilotSession['extensions'][number];
+					// Like the runtime, asks the launch provider whenever a project extension starts.
+					const start = async (extension: Extension): Promise<Extension> => {
+						const { launch } = await internals._projectExtensionLaunchPolicy.resolveLaunch(URI.joinPath(extensionFolder(extension.name), 'extension.mjs').fsPath, 'project', '/copilot-sdk/extension-bootstrap.mjs');
+						return { ...extension, status: launch ? 'running' as const : 'failed' as const };
+					};
+					const restart = async (sdk: MockCopilotSession, statuses: readonly string[]) => {
+						const extensions = await Promise.all(sdk.extensions.map(extension => extension.source === 'project' && statuses.includes(extension.status) ? start(extension) : extension));
+						sdk.extensions.splice(0, sdk.extensions.length, ...extensions);
+					};
+					trust(['stable', 'revoked']);
+					await settled();
+					first.extensions.push({ id: 'project:stable', name: 'stable', source: 'project', status: 'starting' });
+					second.extensions.push(
+						{ id: 'project:revoked', name: 'revoked', source: 'project', status: 'starting' },
+						{ id: 'project:refused', name: 'refused', source: 'project', status: 'starting' },
+						{ id: 'project:disabled', name: 'disabled', source: 'project', status: 'disabled' },
+						{ id: 'user:failed', name: 'failed', source: 'user', status: 'failed' },
+					);
+					await Promise.all([restart(first, ['starting']), restart(second, ['starting'])]);
+
+					const listCalls = new Map<MockCopilotSession, number>();
+					const passStarted = new DeferredPromise<void>();
+					const releasePass = new DeferredPromise<void>();
+					for (const sdk of [first, second]) {
+						const { list } = sdk.rpc.extensions;
+						Object.assign(sdk.rpc.extensions, {
+							list: async () => {
+								listCalls.set(sdk, (listCalls.get(sdk) ?? 0) + 1);
+								passStarted.complete();
+								await releasePass.p;
+								return list();
+							},
+							// A reload restarts the running extensions; a reconcile retries the refused ones.
+							reload: async () => {
+								sdk.extensionReloadCalls++;
+								await restart(sdk, ['running', 'starting']);
+							},
+							reconcile: async () => {
+								sdk.extensionReconcileCalls++;
+								await restart(sdk, ['failed']);
+								return list();
+							},
+						});
+					}
+					const observe = () => fixture.sdkSessions.map(sdk => ({
+						lists: listCalls.get(sdk) ?? 0,
+						reloads: sdk.extensionReloadCalls,
+						reconciles: sdk.extensionReconcileCalls,
+						statuses: Object.fromEntries(sdk.extensions.filter(extension => extension.source === 'project').map(extension => [extension.name, extension.status])),
+					}));
+
+					// Changes arriving while a pass runs are applied together by one further pass.
+					trust(['stable', 'revoked', 'refused']);
+					await passStarted.p;
+					trust(['stable', 'revoked']);
+					trust(['stable', 'revoked', 'refused']);
+					releasePass.complete();
+					await settled();
+					const afterGrant = observe();
+					listCalls.clear();
+					// Only the session running the extension whose trust is revoked restarts its extensions.
+					trust(['stable', 'refused']);
+					await settled();
+
+					assert.deepStrictEqual({ afterGrant, afterRevocation: observe() }, {
+						afterGrant: [
+							{ lists: 2, reloads: 0, reconciles: 0, statuses: { stable: 'running' } },
+							{ lists: 2, reloads: 0, reconciles: 1, statuses: { revoked: 'running', refused: 'running', disabled: 'disabled' } },
+							{ lists: 0, reloads: 0, reconciles: 0, statuses: {} },
+						],
+						afterRevocation: [
+							{ lists: 1, reloads: 0, reconciles: 0, statuses: { stable: 'running' } },
+							// Lists again after the reload to confirm the revoked extension stopped.
+							{ lists: 2, reloads: 1, reconciles: 1, statuses: { revoked: 'failed', refused: 'running', disabled: 'disabled' } },
+							{ lists: 0, reloads: 0, reconciles: 0, statuses: {} },
+						],
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('retries refused project extensions without failing when the retry fails, also while another folder loses trust', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const live = (fixture.agent as unknown as { _allLiveSessions(): CopilotAgentSession[] })._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					sdk.extensions.push({ id: 'project:refused', name: 'refused', source: 'project', status: 'failed' });
+					Object.assign(sdk.rpc.extensions, {
+						// Like the runtime, which reports an extension the launch provider still refuses as a lifecycle failure.
+						reconcile: async () => {
+							sdk.extensionReconcileCalls++;
+							throw new Error('Extension lifecycle reconciliation failed');
+						},
+					});
+
+					// The same change revoked another folder's extension, which this session doesn't run.
+					const outcome = await live.reconcileProjectExtensionsAfterTrustChange({ expanded: true, revokedExtensionNames: new Set(['elsewhere']) })
+						.then(() => 'resolved', (error: Error) => error.message);
+
+					assert.deepStrictEqual({ outcome, reloads: sdk.extensionReloadCalls, reconciles: sdk.extensionReconcileCalls }, { outcome: 'resolved', reloads: 0, reconciles: 1 });
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('lets a trust reconciliation in flight finish before its session disconnects, and sends the retiring runtime nothing more', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const live = (fixture.agent as unknown as { _allLiveSessions(): CopilotAgentSession[] })._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					sdk.extensions.push(
+						{ id: 'project:revoked', name: 'revoked', source: 'project', status: 'running' },
+						{ id: 'project:refused', name: 'refused', source: 'project', status: 'failed' },
+					);
+					let lists = 0;
+					const reloadStarted = new DeferredPromise<void>();
+					const releaseReload = new DeferredPromise<void>();
+					const order: string[] = [];
+					const { list } = sdk.rpc.extensions;
+					Object.assign(sdk.rpc.extensions, {
+						list: async () => {
+							lists++;
+							return list();
+						},
+						reload: async () => {
+							sdk.extensionReloadCalls++;
+							reloadStarted.complete();
+							await releaseReload.p;
+							order.push('reloaded');
+						},
+						reconcile: async () => {
+							sdk.extensionReconcileCalls++;
+							return list();
+						},
+					});
+
+					const reconciling = live.reconcileProjectExtensionsAfterTrustChange({ expanded: true, revokedExtensionNames: new Set(['revoked']) });
+					await reloadStarted.p;
+					// A configuration refresh retires the session while its reload is in flight.
+					const destroying = live.destroySession().then(() => order.push(`disconnected:${sdk.disconnectCalls}`));
+					await timeout(0);
+					order.push(`releasing:${sdk.disconnectCalls}`);
+					releaseReload.complete();
+					await Promise.all([reconciling, destroying]);
+
+					assert.deepStrictEqual({ order, lists, reloads: sdk.extensionReloadCalls, reconciles: sdk.extensionReconcileCalls, leftToTeardown: live.requiresRestartAfterProjectExtensionRevocation }, {
+						order: ['releasing:0', 'reloaded', 'disconnected:1'],
+						lists: 1,
+						reloads: 1,
+						reconciles: 0,
+						// It couldn't confirm the revocation once retiring, so the teardown must confirm the runtime stopped.
+						leftToTeardown: true,
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('confirms a revoked project extension stopped by its process, retrying the reload once before giving up', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const live = (fixture.agent as unknown as { _allLiveSessions(): CopilotAgentSession[] })._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					type Extension = MockCopilotSession['extensions'][number];
+					const revoked = (status: Extension['status'], pid?: number): Extension => ({ id: 'project:revoked', name: 'revoked', source: 'project', status, ...(pid ? { pid } : {}) });
+					// The inventory before the reload, whether each reload fails, and the inventories listed after it (the last repeats).
+					const scenarios: Record<string, { readonly before: Extension[]; readonly reloadFails?: boolean; readonly after: Extension[][] }> = {
+						stoppedAndRefused: { before: [revoked('running', 101)], after: [[revoked('failed')]] },
+						sameNameRelaunchedInNewProcess: { before: [revoked('running', 101)], after: [[revoked('running', 202)]] },
+						startingWithoutProcessThenRunningInNewOne: { before: [revoked('running', 101)], after: [[revoked('starting')], [revoked('running', 303)]] },
+						reloadFailedButStopped: { before: [revoked('running', 101)], reloadFails: true, after: [[revoked('failed')]] },
+						reloadFailedAndStillRunning: { before: [revoked('running', 101)], reloadFails: true, after: [[revoked('running', 101)]] },
+						reloadFailedForOneStartingWithoutProcess: { before: [revoked('starting')], reloadFails: true, after: [[revoked('failed')]] },
+						rowThisHostCannotRead: { before: [revoked('running', 101)], after: [[revoked('failed'), { id: 'project:unreadable' } as unknown as Extension]] },
+						// The revoked extension's row was unreadable before the reload, so a process listed after it may be the same one.
+						unreadableBeforeReloadFailedThenListed: { before: [{ id: 'project:revoked' } as unknown as Extension], reloadFails: true, after: [[revoked('running', 101)]] },
+					};
+					const outcomes: Record<string, { outcome: string; reloads: number }> = {};
+					for (const [name, scenario] of Object.entries(scenarios)) {
+						const inventories = [scenario.before, ...scenario.after];
+						let lists = 0;
+						let reloads = 0;
+						Object.assign(sdk.rpc.extensions, {
+							list: async () => ({ extensions: inventories[Math.min(lists++, inventories.length - 1)] }),
+							reload: async () => {
+								reloads++;
+								if (scenario.reloadFails) {
+									throw new Error('rpc.extensions.reload timed out');
+								}
+							},
+						});
+						const outcome = await live.reconcileProjectExtensionsAfterTrustChange({ expanded: false, revokedExtensionNames: new Set(['revoked']) })
+							.then(() => 'confirmed', (error: Error) => error.name);
+						outcomes[name] = { outcome, reloads };
+					}
+
+					const unconfirmed = 'CopilotProjectExtensionRevocationError';
+					assert.deepStrictEqual(outcomes, {
+						stoppedAndRefused: { outcome: 'confirmed', reloads: 1 },
+						sameNameRelaunchedInNewProcess: { outcome: 'confirmed', reloads: 1 },
+						startingWithoutProcessThenRunningInNewOne: { outcome: 'confirmed', reloads: 1 },
+						reloadFailedButStopped: { outcome: 'confirmed', reloads: 1 },
+						reloadFailedAndStillRunning: { outcome: unconfirmed, reloads: 2 },
+						reloadFailedForOneStartingWithoutProcess: { outcome: unconfirmed, reloads: 2 },
+						rowThisHostCannotRead: { outcome: unconfirmed, reloads: 2 },
+						unreadableBeforeReloadFailedThenListed: { outcome: unconfirmed, reloads: 2 },
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('restarts an idle session that can\'t confirm a revoked project extension stopped, and the Copilot runtime when the session doesn\'t stop either', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const internals = fixture.agent as unknown as {
+						_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+						_allLiveSessions(): CopilotAgentSession[];
+						_reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void>;
+						_requestClientRestart(reason: string): Promise<boolean>;
+					};
+					const clientRestarts: string[] = [];
+					const clientRestartRequested = new DeferredPromise<void>();
+					internals._requestClientRestart = async reason => {
+						clientRestarts.push(reason);
+						clientRestartRequested.complete();
+						return true;
+					};
+					internals._projectExtensionLaunchPolicy.reconciliationFor = async () => ({ expanded: false, revokedExtensionNames: new Set(['revoked']) });
+					sdk.extensions.push({ id: 'project:revoked', name: 'revoked', source: 'project', status: 'running', pid: 101 });
+					Object.assign(sdk.rpc.extensions, {
+						reload: async () => {
+							sdk.extensionReloadCalls++;
+							throw new Error('rpc.extensions.reload timed out');
+						},
+					});
+					Object.assign(sdk, {
+						disconnect: async () => {
+							sdk.disconnectCalls++;
+							throw new Error('disconnect failed');
+						},
+					});
+					const isLive = () => internals._allLiveSessions().some(session => session.sessionId === sdk.sessionId);
+
+					await internals._reconcileProjectExtensionsAfterTrustChange({ expanded: false, contracted: true });
+					// Requested only once the session is gone and didn't confirm it disconnected.
+					await clientRestartRequested.p;
+
+					assert.deepStrictEqual({ reloads: sdk.extensionReloadCalls, live: isLive(), disconnects: sdk.disconnectCalls, clientRestarts }, {
+						reloads: 2,
+						live: false,
+						// Destroying the session tries to disconnect, then disposing it tries once more.
+						disconnects: 2,
+						clientRestarts: ['workspace trust revocation not confirmed'],
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('restarts a busy session that can\'t confirm a revoked project extension stopped only after its turn ends', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const internals = fixture.agent as unknown as {
+						_projectExtensionLaunchPolicy: CopilotProjectExtensionLaunchPolicy;
+						_allLiveSessions(): CopilotAgentSession[];
+						_reconcileProjectExtensionsAfterTrustChange(change: ICopilotProjectExtensionTrustChange): Promise<void>;
+						_onChatTurnEnded(): void;
+					};
+					const live = internals._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					let busy = true;
+					Object.defineProperty(live, 'hasActiveTurn', { get: () => busy });
+					internals._projectExtensionLaunchPolicy.reconciliationFor = async () => ({ expanded: false, revokedExtensionNames: new Set(['revoked']) });
+					sdk.extensions.push({ id: 'project:revoked', name: 'revoked', source: 'project', status: 'running', pid: 101 });
+					Object.assign(sdk.rpc.extensions, {
+						reload: async () => {
+							sdk.extensionReloadCalls++;
+							throw new Error('rpc.extensions.reload timed out');
+						},
+					});
+					const disconnected = new DeferredPromise<void>();
+					Object.assign(sdk, {
+						disconnect: async () => {
+							sdk.disconnectCalls++;
+							disconnected.complete();
+						},
+					});
+
+					await internals._reconcileProjectExtensionsAfterTrustChange({ expanded: false, contracted: true });
+					// A busy session is only marked; its restart waits for the turn to end.
+					const duringTurn = { requiresRestart: live.requiresRestartAfterProjectExtensionRevocation, disconnects: sdk.disconnectCalls };
+					busy = false;
+					internals._onChatTurnEnded();
+					await disconnected.p;
+
+					assert.deepStrictEqual({ duringTurn, afterTurn: { disconnects: sdk.disconnectCalls } }, {
+						duringTurn: { requiresRestart: true, disconnects: 0 },
+						afterTurn: { disconnects: 1 },
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
+
+			test('escalates when telemetry teardown destroys a session that also couldn\'t confirm a revocation, and its disconnect fails', async () => {
+				const fixture = await createFixture(false, true);
+				try {
+					await fixture.agent.chats.getMessages(fixture.chats[0], exactChatContext(fixture.session, fixture.chats[0], fixture.resources[0]));
+					const [sdk] = fixture.sdkSessions;
+					const internals = fixture.agent as unknown as {
+						_allLiveSessions(): CopilotAgentSession[];
+						_scheduleTelemetryRevokedSessionDisposal(session: CopilotAgentSession): Promise<void>;
+						_requestClientRestart(reason: string): Promise<boolean>;
+					};
+					const clientRestarts: string[] = [];
+					internals._requestClientRestart = async reason => {
+						clientRestarts.push(reason);
+						return true;
+					};
+					const live = internals._allLiveSessions().find(session => session.sessionId === sdk.sessionId)!;
+					live.markTelemetryRevocationRequiresRestart();
+					live.markProjectExtensionRevocationRequiresRestart();
+					Object.assign(sdk, {
+						disconnect: async () => {
+							sdk.disconnectCalls++;
+							throw new Error('disconnect failed');
+						},
+					});
+
+					await internals._scheduleTelemetryRevokedSessionDisposal(live);
+
+					assert.deepStrictEqual({ live: internals._allLiveSessions().includes(live), clientRestarts }, {
+						live: false,
+						clientRestarts: ['workspace trust revocation not confirmed'],
+					});
+				} finally {
+					await fixture.dispose();
+				}
+			});
 
 			test('canvas list and open resume a cold exact chat without sending a message, while close only reaches a live chat', async () => {
 				const fixture = await createFixture(false, true);
