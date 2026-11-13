@@ -226,6 +226,25 @@ suite('AgentFeedbackService - Ordering', () => {
 		assert.strictEqual(bearing.activeIdx, 2);
 	});
 
+	test('passive navigation anchors keep their reveal intent across feedback changes', () => {
+		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
+		service.addFeedback(session, fileA, r(20), 'A:20');
+		const reveals: boolean[] = [];
+		store.add(service.onDidChangeNavigation(event => reveals.push(event.reveal)));
+
+		service.setNavigationAnchor(session, f1.id, { reveal: false });
+		const passiveBearing = service.getNavigationBearing(session);
+		service.addFeedback(session, fileB, r(1), 'B:1');
+		service.getNextFeedback(session, true);
+		const revealedBearing = service.getNavigationBearing(session);
+
+		assert.deepStrictEqual({ passiveBearing, revealedBearing, reveals }, {
+			passiveBearing: { activeIdx: 0, totalCount: 2, reveal: false },
+			revealedBearing: { activeIdx: 1, totalCount: 3, reveal: true },
+			reveals: [false, false, true],
+		});
+	});
+
 	test('revealFeedback anchors the matching session editor comment so its widget expands', async () => {
 		const f1 = service.addFeedback(session, fileA, r(5), 'A:5');
 		const f2 = service.addFeedback(session, fileA, r(20), 'A:20');

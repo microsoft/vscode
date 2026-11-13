@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -21,7 +22,11 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatExternalEdit } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ScreenshotContextValuePick } from '../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
+import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatWindowProvider } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { ScreenshotToolSurface } from '../../../../../workbench/contrib/screenshotTool/browser/screenshotTool.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AbstractChatView, IChatViewOptions } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IMobileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from '../../../../browser/parts/mobile/contributions/mobileDiffView.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -30,12 +35,16 @@ import { createListHarness, createTestSession } from '../../../sessions/test/bro
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
+import { IWorktreeSuggestion } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
+import { WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
 import { ISessionsPartContentHost } from '../../../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
 import { MobileNullChatWindowService } from '../../browser/mobileNullChatWindowService.js';
+import { MobileNullScreenshotToolService } from '../../browser/mobileNullScreenshotToolService.js';
+import { MobileNullWorktreeSuggestionService } from '../../browser/mobileNullWorktreeSuggestionService.js';
 import { MobileSessionsListPresentation } from '../../browser/mobileSessionsListPresentation.js';
 
 suite('Mobile presentation composition', () => {
@@ -46,6 +55,40 @@ suite('Mobile presentation composition', () => {
 		const windows = new MobileNullChatWindowService();
 		await assert.rejects(windows.open(URI.parse('chat:/test')), /Separate chat windows are not available/);
 		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
+	});
+
+	test('desktop screenshot capture and markup cannot be activated by mobile consumers', async () => {
+		const screenshots = new MobileNullScreenshotToolService();
+		await assert.rejects(screenshots.capture(dom.getWindow(document.body)), /screenshot tool is not available/);
+		await assert.rejects(screenshots.edit({
+			original: { dataUrl: 'data:image/png;base64,', width: 1, height: 1 },
+			annotationState: undefined,
+		}, ScreenshotToolSurface.Chat), /screenshot tool is not available/);
+	});
+
+	test('chat screenshot attachments retain the existing browser capture path on mobile', async () => {
+		let captures = 0;
+		const host = new class extends mock<IHostService>() {
+			override async getScreenshot() {
+				captures++;
+				return VSBuffer.fromString('screenshot');
+			}
+		}();
+		const picker = new ScreenshotContextValuePick(host, new MobileNullScreenshotToolService());
+		const attachment = await picker.asAttachment(upcastPartial<IChatWidget>({}));
+		assert.deepStrictEqual({ captures, kind: attachment?.kind }, { captures: 1, kind: 'image' });
+	});
+
+	test('unsupported worktree suggestions report failure instead of claiming to switch isolation', async () => {
+		const errors: string[] = [];
+		const suggestions = new MobileNullWorktreeSuggestionService(upcastPartial<ConstructorParameters<typeof MobileNullWorktreeSuggestionService>[0]>({
+			error: message => errors.push(String(message)),
+		}));
+		const switched = await suggestions.useWorktree(WorktreeSuggestionVariant.SpotlightOnSend, upcastPartial<IWorktreeSuggestion>({}));
+		assert.deepStrictEqual({ switched, errors }, {
+			switched: false,
+			errors: ['Worktree suggestions are not available on this device.'],
+		});
 	});
 
 	test('new-session headers retain the instantiation scope of their own view', () => {

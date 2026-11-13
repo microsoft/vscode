@@ -10,7 +10,7 @@ import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IReader, observableFromEvent, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
-import { ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, toChatMicrosoftAuthenticationMode } from '../../../../../platform/chat/common/chatSettings.js';
+import { AgentHostCopilotM365EnabledSettingId, ChatMicrosoftAuthenticationEnabledSettingId, ChatMicrosoftAuthenticationMode, toChatMicrosoftAuthenticationMode } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -183,6 +183,7 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 
 		const setting = observableConfigValue<unknown>(ChatMicrosoftAuthenticationEnabledSettingId, undefined, configurationService);
 		this.mode = derived(this, reader => toChatMicrosoftAuthenticationMode(setting.read(reader)));
+		const runtimeMicrosoft = observableConfigValue(AgentHostCopilotM365EnabledSettingId, false, configurationService);
 		this.gitHubProviderId = observableFromEvent(this, defaultAccountService.onDidChangeDefaultAccount, () => defaultAccountService.getDefaultAccountAuthenticationProvider().id);
 		this.offered = derived(this, reader => {
 			switch (this.mode.read(reader)) {
@@ -191,7 +192,8 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 				default: return this.linkedGitHubProviderId.read(reader) === this.gitHubProviderId.read(reader);
 			}
 		});
-		this.offerMicrosoftSignIn = derived(this, reader => this.isProbeRelevant(reader) && this.offered.read(reader));
+		this.offerMicrosoftSignIn = derived(this, reader => this.isProbeRelevant(reader)
+			&& (runtimeMicrosoft.read(reader) || this.offered.read(reader)));
 
 		// Adding or removing a Microsoft account can change the answer either way, so whatever was found
 		// is forgotten and the accounts are probed again. Token refreshes only fire `changed` and are
@@ -213,7 +215,7 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 		this._register(autorun(reader => {
 			microsoftAccountsChanged.read(reader);
 			const mode = this.mode.read(reader);
-			if (!this.isProbeRelevant(reader)) {
+			if (!this.isProbeRelevant(reader) || runtimeMicrosoft.read(reader)) {
 				return;
 			}
 			// The moment the arms diverge, because only `auto` checks in the background.
@@ -225,7 +227,7 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 	}
 
 	notifySignInShown(): void {
-		if (!this.isProbeRelevant(undefined)) {
+		if (!this.isProbeRelevant(undefined) || this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true) {
 			return;
 		}
 		this.logExperimentTrigger();
@@ -257,7 +259,7 @@ export class ChatMicrosoftSignInProbeService extends Disposable implements IChat
 
 	private async runProbe(gitHubProviderId: string): Promise<void> {
 		// A coalesced probe runs after the one before it, which may have made it pointless.
-		if (this.mode.get() !== ChatMicrosoftAuthenticationMode.Auto || this.linkedGitHubProviderId.get() === gitHubProviderId) {
+		if (this.mode.get() !== ChatMicrosoftAuthenticationMode.Auto || this.linkedGitHubProviderId.get() === gitHubProviderId || this.configurationService.getValue(AgentHostCopilotM365EnabledSettingId) === true) {
 			return;
 		}
 		const watch = StopWatch.create();

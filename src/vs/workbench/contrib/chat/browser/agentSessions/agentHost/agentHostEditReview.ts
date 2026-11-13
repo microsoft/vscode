@@ -157,6 +157,11 @@ class AgentHostEditReviewEntry extends ChatEditingModifiedDocumentEntry {
 		}
 	}
 
+	/** The agent host decides what is undone, so a document back at its baseline, as while its changes are stashed, stays undecided. */
+	protected override _rejectsWhenResetToInitialContent(): boolean {
+		return false;
+	}
+
 	/** Changes the agent host didn't keep stay undecided. */
 	override acceptDeferred() {
 		const file = this.file;
@@ -964,21 +969,24 @@ export class AgentHostEditReview extends Disposable implements IWorkingSetOperat
 	}
 }
 
-/** Reconciles the Working Set baseline without expanding an existing review, or returns undefined if precise comparison is unavailable. */
+/**
+ * Reconciles the Working Set baseline without expanding an existing review, or returns undefined if precise comparison is unavailable.
+ * A document that matches the recorded content holds only the agent's changes, so it is compared with the baseline itself.
+ */
 async function getReviewedOriginal(file: IWorkingSetFile, live: string, eol: string, workerService: IEditorWorkerService, trackedOriginal?: string): Promise<string | undefined> {
+	const baseline = withLineEndings(file.baseline, eol);
+	const current = withLineEndings(file.current, eol);
+	if (live === current) {
+		return baseline;
+	}
 	if (trackedOriginal === live) {
 		return live;
 	}
-	const baseline = withLineEndings(file.baseline, eol);
-	const current = withLineEndings(file.current, eol);
-	let original = baseline;
-	if (live !== current) {
-		const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
-		if (!agent || !user) {
-			return undefined;
-		}
-		original = user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline);
+	const [agent, user] = await Promise.all([computeEdit(baseline, current, workerService), computeEdit(current, live, workerService)]);
+	if (!agent || !user) {
+		return undefined;
 	}
+	const original = user.rebaseSkipConflicting(agent.inverse(baseline)).apply(baseline);
 	if (trackedOriginal === undefined || trackedOriginal === original) {
 		return original;
 	}

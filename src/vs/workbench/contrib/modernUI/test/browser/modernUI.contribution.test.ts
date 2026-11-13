@@ -54,6 +54,7 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IAuxiliaryWindow, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
 import '../../../../browser/parts/notifications/media/notificationsCenter.css';
 import '../../../../browser/parts/notifications/media/notificationsToasts.css';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 class ModernUITestPane extends Pane {
 
@@ -852,7 +853,7 @@ suite('ModernUIContribution', () => {
 		root.className = 'monaco-workbench modern-ui';
 
 		function createExplorerTitles(workbenchState: WorkbenchState, configuration: URI | null) {
-			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, { id: 'test', folders: [], configuration }, TestEnvironmentService);
+			const preserveCase = shouldPreserveWorkspaceNameCase(workbenchState, testIWorkspace({ id: 'test', folders: [], configuration }), TestEnvironmentService);
 			const part = appendElement(root, preserveCase ? `part ${PRESERVE_MERGED_WORKSPACE_NAME_CASE_CLASS}` : 'part');
 			const mergedTitle = document.createElement('h2');
 			appendElement(appendElement(part, 'title'), 'title-label').appendChild(mergedTitle);
@@ -1576,6 +1577,64 @@ suite('ModernUIContribution', () => {
 			},
 			compact: hiddenFrame,
 		});
+	});
+
+	test('lower frame repaints align with the card border rather than its padding edge', () => {
+		const root = appendElement(document.body, 'monaco-workbench modern-ui modern-ui-connected-editor-tabs floating-panels');
+		root.style.cssText = '--vscode-strokeThickness: 1px; --vscode-cornerRadius-large: 8px; --vscode-modernPanel-border: #778899; --vscode-surface-border: #778899; --window-corner-radius: 20px; --vscode-spacing-size40: 4px;';
+		store.add(toDisposable(() => root.remove()));
+		const targetWindow = getWindow(root);
+		root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio));
+		const actual = [];
+		const expected = [];
+
+		for (const theme of ['vs', 'vs-dark', 'hc-black', 'hc-light']) {
+			root.classList.add(theme);
+			for (const className of ['panel bottom', 'sidebar left', 'sidebar right', 'auxiliarybar']) {
+				const part = appendElement(root, `part pane-composite-part ${className} floating-part-outer-left floating-part-outer-right floating-part-outer-bottom`);
+				part.style.cssText = 'position: relative; width: 240px; height: 120px;';
+				for (const radius of ['0px', '2px', '8px', '16px']) {
+					for (const token of ['toolsPanel', 'primarySideBar', 'secondarySideBar']) {
+						root.style.setProperty(`--vscode-${token}-cornerRadius`, radius);
+					}
+					for (const zoom of [1, 1.25, 1.5, 2]) {
+						root.style.zoom = String(zoom);
+						root.style.setProperty('--window-device-pixel-ratio', String(targetWindow.devicePixelRatio * zoom));
+						for (const nativeWindow of [false, true]) {
+							root.classList.toggle('mac', nativeWindow);
+							root.classList.toggle('nostatusbar', nativeWindow);
+							const frame = targetWindow.getComputedStyle(part);
+							const left = targetWindow.getComputedStyle(part, '::before');
+							const right = targetWindow.getComputedStyle(part, '::after');
+							const aligned = (offset: number) => Math.abs(offset) < 1 / 64;
+							const state = { theme, className, radius, zoom, nativeWindow };
+							actual.push({
+								...state,
+								left: aligned(parseFloat(frame.borderLeftWidth) + parseFloat(left.left) - parseFloat(left.width) - parseFloat(left.borderLeftWidth)),
+								right: aligned(parseFloat(frame.borderRightWidth) + parseFloat(right.right) - parseFloat(right.width) - parseFloat(right.borderRightWidth)),
+								bottom: [left, right].map(corner => aligned(parseFloat(frame.borderBottomWidth) + parseFloat(corner.bottom) - parseFloat(corner.height) - parseFloat(corner.borderBottomWidth))),
+								boxSizing: [left.boxSizing, right.boxSizing],
+								translate: [left.translate, right.translate],
+								radii: [left.borderBottomLeftRadius, right.borderBottomRightRadius],
+							});
+							expected.push({
+								...state,
+								left: true,
+								right: true,
+								bottom: [true, true],
+								boxSizing: ['content-box', 'content-box'],
+								translate: ['-100% 100%', '100% 100%'],
+								radii: [frame.borderBottomLeftRadius, frame.borderBottomRightRadius],
+							});
+						}
+					}
+				}
+				part.remove();
+			}
+			root.classList.remove(theme, 'mac', 'nostatusbar');
+		}
+
+		assert.deepStrictEqual(actual, expected);
 	});
 
 	test('floating connected caps follow their semantic corner-radius customizations', () => {

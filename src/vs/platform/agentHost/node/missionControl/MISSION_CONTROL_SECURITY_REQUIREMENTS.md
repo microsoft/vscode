@@ -4,6 +4,8 @@ Desktop sharing is an explicit machine-filesystem access opt-in: authenticated o
 
 Execution credentials follow the [host-owner credential setting](./MISSION_CONTROL.md#user-host-credential-authority): local mode uses the shared host credentials for live and restored GitHub/Copilot work without comparing token identity to the session's saved owner; client mode retains connection sponsorship. Caller identity, session ownership, and admission checks apply in both modes.
 
+Unsent queued messages retain their sponsoring client and chat, and keep their session resident until sent or removed. A disconnected sponsor leaves the message pending; automatic recovery requires that same relay client to authenticate with the same principal on a writable connection and successfully resubscribe to the exact chat. Credentials are captured before the message is consumed, and disposed connection scopes remain unusable. Other clients, chats, passive connections and host credentials are not fallback sponsors. Credential refresh only retries an eligible message already waiting for authentication, not a queue paused by cancellation or turn failure. Non-renewable sources retain the normal visible send-failure behavior rather than waiting for authentication that cannot refresh them.
+
 Requirement sources, VS Code enforcement and verification. See [remaining gaps](https://github.com/microsoft/vscode/blob/roblou%2Fagents%2Ftypescript-vscode-agent-host-prototype/src/vs/platform/agentHost/node/missionControl/MISSION_CONTROL_PRODUCTION_GAPS.md) and [operation and configuration](https://github.com/microsoft/vscode/blob/roblou%2Fagents%2Ftypescript-vscode-agent-host-prototype/src/vs/platform/agentHost/node/missionControl/MISSION_CONTROL.md).
 
 ## Requirement sources

@@ -115,7 +115,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	private _activeSessionId: string | undefined;
 	private readonly _sessionTerminals = new Map<string, Set<number>>();
 	private readonly _trackedTerminalScopes = new Map<number, ITrackedTerminalScope>();
-	private readonly _standaloneTerminalIds = new Set<number>();
 	/** Terminals that chat windows show, which the terminal panel leaves to them. */
 	private readonly _chatWindowTerminalIds = new Set<number>();
 	/** In-flight terminal work for drafts, retained only until each operation settles. */
@@ -227,9 +226,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}));
 
 		// Repeated New Session actions replace one draft with another. Transfer
-		// the old draft's terminals when both drafts use the same cwd and backend.
+		// the old draft's terminals when both drafts use the same cwd and backend;
+		// otherwise release them, like those of a discarded draft, so a later
+		// session in their cwd and backend reuses them instead of creating new ones.
 		this._register(this._sessionsManagementService.onDidReplaceNewDraftSession(({ from, to }) => {
 			this._onDidReplaceNewDraftSession(from, to);
+		}));
+
+		// A discarded draft no longer owns its terminals: release them so the
+		// next session in the same cwd reuses them instead of creating new ones.
+		this._register(this._sessionsManagementService.onDidDiscardNewSession(session => {
+			this._onDidDiscardNewSession(session);
 		}));
 
 		// When a session is replaced (untitled → committed graduation), transfer
@@ -243,7 +250,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// (e.g. user closes a terminal tab) so the map doesn't hold stale entries.
 		this._register(this._terminalService.onDidDisposeInstance(instance => {
 			this._removeTerminalFromTrackedSessions(instance.instanceId);
-			this._standaloneTerminalIds.delete(instance.instanceId);
 			this._chatWindowTerminalIds.delete(instance.instanceId);
 		}));
 
@@ -543,7 +549,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			if (instance.shellLaunchConfig.hideFromUser) {
 				continue;
 			}
-			if (options?.excludeTracked && (this._isTerminalTracked(instance.instanceId) || this._standaloneTerminalIds.has(instance.instanceId))) {
+			if (options?.excludeTracked && this._isTerminalTracked(instance.instanceId)) {
 				continue;
 			}
 			try {
@@ -609,23 +615,46 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		if (fromCwd === toCwd && fromAgentHostAddress === toAgentHostAddress) {
 			this._transferTerminals(from.sessionId, to.sessionId);
 		} else {
-			this._rehomeTerminals(from.sessionId);
+			this._releaseTerminals(from.sessionId, 'replaced');
 		}
 	}
 
-	private _rehomeTerminals(sessionId: string): void {
-		const terminals = this._getTrackedTerminalsForSession(sessionId);
-		for (const terminal of terminals) {
-			this._standaloneTerminalIds.add(terminal.instanceId);
-			this._trackedTerminalScopes.delete(terminal.instanceId);
+	private _onDidDiscardNewSession(session: ISession): void {
+		const pendingOperation = this._pendingTerminalOperations.get(session.sessionId);
+		if (pendingOperation) {
+			pendingOperation.replaced = true;
 		}
-		if (terminals.length > 0) {
-			this._logService.trace(`[SessionsTerminal] Rehomed ${terminals.length} terminal(s) from session ${sessionId}`);
+		this._releaseTerminals(session.sessionId, 'discarded');
+	}
+
+	/**
+	 * Releases the terminals of a draft that no longer owns them. They keep
+	 * their scope, so only a later session in the same cwd and on the same
+	 * backend reuses them, and the panel shows them only for such a session.
+	 */
+	private _releaseTerminals(sessionId: string, reason: 'discarded' | 'replaced'): void {
+		const terminalIds = this._sessionTerminals.get(sessionId);
+		if (!terminalIds) {
+			return;
 		}
-		this._sessionTerminals.delete(sessionId);
+		// Those a chat window shows stay the draft's: as the window moves on to another session, it gives them back to the
+		// panel, rather than taking them for that session, and no other session reuses them meanwhile.
+		const released = [...terminalIds].filter(id => !this._chatWindowTerminalIds.has(id));
+		released.forEach(id => terminalIds.delete(id));
+		if (released.length > 0) {
+			this._logService.trace(`[SessionsTerminal] Released ${released.length} terminal(s) of ${reason} session ${sessionId}`);
+		}
+		if (terminalIds.size === 0) {
+			this._sessionTerminals.delete(sessionId);
+		}
 	}
 
 	private _transferTerminals(fromSessionId: string, toSessionId: string): void {
+		// A session can be replaced by one with the same id (e.g. a draft that
+		// graduates in place): its terminals already belong to the target.
+		if (fromSessionId === toSessionId) {
+			return;
+		}
 		const terminalIds = this._sessionTerminals.get(fromSessionId);
 		if (terminalIds && terminalIds.size > 0) {
 			let targetIds = this._sessionTerminals.get(toSessionId);
@@ -683,9 +712,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _removeTerminalFromTrackedSessions(instanceId: number): void {
+		// Also of a terminal no session tracks any longer, such as one of a discarded draft.
+		this._trackedTerminalScopes.delete(instanceId);
 		for (const [sessionId, terminalIds] of this._sessionTerminals) {
 			terminalIds.delete(instanceId);
-			this._trackedTerminalScopes.delete(instanceId);
 			if (terminalIds.size === 0) {
 				this._sessionTerminals.delete(sessionId);
 			}
@@ -737,7 +767,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 		for (const instance of [...this._terminalService.instances]) {
 			// Skip hidden tool terminals — managed by the chat tool lifecycle
-			if (instance.shellLaunchConfig.hideFromUser || this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
+			if (instance.shellLaunchConfig.hideFromUser || this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			const currentInstance = this._getAvailableTerminal(instance, 'update terminal visibility');
@@ -778,7 +808,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		let mostRecent: ITerminalInstance | undefined;
 		let mostRecentTimestamp = -1;
 		for (const instance of foreground) {
-			if (this._standaloneTerminalIds.has(instance.instanceId) || this._chatWindowTerminalIds.has(instance.instanceId)) {
+			if (this._chatWindowTerminalIds.has(instance.instanceId)) {
 				continue;
 			}
 			if (!await this._terminalMatchesScope(instance, activeKey, activeAgentHostAddress)) {
@@ -859,7 +889,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 			if (untrackedWorktreeTerminalIds.has(instance.instanceId)
 				&& (this._isTerminalTracked(instance.instanceId)
-					|| this._standaloneTerminalIds.has(instance.instanceId)
 					|| this._terminalService.activeInstance?.instanceId === instance.instanceId)) {
 				continue;
 			}
@@ -904,14 +933,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		for (const instance of this._terminalService.instances) {
 			if (!instance.shellLaunchConfig.attachPersistentProcess
 				|| instance.shellLaunchConfig.hideFromUser
-				|| this._isTerminalTracked(instance.instanceId)
-				|| this._standaloneTerminalIds.has(instance.instanceId)) {
+				|| this._isTerminalTracked(instance.instanceId)) {
 				continue;
 			}
 			try {
 				if (isEqual(URI.file(await instance.getInitialCwd()), resource)
-					&& !this._isTerminalTracked(instance.instanceId)
-					&& !this._standaloneTerminalIds.has(instance.instanceId)) {
+					&& !this._isTerminalTracked(instance.instanceId)) {
 					result.push(instance);
 				}
 			} catch {
@@ -924,7 +951,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	async dumpTracking(): Promise<void> {
 		console.log(`[SessionsTerminal] Active key: ${this._activeKey ?? '<none>'}`);
 		console.log(`[SessionsTerminal] Session terminals: ${JSON.stringify([...this._sessionTerminals.entries()].map(([sessionId, terminalIds]) => [sessionId, [...terminalIds]]))}`);
-		console.log(`[SessionsTerminal] Standalone terminals: ${JSON.stringify([...this._standaloneTerminalIds])}`);
 		console.log('[SessionsTerminal] === All Terminals ===');
 		for (const instance of this._terminalService.instances) {
 			let cwd = '<unknown>';
@@ -1000,7 +1026,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		// or on another host than the session's, which matching the session's terminals checks then.
 		this._removeTerminalFromTrackedSessions(instance.instanceId);
 		this._trackedTerminalScopes.delete(instance.instanceId);
-		this._standaloneTerminalIds.delete(instance.instanceId);
 		this._trackTerminalsForSession(session.sessionId, [instance]);
 	}
 

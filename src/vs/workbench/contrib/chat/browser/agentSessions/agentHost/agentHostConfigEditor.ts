@@ -8,6 +8,7 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { parse, ParseError } from '../../../../../../base/common/json.js';
 import { IJSONSchema } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import {
 	createFileSystemProviderError,
@@ -199,6 +200,8 @@ export abstract class AbstractAgentHostConfigFileSystemProvider<TContext, TTarge
 	protected readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
+	private readonly _lastStats = new ResourceMap<{ readonly content: string; readonly mtime: number }>();
+
 	constructor(
 		@ILogService protected readonly _logService: ILogService,
 	) {
@@ -305,13 +308,28 @@ export abstract class AbstractAgentHostConfigFileSystemProvider<TContext, TTarge
 			return {
 				type: FileType.File,
 				ctime: 0,
-				mtime: 0,
+				mtime: this._getModificationTime(resource, content),
 				size: VSBuffer.fromString(content).byteLength,
 				permissions: 0 as FilePermission,
 			};
 		} finally {
 			this._releaseTarget(target, ctx);
 		}
+	}
+
+	/**
+	 * Advances the modification time whenever the serialized document changes.
+	 * Editors compare `mtime` and `size` to decide whether to reload, so a fixed
+	 * `mtime` would hide same-size changes, such as a rule moving between lists.
+	 */
+	private _getModificationTime(resource: URI, content: string): number {
+		const last = this._lastStats.get(resource);
+		if (last?.content === content) {
+			return last.mtime;
+		}
+		const mtime = Math.max(Date.now(), (last?.mtime ?? 0) + 1);
+		this._lastStats.set(resource, { content, mtime });
+		return mtime;
 	}
 
 	async readdir(): Promise<[string, FileType][]> {

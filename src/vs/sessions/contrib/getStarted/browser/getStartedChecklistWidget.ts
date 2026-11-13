@@ -142,7 +142,7 @@ export class GetStartedChecklistWidget extends Disposable {
 
 		const header = DOM.append(this.domNode, DOM.$('.get-started-header'));
 		const bodyId = `get-started-body-${generateUuid()}`;
-		this._toggle = DOM.append(header, DOM.$('.get-started-toggle', { role: 'button', tabIndex: 0, 'aria-controls': bodyId }));
+		this._toggle = DOM.append(header, DOM.$('.get-started-toggle.agent-sessions-interactive.agent-sessions-interactive-list', { role: 'button', tabIndex: 0, 'aria-controls': bodyId }));
 		this._chevron = DOM.append(this._toggle, DOM.$('span.get-started-chevron', { 'aria-hidden': 'true' }));
 		DOM.append(this._toggle, DOM.$('span.get-started-title')).textContent = localize('getStarted.title', "Get started");
 		this._progress = DOM.append(this._toggle, DOM.$('span.get-started-progress'));
@@ -300,7 +300,7 @@ export class GetStartedChecklistWidget extends Disposable {
 			row.classList.toggle('just-completed', this._justCompleted.has(item.id));
 
 			const detailsId = `${this._body.id}-${item.id}`;
-			const header = DOM.append(row, DOM.$('.get-started-item-header', {
+			const header = DOM.append(row, DOM.$('.get-started-item-header.agent-sessions-interactive.agent-sessions-interactive-list', {
 				role: 'button',
 				tabIndex: index === this._focusedItemIndex ? 0 : -1,
 				'aria-expanded': String(active),

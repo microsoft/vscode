@@ -125,6 +125,7 @@ interface ITitleBarState {
 	blocked?: readonly IBlockedSpec[];
 	/** Number of recently approved sessions (drives the green "Approved N sessions"). */
 	approvedCount?: number;
+	hovered?: boolean;
 }
 
 // ============================================================================
@@ -151,6 +152,10 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 				readonly activeSession: IObservable<ITestSessionWithChat | undefined> = constObservable(state.activeSession);
 				readonly gridShown: IObservable<readonly (ITestSessionWithChat | undefined)[]> = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
 				override readonly slotPanes = testGridPanes(this.gridShown);
+				override readonly activePane = constObservable(undefined);
+				override getRecentlyOpenedSessions() {
+					return { recent: [], other: [] };
+				}
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 				override readonly onDidChangeSessions = Event.None;
@@ -221,6 +226,9 @@ function renderTitleBar(ctx: ComponentFixtureContext, state: ITitleBarState): vo
 		disposableStore.add(instantiationService.createInstance(BlockedSessionsIndicatorModel, approvalModel, blockedSessionsModel, ciFixModel)),
 	));
 	widget.render(widgetHost);
+	if (state.hovered) {
+		widgetHost.classList.add('hovered');
+	}
 }
 
 // ============================================================================
@@ -269,6 +277,15 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	SessionsTitleBar_NoWorkspace: defineComponentFixture({
 		render: (ctx) => renderTitleBar(ctx, {
 			activeSession: createMockActiveSession('Quick chat'),
+		}),
+	}),
+	SessionsTitleBar_Hover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the normal command center. In high contrast themes, a dashed active-contrast boundary replaces the resting border without showing a duplicate title hover.'],
+		render: ctx => renderTitleBar(ctx, {
+			activeSession: createMockActiveSession('Audit Agents HC themes', 'Audit Agents HC themes'),
+			hovered: true,
 		}),
 	}),
 

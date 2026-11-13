@@ -5,10 +5,38 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getOlderHostDefaultChat, getOlderHostSubagentChatUri } from '../../browser/agentHostOlderHostCompatibility.js';
+import { getOlderHostDefaultChat, getOlderHostSkillCompletion, getOlderHostSubagentChatUri } from '../../browser/agentHostOlderHostCompatibility.js';
 import type { InitializeResult } from '../../common/state/protocol/common/commands.js';
+import type { SimpleMessageAttachment } from '../../common/state/protocol/state.js';
 import { PROTOCOL_VERSION } from '../../common/state/protocol/version/registry.js';
-import { ROOT_STATE_URI, type RootState } from '../../common/state/sessionState.js';
+import { MessageAttachmentKind, ROOT_STATE_URI, type MessageResourceAttachment, type RootState } from '../../common/state/sessionState.js';
+
+suite('getOlderHostSkillCompletion', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('converts only the obsolete skill shape from positively identified VS Code hosts', () => {
+		const host: InitializeResult = { protocolVersion: PROTOCOL_VERSION, serverSeq: 0, snapshots: [], _meta: { 'vscode.agentHost': true } };
+		const olderRoot: RootState = { agents: [], _meta: { hostBuild: { version: '1.146.0' } } };
+		const attachment: SimpleMessageAttachment = {
+			type: MessageAttachmentKind.Simple, label: '/tools:review',
+			_meta: { uri: 'custom-skill:/review/SKILL.md', name: 'review', displayName: 'tools:review', argumentHint: 'Files' },
+		};
+		const expected: MessageResourceAttachment = { ...attachment, type: MessageAttachmentKind.Resource, uri: 'custom-skill:/review/SKILL.md', displayKind: 'skill' };
+		assert.deepStrictEqual({
+			native: getOlderHostSkillCompletion(attachment, host, undefined),
+			olderRoot: getOlderHostSkillCompletion(attachment, undefined, olderRoot),
+			unmarked: getOlderHostSkillCompletion(attachment, { ...host, _meta: {} }, { agents: [] }),
+			unknown: getOlderHostSkillCompletion(attachment, undefined, undefined),
+			currentResource: getOlderHostSkillCompletion(expected, host, undefined),
+			command: getOlderHostSkillCompletion({ ...attachment, _meta: { ...attachment._meta, command: 'review' } }, host, undefined),
+			otherKind: getOlderHostSkillCompletion({ ...attachment, displayKind: 'other' }, host, undefined),
+			noResource: getOlderHostSkillCompletion({ ...attachment, _meta: {} }, host, undefined),
+		}, {
+			native: expected, olderRoot: expected, unmarked: undefined, unknown: undefined,
+			currentResource: undefined, command: undefined, otherKind: undefined, noResource: undefined,
+		});
+	});
+});
 
 suite('getOlderHostDefaultChat', () => {
 

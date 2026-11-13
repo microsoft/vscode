@@ -444,6 +444,37 @@ suite('Artifact Server Tools', () => {
 		assert.deepStrictEqual({ artifacts: artifacts(), persisted }, { artifacts: before, persisted: [before] });
 	});
 
+	test('offers how the chat shows an entry only while chat resources are enabled, and ignores it otherwise', async () => {
+		let chatResources = false;
+		const { host, sessionUri, execute, artifacts } = createHarness({ isChatResourcesEnabled: () => chatResources });
+		const advertisedProperties = () => {
+			const add = host.getDefinitionsForSession(sessionUri).find(definition => definition.name === ArtifactServerToolName.AddArtifactOrReference);
+			const items = add?.inputSchema?.properties?.items as { readonly items?: { readonly properties?: Record<string, unknown> } } | undefined;
+			return Object.keys(items?.items?.properties ?? {});
+		};
+		const website = { type: 'website', label: 'Docs', isArtifact: false, link: 'https://example.com', mode: 'aboveInput' };
+
+		const disabled = { properties: advertisedProperties(), definitions: host.getDefinitionsForSession(sessionUri) };
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
+		const disabledMode = artifacts()[0].mode;
+		// Ignored like any unknown field, so even an invalid one does not reject the entry.
+		await execute(ArtifactServerToolName.AddArtifactOrReference, { type: 'website', label: 'Other', isArtifact: false, link: 'https://example.org', mode: null });
+		const disabledInvalid = artifacts().map(artifact => artifact.label);
+		chatResources = true;
+		const enabledProperties = advertisedProperties();
+		const updated = await execute(ArtifactServerToolName.AddArtifactOrReference, { items: [website] });
+
+		assert.deepStrictEqual({ disabledProperties: disabled.properties, disabledDefinitions: disabled.definitions, disabledMode, disabledInvalid, enabledProperties, enabledMode: artifacts()[0].mode, updated }, {
+			disabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash'],
+			disabledDefinitions: artifactServerToolDefinitions,
+			disabledMode: undefined,
+			disabledInvalid: ['Docs', 'Other'],
+			enabledProperties: ['type', 'label', 'isArtifact', 'link', 'uri', 'commitHash', 'mode'],
+			enabledMode: 'aboveInput',
+			updated: `Updated how the chat shows the reference: ${artifacts()[0].id}`,
+		});
+	});
+
 	test('reports persistence errors without publishing a promotion', async () => {
 		const error = new Error('Disk full');
 		const { execute, stateManager, sessionUri, artifacts } = createHarness({ persist: async () => { throw error; } });

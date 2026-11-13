@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
-import { anyScore, createMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
+import { anyScore, createMatches, emptyMatches, fuzzyScore, fuzzyScoreGraceful, fuzzyScoreGracefulAggressive, FuzzyScorer, IFilter, IMatch, matchesBaseContiguousSubString, matchesCamelCase, matchesContiguousSubString, matchesFuzzy, matchesPrefix, matchesStrictPrefix, matchesSubString, matchesWords, or } from '../../common/filters.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function filterOk(filter: IFilter, word: string, wordToMatchAgainst: string, highlights?: { start: number; end: number }[]) {
@@ -20,6 +20,19 @@ function filterNotOk(filter: IFilter, word: string, wordToMatchAgainst: string) 
 
 suite('Filters', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('empty queries share immutable matches', () => {
+		for (const filter of [matchesFuzzy, matchesContiguousSubString, matchesBaseContiguousSubString]) {
+			const first = filter('', 'first')!;
+			const second = filter('', '')!;
+			assert.strictEqual(first, emptyMatches);
+			assert.strictEqual(second, emptyMatches);
+			assert.throws(() => { first[0].start = 1; }, TypeError);
+			assert.throws(() => { first[0] = { start: 1, end: 2 }; }, TypeError);
+			assert.throws(() => { first.push({ start: 1, end: 2 }); }, TypeError);
+			assert.deepStrictEqual(second, [{ start: 0, end: 0 }]);
+		}
+	});
 
 	test('or', () => {
 		let filter: IFilter;
