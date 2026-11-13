@@ -39,6 +39,10 @@ class TestBrowserViewWorkbenchService implements IBrowserViewWorkbenchService {
 		return undefined;
 	}
 
+	isNetworkPathCaseSensitive(): boolean {
+		return true;
+	}
+
 	async acquireNetwork(): Promise<IReference<undefined>> {
 		return { object: undefined, dispose: () => { } };
 	}
@@ -500,7 +504,7 @@ suite('BrowserEditorInput', () => {
 			localModelNetwork: input.activeNetwork,
 			localModelNavigation: getBrowserPageResourceNavigationError(input, 'file:///repo/index.html?x=1'),
 		}, {
-			renamed: { url: 'file:///repo/renamed.html?view%3Dpreview#content', title: undefined, favicon: undefined, session },
+			renamed: { url: 'file:///repo/renamed.html?view=preview#content', title: undefined, favicon: undefined, session },
 			localModelNetwork: undefined,
 			localModelNavigation: 'This browser page is associated with a resource and cannot be navigated to a different resource. Only query and fragment changes are allowed. Use a different page or open a new one with the open_browser_page tool.',
 		});

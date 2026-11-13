@@ -986,10 +986,17 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				scheme,
 				trustedRoots: roots?.scheme === scheme ? roots.paths : [],
 				trustAllFiles: isOwn && trustAllFiles,
-				caseSensitive: isOwn ? this._isRemotePathCaseSensitive(authority) : this._networkResolver?.isPathCaseSensitive?.({ authority }) ?? true,
+				caseSensitive: this.isNetworkPathCaseSensitive({ authority }),
 			};
 		}
 		return remoteNetworks;
+	}
+
+	isNetworkPathCaseSensitive(network: IBrowserViewNetwork): boolean {
+		if (network.authority.toLowerCase() === this.environmentService.remoteAuthority?.toLowerCase()) {
+			return this._isRemotePathCaseSensitive(network.authority);
+		}
+		return this._networkResolver?.isPathCaseSensitive?.(network) ?? true;
 	}
 
 	/** Defaults to case-sensitive, which is the strict choice, until the remote's file system is registered. */

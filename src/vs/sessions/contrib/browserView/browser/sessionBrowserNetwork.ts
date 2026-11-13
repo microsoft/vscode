@@ -105,7 +105,7 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		const onDidChangeTrustedFileRoots = this._register(new Emitter<void>());
 		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
 			const roots = await this._computeTrustedFileRoots();
-			const caseSensitiveHosts = this._computeCaseSensitiveHosts(roots);
+			const caseSensitiveHosts = this._computeCaseSensitiveHosts();
 			const key = JSON.stringify([roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort(), [...caseSensitiveHosts].sort()]);
 			if (key !== this._trustedFileRootsKey) {
 				this._trustedFileRootsKey = key;
@@ -117,6 +117,12 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		this._register(this._sessionsManagementService.onDidChangeSessions(updateTrustedFileRoots));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrust(updateTrustedFileRoots));
 		this._register(this._workspaceTrustManagementService.onDidChangeTrustedFolders(updateTrustedFileRoots));
+		// Connecting, disconnecting or finishing a handshake can reveal the path style of a host.
+		const caseSensitiveHosts = derivedOpts({ owner: this, equalsFn: structuralEquals }, reader => {
+			connectionsChanged.read(reader);
+			return [...this._computeCaseSensitiveHosts(reader)];
+		});
+		this._register(runOnChange(caseSensitiveHosts, updateTrustedFileRoots));
 		updateTrustedFileRoots();
 
 		this._register(this._browserViewService.registerNetworkResolver({
@@ -219,11 +225,13 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		return candidates.filter((_, index) => trusted[index]).map(({ folder }) => folder);
 	}
 
-	/** Looks up the path style of the hosts the roots are on. Hosts whose style is unknown are left out and treated as case-sensitive. */
-	private _computeCaseSensitiveHosts(roots: readonly URI[]): Map<string, boolean> {
+	/** Looks up the path style of every connected host. Hosts whose style is unknown are left out and treated as case-sensitive. */
+	private _computeCaseSensitiveHosts(reader?: IReader): Map<string, boolean> {
 		const hosts = new Map<string, boolean>();
-		for (const authority of new Set(roots.map(root => root.authority))) {
+		for (const { authority } of this._agentHostConnectionsService.connections) {
 			const connection = this._agentHostConnectionsService.getConnectionByAuthority(authority);
+			// Reading the handshake tracks it, so the style is picked up once it completes.
+			connection?.initializeResult?.read(reader);
 			const pathStyle = connection && getAgentHostPathStyle(connection);
 			if (pathStyle) {
 				hosts.set(authority, pathStyle === PathStyle.Posix);

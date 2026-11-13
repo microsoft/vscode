@@ -14,7 +14,7 @@ import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AMBIENT_AGENT_HOST_AUTHORITY, IAgentHostConnectionInfo, IAgentHostConnectionsService } from '../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import type { InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
+import { PathStyle, type InitializeResult } from '../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { BrowserViewStorageScope, IBrowserViewOwner } from '../../../../../platform/browserView/common/browserView.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -207,6 +207,42 @@ suite('SessionBrowserNetworkContribution', () => {
 			afterFocusMoved: { roots: ['/first'], changes: 1 },
 			afterSessionAdded: { roots: ['/first', '/second'], changes: 2 },
 			afterTrustChanged: { roots: ['/first', '/second', '/untrusted'], changes: 3 },
+		});
+	});
+
+	test('tracks the path case sensitivity of connected hosts, including ones without sessions', async () => {
+		const handshake = observableValue<InitializeResult | undefined>('handshake', undefined);
+		const posix = upcastPartial<IAgentConnection>({ initializeResult: constObservable(upcastPartial<InitializeResult>({ environment: { pathStyle: PathStyle.Posix } })) });
+		const windows = upcastPartial<IAgentConnection>({ initializeResult: handshake });
+		const onDidChangeConnections = store.add(new Emitter<void>());
+		const connections = new Map<string, IAgentConnection>([['posix-host', posix]]);
+		const listed = [upcastPartial<IAgentHostConnectionInfo>({ authority: 'posix-host' })];
+		const resolver = createResolver({
+			connections: {
+				connections: listed,
+				onDidChangeConnections: onDidChangeConnections.event,
+				getConnectionByAuthority: authority => connections.get(authority),
+			},
+		});
+		let changes = 0;
+		store.add(resolver.onDidChangeTrustedFileRoots!(() => changes++));
+		const caseSensitivity = () => ['posix-host', 'windows-host', 'unknown-host'].map(authority => resolver.isPathCaseSensitive!({ authority }));
+
+		await timeout(10);
+		const initial = caseSensitivity();
+		connections.set('windows-host', windows);
+		listed.push(upcastPartial<IAgentHostConnectionInfo>({ authority: 'windows-host' }));
+		onDidChangeConnections.fire();
+		await timeout(10);
+		const connecting = caseSensitivity();
+		handshake.set(upcastPartial<InitializeResult>({ environment: { pathStyle: PathStyle.Windows } }), undefined);
+		await timeout(10);
+
+		assert.deepStrictEqual({ initial, connecting, handshaken: caseSensitivity(), changes }, {
+			initial: [true, undefined, undefined],
+			connecting: [true, undefined, undefined],
+			handshaken: [true, false, undefined],
+			changes: 2,
 		});
 	});
 

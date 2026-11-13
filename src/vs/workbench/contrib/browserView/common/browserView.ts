@@ -381,6 +381,9 @@ export interface IBrowserViewWorkbenchService {
 	 */
 	resolveNetwork(owner: IBrowserViewOwner): IBrowserViewNetwork | undefined;
 
+	/** Whether the file system behind a remote network distinguishes paths by case. Unknown remotes are strict. */
+	isNetworkPathCaseSensitive(network: IBrowserViewNetwork): boolean;
+
 	/**
 	 * Hold a network's proxy until the returned reference is disposed, so
 	 * pages created on that network outside the workbench (e.g. by automation)

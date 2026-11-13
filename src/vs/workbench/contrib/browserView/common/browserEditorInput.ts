@@ -405,10 +405,14 @@ export class BrowserEditorInput extends EditorInput {
 
 		const currentUrl = this.url;
 		let renamedUrl = currentUrl;
-		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, this.activeNetwork)) {
-			const currentResource = URI.parse(currentUrl);
-			// Map the target to the URL the page displays first, so the page's query isn't written over agent host metadata.
-			renamedUrl = URI.parse(remoteUrlToFileUrl(this.activeNetwork, target.toString())).with({ query: currentResource.query, fragment: currentResource.fragment }).toString();
+		const network = this.activeNetwork;
+		if (currentUrl && isBrowserViewAssociatedResourceNavigation(this._associatedResource, currentUrl, network, network && this.browserViewWorkbenchService.isNetworkPathCaseSensitive(network))) {
+			// Map the target to the URL the page displays first, then carry over the page's query and fragment as written.
+			const mapped = remoteUrlToFileUrl(network, target.toString());
+			// Encoded paths hold no raw `?` or `#`, so the first one starts the target's own query or fragment.
+			const targetSuffixIndex = mapped.search(/[?#]/);
+			const suffixIndex = currentUrl.search(/[?#]/);
+			renamedUrl = (targetSuffixIndex === -1 ? mapped : mapped.slice(0, targetSuffixIndex)) + (suffixIndex === -1 ? '' : currentUrl.slice(suffixIndex));
 		}
 		return {
 			editor: {

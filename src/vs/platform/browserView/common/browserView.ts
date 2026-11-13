@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
-import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
+import { extUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../agentHost/common/agentHostUri.js';
@@ -384,7 +384,8 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 		return url;
 	}
 	const original = uri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(uri) : uri;
-	if (original.scheme !== Schemas.file && original.scheme !== Schemas.vscodeRemote) {
+	// A file on a share (authority) or another remote is not on the host's own file system.
+	if (uri.scheme === AGENT_HOST_SCHEME && (original.scheme !== Schemas.file || original.authority)) {
 		return url;
 	}
 	// Encode each segment so literal percent sequences in file names survive. Colons are valid in
@@ -405,11 +406,13 @@ export function remoteUrlToFileUrl(network: IBrowserViewNetwork | undefined, url
 
 /**
  * Whether navigating to {@link target} stays on the {@link associatedResource}, apart from its query and fragment.
- * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}).
+ * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}),
+ * and whether its file system is {@link caseSensitive}, which otherwise follows the client's.
  */
-export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork): boolean {
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork, caseSensitive?: boolean): boolean {
 	const targetResource = URI.parse(remoteUrlToFileUrl(network, target));
-	return extUriBiasedIgnorePathCase.isEqual(
+	const comparer = !network || caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
+	return comparer.isEqual(
 		URI.parse(remoteUrlToFileUrl(network, associatedResource.toString())).with({ query: null, fragment: null }),
 		targetResource.with({ query: null, fragment: null })
 	);

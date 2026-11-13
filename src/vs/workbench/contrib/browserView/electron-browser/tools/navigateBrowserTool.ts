@@ -5,9 +5,10 @@
 
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { localize } from '../../../../../nls.js';
-import { remoteUrlToFileUrl } from '../../../../../platform/browserView/common/browserView.js';
+import { IBrowserViewNetwork, remoteUrlToFileUrl } from '../../../../../platform/browserView/common/browserView.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
@@ -98,7 +99,8 @@ export class NavigateBrowserTool implements IToolImpl {
 					throw new Error(resourceNavigationError);
 				}
 
-				const networkPolicyError = getBrowserNetworkPolicyError(params.url, this.agentNetworkFilterService);
+				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
+				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(this.getPageNetwork(params.pageId, context.chatSessionResource), params.url), this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					throw new Error(networkPolicyError);
 				}
@@ -132,7 +134,9 @@ export class NavigateBrowserTool implements IToolImpl {
 			case 'forward':
 				return playwrightInvoke(this.playwrightService, sessionId, params.pageId, (page) => page.goForward({ waitUntil: 'domcontentloaded' }));
 			default: {
-				const networkPolicyError = getBrowserNetworkPolicyError(params.url!, this.agentNetworkFilterService);
+				const network = this.getPageNetwork(params.pageId, invocation.context?.sessionResource);
+				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
+				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(network, params.url!), this.agentNetworkFilterService);
 				if (networkPolicyError) {
 					return errorResult(networkPolicyError);
 				}
@@ -145,8 +149,6 @@ export class NavigateBrowserTool implements IToolImpl {
 				// A page on the local network in a remote workspace runs locally and cannot reach the
 				// remote's localhost directly. Rewrite to the forwarded local address (if
 				// any) so the page can be reached. The page keeps the network it was created with.
-				const model = this.browserViewService.getKnownBrowserViews().get(params.pageId)?.model;
-				const network = model ? model.network : this.browserViewService.resolveNetwork({ type: 'agent', sessionId });
 				const usesRemoteNetwork = !!network;
 				const rewrite = rewriteRemoteLocalhostUrl(params.url!, this.remoteExplorerService, usesRemoteNetwork);
 				const tunnelPolicyError = getExternalTunnelNetworkPolicyError(rewrite, this.agentNetworkFilterService);
@@ -165,6 +167,13 @@ export class NavigateBrowserTool implements IToolImpl {
 
 	private getResourceNavigationError(pageId: string, target: string): string | undefined {
 		const editor = this.browserViewService.getKnownBrowserViews().get(pageId);
-		return getBrowserPageResourceNavigationError(editor, target);
+		const network = editor?.activeNetwork;
+		return getBrowserPageResourceNavigationError(editor, target, network && this.browserViewService.isNetworkPathCaseSensitive(network));
+	}
+
+	/** The network of the page, or the one a new page of the session would use before it has a model. */
+	private getPageNetwork(pageId: string, sessionResource: URI | undefined): IBrowserViewNetwork | undefined {
+		const model = this.browserViewService.getKnownBrowserViews().get(pageId)?.model;
+		return model ? model.network : this.browserViewService.resolveNetwork({ type: 'agent', sessionId: sessionResource?.toString() ?? '<default>' });
 	}
 }

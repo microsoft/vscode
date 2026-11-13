@@ -281,6 +281,11 @@ export class BrowserSession {
 	 * Set the trusted paths on the file system of each remote, keyed by remote authority.
 	 * Used for the `file:` requests of sessions bound to that remote's network.
 	 */
+	/** Whether the file system of a remote network distinguishes paths by case. Unknown remotes are strict. */
+	static isRemotePathCaseSensitive(authority: string): boolean {
+		return BrowserSession._trustedRemoteFileRoots.get(authority.toLowerCase())?.caseSensitive ?? true;
+	}
+
 	static setTrustedRemoteFileRoots(remotes: ReadonlyMap<string, IRemoteFileTrust>): void {
 		BrowserSession._trustedRemoteFileRoots = new Map();
 		for (const [authority, remote] of remotes) {

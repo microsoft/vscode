@@ -74,8 +74,8 @@ export function formatBrowserEditorList(editorService: IEditorService, editors: 
 	}).join('\n');
 }
 
-export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string): string | undefined {
-	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target, editor.activeNetwork)) {
+export function getBrowserPageResourceNavigationError(editor: BrowserEditorInput | undefined, target: string, caseSensitive?: boolean): string | undefined {
+	if (!editor?.associatedResource || isBrowserViewAssociatedResourceNavigation(editor.associatedResource, target, editor.activeNetwork, caseSensitive)) {
 		return undefined;
 	}
 
