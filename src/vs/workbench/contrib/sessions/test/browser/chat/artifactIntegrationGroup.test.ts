@@ -137,7 +137,7 @@ suite('Artifact Integration Groups', () => {
 			['experiment', 'stepArtifact+scorecard1+scorecard2+stepArtifact2', 'loading1', 'loading2', 'remote', 'stepWithAutopilot']);
 	});
 
-	test('offers Open, the entry actions in pill dropdown order with Pin before Remove, and keeps the dropdown open only for membership changes', () => {
+	test('offers the entry actions in pill dropdown order with Pin before Remove, and keeps the dropdown open only for membership changes', () => {
 		const action = (id: string): IChatPillAction => toAction({ id, label: id, run: () => { } });
 		const [copy, changes, pin, remove] = ['copy', 'changes', 'pin', 'remove'].map(action);
 		const entry: IChatPillEntry = { id: 'pr', label: 'Pull request', ariaLabel: 'Open Pull Request', toolbarActions: [changes, copy], promotedAction: remove, open: () => { } };
@@ -148,8 +148,8 @@ suite('Artifact Integration Groups', () => {
 			// Without pinning, such as before a chat is known, and without removal support.
 			minimal: describe({ entry: { ...entry, promotedAction: undefined, toolbarActions: [copy] } }),
 		}, {
-			full: ['Open Pull Request', 'changes', 'copy', 'pin (stays open)', 'remove (stays open)'],
-			minimal: ['Open Pull Request', 'copy'],
+			full: ['changes', 'copy', 'pin (stays open)', 'remove (stays open)'],
+			minimal: ['copy'],
 		});
 	});
 
@@ -250,7 +250,7 @@ suite('Artifact Integration Groups', () => {
 			const active = getActiveElement();
 			return isHTMLElement(active) ? active.getAttribute('aria-label') ?? active.className : undefined;
 		};
-		const keyCodes: Record<string, number> = { ArrowDown: 40, ArrowRight: 39, Escape: 27 };
+		const keyCodes: Record<string, number> = { ArrowDown: 40, ArrowRight: 39, Enter: 13, Escape: 27 };
 		const key = (target: HTMLElement, code: string) => target.dispatchEvent(new KeyboardEvent('keydown', { key: code, code, keyCode: keyCodes[code], bubbles: true, cancelable: true }));
 		return { instantiation, detailsHost, members, models, group, button, dropdown, rows, describeRow, focused, key, toggles, ran, selected, member, hovers };
 	}
@@ -277,15 +277,15 @@ suite('Artifact Integration Groups', () => {
 			opened: {
 				expanded: 'true', header: 'Experiments',
 				rows: [
-					{ label: '#1', title: 'Title of 1', statuses: ['3/5'], actions: ['Open Title of 1', 'Copy Link 1', 'Pin 1', 'Remove 1'] },
-					{ label: '#2', title: 'Title of 2', statuses: ['1'], actions: ['Open Title of 2', 'Copy Link 2', 'Pin 2', 'Remove 2'] },
+					{ label: '#1', title: 'Title of 1', statuses: ['3/5'], actions: ['Copy Link 1', 'Pin 1', 'Remove 1'] },
+					{ label: '#2', title: 'Title of 2', statuses: ['1'], actions: ['Copy Link 2', 'Pin 2', 'Remove 2'] },
 				],
-				focused: 'Show artifact details: Experiment 1 is running',
+				focused: 'Open #1',
 			},
 		});
 	});
 
-	test('navigates rows and controls with the keyboard, opens details or a status list, and returns focus on Escape', () => {
+	test('navigates rows and controls with the keyboard, opens the artifact or a status list, and returns focus on Escape', () => {
 		const f = fixture();
 		f.button().focus();
 		f.button().click();
@@ -301,21 +301,37 @@ suite('Artifact Integration Groups', () => {
 		const escaped = { open: !!f.dropdown(), focusOnPill: getActiveElement() === f.button(), expanded: f.button().getAttribute('aria-expanded') };
 
 		f.button().click();
-		f.rows()[1].querySelector<HTMLElement>('.artifact-group-row-title')!.click();
-		const afterRow = !!f.dropdown();
+		f.key(f.dropdown()!, 'ArrowDown');
+		f.key(f.dropdown()!, 'Enter');
+		const afterMain = { open: !!f.dropdown(), focusOnPill: getActiveElement() === f.button() };
+		f.button().click();
+		f.rows()[0].querySelector<HTMLElement>('.artifact-group-row-title')!.click();
+		const afterTitle = !!f.dropdown();
 		f.button().click();
 		f.rows()[0].querySelector<HTMLElement>('.artifact-group-row-status')!.click();
-		assert.deepStrictEqual({ steps, escaped, afterRow, open: !!f.dropdown(), toggles: f.toggles }, {
-			steps: [
-				'Show artifact details: Experiment 1 is running',
-				'Show artifact details: Experiment 2 is running',
-				'Show Autopilot: 1 enabled',
-				'Show artifact details: Experiment 1 is running',
-			],
+		assert.deepStrictEqual({ steps, escaped, afterMain, afterTitle, open: !!f.dropdown(), ran: f.ran, toggles: f.toggles }, {
+			steps: ['Open #1', 'Open #2', 'Show Autopilot: 1 enabled', 'Open #1'],
 			escaped: { open: false, focusOnPill: true, expanded: 'false' },
-			afterRow: false,
+			afterMain: { open: false, focusOnPill: true },
+			afterTitle: false,
 			open: false,
-			toggles: [{ id: '2', target: 'pill' }, { id: '1', target: 'pill', selection: ['experiments', 'checks'] }],
+			ran: ['open.2', 'open.1'],
+			toggles: [{ id: '1', target: 'pill', selection: ['experiments', 'checks'] }],
+		});
+	});
+
+	test('a row without status sections offers a Details section that opens the artifact\'s details', () => {
+		const f = fixture();
+		f.members.set([...f.members.get(), f.member(snapshot('3', { groupLabel: 'Experiments' }))], undefined);
+		f.button().click();
+		const details = f.rows()[2].querySelector<HTMLElement>('.artifact-group-row-status')!;
+		const described = { statuses: f.describeRow(f.rows()[2]).statuses, label: details.getAttribute('aria-label'), icon: !!details.querySelector('.codicon-chevron-down') };
+		details.click();
+		assert.deepStrictEqual({ described, open: !!f.dropdown(), ran: f.ran, toggles: f.toggles }, {
+			described: { statuses: [''], label: 'Show artifact details: Experiment 3 is running', icon: true },
+			open: false,
+			ran: [],
+			toggles: [{ id: '3', target: 'pill' }],
 		});
 	});
 
@@ -332,22 +348,22 @@ suite('Artifact Integration Groups', () => {
 		tab();
 		steps.push(f.focused());
 		assert.deepStrictEqual({ steps, open: !!f.dropdown() }, {
-			steps: ['Show artifact details: Experiment 1 is running', 'Remove 2', 'Show artifact details: Experiment 1 is running', 'Show details: 3/5 for 1'],
+			steps: ['Open #1', 'Remove 2', 'Open #1', 'Show details: 3/5 for 1'],
 			open: true,
 		});
 	});
 
-	test('runs row actions, keeping the dropdown open for pinning and closing it for open and copy', async () => {
+	test('runs row actions, keeping the dropdown open for pinning and closing it for copy', async () => {
 		const f = fixture();
 		f.button().click();
 		const actions = (index: number) => [...f.rows()[index].querySelectorAll<HTMLElement>('.artifact-group-row-action')];
-		actions(0)[2].click();
+		actions(0)[1].click();
 		const afterPin = !!f.dropdown();
 		// The pinned artifact leaves the group while its row has focus; focus moves to a neighbour and the dropdown stays.
 		f.members.set([f.members.get()[1], f.member(snapshot('3', { groupLabel: 'Experiments' }))], undefined);
 		await timeout(0);
 		const updated = { rows: f.rows().map(row => row.querySelector('.artifact-group-row-label')?.textContent), label: f.button().querySelector('.chat-pill-label')?.textContent };
-		actions(1)[1].click();
+		actions(1)[0].click();
 		assert.deepStrictEqual({ afterPin, updated, afterCopy: !!f.dropdown(), ran: f.ran }, {
 			afterPin: true, updated: { rows: ['#2', '#3'], label: '2 Experiments' }, afterCopy: false, ran: ['pin.1', 'copy.3'],
 		});

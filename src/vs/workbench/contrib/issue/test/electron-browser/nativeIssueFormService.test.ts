@@ -43,6 +43,8 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IUpdateService, StateType } from '../../../../../platform/update/common/update.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { IUntypedEditorInput } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { AuxiliaryWindowMode, BeforeAuxiliaryWindowUnloadEvent, IAuxiliaryWindow, IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from '../../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
@@ -56,12 +58,13 @@ import { TestLayoutService, workbenchInstantiationService } from '../../../../te
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput.js';
 import { IRecordingService } from '../../browser/recordingService.js';
-import { IScreenshotService } from '../../browser/screenshotService.js';
+import { IScreenshotToolService, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
 import { IIssueFormService, IssueReporterData, IssueSource } from '../../common/issue.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { IssueReporterEditorPane } from '../../electron-browser/issueReporterEditorPane.js';
 import { ISSUE_REPORTER_CAPTURE_SCREENSHOT_COMMAND_ID, ISSUE_REPORTER_TOGGLE_RECORDING_COMMAND_ID, IssueReporterOpenStateContribution } from '../../electron-browser/issueReporterKeybindings.js';
-import { NativeIssueFormService } from '../../electron-browser/nativeIssueFormService.js';
+import { getReporterWindowBounds, NativeIssueFormService } from '../../electron-browser/nativeIssueFormService.js';
 import { issueReporterImageFixture } from '../common/issueReporterMediaFixtures.js';
 import '../../electron-browser/issue.contribution.js';
 
@@ -92,6 +95,7 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	disposeCalls = 0;
 	blockNativeClose = false;
 	readonly vetoReasons: string[] = [];
+	silentVetoes = 0;
 	private disposing = false;
 
 	constructor(id: number, closeOnRegister: boolean) {
@@ -142,6 +146,10 @@ class TestAuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 					vetoed = true;
 					this.vetoReasons.push(reason);
 				}
+			},
+			vetoSilently: () => {
+				vetoed = true;
+				this.silentVetoes++;
 			}
 		});
 		if (vetoed) {
@@ -179,6 +187,7 @@ function editDraft(input: IssueReporterEditorInput): void {
 
 suite('NativeIssueFormService reporter windows', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const capturedWindow: ScreenshotToolResult = { kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 } };
 
 	function data(overrides: Partial<IssueReporterData> = {}): IssueReporterData {
 		return {
@@ -203,6 +212,8 @@ suite('NativeIssueFormService reporter windows', () => {
 			'issueReporter.wizard.openLocation': location,
 		});
 		instantiation.stub(IConfigurationService, configuration);
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		instantiation.stub(ITelemetryService, telemetry);
 		instantiation.stub(ILogService, new NullLogService());
 		const lifecycle = store.add(new class extends TestLifecycleService {
 			private readonly vetoed = this._register(new Emitter<void>());
@@ -227,13 +238,14 @@ suite('NativeIssueFormService reporter windows', () => {
 		const previews: string[] = [];
 		instantiation.stub(IOpenerService, { open: async resource => { previews.push(resource.toString()); return true; } });
 		const confirmations: string[] = [];
+		/** The window that took focus last when each question was asked, which is where it opens. */
+		const focusedOnConfirm: (Window | undefined)[] = [];
 		const confirmStarted = new DeferredPromise<void>();
 		const screenshotStarted = new DeferredPromise<void>();
 		const controls: {
 			confirm: boolean;
 			confirmGate?: DeferredPromise<void>;
 			createGate?: DeferredPromise<void>;
-			screenshotGate?: DeferredPromise<string | undefined>;
 			openError?: Error;
 			createError?: Error;
 			closeOnRegister: boolean;
@@ -242,6 +254,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		instantiation.stub(IDialogService, {
 			confirm: async confirmation => {
 				confirmations.push(confirmation.message);
+				focusedOnConfirm.push(focused.at(-1));
 				void confirmStarted.complete();
 				await controls.confirmGate?.p;
 				return { confirmed: controls.confirm };
@@ -258,14 +271,17 @@ suite('NativeIssueFormService reporter windows', () => {
 			},
 		});
 		const focused: Window[] = [];
-		instantiation.stub(IHostService, { focus: async window => { focused.push(window); } });
-		instantiation.stub(IRecordingService, { isSupported: false, onDidChangeState: Event.None, onDidFailRecording: Event.None });
-		instantiation.stub(IScreenshotService, {
-			captureScreenshot: async () => {
-				void screenshotStarted.complete();
-				return controls.screenshotGate?.p;
+		instantiation.stub(IHostService, {
+			focus: async window => {
+				focused.push(window);
+				// Like a native window, a reporter window that takes focus tells its document.
+				windows.find(candidate => candidate.window === window)?.window.dispatchEvent(new mainWindow.Event('focus'));
 			}
 		});
+		instantiation.stub(IRecordingService, { isSupported: false, onDidChangeState: Event.None, onDidFailRecording: Event.None });
+		const screenshotTool = createTestScreenshotToolService(store).service;
+		screenshotTool.duringSession = () => void screenshotStarted.complete();
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		instantiation.stub(IUpdateService, { state: { type: StateType.Uninitialized }, onStateChange: Event.None });
 		instantiation.stub(IContextViewService, { getContextViewElement: () => $('div') });
 		instantiation.stub(IMarkdownRendererService, { render: () => ({ element: $('div'), dispose: () => { } }) });
@@ -329,7 +345,7 @@ suite('NativeIssueFormService reporter windows', () => {
 		const service = store.add(instantiation.createInstance(TestNativeIssueFormService));
 		instantiation.stub(IIssueFormService, service);
 		return {
-			service, controls, configuration, confirmations, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews,
+			service, controls, configuration, confirmations, focusedOnConfirm, confirmStarted, screenshotStarted, opens, main, windows, windowOptions, focused, source, instantiation, readonlyUpdates, writes, lifecycle, keybindings, previews, telemetry, screenshotTool,
 			shutdown: async (reason: ShutdownReason) => {
 				if (reason === ShutdownReason.QUIT) {
 					windows.forEach(window => window.blockNativeClose = true);
@@ -346,7 +362,7 @@ suite('NativeIssueFormService reporter windows', () => {
 				return { vetoed, participants: vetos.length };
 			},
 			inputs: () => instances.returnValues.filter((value): value is IssueReporterEditorInput => value instanceof IssueReporterEditorInput),
-			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial)),
+			createInput: (initial = data()) => store.add(instantiation.createInstance(IssueReporterEditorInput, initial, 'detailed')),
 			addGroup: (windowId: number) => {
 				const group = new TestGroup(10 + groups.length, windowId);
 				groups.push(group);
@@ -364,19 +380,57 @@ suite('NativeIssueFormService reporter windows', () => {
 		});
 	});
 
+	test('opens each new report in the layout of the setting, and in the simple layout attaches the window it covers', async () => {
+		const reports = [];
+		const window = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
+		for (const layout of [undefined, 'simple', 'detailed']) {
+			const { service, configuration, inputs, telemetry, screenshotTool } = createService('editor');
+			screenshotTool.windowImage = window;
+			await configuration.setUserConfiguration('issueReporter.wizard.layout', layout);
+			await service.openReporter(data());
+			reports.push({
+				layout: inputs().map(input => input.layout),
+				attached: inputs().map(input => input.savedAttachments?.map(attachment => attachment.kind === 'screenshot' && attachment === input.automaticScreenshot ? attachment.screenshot : attachment)),
+				tool: screenshotTool.requests,
+				triggers: telemetry.triggers,
+			});
+		}
+		const triggers = ['config.issueReporter.wizard.layout'];
+		assert.deepStrictEqual(reports, [
+			{ layout: ['detailed'], attached: [undefined], tool: [], triggers },
+			{ layout: ['simple'], attached: [[window]], tool: ['captureWindow'], triggers },
+			{ layout: ['detailed'], attached: [undefined], tool: [], triggers },
+		]);
+	});
+
+	test('places a reporter window at the bottom right of the window it reports on, or at the top left of a smaller one', () => {
+		assert.deepStrictEqual([
+			getReporterWindowBounds({ screenX: 100, screenY: 50, outerWidth: 1600, outerHeight: 1000 }),
+			getReporterWindowBounds({ screenX: 100, screenY: 50, outerWidth: 600, outerHeight: 500 }),
+		], [
+			{ x: 900, y: 150, width: 800, height: 900 },
+			{ x: 100, y: 50, width: 800, height: 900 },
+		]);
+	});
+
 	for (const isSessionsWindow of [false, true]) {
 		test(`hosts ${isSessionsWindow ? 'Agents' : 'Editor'} reports without any editor part or editor`, async () => {
 			const { service, opens, windows, windowOptions, source, editorParts, osReads, main } = createService();
 			await service.openReporter(data({ isSessionsWindow }));
 			assert.deepStrictEqual({
 				editorParts: editorParts(), opens: opens.length, editors: main.editors.length, osReads: osReads(),
-				mode: windowOptions[0]?.mode, nativeTitlebar: windowOptions[0]?.nativeTitlebar,
+				mode: windowOptions[0]?.mode, nativeTitlebar: windowOptions[0]?.nativeTitlebar, bounds: windowOptions[0]?.bounds,
 				form: windows[0].container.querySelectorAll('.issue-reporter-wizard').length,
 				textarea: windows[0].container.querySelectorAll('textarea.wizard-description-input').length,
 				chrome: windows[0].container.querySelectorAll('.editor-group-container, .tabs-container, .command-center, .statusbar, .monaco-editor').length,
 				sourceCaptureBar: source.querySelectorAll('.issue-reporter-floating-bar').length,
 				reporterCaptureBar: windows[0].container.querySelectorAll('.issue-reporter-floating-bar').length,
-			}, { editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true, form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0 });
+			}, {
+				editorParts: 0, opens: 0, editors: 0, osReads: 0, mode: AuxiliaryWindowMode.Normal, nativeTitlebar: true,
+				// The reporter opens at the bottom right of the window it reports on.
+				bounds: getReporterWindowBounds(mainWindow),
+				form: 1, textarea: 1, chrome: 0, sourceCaptureBar: 1, reporterCaptureBar: 0,
+			});
 		});
 
 		test(`preserves editor routing for ${isSessionsWindow ? 'Agents' : 'Editor'} with the editor preference`, async () => {
@@ -458,6 +512,19 @@ suite('NativeIssueFormService reporter windows', () => {
 		const closed = await windows[0].lastClose;
 		assert.deepStrictEqual({ pendingDecisions, cancelled, retained, closed, disposed: inputs()[0].isDisposed(), confirmations, registered: windows[0].hasVetoListener, opens: opens.length, editors: main.editors.length }, {
 			pendingDecisions: 1, cancelled: false, retained: true, closed: true, disposed: true, confirmations: ['Discard issue report?', 'Discard issue report?'], registered: false, opens: 0, editors: 0,
+		});
+	});
+
+	test('asks whether to discard a report in its own window, which takes focus first', async () => {
+		const { service, inputs, windows, confirmations, focusedOnConfirm } = createService();
+		await service.openReporter(data());
+		editDraft(inputs()[0]);
+		// Another window has focus, like when the reporter's close button is clicked while the main window is active.
+		windows[0].document.hasFocus = () => false;
+		windows[0].window.close();
+		await timeout(0);
+		assert.deepStrictEqual({ closed: await windows[0].lastClose, confirmations, inReporterWindow: focusedOnConfirm.map(window => window === windows[0].window), disposed: inputs()[0].isDisposed() }, {
+			closed: true, confirmations: ['Discard issue report?'], inReporterWindow: [true], disposed: true,
 		});
 	});
 
@@ -550,10 +617,11 @@ suite('NativeIssueFormService reporter windows', () => {
 		controls.confirm = false;
 		windows[0].window.close();
 		await timeout(0);
-		assert.deepStrictEqual({ afterDiscard, quitResult, stillOpen: windows[0].frame.isConnected, disposed: input.isDisposed(), confirmations, closeVetoes: windows[0].vetoReasons.length }, {
+		assert.deepStrictEqual({ afterDiscard, quitResult, stillOpen: windows[0].frame.isConnected, disposed: input.isDisposed(), confirmations, closeVetoes: { reasons: windows[0].vetoReasons, silent: windows[0].silentVetoes } }, {
 			afterDiscard: { disposed: false, description, oldSubmissionAborted: true, nextSubmissionAborted: false },
 			quitResult: { vetoed: true, participants: 2 }, stillOpen: true, disposed: false,
-			confirmations: ['Discard issue report?', 'Discard issue report?'], closeVetoes: 2,
+			// The reporter asks itself whether to discard the report, so its vetoes show no other dialog.
+			confirmations: ['Discard issue report?', 'Discard issue report?'], closeVetoes: { reasons: [], silent: 2 },
 		});
 	});
 
@@ -699,14 +767,15 @@ suite('NativeIssueFormService reporter windows', () => {
 	});
 
 	test('discard cancels a pending screenshot without attaching its late result', async () => {
-		const { service, controls, screenshotStarted, windows, inputs, writes } = createService();
-		controls.screenshotGate = new DeferredPromise<string | undefined>();
+		const { service, screenshotTool, screenshotStarted, windows, inputs, writes } = createService();
+		const capture = new DeferredPromise<ScreenshotToolResult>();
+		screenshotTool.result = capture.p;
 		await service.openReporter(data());
 		IssueReporterController.getAnyLiveInstance()!.getWizard()!.triggerCaptureScreenshot();
 		await screenshotStarted.p;
 		windows[0].window.close();
 		await timeout(0);
-		await controls.screenshotGate.complete(issueReporterImageFixture);
+		await capture.complete(capturedWindow);
 		await timeout(0);
 		assert.deepStrictEqual({ disposed: inputs()[0].isDisposed(), attachments: inputs()[0].savedAttachments, writes, live: !!IssueReporterController.getAnyLiveInstance() }, {
 			disposed: true, attachments: undefined, writes: [], live: false,
@@ -753,14 +822,15 @@ suite('NativeIssueFormService reporter windows', () => {
 	});
 
 	test('service disposal closes a mounted auxiliary and ignores late capture work', async () => {
-		const { service, windows, inputs, source, controls, screenshotStarted, writes } = createService();
-		controls.screenshotGate = new DeferredPromise<string | undefined>();
+		const { service, windows, inputs, source, screenshotTool, screenshotStarted, writes } = createService();
+		const capture = new DeferredPromise<ScreenshotToolResult>();
+		screenshotTool.result = capture.p;
 		await service.openReporter(data());
 		const wizard = IssueReporterController.getAnyLiveInstance()!.getWizard()!;
 		wizard.triggerCaptureScreenshot();
 		await screenshotStarted.p;
 		service.dispose();
-		await controls.screenshotGate.complete(issueReporterImageFixture);
+		await capture.complete(capturedWindow);
 		await timeout(0);
 		await service.openReporter(data());
 		assert.deepStrictEqual({

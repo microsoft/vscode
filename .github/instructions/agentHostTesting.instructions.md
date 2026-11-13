@@ -26,6 +26,8 @@ Read `src/vs/platform/agentHost/node/serviceBootstrapping.md` before adding or m
 
 ## Protocol Metadata
 
+Before adding or extending `_meta`, follow [AHP interoperability](./agent-host-interoperability.instructions.md#protocol-constructs-before-_meta): existing protocol constructs take precedence, unmet requirements should be raised in microsoft/agent-host-protocol, and optional metadata must fall back gracefully with alternate hosts and UIs.
+
 Put new readers for namespaced protocol `_meta` slots under `common/meta`. Readers must validate every value they return and expose typed data; callers should pass the parent protocol object rather than inspecting `_meta` fields directly. Existing unnamespaced and legacy readers live elsewhere and should be migrated separately when touched. Use type guards for dynamic properties; do not bypass type narrowing or lint rules with `Reflect.get`.
 
 Host-specific parsers and writers live under `common/meta/vscode` and `common/meta/copilotd`. Feature code imports only top-level `common/meta` helpers, which own source selection and domain conversion; ESLint enforces this boundary for value and type imports.

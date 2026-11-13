@@ -268,6 +268,20 @@ type ModelCallTurnCorrelatedClassification = {
 */
 
 /* __GDPR__
+	"copilotSdk/slash_command_invoked": {
+		"owner": "amunger",
+		"comment": "Counts runtime slash-command invocations, not successful command completions. Only standard SDK rows reach this sink; command arguments and restricted command names are not collected.",
+		"${include}": [ "${CopilotSdkForwardedTelemetry}" ],
+		"command_name": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime-defined built-in slash-command name, including the leading slash (for example /security-review), or custom for user-defined commands and skills." },
+		"subcommand": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Optional normalized top-level subcommand matched against the runtime command's declared choices; never arbitrary command arguments." },
+		"copilot_pid": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Process identifier for the Copilot CLI runtime." },
+		"interaction_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime interaction context when available, not a unique user request identifier." },
+		"engagement_id": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Runtime engagement identifier that can span multiple requests." },
+		"unique_id": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Runtime-generated identifier for this telemetry envelope." }
+	}
+*/
+
+/* __GDPR__
 	"copilotSdk/skill_invoked": {
 		"owner": "jruales",
 		"comment": "Existing runtime skill-invocation telemetry forwarded by the SDK. Standard rows identify skills by hash, including create-canvas; plaintext metadata is restricted telemetry only.",

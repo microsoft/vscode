@@ -45,6 +45,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	let widget: ChatQuestionCarouselPart;
 	let submittedAnswers: Map<string, IChatQuestionAnswerValue> | undefined | null = null;
+	let submittedByUser: boolean | undefined;
 	let codeEditorService: ICodeEditorService;
 
 	/** Returns the answer editors rendered under the given root, in DOM order. */
@@ -77,8 +78,9 @@ suite('ChatQuestionCarouselPart', () => {
 		codeEditorService = instantiationService.get(ICodeEditorService);
 		const options: IChatQuestionCarouselOptions = {
 			...optionsOverrides,
-			onSubmit: (answers) => {
+			onSubmit: (answers, byUser) => {
 				submittedAnswers = answers;
+				submittedByUser = byUser;
 				onSubmit?.();
 			}
 		};
@@ -92,6 +94,7 @@ suite('ChatQuestionCarouselPart', () => {
 
 	teardown(() => {
 		submittedAnswers = null;
+		submittedByUser = undefined;
 	});
 
 	suite('Basic Rendering', () => {
@@ -1017,6 +1020,30 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.strictEqual(result, true, 'skip() should return true when allowSkip is true');
 			assert.ok(submittedAnswers instanceof Map, 'Skip should call onSubmit with a Map');
 			assert.strictEqual(submittedAnswers?.get('q1'), 'default answer', 'Skip should return default values');
+		});
+
+		test('only the person\'s own submission or dismissal is reported as theirs', () => {
+			const outcomes: { answers: unknown; byUser: boolean | undefined }[] = [];
+			const settle = (act: () => void) => {
+				createWidget(createMockCarousel([{ id: 'q1', type: 'text', title: 'Question 1', defaultValue: 'default answer' }], true));
+				act();
+				outcomes.push({ answers: submittedAnswers && [...submittedAnswers], byUser: submittedByUser });
+			};
+
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-submit-button')!.click());
+			settle(() => widget.domNode.querySelector<HTMLElement>('.chat-question-close')!.click());
+			settle(() => widget.domNode.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true, cancelable: true })));
+			// Defaults submitted when another message is sent, and a dismissal made for the person.
+			settle(() => widget.skip());
+			settle(() => widget.ignore());
+
+			assert.deepStrictEqual(outcomes, [
+				{ answers: [['q1', 'default answer']], byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: undefined, byUser: true },
+				{ answers: [['q1', 'default answer']], byUser: undefined },
+				{ answers: undefined, byUser: false },
+			]);
 		});
 
 		test('skip fails when allowSkip is false', () => {

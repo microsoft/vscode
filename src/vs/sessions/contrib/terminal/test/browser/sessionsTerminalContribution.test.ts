@@ -280,6 +280,7 @@ suite('SessionsTerminalContribution', () => {
 	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	let onDidReplaceSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
 	let onDidReplaceNewDraftSession: Emitter<{ readonly from: ISession; readonly to: ISession }>;
+	let onDidDiscardNewSession: Emitter<ISession>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
 	let onDidDisposeInstance: Emitter<ITerminalInstance>;
 
@@ -337,6 +338,7 @@ suite('SessionsTerminalContribution', () => {
 		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		onDidReplaceSession = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 		onDidReplaceNewDraftSession = store.add(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
+		onDidDiscardNewSession = store.add(new Emitter<ISession>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 		onDidDisposeInstance = store.add(new Emitter<ITerminalInstance>());
 
@@ -346,6 +348,7 @@ suite('SessionsTerminalContribution', () => {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
 			override readonly onDidReplaceSession = onDidReplaceSession.event;
 			override readonly onDidReplaceNewDraftSession = onDidReplaceNewDraftSession.event;
+			override readonly onDidDiscardNewSession = onDidDiscardNewSession.event;
 			override getSessions(): ISession[] { return [...allSessions]; }
 		});
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
@@ -1068,6 +1071,60 @@ suite('SessionsTerminalContribution', () => {
 			created: 0,
 			disposed: [],
 		});
+	});
+
+	test('reuses the terminal of a discarded draft for the next session in the same cwd', async () => {
+		const cwd = URI.file('/worktree');
+		const draftSession = makeAgentSession({ sessionId: 'test:draft', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const nextSession = makeAgentSession({ sessionId: 'test:next', worktree: cwd, providerType: AgentSessionProviders.Background });
+
+		await contribution.ensureTerminal(cwd, false, draftSession);
+		onDidDiscardNewSession.fire(draftSession);
+		const result = await contribution.ensureTerminal(cwd, false, nextSession);
+
+		assert.deepStrictEqual({
+			result: result.map(instance => instance.instanceId),
+			created: createdTerminals.length,
+			disposed: disposedInstances.map(instance => instance.instanceId),
+		}, {
+			result: [1],
+			created: 1,
+			disposed: [],
+		});
+	});
+
+	test('keeps the terminal a chat window shows of a discarded draft the draft\'s, for the window to give back to the panel, rather than to another session', async () => {
+		const cwd = URI.file('/worktree');
+		const draftSession = makeAgentSession({ sessionId: 'test:draft', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const nextSession = makeAgentSession({ sessionId: 'test:next', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const shown = (await contribution.createChatWindowTerminal(draftSession, draftSession.activeChat.get()))!;
+
+		onDidDiscardNewSession.fire(draftSession);
+		const ownerAfterDiscard = contribution.getChatWindowTerminalOwner(shown);
+		const next = await contribution.ensureTerminal(cwd, false, nextSession);
+
+		assert.deepStrictEqual({
+			ownerAfterDiscard,
+			ownerAfterNext: contribution.getChatWindowTerminalOwner(shown),
+			next: next.map(instance => instance.instanceId),
+		}, {
+			ownerAfterDiscard: 'test:draft',
+			ownerAfterNext: 'test:draft',
+			next: [shown.instanceId + 1],
+		});
+	});
+
+	test('forgets the scope of the terminal of a discarded draft as it closes', async () => {
+		const cwd = URI.file('/worktree');
+		const draftSession = makeAgentSession({ sessionId: 'test:draft', worktree: cwd, providerType: AgentSessionProviders.Background });
+		const [terminal] = await contribution.ensureTerminal(cwd, false, draftSession);
+		onDidDiscardNewSession.fire(draftSession);
+
+		(terminal as TestTerminalInstance)._testSetDisposed(true);
+		terminalInstances.delete(terminal.instanceId);
+		onDidDisposeInstance.fire(terminal);
+
+		assert.deepStrictEqual([...(contribution as unknown as { _trackedTerminalScopes: Map<number, unknown> })._trackedTerminalScopes.keys()], []);
 	});
 
 	test('rehomes terminals when replacement drafts use different cwd values', async () => {
@@ -2331,6 +2388,23 @@ suite('SessionsTerminalContribution', () => {
 		const result = await contribution.ensureTerminal(worktreeUri, false, committedSession);
 		assert.strictEqual(createdTerminals.length, 1, 'should reuse the transferred terminal');
 		assert.strictEqual(result[0].instanceId, terminalId);
+	});
+
+	test('keeps tracking terminals when a session is replaced by one with the same id, so deleting it later closes them', async () => {
+		const worktreeUri = URI.file('/worktree');
+		const draftSession = makeAgentSession({ sessionId: 'test:same', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+		const committedSession = makeAgentSession({ sessionId: 'test:same', worktree: worktreeUri, providerType: AgentSessionProviders.Background });
+
+		await contribution.ensureTerminal(worktreeUri, false, draftSession);
+		onDidReplaceSession.fire({ from: draftSession, to: committedSession });
+
+		// The user moved on to another session: the terminal went to the background.
+		activeInstanceId = undefined;
+		backgroundedInstances.add(1);
+		onDidChangeSessions.fire({ added: [], removed: [committedSession], changed: [] });
+		await tick();
+
+		assert.deepStrictEqual(disposedInstances.map(instance => instance.instanceId), [1]);
 	});
 
 	test('cleans up tracked terminal ids when terminals are externally disposed', async () => {

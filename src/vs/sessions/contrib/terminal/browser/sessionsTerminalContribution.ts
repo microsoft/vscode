@@ -232,6 +232,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			this._onDidReplaceNewDraftSession(from, to);
 		}));
 
+		// A discarded draft no longer owns its terminals: release them so the
+		// next session in the same cwd reuses them instead of creating new ones.
+		this._register(this._sessionsManagementService.onDidDiscardNewSession(session => {
+			this._onDidDiscardNewSession(session);
+		}));
+
 		// When a session is replaced (untitled → committed graduation), transfer
 		// tracked terminals from the old session id to the new one so they are
 		// not orphaned and closed by the removal cleanup.
@@ -613,6 +619,27 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		}
 	}
 
+	private _onDidDiscardNewSession(session: ISession): void {
+		const pendingOperation = this._pendingTerminalOperations.get(session.sessionId);
+		if (pendingOperation) {
+			pendingOperation.replaced = true;
+		}
+		const terminalIds = this._sessionTerminals.get(session.sessionId);
+		if (!terminalIds) {
+			return;
+		}
+		// Those a chat window shows stay the draft's: as the window moves on to another session, it gives them back to the
+		// panel, rather than taking them for that session, and no other session reuses them meanwhile.
+		const released = [...terminalIds].filter(id => !this._chatWindowTerminalIds.has(id));
+		released.forEach(id => terminalIds.delete(id));
+		if (released.length > 0) {
+			this._logService.trace(`[SessionsTerminal] Released ${released.length} terminal(s) of discarded session ${session.sessionId}`);
+		}
+		if (terminalIds.size === 0) {
+			this._sessionTerminals.delete(session.sessionId);
+		}
+	}
+
 	private _rehomeTerminals(sessionId: string): void {
 		const terminals = this._getTrackedTerminalsForSession(sessionId);
 		for (const terminal of terminals) {
@@ -626,6 +653,11 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _transferTerminals(fromSessionId: string, toSessionId: string): void {
+		// A session can be replaced by one with the same id (e.g. a draft that
+		// graduates in place): its terminals already belong to the target.
+		if (fromSessionId === toSessionId) {
+			return;
+		}
 		const terminalIds = this._sessionTerminals.get(fromSessionId);
 		if (terminalIds && terminalIds.size > 0) {
 			let targetIds = this._sessionTerminals.get(toSessionId);
@@ -683,9 +715,10 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	}
 
 	private _removeTerminalFromTrackedSessions(instanceId: number): void {
+		// Also of a terminal no session tracks any longer, such as one of a discarded draft.
+		this._trackedTerminalScopes.delete(instanceId);
 		for (const [sessionId, terminalIds] of this._sessionTerminals) {
 			terminalIds.delete(instanceId);
-			this._trackedTerminalScopes.delete(instanceId);
 			if (terminalIds.size === 0) {
 				this._sessionTerminals.delete(sessionId);
 			}

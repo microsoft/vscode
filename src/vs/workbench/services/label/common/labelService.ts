@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IDisposable, Disposable, dispose } from '../../../../base/common/lifecycle.js';
+import { IDisposable, Disposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { posix, sep, win32 } from '../../../../base/common/path.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
@@ -14,7 +14,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { IWorkspaceContextService, IWorkspace, isWorkspace, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier, WORKSPACE_EXTENSION, isUntitledWorkspace, isTemporaryWorkspace } from '../../../../platform/workspace/common/workspace.js';
 import { basenameOrAuthority, basename, dirname, joinPath } from '../../../../base/common/resources.js';
 import { tildify, getPathLabel } from '../../../../base/common/labels.js';
-import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter } from '../../../../platform/label/common/label.js';
+import { ILabelService, ResourceLabelFormatter, ResourceLabelFormatting, IFormatterChangeEvent, Verbosity, ResourceLabelTemplateFormatter, IWorkspaceLabelDecorator } from '../../../../platform/label/common/label.js';
 import { ExtensionsRegistry } from '../../extensions/common/extensionsRegistry.js';
 import { match } from '../../../../base/common/glob.js';
 import { ILifecycleService, LifecyclePhase } from '../../lifecycle/common/lifecycle.js';
@@ -157,6 +157,8 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400, leakWarningName: 'LabelService._onDidChangeFormatters' }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
+
+	private readonly workspaceLabelDecorators: IWorkspaceLabelDecorator[] = [];
 
 	private readonly storedFormattersMemento: Memento<IStoredFormatters>;
 	private readonly storedFormatters: IStoredFormatters;
@@ -402,7 +404,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return pathLib.basename(label);
 	}
 
-	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose: Verbosity }): string {
+	getWorkspaceLabel(workspace: IWorkspace | IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI, options?: { verbose?: Verbosity; withLocation?: boolean }): string {
 		if (isWorkspace(workspace)) {
 			const identifier = toWorkspaceIdentifier(workspace);
 			if (isSingleFolderWorkspaceIdentifier(identifier) || isWorkspaceIdentifier(identifier)) {
@@ -414,12 +416,12 @@ export class LabelService extends Disposable implements ILabelService {
 
 		// Workspace: Single Folder (as URI)
 		if (URI.isUri(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace, options);
+			return this.withFolderLocation(workspace, this.doGetSingleFolderWorkspaceLabel(workspace, options), options);
 		}
 
 		// Workspace: Single Folder (as workspace identifier)
 		if (isSingleFolderWorkspaceIdentifier(workspace)) {
-			return this.doGetSingleFolderWorkspaceLabel(workspace.uri, options);
+			return this.withFolderLocation(workspace.uri, this.doGetSingleFolderWorkspaceLabel(workspace.uri, options), options);
 		}
 
 		// Workspace: Multi Root
@@ -430,7 +432,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return '';
 	}
 
-	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose: Verbosity }): string {
+	private doGetWorkspaceLabel(workspaceUri: URI, options?: { verbose?: Verbosity }): string {
 
 		// Workspace: Untitled
 		if (isUntitledWorkspace(workspaceUri, this.environmentService)) {
@@ -469,7 +471,34 @@ export class LabelService extends Disposable implements ILabelService {
 		return this.appendWorkspaceSuffix(label, workspaceUri);
 	}
 
-	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: Verbosity }): string {
+	private withFolderLocation(folderUri: URI, label: string, options?: { withLocation?: boolean }): string {
+		const location = options?.withLocation ? this.getFolderLocationLabel(folderUri) : undefined;
+		return location ? localize('workspaceLabelWithLocation', "{0} ({1})", label, location) : label;
+	}
+
+	getFolderLocationLabel(folder: URI): string | undefined {
+		for (const decorator of this.workspaceLabelDecorators) {
+			const label = decorator.getFolderLocationLabel(folder);
+			if (label) {
+				return label;
+			}
+		}
+		return undefined;
+	}
+
+	registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable {
+		this.workspaceLabelDecorators.push(decorator);
+		const changeListener = decorator.onDidChange(folder => this._onDidChangeFormatters.fire({ scheme: folder.scheme }));
+		return toDisposable(() => {
+			changeListener.dispose();
+			const index = this.workspaceLabelDecorators.indexOf(decorator);
+			if (index !== -1) {
+				this.workspaceLabelDecorators.splice(index, 1);
+			}
+		});
+	}
+
+	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose?: Verbosity }): string {
 		let label: string;
 		switch (options?.verbose) {
 			case Verbosity.LONG:

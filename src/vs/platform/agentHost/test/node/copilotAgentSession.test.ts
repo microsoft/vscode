@@ -184,6 +184,9 @@ class MockCopilotSession {
 	readonly extensions: Awaited<ReturnType<CopilotSession['rpc']['extensions']['list']>>['extensions'] = [];
 	readonly canvases: Awaited<ReturnType<CopilotSession['rpc']['canvas']['list']>>['canvases'] = [];
 	readonly canvasOpenCalls: Parameters<CopilotSession['rpc']['canvas']['open']>[0][] = [];
+	/** Overrides the instance `rpc.canvas.open` returns. */
+	onCanvasOpen: ((params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => Promise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>) | undefined;
+	canvasOpenError: Error | undefined;
 	readonly canvasCloseCalls: Parameters<CopilotSession['rpc']['canvas']['close']>[0][] = [];
 	canvasCloseGate: Promise<void> | undefined;
 	canvasCloseError: Error | undefined;
@@ -651,6 +654,12 @@ class MockCopilotSession {
 			},
 			open: async (params: Parameters<CopilotSession['rpc']['canvas']['open']>[0]) => {
 				this.canvasOpenCalls.push(params);
+				if (this.canvasOpenError) {
+					throw this.canvasOpenError;
+				}
+				if (this.onCanvasOpen) {
+					return this.onCanvasOpen(params);
+				}
 				return {
 					instanceId: params.instanceId,
 					extensionId: params.extensionId ?? 'project:preview',
@@ -5680,7 +5689,7 @@ suite('CopilotAgentSession', () => {
 			replacement.session.dispose();
 		});
 
-		test('reconciles handed-over canvases with the canvases the replacement runtime has open', async () => {
+		test('reconciles handed-over canvases with the canvases the replacement runtime has open or still declares', async () => {
 			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/preview' }, { ...chart, url: 'https://example.test/chart' });
 			const replacement = await createAgentSession(disposables, {
 				resume: true,
@@ -5688,6 +5697,8 @@ suite('CopilotAgentSession', () => {
 				configureMockSession: mock => {
 					mock.openCanvases.push({ ...preview });
 					mock.listedOpenCanvases.push({ ...preview, url: 'https://example.test/replacement' });
+					// The chart's provider is gone, so the replacement runtime no longer declares its canvas.
+					mock.canvases.splice(mock.canvases.findIndex(canvas => canvas.canvasId === chart.canvasId), 1);
 				},
 			});
 			const [previewResource, chartResource] = handoff.projections.map(projection => projection.resource.toString());
@@ -5704,6 +5715,168 @@ suite('CopilotAgentSession', () => {
 					{ resource: previewResource, url: 'https://example.test/replacement' },
 				],
 				membership: [[previewResource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a handed-over canvas the replacement runtime restored without starting its provider', async () => {
+			const input = { path: '/logs/events.jsonl' };
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, input, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					// A lazily activated provider's canvas stays declared, but its restored instance is not open until demanded.
+					mock.onCanvasOpen = async params => ({ ...preview, input: params.input, url: 'https://example.test/reopened' });
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+			const publishedInput = replacement.signals.some(signal => signal.kind === 'canvas' && Object.hasOwn(signal.state, 'input'));
+
+			assert.deepStrictEqual({
+				adopted,
+				openCalls: replacement.mockSession.canvasOpenCalls,
+				...summarizeCanvasSignals(replacement.signals),
+				publishedInput,
+				nextHandoffInput: replacement.session.takeCanvasProjection()?.projections.map(projection => projection.input),
+			}, {
+				adopted: true,
+				openCalls: [{ extensionId: preview.extensionId, canvasId: preview.canvasId, instanceId: preview.instanceId, input }],
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+				membership: [[resource]],
+				publishedInput: false,
+				nextHandoffInput: [input],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a handed-over canvas unavailable when reopening it fails', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.canvasOpenError = new Error('provider failed to start');
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('reopens a restored canvas without delaying the resume', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			// The session finishes starting while the provider is still starting.
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			const whileReopening = { reopenPending: !reopen.isSettled, ...summarizeCanvasSignals(replacement.signals) };
+			reopen.complete({ ...preview, url: 'https://example.test/reopened' });
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, whileReopening, states: summarizeCanvasSignals(replacement.signals).states }, {
+				adopted: true,
+				whileReopening: {
+					reopenPending: true,
+					states: [{ resource, url: undefined }],
+					membership: [[resource]],
+				},
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/reopened' }],
+			});
+			replacement.session.dispose();
+		});
+
+		test('keeps a slowly reopening canvas without desynchronizing the session', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				controlPlaneRpcTimeoutMs: 1,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+			await timeout(10);
+			const desynchronized = replacement.session.requiresControlPlaneResync;
+			// The runtime still reports the reopen once the provider has started.
+			replacement.mockSession.fire('session.canvas.opened', { ...preview, url: 'https://example.test/late' });
+			reopen.complete({ ...preview, url: 'https://example.test/late' });
+
+			assert.deepStrictEqual({ desynchronized, ...summarizeCanvasSignals(replacement.signals) }, {
+				desynchronized: false,
+				states: [{ resource, url: undefined }, { resource, url: 'https://example.test/late' }],
+				membership: [[resource]],
+			});
+			replacement.session.dispose();
+		});
+
+		test('ignores a background reopen that finishes after the canvas was closed', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const reopen = new DeferredPromise<Awaited<ReturnType<CopilotSession['rpc']['canvas']['open']>>>();
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = () => reopen.p;
+				},
+			});
+			const resource = handoff.projections[0].resource;
+			assert.strictEqual(replacement.session.adoptCanvasHandoff(handoff), true);
+
+			await replacement.session.closeCanvas({ resource });
+			reopen.complete({ ...preview, url: 'https://example.test/stale' });
+			await timeout(0);
+
+			assert.deepStrictEqual({
+				closeCalls: replacement.mockSession.canvasCloseCalls,
+				...summarizeCanvasSignals(replacement.signals),
+			}, {
+				closeCalls: [{ instanceId: preview.instanceId }],
+				states: [{ resource: resource.toString(), url: undefined }],
+				membership: [[resource.toString()], []],
+			});
+			replacement.session.dispose();
+		});
+
+		test('does not restore a handed-over canvas closed while it is being reopened', async () => {
+			const { handoff } = await takeCanvasesFromPreviousRuntime({ ...preview, url: 'https://example.test/previous' });
+			const replacement = await createAgentSession(disposables, {
+				resume: true,
+				canvasHandoff: handoff,
+				configureMockSession: mock => {
+					mock.onCanvasOpen = async () => {
+						mock.fire('session.canvas.closed', { instanceId: preview.instanceId, extensionId: preview.extensionId, canvasId: preview.canvasId });
+						return { ...preview, url: 'https://example.test/stale' };
+					};
+				},
+			});
+			const resource = handoff.projections[0].resource.toString();
+			const adopted = replacement.session.adoptCanvasHandoff(handoff);
+			await timeout(0);
+
+			assert.deepStrictEqual({ adopted, ...summarizeCanvasSignals(replacement.signals) }, {
+				adopted: true,
+				states: [{ resource, url: undefined }],
+				membership: [[]],
 			});
 			replacement.session.dispose();
 		});
@@ -7452,21 +7625,28 @@ suite('CopilotAgentSession', () => {
 				range: { start: { line: 0, character: 20 }, end: { line: 0, character: 35 } },
 			};
 			const skill: MessageAttachment = {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///workspace/SKILL.md',
 				label: '/review',
+				displayKind: 'skill',
 				range: { start: { line: 0, character: 40 }, end: { line: 0, character: 47 } },
-				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
-				modelRepresentation: 'Review instructions',
+				_meta: { description: 'Review changes', argumentHint: 'Files', opaque: false },
 			};
 			const repeatedSkill: MessageAttachment = {
 				...skill,
 				range: { start: { line: 0, character: 52 }, end: { line: 0, character: 59 } },
 			};
 			const completionOnlySkill: MessageAttachment = {
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'custom-skill:/review',
 				label: '/review',
+				displayKind: 'skill',
 				range: { start: { line: 1, character: 0 }, end: { line: 1, character: 7 } },
-				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
+			};
+			const forwardedCommand: MessageAttachment = {
+				...command,
+				_meta: { command: 'chronicle', description: 'Tips' },
+				modelRepresentation: 'Command instructions',
 			};
 			const unrelated: MessageAttachment = {
 				type: MessageAttachmentKind.Simple,
@@ -7480,15 +7660,22 @@ suite('CopilotAgentSession', () => {
 				displayKind: 'document',
 			};
 			const prompt = '/chronicle tips and /chronicle tips and /review and /review\n/review';
-			await session.send(prompt, [command, repeatedCommand, unrelated, skill, repeatedSkill, completionOnlySkill], 'first');
+			await session.send(prompt, [command, repeatedCommand, unrelated, skill, repeatedSkill, completionOnlySkill, forwardedCommand], 'first');
 			mockSession.fire('session.idle', {});
 			await session.send(prompt, [file], 'second');
 			const steeringCommand = { ...command, _meta: { command: 'different-command' } };
 			await session.sendSteering({
 				id: 'steering',
-				message: { text: prompt, origin: { kind: MessageKind.User }, attachments: [steeringCommand] },
+				message: { text: prompt, origin: { kind: MessageKind.User }, attachments: [steeringCommand, completionOnlySkill] },
 			});
 			await database.whenIdle();
+			const legacySkill = {
+				type: MessageAttachmentKind.Simple, label: '/review', displayKind: 'skill', range: skill.range,
+				_meta: { uri: 'file:///legacy/SKILL.md', name: 'review', displayName: 'Review' },
+			};
+			await database.setMetadata('copilot.completionReferences', JSON.stringify({
+				text: prompt, references: [{ attachment: legacySkill }],
+			}), 'second');
 			session.dispose();
 			await database.whenIdle();
 			await database.close();
@@ -7510,23 +7697,26 @@ suite('CopilotAgentSession', () => {
 					{
 						prompt, attachments: [
 							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Unrelated model context')), mimeType: 'text/plain', displayName: skill.label },
-							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Review instructions')), mimeType: 'text/plain', displayName: '/review' },
-							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Review instructions')), mimeType: 'text/plain', displayName: '/review' },
+							{ type: 'blob', data: encodeBase64(VSBuffer.fromString('Command instructions')), mimeType: 'text/x-vscode-simple-attachment; x-vscode-display-kind=command', displayName: command.label },
 						],
 					},
 					{ prompt, attachments: [{ type: 'file', path: URI.file('/workspace/readme.md').fsPath, displayName: 'readme.md' }] },
 					{ prompt, attachments: undefined, mode: 'immediate' },
 				],
 				messages: [
-					{ text: prompt, attachments: [unrelated, skill, repeatedSkill, command, repeatedCommand, completionOnlySkill] },
-					{ text: prompt, attachments: [file] },
-					{ text: prompt, attachments: [steeringCommand] },
+					{ text: prompt, attachments: [unrelated, forwardedCommand, command, repeatedCommand, skill, repeatedSkill, completionOnlySkill] },
+					{
+						text: prompt, attachments: [file, {
+							type: MessageAttachmentKind.Resource, uri: legacySkill._meta.uri, label: '/review', displayKind: 'skill',
+							range: skill.range, _meta: legacySkill._meta,
+						}]
+					},
+					{ text: prompt, attachments: [steeringCommand, completionOnlySkill] },
 				],
 				withoutMetadata: [
 					[
 						unrelated,
-						{ type: MessageAttachmentKind.Simple, label: '/review', modelRepresentation: 'Review instructions' },
-						{ type: MessageAttachmentKind.Simple, label: '/review', modelRepresentation: 'Review instructions' },
+						{ type: MessageAttachmentKind.Simple, label: command.label, displayKind: 'command', modelRepresentation: 'Command instructions' },
 					],
 					[file],
 					undefined,
@@ -7551,10 +7741,11 @@ suite('CopilotAgentSession', () => {
 				'\n\n/review\n<context>User-authored context.</context>\n',
 			];
 			const references: MessageAttachment[] = texts.map((_, index) => ({
-				type: MessageAttachmentKind.Simple,
+				type: MessageAttachmentKind.Resource,
+				uri: 'file:///workspace/SKILL.md',
 				label: '/review',
+				displayKind: 'skill',
 				range: { start: { line: index + 1, character: 0 }, end: { line: index + 1, character: 7 } },
-				_meta: { uri: 'file:///workspace/SKILL.md', name: 'review' },
 			}));
 			const transcript: SessionEvent[] = [];
 			mockSession.onSend = () => {
@@ -7626,13 +7817,12 @@ suite('CopilotAgentSession', () => {
 				mockSession.fire('user.message', data as SessionEventPayload<'user.message'>['data'], { id });
 			};
 			const reference: MessageAttachment = {
-				type: MessageAttachmentKind.Simple, label: 'chronicle tips', displayKind: 'command',
-				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 15 } },
-				_meta: { command: 'chronicle' },
+				type: MessageAttachmentKind.Resource, uri: 'file:///workspace/SKILL.md', label: '/review', displayKind: 'skill',
+				range: { start: { line: 0, character: 0 }, end: { line: 0, character: 7 } },
 			};
-			await session.send('/chronicle tips', [reference], 'first');
+			await session.send('/review', [reference], 'first');
 			mockSession.fire('session.idle', {});
-			await session.send('/chronicle tips', [reference], 'second');
+			await session.send('/review', [reference], 'second');
 			mockSession.fire('session.idle', {});
 			await database.setMetadata('copilot.completionReferences', 'session-only');
 			await database.whenIdle();
@@ -13007,6 +13197,33 @@ suite('CopilotAgentSession', () => {
 				recommended: { kind: 'attributed', result: { kind: 'approve-once' }, decisionContext: { source: 'host_policy', surface: 'sdk', outcome: 'auto_approved' } },
 				managed: 'prompted',
 				noRecommendation: 'prompted',
+			});
+		});
+
+		test('uses the raw MCP tool name from the permission prompt instead of the runtime name', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			const request = {
+				kind: 'mcp',
+				toolCallId: 'tc-mcp',
+				serverName: 'shadertoy',
+				toolName: 'shadertoy-render-shadertoy',
+				toolTitle: 'ShaderToy Renderer',
+				readOnly: false,
+			} as const;
+			const pending = runtime.handlePermissionRequest(request, {
+				sessionId: session.sessionId,
+				promptRequest: { ...request, toolName: 'render-shadertoy' },
+			});
+			const signal = await waitForSignal(s => s.kind === 'pending_confirmation' && s.state.toolCallId === request.toolCallId);
+			session.respondToPermissionRequest(request.toolCallId, true);
+			await pending;
+
+			assert.deepStrictEqual(signal.kind === 'pending_confirmation' ? {
+				mcpServerName: signal.mcpServerName,
+				mcpToolName: signal.mcpToolName,
+			} : undefined, {
+				mcpServerName: 'shadertoy',
+				mcpToolName: 'render-shadertoy',
 			});
 		});
 
@@ -27857,6 +28074,27 @@ Use the attached image as context.
 			assert.strictEqual(result.wasFreeform, true);
 		});
 
+		test('labels only the answers a client reports as a person\'s own', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-input');
+			const ask = () => runtime.handleUserInputRequest({ question: 'Delete the file?', choices: ['Yes', 'No'] }, { sessionId: 'test-session-1' });
+			const answer = (value: string) => ({ answer: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value } } } as const);
+			const human = { responseSource: 'human_response' } as const;
+
+			const answered = ask();
+			const dismissed = ask();
+			const unreported = ask();
+			session.respondToUserInputRequest(getInputRequest(signals[0]).id, ChatInputResponseKind.Accept, answer('Yes'), human);
+			session.respondToUserInputRequest(getInputRequest(signals[1]).id, ChatInputResponseKind.Cancel, undefined, human);
+			session.respondToUserInputRequest(getInputRequest(signals[2]).id, ChatInputResponseKind.Accept, answer('Yes'));
+
+			assert.deepStrictEqual({ answered: await answered, dismissed: await dismissed, unreported: await unreported }, {
+				answered: { answer: 'Yes', wasFreeform: false, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				dismissed: { answer: '', wasFreeform: true, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				unreported: { answer: 'Yes', wasFreeform: false },
+			});
+		});
+
 		test('respondToUserInputRequest returns false for unknown id', async () => {
 			const { session } = await createAgentSession(disposables);
 			assert.strictEqual(session.respondToUserInputRequest('unknown-id', ChatInputResponseKind.Accept), false);
@@ -28432,6 +28670,53 @@ Use the attached image as context.
 			const request = getInputRequest(signals[0]);
 			session.respondToUserInputRequest(request.id, ChatInputResponseKind.Cancel);
 			assert.deepStrictEqual(await resultPromise, { action: 'cancel' });
+		});
+
+		test('labels a person\'s ask_user answer and refusals beside the result, and nothing else', async () => {
+			const { session, runtime, signals } = await createAgentSession(disposables);
+			session.resetTurnState('turn-ask-user');
+			const ask = () => runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Delete README.md?',
+				requestedSchema: { type: 'object', properties: { confirm: { type: 'string', enum: ['Yes', 'No'] } } },
+			});
+			const yes = { confirm: { state: ChatInputAnswerState.Submitted, value: { kind: ChatInputAnswerValueKind.Selected, value: 'Yes' } } } as const;
+			const human = { responseSource: 'human_response' } as const;
+
+			const accepted = ask();
+			const declined = ask();
+			const cancelled = ask();
+			const unreported = ask();
+			const tornDown = ask();
+			session.respondToUserInputRequest(getInputRequest(signals[0]).id, ChatInputResponseKind.Accept, yes, human);
+			session.respondToUserInputRequest(getInputRequest(signals[1]).id, ChatInputResponseKind.Decline, undefined, human);
+			session.respondToUserInputRequest(getInputRequest(signals[2]).id, ChatInputResponseKind.Cancel, undefined, human);
+			session.respondToUserInputRequest(getInputRequest(signals[3]).id, ChatInputResponseKind.Accept, yes);
+			const tornDownRequestId = getInputRequest(signals[4]).id;
+			const answered = { accepted: await accepted, declined: await declined, cancelled: await cancelled, unreported: await unreported };
+			await session.abort();
+
+			assert.deepStrictEqual({
+				...answered, tornDown: await tornDown,
+				lateHumanResponseHandled: session.respondToUserInputRequest(tornDownRequestId, ChatInputResponseKind.Accept, yes, human),
+			}, {
+				accepted: { action: 'accept', content: { confirm: 'Yes' }, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				declined: { action: 'decline', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				cancelled: { action: 'cancel', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				unreported: { action: 'accept', content: { confirm: 'Yes' } },
+				tornDown: { action: 'cancel' },
+				lateHumanResponseHandled: false,
+			});
+		});
+
+		test('an automatic ask_user reply stays unlabeled', async () => {
+			const { runtime } = await createAgentSession(disposables, { configValues: { [SessionConfigKey.Mode]: 'autopilot' } });
+
+			assert.deepStrictEqual(await runtime.handleElicitationRequest({
+				sessionId: 'test-session-1',
+				message: 'Delete README.md?',
+				requestedSchema: { type: 'object', properties: { confirm: { type: 'string' } } },
+			}), { action: 'accept', content: { confirm: AgentHostAutoReplyAnswer } });
 		});
 
 		test('autopilot auto-cancels without firing a progress event', async () => {
@@ -29643,6 +29928,31 @@ Use the attached image as context.
 				{ id: 'client', contract: undefined },
 				{ id: 'mcp', contract: undefined },
 			]);
+		});
+
+		test('reports whether a completed native view call named a file or a directory', async () => {
+			const { session, mockSession, signals, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-view');
+			const views: Record<string, { readonly viewType?: string; readonly success?: boolean; readonly mcpServerName?: string }> = {
+				file: { viewType: 'file' },
+				image: { viewType: 'image' },
+				directory: { viewType: 'directory' },
+				failed: { viewType: 'file', success: false },
+				unreported: {},
+				mcp: { viewType: 'file', mcpServerName: 'server' },
+			};
+			for (const [toolCallId, { viewType, success = true, mcpServerName }] of Object.entries(views)) {
+				mockSession.fire('tool.execution_start', { toolCallId, toolName: 'view', arguments: { path: `/workspace/${toolCallId}` }, mcpServerName });
+				mockSession.fire('tool.execution_complete', {
+					toolCallId, success, toolTelemetry: viewType ? { properties: { viewType } } : undefined,
+					...(success ? { result: { content: 'Contents' } } : { error: { message: 'Path does not exist' } }),
+				});
+				await waitForSignal(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallComplete && signal.action.toolCallId === toolCallId);
+			}
+			assert.deepStrictEqual(Object.fromEntries(getActions(signals).flatMap(action =>
+				action.type === ActionType.ChatToolCallComplete ? [[action.toolCallId, readToolCallMeta(action)['vscode.viewedResourceType']]] : [])), {
+				file: 'file', image: 'file', directory: 'directory', failed: undefined, unreported: undefined, mcp: undefined,
+			});
 		});
 
 		test('permission before a held client-tool start retains the owning client', async () => {
@@ -33008,6 +33318,37 @@ Use the attached image as context.
 			session.respondToUserInputRequest(getInputRequest(signal).id, ChatInputResponseKind.Decline);
 
 			assert.deepStrictEqual(await responsePromise, { approved: false });
+		});
+
+		test('labels a person\'s plan approval, rejection, and feedback, but not a host-substituted outcome', async () => {
+			const { session, runtime, waitForSignal } = await createAgentSession(disposables);
+			session.resetTurnState('turn-plan');
+			const human = { responseSource: 'human_response' } as const;
+			const reviewed = new Set<AgentSignal>();
+			const review = async (response: ChatInputResponseKind, value?: { kind: ChatInputAnswerValueKind.Selected | ChatInputAnswerValueKind.Text; value: string }, context?: typeof human) => {
+				const responsePromise = runtime.handleExitPlanModeRequest(planRequestParams({ actions: ['interactive', 'exit_only'], recommendedAction: 'interactive' }), { sessionId: 'test-session-1' });
+				const signal = await waitForSignal(s => isAction(s, ActionType.ChatInputRequested) && !reviewed.has(s));
+				reviewed.add(signal);
+				const request = getInputRequest(signal);
+				session.respondToUserInputRequest(request.id, response, value ? { [request.questions![0].id]: { state: ChatInputAnswerState.Submitted, value } } : undefined, context);
+				return responsePromise;
+			};
+
+			assert.deepStrictEqual({
+				approved: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' }, human),
+				rejected: await review(ChatInputResponseKind.Decline, undefined, human),
+				feedback: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Text, value: 'Keep the README.' }, human),
+				substitutedAction: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Selected, value: 'autopilot' }, human),
+				emptySubmission: await review(ChatInputResponseKind.Accept, undefined, human),
+				unreported: await review(ChatInputResponseKind.Accept, { kind: ChatInputAnswerValueKind.Selected, value: 'exit_only' }),
+			}, {
+				approved: { approved: true, selectedAction: 'exit_only', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				rejected: { approved: false, decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				feedback: { approved: false, feedback: 'Keep the README.', selectedAction: 'interactive', decisionContext: { source: 'human_response', responseCapability: 'interactive', surface: 'sdk', outcome: 'prompted_user' } },
+				substitutedAction: { approved: true, selectedAction: 'interactive' },
+				emptySubmission: { approved: false },
+				unreported: { approved: true, selectedAction: 'exit_only' },
+			});
 		});
 
 		test('abort resolves and clears a pending plan review', async () => {

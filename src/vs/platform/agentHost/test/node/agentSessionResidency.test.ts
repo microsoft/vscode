@@ -19,7 +19,7 @@ import { buildBranchChangesetUri, buildUncommittedChangesetUri, buildFolderChang
 import { buildNonPtyShellTerminalUri } from '../../common/nonPtyShellTerminalUri.js';
 import { ActionType } from '../../common/state/sessionActions.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
-import { SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
+import { MessageKind, PendingMessageKind, SessionStatus, buildChatUri, buildDefaultChatUri, buildSubagentSessionUri, type SessionSummary } from '../../common/state/sessionState.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostSubscriptionService } from '../../node/agentHostSubscriptionService.js';
 import { AgentSessionResidency, type IAgentSessionReleaseDelegate } from '../../node/agentSessionResidency.js';
@@ -315,6 +315,64 @@ suite('AgentSessionResidency', () => {
 			released: [],
 		});
 	}));
+
+	for (const limit of [0, 10]) {
+		for (const target of ['default', 'peer', 'steering'] as const) {
+			test(`retains disconnected ${target} pending work across ${limit === 0 ? 'residency pressure' : 'idle release'} until it is removed`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+				residency.dispose();
+				delegate.isHeldInUse = () => true;
+				residency = createResidency(limit);
+				const session = createUsedSession('waiting-for-sponsor', false);
+				const chat = target === 'peer' ? buildChatUri(session, 'peer') : buildDefaultChatUri(session);
+				if (target === 'peer') {
+					stateManager.addChat(session.toString(), chat, chat);
+				}
+				const kind = target === 'steering' ? PendingMessageKind.Steering : PendingMessageKind.Queued;
+				stateManager.dispatchServerAction(chat, {
+					type: ActionType.ChatPendingMessageSet, id: 'pending', kind,
+					message: { text: 'unsent work', origin: { kind: MessageKind.User } },
+				});
+				stateManager.dispatchServerAction(buildDefaultChatUri(session), chatTurnComplete('turn-waiting-for-sponsor', 1));
+				await residency.reconcile();
+				await timeout(60_000);
+				await residency.reconcile();
+				const waiting = {
+					resident: !!stateManager.getSessionState(session.toString()),
+					pending: stateManager.getChatState(chat)?.queuedMessages?.map(message => message.id),
+					released: [...released],
+				};
+				stateManager.dispatchServerAction(chat, { type: ActionType.ChatPendingMessageRemoved, id: 'pending', kind });
+				await timeout(10_001);
+				await residency.reconcile();
+				assert.deepStrictEqual({ waiting, evicted }, {
+					waiting: { resident: true, pending: ['pending'], released: [] },
+					evicted: [session.toString()],
+				});
+			}));
+		}
+	}
+
+	test('rechecks pending messages after an asynchronous release preflight', async () => {
+		residency.dispose();
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		delegate.createRelease = session => ({
+			canRelease: async () => { entered.complete(); await resume.p; return true; },
+			release: async () => { released.push(session.toString()); },
+		});
+		residency = createResidency(0);
+		const session = createUsedSession('pending-during-release');
+		await entered.p;
+		stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+			type: ActionType.ChatPendingMessageSet, id: 'pending', kind: PendingMessageKind.Queued,
+			message: { text: 'unsent work', origin: { kind: MessageKind.User } },
+		});
+		resume.complete();
+		await residency.reconcile();
+		assert.deepStrictEqual({ resident: !!stateManager.getSessionState(session.toString()), released, evicted }, {
+			resident: true, released: [], evicted: [],
+		});
+	});
 
 	test('retries a due release that failed after its provider let go of the session', async () => {
 		residency.dispose();
