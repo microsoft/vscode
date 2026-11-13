@@ -60,7 +60,8 @@
 	cursor: pointer;
 }
 
-/* Inset the hover without shrinking the hit target or conflicting with the focus outline. */
+/* Inset the hover fill without shrinking the hit target. The shared disclosure
+ * contract owns the interaction boundary. */
 .ai-customization-toolbar .ai-customization-header:is(:hover, .hovered)::before {
 	content: '';
 	position: absolute;
@@ -69,8 +70,6 @@
 	pointer-events: none;
 	border-radius: var(--vscode-cornerRadius-small, 4px);
 	background-color: var(--vscode-list-hoverBackground);
-	outline: var(--vscode-strokeThickness, 1px) dashed var(--vscode-contrastActiveBorder, transparent);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness, 1px));
 }
 
 .ai-customization-toolbar .ai-customization-header:focus-visible .ai-customization-header-label {
@@ -96,7 +95,7 @@
 }
 
 .ai-customization-toolbar .ai-customization-header:focus:not(:focus-visible) {
-	outline: none !important;
+	outline: none;
 }
 
 .ai-customization-toolbar .ai-customization-header-label {

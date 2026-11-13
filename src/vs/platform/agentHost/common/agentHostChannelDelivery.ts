@@ -318,7 +318,9 @@ export class AgentHostChannelDelivery extends Disposable {
 	private _receivedBytes = 0;
 	private _consumedBytes = 0;
 	private _creditedBytes = 0;
-	private _fragments = '';
+	/** Fragments of the message being reassembled; joined once, since appending to and indexing one growing string flattens it on every frame. */
+	private _fragments: string[] = [];
+	private _fragmentsLength = 0;
 	private _error: Error | undefined;
 	private _creditTimer: ReturnType<typeof setTimeout> | undefined;
 	private _creditPrompt = false;
@@ -496,31 +498,35 @@ export class AgentHostChannelDelivery extends Disposable {
 				if (!fragment.data.length) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Channel reassembly capacity exceeded');
 				}
-				if ((this._fragments.length + fragment.data.length) * 2 > this._maximumMessageBytes) {
+				if ((this._fragmentsLength + fragment.data.length) * 2 > this._maximumMessageBytes) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.MessageLimitExceeded, 'Channel reassembly capacity exceeded');
 				}
 				if (this._retainedBytes > this._maximumBufferedBytes) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.BacklogLimitExceeded, 'Channel reassembly capacity exceeded');
 				}
-				const previous = this._fragments.charCodeAt(this._fragments.length - 1);
+				const last = this._fragments.at(-1);
+				const previous = last?.charCodeAt(last.length - 1) ?? 0;
 				const first = fragment.data.charCodeAt(0);
 				if (previous >= 0xd800 && previous <= 0xdbff && first >= 0xdc00 && first <= 0xdfff) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Channel fragment split a surrogate pair');
 				}
-				this._fragments += fragment.data;
+				this._fragments.push(fragment.data);
+				this._fragmentsLength += fragment.data.length;
 				if (!fragment.final) {
 					this._release(boundary);
 					return;
 				}
-				retainedBytes = this._fragments.length * 2;
-				const parsed: JsonRpcNotification = JSON.parse(this._fragments);
+				retainedBytes = this._fragmentsLength * 2;
+				const text = this._fragments.join('');
+				this._fragments = [];
+				this._fragmentsLength = 0;
+				const parsed: JsonRpcNotification = JSON.parse(text);
 				notification = notificationValidator.validateOrThrow(parsed);
 				message = parsed;
-				this._fragments = '';
 				if (notification.params.channel !== this.channel || message.method === 'channel/frame' || !countsAgainstWindow(message.method)) {
 					throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Invalid fragmented channel notification');
 				}
-			} else if (this._fragments) {
+			} else if (this._fragments.length) {
 				throw new AgentHostChannelError(AgentHostChannelErrorCode.InvalidMessage, 'Data interleaved with an incomplete channel message');
 			}
 			if (retainedBytes > this._maximumMessageBytes) {
@@ -637,7 +643,8 @@ export class AgentHostChannelDelivery extends Disposable {
 		}
 		this._drains.clear();
 		this._received.length = 0;
-		this._fragments = '';
+		this._fragments = [];
+		this._fragmentsLength = 0;
 		try {
 			this._onError(error);
 		} finally {

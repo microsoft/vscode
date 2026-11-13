@@ -379,22 +379,10 @@ export class HoverWidget extends Widget implements IHoverWidget {
 		this._hover.contentsDomNode.style.maxHeight = '';
 		this._hover.containerDomNode.style.maxWidth = '';
 
-		const getZoomAccountedBoundingClientRect = (e: HTMLElement) => {
-			const zoom = dom.getDomNodeZoomLevel(e);
-
-			const boundingRect = e.getBoundingClientRect();
-			return {
-				top: boundingRect.top * zoom,
-				bottom: boundingRect.bottom * zoom,
-				right: boundingRect.right * zoom,
-				left: boundingRect.left * zoom,
-			};
-		};
-
-		const targetBounds = this._target.targetElements.map(e => getZoomAccountedBoundingClientRect(e));
+		const targetBounds = this._target.targetElements.map(e => e.getBoundingClientRect());
 		let { top, right, bottom, left } = targetBounds[0];
 		if (this._clippingElement) {
-			const clip = getZoomAccountedBoundingClientRect(this._clippingElement);
+			const clip = this._clippingElement.getBoundingClientRect();
 			const visible = {
 				top: Math.max(top, clip.top),
 				right: Math.min(right, clip.right),

@@ -149,6 +149,16 @@ export class AuxiliaryWindowsMainService extends Disposable implements IAuxiliar
 				case 'window-disable-maximize':
 					disableMaximize = true;
 					break;
+				case 'window-panel':
+					overrides.panel = true;
+					break;
+				case 'window-opacity': {
+					const opacity = parseFloat(value);
+					if (!isNaN(opacity)) {
+						overrides.opacity = Math.min(1, Math.max(0, opacity));
+					}
+					break;
+				}
 				case 'window-background-color':
 					if (typeof value === 'string' && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(value)) {
 						overrides.backgroundColor = value;

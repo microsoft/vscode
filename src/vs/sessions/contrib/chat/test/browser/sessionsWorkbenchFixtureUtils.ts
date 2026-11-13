@@ -211,6 +211,9 @@ export function createSessionsWorkbenchFixture(context: ComponentFixtureContext,
 	const blockedIndicator = new class extends mock<BlockedSessionsIndicatorModel>() {
 		override readonly onDidRequestBlink = Event.None;
 		override readonly blockedSessions = constObservable([]);
+		override readonly unacknowledgedBlockedSessions = constObservable([]);
+		override readonly reminderSessions = constObservable([]);
+		override readonly attentionSessionCount = constObservable(0);
 		override readonly requiresInputKind = constObservable(undefined);
 		override consumePendingBlink() { return false; }
 	}();
