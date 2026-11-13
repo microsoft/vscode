@@ -29,11 +29,11 @@ export const DEFAULT_ELEMENT_LABEL = localize('browser.element', 'element');
  * Falls back to a default string when no session context is available.
  */
 export function getSessionId(invocation: IToolInvocation): string {
-	return toSessionId(invocation.context?.sessionResource);
+	return getSessionIdForResource(invocation.context?.sessionResource);
 }
 
 /** The session ID of a chat session resource, or a default string without one. */
-export function toSessionId(sessionResource: URI | undefined): string {
+export function getSessionIdForResource(sessionResource: URI | undefined): string {
 	return sessionResource?.toString() ?? '<default>';
 }
 

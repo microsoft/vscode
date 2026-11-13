@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals } from '../../../../base/common/arrays.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Sequencer } from '../../../../base/common/async.js';
@@ -70,8 +71,6 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 	private readonly _composerTabs = this._register(new DisposableMap<BrowserEditorInput, IComposerTab>());
 	/** The folders of the sessions on remote agent hosts that are trusted, for {@link IBrowserViewNetworkResolver.getTrustedFileRoots}. */
 	private _trustedFileRoots: URI[] = [];
-	/** Identifies {@link _trustedFileRoots}, so changes are only reported when they change. */
-	private _trustedFileRootsKey = '[]';
 	/** Recomputes of the trusted roots run one at a time, so the latest one wins. */
 	private readonly _trustedFileRootsUpdates = new Sequencer();
 	/** Whether the file system of each connected host (keyed by authority) distinguishes paths by case, once its operating system is known. */
@@ -106,9 +105,8 @@ export class SessionBrowserNetworkContribution extends Disposable implements IWo
 		const onDidChangeFileAccess = this._register(new Emitter<void>());
 		const updateTrustedFileRoots = () => void this._trustedFileRootsUpdates.queue(async () => {
 			const roots = await this._computeTrustedFileRoots();
-			const key = JSON.stringify(roots.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort());
-			if (key !== this._trustedFileRootsKey) {
-				this._trustedFileRootsKey = key;
+			const comparisonKeys = (uris: readonly URI[]) => uris.map(root => this._uriIdentityService.extUri.getComparisonKey(root)).sort();
+			if (!equals(comparisonKeys(roots), comparisonKeys(this._trustedFileRoots))) {
 				this._trustedFileRoots = roots;
 				onDidChangeFileAccess.fire();
 			}

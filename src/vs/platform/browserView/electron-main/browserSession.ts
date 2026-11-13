@@ -448,7 +448,7 @@ export class BrowserSession {
 	 */
 	private async handleRemoteFileRequest(authority: string, uri: URI): Promise<GlobalResponse> {
 		const access = BrowserSession._remoteFileAccess.get(toRemoteFileAccessKey(authority));
-		const path = authorizeRemoteFilePath(access, uri);
+		const path = access && authorizeRemoteFilePath(access, uri);
 		if (!access || path === undefined) {
 			return new Response(localize('browserSession.untrustedFile', 'Forbidden. File does not reside within a trusted folder.'), { status: 403 });
 		}

@@ -6,7 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
-import { extUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase } from '../../../base/common/resources.js';
+import { extUri, extUriBiasedIgnorePathCase, extUriIgnorePathCase, IExtUri } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri, toAgentHostUri } from '../../agentHost/common/agentHostUri.js';
@@ -176,13 +176,13 @@ export interface IBrowserViewWindowConfiguration {
 	 * as file system paths. Main unions every window's contribution. Entries are dropped when the window is destroyed.
 	 * Usually `getTrustedUris()` plus, when the workspace itself is trusted, its workspace folders.
 	 */
-	readonly trustedFileRoots: readonly string[];
+	readonly trustedLocalFileRoots: readonly string[];
 	/**
-	 * Whether Workspace Trust is disabled entirely (`security.workspace.trust.enabled: false`) in a
-	 * window that is not connected to a remote. When `true`, every local `file://` request is allowed,
+	 * Whether Workspace Trust is disabled entirely (`security.workspace.trust.enabled: false`).
+	 * When `true`, every `file://` request of sessions on the local network is allowed,
 	 * since there is no meaningful notion of an untrusted folder to enforce.
 	 */
-	readonly trustAllFiles: boolean;
+	readonly trustAllLocalFiles: boolean;
 }
 
 /** A remote network a window's views use, with what is needed to serve the remote's files. */
@@ -425,15 +425,19 @@ export function fileUrlToRemoteUri(network: IBrowserViewNetwork, scheme: string,
 /**
  * Whether navigating to {@link target} stays on the {@link associatedResource}, apart from its query and fragment.
  * Pass the session's {@link network} when the page can display the resource as a `file:` URL (see {@link remoteUrlToFileUrl}),
- * and whether its file system is {@link caseSensitive}. Without it, as for local resources, paths compare by the client's rules.
+ * and a {@link comparer} with the case rules of its file system. By default, as for local resources, paths compare by the client's rules.
  */
-export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork, caseSensitive?: boolean): boolean {
+export function isBrowserViewAssociatedResourceNavigation(associatedResource: URI, target: string, network?: IBrowserViewNetwork, comparer: IExtUri = extUriBiasedIgnorePathCase): boolean {
 	const targetResource = URI.parse(remoteUrlToFileUrl(network, target));
-	const comparer = caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
 	return comparer.isEqual(
 		URI.parse(remoteUrlToFileUrl(network, associatedResource.toString())).with({ query: null, fragment: null }),
 		targetResource.with({ query: null, fragment: null })
 	);
+}
+
+/** The path comparer for a file system that is {@link caseSensitive}, or for the client's own when that is `undefined`. */
+export function getBrowserViewPathComparer(caseSensitive: boolean | undefined): IExtUri {
+	return caseSensitive === undefined ? extUriBiasedIgnorePathCase : caseSensitive ? extUri : extUriIgnorePathCase;
 }
 
 /** `applicationSharedStorage` keys this session writes to. Empty for ephemeral sessions. */

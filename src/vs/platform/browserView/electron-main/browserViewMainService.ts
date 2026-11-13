@@ -383,7 +383,7 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			}
 		}
 
-		this._recomputeTrustedFileRoots();
+		this._recomputeFileAccess();
 	}
 
 	private _ensureWindowCloseSubscription(windowId: number): void {
@@ -399,15 +399,15 @@ export class BrowserViewMainService extends Disposable implements IBrowserViewMa
 			this._windowCloseSubscriptions.deleteAndDispose(windowId);
 			this.windowEvents.deleteAndDispose(windowId);
 			if (this._windowConfigurations.delete(windowId)) {
-				this._recomputeTrustedFileRoots();
+				this._recomputeFileAccess();
 			}
 		}));
 	}
 
-	private _recomputeTrustedFileRoots(): void {
+	private _recomputeFileAccess(): void {
 		const configurations = [...this._windowConfigurations.values()];
-		const localRoots = new Set(configurations.flatMap(configuration => configuration.trustedFileRoots));
-		BrowserSession.setTrustedLocalFileRoots([...localRoots], configurations.some(configuration => configuration.trustAllFiles));
+		const localRoots = new Set(configurations.flatMap(configuration => configuration.trustedLocalFileRoots));
+		BrowserSession.setTrustedLocalFileRoots([...localRoots], configurations.some(configuration => configuration.trustAllLocalFiles));
 		BrowserSession.setRemoteFileAccess(computeRemoteFileAccess(configurations.map(configuration => configuration.remoteNetworks)));
 	}
 

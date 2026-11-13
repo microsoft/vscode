@@ -69,9 +69,9 @@ export function normalizeRemoteFilePath(path: string): string | undefined {
  * The caller must serve the returned path, so `..` segments cannot escape the trusted roots.
  * A file authority names a network share, which is not on the remote's own disk, so it is never allowed.
  */
-export function authorizeRemoteFilePath(access: IRemoteFileAccess | undefined, uri: URI): string | undefined {
+export function authorizeRemoteFilePath(access: IRemoteFileAccess, uri: URI): string | undefined {
 	const path = normalizeRemoteFilePath(uri.path);
-	if (uri.authority || path === undefined || !access || (!access.trustAllFiles && !access.roots.findSubstr(path))) {
+	if (uri.authority || path === undefined || (!access.trustAllFiles && !access.roots.findSubstr(path))) {
 		return undefined;
 	}
 	return path;

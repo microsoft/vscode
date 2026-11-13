@@ -108,7 +108,9 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 			}
 		);
 
-		for (const scheme of BROWSER_FILE_SCHEMES) {
+		// Only the Agents window has a network resolver for agent hosts.
+		const fileSchemes = BROWSER_FILE_SCHEMES.filter(scheme => scheme !== AGENT_HOST_SCHEME || environmentService.isSessionsWindow);
+		for (const scheme of fileSchemes) {
 			for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
 				editorResolverService.registerEditor(
 					`${scheme}:/**/*.${extension}`,
@@ -118,7 +120,10 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						priority: RegisteredEditorPriority.option
 					},
 					{
-						canSupportResource: resource => resource.scheme === scheme && (scheme === Schemas.file || (!!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId) && (scheme !== AGENT_HOST_SCHEME || environmentService.isSessionsWindow))),
+						canSupportResource: resource => resource.scheme === scheme && (
+							scheme === Schemas.file ||
+							!!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)
+						),
 						singlePerResource: true
 					},
 					{

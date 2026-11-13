@@ -11,7 +11,7 @@ import { IBrowserViewNetwork, remoteUrlToFileUrl } from '../../../../../platform
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
 import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
-import { createBrowserPageLink, errorResult, getBrowserNetworkPolicyError, getBrowserPageResourceNavigationError, getExternalTunnelNetworkPolicyError, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl, toSessionId } from './browserToolHelpers.js';
+import { createBrowserPageLink, errorResult, getBrowserNetworkPolicyError, getBrowserPageResourceNavigationError, getExternalTunnelNetworkPolicyError, getSessionId, playwrightInvoke, remoteUrlRewriteNotice, rewriteRemoteLocalhostUrl, getSessionIdForResource } from './browserToolHelpers.js';
 import { BrowserChatToolReferenceName } from '../../../../../platform/browserView/common/browserChatToolReferenceNames.js';
 import { IBrowserViewWorkbenchService } from '../../common/browserView.js';
 import { IRemoteExplorerService } from '../../../../services/remote/common/remoteExplorerService.js';
@@ -98,7 +98,7 @@ export class NavigateBrowserTool implements IToolImpl {
 					throw new Error(resourceNavigationError);
 				}
 
-				const pageNetwork = this.getPageNetwork(params.pageId, toSessionId(context.chatSessionResource));
+				const pageNetwork = this.getPageNetwork(params.pageId, getSessionIdForResource(context.chatSessionResource));
 				// A resource of the page's remote is loaded as a `file:` URL, so the policy applies to that.
 				const networkPolicyError = getBrowserNetworkPolicyError(remoteUrlToFileUrl(pageNetwork, params.url), this.agentNetworkFilterService);
 				if (networkPolicyError) {

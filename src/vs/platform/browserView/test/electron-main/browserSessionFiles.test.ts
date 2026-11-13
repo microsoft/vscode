@@ -72,12 +72,11 @@ suite('authorizeRemoteFilePath', () => {
 
 	test('only authorizes paths of the remote under its trusted roots', () => {
 		const access = computeRemoteFileAccess([{ host: { proxy: undefined as unknown as IBrowserViewRemoteNetwork['proxy'], scheme: AGENT_HOST_SCHEME, trustedRoots: ['/share'], trustAllFiles: false, caseSensitive: true } }]).get('host');
-		const authorize = (uri: string) => authorizeRemoteFilePath(access, URI.parse(uri));
+		const authorize = (uri: string) => authorizeRemoteFilePath(access!, URI.parse(uri));
 		assert.deepStrictEqual({
 			inside: authorize('file:///share/a/../index.html'),
 			outside: authorize('file:///share/../secret'),
 			networkShare: authorize('file://server/share/index.html'),
-			noAccess: authorizeRemoteFilePath(undefined, URI.parse('file:///share/index.html')),
-		}, { inside: '/share/index.html', outside: undefined, networkShare: undefined, noAccess: undefined });
+		}, { inside: '/share/index.html', outside: undefined, networkShare: undefined });
 	});
 });

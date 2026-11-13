@@ -760,11 +760,11 @@ suite('BrowserViewWorkbenchService', () => {
 		const input = store.add(service.getOrCreateLazy({ id: 'page', url: 'http://page/' }));
 		await input.resolve();
 
-		const { remoteNetworks, trustedFileRoots, trustAllFiles } = windowConfigurations.at(-1)!;
-		assert.deepStrictEqual({ remoteNetworks, trustedFileRoots, trustAllFiles }, {
+		const { remoteNetworks, trustedLocalFileRoots, trustAllLocalFiles } = windowConfigurations.at(-1)!;
+		assert.deepStrictEqual({ remoteNetworks, trustedLocalFileRoots, trustAllLocalFiles }, {
 			remoteNetworks: { 'ssh-remote+host': { proxy: proxy(1), scheme: 'vscode-remote', trustedRoots: ['/repo'], trustAllFiles: true, caseSensitive: true } },
-			trustedFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
-			trustAllFiles: true,
+			trustedLocalFileRoots: [URI.file('/home/test/.copilot').fsPath, instantiationService.get(IWorkspaceContextService).getWorkspace().folders[0].uri.fsPath, URI.file('/local').fsPath],
+			trustAllLocalFiles: true,
 		});
 	});
 });

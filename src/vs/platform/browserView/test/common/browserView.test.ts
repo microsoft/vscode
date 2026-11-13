@@ -7,6 +7,7 @@ import assert from 'assert';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../agentHost/common/agentHostUri.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { extUri, extUriIgnorePathCase } from '../../../../base/common/resources.js';
 import { BrowserViewPresentation, getBrowserViewRemoteFile, BrowserViewStorageScope, getAgentBrowserViewCreationDefaults, getBrowserViewPopupAction, remoteUrlToFileUrl, isBrowserViewAssociatedResourceNavigation, isBrowserViewStorageScopeShareableWithAgent, isInMemoryStorageScope, matchesBrowserViewAudience } from '../../common/browserView.js';
 
 suite('BrowserView', () => {
@@ -74,8 +75,8 @@ suite('BrowserView', () => {
 			remoteOther: isBrowserViewAssociatedResourceNavigation(remote, 'file:///a/other.html', network),
 			agentHostFile: isBrowserViewAssociatedResourceNavigation(agentHost, 'file:///a/index.html#top', { authority: 'host-a' }),
 			remoteWithoutNetwork: isBrowserViewAssociatedResourceNavigation(remote, 'file:///a/index.html'),
-			windowsRemoteCase: isBrowserViewAssociatedResourceNavigation(windowsRemote, 'file:///c:/repo/index.html?x=1', network, false),
-			caseSensitiveRemoteCase: isBrowserViewAssociatedResourceNavigation(windowsRemote, 'file:///c:/repo/index.html?x=1', network, true),
+			windowsRemoteCase: isBrowserViewAssociatedResourceNavigation(windowsRemote, 'file:///c:/repo/index.html?x=1', network, extUriIgnorePathCase),
+			caseSensitiveRemoteCase: isBrowserViewAssociatedResourceNavigation(windowsRemote, 'file:///c:/repo/index.html?x=1', network, extUri),
 		}, {
 			remoteFile: true,
 			remoteOther: false,

@@ -952,8 +952,8 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 			aiFeaturesDisabled: !this.contextKeyService.contextMatchesRules(ChatContextKeys.enabled),
 			maxHistoryEntries: this.configurationService.getValue<number>(BrowserMaxHistoryEntriesSettingId),
 			remoteNetworks: this._getRemoteNetworks(trustedRoots),
-			trustedFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
-			trustAllFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
+			trustedLocalFileRoots: trustedRoots.filter(root => root.scheme === Schemas.file).map(root => root.fsPath),
+			trustAllLocalFiles: !this.workspaceTrustEnablementService.isWorkspaceTrustEnabled(),
 		});
 	}
 
@@ -973,7 +973,7 @@ export class BrowserViewWorkbenchService extends Disposable implements IBrowserV
 				scheme,
 				trustedRoots: remoteRoots.filter(root => root.scheme === scheme && extUri.isEqualAuthority(root.authority, authority)).map(root => root.fileUri.path),
 				trustAllFiles: scheme === Schemas.vscodeRemote && trustAllFiles,
-				caseSensitive: this.isNetworkPathCaseSensitive(network) ?? true,
+				caseSensitive: this.isNetworkPathCaseSensitive(network)!,
 			};
 		}
 		return remoteNetworks;
