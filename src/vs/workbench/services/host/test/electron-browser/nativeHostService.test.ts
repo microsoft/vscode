@@ -42,7 +42,9 @@ suite('WorkbenchHostService', () => {
 			onDidChangeWindowFullScreen: Event.None,
 		});
 		const environmentService = upcastPartial<INativeWorkbenchEnvironmentService>({
-			args: { _: [], 'hidden-window': hiddenWindow },
+			window: { id: mainWindow.vscodeWindowId, colorScheme: { dark: false, highContrast: false }, perfMarks: [], hiddenWindow },
+			// launch arguments forwarded from another instance may ask for hidden windows; only the main process state counts
+			args: { _: [], 'hidden-window': true },
 			extensionTestsLocationURI: URI.file('/tests'),
 		});
 
@@ -72,7 +74,7 @@ suite('WorkbenchHostService', () => {
 		});
 	});
 
-	test('fallback active window changes do not fire onDidChangeActiveWindow outside hidden mode', () => {
+	test('fallback active window changes do not fire onDidChangeActiveWindow when the main process does not hide windows', () => {
 		const otherWindow = createUnfocusedWindow(6271);
 		const hostService = createHostService(false);
 
