@@ -5,6 +5,7 @@
 
 import { mainWindow } from '../../../../base/browser/window.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -39,7 +40,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { IChatHostOpener, IChatHostOpenerService } from '../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { SessionGridPaneKind } from '../../../../workbench/services/sessions/browser/sessionGridPane.js';
 import { ISessionsHostLayoutService } from '../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
-import { IChat, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../workbench/services/sessions/common/session.js';
 import { ISessionPaneContent } from '../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionEditorWorkingSetOwner, ISessionEditorWorkingSetService } from '../../layout/common/sessionEditorWorkingSet.js';
 
@@ -66,6 +67,12 @@ function ownerKeyOf(owner: ISessionEditorWorkingSetOwner): string;
 function ownerKeyOf(owner: ISessionEditorWorkingSetOwner | undefined): string | undefined;
 function ownerKeyOf(owner: ISessionEditorWorkingSetOwner | undefined): string | undefined {
 	return owner && `${owner.sessionResource.toString()}\n${owner.chatResource?.toString() ?? ''}`;
+}
+
+/** Whether a side chat's tab shows its status rather than the side chat icon: while it works, waits, failed, or is unread. */
+function sideChatNeedsAttention(chat: IChat, reader: IReader): boolean {
+	const status = chat.status.read(reader);
+	return status === SessionStatus.InProgress || status === SessionStatus.NeedsInput || status === SessionStatus.Error || !chat.isRead.read(reader);
 }
 
 /** One side chat that the side pane shows as a tab: its editor, which shows the chat of the provider's session. */
@@ -129,8 +136,14 @@ export class SideChatTab extends Disposable implements ISessionChatViewHost {
 		this._register(autorun(reader => this.input.setName(title.read(reader))));
 		this._register(autorun(reader => {
 			const shown = this._shown.read(reader);
-			this.input.setDetails(shown && getChatEditorInputDetails(shown.session, shown.chat, title.read(reader), reader, sessionsListModelService,
-				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat)));
+			if (!shown) {
+				this.input.setDetails(undefined);
+				return;
+			}
+			const details = getChatEditorInputDetails(shown.session, shown.chat, title.read(reader), reader, sessionsListModelService,
+				() => getSessionAgentMergeConfigurationObservable(shown.session, sessionsProvidersService, configurationService, shown.chat));
+			// Its tab shows that it is a side chat, as the other tabs of the side pane show what they are, unless its status needs attention.
+			this.input.setDetails(sideChatNeedsAttention(shown.chat, reader) ? details : { ...details, icon: Codicon.commentDiscussion });
 		}));
 
 		// It is read once its tab shows while the side pane shows its editors, not while it is hidden or shows only Details.

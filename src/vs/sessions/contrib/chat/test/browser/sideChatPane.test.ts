@@ -9,6 +9,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -113,8 +114,9 @@ suite('SideChatPaneContribution', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		const main = chat('main');
 		const source = chat('source');
+		const sideStatus = observableValue('sideStatus', SessionStatus.Completed);
 		const sideRead = observableValue('sideRead', true);
-		const side: IChat = { ...chat('side', { kind: ChatOriginKind.SideChat, parentChat: source.resource }), isRead: sideRead };
+		const side: IChat = { ...chat('side', { kind: ChatOriginKind.SideChat, parentChat: source.resource }), status: sideStatus, isRead: sideRead };
 		// The session's chats, which load after the session, such as after a reload.
 		const chats = observableValue<readonly IChat[]>('chats', [main, source, side]);
 		const session = upcastPartial<ISession>({
@@ -204,7 +206,7 @@ suite('SideChatPaneContribution', () => {
 		};
 		const tabs = () => editors.opened.map(editor => editor.getName());
 		const active = () => editors.active?.getName();
-		return { store, instantiationService, workingSets, ownerOf, main, source, side, chats, sideRead, inSidePane, editors, chatHostOpenerService, panes, showOwner, reload, tabs, active, setEditorVisible, reveals: () => reveals, reads };
+		return { store, instantiationService, workingSets, ownerOf, main, source, side, chats, sideStatus, sideRead, inSidePane, editors, chatHostOpenerService, panes, showOwner, reload, tabs, active, setEditorVisible, reveals: () => reveals, reads };
 	}
 
 	test('opens claimed side chats as tabs of the side pane, each owner of the working set with its own, until closed', async () => {
@@ -332,6 +334,25 @@ suite('SideChatPaneContribution', () => {
 		setEditorVisible(true);
 
 		assert.deepStrictEqual({ whileHidden, shown: reads }, { whileHidden: [], shown: ['side'] });
+	});
+
+	test('a side chat tab shows the side chat icon, and its status while it works, waits, failed, or is unread', async () => {
+		const { side, sideStatus, sideRead, editors, chatHostOpenerService } = setup();
+		await chatHostOpenerService.getOpenerFor(side.resource)!.reveal(side.resource);
+		const icon = () => {
+			const shown = editors.opened[0].getIcon();
+			return ThemeIcon.isThemeIcon(shown) ? shown.id : undefined;
+		};
+
+		const icons = [icon()];
+		for (const status of [SessionStatus.InProgress, SessionStatus.NeedsInput, SessionStatus.Error, SessionStatus.Completed]) {
+			sideStatus.set(status, undefined);
+			icons.push(icon());
+		}
+		sideRead.set(false, undefined);
+		icons.push(icon());
+
+		assert.deepStrictEqual(icons, ['comment-discussion', 'loading~spin', 'circle', 'circle', 'comment-discussion', 'circle']);
 	});
 
 });
