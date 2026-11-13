@@ -97,6 +97,63 @@ suite('Menubar', () => {
 		});
 	});
 
+	test('opens title bar menus below the title on whole device pixels, including when counter-zoomed (#347796)', async () => {
+		const result: Record<string, unknown> = {};
+		for (const [name, titleZoom] of [['plain', 1], ['counterZoomed', 1 / 1.25]] as const) {
+			const titlebar = mainWindow.document.body.appendChild($('.titlebar'));
+			// Mirrors the menubar layout in menubar.css and the title bar's counter-zoom in titlebarpart.css, which
+			// unit tests do not load. The counter-zoomed holder renders at zoom 1, like menus in a counter-zoomed title bar.
+			titlebar.appendChild($('style')).textContent = `
+				.titlebar .menubar-container { display: flex; }
+				.titlebar .menubar-menu-title { height: 30px; padding: 0 8px; }
+				.titlebar .menubar-menu-items-holder { position: fixed; zoom: ${1 / titleZoom}; }`;
+			titlebar.style.position = 'fixed';
+			titlebar.style.width = '400px';
+			titlebar.style.zoom = `${titleZoom}`;
+			// The 30px title ends at y.2, which rounds up over the title when rounded to the nearest device pixel
+			titlebar.style.left = '10.2px';
+			titlebar.style.top = '20.2px';
+			const menubarContainer = titlebar.appendChild($('.menubar-container'));
+			const menubar = new MenuBar(menubarContainer, { enableMnemonics: true, visibility: 'visible' }, unthemedMenuStyles);
+			try {
+				// A single menu would only be shown in the overflow menu
+				menubar.push([
+					{ label: '&File', actions: [toAction({ id: 'save', label: 'Save', run: () => { } })] },
+					{ label: '&View', actions: [toAction({ id: 'zoomIn', label: 'Zoom In', run: () => { } })] }
+				]);
+				menubar.update();
+				await new Promise<void>(resolve => getWindow(titlebar).requestAnimationFrame(() => resolve()));
+
+				const button = getButtonElementByAriaLabel(menubarContainer, 'View');
+				assert.ok(button);
+				button.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+				const holder = button.querySelector<HTMLElement>('.menubar-menu-items-holder');
+				assert.ok(holder);
+				const dpr = getWindow(holder).devicePixelRatio;
+				const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+				const rect = holder.getBoundingClientRect();
+				// Where the menubar placed the holder before alignment: the title's bottom, scaled by the title's zoom.
+				// Aligning must round down, away from the title, never up over it.
+				const unalignedTop = getTitleDivFromButtonDiv(button)!.getBoundingClientRect().bottom * titleZoom;
+				result[name] = {
+					aligned: misalignment(rect.left) <= dpr / 64 && misalignment(rect.top) <= dpr / 64,
+					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
+					notMovedUp: rect.top >= unalignedTop - 0.01
+				};
+				menubar.blur();
+			} finally {
+				menubar.dispose();
+				titlebar.remove();
+				ModifierKeyEmitter.disposeInstance();
+			}
+		}
+
+		assert.deepStrictEqual(result, {
+			plain: { aligned: true, horizontalInset: 'left', notMovedUp: true },
+			counterZoomed: { aligned: true, horizontalInset: 'left', notMovedUp: true }
+		});
+	});
+
 	suite('compact mode', () => {
 		let compactContainer: HTMLElement;
 
