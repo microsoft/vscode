@@ -92,13 +92,13 @@ export const COPILOT_FORCE_REMOTE_SETTINGS_REFRESH_KEY = 'forceRemoteSettingsRef
 /** Enterprise escape hatch for automatic Copilot harness routing in VS Code. */
 export const COPILOT_TEMPORARY_DEFAULT_TO_LOCAL_HARNESS_KEY = 'vscode.temporaryDefaultToLocalHarness';
 
-/** Temporary managed permission for Local, Claude, and Codex harnesses; only false prohibits them. */
+/** Temporary managed permission for Local, Claude, Codex, and ACP harnesses; only false prohibits them. */
 export const COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY = 'vscode.temporaryAllowLocalHarness';
 
 /**
  * Managed permission list for the third-party harnesses (carried as a JSON-encoded array of
- * {@link ManagedThirdPartyHarness} IDs). Absent = managed-settings presence disables both; a
- * present list permits exactly the harnesses it names, so `[]` denies both. Entries that are not
+ * {@link ManagedThirdPartyHarness} IDs). Absent = managed-settings presence disables them all; a
+ * present list permits exactly the harnesses it names, so `[]` denies them all. Entries that are not
  * a known ID are ignored. A listed harness is only exempt from the presence block: it is still
  * ungoverned by Copilot runtime managed settings.
  */
@@ -111,9 +111,9 @@ const vscodeBlockKey = 'vscode';
 const HARNESS_PERMISSION_KEYS: readonly string[] = [COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY, COPILOT_ALLOWED_HARNESSES_KEY];
 
 /** A third-party harness that {@link COPILOT_ALLOWED_HARNESSES_KEY} can permit. */
-export type ManagedThirdPartyHarness = 'claude' | 'codex';
+export type ManagedThirdPartyHarness = 'claude' | 'codex' | 'acp';
 
-const MANAGED_THIRD_PARTY_HARNESSES: readonly string[] = ['claude', 'codex'] satisfies ManagedThirdPartyHarness[];
+const MANAGED_THIRD_PARTY_HARNESSES: readonly string[] = ['claude', 'codex', 'acp'] satisfies ManagedThirdPartyHarness[];
 
 function isManagedThirdPartyHarness(value: unknown): value is ManagedThirdPartyHarness {
 	return typeof value === 'string' && MANAGED_THIRD_PARTY_HARNESSES.includes(value);
@@ -521,12 +521,12 @@ const thirdPartyAgentEnabledValueCallbacks = new Map<ManagedThirdPartyHarness, (
 
 /**
  * `value` callback for a third-party agent harness policy (`Claude3PIntegration`,
- * `Codex3PIntegration`): forces the harness off when the account disables chat preview features,
+ * `Codex3PIntegration`, `AcpAgents3PIntegration`): forces the harness off when the account disables chat preview features,
  * when Local harnesses are explicitly prohibited, or when the user is governed by managed settings
  * and the administrator has not permitted this harness.
  *
- * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude or
- * Codex harnesses, so leaving them available would hand a governed user an ungoverned path around
+ * Managed settings are composed and enforced by the Copilot runtime and never reach the Claude,
+ * Codex, or ACP harnesses, so leaving them available would hand a governed user an ungoverned path around
  * every managed control the enterprise set. {@link COPILOT_ALLOWED_HARNESSES_KEY} is how an
  * administrator accepts that for a harness: a present list replaces the presence block, permitting
  * the harnesses it names and denying the others, while a value that is not a list permits none.

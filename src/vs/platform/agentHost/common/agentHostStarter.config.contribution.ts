@@ -469,7 +469,11 @@ configurationRegistry.registerConfiguration({
 				name: 'AcpAgents3PIntegration',
 				category: PolicyCategory.InteractiveSession,
 				minimumVersion: '1.142',
-				value: thirdPartyAgentEnabledValue,
+				value: thirdPartyAgentEnabledValue('acp'),
+				managedSettings: {
+					[COPILOT_TEMPORARY_ALLOW_LOCAL_HARNESS_KEY]: { type: 'boolean' },
+					[COPILOT_ALLOWED_HARNESSES_KEY]: { type: 'string' },
+				},
 				localization: {
 					description: {
 						key: 'chat.agentHost.acpAgent.enabled.policy',
