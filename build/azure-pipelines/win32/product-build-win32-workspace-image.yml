@@ -1,0 +1,33 @@
+parameters:
+  - name: VSCODE_ARCH
+    type: string
+
+# Keeps a current workspace image in the pipeline cache for the CI test jobs of the stage, which
+# don't wait for it (see build/azure-pipelines/common/workspaceImage.ts). When the cache has no image
+# of the current native build inputs, lockfiles and day, it installs the dependencies into a volume
+# mounted at its sources directory, with the setup steps of the test jobs, and packs the volume, which
+# the cache saves at the end of the job. The cache saves only after a job that fully succeeded, and
+# the test jobs install everything without an image, so a failure of this job doesn't fail the build.
+jobs:
+  - job: Windows_${{ parameters.VSCODE_ARCH }}_WorkspaceImage
+    displayName: Windows (${{ upper(parameters.VSCODE_ARCH) }}) - Image
+    # It installs without the pnpm store cache, like a clean install of the test jobs (~14-16 minutes)
+    timeoutInMinutes: 60
+    cancelTimeoutInMinutes: 10
+    continueOnError: true
+    variables:
+      VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+    steps:
+      - template: ./steps/product-build-win32-setup.yml@self
+        parameters:
+          VSCODE_ARCH: ${{ parameters.VSCODE_ARCH }}
+          VSCODE_CIBUILD: true
+          VSCODE_WORKSPACE_IMAGE: build
+
+      # Out of the sources directory, which it detaches the volume from to pack it
+      - script: node "$(Build.SourcesDirectory)/build/azure-pipelines/common/workspaceImage.ts" pack
+        displayName: Pack workspace image
+        workingDirectory: $(Agent.TempDirectory)
+        condition: and(succeeded(), eq(variables['WORKSPACE_IMAGE_USED'], 'true'))
+        timeoutInMinutes: 15
+        continueOnError: true

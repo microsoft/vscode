@@ -506,6 +506,63 @@ suite('Workbench - Titlebar Part', () => {
 			}
 		});
 	}
+
+	test('counter-zooms titlebar menus once without shrinking dropdown buttons or nested submenus', () => {
+		const workbench = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+		store.add(toDisposable(() => workbench.remove()));
+		workbench.className = 'monaco-workbench';
+		const titlebar = workbench.appendChild(mainWindow.document.createElement('div'));
+		titlebar.className = 'part titlebar';
+		titlebar.style.setProperty('--zoom-factor', '0.8');
+		const titlebarContainer = titlebar.appendChild(mainWindow.document.createElement('div'));
+		titlebarContainer.className = 'titlebar-container counter-zoom';
+		const toolbar = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
+		toolbar.className = 'monaco-toolbar';
+		const splitItem = toolbar.appendChild(mainWindow.document.createElement('div'));
+		splitItem.className = 'monaco-dropdown-with-primary';
+		const primary = splitItem.appendChild(mainWindow.document.createElement('div'));
+		primary.className = 'action-container';
+		primary.style.cssText = 'width: 20px; height: 24px;';
+		const dropdown = splitItem.appendChild(mainWindow.document.createElement('div'));
+		dropdown.className = 'dropdown-action-container';
+		dropdown.style.cssText = 'width: 16px; height: 24px;';
+		const shadowHost = dropdown.appendChild(mainWindow.document.createElement('div'));
+		shadowHost.className = 'shadow-root-host';
+		const contextView = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
+		contextView.className = 'context-view';
+		const appendSubmenu = (parent: HTMLElement) => {
+			const submenu = parent.appendChild(mainWindow.document.createElement('div'));
+			submenu.className = 'monaco-submenu menubar-menu-items-holder context-view';
+			return submenu;
+		};
+		const contextViewSubmenu = appendSubmenu(appendSubmenu(contextView));
+		const menubarButton = titlebarContainer.appendChild(mainWindow.document.createElement('div'));
+		menubarButton.className = 'menubar';
+		const menubarButtonInner = menubarButton.appendChild(mainWindow.document.createElement('div'));
+		menubarButtonInner.className = 'menubar-menu-button';
+		const menubarHolder = menubarButtonInner.appendChild(mainWindow.document.createElement('div'));
+		menubarHolder.className = 'menubar-menu-items-holder monaco-menu-container';
+		const menubarSubmenu = appendSubmenu(appendSubmenu(menubarHolder));
+		const zoomOf = (element: HTMLElement) => mainWindow.getComputedStyle(element).getPropertyValue('zoom');
+
+		assert.deepStrictEqual({
+			primaryWidth: Math.round(primary.getBoundingClientRect().width),
+			dropdownWidth: Math.round(dropdown.getBoundingClientRect().width),
+			shadowHostZoom: zoomOf(shadowHost),
+			contextViewZoom: zoomOf(contextView),
+			nestedContextViewSubmenuZooms: [zoomOf(contextViewSubmenu.parentElement!), zoomOf(contextViewSubmenu)],
+			menubarHolderZoom: zoomOf(menubarHolder),
+			nestedMenubarSubmenuZooms: [zoomOf(menubarSubmenu.parentElement!), zoomOf(menubarSubmenu)],
+		}, {
+			primaryWidth: 25,
+			dropdownWidth: 20,
+			shadowHostZoom: '0.8',
+			contextViewZoom: '0.8',
+			nestedContextViewSubmenuZooms: ['1', '1'],
+			menubarHolderZoom: '0.8',
+			nestedMenubarSubmenuZooms: ['1', '1'],
+		});
+	});
 });
 
 function createMeasuredElement(clientWidth: () => number, scrollWidth: () => number): HTMLElement {

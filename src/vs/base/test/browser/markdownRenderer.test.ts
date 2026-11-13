@@ -887,6 +887,40 @@ suite('MarkdownRenderer', () => {
 			assert.strictEqual(result, expected);
 		});
 
+		test('replaces the code blocks that codeBlockText describes, also inside a list item or a block quote, and keeps the others', () => {
+			const markdown = {
+				value: [
+					'Before', '', '```chart v1', '<Bar value="1" />', '```', '',
+					'- item `a`', '  ```chart', '  <Bar value="2" />', '  ```', '- item `b`', '  ```ts', '  let b = 1 < 2;', '  ```', '',
+					'> quote', '>', '> ```chart', '> <Bar value="3" />', '> ```', '',
+					'```ts', 'const a = 1 < 2;', '```',
+				].join('\n')
+			};
+			const calls: string[][] = [];
+			const codeBlockText = (languageId: string, text: string, raw: string) => {
+				calls.push([languageId, text, raw]);
+				return languageId === 'chart' ? `Chart <${text.length}> & more` : undefined;
+			};
+			assert.deepStrictEqual({
+				fenced: renderAsPlaintext(markdown, { includeCodeBlocksFences: true, codeBlockText }).split('\n').filter(line => line),
+				plain: renderAsPlaintext(markdown, { codeBlockText }).split('\n').filter(line => line),
+				withoutSyntax: renderAsPlaintext(markdown, { omitMarkdownSyntax: true, codeBlockText }).split('\n').filter(line => line),
+				calls: calls.slice(0, 5),
+			}, {
+				// A list item and a block quote are emitted as their source, apart from the blocks that are described.
+				fenced: ['Before', 'Chart <17> & more', 'item `a`', 'Chart <17> & more', 'item `b`', '```ts', 'let b = 1 < 2;', '```', 'quote', 'Chart <17> & more', '```', 'const a = 1 < 2;', '```'],
+				plain: ['Before', 'Chart <17> & more', 'item `a`', 'Chart <17> & more', 'item `b`', '```ts', 'let b = 1 < 2;', '```', 'quote', 'Chart <17> & more', 'const a = 1 < 2;'],
+				withoutSyntax: ['Before', 'Chart <17> & more', 'item a', 'Chart <17> & more', 'item b', 'let b = 1 < 2;', 'quote', 'Chart <17> & more', 'const a = 1 < 2;'],
+				calls: [
+					['chart', '<Bar value="1" />', '```chart v1\n<Bar value="1" />\n```'],
+					['chart', '<Bar value="2" />', '```chart\n<Bar value="2" />\n```'],
+					['ts', 'let b = 1 < 2;', '```ts\nlet b = 1 < 2;\n```'],
+					['chart', '<Bar value="3" />', '```chart\n<Bar value="3" />\n```'],
+					['ts', 'const a = 1 < 2;', '```ts\nconst a = 1 < 2;\n```'],
+				],
+			});
+		});
+
 		test('does not double-escape entities inside code spans', () => {
 			assert.strictEqual(renderAsPlaintext({ value: 'Run `tests & build`' }), 'Run tests & build');
 			assert.strictEqual(renderAsPlaintext({ value: 'Use `<form>` tag' }), 'Use <form> tag');

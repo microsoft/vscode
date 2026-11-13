@@ -218,7 +218,11 @@ export interface ArtifactAutomationDisablement {
 /** Who asked for a change: a person in the UI, or an agent through its tools, with the person's confirmation where required. */
 export type ArtifactActor =
 	| { readonly kind: 'user' }
-	| { readonly kind: 'agent'; readonly chat: string; readonly turnId?: string };
+	| {
+		readonly kind: 'agent'; readonly chat: string; readonly turnId?: string;
+		/** The tool call ran without the person confirming it, for example under automatic tool approval. */
+		readonly autoApproved?: boolean;
+	};
 
 export interface ArtifactAutomationConfiguration {
 	readonly revision: number;
@@ -312,6 +316,8 @@ export interface ArtifactActionDescriptor {
 	readonly id: string;
 	readonly iconId: string;
 	readonly label: string;
+	/** Describes a prompt action while it runs in its chat, such as "Fixing CI". Defaults to {@link label}. */
+	readonly activityLabel?: string;
 	readonly kind: 'code' | 'prompt';
 	/** Change this when an existing action's effects or required permissions expand. */
 	readonly consentVersion?: string;
@@ -369,7 +375,7 @@ export interface ArtifactRequestPresentation {
 	readonly version: 1;
 	readonly integrationLabel: string;
 	readonly source: 'manual' | 'automation';
-	readonly action: { readonly label: string; readonly iconId: string };
+	readonly action: { readonly label: string; readonly iconId: string; readonly activityLabel?: string };
 	readonly artifact: {
 		readonly resource: string;
 		readonly label: string;

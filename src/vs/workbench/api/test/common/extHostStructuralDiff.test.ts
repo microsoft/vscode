@@ -1,0 +1,352 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import assert from 'assert';
+import type * as vscode from 'vscode';
+import { DeferredPromise } from '../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../base/common/errors.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
+import { mock } from '../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { StructuralDiffClassification, StructuralDiffContext, StructuralDiffResult, StructuralDiffTag, SymbolKind } from '../../../../editor/common/languages.js';
+import { NullLogService } from '../../../../platform/log/common/log.js';
+import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { SerializableObjectWithBuffers } from '../../../services/extensions/common/proxyIdentifier.js';
+import { ExtHostContext, MainContext, MainThreadCommandsShape, MainThreadLanguageFeaturesShape } from '../../common/extHost.protocol.js';
+import { NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
+import { ExtHostApiCommands } from '../../common/extHostApiCommands.js';
+import { ExtHostCommands } from '../../common/extHostCommands.js';
+import { ExtHostDiagnostics } from '../../common/extHostDiagnostics.js';
+import { ExtHostDocuments } from '../../common/extHostDocuments.js';
+import { ExtHostDocumentsAndEditors } from '../../common/extHostDocumentsAndEditors.js';
+import { ExtHostLanguageFeatures } from '../../common/extHostLanguageFeatures.js';
+import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
+import * as types from '../../common/extHostTypes.js';
+import { URITransformerService } from '../../common/extHostUriTransformerService.js';
+import { TestRPCProtocol } from './testRPCProtocol.js';
+
+suite('ExtHost structural diff', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const originalUri = URI.parse('test:/original.ts');
+	const modifiedUri = URI.parse('test:/modified.ts');
+	const extension = { ...nullExtensionDescription, enabledApiProposals: ['structuralDiff'] };
+	const context: StructuralDiffContext = {
+		changes: [{ originalRange: new Range(1, 1, 1, 2), modifiedRange: new Range(1, 1, 1, 2) }],
+	};
+	let documentsAndEditors: ExtHostDocumentsAndEditors;
+	let documents: ExtHostDocuments;
+	let features: ExtHostLanguageFeatures;
+	let handle: number;
+	let rpc: TestRPCProtocol;
+
+	setup(() => {
+		handle = -1;
+		rpc = store.add(new TestRPCProtocol());
+		rpc.set(MainContext.MainThreadLanguageFeatures, new class extends mock<MainThreadLanguageFeaturesShape>() {
+			override $registerStructuralDiffProvider(value: number): void {
+				handle = value;
+			}
+			override $unregister(): void { }
+		});
+		documentsAndEditors = new ExtHostDocumentsAndEditors(rpc, new NullLogService());
+		documents = store.add(new ExtHostDocuments(rpc, documentsAndEditors));
+		documentsAndEditors.$acceptDocumentsAndEditorsDelta({
+			addedDocuments: [
+				{ uri: originalUri, lines: ['a'], EOL: '\n', versionId: 1, languageId: 'typescript', isDirty: false, encoding: 'utf8' },
+				{ uri: modifiedUri, lines: ['b'], EOL: '\n', versionId: 1, languageId: 'typescript', isDirty: false, encoding: 'utf8' },
+			],
+		});
+		features = store.add(new ExtHostLanguageFeatures(
+			rpc,
+			new URITransformerService(null),
+			documents,
+			new class extends mock<ExtHostCommands>() { },
+			new class extends mock<ExtHostDiagnostics>() { },
+			new NullLogService(),
+			NullApiDeprecationService,
+			new class extends mock<IExtHostTelemetry>() {
+				override onExtensionError(): boolean { return true; }
+			},
+		));
+		rpc.set(ExtHostContext.ExtHostLanguageFeatures, features);
+	});
+
+	teardown(() => rpc.sync());
+
+	async function register(provider: vscode.StructuralDiffProvider): Promise<void> {
+		store.add(features.registerStructuralDiffProvider(extension, { language: 'typescript' }, provider));
+		await rpc.sync();
+		assert.ok(handle >= 0);
+	}
+
+	function provide(token: CancellationToken = CancellationToken.None, originalVersion = 1, modifiedVersion = 1) {
+		return rpc.getProxy(ExtHostContext.ExtHostLanguageFeatures).$provideStructuralDiff(handle, originalUri, originalVersion, modifiedUri, modifiedVersion, context, token);
+	}
+
+	test('requires the proposal before registering', () => {
+		assert.throws(() => features.registerStructuralDiffProvider(nullExtensionDescription, '*', {
+			provideStructuralDiff: () => undefined,
+		}), /CANNOT use API proposal: structuralDiff/);
+		assert.strictEqual(handle, -1);
+	});
+
+	test('converts both snapshots, paired ranges and nested classifications', async () => {
+		let received: { texts: string[]; uris: string[]; context: vscode.StructuralDiffContext } | undefined;
+		await register({
+			provideStructuralDiff: (original, modified, value) => {
+				received = { texts: [original.getText(), modified.getText()], uris: [original.uri.toString(), modified.uri.toString()], context: value };
+				const item = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+				return {
+					root: {
+						id: 'file', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [],
+						children: [{
+							id: 'member',
+							originalItem: { name: 'oldName', detail: 'old', kind: types.SymbolKind.Method, range: item.range, selectionRange: item.range },
+							modifiedItem: { name: 'newName', detail: 'new', kind: types.SymbolKind.Method, range: item.range, selectionRange: item.range },
+							originalChanges: [{ textChangeIndex: 0, range: item.range, classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test] }],
+							modifiedChanges: [{ textChangeIndex: 0, range: item.range, classification: types.StructuralDiffClassification.Implementation, tags: [] }],
+							children: [],
+						}],
+					},
+					isIncomplete: false,
+				};
+			},
+		});
+		const result = await provide();
+		const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 };
+		assert.deepStrictEqual({ received, child: result?.root.children[0], isIncomplete: result?.isIncomplete }, {
+			received: {
+				texts: ['a', 'b'],
+				uris: [originalUri.toString(), modifiedUri.toString()],
+				context: { changes: [{ originalRange: new types.Range(0, 0, 0, 1), modifiedRange: new types.Range(0, 0, 0, 1) }] },
+			},
+			child: {
+				id: 'member',
+				originalItem: { name: 'oldName', detail: 'old', kind: SymbolKind.Method, range, selectionRange: range },
+				modifiedItem: { name: 'newName', detail: 'new', kind: SymbolKind.Method, range, selectionRange: range },
+				originalChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Header, tags: [StructuralDiffTag.Test] }],
+				modifiedChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Implementation, tags: [] }],
+				children: [],
+			},
+			isIncomplete: false,
+		});
+	});
+
+	for (const side of ['original', 'modified'] as const) {
+		test(`preserves ${side}-only items and incomplete results`, async () => {
+			await register({
+				provideStructuralDiff: () => {
+					const item = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+					return {
+						root: {
+							id: 'file', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [],
+							children: [{
+								id: side,
+								[`${side}Item`]: { name: 'member', kind: types.SymbolKind.Property, range: item.range },
+								originalChanges: [], modifiedChanges: [], children: [],
+							}],
+						},
+						isIncomplete: true,
+					};
+				},
+			});
+			const result = await provide();
+			assert.deepStrictEqual({ child: result?.root.children[0], isIncomplete: result?.isIncomplete }, {
+				child: {
+					id: side,
+					[`${side}Item`]: { name: 'member', kind: SymbolKind.Property, range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 } },
+					originalChanges: [], modifiedChanges: [], children: [],
+				},
+				isIncomplete: true,
+			});
+		});
+	}
+
+	for (const result of [null, undefined]) {
+		test(`returns undefined when the provider returns ${result}`, async () => {
+			await register({ provideStructuralDiff: () => result });
+			assert.strictEqual(await provide(), undefined);
+		});
+	}
+
+	test('converts omitted children to an empty list', async () => {
+		const file = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+		await register({
+			provideStructuralDiff: () => ({ root: { id: 'file', originalItem: file, modifiedItem: file, originalChanges: [], modifiedChanges: [] }, isIncomplete: false }),
+		});
+		assert.deepStrictEqual((await provide())?.root.children, []);
+	});
+
+	for (const side of ['original', 'modified'] as const) {
+		test(`rejects a stale ${side} snapshot before invocation`, async () => {
+			let called = false;
+			await register({ provideStructuralDiff: () => { called = true; return undefined; } });
+			await assert.rejects(provide(CancellationToken.None, side === 'original' ? 2 : 1, side === 'modified' ? 2 : 1), isCancellationError);
+			assert.strictEqual(called, false);
+		});
+	}
+
+	for (const reason of ['caller', 'original changed', 'modified changed', 'original closed', 'modified closed'] as const) {
+		test(`cancels a pending extension provider when ${reason}`, async () => {
+			const source = store.add(new CancellationTokenSource());
+			const started = new DeferredPromise<vscode.CancellationToken>();
+			const pending = new DeferredPromise<vscode.StructuralDiff | undefined>();
+			await register({
+				provideStructuralDiff: (_original, _modified, _context, token) => {
+					started.complete(token);
+					return pending.p;
+				},
+			});
+			const rejected = assert.rejects(provide(source.token), isCancellationError);
+			const providerToken = await started.p;
+			const uri = reason.startsWith('original') ? originalUri : modifiedUri;
+			if (reason === 'caller') {
+				source.cancel();
+			} else if (reason.endsWith('closed')) {
+				documentsAndEditors.$acceptDocumentsAndEditorsDelta({ removedDocuments: [uri] });
+			} else {
+				documents.$acceptModelChanged(uri, {
+					changes: [{ range: new Range(1, 1, 1, 2), rangeOffset: 0, rangeLength: 1, text: 'c' }],
+					eol: '\n', versionId: 2, isUndoing: false, isRedoing: false, isFlush: false, isEolChange: false, detailedReason: undefined,
+				}, false);
+			}
+			await rejected;
+			assert.strictEqual(providerToken.isCancellationRequested, true);
+			await pending.complete(undefined);
+		});
+	}
+
+	test('propagates provider errors', async () => {
+		await register({ provideStructuralDiff: () => { throw new Error('Provider failed'); } });
+		await assert.rejects(provide(), /Provider failed/);
+	});
+
+	function resultWith(member: Partial<vscode.StructuralDiffNode>): vscode.StructuralDiff {
+		const file = { name: 'file.ts', kind: types.SymbolKind.File, range: new types.Range(0, 0, 0, 1) };
+		return {
+			root: {
+				id: 'file', originalItem: file, modifiedItem: file, originalChanges: [], modifiedChanges: [],
+				children: [{ id: 'member', originalChanges: [], modifiedChanges: [], children: [], ...member }],
+			},
+			isIncomplete: true,
+		};
+	}
+
+	const member = { name: 'member', kind: types.SymbolKind.Property, range: new types.Range(0, 0, 0, 1) };
+	const change = { textChangeIndex: 0, range: member.range, classification: types.StructuralDiffClassification.Implementation };
+	const nullLine = { start: { line: null, character: 0 }, end: { line: 0, character: 1 } } as unknown as vscode.Range;
+	const convertibleValues: [string, Partial<vscode.StructuralDiffNode>, RegExp][] = [
+		['an unknown kind', { modifiedItem: { ...member, kind: 99 as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified item kind/],
+		['a kind that is a numeric string', { modifiedItem: { ...member, kind: '0' as unknown as vscode.SymbolKind } }, /Invalid structural diff: node 'member' has an invalid modified item kind/],
+		['an item range with a line that is not a number', { originalItem: { ...member, range: nullLine } }, /Invalid structural diff: node 'member' has an invalid original item range/],
+		['a selection range with a line that is not a number', { modifiedItem: { ...member, selectionRange: nullLine } }, /Invalid structural diff: node 'member' has an invalid modified selection range/],
+		['a change range with a line that is not a number', { modifiedItem: member, modifiedChanges: [{ ...change, range: nullLine }] }, /Invalid structural diff: node 'member' has an invalid modified change range/],
+	];
+	for (const [description, node, expected] of convertibleValues) {
+		test(`rejects ${description} instead of converting it to a valid value`, async () => {
+			await register({ provideStructuralDiff: () => resultWith(node) });
+			await assert.rejects(provide(), expected);
+		});
+	}
+
+	test('passes tags that are not an array on for validation instead of dropping them', async () => {
+		await register({ provideStructuralDiff: () => resultWith({ modifiedItem: member, modifiedChanges: [{ ...change, tags: null as unknown as vscode.StructuralDiffTag[] }] }) });
+		assert.strictEqual((await provide())?.root.children[0].modifiedChanges[0].tags, null);
+	});
+
+	test('runtime enum values match the core contract', () => {
+		assert.deepStrictEqual({
+			classification: types.StructuralDiffClassification,
+			tag: types.StructuralDiffTag,
+		}, {
+			classification: StructuralDiffClassification,
+			tag: StructuralDiffTag,
+		});
+	});
+});
+
+suite('ExtHost structural diff API command', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const originalUri = URI.parse('test:/original.ts');
+	const modifiedUri = URI.parse('test:/modified.ts');
+	const range = { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 2 };
+	const apiRange = new types.Range(0, 0, 0, 1);
+	let rpc: TestRPCProtocol;
+	let commands: ExtHostCommands;
+	let executed: { id: string; uris: string[] }[];
+	let internalResult: StructuralDiffResult | undefined;
+
+	setup(() => {
+		executed = [];
+		internalResult = undefined;
+		rpc = store.add(new TestRPCProtocol());
+		rpc.set(MainContext.MainThreadCommands, new class extends mock<MainThreadCommandsShape>() {
+			override $registerCommand(): void { }
+			override $unregisterCommand(): void { }
+			override $fireCommandActivationEvent(): void { }
+			override async $executeCommand(id: string, args: unknown[] | SerializableObjectWithBuffers<unknown[]>): Promise<unknown> {
+				const values = args instanceof SerializableObjectWithBuffers ? args.value : args;
+				executed.push({ id, uris: values.map(value => URI.revive(value as UriComponents).toString()) });
+				return internalResult;
+			}
+		});
+		commands = new ExtHostCommands(rpc, new NullLogService(), new class extends mock<IExtHostTelemetry>() { });
+		ExtHostApiCommands.register(commands);
+	});
+
+	teardown(() => rpc.sync());
+
+	test('forwards both resources and converts the result to API types', async () => {
+		const item = { name: 'file.ts', detail: 'detail', kind: SymbolKind.File, range, selectionRange: range };
+		internalResult = {
+			root: {
+				id: 'file', originalItem: item, modifiedItem: item, originalChanges: [], modifiedChanges: [],
+				children: [{
+					id: 'member',
+					originalItem: { ...item, name: 'oldName', kind: SymbolKind.Method },
+					modifiedItem: { ...item, name: 'newName', kind: SymbolKind.Method },
+					originalChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Header, tags: [StructuralDiffTag.Test] }],
+					modifiedChanges: [{ textChangeIndex: 0, range, classification: StructuralDiffClassification.Implementation, tags: [] }],
+					children: [],
+				}],
+			},
+			isIncomplete: true,
+			context: { changes: [{ originalRange: range, modifiedRange: range }] },
+		};
+		const result = await commands.executeCommand<vscode.StructuralDiffResult | undefined>('vscode.executeStructuralDiffProvider', originalUri, modifiedUri);
+		const apiItem = { name: 'file.ts', detail: 'detail', kind: types.SymbolKind.File, range: apiRange, selectionRange: apiRange };
+		assert.deepStrictEqual({ executed, result }, {
+			executed: [{ id: '_executeStructuralDiffProvider', uris: [originalUri.toString(), modifiedUri.toString()] }],
+			result: {
+				root: {
+					id: 'file', originalItem: apiItem, modifiedItem: apiItem, originalChanges: [], modifiedChanges: [],
+					children: [{
+						id: 'member',
+						originalItem: { ...apiItem, name: 'oldName', kind: types.SymbolKind.Method },
+						modifiedItem: { ...apiItem, name: 'newName', kind: types.SymbolKind.Method },
+						originalChanges: [{ textChangeIndex: 0, range: apiRange, classification: types.StructuralDiffClassification.Header, tags: [types.StructuralDiffTag.Test] }],
+						modifiedChanges: [{ textChangeIndex: 0, range: apiRange, classification: types.StructuralDiffClassification.Implementation, tags: [] }],
+						children: [],
+					}],
+				},
+				isIncomplete: true,
+				context: { changes: [{ originalRange: apiRange, modifiedRange: apiRange }] },
+			},
+		});
+	});
+
+	test('resolves to undefined when no provider supplies a result', async () => {
+		const result = await commands.executeCommand<vscode.StructuralDiffResult | undefined>('vscode.executeStructuralDiffProvider', originalUri, modifiedUri);
+		assert.deepStrictEqual({ executed: executed.length, result }, { executed: 1, result: undefined });
+	});
+
+	test('rejects invalid arguments without executing the internal command', async () => {
+		await assert.rejects(commands.executeCommand('vscode.executeStructuralDiffProvider', originalUri), /Invalid argument 'modified'/);
+		await assert.rejects(commands.executeCommand('vscode.executeStructuralDiffProvider', 'test:/original.ts', modifiedUri), /Invalid argument 'original'/);
+		assert.deepStrictEqual(executed, []);
+	});
+});

@@ -15,8 +15,10 @@ import { localize } from '../../../../nls.js';
 import { ArtifactActor, ArtifactContributionSnapshot, ArtifactDetails, ArtifactIntegrationDescriptor, ArtifactSnapshot, IArtifactModel, artifactOptionDisabledValue, isArtifactOptionEnabled, isArtifactRunSettled } from '../../../artifactIntegrations/common/artifactIntegration.js';
 import { validateArtifactAutomationSelection } from '../../../artifactIntegrations/common/artifactAutomationConfiguration.js';
 import type { IAgentServerToolDefinition } from '../../common/agentServerTools.js';
+import { gitHubPullRequestArtifactIntegrationId } from '../../common/githubPullRequestArtifact.js';
 import { ArtifactIntegrationServerToolName, ArtifactServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts, readSessionArtifactsNewestFirst, type ISessionArtifact } from '../../common/sessionArtifacts.js';
+import { ResponsePartKind, ToolCallConfirmationReason, ToolCallStatus } from '../../common/state/sessionState.js';
 import type { AgentHostStateManager } from '../agentHostStateManager.js';
 import type { IServerToolDisplay, IServerToolDisplayResult, IServerToolExecutionContext, IServerToolGroup } from './agentServerToolHost.js';
 import { ARTIFACT_DETAILS_ITEM_LIMIT, ARTIFACT_OTHER_WINDOW_REASON, ARTIFACT_STATUS_DATA_NOTE, artifactDetailsKey, canAgentChangeContribution, getArtifactDetailsIds, projectArtifactAutomation, projectArtifactDetails, projectArtifactReference, projectArtifactRun, projectArtifactStatus, projectArtifactSummary } from './artifactIntegrationStatus.js';
@@ -50,6 +52,8 @@ export interface IArtifactIntegrationToolAccessor {
 
 const artifactProperty = { type: 'string', description: 'ID, link, or URI of the recorded artifact or reference, as returned by `list_artifacts_and_references`.' };
 const changesAvailability = 'Only available in turns started by a person or a scheduled automation, not in automatic artifact runs, Agent Merge runs, or turns another agent started.';
+/** Agent Merge is unavailable while integrations are enabled, so requests that name it map to the pull request integration's automation. */
+const agentMergeGuidance = 'Pull request automation is Agent Merge: when the user asks to enable Agent Merge for a recorded pull request, turn on its `addressReviews`, `fixCI`, and `resolveConflicts` options, plus `merge` only when they also ask for merging; when they ask not to enable Agent Merge, turn none of it on.';
 
 export const artifactIntegrationServerToolDefinitions: readonly IAgentServerToolDefinition[] = [
 	{
@@ -86,7 +90,7 @@ export const artifactIntegrationServerToolDefinitions: readonly IAgentServerTool
 	{
 		name: ArtifactIntegrationServerToolName.SetArtifactAutomation,
 		title: 'Set Artifact Automation',
-		description: `Turn on or change automation that an integration offers for a recorded artifact, such as automatically fixing CI or merging a pull request when it is ready. Use when automating the artifact serves the user's request, for example turning on merging when ready when they ask to merge a pull request automatically; to only turn automation off, use \`disable_artifact_automation\`, and configure Agent Merge with its own tool only when the user asks for Agent Merge. Call \`get_artifact_status\` first for option IDs, allowed values, and whether an option can be turned on. The current tool-approval policy applies. Automation persists for this artifact in this session, acts after the current turn without asking again, and posts a notice in the artifact's chat. ${changesAvailability}`,
+		description: `Turn on or change automation that an integration offers for a recorded artifact, such as automatically fixing CI or merging a pull request when it is ready. Use when automating the artifact serves the user's request, for example turning on a pull request integration's own merge automation when the user asks to have the integration merge the pull request once it is ready. That automation is distinct from GitHub's native auto-merge: when the user asks to enable auto-merge, enable auto-merge on the GitHub pull request instead of turning on this automation. ${agentMergeGuidance} To only turn automation off, use \`disable_artifact_automation\`. Call \`get_artifact_status\` first for option IDs, allowed values, and whether an option can be turned on. The current tool-approval policy applies. Automation persists for this artifact in this session, acts after the current turn without asking again, and posts a notice in the artifact's chat. ${changesAvailability}`,
 		inputSchema: {
 			type: 'object',
 			properties: {
@@ -149,6 +153,7 @@ export function createArtifactIntegrationsInstruction(integrations: readonly Art
 		...entries,
 		...(omitted ? [`${omitted} more integrations are available; \`${ArtifactIntegrationServerToolName.GetArtifactStatus}\` reports those that apply to recorded artifacts.`] : []),
 		`For a recorded artifact of one of these kinds, use these tools (discover if needed): \`${ArtifactIntegrationServerToolName.GetArtifactStatus}\` to read its live state before answering questions about it or acting on it, \`${ArtifactIntegrationServerToolName.RunArtifactAction}\` when the user asks for one of its native actions such as merging, \`${ArtifactIntegrationServerToolName.SetArtifactAutomation}\` when automating it serves the user's request, and \`${ArtifactIntegrationServerToolName.DisableArtifactAutomation}\` when the user asks to stop. They apply the integration's checks and record its activity, so prefer them to other tools for these operations. An integration applies only after the resource is recorded with \`${ArtifactServerToolName.AddArtifactOrReference}\`.`,
+		...(integrations.some(integration => integration.id === gitHubPullRequestArtifactIntegrationId) ? [agentMergeGuidance] : []),
 	].join('\n');
 }
 
@@ -171,6 +176,15 @@ export function getEnabledArtifactAutomation(model: IArtifactModel): readonly st
 	return model.snapshot.get().contributions.flatMap(contribution => contribution.options
 		.filter(option => isArtifactOptionEnabled(option, contribution.configuration.values[option.id]))
 		.map(option => `${contribution.label}: ${option.label}`));
+}
+
+/** Whether a person confirmed the executing tool call, rather than it being approved automatically or not being identifiable. */
+function isConfirmedByUser(stateManager: AgentHostStateManager, context: IServerToolExecutionContext): boolean {
+	const part = context.toolCallId
+		? stateManager.getChatState(context.chatUri)?.activeTurn?.responseParts.find(part => part.kind === ResponsePartKind.ToolCall && part.toolCall.toolCallId === context.toolCallId)
+		: undefined;
+	const toolCall = part?.kind === ResponsePartKind.ToolCall ? part.toolCall : undefined;
+	return toolCall?.status === ToolCallStatus.Running && toolCall.confirmed === ToolCallConfirmationReason.UserAction;
 }
 
 type ToolArguments = Readonly<Record<string, unknown>>;
@@ -477,8 +491,11 @@ export function createArtifactIntegrationServerToolGroup(accessor?: IArtifactInt
 				}
 				case ArtifactIntegrationServerToolName.RunArtifactAction:
 					return withArtifact(stateManager, context, requiredString(args, 'artifact', toolName), (_artifact, target) => runAction(target, chat, actor, args));
-				case ArtifactIntegrationServerToolName.SetArtifactAutomation:
-					return withArtifact(stateManager, context, requiredString(args, 'artifact', toolName), (_artifact, target) => setAutomation(target, actor, args));
+				case ArtifactIntegrationServerToolName.SetArtifactAutomation: {
+					// Notices and controls tell the person whether they confirmed the agent's request or it was approved automatically.
+					const grantor: ArtifactActor = isConfirmedByUser(stateManager, context) ? actor : { kind: 'agent', chat, ...(context.turnId ? { turnId: context.turnId } : {}), autoApproved: true };
+					return withArtifact(stateManager, context, requiredString(args, 'artifact', toolName), (_artifact, target) => setAutomation(target, grantor, args));
+				}
 				case ArtifactIntegrationServerToolName.DisableArtifactAutomation:
 					return withArtifact(stateManager, context, requiredString(args, 'artifact', toolName), (_artifact, target) => disableAutomation(target.model, actor, args));
 				default:

@@ -9,6 +9,7 @@ import { HorizontalDirection, unthemedMenuStyles, VerticalDirection } from '../.
 import { MenuBar } from '../../../../browser/ui/menu/menubar.js';
 import { mainWindow } from '../../../../browser/window.js';
 import { toAction } from '../../../../common/actions.js';
+import { toDisposable } from '../../../../common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../common/utils.js';
 
 function getButtonElementByAriaLabel(menubarElement: HTMLElement, ariaLabel: string): HTMLElement | null {
@@ -134,9 +135,9 @@ suite('Menubar', () => {
 				const dpr = getWindow(holder).devicePixelRatio;
 				const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
 				const rect = holder.getBoundingClientRect();
-				// Where the menubar placed the holder before alignment: the title's bottom, scaled by the title's zoom.
+				// Where the menubar placed the holder before alignment: the title's rendered bottom.
 				// Aligning must keep the holder's top at the device pixel the title's bottom is painted at, neither covering the title nor leaving a gap.
-				const unalignedTop = getTitleDivFromButtonDiv(button)!.getBoundingClientRect().bottom * titleZoom;
+				const unalignedTop = getTitleDivFromButtonDiv(button)!.getBoundingClientRect().bottom;
 				// Chromium lays out in 1/64 device pixels, so an aligned edge is only on a device pixel to within that
 				const precision = Math.max(dpr, 1) / 64 * 1.05;
 				result[name] = {
@@ -300,7 +301,7 @@ suite('Menubar', () => {
 					assert.ok(title);
 					// The menubar places an upward menu's top `menus.length * 30` pixels above the title's top plus the menubar's
 					// height, and this menubar has one menu
-					const unalignedBottom = title.getBoundingClientRect().top - 30 + compactContainer.clientHeight + rect.height;
+					const unalignedBottom = title.getBoundingClientRect().top - 30 + compactContainer.getBoundingClientRect().height + rect.height;
 					upward = { bottomKept: Math.round(rect.top * dpr) + Math.round(rect.height * dpr) === Math.round(unalignedBottom * dpr) };
 				}
 				result[name] = {
@@ -317,6 +318,68 @@ suite('Menubar', () => {
 				expandsRight: { aligned: true, horizontalInset: 'left', meetsTitle: true },
 				expandsLeft: { aligned: true, horizontalInset: 'right', meetsTitle: true },
 				expandsAbove: { aligned: true, horizontalInset: 'left', meetsTitle: true, bottomKept: true }
+			});
+		});
+
+		test('aligns classic and compact menus inside a counter-zoomed container', async () => {
+			const style = mainWindow.document.head.appendChild($('style'));
+			store.add(toDisposable(() => style.remove()));
+			style.textContent = '.test-counter-zoom { zoom: 1.25; } .test-counter-zoom .menubar-menu-items-holder.monaco-menu-container { zoom: 0.8; }';
+			const zoomedWrapper = mainWindow.document.body.appendChild($('.test-counter-zoom'));
+			store.add(toDisposable(() => zoomedWrapper.remove()));
+			zoomedWrapper.style.cssText = 'position: fixed; top: 20px; left: 40px;';
+
+			const classicHost = zoomedWrapper.appendChild($('.menubar'));
+			classicHost.style.cssText = 'width: 200px; height: 32px;';
+			const classic = store.add(new MenuBar(classicHost, { enableMnemonics: true, visibility: 'classic' }, unthemedMenuStyles));
+			classic.push([{ label: '&File', actions: [toAction({ id: 'open', label: 'Open', run: () => { } })] }]);
+			classic.update();
+			await nextAnimationFrame();
+
+			const classicButton = classicHost.querySelector<HTMLElement>('.menubar-menu-button');
+			const classicTitle = classicButton?.querySelector<HTMLElement>('.menubar-menu-title');
+			assert.ok(classicButton && classicTitle);
+			dispatchKeyUp(classicButton);
+			const classicHolder = classicButton.querySelector<HTMLElement>('.menubar-menu-items-holder');
+			assert.ok(classicHolder);
+			const classicHolderRect = classicHolder.getBoundingClientRect();
+			const classicTitleRect = classicTitle.getBoundingClientRect();
+			classic.blur();
+
+			const compactHost = zoomedWrapper.appendChild($('.menubar'));
+			compactHost.style.cssText = 'width: 36px; height: 32px;';
+			const compact = store.add(new MenuBar(compactHost, {
+				enableMnemonics: true,
+				visibility: 'classic',
+				compactMode: { horizontal: HorizontalDirection.Right, vertical: VerticalDirection.Below },
+			}, unthemedMenuStyles));
+			compact.push([{ label: '&File', actions: [toAction({ id: 'open', label: 'Open', run: () => { } })] }]);
+			compact.update();
+			await nextAnimationFrame();
+
+			const compactButton = compactHost.querySelector<HTMLElement>('.menubar-menu-button[aria-label="Application Menu"]');
+			const compactTitle = compactButton?.querySelector<HTMLElement>('.menubar-menu-title');
+			assert.ok(compactButton && compactTitle);
+			dispatchKeyUp(compactButton);
+			const compactHolder = compactButton.querySelector<HTMLElement>('.menubar-menu-items-holder');
+			assert.ok(compactHolder);
+			const compactHolderRect = compactHolder.getBoundingClientRect();
+			const compactTitleRect = compactTitle.getBoundingClientRect();
+			const compactHostRect = compactHost.getBoundingClientRect();
+			compact.blur();
+
+			// Aligning menus to device pixels can move them by up to half a device pixel
+			const tolerance = Math.max(0.5, 0.5 / mainWindow.devicePixelRatio) + 0.01;
+			assert.deepStrictEqual({
+				classicAlignedLeft: Math.abs(classicHolderRect.left - classicTitleRect.left) < tolerance,
+				classicAlignedTop: Math.abs(classicHolderRect.top - classicTitleRect.bottom) < tolerance,
+				compactAlignedLeft: Math.abs(compactHolderRect.left - (compactTitleRect.left + compactHostRect.width)) < tolerance,
+				compactAlignedTop: Math.abs(compactHolderRect.top - compactTitleRect.top) < tolerance,
+			}, {
+				classicAlignedLeft: true,
+				classicAlignedTop: true,
+				compactAlignedLeft: true,
+				compactAlignedTop: true,
 			});
 		});
 	});

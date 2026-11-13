@@ -110,6 +110,7 @@ export type AgentHostMcpTool = {
 	readonly name: string;
 	readonly title?: string;
 	readonly description?: string;
+	readonly annotations?: { readonly title?: string };
 };
 
 /**
@@ -152,6 +153,8 @@ export interface IAgentHostMcpServer {
 	readonly isClientBundled?: boolean;
 	readonly owningPluginClientId?: string;
 	readonly disabledReason?: CustomizationDisabledReason;
+	/** The containing plugin's effective activation is unresolved until the session starts. */
+	readonly waitingForSessionStart?: boolean;
 	readonly status: McpServerStatus;
 	/**
 	 * True while the server is `AuthRequired` but VS Code is silently authenticating it (or has done so
@@ -187,7 +190,7 @@ export interface IAgentHostMcpServer {
  * Adds remote connection properties and dynamic session configuration.
  */
 export interface IAgentHostSessionsProvider extends ISessionsProvider {
-	readonly setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
+	readonly setPluginEnabled?: (provider: AgentProvider, plugin: string, enabled: boolean | null, scope: 'global' | 'repository', session?: URI, chat?: URI) => Promise<void>;
 	readonly listPluginInstallations?: (provider: AgentProvider, session?: URI, chat?: URI) => Promise<readonly IAgentPluginInstallation[]>;
 	// -- Remote Connection (optional, used by remote agent host providers) --
 	/** Connection status observable, present on remote providers. */

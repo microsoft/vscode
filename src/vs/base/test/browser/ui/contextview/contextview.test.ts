@@ -38,7 +38,9 @@ function stubWindowControlsOverlay(targetWindow: Window, stub: { readonly visibl
  */
 function alignedPosition(value: number): number {
 	const dpr = mainWindow.devicePixelRatio;
-	return Math.round(Math.round(value * dpr) / dpr);
+	// Snap to 1/64 CSS pixel to absorb float error in dividing by the ratio, so a position at a half CSS pixel, such as
+	// device pixel 566 at a ratio of 0.800000011920929 (707.49999), rounds like the rendered 707.5 does
+	return Math.round(Math.round(Math.round(value * dpr) / dpr * 64) / 64);
 }
 
 suite('ContextView', () => {
@@ -425,13 +427,33 @@ suite('ContextView', () => {
 					}
 				});
 				const view = contextView.getViewElement();
+				let viewZoom = zoom;
 				if (placement === 'viewportEnd') {
-					// Render the view 0.6 device pixels off, ending a quarter device pixel above the viewport bottom, so rounding it to the nearest device pixel would push it past the viewport
-					view.style.top = '0px';
-					const originTop = getDomNodePagePosition(view).top;
-					const renderedTop = (Math.floor(innerHeight * dpr / 2) + 0.6) / dpr;
-					anchor = { ...anchor, y: originTop + (renderedTop - originTop) / zoom - 0.2 };
-					view.style.height = `${(innerHeight - 0.25 / dpr - renderedTop) / zoom}px`;
+					// Render the view more than half a device pixel off, ending above the viewport bottom by less than its distance to the next device pixel,
+					// so rounding it to the nearest device pixel would push it past the viewport. Anchors are in rendered coordinates, so the view starts at the anchor's bottom.
+					// The view is measured with its height rounded to whole CSS pixels, so its height must round down, or it would not fit below the anchor.
+					// The device pixels from its top to the viewport bottom then only depend on its height and zoom, so search both: when DPR x zoom is 1, every height ends at the same phase.
+					let fixture: { zoom: number; height: number; gap: number } | undefined;
+					for (const candidateZoom of [zoom, 1.5]) {
+						const firstHeight = Math.floor(innerHeight / candidateZoom / 2);
+						for (let step = 0; !fixture && step < 16 * 17; step++) {
+							const height = firstHeight + Math.floor(step / 17) + (step % 17) / 40;
+							const end = (innerHeight - height * candidateZoom) * dpr;
+							const phaseAndGap = end - Math.floor(end);
+							if (phaseAndGap >= 0.7 && phaseAndGap <= 0.9) {
+								// Split the device pixels evenly, so the top is past half a device pixel, and the gap and the distance to the next device pixel exceed rendering precision
+								fixture = { zoom: candidateZoom, height, gap: (phaseAndGap - 0.5) / 2 / dpr };
+							}
+						}
+						if (fixture) {
+							break;
+						}
+					}
+					assert.ok(fixture, `no view height ends the view near the viewport bottom at DPR ${dpr}`);
+					viewZoom = fixture.zoom;
+					container.style.zoom = `${viewZoom}`;
+					anchor = { ...anchor, y: innerHeight - fixture.gap - fixture.height * viewZoom - 0.2 };
+					view.style.height = `${fixture.height}px`;
 					contextView.layout();
 				}
 				const read = () => [view.style.left, view.style.top].join();
@@ -440,7 +462,7 @@ suite('ContextView', () => {
 				contextView.layout();
 				const rect = view.getBoundingClientRect();
 				result[`${name} ${placement}`] = {
-					zoomed: Math.abs(rect.width - 10 * zoom) < 0.05,
+					zoomed: Math.abs(rect.width - 10 * viewZoom) < 0.05,
 					alignedHorizontally: misalignment(rect.left) <= precision,
 					alignedVertically: misalignment(rect.top) <= precision,
 					insideViewport: rect.top >= -0.01 && rect.bottom <= innerHeight + 0.01,
@@ -463,7 +485,7 @@ suite('ContextView', () => {
 	test('device-pixel alignment meets the anchor with the facing edge and never moves a view past the viewport (#347796)', () => {
 		// In a 1002px viewport at DPR 1.32, returns the device pixels the aligned view's edges are painted at
 		const paint = (start: number, size: number, anchorStart: number, anchorSize: number) => {
-			const { left } = alignViewToDevicePixels({ top: 0, left: start }, { width: size, height: 10 }, { width: size, height: 10 }, { top: 0, left: anchorStart, width: anchorSize, height: 10 }, { top: 0, left: 0, width: 1002, height: 600 }, { top: 0, left: 0 }, 1, 1.32, undefined);
+			const { left } = alignViewToDevicePixels({ top: 0, left: start }, { width: size, height: 10 }, { width: size, height: 10 }, { top: 0, left: anchorStart, width: anchorSize, height: 10 }, { top: 0, left: 0, width: 1002, height: 600 }, 1.32, undefined);
 			const paintedStart = Math.round(left * 1.32);
 			return { aligned: Math.abs(left * 1.32 - paintedStart) < 0.001, start: paintedStart, end: paintedStart + Math.round(size * 1.32) };
 		};
@@ -496,50 +518,42 @@ suite('ContextView', () => {
 
 	test('aligning to device pixels keeps a fractionally sized view inside the viewport and clear of the window controls (#347796)', () => {
 		const viewport = { top: 0, left: 0, width: 1002, height: 600 };
-		const origin = { top: 0, left: 0 };
 		const band = { x: 80, y: 0, width: 800, height: 32 };
 		const round = (value: number) => Math.round(value * 1000) / 1000;
 		type Size = { width: number; height: number };
 		type Rect = { top: number; left: number; width: number; height: number };
-		const align = (position: { top: number; left: number }, layoutSize: Size, anchor: Rect, options?: { renderedSize?: Size; titlebarAreaRect?: typeof band; zoom?: number; devicePixelRatio?: number }) => {
-			const aligned = alignViewToDevicePixels(position, layoutSize, options?.renderedSize ?? layoutSize, anchor, viewport, origin, options?.zoom ?? 1, options?.devicePixelRatio ?? 1.32, options?.titlebarAreaRect);
+		const align = (position: { top: number; left: number }, layoutSize: Size, anchor: Rect, options?: { renderedSize?: Size; titlebarAreaRect?: typeof band; devicePixelRatio?: number }) => {
+			const aligned = alignViewToDevicePixels(position, layoutSize, options?.renderedSize ?? layoutSize, anchor, viewport, options?.devicePixelRatio ?? 1.32, options?.titlebarAreaRect);
 			return { top: round(aligned.top), left: round(aligned.left) };
 		};
 		// The view fits below the anchor only by its fractional height, so moving it down to the nearest device pixel would overflow
 		const belowAnchor = align({ top: 200.5, left: 10 }, { width: 100, height: 399 }, { top: 190, left: 10, width: 1, height: 10.5 }, { renderedSize: { width: 100, height: 399.4 } });
 		// Placed above the anchor by its layout height, so it rounds the end of its rendered height to the nearest device pixel
 		const aboveAnchor = align({ top: 300.5, left: 10 }, { width: 100, height: 200 }, { top: 500.5, left: 10, width: 1, height: 10 }, { renderedSize: { width: 100, height: 200.33 }, devicePixelRatio: 1.5 });
-		// A zoomed view whose rendered bottom is 0.15px from the viewport's, where the nearest device pixel would overflow it
-		const zoomedAtViewportEnd = align({ top: 379.84, left: 10 }, { width: 100, height: 100 }, { top: 400, left: 0, width: 1002, height: 200 }, { renderedSize: { width: 125, height: 125.05 }, zoom: 1.25 });
+		// A view over its anchor whose rendered bottom is 0.15px from the viewport's, where the nearest device pixel would overflow it
+		const atViewportEnd = align({ top: 474.8, left: 10 }, { width: 125, height: 125 }, { top: 400, left: 0, width: 1002, height: 200 }, { renderedSize: { width: 125, height: 125.05 } });
 		// Pushed below the titlebar band beside an anchor that spans it, where the nearest device pixel is inside the band
 		const pushed = { top: 32, left: 10 };
 		const tallAnchor = { top: 0, left: 10, width: 1, height: 40 };
 		const square = { width: 100, height: 100 };
-		// A zoomed view rendered just below the band, which is above the band before it is zoomed
-		const zoomedBelowBand = align({ top: 25.6, left: 10 }, square, tallAnchor, { renderedSize: { width: 125, height: 125 }, titlebarAreaRect: band, zoom: 1.25 });
-		// A zoomed view in a scrolled page, placed from a fractional origin, lands on whole device pixels on screen
-		const zoomedViewport = { top: 100, left: 30, width: 1002, height: 600 };
-		const zoomedOrigin = { top: 50.3, left: 20.1 };
-		const zoomed = alignViewToDevicePixels({ top: 250.3, left: 140.7 }, square, { width: 125, height: 125 }, { top: 240.1, left: 140.7, width: 1, height: 10.2 }, zoomedViewport, zoomedOrigin, 1.25, 1.32, undefined);
-		const toScreenDevicePixels = (start: number, originStart: number, viewportStart: number) => round((originStart - viewportStart + (start - originStart) * 1.25) * 1.32);
+		// In a scrolled page, the view lands on whole device pixels on screen rather than in page coordinates
+		const scrolledViewport = { top: 100.3, left: 30.1, width: 1002, height: 600 };
+		const scrolled = alignViewToDevicePixels({ top: 300.4, left: 140.9 }, square, square, { top: 290.2, left: 140.9, width: 1, height: 10.2 }, scrolledViewport, 1.32, undefined);
+		const toScreenDevicePixels = (start: number, viewportStart: number) => round((start - viewportStart) * 1.32);
 		assert.deepStrictEqual({
 			belowAnchor,
 			aboveAnchor,
-			zoomedAtViewportEnd: { ...zoomedAtViewportEnd, renderedBottom: round(zoomedAtViewportEnd.top * 1.25 + 125.05) },
+			atViewportEnd: { ...atViewportEnd, renderedBottom: round(atViewportEnd.top + 125.05) },
 			belowBand: align(pushed, square, tallAnchor, { titlebarAreaRect: band }),
 			withoutBand: align(pushed, square, tallAnchor),
-			zoomedBelowBand,
-			zoomed: { top: round(zoomed.top), left: round(zoomed.left) },
-			zoomedOnScreen: { top: toScreenDevicePixels(zoomed.top, zoomedOrigin.top, zoomedViewport.top), left: toScreenDevicePixels(zoomed.left, zoomedOrigin.left, zoomedViewport.left) },
+			scrolledOnScreen: { top: toScreenDevicePixels(scrolled.top, scrolledViewport.top), left: toScreenDevicePixels(scrolled.left, scrolledViewport.left) },
 		}, {
 			belowAnchor: { top: 200.5, left: 9.848 },
 			aboveAnchor: { top: 300.667, left: 10 },
-			zoomedAtViewportEnd: { top: 379.394, left: 10.303, renderedBottom: 599.293 },
+			atViewportEnd: { top: 474.242, left: 9.848, renderedBottom: 599.292 },
 			belowBand: { top: 32, left: 9.848 },
 			withoutBand: { top: 31.818, left: 9.848 },
-			zoomedBelowBand: { top: 25.6, left: 10.303 },
-			zoomed: { top: 250.06, left: 140.747 },
-			zoomedOnScreen: { top: 264, left: 186 },
+			scrolledOnScreen: { top: 264, left: 146 },
 		});
 	});
 
@@ -1534,22 +1548,77 @@ suite('ContextView', () => {
 		}
 
 		for (const zoom of [2, 0.5]) {
-			test(`keeps the view clear of the window controls for a zoomed anchor (zoom ${zoom})`, () => {
+			test(`keeps the view clear of the window controls and aligned for a zoomed anchor (zoom ${zoom})`, () => {
 				const zoomed = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
 				zoomed.style.cssText = `position: absolute; top: 0; left: 0; zoom: ${zoom};`;
 				disposables.add(toDisposable(() => zoomed.remove()));
 				const anchor = zoomed.appendChild(mainWindow.document.createElement('div'));
-				anchor.style.cssText = 'position: absolute; top: 0; left: 10px; width: 10px; height: 10px;';
+				anchor.style.cssText = 'position: absolute; top: 4px; left: 12px; width: 12px; height: 12px;';
 				// A band tall enough that the unadjusted view overlaps it at every zoom level
 				const overlay = new DOMRect(80, 0, mainWindow.innerWidth - 200, 100);
-				const measure = (getRect: () => DOMRect | undefined) => {
-					const { view } = layout(ContextViewDOMPosition.FIXED, anchor, getRect);
-					return clearance(view, overlay, mainWindow);
-				};
+				const withoutOverlayView = layout(ContextViewDOMPosition.FIXED, anchor, () => undefined);
+				const withoutOverlayRect = withoutOverlayView.view.getBoundingClientRect();
+				const anchorRect = anchor.getBoundingClientRect();
+				// Aligning the view to device pixels can move it by up to half a device pixel
+				const tolerance = Math.max(0.5, 0.5 / mainWindow.devicePixelRatio) + 0.01;
 
-				assert.deepStrictEqual({ withOverlay: measure(() => overlay), withoutOverlay: measure(() => undefined).coversButtons }, {
+				assert.deepStrictEqual({
+					withOverlay: clearance(layout(ContextViewDOMPosition.FIXED, anchor, () => overlay).view, overlay, mainWindow),
+					withoutOverlay: {
+						alignedTop: Math.abs(withoutOverlayRect.top - anchorRect.bottom) < tolerance,
+						alignedLeft: Math.abs(withoutOverlayRect.left - anchorRect.left) < tolerance,
+						classes: withoutOverlayView.read().classes,
+						...clearance(withoutOverlayView.view, overlay, mainWindow),
+					},
+				}, {
 					withOverlay: { coversButtons: false, inViewport: true, size: [40, 20] },
-					withoutOverlay: true,
+					withoutOverlay: {
+						alignedTop: true,
+						alignedLeft: true,
+						classes: ['bottom', 'left'],
+						coversButtons: true,
+						inViewport: true,
+						size: [40, 20],
+					},
+				});
+			});
+		}
+
+		for (const [name, domPosition] of [
+			['FIXED', ContextViewDOMPosition.FIXED],
+			['FIXED_SHADOW', ContextViewDOMPosition.FIXED_SHADOW],
+			['POPOVER', ContextViewDOMPosition.POPOVER],
+			['POPOVER_SHADOW', ContextViewDOMPosition.POPOVER_SHADOW],
+		] as const) {
+			test(`positions a ${name} context view hosted inside a CSS-zoomed container`, () => {
+				const host = mainWindow.document.body.appendChild(mainWindow.document.createElement('div'));
+				host.style.cssText = 'position: fixed; top: 12px; left: 20px; width: 200px; height: 40px; zoom: 1.25;';
+				disposables.add(toDisposable(() => host.remove()));
+				const anchor = host.appendChild(mainWindow.document.createElement('div'));
+				anchor.style.cssText = 'position: absolute; top: 8px; left: 16px; width: 24px; height: 16px;';
+
+				const contextView = disposables.add(new ContextView(host, domPosition));
+				contextView.show({
+					getAnchor: () => anchor,
+					render: view => {
+						const content = view.appendChild(mainWindow.document.createElement('div'));
+						content.style.cssText = 'display: block; width: 40px; height: 20px;';
+						return null;
+					}
+				});
+
+				const anchorRect = anchor.getBoundingClientRect();
+				const viewRect = contextView.getViewElement().getBoundingClientRect();
+				assert.deepStrictEqual({
+					alignedLeft: Math.abs(viewRect.left - anchorRect.left) < 0.5,
+					alignedTop: Math.abs(viewRect.top - anchorRect.bottom) < 0.5,
+					width: Math.round(viewRect.width),
+					height: Math.round(viewRect.height),
+				}, {
+					alignedLeft: true,
+					alignedTop: true,
+					width: 50,
+					height: 25,
 				});
 			});
 		}

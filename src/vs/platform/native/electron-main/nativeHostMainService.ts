@@ -34,9 +34,10 @@ import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
 import { defaultWindowState, ICodeWindow, LoadReason } from '../../window/electron-main/window.js';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AGENTS_LAUNCHER_IPC_CHANNEL, AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
+import { IFolderLocationsMainService } from '../../windows/electron-main/folderLocationsMainService.js';
 import { defaultBrowserWindowOptions, isBackgroundThrottlingAllowed, isHiddenWindowMode, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
-import { isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
 import { IWorkspacesManagementMainService } from '../../workspaces/electron-main/workspacesManagementMainService.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { hasWSLFeatureInstalled } from '../../remote/node/wsl.js';
@@ -68,6 +69,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
@@ -115,7 +117,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			);
 
 			this.onDidChangeWindowAlwaysOnTop = Event.any(
-				Event.None, // always on top is unsupported in main windows currently
+				Event.map(this.windowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop })),
 				Event.map(this.auxiliaryWindowsMainService.onDidChangeAlwaysOnTop, e => ({ windowId: e.window.id, alwaysOnTop: e.alwaysOnTop }))
 			);
 
@@ -384,6 +386,27 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async showAgentsLauncher(windowId: number | undefined): Promise<void> {
+		this.logService.trace('nativeHostMainService#showAgentsLauncher');
+
+		const agentsWindow = this.windowsMainService.getWindows().find(window => window.config?.isSessionsWindow);
+		if (agentsWindow) {
+			this.logService.trace('nativeHostMainService#showAgentsLauncher: reusing open Agents window');
+			agentsWindow.sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+			return;
+		}
+
+		this.logService.trace('nativeHostMainService#showAgentsLauncher: opening Agents window');
+		const windows = await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args,
+		}, undefined, undefined, AgentsWindowOpenSource.AgentsLauncher);
+		if (windows.length > 0) {
+			windows[0].sendWhenReady(AGENTS_LAUNCHER_IPC_CHANNEL, CancellationToken.None);
+		}
+	}
+
 	async syncSystemWideKeybindings(windowId: number | undefined, keybindings: INativeSystemWideKeybinding[]): Promise<INativeSystemWideKeybindingResult> {
 		if (typeof windowId !== 'number') {
 			return { failed: [] };
@@ -462,7 +485,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async positionWindow(windowId: number | undefined, position: IRectangle, options?: INativeHostOptions): Promise<void> {
-		const window = this.windowById(options?.targetWindowId, windowId);
+		const window = this.exactWindowById(windowId, options);
 		if (window?.win) {
 			if (window.win.isFullScreen()) {
 				const fullscreenLeftFuture = Event.toPromise(Event.once(Event.fromNodeEventEmitter(window.win, 'leave-full-screen')));
@@ -472,6 +495,37 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 			window.win.setBounds(position);
 		}
+	}
+
+	async setWindowFolderLocation(windowId: number | undefined, location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void> {
+		const window = this.codeWindowById(options?.targetWindowId ?? windowId);
+		if (window && isSingleFolderWorkspaceIdentifier(window.openedWorkspace) && !window.remoteAuthority) {
+			this.folderLocationsMainService.updateFolderLocation(window.openedWorkspace.uri, location);
+		}
+	}
+
+	async showWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		if (isHiddenWindowMode(this.environmentMainService)) {
+			return; // show() would reveal the window and focus() activate the application
+		}
+
+		const win = this.exactWindowById(windowId, options)?.win;
+		if (!win) {
+			return;
+		}
+		if (win.isMinimized()) {
+			win.restore();
+		}
+		win.show();
+		win.focus();
+	}
+
+	async hideWindow(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		this.exactWindowById(windowId, options)?.win?.hide();
+	}
+
+	async setWindowOpacity(windowId: number | undefined, opacity: number, options?: INativeHostOptions): Promise<void> {
+		this.exactWindowById(windowId, options)?.win?.setOpacity(Math.min(1, Math.max(0, opacity)));
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
@@ -1730,6 +1784,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
+	}
+
+	/**
+	 * The window `options` target, or else the calling window. Unlike {@link windowById}, a target that no longer exists
+	 * resolves to no window rather than to the caller, which a request meant for a closed auxiliary window must not change.
+	 */
+	private exactWindowById(windowId: number | undefined, options?: INativeHostOptions): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.windowById(typeof options?.targetWindowId === 'number' ? options.targetWindowId : windowId);
 	}
 
 	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {

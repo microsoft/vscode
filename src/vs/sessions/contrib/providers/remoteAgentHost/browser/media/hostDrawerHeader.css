@@ -44,11 +44,6 @@
 	background: var(--vscode-toolbar-hoverBackground);
 }
 
-.host-drawer-header-row:focus-visible {
-	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
-	outline-offset: calc(-1 * var(--vscode-strokeThickness));
-}
-
 .host-drawer-header-tile {
 	display: flex;
 	align-items: center;

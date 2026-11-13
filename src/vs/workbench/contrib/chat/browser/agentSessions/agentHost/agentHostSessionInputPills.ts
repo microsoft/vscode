@@ -1007,7 +1007,7 @@ export class AgentHostSessionInputPills extends Disposable {
 				// Recorded artifacts name the agent host's files; entries that no artifact backs, such as a chat tool's, are in this window's URI space.
 				const resource = artifact ? (currentResolution ? getRecordedFileResource(artifact, currentResolution) : undefined) : entry.resource;
 				// The agent's label describes the resource for people; lists show files by their name.
-				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource }] : [];
+				return resource ? [{ id: entry.id, label: artifact?.label ?? entry.label, resource, ...(artifact?.mode ? { requested: { mode: artifact.mode, revision: artifact.modeRevision ?? 0 } } : {}) }] : [];
 			}));
 		});
 		// A subagent chat shows no pills of its own, so it shows no chat resources either: without a session, the control shows nothing.
@@ -1018,8 +1018,20 @@ export class AgentHostSessionInputPills extends Disposable {
 			const current = pillSources.read(reader);
 			return !!current && (current.getPinned(SessionChatPillKind.Artifacts, reader).has(id) || current.getPinned(SessionChatPillKind.References, reader).has(id));
 		};
+		// Only recorded artifacts and references carry requests, in the pill of their kind.
+		const pin = (resource: IChatResource) => {
+			const current = pillSources.get();
+			const currentMetadata = metadata.get();
+			const kind = currentMetadata.artifacts.some(artifact => artifact.id === resource.id) ? SessionChatPillKind.Artifacts
+				: currentMetadata.references.some(reference => reference.id === resource.id) ? SessionChatPillKind.References
+					: undefined;
+			if (!current || !kind) {
+				return false;
+			}
+			return current.pin(kind, resource);
+		};
 		const chatResourcesControl = derivedDisposable(this, reader => chatResourcesEnabled.read(reader)
-			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources, isPinned)
+			? instantiationService.createInstance(ChatResourcesControl, this._widget.inputPart.persistentContentContainerElement, this._widget.domNode, chatResourcesSession, recordedResources, isPinned, pin)
 			: undefined);
 		const presentOwnPill = (entry: IChatPillEntry, context: IChatInputOwnPillContext, reader: IReader) => chatResourcesControl.read(reader)?.presentOwnPill(entry, context, reader) ?? entry;
 		const browserSections = derived(this, reader => {
@@ -1136,7 +1148,7 @@ export class AgentHostSessionInputPills extends Disposable {
 
 		this._register(this._widget.inputPart.registerChatPetHorizontalPlatformProvider({
 			onDidChange: inputPills.onDidChange,
-			getElements: () => inputPills.getPillElements(),
+			getElements: () => inputPills.getPillItemElements(),
 		}));
 		const pillsVisible = observableFromEvent(this, inputPills.onDidChangeVisibility, () => inputPills.visible);
 		this._register(autorun(reader => {

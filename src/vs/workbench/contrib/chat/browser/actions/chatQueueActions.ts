@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -83,6 +84,7 @@ export class ChatQueueMessageAction extends Action2 {
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverFocused.negate(),
 					queuingActionsPresent,
 					effectiveDefaultIsQueue,
 				),
@@ -129,6 +131,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
+					EditorContextKeys.hoverFocused.negate(),
 					queuingActionsPresent,
 					effectiveDefaultIsSteer,
 				),
@@ -401,7 +404,10 @@ export function registerChatQueueActions(): void {
 		icon: Codicon.listOrdered,
 		when: ContextKeyExpr.and(
 			queuingActionsPresent,
-			ChatContextKeys.inputHasText,
+			ContextKeyExpr.or(
+				ChatContextKeys.inputHasText,
+				ContextKeyExpr.and(ChatContextKeys.hasSecondaryExecuteActions, ChatContextKeys.inputHasSendableContent),
+			),
 		),
 		group: 'navigation',
 		order: 4,
