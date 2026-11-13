@@ -1250,11 +1250,11 @@
         },
         {
           "command": "git.openWorktree",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.openWorktreeInNewWindow",
-          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.refresh",
@@ -1539,14 +1539,6 @@
         {
           "command": "git.createWorktree",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
-        },
-        {
-          "command": "git.openWorktree",
-          "when": "false"
-        },
-        {
-          "command": "git.openWorktreeInNewWindow",
-          "when": "false"
         },
         {
           "command": "git.deleteWorktree",
@@ -3232,6 +3224,16 @@
           "when": "scmProviderContext == repository",
           "command": "git.createWorktree",
           "group": "worktrees@1"
+        },
+        {
+          "when": "scmProviderContext == repository",
+          "command": "git.openWorktree",
+          "group": "worktrees@2"
+        },
+        {
+          "when": "scmProviderContext == repository",
+          "command": "git.openWorktreeInNewWindow",
+          "group": "worktrees@3"
         },
         {
           "when": "scmProviderContext == worktree",
