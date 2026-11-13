@@ -254,7 +254,11 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 
 		// The queued switch is skipped when superseded while waiting for earlier workspace edits
 		if (await this.contextService.setFolderLocation(location, { trusted, isCurrent })) {
-			this.workspaceFolderLocationService.setLocation(this.contextService.getWorkspace().folders[0], resolved, reason);
+			// A newer switch may have started right after this one completed: do not attach this location to its folder
+			const folder = this.contextService.getWorkspace().folders[0];
+			if (isCurrent() && folder && this.uriIdentityService.extUri.isEqual(folder.uri, location)) {
+				this.workspaceFolderLocationService.setLocation(folder, resolved, reason);
+			}
 		}
 	}
 
