@@ -7,7 +7,7 @@ import { disposableTimeout, raceCancellation, raceCancellationError } from '../.
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { arrayEquals, structuralEquals } from '../../../../../../base/common/equals.js';
-import { getErrorMessage } from '../../../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage } from '../../../../../../base/common/errors.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, markdownStringEqual } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, IReference, MutableDisposable, ReferenceCollection, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -6593,6 +6593,10 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			lease.add(this._sessionChatDetailsReferences.acquire(sessionId));
 			const reference = lease.add(connection.getSubscription(StateComponents.Session, cached.backendUri, 'BaseAgentHostSessionsProvider.configLease'));
 			const state = await readState(reference.object);
+			// The lease ends with the provider: a state that arrives as the provider is disposed takes no chat's config
+			if (cancellation.token.isCancellationRequested) {
+				throw new CancellationError();
+			}
 			const backendChat = this.getBackendChatResource(chat)?.toString();
 			if (!state.config || !state.chats.some(summary => summary.resource === backendChat)) {
 				throw new Error(localize('agentHost.chatConfigUnavailable', "Could not resolve the originating chat's configuration. Please try again."));

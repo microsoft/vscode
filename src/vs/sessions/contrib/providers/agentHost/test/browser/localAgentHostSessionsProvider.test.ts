@@ -534,6 +534,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessionStateEmitters.get(key)?.fire(advertised);
 	}
 
+	/** Forgets the state of a session, so that a new subscription to it reads none until {@link setSessionState}, as before the host sent it. */
+	clearSessionState(rawId: string, provider: string): void {
+		const key = AgentSession.uri(provider, rawId).toString();
+		this._optimisticSessionStateValues.delete(key);
+		this._sessionStateValues.delete(key);
+	}
+
 	/** Fires a state with `config` to every subscribed session of `provider`, as the host does on every update of a running session. */
 	fireRunningSessionStates(provider: string, config: SessionState['config']): void {
 		for (const [key, emitter] of this._sessionStateEmitters) {
@@ -17842,6 +17849,28 @@ suite('LocalAgentHostSessionsProvider', () => {
 			assert.strictEqual((agentHost.sessionSubscribeCounts.get(peer) ?? 0) - (agentHost.sessionUnsubscribeCounts.get(peer) ?? 0), 0);
 		}));
 	}
+
+	test('a configuration lease whose session state arrives as the provider is disposed subscribes to no chat', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const { provider, state } = perChatSession('config-disposed-on-state', true, { withoutChatState: true });
+		await timeout(0);
+		const session = provider.getSessions().find(session => session.title.get() === 'config-disposed-on-state')!;
+		await waitForSessionConfig(provider, session, config => !!config);
+		const peerResource = session.chats.get().find(chat => !isEqual(chat.resource, session.mainChat.get().resource))!.resource;
+		const chatSubscriptions = () => agentHost.wireOps.filter(op => op.startsWith('subscribe:ahp-chat:')).length;
+
+		// The lease waits for the session's state, which arrives as the provider is disposed: in the same stack, before the
+		// lease's wait resumes
+		agentHost.clearSessionState('config-disposed-on-state', 'copilotcli');
+		const before = chatSubscriptions();
+		const pending = provider.acquireSessionConfig(session.sessionId, peerResource, CancellationToken.None);
+		const rejected = assert.rejects(pending);
+		agentHost.setSessionState('config-disposed-on-state', 'copilotcli', state());
+		provider.dispose();
+		await rejected;
+		await timeout(60_000);
+
+		assert.strictEqual(chatSubscriptions() - before, 0);
+	}));
 
 	test('resolves creation isolation for the selected harness and workspace without creating a draft', async () => {
 		agentHost.setAgents([
