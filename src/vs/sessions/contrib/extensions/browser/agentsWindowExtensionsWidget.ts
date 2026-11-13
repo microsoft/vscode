@@ -753,6 +753,15 @@ export class AgentsWindowExtensionsWidget extends Disposable implements IAICusto
 		this.searchInput.value = query;
 	}
 
+	showExtension(extensionId: string): void {
+		const extension = this.extensionsWorkbenchService.local.find(extension => ExtensionIdentifier.equals(extension.identifier.id, extensionId));
+		if (extension) {
+			this.openExtensionPage(extension, undefined);
+		} else {
+			this.setSearchQuery(extensionId);
+		}
+	}
+
 	/**
 	 * Shows the page of an extension in place of the list, with the editor that shows it in editor windows, or the page of
 	 * another extension while one is shown, such as of one of its dependencies.

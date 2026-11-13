@@ -30,7 +30,9 @@ import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { getEntryAddress, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { normalizeRemoteAgentHostAddress } from '../../../../../platform/agentHost/common/agentHostUri.js';
+import { IMissionControlEnvironmentService } from '../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { WorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import type { IAutomationDescriptor, IAutomationRun, IAutomationSchedule, AutomationTarget } from '../../../../../workbench/contrib/chat/common/automations/automation.js';
@@ -83,7 +85,7 @@ import { AUTOMATIONS_CUSTOM_VIEW_ID } from '../../../../../workbench/contrib/ses
 import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, OPEN_REMOTES_EDITOR_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
-import { getAutomationOwnershipGroups, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
+import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
 import { automationRunWithLocalProgress, isLocalAutomationRunStarting } from './automationRunProgress.js';
 import { logAutomationViewShown, withAutomationDialogPersistenceTelemetry } from '../../../automations/browser/automationTelemetry.js';
 
@@ -392,6 +394,9 @@ class AutomationCardsSection extends Disposable {
 	private visibleContainer: HTMLElement | undefined;
 	private partialState: AutomationCatalogueState = 'ready';
 	private partialUnavailableProviders: readonly IAutomationProviderDescriptor[] = [];
+	private manageRemotesVisible = false;
+	private managedDisconnectedProviderIds: ReadonlySet<string> = new Set();
+	private ignoredGitHubEnvironmentProviderIds: ReadonlySet<string> = new Set();
 	private pendingFocusAutomationId: string | undefined;
 	private focusRequestGeneration = 0;
 
@@ -414,6 +419,8 @@ class AutomationCardsSection extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
+		@IMissionControlEnvironmentService private readonly missionControlEnvironmentService: IMissionControlEnvironmentService,
 	) {
 		super();
 		this.seenPluginTemplateIds = this.readSeenPluginTemplateIds();
@@ -432,7 +439,6 @@ class AutomationCardsSection extends Disposable {
 		this.partialErrorIcon.setAttribute('aria-hidden', 'true');
 		const partialStateContent = DOM.append(this.partialStateContainer, $('.automations-cards-partial-state-content'));
 		this.partialStateMessage = DOM.append(partialStateContent, $('div.automations-cards-partial-state-message'));
-		this.renderManageRemotesLink(partialStateContent);
 		this.emptyContainer = DOM.append(parent, $('.automations-cards-empty'));
 		this.emptyContainer.style.display = 'none';
 		this.loadingContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-loading'));
@@ -443,6 +449,8 @@ class AutomationCardsSection extends Disposable {
 		const unavailableState = this.renderUnavailableState();
 		this.unavailableCreateButton = unavailableState.createButton;
 		this.unavailableDescription = unavailableState.description;
+		this.renderManageRemotesLink(partialStateContent);
+		this.renderManageRemotesLink(unavailableState.manageRemotesTarget);
 		this.errorContainer = DOM.append(parent, $('.automations-cards-state.automations-cards-error'));
 		this.errorContainer.style.display = 'none';
 		this.errorCreateButton = this.renderErrorState();
@@ -628,11 +636,7 @@ class AutomationCardsSection extends Disposable {
 		const showTemplateSections = templates.length > 0;
 		this.templatesContainer.style.display = showTemplateSections ? '' : 'none';
 
-		if (unavailableProviders.length > 0) {
-			this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
-		} else {
-			this.unavailableDescription.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		}
+		this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
 		const nextContainer = automations.length === 0 ? this.getEmptyStateContainer(catalogueState) : this.container;
 		const previousContainer = this.visibleContainer;
 		if (previousContainer !== nextContainer) {
@@ -1160,20 +1164,21 @@ class AutomationCardsSection extends Disposable {
 		return this.renderStateCreateButton(this.loadingContainer);
 	}
 
-	private renderUnavailableState(): { readonly createButton: IButton; readonly description: HTMLElement } {
-		const icon = DOM.append(this.unavailableContainer, $('span.automations-cards-state-icon'));
-		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.debugDisconnect));
-		icon.setAttribute('aria-hidden', 'true');
+	private renderUnavailableState(): { readonly createButton: IButton; readonly description: HTMLElement; readonly manageRemotesTarget: HTMLElement } {
 		const title = DOM.append(this.unavailableContainer, $('h3.automations-cards-state-title'));
-		title.textContent = localize('automationsUnavailable', "Some automations are unavailable");
-		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description'));
+		title.textContent = localize('noAutomationsYet', "No automations yet");
+		const emptyDescription = DOM.append(this.unavailableContainer, $('p.automations-cards-state-description'));
+		emptyDescription.textContent = localize('noAutomationsDesc', "Describe what you want to automate, then choose when it runs.");
+		const manageRemotesTarget = DOM.append(this.unavailableContainer, $('div.automations-manage-remotes-target'));
+		const description = DOM.append(this.unavailableContainer, $('div.automations-cards-state-description.automations-cards-unavailable-message'));
 		description.textContent = localize('automationsUnavailableDescription', "One or more providers are disconnected, disabled, or do not support automations.");
-		this.renderManageRemotesLink(this.unavailableContainer);
-		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description };
+		return { createButton: this.renderStateCreateButton(this.unavailableContainer), description, manageRemotesTarget };
 	}
 
 	private renderManageRemotesLink(parent: HTMLElement): void {
-		const container = DOM.append(parent, $('span.automations-manage-remotes-link'));
+		const container = DOM.append(parent, $('span.automations-manage-remotes'));
+		const count = DOM.append(container, $('span.automations-manage-remotes-count'));
+		count.setAttribute('aria-hidden', 'true');
 		this._register(this.instantiationService.createInstance(Link, container, {
 			label: localize('automationsManageRemotes', "Manage Remotes"),
 			href: `command:${OPEN_REMOTES_EDITOR_COMMAND_ID}`,
@@ -1185,18 +1190,60 @@ class AutomationCardsSection extends Disposable {
 				});
 			},
 		}));
+		const link = container.lastElementChild as HTMLAnchorElement;
 		const configurationChanged = observableSignalFromEvent(this, this.configurationService.onDidChangeConfiguration);
+		const remoteHostsChanged = observableSignalFromEvent(this, Event.any(
+			this.remoteAgentHostService.onDidChangeConnections,
+			this.remoteAgentHostService.onDidChangeConfiguredEntries,
+		));
 		this._register(autorun(reader => {
 			configurationChanged.read(reader);
-			const visible = this.automationService.catalogueState.read(reader) === 'unavailable'
-				&& this.automationService.unavailableProviders.read(reader).some(provider => provider.unavailableReasonCode === 'disconnected')
-				&& this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
+			remoteHostsChanged.read(reader);
+			const catalogueState = this.automationService.catalogueState.read(reader);
+			const automations = this.automationService.automations.read(reader);
+			const unavailableProviders = this.automationService.unavailableProviders.read(reader);
+			const configuredEntries = this.remoteAgentHostService.configuredEntries;
+			const remoteManagementEnabled = this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_SETTING)
 				&& this.configurationService.getValue<boolean>(ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING);
+			const presentation = getAutomationRemoteStatusPresentation(
+				unavailableProviders,
+				configuredEntries,
+				this.missionControlEnvironmentService.hosts.read(reader).map(host => host.id),
+				remoteManagementEnabled,
+			);
+			const managedDisconnectedProviderIds = presentation.replacedTunnelProviderIds;
+			const ignoredGitHubEnvironmentProviderIds = presentation.ignoredGitHubEnvironmentProviderIds;
+			const visible = catalogueState === 'unavailable' && managedDisconnectedProviderIds.size > 0;
+			const connectedAddresses = new Set(this.remoteAgentHostService.connections
+				.filter(connection => RemoteAgentHostConnectionStatus.isConnected(connection.status))
+				.map(connection => normalizeRemoteAgentHostAddress(connection.address)));
+			const connectedCount = presentation.tunnelEntries.filter(entry =>
+				connectedAddresses.has(normalizeRemoteAgentHostAddress(getEntryAddress(entry)))
+			).length;
+			const countLabel = localize('automationsDetectedRemotes', "{0}/{1} remotes detected", connectedCount, presentation.tunnelEntries.length);
+			count.textContent = countLabel;
+			link.setAttribute('aria-label', localize('automationsManageRemotesWithCount', "{0}, Manage Remotes", countLabel));
 			if (!visible && container.contains(DOM.getActiveElement())) {
 				this.focusRoot.focus();
 			}
 			container.style.display = visible ? '' : 'none';
+			const managedProvidersChanged = managedDisconnectedProviderIds.size !== this.managedDisconnectedProviderIds.size
+				|| [...managedDisconnectedProviderIds].some(id => !this.managedDisconnectedProviderIds.has(id));
+			const ignoredProvidersChanged = ignoredGitHubEnvironmentProviderIds.size !== this.ignoredGitHubEnvironmentProviderIds.size
+				|| [...ignoredGitHubEnvironmentProviderIds].some(id => !this.ignoredGitHubEnvironmentProviderIds.has(id));
+			if (this.manageRemotesVisible !== visible || managedProvidersChanged || ignoredProvidersChanged) {
+				this.manageRemotesVisible = visible;
+				this.managedDisconnectedProviderIds = managedDisconnectedProviderIds;
+				this.ignoredGitHubEnvironmentProviderIds = ignoredGitHubEnvironmentProviderIds;
+				if (catalogueState === 'unavailable') {
+					this.renderUnavailableMessage(this.unavailableDescription, unavailableProviders);
+					const hasPartialMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+					if (automations.length > 0) {
+						this.partialStateContainer.style.display = hasPartialMessage || visible ? '' : 'none';
+					}
+				}
+			}
 		}));
 	}
 
@@ -1244,21 +1291,31 @@ class AutomationCardsSection extends Disposable {
 		this.partialStateContainer.style.display = '';
 		this.partialStateContainer.classList.toggle('automations-cards-partial-state-error', isError);
 		if (catalogueState === 'unavailable') {
-			this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			const hasMessage = this.renderUnavailableMessage(this.partialStateMessage, unavailableProviders);
+			this.partialStateContainer.style.display = hasMessage || this.manageRemotesVisible ? '' : 'none';
 		} else {
+			this.partialStateMessage.style.display = '';
 			this.partialStateMessage.textContent = localize('automationsPartialLoadError', "Some automations could not be loaded.");
 		}
 	}
 
-	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): void {
-		const reasons = getUnavailableAutomationsReasons(unavailableProviders);
+	private renderUnavailableMessage(container: HTMLElement, unavailableProviders: readonly IAutomationProviderDescriptor[]): boolean {
+		const visibleProviders = unavailableProviders.filter(provider =>
+			!this.ignoredGitHubEnvironmentProviderIds.has(provider.id)
+			&& (!this.manageRemotesVisible || !this.managedDisconnectedProviderIds.has(provider.id)));
+		const reasons = getUnavailableAutomationsReasons(visibleProviders);
+		const suppressedAllReasons = unavailableProviders.length > 0 && visibleProviders.length === 0;
+		container.style.display = suppressedAllReasons ? 'none' : '';
 		if (reasons.length === 1) {
 			container.textContent = reasons[0];
 		} else if (reasons.length > 1) {
 			DOM.reset(container, $('ul.automations-unavailable-reasons', undefined, ...reasons.map(reason => $('li', undefined, reason))));
-		} else {
+		} else if (!suppressedAllReasons) {
 			container.textContent = localize('automationsPartialUnavailable', "Some automations are unavailable.");
+		} else {
+			DOM.clearNode(container);
 		}
+		return !suppressedAllReasons;
 	}
 
 	private renderTemplateCard(container: HTMLElement, template: IAutomationTemplate): void {
@@ -2548,6 +2605,16 @@ async function showAutomationsDisabled(dialogService: IDialogService): Promise<v
 	);
 }
 
+function getSharedAutomationWarning(action: 'disable' | 'delete'): string {
+	return action === 'disable'
+		? localize('disableSharedAutomationWarning', "WARNING: This is a shared automation, this will disable it for everyone in this repository.")
+		: localize('deleteSharedAutomationWarning', "WARNING: This is a shared automation, this will delete it for everyone in this repository.");
+}
+
+function withSharedAutomationWarning(action: 'disable' | 'delete', detail: string): string {
+	return localize('sharedAutomationWarningDetail', "{0}\n\n{1}", getSharedAutomationWarning(action), detail);
+}
+
 async function confirmAndDeleteAutomation(
 	automation: IAutomationDescriptor,
 	automationService: IAutomationService,
@@ -2563,14 +2630,13 @@ async function confirmAndDeleteAutomation(
 		await showAutomationsDisabled(dialogService);
 		return;
 	}
-	const supportsHistoryChoice = automationService.supportsDeleteHistoryChoice?.(automation.id) === true;
+	const deleteDetail = localize('confirmDeleteDetail', "This will permanently delete the automation, its run history, and the associated sessions. This cannot be undone.");
+	const shared = automation.ownership === 'repository';
 	const confirmed = await dialogService.confirm({
+		type: 'warning',
 		message: localize('confirmDeleteAutomation', "Delete automation \"{0}\"?", automation.name),
-		detail: supportsHistoryChoice
-			? localize('confirmDeleteHistoryChoice', "This will permanently delete the automation. Clear the checkbox to keep its run history.")
-			: localize('confirmDeleteDetail', "This will permanently delete the automation and its run history."),
+		detail: shared ? withSharedAutomationWarning('delete', deleteDetail) : deleteDetail,
 		primaryButton: localize('delete', "Delete"),
-		...(supportsHistoryChoice ? { checkbox: { label: localize('deleteAutomationHistory', "Delete Run History"), checked: true } } : {}),
 	});
 	if (!confirmed.confirmed) {
 		return;
@@ -2584,7 +2650,7 @@ async function confirmAndDeleteAutomation(
 			if (!isEnabled()) {
 				throw new Error(localize('automationsDisabledBeforeDelete', "Automations were disabled before the automation could be deleted."));
 			}
-		}, supportsHistoryChoice ? { deleteHistory: confirmed.checkboxChecked !== false } : undefined);
+		}, automationService.supportsDeleteHistoryChoice?.(automation.id) === true ? { deleteHistory: true } : undefined);
 		status(localize('automationDeletedStatus', "Deleted automation {0}", automation.name));
 	} catch (error) {
 		logService.error('[AutomationsCards] Failed to delete automation', error);
@@ -3261,6 +3327,21 @@ async function setAutomationEnabled(accessor: ServicesAccessor, automation: IAut
 	if (!automationsEnabled()) {
 		await showAutomationsDisabled(dialogService);
 		return;
+	}
+	if (!enabled && automation.ownership === 'repository') {
+		const confirmed = await dialogService.confirm({
+			type: 'warning',
+			message: localize('confirmDisableSharedAutomation', "Disable automation \"{0}\"?", automation.name),
+			detail: getSharedAutomationWarning('disable'),
+			primaryButton: localize('disable', "Disable"),
+		});
+		if (!confirmed.confirmed) {
+			return;
+		}
+		if (!automationsEnabled()) {
+			await showAutomationsDisabled(dialogService);
+			return;
+		}
 	}
 	try {
 		const result = await automationService.updateAutomationIfUnchanged(automation.id, { enabled }, automation, () => {

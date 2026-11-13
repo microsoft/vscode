@@ -39,6 +39,7 @@ import { isToolResultInputOutputDetails, type IToolResultInputOutputDetails, Too
 import { appendToolOutput, turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, containsAutomaticReplyAnswer, createInputRequestCarousel, getAgentHostActivityProgressId, systemNotificationToChatPart, messageAttachmentsToVariableData, shouldObserveSubagentChat, toolCallStateToInvocation as rawToolCallStateToInvocation, toolCallStateToPreparedInvocation as rawToolCallStateToPreparedInvocation, toolCallStateToStreamingInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, isModelRouterPickSettled, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData, updateStreamingToolInvocation, usageInfoToAutoModeResolution, usageInfoToChatUsage, usageInfoToQuotas, formatTurnResponseDetails, rewriteAgentHostLinkTarget, rewriteMarkdownLinks, turnToResultMetadata, type TurnModelLookup } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 import { getQuotaReset } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { AGENT_HOST_RETRY_MANAGED_PLUGINS_COMMAND_ID } from '../../../browser/agentSessions/agentHost/agentHostManagedPluginRetry.js';
+import { getGitHubIssueOrPullRequestAttachments } from '../../../browser/widget/input/editor/chatPasteProviders.js';
 import { OPEN_SESSION_COMPARISON_COMMAND_ID } from '../../../../../common/sessionComparisonConstants.js';
 
 // ---- Helper factories -------------------------------------------------------
@@ -429,6 +430,20 @@ suite('stateToProgressAdapter', () => {
 			value: '{"number":42}',
 			uri: 'https://github.com/owner/repo/pull/42',
 		});
+	});
+
+	test('restores GitHub issue and pull request attachments from what they say', () => {
+		const sent = getGitHubIssueOrPullRequestAttachments('https://github.com/microsoft/vscode/pull/345729 and https://github.com/microsoft/vscode/issues/347977');
+		const restored = messageAttachmentsToVariableData([
+			...sent.map(attachment => ({ type: MessageAttachmentKind.Simple as const, label: attachment.name, modelRepresentation: String(attachment.value) })),
+			{ type: MessageAttachmentKind.Simple as const, label: 'Notes', modelRepresentation: `${sent[0].value} was merged` },
+		], 'local')?.variables;
+
+		assert.deepStrictEqual(restored?.map(({ kind, id, icon, name, value }) => ({ kind, id: id.startsWith('github-context:') ? id : undefined, icon: icon?.id, name, value })), [
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/pull/345729', icon: 'git-pull-request', name: 'microsoft/vscode#345729', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729' },
+			{ kind: 'generic', id: 'github-context:https://github.com/microsoft/vscode/issues/347977', icon: 'issues', name: 'microsoft/vscode#347977', value: 'GitHub context: https://github.com/microsoft/vscode/issues/347977' },
+			{ kind: 'generic', id: undefined, icon: undefined, name: 'Notes', value: 'GitHub context: https://github.com/microsoft/vscode/pull/345729 was merged' },
+		]);
 	});
 
 	test('preserves completion and resource mention ranges when restoring attachments', () => {
@@ -1569,16 +1584,20 @@ suite('stateToProgressAdapter', () => {
 			const routedTurn = (id: string, router: string, firstTurnOnly?: boolean) => createTurn({ id, usage: { _meta: { modelRouted: { router, chosenModel: 'opus', ...(firstTurnOnly ? { firstTurnOnly } : {}) } } } });
 			const picked = routedTurn('turn-1', 'daily', true);
 			const selecting = (model: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: model } } });
+			// After a restart a turn's selection is the model it ran on; its usage says which router it asked for, if any.
+			const restoredUnrouted = (router: string) => createTurn({ id: 'turn-2', message: { text: 'Hello', origin: { kind: MessageKind.User }, model: { id: 'opus' } }, usage: { inputTokens: 5, outputTokens: 1, _meta: { modelRouterUnrouted: router } } });
 			assert.deepStrictEqual({
 				firstTurn: isModelRouterPickSettled([picked], 'turn-1', 'daily'),
 				laterTurn: isModelRouterPickSettled([picked, createTurn({ id: 'turn-2' })], 'turn-3', 'daily'),
 				afterItsOwnUnroutedTurn: isModelRouterPickSettled([picked, selecting('model-router:daily')], 'turn-3', 'daily'),
+				afterItsOwnRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('daily')], 'turn-3', 'daily'),
+				afterAnotherRoutersRestoredUnroutedTurn: isModelRouterPickSettled([picked, restoredUnrouted('other')], 'turn-3', 'daily'),
 				afterAHandPickedModel: isModelRouterPickSettled([picked, selecting('opus')], 'turn-3', 'daily'),
 				afterAnotherRouterWasSelected: isModelRouterPickSettled([picked, selecting('model-router:other')], 'turn-3', 'daily'),
 				reroutesEveryTurn: isModelRouterPickSettled([routedTurn('turn-1', 'daily')], 'turn-2', 'daily'),
 				anotherRouter: isModelRouterPickSettled([picked], 'turn-2', 'other'),
 				notARouter: isModelRouterPickSettled([picked], 'turn-2', undefined),
-			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
+			}, { firstTurn: false, laterTurn: true, afterItsOwnUnroutedTurn: true, afterItsOwnRestoredUnroutedTurn: true, afterAnotherRoutersRestoredUnroutedTurn: false, afterAHandPickedModel: false, afterAnotherRouterWasSelected: false, reroutesEveryTurn: false, anotherRouter: false, notARouter: false });
 		});
 
 		test('falls back to session-level model when turn has no usage.model', () => {
@@ -2513,6 +2532,22 @@ suite('stateToProgressAdapter', () => {
 			assert.deepStrictEqual({ live: live.summary, serialized: live.toJSON().summary, restored: restored.summary, mcp: mcp.summary }, {
 				live: expected, serialized: expected, restored: expected, mcp: { kind: 'unknown' },
 			});
+		});
+
+		test('summarizes a view call without a line range by what the host reports its path named', () => {
+			const resourceUris = createAgentHostResourceUriMapper('remote-test');
+			const session = URI.parse('ahp-session:/opaque-session');
+			const fields = { toolName: 'view', toolInput: JSON.stringify({ path: '/workspace/src' }) };
+			const summaries = ['file', 'directory', 'image', undefined].map(viewedResourceType => {
+				const completed = createCompletedToolCall({ ...fields, _meta: { ...nativeToolMeta, 'vscode.viewedResourceType': viewedResourceType } });
+				const live = rawToolCallStateToInvocation(createToolCallState({ ...fields, _meta: nativeToolMeta }), undefined, session, 'remote-test', undefined, undefined, resourceUris);
+				rawFinalizeToolInvocation(live, completed, session, 'remote-test', resourceUris);
+				return { live: live.summary, restored: completedToolCallToSerialized(completed, undefined, session, 'remote-test', resourceUris).summary };
+			});
+			const resources = [{ uri: resourceUris.fromAgentHost(URI.file('/workspace/src')) }];
+			assert.deepStrictEqual(summaries, [
+				{ kind: 'read', resources }, { kind: 'list', resources }, { kind: 'unknown' }, { kind: 'unknown' },
+			].map(summary => ({ live: summary, restored: summary })));
 		});
 
 		test('requires an explicit native input contract and excludes client and MCP implementations', () => {
@@ -3799,6 +3834,36 @@ suite('stateToProgressAdapter', () => {
 			}, {
 				command: 'npm install --registry=https://registry.npmjs.org',
 				gatePreserved: true,
+			});
+		});
+
+		test('a call the user approves stays visible once it completes, and one they decline is hidden', () => {
+			const running = createToolCallState({ toolCallId: 'tc-grep', toolName: 'grep', displayName: 'Search', invocationMessage: 'Search for `thinkingStyle`', _meta: { toolKind: 'search' } });
+			const pending: AnyToolCallState = { ...running, status: ToolCallStatus.PendingConfirmation, confirmationTitle: 'Allow search?' };
+			const settle = (asksFirst: boolean, approved: boolean) => {
+				// Copilot starts a call running and asks for approval later; other hosts can ask first.
+				const invocation = toolCallStateToInvocation(asksFirst ? pending : running);
+				if (!asksFirst) {
+					invocation.requestConfirmation(toolCallStateToPreparedInvocation(pending));
+				}
+				const hiddenWhilePending = IChatToolInvocation.isEffectivelyHidden(invocation);
+				IChatToolInvocation.confirmWith(invocation, { type: approved ? ToolConfirmKind.UserAction : ToolConfirmKind.Denied });
+				finalizeToolInvocation(invocation, approved
+					? createCompletedToolCall({ ...running, status: ToolCallStatus.Completed, pastTenseMessage: 'Searched for `thinkingStyle`' })
+					: { ...running, status: ToolCallStatus.Cancelled, reason: ToolCallCancellationReason.Denied });
+				return { hiddenWhilePending, hidden: IChatToolInvocation.isEffectivelyHidden(invocation) };
+			};
+
+			assert.deepStrictEqual({
+				approvedAfterRunning: settle(false, true),
+				approvedBeforeRunning: settle(true, true),
+				declinedAfterRunning: settle(false, false),
+				declinedBeforeRunning: settle(true, false),
+			}, {
+				approvedAfterRunning: { hiddenWhilePending: false, hidden: false },
+				approvedBeforeRunning: { hiddenWhilePending: false, hidden: false },
+				declinedAfterRunning: { hiddenWhilePending: false, hidden: true },
+				declinedBeforeRunning: { hiddenWhilePending: false, hidden: true },
 			});
 		});
 

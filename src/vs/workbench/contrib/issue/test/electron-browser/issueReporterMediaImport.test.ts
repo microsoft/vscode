@@ -46,12 +46,14 @@ import { IssueReporterEditorInput } from '../../browser/issueReporterEditorInput
 import { getIssueReporterMediaFormat, MAX_ISSUE_FILE_BYTES, MAX_ISSUE_IMAGE_BYTES, MAX_ISSUE_VIDEO_BYTES } from '../../browser/issueReporterMedia.js';
 import { IIssueReporterAttachmentImport, IScreenshot, IssueReporterOverlay } from '../../browser/issueReporterOverlay.js';
 import { IRecordingData, IRecordingService, RecordingState, ScreenCapturePermissionStatus } from '../../browser/recordingService.js';
-import { IScreenshotService } from '../../browser/screenshotService.js';
 import { IIssueFormService, IssueReporterAttachment, IssueReporterData, IssueSource, IssueType } from '../../common/issue.js';
 import { resolveIssueReporterTarget } from '../../common/issueReporterTarget.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IssueReporterController } from '../../electron-browser/issueReporterController.js';
 import { issueReporterImageFixture, issueReporterVideoFixtures } from '../common/issueReporterMediaFixtures.js';
+import { IScreenshotToolEdit, IScreenshotToolService, ScreenshotToolResult } from '../../../screenshotTool/browser/screenshotTool.js';
+import { createTestScreenshotToolService, TestScreenshotToolService, TestScreenshotToolTelemetryService } from '../../../screenshotTool/test/browser/screenshotToolTestUtils.js';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 interface INativeResourceAccess {
 	status: number;
@@ -98,15 +100,8 @@ class MediaFileService extends mock<IFileService>() {
 
 class MediaTestController extends IssueReporterController {
 	readonly imports: Promise<void>[] = [];
-	readonly decoding = new DeferredPromise<void>();
-	imageDecoder: ((dataUrl: string, token: CancellationToken) => Promise<{ width: number; height: number }>) | undefined;
 	thumbnailDecoder: ((resource: URI) => Promise<string | undefined>) | undefined;
 	thumbnailRequests = 0;
-
-	protected override readAttachmentImage(dataUrl: string, token: CancellationToken): Promise<{ width: number; height: number }> {
-		void this.decoding.complete();
-		return this.imageDecoder ? this.imageDecoder(dataUrl, token) : super.readAttachmentImage(dataUrl, token);
-	}
 
 	protected override async generateVideoThumbnail(resource: URI): Promise<string | undefined> {
 		this.thumbnailRequests++;
@@ -227,10 +222,10 @@ suite('Issue reporter media import lifecycle', () => {
 
 	function createInput(overrides: Partial<IssueReporterData> = {}): IssueReporterEditorInput {
 		const instantiation = workbenchInstantiationService(undefined, store);
-		return store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data, ...overrides }));
+		return store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data, ...overrides }, 'detailed'));
 	}
 
-	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService) {
+	async function createPane(input = createInput(), files = new MediaFileService(), recording?: IRecordingService, filesConfigurationService: IFilesConfigurationService = NullFilesConfigurationService, screenshotTool: TestScreenshotToolService = createTestScreenshotToolService(store).service) {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		instantiation.stub(IClipboardService, { writeText: async () => { } });
 		instantiation.stub(IConfigurationService, new TestConfigurationService({ 'editor.editContext': false }));
@@ -240,6 +235,7 @@ suite('Issue reporter media import lifecycle', () => {
 				instantiation.stub(dependency.id, {});
 			}
 		}
+		instantiation.stub(IScreenshotToolService, screenshotTool);
 		const submit = spy(async () => false);
 		const openEditor = spy(async (_input: EditorInput | IUntypedEditorInput) => undefined);
 		const errors: string[] = [];
@@ -251,7 +247,6 @@ suite('Issue reporter media import lifecycle', () => {
 			warn: message => { warnings.push(String(message)); },
 			prompt: () => new NoOpNotification(),
 		});
-		instantiation.stub(IScreenshotService, { captureScreenshot: async () => issueReporterImageFixture });
 		instantiation.stub(IFileService, files);
 		instantiation.stub(IFilesConfigurationService, filesConfigurationService);
 		instantiation.stub(IUserDataProfilesService, {
@@ -284,7 +279,7 @@ suite('Issue reporter media import lifecycle', () => {
 		}));
 		pane.setInput(input);
 		const editor = input.descriptionInput;
-		return { pane, input, files, container, submit, openEditor, errors, warnings, editor };
+		return { pane, input, files, container, submit, openEditor, errors, warnings, editor, screenshotTool };
 	}
 
 	function image(name = 'image.png'): InstrumentedMediaFile {
@@ -306,7 +301,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const instantiation = workbenchInstantiationService(undefined, store);
 		const modelService = instantiation.get(IModelService);
 		const before = modelService.getModels().length;
-		const candidates = Array.from({ length: 10 }, () => store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data })));
+		const candidates = Array.from({ length: 10 }, () => store.add(instantiation.createInstance(IssueReporterEditorInput, { ...data }, 'detailed')));
 		const unused = modelService.getModels().length - before;
 		const editors: IssueReporterEditorInput[] = [];
 		for (const candidate of candidates) {
@@ -641,7 +636,7 @@ suite('Issue reporter media import lifecycle', () => {
 	});
 
 	test('pastes real image media once through the pane without uploading or opening annotation', async () => {
-		const { pane, input, files, container, submit, editor } = await createPane();
+		const { pane, input, files, container, submit, editor, screenshotTool } = await createPane();
 		editor.focus();
 		const description = container.querySelector<HTMLElement>('.wizard-description-editor')!;
 		const transfer = new DataTransfer();
@@ -652,22 +647,116 @@ suite('Issue reporter media import lifecycle', () => {
 		assert.deepStrictEqual({
 			imports: pane.imports.length, attachments: savedFiles(input)?.map(file => ({ name: file.name, mimeType: file.mimeType, thumbnailDataUrl: file.thumbnailDataUrl })),
 			writes: files.writes.length, submissions: submit.callCount, focus: mainWindow.document.activeElement === editor,
-			annotation: !!container.querySelector('.issue-reporter-annotation-overlay'),
-		}, { imports: 1, attachments: [{ name: 'image.png', mimeType: 'image/png', thumbnailDataUrl: issueReporterImageFixture }], writes: 1, submissions: 0, focus: true, annotation: false });
+			tool: screenshotTool.requests,
+		}, { imports: 1, attachments: [{ name: 'image.png', mimeType: 'image/png', thumbnailDataUrl: issueReporterImageFixture }], writes: 1, submissions: 0, focus: true, tool: [] });
 	});
 
-	test('still opens annotation for a captured screenshot and releases the pending capture slot', async () => {
-		const { pane, input, container } = await createPane();
-		const captured = new DeferredPromise<void>();
-		store.add(pane.getWizard()!.onDidChangeAttachments(() => { void captured.complete(); }));
-		pane.getWizard()!.triggerCaptureScreenshot();
-		await captured.p;
-		await timeout(0);
-		assert.deepStrictEqual({
-			screenshots: input.savedAttachments?.filter(attachment => attachment.kind === 'screenshot').length,
-			annotation: !!container.querySelector('.issue-reporter-annotation-overlay'),
-			pending: pane.getWizard()!['screenshotCapturePending'],
-		}, { screenshots: 1, annotation: true, pending: false });
+	suite('Screenshots', () => {
+		const original = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
+		const annotated = { dataUrl: 'data:image/png;base64,YW5ub3RhdGVk', width: 24, height: 16 };
+		const annotationState = { actions: [], undoneActions: [], crop: { x: 0, y: 0, width: 24, height: 16 } };
+
+		async function capture(service: TestScreenshotToolService, telemetry: TestScreenshotToolTelemetryService, delayed: boolean) {
+			const { pane, input, container } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+			const wizard = pane.getWizard()!;
+			const logged = Event.toPromise(telemetry.onDidLogCapture);
+			if (delayed) {
+				wizard['requestScreenshot'](wizard['reserveAttachment']('screenshot'));
+			} else {
+				wizard.triggerCaptureScreenshot();
+			}
+			await logged;
+			const screenshot = input.savedAttachments?.find(attachment => attachment.kind === 'screenshot');
+			return {
+				summary: {
+					screenshot: screenshot?.kind === 'screenshot' ? screenshot.screenshot : undefined,
+					pending: wizard['screenshotCapturePending'],
+					tool: service.requests,
+				},
+				container,
+				input,
+			};
+		}
+
+		test('attaches the capture of the source window without another step, and edits it from its thumbnail', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store);
+			service.result = { kind: 'captured', mode: 'area', image: original };
+			const { summary, container, input } = await capture(service, telemetry, false);
+			const captured = { ...summary, tool: [...summary.tool] };
+			service.editResult = { original, annotationState, image: annotated, annotated: true };
+			container.querySelector<HTMLElement>('.wizard-screenshot-card')!.click();
+			await timeout(0);
+			const edited = input.savedAttachments?.find(attachment => attachment.kind === 'screenshot');
+			assert.deepStrictEqual({ captured, edited: edited?.kind === 'screenshot' ? edited.screenshot : undefined, tool: service.requests, captures: telemetry.captures }, {
+				captured: { screenshot: original, pending: false, tool: ['capture'] },
+				edited: { ...original, annotatedDataUrl: annotated.dataUrl, annotationState },
+				tool: ['capture', 'edit 48x32'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'area' }],
+			});
+		});
+
+		test('marks up a pasted image from its thumbnail, which becomes a screenshot with its name once it has annotations', async () => {
+			const { service } = createTestScreenshotToolService(store);
+			const { pane, input, files, container } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+			const transfer = new DataTransfer();
+			transfer.items.add(image('diagram.png'));
+			container.querySelector('.wizard-screenshots')!.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }));
+			await pane.waitForImports();
+			const markUp = async (edit: IScreenshotToolEdit) => {
+				service.editResult = edit;
+				const requested = Event.toPromise(service.onDidRequestEdit);
+				container.querySelector<HTMLElement>('.wizard-screenshot-card:not(.wizard-screenshot-add)')!.click();
+				await requested;
+				await timeout(0);
+				return {
+					attachments: input.savedAttachments?.map(attachment => attachment.kind === 'screenshot' ? attachment.screenshot : attachment.kind),
+					card: container.querySelector('.wizard-file-name')?.textContent,
+					deletedCopies: files.deletions.length,
+				};
+			};
+			const withoutAnnotations = await markUp({ original, annotationState: undefined, image: original, annotated: false });
+			const withAnnotations = await markUp({ original, annotationState, image: annotated, annotated: true });
+			assert.deepStrictEqual({ withoutAnnotations, withAnnotations, tool: service.requests }, {
+				withoutAnnotations: { attachments: ['file'], card: 'diagram.png', deletedCopies: 0 },
+				withAnnotations: { attachments: [{ ...original, name: 'diagram.png', annotatedDataUrl: annotated.dataUrl, annotationState }], card: 'diagram.png', deletedCopies: 1 },
+				tool: ['edit 48x32 named diagram.png', 'edit 48x32 named diagram.png'],
+			});
+		});
+
+		test('captures the whole window after the countdown and attaches it', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store);
+			service.windowImage = original;
+			const { summary } = await capture(service, telemetry, true);
+			assert.deepStrictEqual({ ...summary, captures: telemetry.captures }, {
+				screenshot: original,
+				pending: false, tool: ['captureWindow'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'attached', mode: 'window' }],
+			});
+		});
+
+		test('releases the capture slot without attaching when the screenshot is cancelled', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store);
+			service.result = { kind: 'cancelled', mode: 'none' };
+			const { summary } = await capture(service, telemetry, false);
+			assert.deepStrictEqual({ ...summary, captures: telemetry.captures }, {
+				screenshot: undefined, pending: false, tool: ['capture'],
+				captures: [{ entryPoint: 'issueReporter', outcome: 'cancelled', mode: 'none' }],
+			});
+		});
+
+		test('hides the floating bar while the tool is active, also when the bar may appear in screenshots', async () => {
+			const { service, telemetry } = createTestScreenshotToolService(store);
+			const { pane } = await createPane(createInput(), new MediaFileService(), undefined, NullFilesConfigurationService, service);
+			const wizard = pane.getWizard()!;
+			wizard['_hideToolbarInScreenshots'] = false;
+			const bar = wizard['floatingBar']!;
+			let barDuringSession: string | undefined;
+			service.duringSession = () => barDuringSession = bar.style.display;
+			const logged = Event.toPromise(telemetry.onDidLogCapture);
+			wizard.triggerCaptureScreenshot();
+			await logged;
+			assert.deepStrictEqual({ barDuringSession, barAfter: bar.style.display }, { barDuringSession: 'none', barAfter: '' });
+		});
 	});
 
 	test('drops an actual MP4 into an owned copy without decoding or modifying the original', async () => {
@@ -719,9 +808,9 @@ suite('Issue reporter media import lifecycle', () => {
 			pane.getWizard()!['requestAddAttachments']([file]);
 			await pane.waitForImports();
 			assert.deepStrictEqual({
-				reads: file.reads, writes: files.writes, decoding: pane.decoding.isSettled,
+				reads: file.reads, writes: files.writes,
 				limit: container.querySelector('.wizard-attachment-status')?.textContent?.includes(`${maximum / (1024 * 1024)} MB`),
-			}, { reads: 0, writes: [], decoding: false, limit: true });
+			}, { reads: 0, writes: [], limit: true });
 		});
 
 		test(`accepts ${kind} exactly at its byte limit`, async () => {
@@ -771,9 +860,9 @@ suite('Issue reporter media import lifecycle', () => {
 			assert.deepStrictEqual({
 				name: attachment.name, mimeType: attachment.mimeType,
 				bytes: [...files.files.get(URI.file(attachment.filePath))!.buffer],
-				reads: file.reads, decoding: pane.decoding.isSettled, thumbnails: pane.thumbnailRequests,
+				reads: file.reads, thumbnails: pane.thumbnailRequests,
 				submissions: submit.callCount, error: container.querySelector('.wizard-attachment-status')?.textContent,
-			}, { name, mimeType, bytes: [0, 1, 255, 3], reads: 1, decoding: false, thumbnails: 0, submissions: 0, error: '' });
+			}, { name, mimeType, bytes: [0, 1, 255, 3], reads: 1, thumbnails: 0, submissions: 0, error: '' });
 		});
 	}
 
@@ -793,7 +882,10 @@ suite('Issue reporter media import lifecycle', () => {
 			await pane.waitForImports();
 			const attachment = savedFiles(input)![0];
 			const resource = URI.file(attachment.filePath);
+			// Images that cannot be decoded, like these bytes, open like other files once decoding fails.
+			const requested = Event.toPromise(pane.getWizard()!.onDidRequestOpenFile);
 			container.querySelector<HTMLElement>('.wizard-file-card, .wizard-screenshot')!.click();
+			await requested;
 			await timeout(0);
 			const opened = openEditor.firstCall?.args[0];
 			assert.deepStrictEqual({
@@ -846,14 +938,17 @@ suite('Issue reporter media import lifecycle', () => {
 				void captured.complete();
 			}
 		}));
+		const original = { dataUrl: issueReporterImageFixture, width: 48, height: 32 };
+		first.screenshotTool.result = { kind: 'captured', mode: 'area', image: original };
 		wizard.triggerCaptureScreenshot();
 		wizard['requestAddAttachments']([image('B.png')]);
 		await first.pane.imports[1];
 		await captured.p;
 		await pending.readGate.complete();
 		await first.pane.waitForImports();
-		const annotation = first.container.querySelector('.issue-reporter-annotation-overlay')!;
-		[...annotation.querySelectorAll<HTMLElement>('.monaco-button')].find(button => button.textContent === 'Save')!.click();
+		first.screenshotTool.editResult = { original, annotationState: { actions: [], undoneActions: [], crop: null }, image: original, annotated: true };
+		first.container.querySelector<HTMLElement>('.wizard-screenshot-card:not(.wizard-file-card):not(.wizard-screenshot-add)')!.click();
+		await timeout(0);
 		const saved = first.input.savedAttachments!;
 		const annotated = saved.find(attachment => attachment.kind === 'screenshot')!;
 		const destination = resolveIssueReporterTarget(first.input.data!, product)!.url;
@@ -939,6 +1034,7 @@ suite('Issue reporter media import lifecycle', () => {
 		const frame = document.createElement('iframe');
 		document.body.appendChild(frame);
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		frame.contentDocument!.body.appendChild(first.container);
 		const moved = { text: first.editor.value, selection: [first.editor.selectionStart, first.editor.selectionEnd], document: first.editor.ownerDocument === frame.contentDocument };
 		first.pane.dispose();
@@ -1078,14 +1174,13 @@ suite('Issue reporter media import lifecycle', () => {
 			await first.pane.waitForImports();
 			wizard.markPreviewOpened();
 
-			const dimensions = new DeferredPromise<{ width: number; height: number }>();
-			first.pane.imageDecoder = () => dimensions.p;
+			const capture = new DeferredPromise<ScreenshotToolResult>();
+			first.screenshotTool.result = capture.p;
 			const captured = new DeferredPromise<void>();
 			store.add(wizard.onDidChangeAttachments(() => { void captured.complete(); }));
 			wizard.triggerCaptureScreenshot();
-			await first.pane.decoding.p;
 			pending.push(observe('capture'));
-			await dimensions.complete({ width: 48, height: 32 });
+			await capture.complete({ kind: 'captured', mode: 'window', image: { dataUrl: issueReporterImageFixture, width: 48, height: 32 } });
 			await captured.p;
 			await timeout(0);
 			wizard.markPreviewOpened();
@@ -1180,7 +1275,7 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.setInput(replacement);
 		await pane.waitForImports();
 		await file.readGate.complete();
-		assert.deepStrictEqual({ old: savedFiles(input), current: pane.getWizard()!.getFileAttachments(), writes: files.writes, decoding: pane.decoding.isSettled }, { old: undefined, current: [], writes: [], decoding: false });
+		assert.deepStrictEqual({ old: savedFiles(input), current: pane.getWizard()!.getFileAttachments(), writes: files.writes }, { old: undefined, current: [], writes: [] });
 	});
 
 	test('cleans a late owned write after disposal without decoding or retaining the copy', async () => {
@@ -1191,7 +1286,7 @@ suite('Issue reporter media import lifecycle', () => {
 		pane.dispose();
 		await files.writeGate.complete();
 		await pane.waitForImports();
-		assert.deepStrictEqual({ filesLeft: files.files.size, deletions: files.deletions, recordings: savedFiles(input), decoding: pane.decoding.isSettled }, { filesLeft: 0, deletions: files.writes, recordings: undefined, decoding: false });
+		assert.deepStrictEqual({ filesLeft: files.files.size, deletions: files.deletions, recordings: savedFiles(input) }, { filesLeft: 0, deletions: files.writes, recordings: undefined });
 	});
 
 	test('removes a late owned write after input replacement', async () => {

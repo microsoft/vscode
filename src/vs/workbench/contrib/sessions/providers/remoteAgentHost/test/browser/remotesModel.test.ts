@@ -14,7 +14,7 @@ import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
 import { cloudSandboxAddress } from '../../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
-import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
+import { GitHubEnvironmentsEnabledSettingId, IMissionControlAvailabilityService, IMissionControlEnvironmentService, IMissionControlHost, IRemoteGitHubEnvironmentShare, IRemoteGitHubEnvironmentSharingService } from '../../../../../../../platform/agentHost/common/missionControlEnvironment.js';
 import { addSSHRemoteAgentHostEntry, IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, readSSHRemoteAgentHostEntries, removeSSHRemoteAgentHostEntry, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId } from '../../../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISSHRemoteAgentHostService } from '../../../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { ICachedTunnel, ITunnelAgentHostService, ITunnelInfo, TunnelAuthenticationRequiredError } from '../../../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -193,6 +193,28 @@ suite('RemotesModel', () => {
 				environmentHosts.set(environmentHosts.get().map(host => host.id === id ? { ...host, displayName: name?.trim() || undefined } : host), undefined);
 			},
 		});
+		const sharing = {
+			shareable: observableValue<ReadonlySet<string>>(store, new Set()),
+			shares: observableValue<ReadonlyMap<string, IRemoteGitHubEnvironmentShare>>(store, new Map()),
+			environmentIds: observableValue<ReadonlySet<string>>(store, new Set()),
+			// Records how many removals had happened, to verify that sharing stops first.
+			events: [] as string[],
+		};
+		instantiationService.stub(IRemoteGitHubEnvironmentSharingService, {
+			shareable: sharing.shareable,
+			shares: sharing.shares,
+			environmentIds: sharing.environmentIds,
+			setShared: async (address, shared) => {
+				sharing.events.push(`${shared ? 'share' : 'unshare'} ${address} after ${removals.length + sshDisconnects.length + deletedTunnels.length} removals`);
+				const shares = new Map(sharing.shares.get());
+				if (shared) {
+					shares.set(address, { state: 'enabled', environmentId: `env-${address}` });
+				} else {
+					shares.delete(address);
+				}
+				sharing.shares.set(shares, undefined);
+			},
+		});
 		instantiationService.stub(ISSHRemoteAgentHostService, {
 			listSSHConfigHosts: () => sshDiscovery(),
 			disconnect: async key => {
@@ -310,7 +332,7 @@ suite('RemotesModel', () => {
 			getWSLDiscoveryCalls: () => wslDiscoveryCalls, setSSHDiscovery: (discovery: () => Promise<string[]>) => { sshDiscovery = discovery; },
 			setTunnelDiscovery: (discovery: () => Promise<ITunnelInfo[]>) => { tunnelDiscovery = discovery; },
 			setTunnelAuthentication: (authentication: () => Promise<'github' | 'microsoft' | undefined>) => { tunnelAuthentication = authentication; },
-			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations,
+			environmentHosts, environmentAvailable, environmentState, environmentConnections, environmentNames, environmentDeletions, confirmations, sharing,
 			setConfiguration: async (key: string, value: boolean) => {
 				await configuration.setUserConfiguration(key, value);
 				configuration.onDidChangeConfigurationEmitter.fire({
@@ -1475,6 +1497,63 @@ suite('RemotesModel', () => {
 			cached: ['Desktop'],
 			discovered: ['Laptop', 'Desktop'],
 			ownTunnel: ['Desktop'],
+		});
+	});
+
+	test('GitHub environment sharing is gated, lists shared remotes once and rejects unsupported targets', async () => {
+		const { model, configuration, setConfiguration, environmentAvailable, environmentHosts, sharing } = setup();
+		await model.refresh(CancellationToken.None);
+		sharing.shareable.set(new Set(['ssh:build', 'tunnel:laptop']), undefined);
+		const snapshot = () => ({
+			rows: model.remotes.get().filter(remote => remote.canShareAsGitHubEnvironment !== undefined)
+				.map(remote => `${remote.id}: ${remote.canShareAsGitHubEnvironment ? 'shareable' : 'not shareable'}${remote.gitHubEnvironment ? `, ${remote.gitHubEnvironment.state}` : ''}`),
+			environments: model.remotes.get().filter(remote => remote.kind === 'environment').map(remote => remote.name),
+		});
+		const gated = snapshot();
+		await assert.rejects(model.setSharedAsGitHubEnvironment('ssh:build', true), /no longer available/);
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		environmentHosts.set([
+			{ id: 'shared-build', name: 'Shared build', kind: 'user-local', status: 'online' },
+			{ id: 'desktop', name: 'Desktop', kind: 'user-local', status: 'online' },
+		], undefined);
+		await model.setSharedAsGitHubEnvironment('ssh:build', true);
+		sharing.environmentIds.set(new Set(['shared-build']), undefined);
+		const shared = snapshot();
+		await assert.rejects(model.setSharedAsGitHubEnvironment('wsl:Ubuntu', true), /no longer available/);
+		await assert.rejects(model.setSharedAsGitHubEnvironment('tunnel:laptop', false), /no longer available/);
+		await assert.rejects(model.setSharedAsGitHubEnvironment(cloudSandboxAddress('desktop'), true), /no longer available/);
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, false);
+		const disabled = snapshot();
+		await setConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		await model.setSharedAsGitHubEnvironment('ssh:build', false);
+		sharing.environmentIds.set(new Set(), undefined);
+		assert.deepStrictEqual({ gated, shared, disabled, unshared: snapshot(), events: sharing.events }, {
+			gated: { rows: [], environments: [] },
+			shared: { rows: ['ssh:build: shareable, enabled', 'tunnel:laptop: shareable'], environments: ['Desktop'] },
+			disabled: { rows: [], environments: [] },
+			unshared: { rows: ['ssh:build: shareable', 'tunnel:laptop: shareable'], environments: ['Desktop', 'Shared build'] },
+			events: ['share ssh:build after 0 removals', 'unshare ssh:build after 0 removals'],
+		});
+	});
+
+	test('removing or deleting a shared remote stops sharing it first', async () => {
+		const { model, storage, configuration, environmentAvailable, sharing } = setup();
+		await configuration.setUserConfiguration(GitHubEnvironmentsEnabledSettingId, true);
+		environmentAvailable.set(true, undefined);
+		addSSHRemoteAgentHostEntry(storage, savedSSHHost);
+		await model.refresh(CancellationToken.None);
+		const ids = ['ssh:removed', 'wsl:Ubuntu', 'tunnel:laptop'];
+		sharing.shareable.set(new Set(ids), undefined);
+		for (const id of ids) {
+			await model.setSharedAsGitHubEnvironment(id, true);
+		}
+		await model.deleteSSHHost('ssh:removed');
+		await model.remove('wsl:Ubuntu');
+		await model.deleteTunnel('tunnel:laptop');
+		assert.deepStrictEqual({ events: sharing.events.slice(ids.length), shares: [...sharing.shares.get().keys()] }, {
+			events: ['unshare ssh:removed after 0 removals', 'unshare wsl:Ubuntu after 1 removals', 'unshare tunnel:laptop after 2 removals'],
+			shares: [],
 		});
 	});
 

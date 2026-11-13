@@ -2,6 +2,8 @@
 
 This directory contains the VS Code-facing wrappers around the Agent Host Protocol (AHP) state model. Read this before modifying protocol types.
 
+Before adding or changing protocol constructs or `_meta`, follow the [protocol constructs before `_meta` rules](../../../../../../.github/instructions/agent-host-interoperability.instructions.md#protocol-constructs-before-_meta). Existing protocol constructs must be used instead of metadata where possible; unmet requirements should be raised upstream, and optional metadata must tolerate alternate hosts and UIs that omit or ignore it.
+
 ## Overview
 
 - `sessionState.ts`, `sessionActions.ts`, `sessionReducers.ts`, and `sessionProtocol.ts` are VS Code-facing wrappers and re-exports.

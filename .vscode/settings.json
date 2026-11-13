@@ -9,7 +9,8 @@
 	},
 	"chat.editing.explainChanges.enabled": true,
 	"chat.artifactIntegrations.githubPullRequests.autoMarkReadyIgnoredChecks": [
-		"VS Code PR Check"
+		"VS Code PR Check",
+		"Proof of Presence"
 	],
 	// --- Editor ---
 	"editor.insertSpaces": false,
@@ -144,7 +145,7 @@
 	"git.diagnosticsCommitHook.sources": {
 		"*": "error",
 		"ts": "warning",
-		"eslint": "warning"
+		"oxc": "warning"
 	},
 	"git.worktreeIncludeFiles": [
 		".build/typings/electron.d.ts",
@@ -190,7 +191,9 @@
 	// --- Tools ---
 	"npm.exclude": "**/extensions/**",
 	"npm.packageManager": "pnpm",
-	"eslint.useFlatConfig": true,
+	// The oxc extension (oxc.oxc-vscode) runs the rules of eslint.config.js with oxlint, like CI does.
+	"eslint.enable": false,
+	"oxc.enable.oxfmt": false,
 	"emmet.excludeLanguages": [],
 	"gulp.autoDetect": "off",
 	"rust-analyzer.linkedProjects": [
@@ -208,7 +211,6 @@
 		"sash"
 	],
 	// --- Workbench ---
-	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"multiDiffEditor.experimental.fileList": true,
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md

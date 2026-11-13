@@ -129,6 +129,12 @@ export class ClaudeSdkPipeline extends Disposable {
 		return { commands, agents, mcpServers, plugins: this._initPlugins };
 	}
 
+	/** Returns the original configured names of the live session's MCP servers. */
+	async getMcpServerNames(): Promise<readonly string[]> {
+		const query = await this._ensureQueryBound();
+		return (await query.mcpServerStatus()).map(server => server.name);
+	}
+
 	async startMcpServer(serverName: string): Promise<boolean> {
 		const query = await this._ensureQueryBound();
 		return this._applyMcpServerEnablement(query, serverName, true);
@@ -829,7 +835,7 @@ export class ClaudeSdkPipeline extends Disposable {
 					// An abort during the await above can have re-sent through
 					// `_rebindQuery`, which yields the new turn into the SAME queue
 					// this pass is draining. Resuming a stale pass past this point
-					// would `settleHead()` the WRONG (new) entry and complete it
+					// would settle the WRONG (new) entry and complete it
 					// early, so re-validate before routing/settling and drain the
 					// rest of the stale stream like any other message.
 					if (signal.aborted || this._needsRebind || this._query !== query) {
@@ -850,7 +856,8 @@ export class ClaudeSdkPipeline extends Disposable {
 					this._observeModelLimits(message);
 				}
 				if (message.type === 'result' && !signal.aborted && !this._needsRebind && this._query === query) {
-					const completed = this._queue.settleHead();
+					const consumedUuids = message.user_message_uuids ?? (message.user_message_uuid ? [message.user_message_uuid] : undefined);
+					const completed = this._queue.settleResult(consumedUuids);
 					this._logService.info(`[Claude:${this.sessionId}] result for sdkUuid=${completed?.sdkUuid}`);
 					// Final result: queue fully drained → protocol turn done.
 					// Intermediate result (still pending entries from a

@@ -8,7 +8,7 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
@@ -27,6 +27,7 @@ import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { rewriteMarkdownLinks } from '../../../../../base/common/markdownLinks.js';
+import { marked } from '../../../../../base/common/marked/marked.js';
 import { ScrollEvent } from '../../../../../base/common/scrollable.js';
 import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { clamp, formatTokenCount } from '../../../../../base/common/numbers.js';
@@ -154,6 +155,7 @@ export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
 	renderedReadOnly?: boolean;
 	renderedInputRequests?: boolean;
+	renderedHtmlPreviews?: boolean;
 	renderedPersistentProgress?: boolean;
 	renderedStickyProgress?: boolean;
 	/** The persistent progress verbosity the template was rendered with, if persistent progress was on. */
@@ -292,20 +294,48 @@ export function getFinalResponseStartIndex(content: ReadonlyArray<IChatRendererC
 		return undefined;
 	}
 
-	let canCrossTool = allowSingleToolGap;
-	while (index > 0) {
-		const previous = content[index - 1];
-		if (previous.kind === 'markdownContent') {
-			index--;
-		} else if (canCrossTool && (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') && content[index - 2]?.kind === 'markdownContent') {
-			// A final tool can separate a detailed answer from its closing summary.
-			index -= 2;
-			canCrossTool = false;
-		} else {
+	index = getMarkdownRunStartIndex(content, index);
+	if (!allowSingleToolGap) {
+		return index;
+	}
+
+	// A final tool call, and the reasoning around it, can separate a detailed answer from its closing summary.
+	let gapStartIndex = index;
+	let toolCount = 0;
+	while (gapStartIndex > 0) {
+		const previous = content[gapStartIndex - 1];
+		if (previous.kind === 'toolInvocation' || previous.kind === 'toolInvocationSerialized') {
+			toolCount++;
+		} else if (previous.kind !== 'thinking') {
 			break;
 		}
+		gapStartIndex--;
+	}
+	if (toolCount !== 1) {
+		return index;
+	}
+	const answerStartIndex = getMarkdownRunStartIndex(content, gapStartIndex);
+	// Edit code blocks render as pills among the tool calls, so on their own they are work rather than an answer.
+	return content.slice(answerStartIndex, gapStartIndex).some(part => !isEditOnlyMarkdown(part)) ? answerStartIndex : index;
+}
+
+function getMarkdownRunStartIndex(content: ReadonlyArray<IChatRendererContent>, index: number): number {
+	while (index > 0 && content[index - 1].kind === 'markdownContent') {
+		index--;
 	}
 	return index;
+}
+
+/** Whether the Markdown holds edit code blocks and no other content. */
+function isEditOnlyMarkdown(part: IChatRendererContent): boolean {
+	if (part.kind !== 'markdownContent') {
+		return false;
+	}
+	if (part.codeblockUri?.isEdit) {
+		return true;
+	}
+	return hasEditCodeblockUriTag(part.content.value)
+		&& marked.lexer(part.content.value).every(token => token.type === 'space' || (token.type === 'code' && hasEditCodeblockUriTag(token.text)));
 }
 
 function isKeptVisiblePart(part: IChatContentPart | undefined): boolean {
@@ -943,6 +973,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 	private readonly stickyProgressObservation = this._register(new MutableDisposable<DisposableStore>());
 	private readonly stickyProgressPart = this._register(new MutableDisposable<ChatWorkingProgressContentPart>());
+	private readonly pendingStickyProgressUpdate = this._register(new MutableDisposable());
 	private stickyProgressContainer: HTMLElement | undefined;
 	private stickyProgressResponse: IChatResponseViewModel | undefined;
 	private stickyProgressAnchor: ChatWorkingProgressAnchor | undefined;
@@ -978,6 +1009,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
 
 	private readonly _onDidUpdateViewModel = this._register(new Emitter<void>());
+
+	/** Shared by the attachment pills of requests, so that moving between them shows the next preview right away. */
+	private readonly _requestAttachmentHoverDelegate = this._register(createInstantHoverDelegate());
 
 	private readonly _editorPool: EditorPool;
 	private readonly _toolEditorPool: EditorPool;
@@ -1087,6 +1121,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.observeToolConfirmations();
 		}
 		this.updateStickyProgressContent();
+	}
+
+	/** Whether the list shows a session chat, which behaves as in the Agents window, in whatever window shows it. */
+	private get isSessionsChat(): boolean {
+		return this.environmentService.isSessionsWindow || !!this.rendererOptions.isSessionsChat;
 	}
 
 	get templateId(): string {
@@ -1319,6 +1358,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private clearStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const anchor = this.stickyProgressAnchor?.domNode;
 		const part = this.stickyProgressPart.value;
 		if (anchor?.isConnected && part && anchor.contains(part.domNode)) {
@@ -1401,7 +1441,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Places the working progress once before the next paint. Rendering and scrolling can happen
+	 * many times per frame while a response streams, and each placement reads layout.
+	 */
+	scheduleStickyProgressUpdate(): void {
+		const container = this.stickyProgressContainer;
+		if (this.pendingStickyProgressUpdate.value || !container || !this.stickyProgressPart.value) {
+			return;
+		}
+		this.pendingStickyProgressUpdate.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(container), () => {
+			this.pendingStickyProgressUpdate.clear();
+			this.updateStickyProgress();
+		});
+	}
+
 	updateStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const container = this.stickyProgressContainer;
 		const response = this.stickyProgressResponse;
 		const part = this.stickyProgressPart.value;
@@ -1489,13 +1545,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			: undefined;
 		const subagentTitle = tool.subAgentInvocationId ? subagentData?.description ?? localize('confirmationSubagent', "Subagent") : undefined;
 		const revealSubagent = () => {
-			if (this.environmentService.isSessionsWindow && subagentData?.chatResource) {
+			if (this.isSessionsChat && subagentData?.chatResource) {
 				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource: subagentData.chatResource });
 			} else {
 				widget.reveal(response);
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow && subagentTitle
+		const revealSubagentLabel = this.isSessionsChat && subagentTitle
 			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 		const context: IChatContentPartRenderContext = {
@@ -1886,6 +1942,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.currentElement = undefined;
 		templateData.renderedReadOnly = undefined;
 		templateData.renderedInputRequests = undefined;
+		templateData.renderedHtmlPreviews = undefined;
 		templateData.renderedPersistentProgress = undefined;
 		templateData.renderedStickyProgress = undefined;
 		templateData.renderedProgressVerbosity = undefined;
@@ -1902,10 +1959,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const readOnly = !!this.rendererOptions.readOnly;
 		const renderInputRequests = this.rendererOptions.renderInputRequests !== false;
+		const renderHtmlPreviews = !!this.rendererOptions.renderHtmlPreviews && this.configService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled) === true;
 		const persistentProgress = this.rendererOptions.renderStyle !== 'minimal' && this.isPersistentProgressEnabled();
 		const stickyProgress = this.isStickyProgressEnabled();
 		const progressVerbosity = persistentProgress ? this.getPersistentProgressVerbosity() : undefined;
-		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedInputRequests !== renderInputRequests || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedStickyProgress !== stickyProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
+		if (templateData.currentElement && (templateData.currentElement.id !== element.id || templateData.renderedReadOnly !== readOnly || templateData.renderedInputRequests !== renderInputRequests || templateData.renderedHtmlPreviews !== renderHtmlPreviews || templateData.renderedPersistentProgress !== persistentProgress || templateData.renderedStickyProgress !== stickyProgress || templateData.renderedProgressVerbosity !== progressVerbosity)) {
 			this.traceLayout('renderChatTreeItem', () => `Rendering a different element or presentation state into the template, index=${index}`, index);
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
 			if (mappedTemplateData && (mappedTemplateData.currentElement?.id !== templateData.currentElement.id)) {
@@ -1918,6 +1976,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.currentElement = element;
 		templateData.renderedReadOnly = readOnly;
 		templateData.renderedInputRequests = renderInputRequests;
+		templateData.renderedHtmlPreviews = renderHtmlPreviews;
 		templateData.renderedPersistentProgress = persistentProgress;
 		templateData.renderedStickyProgress = stickyProgress;
 		templateData.renderedProgressVerbosity = progressVerbosity;
@@ -2087,8 +2146,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const responseIdentity = isResponseVM(element) ? this.rendererOptions.responseIdentity : undefined;
 		templateData.username.textContent = responseIdentity?.label ?? element.username;
 		const hideChatUserIdentity = responseIdentity
-			? this.environmentService.isSessionsWindow
-			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.environmentService.isSessionsWindow, isSystemInitiatedRequest);
+			? this.isSessionsChat
+			: shouldHideChatUserIdentity(element.username, element.sessionResource, isResponseVM(element), this.isSessionsChat, isSystemInitiatedRequest);
 		templateData.username.classList.toggle('hidden', hideChatUserIdentity);
 		templateData.avatarContainer.classList.toggle('hidden', hideChatUserIdentity);
 
@@ -3234,6 +3293,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				modelId: element.modelId,
 				resolvedModelId: element.resolvedModelId,
 				domNode: dom.$('span.chat-attached-context.chat-request-inline-attachment'),
+				hoverDelegate: this._requestAttachmentHoverDelegate,
 			}));
 			// Clicking the text of a request edits it, while clicking a pill is for the pill alone.
 			if (part.domNode) {
@@ -4066,7 +4126,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 			templateData.wasResponseComplete = element.isComplete;
 		}
-		this.updateStickyProgress();
+		this.scheduleStickyProgressUpdate();
 	}
 
 	private insertRebuiltContentPart(node: HTMLElement, contentIndex: number, templateData: IChatListItemTemplate, retainedProgress?: HTMLElement): void {
@@ -4102,10 +4162,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 		const finalResponsePart = templateData.renderedParts?.[finalResponseStartIndex];
-		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || !finalResponsePart.isRenderComplete) {
+		// The preserved response can span several markdown parts, so wait for whichever is still revealing its text.
+		const revealingPart = templateData.renderedParts?.slice(finalResponseStartIndex)
+			.find((part): part is ChatMarkdownContentPart => part instanceof ChatMarkdownContentPart && !part.isRenderComplete);
+		if (!(finalResponsePart instanceof ChatMarkdownContentPart) || revealingPart) {
 			this.removeCompletedResponseDisclosure(templateData);
-			if (finalResponsePart instanceof ChatMarkdownContentPart) {
-				templateData.completedResponseDisclosureDisposables.add(Event.once(finalResponsePart.onDidFinishRendering)(() => {
+			if (revealingPart) {
+				templateData.completedResponseDisclosureDisposables.add(Event.once(revealingPart.onDidFinishRendering)(() => {
 					this.updateCompletedResponseDisclosure(element, content, templateData, false);
 				}));
 			}
@@ -4204,12 +4267,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const details = document.createElement('details');
 		details.classList.add('completed-response-disclosure');
+		// Conversation progress discloses the steps like one of its sections, with the chevron leading the label.
+		const leadingChevron = templateData.renderedProgressVerbosity === ChatProgressVerbosity.Conversation;
+		details.classList.toggle('completed-response-conversation', leadingChevron);
 		const summary = details.appendChild(document.createElement('summary'));
 		summary.classList.add('completed-response-summary', 'chat-used-context-label');
 		const button = summary.appendChild($('span.monaco-button.monaco-text-button.monaco-icon-button'));
-		const label = button.appendChild($('span.monaco-button-mdlabel'));
-		const chevron = button.appendChild($('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' }));
+		const label = $('span.monaco-button-mdlabel');
+		const chevron = $('span.chat-collapsible-hover-chevron', { 'aria-hidden': 'true' });
 		chevron.classList.add(...ThemeIcon.asClassNameArray(Codicon.chevronRightCompact));
+		button.append(...(leadingChevron ? [chevron, label] : [label, chevron]));
 		const disclosureLabel = formatCompletedResponseDisclosureLabel(stepCount, element.model.elapsedMs);
 		label.textContent = disclosureLabel;
 		templateData.completedResponseDisclosureDisposables.add(this.hoverService.setupDelayedHover(label, { content: disclosureLabel }));
@@ -4224,14 +4291,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				if (hasChanges) {
 					if (!diffButton.value) {
 						diffButton.value = this.instantiationService.createInstance(ChatEditStatsButton, summary, localize('chat.completedResponse.changes.title', "Response File Changes"), 'chat-edit-stats');
-						summary.appendChild(chevron);
+						if (!leadingChevron) {
+							summary.appendChild(chevron);
+						}
 					}
 					diffButton.value.setDiff(diff);
 					summary.setAttribute('aria-label', localize('chat.completedResponse.withEdits', "{0}, {1} lines added, {2} lines deleted", disclosureLabel, diff.added, diff.removed));
 				} else {
 					const restoreFocus = diffButton.value?.element.contains(dom.getActiveElement());
 					diffButton.clear();
-					button.appendChild(chevron);
+					if (!leadingChevron) {
+						button.appendChild(chevron);
+					}
 					summary.removeAttribute('aria-label');
 					if (restoreFocus) {
 						summary.focus({ preventScroll: true });
@@ -4884,13 +4955,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
 			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
 			const chatResource = currentSubagentPart.getChatResource();
-			if (this.environmentService.isSessionsWindow && chatResource) {
+			if (this.isSessionsChat && chatResource) {
 				void this.commandService.executeCommand(CHAT_OPEN_AGENT_HOST_CHAT_COMMAND_ID, { chatResource });
 			} else {
 				currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			}
 		};
-		const revealSubagentLabel = this.environmentService.isSessionsWindow
+		const revealSubagentLabel = this.isSessionsChat
 			? localize('openSubagentChat', "Open {0} Chat", subagentTitle)
 			: undefined;
 
@@ -6005,7 +6076,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			contentReferences,
 			modelId,
 			resolvedModelId,
-			domNode: undefined
+			domNode: undefined,
+			hoverDelegate: this._requestAttachmentHoverDelegate,
 		});
 	}
 
@@ -6086,6 +6158,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, () => this._currentLayoutWidth.get(), {
 			codeBlockRenderOptions: this.rendererOptions.codeBlockRenderOptions,
+			renderHtmlPreviews: templateData.renderedHtmlPreviews,
 			renderInlineAttachment: isRequestVM(element) ? this.createInlineRequestAttachmentRenderer(element) : undefined,
 		});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));

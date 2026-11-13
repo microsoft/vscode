@@ -21,7 +21,7 @@ import { AgentsWindowOpenSource, IOpenedMainWindow, isAgentsWindowOpenSource } f
 import { IChatEntitlementService, IChatSentiment } from '../../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { canShowAgentsBanner, createAgentsBanner } from '../../../browser/agentSessions/agentSessionsBanner.js';
+import { createAgentsBanner, isAgentsWindowAvailable } from '../../../browser/agentSessions/agentSessionsBanner.js';
 import { AgentsWindowGraphic } from '../../../browser/agentSessions/agentsWindowGraphic.js';
 import { AgentsWindowGraphicVariant, ChatConfiguration, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID } from '../../../common/constants.js';
 
@@ -94,7 +94,7 @@ suite('AgentsBanner', () => {
 				}
 			},
 			visibility: () => ({
-				canShow: canShowAgentsBanner(chatEntitlementService, configurationService),
+				agentsWindowAvailable: isAgentsWindowAvailable(chatEntitlementService, configurationService),
 				display: banner.element.style.display,
 				ariaHidden: banner.element.getAttribute('aria-hidden'),
 				disabled: button.disabled,
@@ -119,7 +119,7 @@ suite('AgentsBanner', () => {
 				...banner.visibility(),
 				commands: banner.state().commands.length,
 			}, {
-				canShow: enabled,
+				agentsWindowAvailable: enabled,
 				display: enabled ? '' : 'none',
 				ariaHidden: enabled ? null : 'true',
 				disabled: !enabled,
@@ -137,8 +137,8 @@ suite('AgentsBanner', () => {
 			banner.button.click();
 		}
 
-		const visible = { canShow: true, display: '', ariaHidden: null, disabled: false };
-		const hidden = { canShow: false, display: 'none', ariaHidden: 'true', disabled: true };
+		const visible = { agentsWindowAvailable: true, display: '', ariaHidden: null, disabled: false };
+		const hidden = { agentsWindowAvailable: false, display: 'none', ariaHidden: 'true', disabled: true };
 		assert.deepStrictEqual({
 			states,
 			sameButton: banner.button === banner.banner.element.querySelector('button'),
@@ -150,8 +150,8 @@ suite('AgentsBanner', () => {
 		});
 	});
 
-	for (const sentiment of [{ hidden: true }, { disabled: true }]) {
-		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled'}`, async () => {
+	for (const sentiment of [{ hidden: true }, { disabled: true, disabledInWorkspace: true }]) {
+		test(`keeps the banner hidden when chat is ${sentiment.hidden ? 'hidden' : 'disabled in the workspace'}`, async () => {
 			const banner = createBanner(account, { sentiment });
 			const states = [banner.visibility().display];
 			await banner.setAgentEnabled(false);
@@ -165,6 +165,22 @@ suite('AgentsBanner', () => {
 			assert.deepStrictEqual(states, ['none', 'none', '', 'none']);
 		});
 	}
+
+	test('shows the sign-in action when the chat extension is disabled until setup completes', async () => {
+		const banner = createBanner(null, { sentiment: { installed: true, disabled: true } });
+		await Promise.resolve();
+		banner.button.click();
+
+		assert.deepStrictEqual({
+			display: banner.visibility().display,
+			label: banner.state().label,
+			signInCalls: banner.state().signInCalls,
+		}, {
+			display: '',
+			label: 'Sign in to GitHub',
+			signInCalls: 1,
+		});
+	});
 
 	test('does not offer sign-in when agent mode is disabled', async () => {
 		const banner = createBanner(null, {

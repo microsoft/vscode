@@ -52,10 +52,14 @@ import { resolveCopilotMcpServerInfo, type ICopilotPluginInfo } from '../../node
 import { CopilotGitHubCredentials, CopilotGitHubSessionCredentials } from '../../node/copilot/copilotGitHubCredentials.js';
 import { CopilotExtensionsReloadToolName } from '../../node/copilot/copilotExtensionTools.js';
 import { CopilotManagedSettingsResolver } from '../../node/copilot/copilotManagedSettings.js';
+import type { ICopilotAccountService } from '../../node/copilot/copilotAccountService.js';
 import { buildCopilotBuiltinAgents } from '../../node/copilot/copilotBuiltinAgents.js';
 import type { ShellManager } from '../../node/copilot/copilotShellTools.js';
 import type { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { CopilotSessionSandbox } from '../../node/copilot/copilotSessionSandbox.js';
+import { ISessionSandboxPathService } from '../../node/sessionSandboxPathService.js';
+import { IWorkspaceSandboxPathService, WorkspaceSandboxPathService } from '../../node/workspaceSandboxPathService.js';
+import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import type { SandboxConfig, SandboxNetworkPolicy } from '../../node/copilot/sandboxConfigForSdk.js';
 import { composeByokSessionConfig, CopilotSessionLauncher, filterClientToolNames, findLocalModelDirectFamily, getCopilotAgentSelection, getCopilotAgentSelectionName, getCopilotAutoTier, getCopilotCustomAgents, getCopilotReasoningEffort, getCopilotWorkingDirectoryTrust, isCopilotReasoningEffort, mergeByokSessionConfig, synthesizeByokSessionConfig, withLocalModelSessionConfig, normalizeToolFilterPatterns, resolveConfiguredReasoningEffortOverride, resolveCopilotAutoTier, resolveCopilotReasoningEffort, toSdkToolFilterPatterns, type CopilotSessionLaunchPlan, type IActiveClientSnapshot, type ICopilotClientToolConfiguration, type ICopilotSessionRuntime } from '../../node/copilot/copilotSessionLauncher.js';
 import { getSdkCustomAgentName } from '../../node/copilot/copilotPluginConverters.js';
@@ -418,6 +422,33 @@ suite('CopilotSessionLauncher agent catalog readiness', () => {
 	}
 });
 
+suite('CopilotSessionLauncher discovery-only boundary', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const kind of ['create', 'resume'] as const) {
+		test(`${kind} does not treat account discovery as conversation authentication`, async () => {
+			const accountService = upcastPartial<ICopilotAccountService>({
+				state: upcastPartial<ICopilotAccountService['state']>({ get: () => ({ kind: 'error', entraAccountId: 'selected', stage: 'discovery' }) }),
+				requireReady: () => upcastPartial<ReturnType<ICopilotAccountService['requireReady']>>({ kind: 'ready' }),
+			});
+			const launcher = createTestLauncher(undefined, undefined, undefined, undefined,
+				upcastPartial<IAgentConfigurationService>({ copilotM365EnabledAtStartup: true }),
+				undefined, undefined, accountService);
+			const base = {
+				client: new class extends mock<CopilotClient>() { }(), sessionId: 'discovery-only',
+				workingDirectory: testWorkingDirectory, resolvedAgentName: undefined,
+				snapshot: { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
+				activeClientToolSet: new ActiveClientToolSet(), shellManager: undefined,
+				githubCredentials: CopilotGitHubSessionCredentials.fromClientAuthentication(undefined),
+			};
+			const plan: CopilotSessionLaunchPlan = kind === 'create'
+				? { ...base, kind, model: undefined }
+				: { ...base, kind, fallback: { model: undefined } };
+			await assert.rejects(launcher.launch(plan, testRuntime), /conversation authentication is not yet available/);
+		});
+	}
+});
+
 suite('CopilotSessionLauncher sandbox policy', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -501,6 +532,8 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		let attachedSession: CopilotSession | undefined;
 		let sessionClosed = false;
 		const services = new ServiceCollection(
+			[ISessionSandboxPathService, new class extends mock<ISessionSandboxPathService>() { }()],
+			[IWorkspaceSandboxPathService, new WorkspaceSandboxPathService(store.add(new AgentHostStorageService(undefined, logService)))],
 			[IAgentConfigurationService, configuration],
 			[IAgentHostStateManager, manager],
 			[ILogService, logService],
@@ -528,6 +561,7 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 			getAppliedPluginDirectories: () => [],
 			getWorkingDirectory: () => undefined,
 			getAdditionalWorkingDirectories: () => [],
+			getWorkspaceWorkingDirectories: () => undefined,
 			shellManager: undefined,
 		}));
 		const runtime: ICopilotSessionRuntime = {
@@ -893,6 +927,20 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 				userPolicy: { filesystem: { readonlyPaths: [URI.file('/session-data/sess-1/attachments').fsPath] } },
 			};
 			assert.deepStrictEqual(fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig), [expected]);
+		});
+
+		test(`${kind} opens the SDK session in the permission mode resolved after the approval policy is known`, async () => {
+			const fixture = setup(kind);
+			const calls: string[] = [];
+			store.add(await fixture.launcher.launch(fixture.plan, {
+				...fixture.runtime,
+				setApprovalPolicy: () => calls.push('policy'),
+				resolveInitialPermissionMode: () => { calls.push('mode'); return 'assisted'; },
+			}));
+			const requested = fixture.captured?.permissionMode;
+			store.add(await fixture.launcher.launch(fixture.plan, { ...fixture.runtime, resolveInitialPermissionMode: () => undefined }));
+
+			assert.deepStrictEqual({ calls, requested, unresolved: Object.hasOwn(fixture.captured ?? {}, 'permissionMode') }, { calls: ['policy', 'mode'], requested: 'assisted', unresolved: false });
 		});
 
 		test(`${kind} waits for slow managed settings before applying policy and starting the SDK session`, async () => {
@@ -1347,7 +1395,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat, onDidChangeModels: emitter.event };
+		return { chat, onDidChangeModels: emitter.event, onDidDelta: Event.None };
 	}
 
 	/** A fake proxy handle plus a `startProxy` thunk that records its call count. */
@@ -1391,7 +1439,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const registry = new ByokLmBridgeRegistry();
 		// A window connected without a BYOK handler never pushes, so it stays
 		// non-serving and contributes no models.
-		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None });
+		const registration = registry.register('client-1', { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: Event.None, onDidDelta: Event.None });
 		const proxy = countingProxy();
 
 		const config = await synthesizeByokSessionConfig(sessionId, registry, proxy.startProxy, log);
@@ -1504,6 +1552,7 @@ suite('synthesizeByokSessionConfig', () => {
 		const registration = registry.register('client-1', {
 			chat: async (): Promise<IByokLmChatResult> => ({ output: [] }),
 			onDidChangeModels: emitter.event,
+			onDidDelta: Event.None,
 		});
 		const proxy = countingProxy();
 
@@ -1622,7 +1671,7 @@ suite('CopilotSessionLauncher BYOK proxy lifecycle', () => {
 		const emitter = store.add(new Emitter<IByokLmModelInfo[]>({
 			onDidAddFirstListener: () => emitter.fire(models),
 		}));
-		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event };
+		return { chat: async (): Promise<IByokLmChatResult> => ({ output: [] }), onDidChangeModels: emitter.event, onDidDelta: Event.None };
 	}
 
 	/** A fake proxy service whose handles carry a unique nonce per `start()`. */
@@ -3048,6 +3097,24 @@ suite('CopilotSessionLauncher resume fallback', () => {
 		}
 	});
 
+	test('opens the session created after a failed resume in the same permission mode', async () => {
+		const { launcher, plan } = createResumeFailingLaunch('Request session.resume failed with message: Session not found: session-1');
+		const modes: unknown[] = [];
+		const client = plan.client;
+		const { createSession, resumeSession } = client;
+		client.createSession = config => { modes.push(['create', config.permissionMode]); return createSession.call(client, config); };
+		client.resumeSession = (id, config) => { modes.push(['resume', config.permissionMode]); return resumeSession.call(client, id, config); };
+
+		const sessions = new DisposableStore();
+		try {
+			sessions.add(await launcher.launch(plan, { ...testRuntime, resolveInitialPermissionMode: () => 'allow-all' }));
+			assert.deepStrictEqual(modes, [['resume', 'allow-all'], ['create', 'allow-all']]);
+		} finally {
+			sessions.dispose();
+			await launcher.disposeByokProxyHandle();
+		}
+	});
+
 	test('does not replace a session with an empty one after a transient network failure', async () => {
 		// Regression: this used to fall through to `createSession`, presenting a
 		// session with real history as having zero turns — which the empty-session
@@ -3847,6 +3914,7 @@ suite('CopilotSessionLauncher resume config', () => {
 		snapshot: CopilotSessionLaunchPlan['snapshot'] = { discoveredAgents: [], additionalRootInstructions: [], tools: [], plugins: [], mcpServers: {} },
 		createClientSdkTools: ICopilotSessionRuntime['createClientSdkTools'] = () => [],
 		runtimeOverrides: Partial<ICopilotSessionRuntime> = {},
+		planOverrides: Pick<CopilotSessionLaunchPlan, 'modelRouterGuidance' | 'isEphemeral'> = {},
 	): Promise<ResumeSessionConfig> {
 		const plan = {
 			kind: 'resume',
@@ -3860,6 +3928,7 @@ suite('CopilotSessionLauncher resume config', () => {
 			shellManager: undefined,
 			githubCredentials: CopilotGitHubSessionCredentials.fromToken('token'),
 			fallback: { model },
+			...planOverrides,
 		};
 		const runtime = { createClientSdkTools, createServerSdkTools: () => [], ...runtimeOverrides };
 		return (await (launcher as unknown as { _buildSessionConfig(plan: unknown, runtime: unknown, onManagedSettingsResolved: () => void): Promise<{ config: ResumeSessionConfig }> })._buildSessionConfig(plan, runtime, () => { })).config;
@@ -3930,6 +3999,16 @@ suite('CopilotSessionLauncher resume config', () => {
 			[...definitions, { name: 'openBrowserPage' }, { name: 'clickElement' }],
 		];
 		assert.deepStrictEqual(changes.map(tools => isDeepStrictEqual(appliedConfiguration.sessionConfig, appliedConfiguration.resolve(tools).sessionConfig)), [true, true, false, false, false, true, false]);
+	});
+
+	test('tells the main agent the guidance of the chat\'s model router route, but not an ephemeral session', async () => {
+		const store = disposables.add(new DisposableStore());
+		const modelRouterGuidance = { router: 'Team', route: 'feature', guidance: 'Plan first.' };
+		const content = async (isEphemeral: boolean) => (await buildResumeConfig(createLauncher(store, {}), undefined, undefined, undefined, {}, { modelRouterGuidance, isEphemeral })).systemMessage?.content ?? '';
+		assert.deepStrictEqual({
+			chat: /<model_router_guidance>[^]*"Team" chose its "feature" route[^]*Plan first\.[^]*<\/model_router_guidance>$/.test(await content(false)),
+			ephemeral: (await content(true)).includes('model_router_guidance'),
+		}, { chat: true, ephemeral: false });
 	});
 
 	test('custom-agent tool reference remapping remains launch-only', async () => {
