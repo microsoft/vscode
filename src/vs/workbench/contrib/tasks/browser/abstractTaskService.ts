@@ -199,6 +199,12 @@ class TaskMap {
 	}
 }
 
+function compareTaskSources(a: ConfiguringTask | Task, b: ConfiguringTask | Task): number {
+	const aIsExtensionTask = a._source.kind === TaskSourceKind.Extension;
+	const bIsExtensionTask = b._source.kind === TaskSourceKind.Extension;
+	return aIsExtensionTask === bIsExtensionTask ? 0 : aIsExtensionTask ? 1 : -1;
+}
+
 export abstract class AbstractTaskService extends Disposable implements ITaskService {
 
 	// private static autoDetectTelemetryName: string = 'taskServer.autoDetect';
@@ -975,7 +981,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task.matches(key, compareId);
 		});
-		matchedTasks.sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+		matchedTasks.sort(compareTaskSources);
 		if (matchedTasks.length > 0) {
 			// Nice, we found a configured task!
 			const task = matchedTasks[0];
@@ -994,7 +1000,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!values) {
 			return undefined;
 		}
-		values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+		values = values.filter(task => task.matches(key, compareId)).sort(compareTaskSources);
 		return values.length > 0 ? values[0] : undefined;
 	}
 
@@ -1067,6 +1073,17 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 
 		return this._getGroupedTasks(filter, true, true).then((map) => this.applyFilterToTaskMap(filter, map));
+	}
+
+	public async getKnownTask(folder: IWorkspace | IWorkspaceFolder | string, id: string): Promise<Task | undefined> {
+		if (!this._versionAndEngineCompatible()) {
+			return undefined;
+		}
+		const map = await this._getGroupedTasks(undefined, true, true);
+		const values = map.get(folder).concat(map.get(USER_TASKS_GROUP_KEY));
+		const matchedTasks = values.filter(task => task.matches(id, true));
+		matchedTasks.sort(compareTaskSources);
+		return matchedTasks[0];
 	}
 
 	public taskTypes(): string[] {

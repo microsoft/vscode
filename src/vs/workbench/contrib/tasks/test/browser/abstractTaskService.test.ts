@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { WorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { AbstractTaskService } from '../../browser/abstractTaskService.js';
 import { ITaskProvider, IWorkspaceFolderTaskResult } from '../../common/taskService.js';
-import { ContributedTask, ITaskSet, JsonSchemaVersion, Task, TaskScope, TaskSourceKind } from '../../common/tasks.js';
+import { ContributedTask, CustomTask, ITaskSet, JsonSchemaVersion, RunOptions, RuntimeType, Task, TaskScope, TaskSourceKind, USER_TASKS_GROUP_KEY } from '../../common/tasks.js';
 
 suite('AbstractTaskService', () => {
 
@@ -81,4 +81,85 @@ suite('AbstractTaskService', () => {
 			}
 		});
 	}
+
+	test('resolves known tasks from workspace before matching user tasks without activating providers', async () => {
+		const folder = new WorkspaceFolder({ uri: URI.file('/workspace'), name: 'workspace', index: 0 });
+		const otherFolder = new WorkspaceFolder({ uri: URI.file('/other'), name: 'other', index: 1 });
+		const createTask = (id: string, workspaceFolder: WorkspaceFolder) => new ContributedTask(id, {
+			kind: TaskSourceKind.Extension, label: 'test', extension: 'test', scope: TaskScope.Folder, workspaceFolder
+		}, id, 'test', { type: 'test', _key: id }, {}, false, {}, {});
+		const workspaceTask = new CustomTask('same-id', {
+			kind: TaskSourceKind.WorkspaceFile, label: 'workspace', config: { workspaceFolder: folder, file: '', index: 0, element: undefined }
+		}, 'workspace-task', 'shell', { runtime: RuntimeType.Process, name: 'echo', args: [] }, false, RunOptions.defaults, {
+			name: 'workspace-task', identifier: 'workspace-task', problemMatchers: []
+		});
+		const otherWorkspaceTask = createTask('other-only', otherFolder);
+		const matchingUserTask = new CustomTask('same-id', {
+			kind: TaskSourceKind.User, label: 'user', config: { file: '', index: 0, element: undefined }
+		}, 'user-task', 'shell', { runtime: RuntimeType.Process, name: 'echo', args: [] }, false, RunOptions.defaults, {
+			name: 'user-task', identifier: 'user-task', problemMatchers: []
+		});
+		const userTask = new CustomTask('user-task', {
+			kind: TaskSourceKind.User, label: 'user', config: { file: '', index: 0, element: undefined }
+		}, 'user-only-task', 'shell', { runtime: RuntimeType.Process, name: 'echo', args: [] }, false, RunOptions.defaults, {
+			name: 'user-only-task', identifier: 'user-only-task', problemMatchers: []
+		});
+		const tasksByFolder = new Map<string, Task[]>([
+			[folder.uri.toString(), [workspaceTask]],
+			[otherFolder.uri.toString(), [otherWorkspaceTask]],
+			[USER_TASKS_GROUP_KEY, [matchingUserTask, userTask]]
+		]);
+		const service = Object.assign(Object.create(AbstractTaskService.prototype), {
+			_versionAndEngineCompatible: () => true,
+			_getGroupedTasks: async (filter: undefined, waitToActivate: boolean, knownOnlyOrTrusted: boolean) => {
+				assert.deepStrictEqual([filter, waitToActivate, knownOnlyOrTrusted], [undefined, true, true]);
+				return {
+					get: (workspaceFolder: string) => tasksByFolder.get(workspaceFolder) ?? []
+				};
+			}
+		}) as Pick<AbstractTaskService, 'getKnownTask'>;
+
+		assert.deepStrictEqual([
+			(await service.getKnownTask(folder.uri.toString(), 'same-id'))?._label,
+			(await service.getKnownTask(folder.uri.toString(), 'user-only-task'))?._id,
+			(await service.getKnownTask(folder.uri.toString(), 'other-only'))?._id
+		], ['workspace-task', 'user-task', undefined]);
+	});
+
+	test('getTask preserves workspace before user precedence in both lookup phases', async () => {
+		const folder = new WorkspaceFolder({ uri: URI.file('/workspace'), name: 'workspace', index: 0 });
+		const workspaceTask = new CustomTask('same-id', {
+			kind: TaskSourceKind.WorkspaceFile, label: 'workspace', config: { workspaceFolder: folder, file: '', index: 0, element: undefined }
+		}, 'workspace-task', 'shell', { runtime: RuntimeType.Process, name: 'echo workspace', args: [] }, false, RunOptions.defaults, {
+			name: 'workspace-task', identifier: 'workspace-task', problemMatchers: []
+		});
+		const userTask = new CustomTask('same-id', {
+			kind: TaskSourceKind.User, label: 'user', config: { file: '', index: 0, element: undefined }
+		}, 'user-task', 'shell', { runtime: RuntimeType.Process, name: 'echo user', args: [] }, false, RunOptions.defaults, {
+			name: 'user-task', identifier: 'user-task', problemMatchers: []
+		});
+
+		const workspacePhaseService = Object.assign(Object.create(AbstractTaskService.prototype), {
+			_trust: async () => true,
+			_ignoredWorkspaceFolders: [],
+			_findWorkspaceTasks: async (predicate: (task: Task, workspaceFolder: WorkspaceFolder) => boolean) =>
+				[workspaceTask, userTask].filter(task => predicate(task, folder)),
+			_getGroupedTasks: async () => {
+				assert.fail('Expected a match in the workspace-task lookup phase');
+			}
+		}) as Pick<AbstractTaskService, 'getTask'>;
+		const knownTasksPhaseService = Object.assign(Object.create(AbstractTaskService.prototype), {
+			_trust: async () => true,
+			_ignoredWorkspaceFolders: [],
+			_findWorkspaceTasks: async () => [],
+			_getGroupedTasks: async () => ({
+				get: (workspaceFolder: string) => workspaceFolder === folder.uri.toString() ? [workspaceTask] : [userTask]
+			})
+		}) as Pick<AbstractTaskService, 'getTask'>;
+
+		assert.deepStrictEqual([
+			(await workspacePhaseService.getTask(folder.uri.toString(), 'same-id', true))?._label,
+			(await knownTasksPhaseService.getTask(folder.uri.toString(), 'same-id', true))?._label
+		], ['workspace-task', 'workspace-task']);
+	});
 });

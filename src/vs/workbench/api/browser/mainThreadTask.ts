@@ -13,6 +13,7 @@ import { IStringDictionary } from '../../../base/common/collections.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../platform/workspace/common/workspace.js';
+import { IWorkspaceTrustManagementService } from '../../../platform/workspace/common/workspaceTrust.js';
 
 import {
 	ContributedTask, ConfiguringTask, KeyedTaskIdentifier, ITaskExecution, Task, ITaskEvent, TaskEventKind,
@@ -464,7 +465,8 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		extHostContext: IExtHostContext,
 		@ITaskService private readonly _taskService: ITaskService,
 		@IWorkspaceContextService private readonly _workspaceContextServer: IWorkspaceContextService,
-		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService
+		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTask);
@@ -646,11 +648,19 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 		return workspace;
 	}
 
+	private async getTaskFromHandle(workspace: string | IWorkspace | IWorkspaceFolder, value: ITaskHandleDTO): Promise<Task | undefined> {
+		const task = await this._taskService.getTask(workspace, value.id, true, value.type);
+		if (!task && value.type !== undefined && this._workspaceTrustManagementService.isWorkspaceTrusted()) {
+			return this._taskService.getKnownTask(workspace, value.id);
+		}
+		return task;
+	}
+
 	public async $getTaskExecution(value: ITaskHandleDTO | ITaskDTO): Promise<ITaskExecutionDTO> {
 		if (TaskHandleDTO.is(value)) {
 			const workspace = this.getWorkspace(value.workspaceFolder);
 			if (workspace) {
-				const task = await this._taskService.getTask(workspace, value.id, true, value.type);
+				const task = await this.getTaskFromHandle(workspace, value);
 				if (task) {
 					return {
 						id: task._id,
@@ -677,7 +687,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 			if (TaskHandleDTO.is(value)) {
 				const workspace = this.getWorkspace(value.workspaceFolder);
 				if (workspace) {
-					this._taskService.getTask(workspace, value.id, true, value.type).then((task: Task | undefined) => {
+					this.getTaskFromHandle(workspace, value).then((task: Task | undefined) => {
 						if (!task) {
 							reject(new Error('Task not found'));
 						} else {
