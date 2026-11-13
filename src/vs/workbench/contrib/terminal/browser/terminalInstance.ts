@@ -80,7 +80,7 @@ import { isHorizontal, IWorkbenchLayoutService } from '../../../services/layout/
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
-import type { IMarker, Terminal as XTermTerminal, IBufferLine } from '@xterm/xterm';
+import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { getTerminalAccessibleTitle, terminalStrings } from '../common/terminalStrings.js';
 import { TerminalIconPicker } from './terminalIconPicker.js';
@@ -2110,7 +2110,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 			// Any of the above setting changes could have changed the dimensions of the
 			// terminal, re-evaluate now.
-			this._initDimensions();
+			if (this._lastLayoutDimensions && this._lastLayoutDimensions.width > 0 && this._lastLayoutDimensions.height > 0) {
+				// Use the last layout, the container can have a temporary size while its view is laid out
+				this._evaluateColsAndRows(this._lastLayoutDimensions.width, this._lastLayoutDimensions.height);
+			}
 			cols = this.cols;
 			rows = this.rows;
 
@@ -2338,13 +2341,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// work around for https://github.com/xtermjs/xterm.js/issues/3482
 		if (isWindows) {
 			for (let i = this.xterm.raw.buffer.active.viewportY; i < this.xterm.raw.buffer.active.length; i++) {
-				interface ILineWithInternals extends IBufferLine {
-					_line: {
-						isWrapped: boolean;
-					};
-				}
-				const line = this.xterm.raw.buffer.active.getLine(i);
-				(line as ILineWithInternals)._line.isWrapped = false;
+				this.xterm.setBufferLineWrapped(i, false);
 			}
 		}
 	}

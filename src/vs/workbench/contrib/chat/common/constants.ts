@@ -78,6 +78,8 @@ export enum ChatConfiguration {
 	AutoApprovedUrls = 'chat.tools.urls.autoApprove',
 	EligibleForAutoApproval = 'chat.tools.eligibleForAutoApproval',
 	EnableMath = 'chat.math.enabled',
+	HtmlPreviewEnabled = 'chat.htmlPreview.enabled',
+	NativeComponentsEnabled = 'chat.nativeComponents.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	ThinkingGenerateTitles = 'chat.agent.thinking.generateTitles',

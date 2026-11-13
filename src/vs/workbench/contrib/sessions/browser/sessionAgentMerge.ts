@@ -146,6 +146,20 @@ export function isAgentMergePullRequestIcon(icon: ThemeIcon): boolean {
 }
 
 /**
+ * The icon of the completed state of `session`, such as of its pull request, with the blockers Agent Merge owns hidden:
+ * what its status icon shows once the session is done, in its row of the sessions list and wherever else its status shows.
+ */
+export function getSessionCompletedStateIcon(session: ISession, reader: IReader, agentMergeConfiguration: () => IObservable<ISessionAgentMergeConfiguration | undefined>): ThemeIcon | undefined {
+	// A provider icon is authoritative: the workspace's pull requests may belong to other chats.
+	const pullRequestIcon = session.completedStateIcon
+		? session.completedStateIcon.read(reader)
+		: getHighestPriorityPullRequestIcon(getGitHubPullRequestRefs(session.workspace.read(reader)?.folders[0]?.gitRepository?.gitHubInfo.read(reader)).map(pullRequest => pullRequest.icon));
+	return pullRequestIcon && isAgentMergePullRequestIcon(pullRequestIcon)
+		? getAgentMergeAwarePullRequestIcon(pullRequestIcon, agentMergeConfiguration().read(reader))
+		: pullRequestIcon;
+}
+
+/**
  * The icon of the completed state of `chat`, such as of its pull request, with the blockers Agent Merge owns hidden: what
  * its status icon shows once the chat is done, beside it in the sessions list and wherever else its status shows.
  */

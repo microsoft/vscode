@@ -505,17 +505,19 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	display: none !important;
 }
 
-.monaco-editor .comment-diff-added {
+.monaco-editor .comment-diff-added,
+.monaco-editor .comment-thread-bar {
 	border-left-width: 3px;
 	border-left-style: solid;
 }
 
 .monaco-editor .comment-diff-added,
+.monaco-editor .comment-thread-bar,
 .monaco-editor .comment-range-glyph.multiline-add {
 	border-left-color: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-diff-added:before,
+.monaco-editor .comment-diff-added-glyph:before,
 .monaco-editor .comment-range-glyph.line-hover:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
@@ -541,7 +543,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-left: 13px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added-glyph:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before,
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
@@ -574,7 +576,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-top: 2px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added-glyph:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
 	content: var(--vscode-icon-plus-content);
 	font-family: var(--vscode-icon-plus-font-family);

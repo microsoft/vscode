@@ -66,7 +66,7 @@ function git(args: readonly string[]): string {
 }
 
 /**
- * Sets VSCODE_CHANGED_SINCE to the commit that the commits of the build start from, so that hygiene and ESLint check
+ * Sets VSCODE_CHANGED_SINCE to the commit that the commits of the build start from, so that hygiene and oxlint check
  * only the files those commits change. Leaves it unset, so that they check every file, when that commit cannot be
  * determined.
  */
@@ -89,12 +89,12 @@ async function main(): Promise<void> {
 	const firstParentHistory = git(['rev-list', '--first-parent', `--max-count=${depth}`, head]).split('\n').filter(commit => !!commit);
 
 	const base = findBaseCommit(head, commits, firstParentHistory);
-	console.log(`Hygiene and ESLint will check the files that the ${commits.length} commit${commits.length === 1 ? '' : 's'} of the build change since ${base}.`);
+	console.log(`Hygiene and oxlint will check the files that the ${commits.length} commit${commits.length === 1 ? '' : 's'} of the build change since ${base}.`);
 	console.log(`##vso[task.setvariable variable=VSCODE_CHANGED_SINCE]${base}`);
 }
 
 if (import.meta.main) {
 	main().catch(error => {
-		console.log(`##vso[task.logissue type=warning]Hygiene and ESLint will check every file: ${error instanceof Error ? error.message : String(error)}`);
+		console.log(`##vso[task.logissue type=warning]Hygiene and oxlint will check every file: ${error instanceof Error ? error.message : String(error)}`);
 	});
 }

@@ -1739,10 +1739,15 @@ interface IVerbosityComparisonOptions {
 	readonly filePillTitle?: boolean;
 	/** Ends the running response with reasoning that has a summary heading. */
 	readonly reasoningLast?: boolean;
+	/** Ends the running response with reasoning that has no summary heading, and a first line longer than the header's row. */
+	readonly unheadedReasoningLast?: boolean;
 }
 
 async function renderPersistentVerbosityComparison(context: ComponentFixtureContext, verbosity: ChatProgressVerbosity, complete: boolean, options: IVerbosityComparisonOptions = {}): Promise<void> {
-	const patchComplete = complete || !!options.reasoningLast;
+	const lastReasoning = options.reasoningLast ? '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.'
+		: options.unheadedReasoningLast ? 'The tool and reasoning paths share one renderer, so the related tests should cover both of them before the header changes how it names what the response is doing.\n\nThen update the tests.'
+			: undefined;
+	const patchComplete = complete || lastReasoning !== undefined;
 	const runningPatchMessage = options.filePillTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts?vscodeLinkType=file)'
 		: options.linkedTitle ? 'Updating [progress.ts](file:///workspace/src/progress.ts)' : 'Updating the progress renderer...';
 	await renderChatWidget(context, {
@@ -1762,7 +1767,7 @@ async function renderPersistentVerbosityComparison(context: ComponentFixtureCont
 				{ kind: 'tool', toolId: 'read_file', displayName: 'Read file', invocationMessage: 'Read `src/progress.ts`', complete: true },
 				{ kind: 'tool', toolId: 'search_workspace', displayName: 'Search workspace', invocationMessage: 'Found 12 progress renderer tests', complete: true },
 				{ kind: 'tool', toolId: 'apply_patch', displayName: 'Apply patch', invocationMessage: patchComplete ? 'Updated the progress renderer' : runningPatchMessage, complete: patchComplete },
-				...(options.reasoningLast ? [{ kind: 'thinking' as const, text: '**Checking the related tests**\nConfirm the tests cover the tool and reasoning paths.' }] : []),
+				...(lastReasoning !== undefined ? [{ kind: 'thinking' as const, text: lastReasoning }] : []),
 				...(complete ? [{ kind: 'markdown' as const, text: 'Updated the progress renderer and checked the related tests.' }] : []),
 			],
 			responseComplete: complete,
@@ -2534,7 +2539,7 @@ const CODE_BLOCK_IN_LIST: IFixtureMessage[] = [
 	},
 ];
 
-/** A request with image, slash-command, and file pills, optionally in a custom chat font. */
+/** A request with image and file pills, a slash command and text, optionally in a custom chat font. */
 async function renderInlineAttachmentPills(context: ComponentFixtureContext, chatFont?: IChatWidgetFixtureOptions['chatFont']): Promise<void> {
 	const canvas = dom.$<HTMLCanvasElement>('canvas');
 	canvas.width = 48;
@@ -2550,7 +2555,7 @@ async function renderInlineAttachmentPills(context: ComponentFixtureContext, cha
 	canvasContext.fillRect(6, 14, 36, 4);
 	canvasContext.fillRect(6, 22, 18, 4);
 	const imageBytes = Uint8Array.from(atob(canvas.toDataURL('image/png').split(',')[1]), character => character.charCodeAt(0));
-	const text = 'Pasted Image /explain #file:index.ts';
+	const text = 'Pasted Image /explain #file:index.ts in detail';
 
 	await renderChatWidget(context, {
 		messages: [{
@@ -2564,7 +2569,7 @@ async function renderInlineAttachmentPills(context: ComponentFixtureContext, cha
 				{ kind: 'file', id: 'file:///repo/src/index.ts', name: 'index.ts', value: URI.file('/repo/src/index.ts') },
 				{ kind: 'image', id: 'pasted-image', name: 'Pasted Image', value: imageBytes, mimeType: 'image/png', isPasted: true },
 			],
-			assistant: [{ kind: 'markdown', text: 'Attachment pills and slash commands should share a vertical center.' }],
+			assistant: [{ kind: 'markdown', text: 'Attachment pills and slash commands should be level, with their labels on the baseline of the request text.' }],
 		}],
 		height: 200,
 		listHeight: 200,
@@ -2848,6 +2853,7 @@ export default defineThemedFixtureGroup({ path: 'chat/widget/' }, {
 			ConversationStreamingLinkedTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { linkedTitle: true }) }),
 			ConversationStreamingFilePillTitle: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { filePillTitle: true }) }),
 			ConversationStreamingReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { reasoningLast: true }) }),
+			ConversationStreamingUnheadedReasoning: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, false, { unheadedReasoningLast: true }) }),
 			ConversationCompleted: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true) }),
 			ConversationExpanded: defineComponentFixture({ virtualTime: { enabled: false }, render: context => renderPersistentVerbosityComparison(context, ChatProgressVerbosity.Conversation, true, { expand: true }) }),
 		}),

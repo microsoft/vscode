@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TSESTree } from '@typescript-eslint/utils';
-import * as eslint from 'eslint';
-import * as visitorKeys from 'eslint-visitor-keys';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
-	meta: eslint.Rule.RuleMetaData = {
+type VisitorKeys = Context['sourceCode']['visitorKeys'];
+
+export default new class NoObservableGetInReactiveContext implements CreateRule {
+	meta: RuleMeta = {
 		type: 'problem',
 		docs: {
 			description: 'Disallow calling .get() on observables inside reactive contexts in favor of .read(undefined).',
@@ -17,10 +16,9 @@ export default new class NoObservableGetInReactiveContext implements eslint.Rule
 		fixable: 'code',
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return {
-			'CallExpression': (node: ESTree.CallExpression) => {
-				const callExpression = node as TSESTree.CallExpression;
+			'CallExpression': (callExpression: ESTree.CallExpression) => {
 
 				if (!isReactiveFunctionWithReader(callExpression.callee)) {
 					return;
@@ -28,7 +26,7 @@ export default new class NoObservableGetInReactiveContext implements eslint.Rule
 
 				const functionArg = callExpression.arguments.find(arg =>
 					arg.type === 'ArrowFunctionExpression' || arg.type === 'FunctionExpression'
-				) as TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression | undefined;
+				) as ESTree.ArrowFunctionExpression | ESTree.Function | undefined;
 
 				if (!functionArg) {
 					return;
@@ -46,13 +44,13 @@ export default new class NoObservableGetInReactiveContext implements eslint.Rule
 };
 
 function checkFunctionForObservableGetCalls(
-	fn: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression,
+	fn: ESTree.ArrowFunctionExpression | ESTree.Function,
 	readerName: string,
-	context: eslint.Rule.RuleContext
+	context: Context
 ) {
-	const visited = new Set<TSESTree.Node>();
+	const visited = new Set<ESTree.Node>();
 
-	function traverse(node: TSESTree.Node) {
+	function traverse(node: ESTree.Node) {
 		if (visited.has(node)) {
 			return;
 		}
@@ -64,13 +62,13 @@ function checkFunctionForObservableGetCalls(
 				node: node,
 				message: `Observable '.get()' should not be used in reactive context. Use '.read(${readerName})' instead to properly track dependencies or '.read(undefined)' to be explicit about an untracked read.`,
 				fix: (fixer) => {
-					const memberExpression = node.callee as TSESTree.MemberExpression;
-					return fixer.replaceText(node, `${context.sourceCode.getText(memberExpression.object as ESTree.Node)}.read(undefined)`);
+					const memberExpression = node.callee as ESTree.MemberExpression;
+					return fixer.replaceText(node, `${context.sourceCode.getText(memberExpression.object)}.read(undefined)`);
 				}
 			});
 		}
 
-		walkChildren(node, traverse);
+		walkChildren(node, context.sourceCode.visitorKeys, traverse);
 	}
 
 	if (fn.body) {
@@ -78,7 +76,7 @@ function checkFunctionForObservableGetCalls(
 	}
 }
 
-function isObservableGetCall(node: TSESTree.CallExpression): boolean {
+function isObservableGetCall(node: ESTree.CallExpression): boolean {
 	// Look for pattern: something.get()
 	if (node.callee.type === 'MemberExpression' &&
 		node.callee.property.type === 'Identifier' &&
@@ -108,7 +106,7 @@ const reactiveFunctions = new Set([
 	'autorunIterableDelta'
 ]);
 
-function getReaderParameterName(fn: TSESTree.ArrowFunctionExpression | TSESTree.FunctionExpression): string | null {
+function getReaderParameterName(fn: ESTree.ArrowFunctionExpression | ESTree.Function): string | null {
 	if (fn.params.length === 0) {
 		return null;
 	}
@@ -121,25 +119,46 @@ function getReaderParameterName(fn: TSESTree.ArrowFunctionExpression | TSESTree.
 	return null;
 }
 
-function isReactiveFunctionWithReader(callee: TSESTree.Node): boolean {
+function isReactiveFunctionWithReader(callee: ESTree.Node): boolean {
 	if (callee.type === 'Identifier') {
 		return reactiveFunctions.has(callee.name);
 	}
 	return false;
 }
 
-function walkChildren(node: TSESTree.Node, cb: (child: TSESTree.Node) => void) {
-	const keys = visitorKeys.KEYS[node.type] || [];
+function walkChildren(node: ESTree.Node, visitorKeys: VisitorKeys, cb: (child: ESTree.Node) => void) {
+	const keys = getEcmaScriptKeys(visitorKeys, node.type);
 	for (const key of keys) {
-		const child = (node as Record<string, any>)[key];
+		const child = (node as unknown as Record<string, unknown>)[key];
 		if (Array.isArray(child)) {
 			for (const item of child) {
-				if (item && typeof item === 'object' && item.type) {
+				if (isNode(item)) {
 					cb(item);
 				}
 			}
-		} else if (child && typeof child === 'object' && child.type) {
+		} else if (isNode(child)) {
 			cb(child);
 		}
 	}
+}
+
+/**
+ * This rule used to traverse with the keys of `eslint-visitor-keys`, which has no keys for TypeScript-only nodes and
+ * properties. Skip those to traverse the same children, and so report the same problems.
+ */
+const typeScriptOnlyKeys = new Set(['decorators', 'typeAnnotation', 'typeParameters', 'returnType', 'typeArguments', 'superTypeArguments', 'implements']);
+const typesUnknownToESLint = new Set(['AccessorProperty', 'Decorator', 'ParenthesizedExpression', 'V8IntrinsicExpression']);
+const ecmaScriptKeysCache = new Map<string, readonly string[]>();
+
+function getEcmaScriptKeys(visitorKeys: VisitorKeys, type: string): readonly string[] {
+	let keys = ecmaScriptKeysCache.get(type);
+	if (!keys) {
+		keys = type.startsWith('TS') || typesUnknownToESLint.has(type) ? [] : (visitorKeys[type] ?? []).filter(key => !typeScriptOnlyKeys.has(key));
+		ecmaScriptKeysCache.set(type, keys);
+	}
+	return keys;
+}
+
+function isNode(value: unknown): value is ESTree.Node {
+	return !!value && typeof value === 'object' && !!(value as { type?: unknown }).type;
 }

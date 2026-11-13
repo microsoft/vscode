@@ -3891,6 +3891,7 @@ suite('AgentService (node dispatcher)', () => {
 			await managementService.setPluginEnabled(provider.id, 'direct-source', true, 'global');
 			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', false, 'global', session, chat);
 			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', true, 'repository', session, chat);
+			await managementService.setPluginEnabled(provider.id, 'spark@copilot-plugins', null, 'repository', session, chat);
 			const inventory = await managementService.listPluginInstallations(provider.id, session, chat);
 
 			assert.deepStrictEqual({ inventory, calls }, {
@@ -3901,6 +3902,7 @@ suite('AgentService (node dispatcher)', () => {
 					['enablement', 'direct-source', true, 'global', undefined, undefined],
 					['enablement', 'spark@copilot-plugins', false, 'global', session.toString(), chat.toString()],
 					['enablement', 'spark@copilot-plugins', true, 'repository', session.toString(), chat.toString()],
+					['enablement', 'spark@copilot-plugins', null, 'repository', session.toString(), chat.toString()],
 					['inventory', session.toString(), chat.toString()],
 				],
 			});
@@ -8550,6 +8552,18 @@ suite('AgentService (node dispatcher)', () => {
 			// agent has observed the (rewritten) sendMessage.
 			await waitForCondition(agent.onDidSendMessage, () => agent.sendMessageCalls.length > 0, 'the rewritten message should reach the agent');
 		}
+
+		test('keeps skill resource identity when rewriting neighboring attachments', async () => {
+			const { svc, agent, session, attachmentsRoot, warnings } = await setup();
+			const skills: MessageAttachment[] = [
+				{ type: MessageAttachmentKind.Resource, uri: 'custom-skills:/review/SKILL.md', label: '/review', displayKind: 'skill' },
+				{ type: MessageAttachmentKind.Resource, uri: joinPath(attachmentsRoot, 'SKILL.md').toString(), label: '/other', displayKind: 'skill' },
+			];
+			await dispatchTurnAndWait(svc, agent, session, [...skills, {
+				type: MessageAttachmentKind.EmbeddedResource, label: 'Context', contentType: 'text/plain', data: encodeBase64(VSBuffer.fromString('context')),
+			}]);
+			assert.deepStrictEqual({ skills: agent.sendMessageCalls[0].attachments?.slice(0, 2), warnings }, { skills, warnings: [] });
+		});
 
 		test('snapshots EmbeddedResource attachments to disk and rewrites to a Resource URI under the session attachments folder', async () => {
 			const { svc, agent, session, attachmentsRoot } = await setup();
@@ -24522,6 +24536,29 @@ suite('AgentService (node dispatcher)', () => {
 	// ---- authenticate ---------------------------------------------------
 
 	suite('authenticate', () => {
+
+		test('waits for provider completion after canonical acceptance and isolates completion failure', async () => {
+			const provider: IAgent = copilotAgent;
+			const started = new DeferredPromise<void>();
+			const finish = new DeferredPromise<void>();
+			let visible: string | undefined;
+			provider.completeAuthentication = async params => {
+				visible = getAuthenticationService(service).getAuthToken({ resource: params.resource });
+				started.complete();
+				await finish.p;
+				throw new Error('setup failed');
+			};
+			registerTestAgentProvider(service, provider);
+			const completing = service.authenticate({ resource: 'https://api.github.com', token: 'token' });
+			await started.p;
+			finish.complete();
+			const failed = await completing;
+			const other = disposables.add(new MockAgent('claude'));
+			other.getProtectedResources = () => [{ resource: 'https://api.github.com' }];
+			registerTestAgentProvider(service, other);
+			const accepted = await service.authenticate({ resource: 'https://api.github.com', token: 'next-token' });
+			assert.deepStrictEqual({ failed, accepted, visible }, { failed: { authenticated: false }, accepted: { authenticated: true }, visible: 'next-token' });
+		});
 
 		test('validates MCP authentication targets against top-level and child customizations', async () => {
 			registerTestAgentProvider(service, copilotAgent);

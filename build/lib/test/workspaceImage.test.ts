@@ -5,13 +5,14 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { suite, test } from 'node:test';
 import { FAILSAFE_SCHEMA, load } from 'js-yaml';
 import { NATIVE_BUILD_INPUTS } from '../../../.github/workflows/workspace_image/image.ts';
 import { computeNodeModulesBaseCacheKey } from '../../azure-pipelines/common/cacheKeys.ts';
+import { findLinksToRoot } from '../../azure-pipelines/common/workspaceImage.ts';
 import { distroRoots } from '../../npm/dirs.ts';
 
 const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
@@ -129,6 +130,101 @@ suite('workspace images', () => {
 			});
 		} finally {
 			rmSync(temp, { recursive: true, force: true });
+		}
+	});
+
+	// Only the CI test jobs of product-build.yml start from images, and the image jobs only run in CI
+	// builds. The Windows smoke tests, like the WSL smoke test job of pull requests, don't: WSL cannot
+	// open folders on a volume that is mounted in a folder.
+	test('Azure Pipelines CI test jobs start from images, except the Windows smoke tests', () => {
+		// Alone, or in an and() with the conditions of a stage
+		const ciBuild = /^\$\{\{ if (?:and\(.*, )?eq\(variables\['VSCODE_CIBUILD'\], true\)\)? \}\}$/;
+		const templates = (value: unknown, conditions: readonly string[] = []): { template: string; ci: boolean; parameters: Record<string, string> }[] => {
+			if (Array.isArray(value)) {
+				return value.flatMap(item => templates(item, conditions));
+			}
+			if (!value || typeof value !== 'object') {
+				return [];
+			}
+			const record = value as Record<string, unknown>;
+			return [
+				...(typeof record.template === 'string' ? [{ template: record.template, ci: conditions.some(condition => ciBuild.test(condition)), parameters: (record.parameters ?? {}) as Record<string, string> }] : []),
+				...Object.entries(record).flatMap(([key, child]) => templates(child, key.startsWith('${{ if ') ? [...conditions, key] : conditions)),
+			];
+		};
+		const observed = ['product-build.yml', 'product-build-template.yml', 'product-build-ado-ci.yml', 'product-build-ci.yml'].map(file => {
+			// Every job of product-build-ci.yml is a CI job
+			const all = templates(load(readRepositoryFile(`build/azure-pipelines/${file}`).toString(), { schema: FAILSAFE_SCHEMA }), file === 'product-build-ci.yml' ? [`\${{ if eq(variables['VSCODE_CIBUILD'], true) }}`] : []);
+			return {
+				file,
+				imageJobs: all.filter(({ template }) => template.endsWith('-workspace-image.yml@self')).map(({ template, ci }) => ({ template: path.posix.basename(template), ci })),
+				testJobs: Object.fromEntries(all.flatMap(({ template, parameters }) => {
+					const platform = /\/product-build-(?<platform>linux|win32|darwin)-ci\.yml@self$/.exec(template)?.groups?.platform;
+					return platform ? [[`${platform} ${parameters.VSCODE_JOB_NAME}`, parameters.VSCODE_WORKSPACE_IMAGE ?? 'none']] : [];
+				})),
+			};
+		});
+		const jobs = ['UnitElectron', 'Unit', 'BrowserRemote', 'Integration', 'AgentHostE2E', 'Smoke'];
+		const testJobs = (image: (platform: string, job: string) => string) => Object.fromEntries([
+			...['win32', 'linux'].flatMap(platform => [...jobs, 'Copilot'].map(job => [`${platform} ${job}`, image(platform, job)])),
+			...jobs.map(job => [`darwin ${job}`, image('darwin', job)]),
+		]);
+		assert.deepEqual(observed, [
+			{
+				file: 'product-build.yml',
+				imageJobs: [
+					{ template: 'product-build-win32-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-linux-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-darwin-workspace-image.yml@self', ci: true },
+				],
+				testJobs: testJobs((platform, job) => platform === 'win32' && job === 'Smoke' ? 'none' : 'use'),
+			},
+			{ file: 'product-build-template.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
+			{ file: 'product-build-ado-ci.yml', imageJobs: [], testJobs: testJobs(() => 'none') },
+			{
+				file: 'product-build-ci.yml',
+				imageJobs: [
+					{ template: 'product-build-win32-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-linux-workspace-image.yml@self', ci: true },
+					{ template: 'product-build-darwin-workspace-image.yml@self', ci: true },
+				],
+				testJobs: testJobs((platform, job) => platform === 'win32' && job === 'Smoke' ? 'none' : 'use'),
+			},
+		]);
+	});
+
+	// The Windows test jobs replace these with junctions, as esbuild can't follow them to the root of
+	// an image, which they mount at the sources directory without a drive letter
+	test('find the relative links of pnpm that go up to the root of the sources directory', () => {
+		const ws = mkdtempSync(path.join(tmpdir(), 'workspace-image-links-'));
+		try {
+			const link = (file: string, target: string) => {
+				mkdirSync(path.dirname(path.join(ws, file)), { recursive: true });
+				symlinkSync(target, path.join(ws, file), 'dir');
+			};
+			mkdirSync(path.join(ws, 'node_modules/.pnpm/which@4.0.0/node_modules/which'), { recursive: true });
+			link('node_modules/which', '.pnpm/which@4.0.0/node_modules/which');
+			link('node_modules/.pnpm/which@4.0.0/node_modules/isexe', '../../isexe@3.1.1/node_modules/isexe');
+			link('node_modules/.pnpm/node_modules/isexe', '../isexe@3.1.1/node_modules/isexe');
+			link('node_modules/.pnpm/x@1.0.0/node_modules/npm', '../../../../extensions/npm');
+			link('node_modules/vscode-git', '../extensions/git');
+			link('extensions/npm/node_modules/which', '../../../node_modules/.pnpm/which@4.0.0/node_modules/which');
+			link('extensions/npm/node_modules/@types/node', '../../../../node_modules/.pnpm/@types+node@22.0.0/node_modules/@types/node');
+			link('extensions/npm/node_modules/absolute', path.join(ws, 'node_modules/.pnpm/which@4.0.0/node_modules/which'));
+			link('build/rspack/node_modules/x', '../../node_modules/.pnpm/x@1.0.0/node_modules/x');
+			link('not-installed/node_modules/x', '../../node_modules/x');
+
+			assert.deepEqual(
+				findLinksToRoot(ws).map(({ link, target }) => [link, target].map(file => path.relative(ws, file).replaceAll(path.sep, '/')).join(' -> ')).sort(),
+				[
+					'extensions/npm/node_modules/@types/node -> node_modules/.pnpm/@types+node@22.0.0/node_modules/@types/node',
+					'extensions/npm/node_modules/which -> node_modules/.pnpm/which@4.0.0/node_modules/which',
+					'node_modules/.pnpm/x@1.0.0/node_modules/npm -> extensions/npm',
+					'node_modules/vscode-git -> extensions/git',
+				]
+			);
+		} finally {
+			rmSync(ws, { recursive: true, force: true });
 		}
 	});
 });

@@ -86,6 +86,7 @@ export interface IPolicyData {
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
 	readonly fcv1?: string;
+	readonly st?: string;
 }
 
 export interface IDefaultAccountAuthenticationProvider {

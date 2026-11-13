@@ -75,11 +75,12 @@ extends:
           # which install the whole repository, on every install that runs scripts, filtered or not: the
           # install skips them, then builds Copilot's dependencies and runs its postinstall. The extraction
           # sets chat-lib's dependencies to Copilot's versions, in its package.json and in the root
-          # pnpm-lock.yaml.
+          # pnpm-lock.yaml. The rebuild ignores the root .pnpmfile.mjs, which builds native modules for
+          # Electron: chat-lib runs in Node.js, and network isolation blocks the Electron headers.
           - bash: |
               set -e
               pnpm install --frozen-lockfile --ignore-scripts --filter copilot-chat --filter @vscode/chat-lib
-              pnpm --filter copilot-chat --filter @vscode/chat-lib rebuild
+              pnpm --ignore-pnpmfile --filter copilot-chat --filter @vscode/chat-lib rebuild
               pnpm run postinstall
               pnpm run extract-chat-lib
             displayName: 📂 Extract chat-lib

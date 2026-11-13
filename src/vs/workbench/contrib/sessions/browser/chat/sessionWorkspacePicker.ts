@@ -15,6 +15,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { disposableTimeout, Limiter, RunOnceScheduler } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { getOrSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { autorun, IObservable, IReader, observableValue, waitForState } from '../../../../../base/common/observable.js';
@@ -307,6 +308,7 @@ export class WorkspacePicker extends Disposable {
 	private readonly _triggerOptions = new Map<HTMLElement, IWorkspacePickerTrigger>();
 	private readonly _triggerContents = new Map<HTMLElement, IWorkspacePickerTriggerElements>();
 	private readonly _contextSelections = new Map<string, ISessionWorkspace[]>();
+	private readonly _workspaceItemIds = new Map<string, number>();
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _additionalRepositorySelections = new Map<string, IAttachedRepositorySelection>();
 	private readonly _additionalFolderSelections = new Map<string, IResolvedFolderWorkspace>();
@@ -1720,10 +1722,12 @@ export class WorkspacePicker extends Disposable {
 			return undefined;
 		}
 
+		const currentFolder = this._selectedFolderUri?.scheme === Schemas.file ? this._selectedFolderUri : undefined;
 		const result = await this.fileDialogService.showOpenDialog({
 			canSelectFolders: true,
 			canSelectFiles: false,
 			canSelectMany: false,
+			defaultUri: currentFolder ? this.uriIdentityService.extUri.dirname(currentFolder) : undefined,
 		});
 		if (!result?.length) {
 			return undefined;
@@ -1892,7 +1896,7 @@ export class WorkspacePicker extends Disposable {
 			const attached = this._additionalFolderSelections.has(this.uriIdentityService.extUri.getComparisonKey(folderUri))
 				|| (repositoryId !== undefined && this._additionalRepositorySelections.has(repositoryId));
 			const item: IWorkspacePickerItem = {
-				id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
+				id: `workspacePicker.workspace.${getOrSet(this._workspaceItemIds, this.uriIdentityService.extUri.getComparisonKey(folderUri), this._workspaceItemIds.size)}`,
 				folderUri,
 				providerId: environmentProvider ? environmentProvider.id : providerId,
 				checked: selected || attached || undefined,

@@ -491,6 +491,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _inputVisible = true;
 	private _readOnly = false;
+	/** The `editable` and `readOnly` renderer options last applied to the list. */
+	private _rendererEditable: boolean | undefined;
+	private _rendererReadOnly: boolean | undefined;
+	/** Whether renderer options changed since the list rows were last rerendered. */
+	private _listRowsStale = false;
 	private readonly _draftOnly = observableValue(this, false);
 
 	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
@@ -1027,6 +1032,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.viewOptions.rendererOptions?.renderInputRequests !== false;
 	}
 
+	get rendersNativeComponents(): boolean {
+		return !!this.viewOptions.rendererOptions?.renderNativeComponents;
+	}
+
 	get rendersInputOnTop(): boolean {
 		return this.viewOptions.renderInputOnTop ?? false;
 	}
@@ -1279,6 +1288,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				getTemplateDataForRequestId: (requestId) => this.getTemplateDataForRequestId(requestId),
 				onDidRerenderRow: this.onDidRerenderRow,
 				editorsInUse: () => this.listWidget.editorsInUse(),
+				getCodeBlockInfoForEditor: uri => this.listWidget.getCodeBlockInfoForEditor(uri),
 				getScrollTop: () => this.listWidget.scrollTop,
 				setScrollTop: (scrollTop) => { this.listWidget.scrollTop = scrollTop; },
 				getRenderHeight: () => this.listWidget.renderHeight,
@@ -2212,7 +2222,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.setInputVisible(inputVisible);
 		// Authoritative over the lock/unlock `editable` toggles below.
 		this._applyRendererEditable(!readOnly);
-		this.rerenderListIfConnected();
+		// Rows only need a rerender when they were rendered with other options.
+		if (this._listRowsStale) {
+			this.rerenderListIfConnected();
+		}
 	}
 
 	private _listRerenderPending = false;
@@ -2228,6 +2241,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const listDomNode = this.listWidget.domNode;
 		if (listDomNode.isConnected && listDomNode.offsetHeight > 0) {
 			this._listRerenderPending = false;
+			this._listRowsStale = false;
 			this.listWidget.rerender();
 		} else {
 			this._listRerenderPending = true;
@@ -2372,7 +2386,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 */
 	private _applyRendererEditable(editable: boolean): void {
 		const readOnly = this._readOnly || this.isTranscriptProgressActive;
-		this.listWidget?.updateRendererOptions({ editable: editable && !readOnly, readOnly });
+		editable = editable && !readOnly;
+		if (editable !== this._rendererEditable || readOnly !== this._rendererReadOnly) {
+			this._rendererEditable = editable;
+			this._rendererReadOnly = readOnly;
+			this._listRowsStale = true;
+		}
+		this.listWidget?.updateRendererOptions({ editable, readOnly });
 	}
 
 	/**
@@ -3534,7 +3554,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
 		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
-		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints && !this._readOnly, noFooter: false, progressMessageAtBottomOfResponse: true });
+		this._rendererEditable = supportsCheckpoints && !this._readOnly;
+		this._listRowsStale = true;
+		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: this._rendererEditable, noFooter: false, progressMessageAtBottomOfResponse: true });
 		this.rerenderListIfConnected();
 	}
 
@@ -3565,7 +3587,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		this._updateInputPlaceholder(undefined);
-		this.listWidget?.updateRendererOptions({ restorable: true, editable: !this._readOnly, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this._rendererEditable = !this._readOnly;
+		this._listRowsStale = true;
+		this.listWidget?.updateRendererOptions({ restorable: true, editable: this._rendererEditable, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		this.rerenderListIfConnected();
 	}
 

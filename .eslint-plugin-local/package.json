@@ -6,14 +6,10 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
-    "@types/estree": "^1.0.9",
+    "@oxlint/plugins": "1.90.0",
     "@types/minimatch": "^3.0.3",
     "@types/node": "24.x",
-    "@typescript-eslint/utils": "8.66.0",
-    "eslint": "10.8.0",
-    "eslint-visitor-keys": "^5.0.1",
     "minimatch": "^3.1.5",
-    "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "8.66.0"
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
   }
 }

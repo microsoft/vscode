@@ -49,7 +49,7 @@ export class ChatOtherClientToolProgressPart extends BaseChatToolInvocationSubPa
 				}
 			},
 		}));
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const skipLink = rendered.element.querySelector<HTMLAnchorElement>(`a[data-href="${skipHref}"]`);
 		if (skipLink) {
 			skipLink.setAttribute('role', 'button');
