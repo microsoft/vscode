@@ -160,6 +160,12 @@ export interface ICreateNewChatInSessionOptions extends ICreateNewChatOptions {
 	readonly forceNew?: boolean;
 }
 
+/** A change of one session: see {@link ISessionsManagementService.onDidChangeSession}. */
+export interface ISessionChange {
+	readonly session: ISession;
+	readonly kind: 'added' | 'removed' | 'changed';
+}
+
 /**
  * Event fired when sessions change within a provider.
  */
@@ -280,11 +286,6 @@ export interface ISessionsManagementService {
 	 */
 	getSessions(): ISession[];
 
-	/**
-	 * Every session of the registered providers, also those outside a provider's listing scope; for looking sessions up,
-	 * such as to open one, not for listing.
-	 */
-	getAllSessions(): ISession[];
 
 	/**
 	 * Get new sessions whose first request is still being prepared or sent.
@@ -295,7 +296,7 @@ export interface ISessionsManagementService {
 	getInFlightNewSessionRequest(resource: URI): Pick<ISendRequestOptions, 'query' | 'attachedContext'> | undefined;
 
 	/**
-	 * Get a session by its resource URI, also one a provider's listing scope hides.
+	 * Get a session by its resource URI, also a session outside a provider's listing scope.
 	 */
 	getSession(resource: URI): ISession | undefined;
 
@@ -309,7 +310,7 @@ export interface ISessionsManagementService {
 	resolveSessionResource(resource: URI, reason?: SessionResourceResolveReason): Promise<URI>;
 
 	/**
-	 * Get the session and chat that own the given chat resource URI, also of a session a provider's listing scope hides.
+	 * Get the session and chat that own the given chat resource URI, also of a session outside a provider's listing scope.
 	 */
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined;
 
@@ -388,10 +389,12 @@ export interface ISessionsManagementService {
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent>;
 
 	/**
-	 * Fires when any session of any provider changes, also one a provider's listing scope hides: see {@link getAllSessions}.
-	 * A session leaving or entering that scope is no change of it. As a provider registers, its sessions are added.
+	 * Fires for each session that is added, removed or changes, also a session outside a provider's listing scope, which
+	 * {@link getSession} and {@link getSessionForChatResource} still find: for following a session, such as the one a chat
+	 * editor shows, wherever it is listed. A session leaving or entering a listing scope is no change of it. As a provider
+	 * registers, its sessions are added.
 	 */
-	readonly onDidChangeAllSessions: Event<ISessionsChangeEvent>;
+	readonly onDidChangeSession: Event<ISessionChange>;
 	/**
 	 * Fires when a brand-new session is started by this window via
 	 * {@link sendNewChatRequest}.

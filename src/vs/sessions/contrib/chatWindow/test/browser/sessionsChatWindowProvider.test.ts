@@ -50,7 +50,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatHostOpenerService, IChatHostOpenerService } from '../../../../../workbench/services/sessions/browser/chatHostOpener.js';
 import { ChatInteractivity, IChat, ISession, ISessionChangeset, ISessionChangesetOperation, ISessionType, ISessionWorkspace, SessionChangesetOperationScope, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { IMarkSessionReadOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ISessionPaneContent } from '../../../../../workbench/services/sessions/common/sessionPane.js';
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ChatEditorContent, IChatEditorComposer } from '../../../../../workbench/contrib/sessions/browser/chatEditor/chatEditorContent.js';
@@ -170,8 +170,14 @@ suite('Sessions chat window provider', () => {
 		const slots: (INewSessionDraftSlot & { readonly newSession: ISettableObservable<ISession | undefined> })[] = [];
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override readonly onDidChangeSessions = onDidChangeSessions.event;
-			// The Agents window lists every session: all of its sessions change as its listed ones do
-			override readonly onDidChangeAllSessions = onDidChangeSessions.event;
+			// The Agents window lists every session: each of its sessions changes as its listed ones do
+			override readonly onDidChangeSession: Event<ISessionChange> = (listener, thisArgs, disposables) => onDidChangeSessions.event(e => {
+				for (const [sessions, kind] of [[e.added, 'added'], [e.removed, 'removed'], [e.changed, 'changed']] as const) {
+					for (const session of sessions) {
+						listener.call(thisArgs, { session, kind });
+					}
+				}
+			}, undefined, disposables);
 			override readonly onDidAcceptNewSessionRequest = onDidAcceptNewSessionRequest.event;
 			override readonly onDidEndNewSessionRequest = onDidEndNewSessionRequest.event;
 			override readonly onDidReplaceNewDraftSession = Event.None;

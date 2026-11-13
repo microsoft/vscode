@@ -77,7 +77,7 @@ suite('Agents Window workspace handoff telemetry', () => {
 		const sessions = [{ ...session, chats: { get: () => [session.mainChat.get(), chat] } }];
 		const management = {
 			_getMergedSessions: () => sessions,
-			getAllSessions: () => sessions,
+			_getAllSessions: () => sessions,
 			uriIdentityService: { extUri },
 			getSession: () => undefined,
 			getSessionForChatResource: Reflect.get(SessionsManagementService.prototype, 'getSessionForChatResource') as (resource: URI) => { session: ISession } | undefined,

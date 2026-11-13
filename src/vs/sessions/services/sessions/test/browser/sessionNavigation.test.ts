@@ -117,7 +117,7 @@ class MockSessionStore implements ISessionsManagementService {
 	readonly visibleSessions = observableValue<readonly TestShown[]>('test.visibleSessions', []);
 	readonly slotPanes = testGridPanes(this.visibleSessions);
 	readonly onDidChangeSessions = Event.None;
-	readonly onDidChangeAllSessions = Event.None;
+	readonly onDidChangeSession = Event.None;
 	readonly onDidStartSession = Event.None;
 	readonly onDidChangeSessionTypes = Event.None;
 	readonly onWillSendRequest = Event.None;
@@ -175,7 +175,6 @@ class MockSessionStore implements ISessionsManagementService {
 	}
 
 	getSessions(): ISession[] { return [...this._sessions.values()]; }
-	getAllSessions(): ISession[] { return this.getSessions(); }
 	getInFlightNewSessionRequests(): readonly ISession[] { return []; }
 	getInFlightNewSessionRequest(): undefined { return undefined; }
 

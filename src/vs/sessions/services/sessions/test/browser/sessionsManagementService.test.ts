@@ -498,20 +498,25 @@ suite('SessionsManagementService', () => {
 		});
 	});
 
-	test('lists the sessions as their providers list them, and finds by resource also those a listing scope hides', () => {
+	test('lists the sessions as their providers list them, and finds and reports the changes of also those outside a listing scope', () => {
 		const listed = stubSession({ sessionId: 'listed', providerId: 'scoped' });
 		const hidden = stubSession({ sessionId: 'hidden', providerId: 'scoped' });
+		const onDidChangeAllSessions = disposables.add(new Emitter<ISessionChangeEvent>());
 		const scoped = new class extends TestSessionsProvider {
 			override readonly id = 'scoped';
+			override readonly onDidChangeAllSessions = onDidChangeAllSessions.event;
 			override getAllSessions(): ISession[] { return [listed, hidden]; }
 		}(listed);
 		const { service } = createSessionsManagementService(listed, disposables, [scoped]);
+		const changes: string[] = [];
+		disposables.add(service.onDidChangeSession(({ session, kind }) => changes.push(`${kind} ${session.sessionId}`)));
+		onDidChangeAllSessions.fire({ added: [], removed: [], changed: [hidden] });
 
 		assert.deepStrictEqual({
 			listed: service.getSessions().map(session => session.sessionId),
-			all: service.getAllSessions().map(session => session.sessionId),
 			found: service.getSession(hidden.resource)?.sessionId,
-		}, { listed: ['listed'], all: ['listed', 'hidden'], found: 'hidden' });
+			changes,
+		}, { listed: ['listed'], found: 'hidden', changes: ['changed hidden'] });
 	});
 
 	suite('session grid integration', () => {
@@ -2741,7 +2746,7 @@ suite('SessionsManagementService', () => {
 			}(providers);
 		}
 
-		test('without a listing scope, the changes of all sessions are those of the listed sessions', () => {
+		test('without a listing scope, the changes of each session are those of the listed sessions', () => {
 			const first = stubSession({ sessionId: 'first', providerId: 'test' });
 			const second = stubSession({ sessionId: 'second', providerId: 'test' });
 			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
@@ -2751,14 +2756,15 @@ suite('SessionsManagementService', () => {
 			const providersService = createProvidersService();
 			const { service } = createSessionsManagementService(first, disposables, providersService);
 			const listed: ISessionChangeEvent[] = [];
-			const all: ISessionChangeEvent[] = [];
+			const each: string[] = [];
 			disposables.add(service.onDidChangeSessions(e => listed.push(e)));
-			disposables.add(service.onDidChangeAllSessions(e => all.push(e)));
+			disposables.add(service.onDidChangeSession(({ session, kind }) => each.push(`${kind} ${session.sessionId}`)));
 
 			disposables.add(providersService.registerProvider(provider));
 			onDidChangeSessions.fire({ added: [second], removed: [first], changed: [] });
 
-			assert.deepStrictEqual({ all, count: listed.length, sessions: service.getAllSessions().map(session => session.sessionId) }, { all: listed, count: 2, sessions: service.getSessions().map(session => session.sessionId) });
+			const fromListed = listed.flatMap(e => [...e.added.map(s => `added ${s.sessionId}`), ...e.removed.map(s => `removed ${s.sessionId}`), ...e.changed.map(s => `changed ${s.sessionId}`)]);
+			assert.deepStrictEqual({ each, count: listed.length }, { each: fromListed, count: 2 });
 		});
 
 		test('announces cached sessions when a provider registers', () => {

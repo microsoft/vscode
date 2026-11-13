@@ -23,7 +23,7 @@ import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatWidgetHistoryService } from '../../chat/common/widget/chatWidgetHistoryService.js';
 import { dedupeMigratedCopilotCliSessions } from '../../chat/browser/copilotCliEventsUri.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
+import { IChatDeletedEvent, ISessionCanvasClosedEvent, ISessionChatMoveTarget, ICreateNewChatInSessionOptions, ICreateNewSessionOptions, ICreateNewSessionSlotOptions, IDeferredNewSessionRequestOptions, INewSessionDraftSlot, INewSessionRequestAcceptedEvent, INewSessionRequestEndedEvent, IManagedSessionWorktree, IMarkSessionReadOptions, IProviderSessionType, ISendRequestOptions, ISendRequestSentEvent, ISessionChange, ISessionsChangeEvent, ISessionsManagementService, NewSessionRequestOptions, WorkspaceNotTrustedError } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { IChatMovedEvent, IDeleteChatOptions, type IForkChatOptions, type INestedChatWorkspace, IPreparedNewSession, NestedChatWorkspaceError, SessionMoveRefusedError, ISessionChangeEvent, ISessionChangesetOperationInvokedEvent, ISessionCreationTarget, ISessionsProvider, type ISessionsProviderCreateSessionOptions, type SessionResourceResolveReason } from '../common/sessionsProvider.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionWorkspace, ISideChatSelection, isActiveSessionStatus, SESSION_WORKSPACE_GROUP_REMOTE, SessionStatus, ISessionType, type SessionCanvasDefinitionSnapshot, getChatHarness } from '../../../services/sessions/common/session.js';
@@ -94,8 +94,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionsChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionsChangeEvent> = this._onDidChangeSessions.event;
-	private readonly _onDidChangeAllSessions = this._register(new Emitter<ISessionsChangeEvent>());
-	readonly onDidChangeAllSessions: Event<ISessionsChangeEvent> = this._onDidChangeAllSessions.event;
+	private readonly _onDidChangeSession = this._register(new Emitter<ISessionChange>());
+	readonly onDidChangeSession: Event<ISessionChange> = this._onDidChangeSession.event;
 	private readonly _onDidStartSession = this._register(new Emitter<ISession>());
 	readonly onDidStartSession: Event<ISession> = this._onDidStartSession.event;
 
@@ -232,10 +232,22 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		this._fireDidChangeSessions({ added, removed: [], changed: [] }, { added: allAdded, removed: [], changed: [] });
 	}
 
-	/** Fires the change of the listed sessions, and of all sessions: the same, unless a provider's listing scope hides some. */
+	/** Fires the change of the listed sessions, and of each session: the same, unless a provider's listing scope hides some. */
 	private _fireDidChangeSessions(listed: ISessionsChangeEvent, all: ISessionsChangeEvent = listed): void {
 		this._onDidChangeSessions.fire(listed);
-		this._onDidChangeAllSessions.fire(all);
+		this._fireDidChangeEachSession(all);
+	}
+
+	private _fireDidChangeEachSession(e: ISessionsChangeEvent): void {
+		for (const session of e.added) {
+			this._onDidChangeSession.fire({ session, kind: 'added' });
+		}
+		for (const session of e.removed) {
+			this._onDidChangeSession.fire({ session, kind: 'removed' });
+		}
+		for (const session of e.changed) {
+			this._onDidChangeSession.fire({ session, kind: 'changed' });
+		}
 	}
 
 	private _subscribeToProviders(providers: readonly ISessionsProvider[], added: ISession[] = [], allAdded: ISession[] = []): ISession[] {
@@ -251,7 +263,7 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			added.push(...sessions);
 			allAdded.push(...allSessions);
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
-			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._onDidChangeAllSessions.fire(e)));
+			disposables.add((provider.onDidChangeAllSessions ?? provider.onDidChangeSessions)(e => this._fireDidChangeEachSession(e)));
 			disposables.add(provider.onDidMoveChat(e => this._onDidMoveChat.fire(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this._handleDidReplaceSession(e.from, e.to)));
@@ -397,7 +409,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		return sessions;
 	}
 
-	getAllSessions(): ISession[] {
+	/** Every session, also those outside a provider's listing scope, for looking sessions up. */
+	private _getAllSessions(): ISession[] {
 		const sessions: ISession[] = [];
 		for (const provider of this.sessionsProvidersService.getProviders({ includeSessionBackends: true })) {
 			sessions.push(...(provider.getAllSessions?.() ?? provider.getSessions()));
@@ -425,14 +438,14 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 		if (unlistedSession) {
 			return unlistedSession;
 		}
-		return this.getAllSessions().find(s =>
+		return this._getAllSessions().find(s =>
 			this.uriIdentityService.extUri.isEqual(s.resource, resource)
 			|| s.previousIdentities?.some(previous => this.uriIdentityService.extUri.isEqual(previous.resource, resource))
 		);
 	}
 
 	getSessionForChatResource(resource: URI): { session: ISession; chat: IChat } | undefined {
-		for (const session of this.getAllSessions()) {
+		for (const session of this._getAllSessions()) {
 			const chat = session.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, resource));
 			if (chat) {
 				return { session, chat };

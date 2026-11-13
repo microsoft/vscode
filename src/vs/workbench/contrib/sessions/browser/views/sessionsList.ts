@@ -8667,12 +8667,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		for (const group of this._sessionGroupsService.getTree().getSubgroups(undefined)) {
 			ids.add(getSessionGroupSectionId(group.id));
 		}
-		// A scoped list also keeps the order of the sections of the sessions its providers' listing scope hides, which the
-		// Agents window shares; an unscoped list reads the listed sessions only
-		const sessions = this.options.scoped?.get()
-			? [...this._sessionsManagementService.getSessions(), ...this._sessionsManagementService.getAllSessions()]
-			: this._sessionsManagementService.getSessions();
-		for (const session of sessions) {
+		// A scoped list keeps the saved order of every section other than a group's, as the order is shared with the Agents
+		// window and the sessions of other sections are outside its listing scope; an unscoped list prunes them
+		if (this.options.scoped?.get()) {
+			for (const id of this._sessionSectionOrderService.capturePositions([]).order) {
+				if (getSessionGroupIdOfSection(id) === undefined) {
+					ids.add(id);
+				}
+			}
+		}
+		for (const session of this._sessionsManagementService.getSessions()) {
 			ids.add(`workspace:${sessionWorkspaceLabel(session)}`);
 			ids.add(`${ENVIRONMENT_SECTION_PREFIX}${session.environment}`);
 			const repository = getSessionRepository(session);

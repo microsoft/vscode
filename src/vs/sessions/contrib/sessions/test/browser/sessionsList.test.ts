@@ -198,11 +198,11 @@ suite('Sessions - SessionsList', () => {
 	const automationDefinition = (id: string, ownership: IAutomationDescriptor['ownership'] = 'user'): IAutomationDescriptor =>
 		upcastPartial<IAutomationDescriptor>({ id, ownership });
 
-	test('an unscoped list orders and shows its sections by the listed sessions only, as before listing scopes; a scoped one also keeps the order of hidden sessions', () => {
+	test('an unscoped list orders and shows its sections by the listed sessions only, as before listing scopes; a scoped one also keeps the saved order of other sections', () => {
 		const run = (scoped: boolean) => {
 			const kept = createTestSession('Kept', { workspaceLabel: 'kept' }).session;
 			const removed = createTestSession('Removed', { workspaceLabel: 'removed' }).session;
-			// Found by lookups only, such as the hidden twin of a migrated legacy Copilot CLI session, here in its own workspace
+			// Outside the scope, such as the hidden twin of a migrated legacy Copilot CLI session, here in its own workspace
 			const hidden = createTestSession('Hidden twin', { workspaceLabel: 'hidden' }).session;
 			const changes = disposables.add(new Emitter<ISessionsChangeEvent>());
 			let managementService: TestSessionsManagementService | undefined;
@@ -210,14 +210,15 @@ suite('Sessions - SessionsList', () => {
 			const harness = createListHarness(disposables, [kept, removed], instantiationService => {
 				managementService = new class extends TestSessionsManagementService {
 					override readonly onDidChangeSessions = changes.event;
-					override getAllSessions(): ISession[] { return [...this.sessions, hidden]; }
 				}([kept, removed]);
 				instantiationService.stub(ISessionsManagementService, managementService);
 				instantiationService.stub(ISessionSectionOrderService, new class extends mock<ISessionSectionOrderService>() {
 					override readonly onDidChange = Event.None;
 					override resolveOrder(ids: readonly string[]) { return [...ids]; }
 					override isPromoted() { return false; }
-					override retain(ids: ReadonlySet<string>): void { retained.push([...ids].filter(id => id.startsWith('workspace:')).sort()); }
+					override retain(ids: ReadonlySet<string>): void { retained.push([...ids].filter(id => id.startsWith('workspace:') || id.startsWith('group:')).sort()); }
+					// The saved order, which the Agents window shares, has the section of a session outside the scope and of a deleted group
+					override capturePositions() { return { ids: [], order: ['workspace:hidden', 'group:deleted'], promoted: [] }; }
 				});
 			});
 			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
