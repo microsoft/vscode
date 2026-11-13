@@ -167,21 +167,39 @@ export class FolderLocationPersistenceContribution extends Disposable implements
 	}
 
 	private offerReturnToPrimary(persisted: IWindowFolderLocation, primary: URI): void {
+		const location = URI.parse(persisted.uri);
 		const handle = this.notificationService.prompt(
 			Severity.Warning,
 			localize('folderLocationUnconfirmed', "The folder location '{0}' could not be confirmed. The folder is still open there.", persisted.label),
 			[{
 				label: localize('returnToPrimaryFolderLocation', "Return to Primary Location"),
-				run: () => this.workspaceEditingService.setFolderLocation(primary).catch(error => this.logService.error('Failed to return the folder to its primary location', error))
+				run: () => {
+					if (this.isStillAt(primary, location)) {
+						return this.workspaceEditingService.setFolderLocation(primary).catch(error => this.logService.error('Failed to return the folder to its primary location', error));
+					}
+					return undefined;
+				}
 			}],
 			{ sticky: true }
 		);
 
-		// The question is moot once the location is confirmed or switched by someone else
+		// The question is moot once the location is confirmed or changed, the workspace changes or this is disposed
 		const store = this._register(new DisposableStore());
-		const close = () => { store.dispose(); handle.close(); };
-		store.add(this.folderLocationService.onDidChangeLocation(close));
-		store.add(handle.onDidClose(() => store.dispose()));
+		store.add(toDisposable(() => handle.close()));
+		const stop = () => store.dispose();
+		store.add(this.folderLocationService.onDidChangeLocation(stop));
+		store.add(this.contextService.onDidChangeWorkbenchState(stop));
+		store.add(this.contextService.onDidChangeWorkspaceFolders(stop));
+		store.add(handle.onDidClose(stop));
+	}
+
+	private isStillAt(primary: URI, location: URI): boolean {
+		const workspace = this.contextService.getWorkspace();
+		const folder = workspace.folders[0];
+		return !!folder && isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(workspace))
+			&& this.uriIdentityService.extUri.isEqual(workspace.uri ?? folder.uri, primary)
+			&& !this.folderLocationService.getLocation(folder)
+			&& this.isAtAlternate(location);
 	}
 
 	private discard(persisted: IWindowFolderLocation): void {
