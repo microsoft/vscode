@@ -214,11 +214,11 @@ export class BrowserViewInspector extends Disposable {
 		}
 	}
 
-	/** Resolves the inspector for a frame, waiting briefly for it to be adopted after a fresh attach. */
+	/** Resolves the inspector for a frame, waiting briefly if its preload is ready but not yet matched to a CDP context (e.g. right after the first attach). */
 	private async _getFrameInspector(frame: Electron.WebFrameMain): Promise<BrowserViewFrameInspector | undefined> {
 		await this._ensureAttached();
 		const existing = this._registry.getByFrame(frame);
-		if (existing || this._store.isDisposed) {
+		if (existing || this._store.isDisposed || !this._registry.isPendingFrame(frame)) {
 			return existing;
 		}
 		const store = new DisposableStore();
@@ -643,6 +643,16 @@ class FrameInspectorRegistry extends Disposable {
 
 	getByFrame(frame: Electron.WebFrameMain): BrowserViewFrameInspector | undefined {
 		return this._byFrame.get(frame);
+	}
+
+	/** Whether the frame's preload is ready and waiting for its CDP context. */
+	isPendingFrame(frame: Electron.WebFrameMain): boolean {
+		for (const pendingFrame of this._pendingFrames.values()) {
+			if (pendingFrame === frame) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
