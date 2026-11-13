@@ -30,6 +30,8 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		counter = 0;
 		readonly sets = new Map<string, { name: string; content: string }>();
 		applyResult: boolean | 'throw' = true;
+		/** When set, only applying a saved working set fails: applying an empty editor area works. */
+		emptyAlwaysWorks = false;
 		gate: Promise<void> | undefined;
 		auxiliaryEditors = 0;
 
@@ -57,13 +59,14 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			applyWorkingSet: async (ws: IEditorWorkingSet | 'empty', applyOptions?: { preserveFocus?: boolean }) => {
 				assert.strictEqual(applyOptions?.preserveFocus, true);
 				await area.gate;
-				if (area.applyResult === 'throw') {
+				const result = area.emptyAlwaysWorks && ws === 'empty' ? true : area.applyResult;
+				if (result === 'throw') {
 					throw new Error('apply failed');
 				}
-				if (area.applyResult) {
+				if (result) {
 					area.content = ws === 'empty' ? '' : area.sets.get(ws.id)!.content;
 				}
-				return area.applyResult === true;
+				return result === true;
 			}
 		} as unknown as IEditorGroupsService;
 
@@ -176,7 +179,34 @@ suite('FolderLocationWorkingSetsContribution', () => {
 		assert.deepStrictEqual({ content: fixture.area.content, saved: fixture.area.saved() }, { content: 'P', saved: {} });
 	});
 
-	test('an apply that fails keeps the working set of the location being entered, also over later switches', async () => {
+	test('a saved working set that cannot be applied leaves the location empty instead of with the editors of the previous one, which stay restorable', async () => {
+		for (const failure of [false, 'throw'] as const) {
+			const fixture = createFixture();
+			fixture.area.content = 'P1';
+			fixture.switchTo(alternate);
+			await settle();
+			fixture.area.content = 'A1';
+
+			fixture.area.applyResult = failure;
+			fixture.area.emptyAlwaysWorks = true;
+			fixture.switchTo(primary);
+			await settle();
+			const afterFailure = { content: fixture.area.content, saved: fixture.area.saved(), owner: fixture.stored().owner, errors: fixture.errors.length };
+
+			fixture.area.applyResult = true;
+			fixture.switchTo(alternate);
+			await settle();
+
+			assert.deepStrictEqual({ afterFailure, content: fixture.area.content, saved: fixture.area.saved(), owner: fixture.stored().owner }, {
+				afterFailure: { content: '', saved: { [prefix + a]: 'A1' }, owner: p, errors: 1 },
+				content: 'A1',
+				saved: { [prefix + a]: 'A1' },
+				owner: a
+			}, `${failure}`);
+		}
+	});
+
+	test('when the empty fallback fails as well, the owner stays and the saved working sets survive, also over later switches', async () => {
 		for (const failure of [false, 'throw'] as const) {
 			const fixture = createFixture();
 			fixture.area.content = 'P1';
@@ -197,7 +227,7 @@ suite('FolderLocationWorkingSetsContribution', () => {
 			await settle();
 
 			assert.deepStrictEqual({ afterFailure, afterNextSwitch: fixture.area.saved() }, {
-				afterFailure: { content: 'P1', saved: { [prefix + a]: 'A1', [prefix + p]: 'P1' }, errors: 1, owner: p },
+				afterFailure: { content: 'P1', saved: { [prefix + a]: 'A1', [prefix + p]: 'P1' }, errors: 2, owner: p },
 				afterNextSwitch: { [prefix + a]: 'A1', [prefix + p]: 'P1' }
 			}, `${failure}`);
 		}

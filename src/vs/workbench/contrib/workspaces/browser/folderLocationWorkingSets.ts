@@ -100,22 +100,38 @@ export class FolderLocationWorkingSetsContribution extends Disposable implements
 		}
 
 		// Apply the editors of the location being entered. The location only owns the editor
-		// area once that worked: otherwise its saved working set must not be replaced by the
-		// editors that are still open.
-		const target = this.workingSets.find(entry => entry.key === entering)?.workingSet;
+		// area once that worked. When its saved working set cannot be applied, the editors of the
+		// location being left (already saved above) must not stay open: they belong to another
+		// location. The entering location then starts empty and its unusable set is dropped.
+		const target = this.workingSets.find(entry => entry.key === entering);
 		if (this.disposed) {
 			return;
 		}
-		try {
-			if (await this.editorGroupsService.applyWorkingSet(target ?? 'empty', { preserveFocus: true })) {
-				this.owner = entering;
-				this.store();
-			} else {
-				this.logService.error('[folderLocation] The working set could not be applied');
+		if (target && await this.tryApply(target.workingSet)) {
+			this.owner = entering;
+			this.store();
+			return;
+		}
+		if (await this.tryApply('empty')) {
+			if (target) {
+				this.workingSets = this.workingSets.filter(entry => entry !== target);
+				this.editorGroupsService.deleteWorkingSet(target.workingSet);
 			}
+			this.owner = entering;
+			this.store();
+		}
+	}
+
+	private async tryApply(workingSet: IEditorWorkingSet | 'empty'): Promise<boolean> {
+		try {
+			if (await this.editorGroupsService.applyWorkingSet(workingSet, { preserveFocus: true })) {
+				return true;
+			}
+			this.logService.error('[folderLocation] The working set could not be applied');
 		} catch (error) {
 			this.logService.error('[folderLocation] Failed to apply the working set', error);
 		}
+		return false;
 	}
 
 	private save(key: string, protectedKey: string): void {
