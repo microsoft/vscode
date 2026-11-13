@@ -660,15 +660,15 @@ export class LocalAgentHostServiceClient extends Disposable implements IAgentHos
 		return this._getManagementService().retryManagedPlugins(provider, session, chat);
 	}
 
-	listPluginMarketplaces(provider: string, session: URI, chat?: URI) {
+	listPluginMarketplaces(provider: string, session?: URI, chat?: URI) {
 		return this._getManagementService().listPluginMarketplaces(provider, session, chat);
 	}
 
-	addPluginMarketplace(provider: string, session: URI, source: string, chat?: URI) {
+	addPluginMarketplace(provider: string, session: URI | undefined, source: string, chat?: URI) {
 		return this._getManagementService().addPluginMarketplace(provider, session, source, chat);
 	}
 
-	browsePluginMarketplace(provider: string, session: URI, name: string, chat?: URI) {
+	browsePluginMarketplace(provider: string, session: URI | undefined, name: string, chat?: URI) {
 		return this._getManagementService().browsePluginMarketplace(provider, session, name, chat);
 	}
 

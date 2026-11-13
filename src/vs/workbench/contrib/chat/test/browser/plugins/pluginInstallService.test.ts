@@ -1451,6 +1451,17 @@ suite('PluginInstallService', () => {
 
 	suite('installPluginFromSource', () => {
 
+		for (const [source, descriptor] of [
+			['owner/collection#feature/beta', { kind: PluginSourceKind.GitHub, repo: 'owner/collection', ref: 'feature/beta' }],
+			['https://example.com/collection.git#release/v1', { kind: PluginSourceKind.GitUrl, url: 'https://example.com/collection.git', ref: 'release/v1' }],
+		] as const) {
+			test(`uses the requested revision for marketplace discovery: ${source}`, async () => {
+				const { service, state } = createService();
+				await service.installPluginFromSource(source, { plugin: 'my-plugin' });
+				assert.deepStrictEqual(state.ensurePluginSourceDescriptors, [descriptor]);
+			});
+		}
+
 		test('rejects marketplace traversal before cloning a pinned source', async () => {
 			const { service, state } = createService({
 				strictMarketplaces: [{ source: 'github', repo: 'microsoft/vscode', ref: 'marketplace' }],
@@ -1471,9 +1482,9 @@ suite('PluginInstallService', () => {
 			});
 		});
 
-		test('keeps legacy source handling for repository-root plugins', async () => {
+		test('keeps the requested revision for repository-root plugins', async () => {
 			const singlePlugin = createPlugin({
-				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 			const { service, state } = createService({
 				singlePluginManifestResult: singlePlugin,
@@ -1488,10 +1499,10 @@ suite('PluginInstallService', () => {
 			}, {
 				success: true,
 				sources: [
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 				],
-				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 		});
 
