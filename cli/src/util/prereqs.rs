@@ -2,21 +2,28 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+#[cfg(any(target_os = "linux", test))]
 use std::cmp::Ordering;
 
 use crate::constants::QUALITYLESS_SERVER_NAME;
 use crate::update_service::Platform;
+#[cfg(any(target_os = "linux", test))]
 use regex::bytes::Regex as BinRegex;
+#[cfg(any(target_os = "linux", test))]
 use regex::Regex;
+#[cfg(any(target_os = "linux", test))]
 use std::sync::LazyLock;
 use tokio::fs;
 
 use super::errors::CodeError;
 
+#[cfg(any(target_os = "linux", test))]
 static LDCONFIG_STDC_RE: LazyLock<Regex> =
 	LazyLock::new(|| Regex::new(r"libstdc\+\+.* => (.+)").unwrap());
+#[cfg(any(target_os = "linux", test))]
 static LDD_VERSION_RE: LazyLock<BinRegex> =
 	LazyLock::new(|| BinRegex::new(r"^ldd.*\s(\d+)\.(\d+)(?:\.(\d+))?\s").unwrap());
+#[cfg(any(target_os = "linux", test))]
 static GENERIC_VERSION_RE: LazyLock<Regex> =
 	LazyLock::new(|| Regex::new(r"^([0-9]+)\.([0-9]+)$").unwrap());
 #[cfg(target_os = "linux")]
@@ -257,6 +264,7 @@ fn check_for_sufficient_glibcxx_versions(contents: Vec<u8>) -> Result<bool, Stri
 	))
 }
 
+#[cfg(any(target_os = "linux", test))]
 #[allow(dead_code)]
 fn extract_ldd_version(output: &[u8]) -> Option<SimpleSemver> {
 	LDD_VERSION_RE.captures(output).map(|m| SimpleSemver {
@@ -266,6 +274,7 @@ fn extract_ldd_version(output: &[u8]) -> Option<SimpleSemver> {
 	})
 }
 
+#[cfg(any(target_os = "linux", test))]
 #[allow(dead_code)]
 fn extract_generic_version(output: &str) -> Option<SimpleSemver> {
 	GENERIC_VERSION_RE.captures(output).map(|m| SimpleSemver {
@@ -275,6 +284,7 @@ fn extract_generic_version(output: &str) -> Option<SimpleSemver> {
 	})
 }
 
+#[cfg(any(target_os = "linux", test))]
 #[allow(dead_code)]
 fn extract_libstd_from_ldconfig(output: &[u8]) -> Option<String> {
 	String::from_utf8_lossy(output)
@@ -284,10 +294,12 @@ fn extract_libstd_from_ldconfig(output: &[u8]) -> Option<String> {
 		.map(|cap| cap.as_str().to_owned())
 }
 
+#[cfg(any(target_os = "linux", test))]
 fn u32_from_bytes(b: &[u8]) -> u32 {
 	String::from_utf8_lossy(b).parse::<u32>().unwrap_or(0)
 }
 
+#[cfg(any(target_os = "linux", test))]
 #[derive(Debug, Default, PartialEq, Eq)]
 struct SimpleSemver {
 	major: u32,
@@ -295,12 +307,14 @@ struct SimpleSemver {
 	patch: u32,
 }
 
+#[cfg(any(target_os = "linux", test))]
 impl PartialOrd for SimpleSemver {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}
 }
 
+#[cfg(any(target_os = "linux", test))]
 impl Ord for SimpleSemver {
 	fn cmp(&self, other: &Self) -> Ordering {
 		let major = self.major.cmp(&other.major);
@@ -317,18 +331,21 @@ impl Ord for SimpleSemver {
 	}
 }
 
+#[cfg(any(target_os = "linux", test))]
 impl From<&SimpleSemver> for String {
 	fn from(s: &SimpleSemver) -> Self {
 		format!("v{}.{}.{}", s.major, s.minor, s.patch)
 	}
 }
 
+#[cfg(any(target_os = "linux", test))]
 impl std::fmt::Display for SimpleSemver {
 	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 		write!(f, "{}", String::from(self))
 	}
 }
 
+#[cfg(any(target_os = "linux", test))]
 #[allow(dead_code)]
 impl SimpleSemver {
 	fn new(major: u32, minor: u32, patch: u32) -> SimpleSemver {

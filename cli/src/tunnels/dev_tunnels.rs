@@ -17,7 +17,6 @@ use futures::{FutureExt, TryFutureExt};
 use http::header::{HeaderName, HeaderValue};
 use http::StatusCode;
 use rand::prelude::IteratorRandom;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -350,9 +349,11 @@ fn is_valid_name(name: &str) -> Result<(), InvalidTunnelName> {
 		)));
 	}
 
-	let re = Regex::new(r"^([\w-]+)$").unwrap();
-
-	if !re.is_match(name) {
+	if name.is_empty()
+		|| !name
+			.chars()
+			.all(|character| character == '-' || regex_syntax::is_word_character(character))
+	{
 		return Err(InvalidTunnelName(
             "Names can only contain letters, numbers, and '-'. Spaces, commas, and all other special characters are not allowed. Please try a different name.".to_string()
         ));
@@ -1389,6 +1390,23 @@ fn tunnel_has_host_connection(tunnel: &Tunnel) -> bool {
 #[cfg(test)]
 mod test {
 	use super::*;
+	use regex::Regex;
+
+	#[test]
+	fn tunnel_name_matches_legacy_regex_for_every_unicode_scalar() {
+		let regex = Regex::new(r"^([\w-]+)$").unwrap();
+		let mut buffer = [0; 4];
+		for value in 0..=u32::from(char::MAX) {
+			if let Some(character) = char::from_u32(value) {
+				let name = character.encode_utf8(&mut buffer);
+				assert_eq!(
+					is_valid_name(name).is_ok(),
+					regex.is_match(name),
+					"U+{value:04X}"
+				);
+			}
+		}
+	}
 
 	#[test]
 	fn test_regex_tunnel_name_matching() {

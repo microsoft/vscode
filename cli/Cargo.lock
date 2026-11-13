@@ -440,6 +440,7 @@ dependencies = [
  "pin-project",
  "rand 0.8.6",
  "regex",
+ "regex-syntax",
  "reqwest",
  "rmp-serde",
  "serde",
