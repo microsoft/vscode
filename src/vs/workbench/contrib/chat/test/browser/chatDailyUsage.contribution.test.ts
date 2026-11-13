@@ -10,6 +10,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { MessageKind } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -17,6 +18,7 @@ import { IHostService } from '../../../../services/host/browser/host.js';
 import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { TestLifecycleService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatDailyUsageContribution } from '../../browser/chatDailyUsage.contribution.js';
+import { ChatDailyUsage } from '../../common/chatDailyUsage.js';
 import { IChatRequestAcceptedEvent, IChatService } from '../../common/chatService/chatService.js';
 
 suite('ChatDailyUsageContribution', () => {
@@ -24,40 +26,47 @@ suite('ChatDailyUsageContribution', () => {
 	const hour = 60 * 60 * 1000;
 	const day = 24 * hour;
 
-	test('reports once per UTC day after startup from a focused window of a user with a Copilot plan', () => runWithFakedTimers({ useFakeTimers: true, startTime: 10 * day + 22 * hour }, async () => {
+	function createContribution() {
+		const storage = disposables.add(new InMemoryStorageService());
 		const requests = disposables.add(new Emitter<IChatRequestAcceptedEvent>());
 		const focus = disposables.add(new Emitter<boolean>());
 		const entitlementChanged = disposables.add(new Emitter<void>());
 		const lifecycle = disposables.add(new TestLifecycleService());
 		lifecycle.usePhases = true;
-		let hasFocus = true;
-		let entitlement = ChatEntitlement.Pro;
+		const state = { hasFocus: true, entitlement: ChatEntitlement.Pro };
 		const events: object[] = [];
 		const contribution = disposables.add(new ChatDailyUsageContribution(
 			upcastPartial<IChatService>({ onDidAcceptRequest: requests.event }),
-			disposables.add(new InMemoryStorageService()),
+			storage,
 			upcastPartial<ITelemetryService>({ publicLog2: (eventName: string, data?: object) => { events.push({ eventName, ...data }); } }),
-			upcastPartial<IHostService>({ get hasFocus() { return hasFocus; }, onDidChangeFocus: focus.event }),
+			upcastPartial<IHostService>({ get hasFocus() { return state.hasFocus; }, onDidChangeFocus: focus.event }),
 			lifecycle,
-			upcastPartial<IChatEntitlementService>({ get entitlement() { return entitlement; }, onDidChangeEntitlement: entitlementChanged.event }),
+			upcastPartial<IChatEntitlementService>({ get entitlement() { return state.entitlement; }, onDidChangeEntitlement: entitlementChanged.event }),
 		));
-		const resource = URI.parse('local:/session');
-		requests.fire({ chatSessionResource: resource, isNewSession: true });
-		requests.fire({ chatSessionResource: resource, isNewSession: false });
+		return { contribution, storage, requests, focus, entitlementChanged, lifecycle, state, events };
+	}
+
+	test('reports once per UTC day after startup from a focused window of a user with a Copilot plan', () => runWithFakedTimers({ useFakeTimers: true, startTime: 10 * day + 22 * hour }, async () => {
+		const { contribution, requests, focus, entitlementChanged, lifecycle, state, events } = createContribution();
+		const chatSessionResource = URI.parse('local:/session');
+		requests.fire({ chatSessionResource, isNewSession: true });
+		requests.fire({ chatSessionResource, isNewSession: false });
 		focus.fire(true);
 		const beforeStartup = events.length;
-		hasFocus = false;
+		state.hasFocus = false;
 		lifecycle.phase = LifecyclePhase.Eventually;
 		await timeout(0);
 		const unfocused = events.length;
-		hasFocus = true;
-		entitlement = ChatEntitlement.Available;
+		state.hasFocus = true;
+		state.entitlement = ChatEntitlement.Available;
 		focus.fire(true);
+		await timeout(0);
 		const withoutPlan = events.length;
-		entitlement = ChatEntitlement.Pro;
+		// Concurrent attempts from the same window still claim the day once.
+		state.entitlement = ChatEntitlement.Pro;
 		entitlementChanged.fire();
 		focus.fire(true);
-		entitlement = ChatEntitlement.Free;
+		state.entitlement = ChatEntitlement.Free;
 		entitlementChanged.fire();
 		// Hourly checks at 23:00 and 00:00 UTC; only the new day reports.
 		await timeout(2.5 * hour);
@@ -72,4 +81,16 @@ suite('ChatDailyUsageContribution', () => {
 			],
 		});
 	}));
+
+	test('does not count messages that an agent, tool or automation sent on the user\'s behalf', () => {
+		const { storage, requests } = createContribution();
+		const chatSessionResource = URI.parse('local:/session');
+		requests.fire({ chatSessionResource, isNewSession: true });
+		requests.fire({ chatSessionResource, isNewSession: false, agentHostMessageOrigin: { kind: MessageKind.User } });
+		for (const kind of [MessageKind.Agent, MessageKind.Tool, MessageKind.Automation, MessageKind.SystemNotification]) {
+			requests.fire({ chatSessionResource: URI.parse(`local:/${kind}`), isNewSession: true, agentHostMessageOrigin: { kind } });
+		}
+		const { messagesTotal, sessionsTotal } = new ChatDailyUsage(storage).getTelemetry();
+		assert.deepStrictEqual({ messagesTotal, sessionsTotal }, { messagesTotal: 2, sessionsTotal: 1 });
+	});
 });

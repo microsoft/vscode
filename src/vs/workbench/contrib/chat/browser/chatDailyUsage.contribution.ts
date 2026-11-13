@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IntervalTimer } from '../../../../base/common/async.js';
+import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { MessageKind } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -53,19 +55,27 @@ export class ChatDailyUsageContribution extends Disposable implements IWorkbench
 		super();
 		const usage = new ChatDailyUsage(storageService);
 		usage.startTracking();
-		this._register(chatService.onDidAcceptRequest(event => usage.recordMessage(event.isNewSession)));
+		this._register(chatService.onDidAcceptRequest(event => {
+			// Messages an agent, tool or automation produced are not the user's own activity.
+			if (!event.agentHostMessageOrigin || event.agentHostMessageOrigin.kind === MessageKind.User) {
+				usage.recordMessage(event.isNewSession);
+			}
+		}));
 
 		let startupCompleted = false;
-		const reportIfDue = () => {
+		const report = async () => {
 			const entitlement = chatEntitlementService.entitlement;
-			// Only a focused window reports, so windows restored together do not race to send the same day's report.
+			// Only a focused window tries to claim the day's report, and the atomic claim lets at most one window send it.
 			if (!startupCompleted || !hostService.hasFocus || !hasCopilotPlan(entitlement)) {
 				return;
 			}
-			const report = usage.takeDailyReport();
-			if (report) {
-				telemetryService.publicLog2<ChatDailyUsageEvent, ChatDailyUsageClassification>('chatDailyUsage', { plan: ChatEntitlement[entitlement], ...report });
+			const telemetry = await usage.takeDailyReport();
+			if (telemetry) {
+				telemetryService.publicLog2<ChatDailyUsageEvent, ChatDailyUsageClassification>('chatDailyUsage', { plan: ChatEntitlement[entitlement], ...telemetry });
 			}
+		};
+		const reportIfDue = () => {
+			report().catch(onUnexpectedError);
 		};
 		this._register(hostService.onDidChangeFocus(focused => {
 			if (focused) {

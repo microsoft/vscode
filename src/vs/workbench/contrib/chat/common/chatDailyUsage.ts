@@ -138,14 +138,19 @@ export class ChatDailyUsage {
 		};
 	}
 
-	/** Claims the current UTC day's report. Returns `undefined` when a window already claimed it. */
-	takeDailyReport(now = Date.now()): IChatDailyUsageTelemetry | undefined {
-		const today = getUtcDay(now);
-		if (this.storageService.getNumber(lastReportedDayStorageKey, StorageScope.APPLICATION_SHARED) === today) {
+	/** Claims the current UTC day's report across windows. Resolves to `undefined` when another window already claimed it. */
+	async takeDailyReport(now = Date.now()): Promise<IChatDailyUsageTelemetry | undefined> {
+		const today = String(getUtcDay(now));
+		// The local cache lags behind other windows, so it can only rule a report out without a round trip.
+		if (this.storageService.get(lastReportedDayStorageKey, StorageScope.APPLICATION_SHARED) === today) {
 			return undefined;
 		}
-		this.storageService.store(lastReportedDayStorageKey, today, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
-		return this.getTelemetry(now);
+		const lastReportedDay = await this.storageService.readApplicationSharedValue(lastReportedDayStorageKey);
+		if (lastReportedDay === today) {
+			return undefined;
+		}
+		const { swapped } = await this.storageService.compareAndSwapApplicationSharedValue(lastReportedDayStorageKey, lastReportedDay, today);
+		return swapped ? this.getTelemetry(now) : undefined;
 	}
 
 	private read(): IStoredChatDailyUsage {

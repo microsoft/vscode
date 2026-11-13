@@ -11,6 +11,29 @@ import { ChatDailyUsage } from '../../common/chatDailyUsage.js';
 import { SessionType } from '../../common/chatSessionsService.js';
 import { EditorChatUsage } from '../../common/editorChatUsage.js';
 
+/**
+ * A window whose local cache never sees other windows' writes, while shared values go to
+ * one authoritative map, as they do through the main process.
+ */
+class WindowStorageService extends InMemoryStorageService {
+	constructor(private readonly shared: Map<string, string>) {
+		super();
+	}
+
+	override async readApplicationSharedValue(key: string): Promise<string | undefined> {
+		return this.shared.get(key);
+	}
+
+	override async compareAndSwapApplicationSharedValue(key: string, expectedValue: string | undefined, newValue: string): Promise<{ swapped: boolean; currentValue: string | undefined }> {
+		const currentValue = this.shared.get(key);
+		if (currentValue !== expectedValue) {
+			return { swapped: false, currentValue };
+		}
+		this.shared.set(key, newValue);
+		return { swapped: true, currentValue: newValue };
+	}
+}
+
 suite('ChatDailyUsage', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	const minute = 60 * 1000;
@@ -33,7 +56,7 @@ suite('ChatDailyUsage', () => {
 		});
 	});
 
-	test('claims one report per UTC day across windows sharing storage and keeps the first tracking day', () => {
+	test('claims one report per UTC day across windows sharing storage and keeps the first tracking day', async () => {
 		const storage = disposables.add(new InMemoryStorageService());
 		const first = new ChatDailyUsage(storage);
 		const second = new ChatDailyUsage(storage);
@@ -41,16 +64,32 @@ suite('ChatDailyUsage', () => {
 		second.startTracking(11 * day);
 		first.recordMessage(true, 10 * day + hour);
 		assert.deepStrictEqual([
-			first.takeDailyReport(10 * day + 2 * hour),
-			second.takeDailyReport(10 * day + 23 * hour),
-			second.takeDailyReport(11 * day),
-			first.takeDailyReport(11 * day + hour),
+			await first.takeDailyReport(10 * day + 2 * hour),
+			await second.takeDailyReport(10 * day + 23 * hour),
+			await second.takeDailyReport(11 * day),
+			await first.takeDailyReport(11 * day + hour),
 		], [
 			{ messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, minutesSinceLastMessage: 60, trackedDays: 0 },
 			undefined,
 			{ messagesLast7Days: 1, messagesLast30Days: 1, messagesTotal: 1, sessionsLast7Days: 1, sessionsLast30Days: 1, sessionsTotal: 1, minutesSinceLastMessage: 23 * 60, trackedDays: 1 },
 			undefined,
 		]);
+	});
+
+	test('claims the daily report atomically when windows have stale local caches', async () => {
+		const shared = new Map<string, string>();
+		const first = new ChatDailyUsage(disposables.add(new WindowStorageService(shared)));
+		const second = new ChatDailyUsage(disposables.add(new WindowStorageService(shared)));
+		const concurrent = await Promise.all([first.takeDailyReport(10 * day), second.takeDailyReport(10 * day)]);
+		const sequential = [
+			await second.takeDailyReport(10 * day + 23 * hour),
+			await second.takeDailyReport(11 * day),
+			await first.takeDailyReport(11 * day + hour),
+		];
+		assert.deepStrictEqual({ concurrent: concurrent.map(Boolean), sequential: sequential.map(Boolean) }, {
+			concurrent: [true, false],
+			sequential: [false, true, false],
+		});
 	});
 
 	test('seeds totals once and last usage from editor and Agents Window usage recorded before tracking', () => {
