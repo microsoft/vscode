@@ -249,9 +249,11 @@ suite('Menubar', () => {
 		});
 
 		test('opens menus on whole device pixels from a fractional title position (#347796)', async () => {
-			// Mirrors menubar.css, whose holder rules need a `.menubar` container, which this fixture does not use
+			// Mirrors menubar.css, whose holder rules need a `.menubar` container, which this fixture does not use. The fractional
+			// padding gives the menu a fractional height, so where its far edge is painted depends on which edge is rounded. With the
+			// title's fractional top, rounding the top edge of a menu opening upwards would move its bottom edge at DPR 1 and 2.
 			const style = compactContainer.appendChild($('style'));
-			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; }';
+			style.textContent = '.compact-container .menubar-menu-items-holder { position: fixed; padding-bottom: 0.6875px; }';
 			compactContainer.style.position = 'fixed';
 			// Rounding away from the menu button would leave a device pixel gap from it at DPR 1 and 2. Whole 1/64 pixels keep
 			// both edges of the 16px button at least an eighth of a device pixel from a rounding tie at common DPRs.
@@ -262,11 +264,15 @@ suite('Menubar', () => {
 			// Chromium lays out in 1/64 device pixels, so an aligned edge is only on a device pixel to within that
 			const precision = Math.max(dpr, 1) / 64 * 1.05;
 			const result: Record<string, unknown> = {};
-			for (const [name, horizontal] of [['expandsRight', HorizontalDirection.Right], ['expandsLeft', HorizontalDirection.Left]] as const) {
+			for (const [name, horizontal, vertical] of [
+				['expandsRight', HorizontalDirection.Right, VerticalDirection.Below],
+				['expandsLeft', HorizontalDirection.Left, VerticalDirection.Below],
+				['expandsAbove', HorizontalDirection.Right, VerticalDirection.Above]
+			] as const) {
 				const menubar = new MenuBar(compactContainer, {
 					enableMnemonics: true,
 					visibility: 'classic',
-					compactMode: { horizontal, vertical: VerticalDirection.Below },
+					compactMode: { horizontal, vertical },
 					getCompactMenuActions: () => [toAction({ id: 'web.nav', label: 'Go Home', run: () => { } })]
 				}, unthemedMenuStyles);
 				menubar.push([{ label: '&File', actions: [toAction({ id: 'undo', label: 'Undo', run: () => { } })] }]);
@@ -287,10 +293,21 @@ suite('Menubar', () => {
 					? button.left + compactContainer.clientWidth
 					: getWindow(holder).visualViewport!.width - getWindow(holder).innerWidth + button.left;
 				const paintedFacingEdge = horizontal === HorizontalDirection.Right ? Math.round(rect.left * dpr) : Math.round(rect.left * dpr) + Math.round(rect.width * dpr);
+				let upward = {};
+				if (vertical === VerticalDirection.Above) {
+					// Menus opening upwards line their bottom edge up with the title, so it must stay where it was painted before alignment
+					const title = overflowButton.querySelector<HTMLElement>('.menubar-menu-title');
+					assert.ok(title);
+					// The menubar places an upward menu's top `menus.length * 30` pixels above the title's top plus the menubar's
+					// height, and this menubar has one menu
+					const unalignedBottom = title.getBoundingClientRect().top - 30 + compactContainer.clientHeight + rect.height;
+					upward = { bottomKept: Math.round(rect.top * dpr) + Math.round(rect.height * dpr) === Math.round(unalignedBottom * dpr) };
+				}
 				result[name] = {
 					aligned: misalignment(rect.left) <= precision && misalignment(rect.top) <= precision,
 					horizontalInset: holder.style.left.endsWith('px') ? 'left' : 'right',
-					meetsTitle: paintedFacingEdge === Math.round(unaligned * dpr)
+					meetsTitle: paintedFacingEdge === Math.round(unaligned * dpr),
+					...upward
 				};
 				menubar.blur();
 				menubar.dispose();
@@ -298,7 +315,8 @@ suite('Menubar', () => {
 
 			assert.deepStrictEqual(result, {
 				expandsRight: { aligned: true, horizontalInset: 'left', meetsTitle: true },
-				expandsLeft: { aligned: true, horizontalInset: 'right', meetsTitle: true }
+				expandsLeft: { aligned: true, horizontalInset: 'right', meetsTitle: true },
+				expandsAbove: { aligned: true, horizontalInset: 'left', meetsTitle: true, bottomKept: true }
 			});
 		});
 	});
