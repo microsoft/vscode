@@ -2493,6 +2493,52 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(result);
 			strictEqual(result?.confirmationMessages?.terminalCustomActions, undefined, 'Expected no custom actions when file write is blocked');
 		});
+
+		test('should only use trusted terminal cwd when checking relative file writes', async () => {
+			setAutoApprove({ echo: true });
+
+			const workspaceFolder = URI.file(isWindows ? 'C:/workspace/project' : '/workspace/project');
+			workspaceContextService.setWorkspace(new Workspace('test', [toWorkspaceFolder(workspaceFolder)]));
+			instantiationService.stub(IHistoryService, {
+				getLastActiveWorkspaceRoot: () => workspaceFolder
+			});
+
+			const results: { isTrusted: boolean; confirmationRequired: boolean; cwd: string | undefined }[] = [];
+			for (const isTrusted of [true, false]) {
+				const sessionResource = LocalChatSessionUri.forSession(`terminal-cwd-${isTrusted}`);
+				runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+					instance: {
+						...createdTerminalInstance,
+						capabilities: {
+							get: (capability: TerminalCapability) => capability === TerminalCapability.CwdDetection ? { isTrusted } : undefined,
+						},
+						getCwdResource: async () => workspaceFolder,
+					} as unknown as ITerminalInstance,
+					shellIntegrationQuality: ShellIntegrationQuality.Rich,
+					isBackground: false,
+				});
+
+				const prepared = await runInTerminalTool.prepareToolInvocation({
+					parameters: {
+						command: 'echo "abc" > file.txt',
+						explanation: 'Write a file',
+						goal: 'Write a file',
+					} as IRunInTerminalInputParams,
+					chatSessionResource: sessionResource,
+				} as IToolInvocationPreparationContext, CancellationToken.None);
+				const terminalData = prepared?.toolSpecificData as IChatTerminalToolInvocationData | undefined;
+				results.push({
+					isTrusted,
+					confirmationRequired: !!prepared?.confirmationMessages,
+					cwd: terminalData?.cwd ? URI.revive(terminalData.cwd).path : undefined,
+				});
+			}
+
+			deepStrictEqual(results, [
+				{ isTrusted: true, confirmationRequired: false, cwd: workspaceFolder.path },
+				{ isTrusted: false, confirmationRequired: true, cwd: undefined },
+			]);
+		});
 	});
 
 	suite('chat session disposal cleanup', () => {

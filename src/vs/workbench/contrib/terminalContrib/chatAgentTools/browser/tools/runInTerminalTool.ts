@@ -963,6 +963,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._osBackend,
 			this._profileFetcher.getCopilotShell(),
 			(async () => {
+				if (instance?.capabilities.get(TerminalCapability.CwdDetection)?.isTrusted === false) {
+					return undefined;
+				}
 				let cwd = await instance?.getCwdResource();
 				if (!cwd) {
 					// Prefer the session's working directory (agents window) over the

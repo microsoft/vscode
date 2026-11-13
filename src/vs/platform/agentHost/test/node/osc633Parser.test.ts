@@ -130,6 +130,18 @@ suite('Osc633Parser', () => {
 		});
 	});
 
+	test('Property (P) Cwd with nonce', () => {
+		const result = parser.parse(osc633('P;Cwd=/home/user;my-nonce'));
+		assert.deepStrictEqual(result, {
+			cleanedData: '',
+			events: [{
+				type: Osc633EventType.Property,
+				key: 'Cwd',
+				value: '/home/user',
+			}],
+		});
+	});
+
 	test('Property (P) without value is ignored', () => {
 		const result = parser.parse(osc633('P;NoEquals'));
 		assert.deepStrictEqual(result, {
