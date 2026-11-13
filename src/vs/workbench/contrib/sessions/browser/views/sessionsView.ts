@@ -58,7 +58,6 @@ import { IsPhoneLayoutContext, SessionsListRearrangeContext } from '../../common
 import { ISessionsHostLayoutService } from '../../../../services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsListPresentation } from '../sessionsListPresentation.js';
 import { logSessionsListCompactViewState } from '../../common/sessionsTelemetry.js';
-import { IPinnedCanvasService } from '../pinnedCanvases.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../common/sessionConfig.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
@@ -215,7 +214,6 @@ export class SessionsView extends ViewPane {
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
-		@IPinnedCanvasService private readonly pinnedCanvasService: IPinnedCanvasService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this._mainWindowHost = getMainWindowHost(sessionHostService);
@@ -343,7 +341,7 @@ export class SessionsView extends ViewPane {
 			customizationsBadge: this.customizationsNavigationState.badge,
 			navigationContainer,
 			onDidChangeNavigationHeight: () => this.layoutSidebarSplitView(),
-			pinnedCanvases: this.pinnedCanvasService,
+			pinnedCanvases: this.presentation.pinnedCanvases,
 			focusNewSessionInput: () => this.sessionsService.focusActiveSession(),
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus, sideBySide) => {
