@@ -276,7 +276,7 @@ function resolveEntraIdentity(request: Extract<EntraTokenProviderArgs, { kind: '
 	if (request.reason === 'forceInteractive') {
 		return undefined;
 	}
-	return { kind: 'identity', accountId: authority.accountId, ...(authority.username !== undefined ? { username: authority.username } : {}) };
+	return { kind: 'identity', accountId: authority.accountId };
 }
 
 export function copilotEntraResourceForRequest(request: EntraTokenProviderArgs): ProtectedResourceMetadata | undefined {
