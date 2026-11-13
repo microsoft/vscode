@@ -106,6 +106,7 @@ Actions **not** present in desktop mode: **Close Editor Area** (the standard lay
 - **Changes** — a custom `SessionChangesEditor` (Branch Changes dropdown + diff stats + embedded multi-diff). Pinned first, present for every session with a workspace, including New Session drafts.
 - **File** — the empty File tab (`EmptyFileEditorInput`) as a landing tab, plus real file editors the user opens. Opened **pinned, inactive, preserve-focus** so it never steals focus from the chat.
 - **Browser** — the integrated browser (`BrowserEditorInput`).
+- **Side chat** — with `sessions.experimental.sideChatsInSidePane` (off by default), each side chat, such as one started with `/btw`, shows as a tab of its own (`ChatEditorInput`, without its session header or Session Activity Bar), while the chat it came from stays in the grid. Opening a side chat (`/btw`, Ask in a Side Chat, or the session header's **Side Chats** menu) is an explicit open, which reveals a closed side pane. Details-only collapse keeps its live chat in the hidden editor group. A side chat tab stays in the main window's side pane, and has no detail panel; its chat is read once its tab shows while the editor area does. Other chats started from a side chat tab, such as forks, open in the grid.
 
 The **auto-managed** tabs (the pinned Changes tab and the default File tab) are opened under `suppressEditorPartAutoVisibility()` — they **never reveal the editor content**. Only a user action (opening an actual file/diff, or dragging the sash) reveals the editor.
 
