@@ -2829,6 +2829,15 @@ suite('ChatPetWidget', () => {
 		}();
 	}
 
+	function setMiniPetPosition(widget: ChatPetWidget, element: HTMLElement, left: number, top: number): void {
+		// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Set up positions without exposing a test-only API.
+		const pet = [...widget['_subagentPets'].values()].find(pet => pet.element === element)!;
+		pet.left = left;
+		pet.top = top;
+		element.style.left = `${left}px`;
+		element.style.top = `${top}px`;
+	}
+
 	test('mini pets update only the changed response while tracking older subagents', () => {
 		const { widget, firstHost, overlay } = createHostTransitionHarness(true);
 		const changes = [disposables.add(new Emitter<ChatResponseModelChangeReason>()), disposables.add(new Emitter<ChatResponseModelChangeReason>())];
@@ -3051,8 +3060,7 @@ suite('ChatPetWidget', () => {
 			const scales = pets.map(pet => pet.style.transform);
 			for (const [index, pet] of pets.entries()) {
 				pet.getAnimations().forEach(animation => animation.cancel());
-				pet.style.left = `${[20, 80, 90, 220][index]}px`;
-				pet.style.top = `${index === 1 ? -48 : -24}px`;
+				setMiniPetPosition(widget, pet, [20, 80, 90, 220][index], index === 1 ? -48 : -24);
 			}
 			firstParent.style.width = '120px';
 			layout();
@@ -3083,8 +3091,7 @@ suite('ChatPetWidget', () => {
 		tool.toolSpecificData = { kind: 'subagent', isActive: true };
 		widget.setHost({ ...firstHost, model: constObservable(createSubagentTestModel([tool])) });
 		const pet = overlay.querySelector<HTMLElement>('.chat-pet-subagent')!;
-		pet.style.left = '98px';
-		pet.style.top = '-24px';
+		setMiniPetPosition(widget, pet, 98, -24);
 		firstParent.style.width = '120px';
 		layout();
 		clock.tick(8);
@@ -3245,8 +3252,7 @@ suite('ChatPetWidget', () => {
 				// A three-high stack on the input platform and an independent neighbor on the ground.
 				pets.forEach((pet, index) => {
 					pet.getAnimations().forEach(animation => animation.cancel());
-					pet.style.left = index === 3 ? '96px' : '48px';
-					pet.style.top = `${index === 3 ? -24 : -(index + 1) * 24}px`;
+					setMiniPetPosition(widget, pet, index === 3 ? 96 : 48, index === 3 ? -24 : -(index + 1) * 24);
 				});
 				const neighborPosition = pets[3].getBoundingClientRect().toJSON();
 				tools[removedIndex].toolSpecificData = { kind: 'subagent', isActive: false };
