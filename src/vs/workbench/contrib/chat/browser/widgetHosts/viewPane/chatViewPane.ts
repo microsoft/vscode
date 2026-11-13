@@ -891,6 +891,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	/** Reports the sessions list layout once it settled, so a resize reports at most one change. Accessed with `?.` because tests invoke pane methods on partial hosts. */
 	private readonly sessionsLayoutScheduler = this._register(new RunOnceScheduler(() => this.reportSessionsLayout(), 1000));
 	private lastReportedSessionsLayout: ChatViewSessionsLayout | undefined;
+	/** Number of in-flight {@link loadSession} calls, during which the reported sessions layout is not settled. */
+	private _loadingSessionCount = 0;
 
 	private createSessionsControl(parent: HTMLElement): AgentSessionsControl {
 		const sessionsContainer = this.sessionsContainer = parent.appendChild($('.agent-sessions-container'));
@@ -1050,8 +1052,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			return; // not rendered, laid out or shown yet
 		}
 
-		if (this.restoringSession || this._sessionsListSuppressionCount > 0) {
-			return; // session is loading or transitioning, sessions visibility is not settled
+		if (this.restoringSession || this._loadingSessionCount > 0 || this._sessionsListSuppressionCount > 0) {
+			return; // session is restoring, loading or transitioning, sessions visibility is not settled
 		}
 
 		const { position, location } = this.getViewPositionAndLocation();
@@ -1644,6 +1646,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const open = this._openDiagnostics.value = !isUntitledChatSession(sessionResource) && this.layoutService.isRestored()
 			? this.chatOpenDiagnosticsService.startOpen('panel', sessionResource, token, alreadyShown)
 			: undefined;
+		this._loadingSessionCount++;
 		try {
 			// Capture the input draft up front: the load window (clear + acquire below)
 			// opens before `showModel` binds, so text typed during loading must be
@@ -1726,6 +1729,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			throw error;
 		} finally {
 			open?.end();
+			this._loadingSessionCount--;
+			this.sessionsLayoutScheduler?.schedule();
 		}
 	}
 
