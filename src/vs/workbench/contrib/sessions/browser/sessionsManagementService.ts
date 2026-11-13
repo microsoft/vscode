@@ -244,9 +244,8 @@ export class SessionsManagementService extends Disposable implements ISessionsMa
 			...e.removed.map(session => ({ session, kind: 'removed' as const })),
 			...e.changed.map(session => ({ session, kind: 'changed' as const })),
 		];
-		if (changes.length) {
-			this._onDidChangeSession.fire(changes);
-		}
+		// Also an empty batch, such as a provider's invalidation of what it lists, which those waiting for a session look up again on
+		this._onDidChangeSession.fire(changes);
 	}
 
 	private _subscribeToProviders(providers: readonly ISessionsProvider[], added: ISession[] = [], allAdded: ISession[] = []): ISession[] {

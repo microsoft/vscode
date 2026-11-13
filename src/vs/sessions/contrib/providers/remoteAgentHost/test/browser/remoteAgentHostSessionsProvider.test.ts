@@ -855,6 +855,19 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		});
 	});
 
+	test('a cleared scoped catalog reports the sessions its scope hides as removed too', async () => {
+		const { runtime, catalog, task, events, resources, discover } = createCatalogRuntime();
+		// The task is still pending, so what the empty scope hides is the runtime's session
+		catalog.attach(task.taskId, runtime, task);
+		discover();
+		catalog.setListingScope({ folders: constObservable([URI.file('/elsewhere')]), repositories: constObservable([]) });
+		events.length = 0;
+
+		catalog.clear();
+
+		assert.deepStrictEqual({ listed: resources(catalog.getSessions()), removed: events.map(event => event.removed) }, { listed: [], removed: [['remote-localhost__4321-copilot:/task-session']] });
+	});
+
 	test('a catalog cleared before its runtime reports a replacement reports the task\'s row as it attaches again', async () => {
 		const { runtime, catalog, task, events, discover, bind } = createCatalogRuntime();
 		catalog.attach(task.taskId, runtime, task);

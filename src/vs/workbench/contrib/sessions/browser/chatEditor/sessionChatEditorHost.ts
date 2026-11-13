@@ -61,7 +61,7 @@ export async function waitForSessionChat(sessionsManagementService: ISessionsMan
 		return await raceTimeout(new Promise<IResolvedSessionChat | undefined>(resolve => {
 			// Of every session, also one outside a listing scope, such as of another folder, which a host can show
 			store.add(sessionsManagementService.onDidChangeSession(changes => {
-				if (store.isDisposed || changes.every(({ kind }) => kind === 'removed')) {
+				if (store.isDisposed || (changes.length > 0 && changes.every(({ kind }) => kind === 'removed'))) {
 					return;
 				}
 				const loaded = resolveSessionChat(sessionsManagementService, resource);

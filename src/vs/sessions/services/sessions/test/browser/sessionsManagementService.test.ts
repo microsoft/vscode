@@ -2769,6 +2769,23 @@ suite('SessionsManagementService', () => {
 			assert.deepStrictEqual({ each, count: listed.length }, { each: fromListed, count: 2 });
 		});
 
+		test('reports an empty change of a provider, such as its invalidation of what it lists, as an empty batch', () => {
+			const session = stubSession({ sessionId: 'only', providerId: 'test' });
+			const onDidChangeSessions = disposables.add(new Emitter<ISessionChangeEvent>());
+			const provider = new class extends TestSessionsProvider {
+				override readonly onDidChangeSessions = onDidChangeSessions.event;
+			}(session);
+			const providersService = createProvidersService();
+			const { service } = createSessionsManagementService(session, disposables, providersService);
+			disposables.add(providersService.registerProvider(provider));
+			const batches: number[] = [];
+			disposables.add(service.onDidChangeSession(batch => batches.push(batch.length)));
+
+			onDidChangeSessions.fire({ added: [], removed: [], changed: [] });
+
+			assert.deepStrictEqual(batches, [0]);
+		});
+
 		test('reports the sessions of a provider that registers, also those outside its listing scope, in one change', () => {
 			const sessions = ['a', 'b', 'c'].map(sessionId => stubSession({ sessionId, providerId: 'test' }));
 			const provider = new class extends TestSessionsProvider {

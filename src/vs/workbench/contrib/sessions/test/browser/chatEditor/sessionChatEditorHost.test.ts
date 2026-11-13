@@ -75,4 +75,22 @@ suite('resolveSessionChat', () => {
 			afterBatch: 1, afterResolved: 2, afterMore: 2, chat: 'test:/session#chat',
 		});
 	});
+
+	test('waits through an empty change of sessions, such as an invalidation of what a provider lists, and resolves after it', async () => {
+		const session = upcastPartial<ISession>({ resource: URI.parse('test:/session') });
+		const chat = upcastPartial<IChat>({ resource: URI.parse('test:/session#chat') });
+		const onDidChangeSession = store.add(new Emitter<readonly ISessionChange[]>());
+		let known = false;
+		const sessionsManagementService = upcastPartial<ISessionsManagementService>({
+			onDidChangeSession: onDidChangeSession.event,
+			getSession: () => undefined,
+			getSessionForChatResource: () => known ? { session, chat } : undefined,
+		});
+		const waiting = waitForSessionChat(sessionsManagementService, chat.resource);
+		// What a hidden session turns visible by, with no session added, removed or changed
+		known = true;
+		onDidChangeSession.fire([]);
+
+		assert.strictEqual((await waiting)?.chat?.toString(), 'test:/session#chat');
+	});
 });
