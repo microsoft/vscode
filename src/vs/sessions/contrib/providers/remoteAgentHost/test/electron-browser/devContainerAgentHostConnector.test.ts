@@ -15,7 +15,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
+import { IDevContainerAgentHostConfig, IDevContainerAgentHostMainService, IDevContainerAgentHostUserStateReport } from '../../../../../../platform/agentHost/common/devContainerAgentHost.js';
 import { devContainerSamples, devContainerSampleUri, IDevContainerSampleSource } from '../../../../../../platform/agentHost/common/devContainerSamples.js';
 import { IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
@@ -30,8 +30,9 @@ import { ISharedProcessService } from '../../../../../../platform/ipc/electron-b
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IOutputChannel, IOutputService } from '../../../../../../workbench/services/output/common/output.js';
-import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
+import { DevContainerAgentHostEnabledSettingId, DevContainerIdleTimeoutSettingId, DevContainerSamplesEnabledSettingId, DevContainerStateVolumeEnabledSettingId, DevContainerWorktreeEnabledSettingId } from '../../../../../../workbench/contrib/sessions/common/devContainerAgentHostService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ISessionFolder, ISessionWorkspace } from '../../../../../../workbench/services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
@@ -46,14 +47,17 @@ suite('Dev Container Agent Host Connector', () => {
 	const devContainerAgentHostEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerAgentHostEnabledSettingId];
 	const devContainerIdleTimeoutProperty = configurationRegistry.getConfigurationProperties()[DevContainerIdleTimeoutSettingId];
 	const devContainerWorktreeEnabledProperty = configurationRegistry.getExcludedConfigurationProperties()[DevContainerWorktreeEnabledSettingId];
+	const devContainerStateVolumeEnabledProperty = configurationRegistry.getConfigurationProperties()[DevContainerStateVolumeEnabledSettingId];
 	const devContainerSamplesProperty = configurationRegistry.getConfigurationProperties()[DevContainerSamplesEnabledSettingId];
 
 	for (const sandboxEnabled of [false, true]) {
-		test(`relay reconnect retains requested sandbox options (requested: ${sandboxEnabled})`, async () => {
+		test(`relay reconnect retains requested sandbox options and reads the state volume setting again (requested: ${sandboxEnabled})`, async () => {
 			const configs: IDevContainerAgentHostConfig[] = [];
+			const events: Array<{ eventName: string; data: unknown }> = [];
 			const service = new class extends mock<IDevContainerAgentHostMainService>() {
 				override readonly onDidOutput = Event.None;
 				override readonly onDidChangeSandboxSupport = Event.None;
+				override readonly onDidReportUserState = Event.None;
 				override readonly onDidRelayMessage = Event.None;
 				override readonly onDidRelayActivity = Event.None;
 				override readonly onDidRelayClose = Event.None;
@@ -64,10 +68,15 @@ suite('Dev Container Agent Host Connector', () => {
 				}
 				override async disconnect() { }
 			}();
+			const configuration = new TestConfigurationService({
+				[DevContainerSamplesEnabledSettingId]: true,
+				[DevContainerAgentHostEnabledSettingId]: true,
+				[RemoteAgentHostsEnabledSettingId]: true,
+			});
 			const connector = store.add(new DevContainerAgentHostConnector(
 				new class extends mock<ISharedProcessService>() {
 					override getChannel(): IChannel {
-						const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport'] });
+						const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
 						return {
 							listen: (event, arg) => channel.listen(undefined, event, arg),
 							call: (command, arg) => channel.call(undefined, command, arg),
@@ -76,11 +85,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				store.add(new TestInstantiationService()),
 				store.add(new NullLogService()),
-				new TestConfigurationService({
-					[DevContainerSamplesEnabledSettingId]: true,
-					[DevContainerAgentHostEnabledSettingId]: true,
-					[RemoteAgentHostsEnabledSettingId]: true,
-				}),
+				configuration,
 				new class extends mock<IEnvironmentService>() { }(),
 				new class extends mock<IOutputService>() {
 					override getChannel() {
@@ -91,6 +96,13 @@ suite('Dev Container Agent Host Connector', () => {
 				new class extends mock<IRemoteAgentHostService>() { }(),
 				new class extends mock<ISessionsProvidersService>() { }(),
 				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+				new class extends mock<ITelemetryService>() {
+					override publicLog2(eventName: string, data?: ITelemetryData): void {
+						const { durationMs, ...rest } = data as { durationMs: unknown };
+						assert.strictEqual(typeof durationMs, 'number');
+						events.push({ eventName, data: rest });
+					}
+				}(),
 			));
 			const target = await connector.createConnection(devContainerSampleUri(devContainerSamples[0]), 'devcontainer:sample', CancellationToken.None, { resume: true, sandboxEnabled });
 			store.add(target.transportDisposable!);
@@ -98,13 +110,25 @@ suite('Dev Container Agent Host Connector', () => {
 			const first = store.add(target.transportFactory());
 			assert.ok(isClientTransport(first));
 			await first.connect();
+			// A container created on reconnect follows the current setting.
+			await configuration.setUserConfiguration(DevContainerStateVolumeEnabledSettingId, true);
 			const reconnected = store.add(target.transportFactory());
 			assert.ok(isClientTransport(reconnected));
 			await reconnected.connect();
-			assert.deepStrictEqual(configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled })), [
-				{ resume: true, sandboxEnabled },
-				{ resume: false, sandboxEnabled },
-			]);
+			const connected = { success: true, cancelled: false, sample: true, remote: false };
+			assert.deepStrictEqual({
+				configs: configs.map(config => ({ resume: config.resume, sandboxEnabled: config.sandboxEnabled, persistUserState: config.persistUserState })),
+				events,
+			}, {
+				configs: [
+					{ resume: true, sandboxEnabled, persistUserState: undefined },
+					{ resume: false, sandboxEnabled, persistUserState: true },
+				],
+				events: [
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: false, stateVolume: false } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { ...connected, reconnect: true, stateVolume: true } },
+				],
+			});
 		});
 	}
 
@@ -134,6 +158,7 @@ suite('Dev Container Agent Host Connector', () => {
 		const service = new class extends mock<IDevContainerAgentHostMainService>() {
 			override readonly onDidOutput = Event.None;
 			override readonly onDidChangeSandboxSupport = Event.None;
+			override readonly onDidReportUserState = Event.None;
 			override readonly onDidRelayMessage = Event.None;
 			override readonly onDidRelayActivity = Event.None;
 			override readonly onDidRelayClose = Event.None;
@@ -150,7 +175,7 @@ suite('Dev Container Agent Host Connector', () => {
 		const connector = store.add(new DevContainerAgentHostConnector(
 			new class extends mock<ISharedProcessService>() {
 				override getChannel(): IChannel {
-					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport'] });
+					const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
 					return {
 						listen: (event, arg) => channel.listen(undefined, event, arg),
 						call: (command, arg) => channel.call(undefined, command, arg),
@@ -172,6 +197,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+			NullTelemetryService,
 		));
 		const source = devContainerSampleUri(devContainerSamples[0]);
 		await connector.isAvailable(source);
@@ -215,6 +241,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override readonly onDidRelayClose = Event.None;
 				override readonly onDidCloseConnection = Event.None;
 				override readonly onDidChangeSandboxSupport = support.event;
+				override readonly onDidReportUserState = Event.None;
 				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
 					support.fire({ connectionId: config.connectionId, supported: false });
 					throw new Error('Unsupported sandbox startup');
@@ -222,7 +249,7 @@ suite('Dev Container Agent Host Connector', () => {
 				override async disconnect(): Promise<void> { }
 			}();
 			const service = remote ? store.add(new RemoteDevContainerService(async () => main, new NullLogService())) : main;
-			const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport'] });
+			const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
 			const connector = store.add(new DevContainerAgentHostConnector(
 				new class extends mock<ISharedProcessService>() {
 					override getChannel(): IChannel {
@@ -244,12 +271,81 @@ suite('Dev Container Agent Host Connector', () => {
 				new class extends mock<IRemoteAgentHostService>() { }(),
 				new class extends mock<ISessionsProvidersService>() { }(),
 				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+				NullTelemetryService,
 			));
 			const workspace = URI.file('/unsupported-project');
 			const observed: { workspace: string; supported: boolean }[] = [];
 			store.add(connector.onDidChangeSandboxSupport(event => observed.push({ workspace: event.workspaceUri.toString(), supported: event.supported })));
 			await assert.rejects(connector.createConnection(workspace, 'devcontainer:unsupported', CancellationToken.None, { resume: true, sandboxEnabled: true }), /Unsupported sandbox startup/);
 			assert.deepStrictEqual(observed, [{ workspace: workspace.toString(), supported: false }]);
+		});
+
+		test(`logs user state reports before a failed connection (remote facade: ${remote})`, async () => {
+			const userState = store.add(new Emitter<IDevContainerAgentHostUserStateReport>());
+			const configs: IDevContainerAgentHostConfig[] = [];
+			const main = new class extends mock<IDevContainerAgentHostMainService>() {
+				override readonly onDidOutput = Event.None;
+				override readonly onDidRelayMessage = Event.None;
+				override readonly onDidRelayActivity = Event.None;
+				override readonly onDidRelayClose = Event.None;
+				override readonly onDidCloseConnection = Event.None;
+				override readonly onDidChangeSandboxSupport = Event.None;
+				override readonly onDidReportUserState = userState.event;
+				override async connect(config: IDevContainerAgentHostConfig): Promise<never> {
+					configs.push(config);
+					userState.fire({ connectionId: 'other', stage: 'mount', outcome: 'added' });
+					userState.fire({ connectionId: config.connectionId, stage: 'mount', outcome: 'added', target: 'workspaces' });
+					userState.fire({ connectionId: config.connectionId, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', errorMessage: 'Cannot link user state (exit 1):' });
+					throw new Error('Lifecycle failed');
+				}
+				override async disconnect(): Promise<void> { }
+			}();
+			const service = remote ? store.add(new RemoteDevContainerService(async () => main, new NullLogService())) : main;
+			const channel = ProxyChannel.fromService(service, store.add(new DisposableStore()), { unbufferedEvents: ['onDidChangeSandboxSupport', 'onDidReportUserState'] });
+			const events: Array<{ eventName: string; data: ITelemetryData | undefined }> = [];
+			const connector = store.add(new DevContainerAgentHostConnector(
+				new class extends mock<ISharedProcessService>() {
+					override getChannel(): IChannel {
+						return {
+							listen: (event, arg) => channel.listen(undefined, event, arg),
+							call: (command, arg) => channel.call(undefined, command, arg),
+						};
+					}
+				}(),
+				store.add(new TestInstantiationService()),
+				new NullLogService(),
+				new TestConfigurationService({ [DevContainerAgentHostEnabledSettingId]: true, [RemoteAgentHostsEnabledSettingId]: true, [DevContainerStateVolumeEnabledSettingId]: true }),
+				new class extends mock<IEnvironmentService>() { }(),
+				new class extends mock<IOutputService>() {
+					override getChannel() { return new class extends mock<IOutputChannel>() { override append() { } }(); }
+					override async showChannel(): Promise<void> { }
+				}(),
+				new class extends mock<IFileService>() { }(),
+				new class extends mock<IRemoteAgentHostService>() { }(),
+				new class extends mock<ISessionsProvidersService>() { }(),
+				new class extends mock<IRequestService>() { }(),
+				new class extends mock<ITelemetryService>() {
+					override publicLog2(eventName: string, data?: ITelemetryData): void {
+						if (eventName === 'vscodeAgents.devContainer/connect') {
+							const { durationMs, ...rest } = data as { durationMs: unknown };
+							assert.strictEqual(typeof durationMs, 'number');
+							events.push({ eventName, data: rest });
+						} else {
+							events.push({ eventName, data });
+						}
+					}
+				}(),
+			));
+			await assert.rejects(connector.createConnection(URI.file('/project'), 'devcontainer:project', CancellationToken.None), /Lifecycle failed/);
+			const unset = { reason: undefined, step: undefined, target: undefined, skipReasons: undefined, exitCode: undefined, restoredFolders: undefined, movedFolders: undefined, createdFolders: undefined, existingFolders: undefined, skippedFolders: undefined, errorMessage: undefined, enabled: true, sample: false, remote: false };
+			assert.deepStrictEqual({ persistUserState: configs.map(config => config.persistUserState), events }, {
+				persistUserState: [true],
+				events: [
+					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'mount', outcome: 'added', target: 'workspaces' } },
+					{ eventName: 'vscodeAgents.devContainer/stateVolume', data: { ...unset, stage: 'link', outcome: 'failed', reason: 'script', step: 'folders', exitCode: 1, target: 'workspaces', movedFolders: 1, skippedFolders: 2, skipReasons: 'mounted,symlink', errorMessage: 'Cannot link user state (exit 1):' } },
+					{ eventName: 'vscodeAgents.devContainer/connect', data: { success: false, cancelled: false, reconnect: false, stateVolume: true, sample: false, remote: false } },
+				],
+			});
 		});
 	}
 
@@ -525,6 +621,7 @@ suite('Dev Container Agent Host Connector', () => {
 				}(),
 				new class extends mock<ISessionsProvidersService>() { }(),
 				new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+				NullTelemetryService,
 			));
 			const available = await connector.isAvailable(workspaceUri);
 			supported = false;
@@ -695,6 +792,20 @@ suite('Dev Container Agent Host Connector', () => {
 		});
 	});
 
+	test('registers an experimental setting for keeping Dev Container state on a volume', () => {
+		assert.deepStrictEqual({
+			default: devContainerStateVolumeEnabledProperty.default,
+			scope: devContainerStateVolumeEnabledProperty.scope,
+			tags: devContainerStateVolumeEnabledProperty.tags,
+			experiment: devContainerStateVolumeEnabledProperty.experiment,
+		}, {
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'onExP'],
+			experiment: { mode: 'auto' },
+		});
+	});
+
 	test('rejects connections when Dev Container or remote Agent Hosts are disabled', () => {
 		const configurationService = (devContainerAgentHostsEnabled: boolean, remoteAgentHostsEnabled: boolean) => new TestConfigurationService({
 			[DevContainerAgentHostEnabledSettingId]: devContainerAgentHostsEnabled,
@@ -752,6 +863,7 @@ suite('Dev Container Agent Host Connector', () => {
 			new class extends mock<IRemoteAgentHostService>() { }(),
 			new class extends mock<ISessionsProvidersService>() { }(),
 			new class extends mock<IRequestService>() { override async loadCertificates(): Promise<string[]> { return ['CLIENT CA']; } }(),
+			NullTelemetryService,
 		));
 
 		await assert.rejects(
