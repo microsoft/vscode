@@ -140,11 +140,11 @@ export function agentHostRemotePath(uri: URI): string {
 }
 
 /**
- * Windows and macOS file systems are case-insensitive, but this provider is path-case-sensitive
- * as a whole because it also serves Linux hosts. Such a host may report a change
- * with different casing than the watch (for example a lowercased drive letter, as
- * `URI.toString()` produces), which would never match the watched resource. Re-case
- * the event path to the watched one when they only differ by case.
+ * This provider is path-case-sensitive as a whole because it also serves Linux hosts,
+ * but a Windows or macOS host may report a change with different casing than the watch
+ * (for example a lowercased drive letter, as `URI.toString()` produces), which would never
+ * match the watched resource. Re-case the event path to the watched one when they only
+ * differ by case.
  */
 function matchWatchedPathCase(uri: URI, watchedPath: string): URI {
 	const prefix = watchedPath.endsWith('/') ? watchedPath.slice(0, -1) : watchedPath;
