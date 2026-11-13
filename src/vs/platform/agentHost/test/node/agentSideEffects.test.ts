@@ -39,7 +39,7 @@ import type { RootConfigChangedAction } from '../../common/state/protocol/action
 import { chatToolCallComplete, chatToolCallReady, chatToolCallStart, chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
 import { ChatStateSubscription } from '../../common/state/agentSubscription.js';
 import { ChangesSummary, ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, ChatOriginKind, ConfirmationOptionKind, type CustomizationEnablement, CustomizationEnablementKind, CustomizationType, McpAuthRequiredReason, McpServerStatus, SessionInputRequestKind } from '../../common/state/protocol/state.js';
-import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type INotification, type ProgressParams, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, AuthRequiredReason, type ChatAction, type ChatInputCompletedAction, type INotification, type ProgressParams, type SessionAction, type StateAction } from '../../common/state/sessionActions.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
 import { buildSubagentChatUri, buildChatUri, buildDefaultChatUri, ChatInteractivity, createErrorResponsePart, CustomizationLoadStatus, MessageAttachmentKind, MessageKind, withSessionGitState, type MessageAttachment, PendingMessageKind, readUsageInfoMeta, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallContributorKind, ToolCallStatus, ToolResultContentType, TurnState, customizationId, type ChatInputRequest, type ClientPluginCustomization, type Customization, type ISessionGitHubState, type McpServerCustomization, type PluginCustomization, type ToolCallResult, type Turn } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
@@ -92,6 +92,7 @@ import { AgentHostArtifactIntegrationDirectory, IAgentHostArtifactIntegrationDir
 import { ArtifactIntegrationRegistry } from '../../../artifactIntegrations/common/artifactIntegrationRegistry.js';
 import { withChatSurfaceMeta } from '../../common/meta/agentChatSurfaceMeta.js';
 import { ChatInputRequestPurpose, withChatInputRequestPurpose } from '../../common/meta/agentChatInputRequestMeta.js';
+import { withHumanChatInputResponse } from '../../common/meta/agentChatInputResponseMeta.js';
 import { AgentHostCustomizationEnablementService, IAgentHostCustomizationEnablementService } from '../../node/agentHostCustomizationEnablementService.js';
 import { AgentHostStorageService } from '../../node/agentHostStorageService.js';
 import { applyMcpServerEnablement } from '../../node/shared/mcpCustomizationController.js';
@@ -6529,6 +6530,29 @@ suite('AgentSideEffects', () => {
 				['tc-peer-perm', true, { decisionSource: 'human_response', selectedOptionId: 'allow-session', origin: { clientId: 'test-client', clientSeq: 7 } }],
 			]);
 			assert.deepStrictEqual(stateManager.getSessionState(sessionUri.toString())?.config?.values[SessionConfigKey.Permissions], { allow: ['write'], deny: [] });
+		});
+
+		test('forwards only a client\'s explicit report that a person answered an input request', () => {
+			setupSession();
+			const responses: Parameters<IAgent['respondToUserInputRequest']>[] = [];
+			const provider: IAgent = agent;
+			provider.respondToUserInputRequest = (...args) => { responses.push(args); };
+			const completed: ChatInputCompletedAction = { type: ActionType.ChatInputCompleted, requestId: 'req', response: ChatInputResponseKind.Decline };
+
+			for (const action of [
+				withHumanChatInputResponse(completed),
+				completed,
+				{ ...completed, _meta: { 'agentHost.inputResponseSource': 'host_policy' } },
+			]) {
+				// The marker has to survive the wire, where the action is plain JSON.
+				sideEffects.handleAction(defaultChatUri, JSON.parse(JSON.stringify(action)), 'test-client', undefined, undefined, false, 1);
+			}
+
+			assert.deepStrictEqual(responses, [
+				['req', ChatInputResponseKind.Decline, undefined, { responseSource: 'human_response' }],
+				['req', ChatInputResponseKind.Decline, undefined, {}],
+				['req', ChatInputResponseKind.Decline, undefined, {}],
+			]);
 		});
 
 		test('pending_confirmation for a tool inside a subagent routes to the subagent session', async () => {

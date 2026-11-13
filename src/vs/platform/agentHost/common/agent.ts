@@ -18,6 +18,7 @@ import type { AgentMessageProvenance } from './agentMessageProvenance.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
+import type { IAgentChatInputResponseMeta } from './meta/agentChatInputResponseMeta.js';
 import type { AgentPermissionDecisionSource } from './meta/agentPermissionResponseMeta.js';
 import type { IChatSurfaceMeta } from './meta/agentChatSurfaceMeta.js';
 import type { IAgentChatUsage } from './meta/agentUsageMeta.js';
@@ -407,6 +408,47 @@ export interface IAgentCanvasOpenRequest {
 	readonly extensionId?: string;
 	readonly instanceId: string;
 }
+
+/** The choices a user can make about a Copilot extension that needs consent before it loads. */
+export const enum AgentExtensionConsentOption {
+	/** Allows the extension for the rest of the chat's runtime sessions. */
+	Allow = 'allow-once',
+	AlwaysAllow = 'allow-extension-always',
+	NotNow = 'not-now',
+	Never = 'deny-extension-always',
+}
+
+/**
+ * A Copilot extension that waits for the user's consent before it loads: to read sensitive
+ * environment variables, or to load with privileged capabilities. Carries names only, never values.
+ */
+export interface IAgentExtensionConsentRequest {
+	/** Identifies this request until it is answered. */
+	readonly id: string;
+	readonly kind: 'environment' | 'capabilities';
+	/** Source-qualified extension identifier, such as `user:my-canvas`. */
+	readonly extensionName: string;
+	/** Short extension name for display. */
+	readonly displayName: string;
+	/** The requested environment variable names, or the requested capabilities. */
+	readonly items: readonly string[];
+	/** Whether the decision can be remembered for all sessions ({@link AgentExtensionConsentOption.AlwaysAllow} and {@link AgentExtensionConsentOption.Never}). */
+	readonly persistable: boolean;
+}
+
+/** Continues a canvas open that returned {@link AgentCanvasOpenResult} `consentRequired`, or retries one that was denied. */
+export type AgentCanvasOpenAnswer =
+	| { readonly kind: 'consent'; readonly consentId: string; readonly optionId: AgentExtensionConsentOption }
+	| { readonly kind: 'retry' };
+
+/**
+ * The outcome of opening a canvas. `consentRequired` leaves the open pending until it is answered;
+ * `consentDenied` means the extension was not allowed to load, and `retryable` whether asking again can help.
+ */
+export type AgentCanvasOpenResult =
+	| { readonly kind: 'opened' }
+	| { readonly kind: 'consentRequired'; readonly consent: IAgentExtensionConsentRequest }
+	| { readonly kind: 'consentDenied'; readonly consent: IAgentExtensionConsentRequest; readonly retryable: boolean };
 
 /** Closes one canvas that a live provider chat presents, notifying its canvas provider. */
 export interface IAgentCanvasCloseRequest {
@@ -1684,6 +1726,10 @@ export interface IAgentToolPendingConfirmationSignal {
 	readonly permissionResource?: URI;
 	/** Host-only URL target for request approval (not part of the dispatched action). */
 	readonly permissionUrl?: string;
+	/** Host-only raw MCP server name as configured, for MCP permission requests. */
+	readonly mcpServerName?: string;
+	/** Host-only raw MCP tool name, for MCP permission requests. */
+	readonly mcpToolName?: string;
 	/** Host-only command for shell approval when the displayed tool input contains structured arguments. */
 	readonly shellCommand?: string;
 	/**
@@ -2058,8 +2104,8 @@ export interface IAgent {
 	/** List canvas declarations available to one initialized provider chat. After returning `undefined`, publish {@link ActionType.ChatCanvasesChanged} when an authoritative snapshot is available. */
 	listSessionCanvases?(session: URI, chat: URI, context: AgentChatOperationContext): Promise<AgentCanvasDefinitionSnapshot>;
 
-	/** Open or focus one canvas instance in an initialized provider chat. */
-	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
+	/** Open or focus one canvas instance in an initialized provider chat, or continue one that waits for the user's consent. */
+	openSessionCanvas?(session: URI, request: IAgentCanvasOpenRequest, chat: URI, context: AgentChatOperationContext, answer?: AgentCanvasOpenAnswer): Promise<AgentCanvasOpenResult>;
 
 	/** Close one canvas that a live provider chat presents, notifying its canvas provider. Never resumes a cold chat. */
 	closeSessionCanvas?(session: URI, request: IAgentCanvasCloseRequest, chat: URI, context: AgentChatOperationContext): Promise<void>;
@@ -2080,13 +2126,13 @@ export interface IAgent {
 	retryManagedPlugins?(session: URI, chat?: URI): Promise<readonly IAgentManagedPluginRetryEntry[]>;
 
 	/** List plugin marketplaces through the provider that owns marketplace state. */
-	listPluginMarketplaces?(session: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
+	listPluginMarketplaces?(session?: URI, chat?: URI): Promise<readonly IAgentPluginMarketplace[]>;
 
 	/** Add a plugin marketplace through the provider that owns marketplace state. */
-	addPluginMarketplace?(session: URI, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
+	addPluginMarketplace?(session: URI | undefined, source: string, chat?: URI): Promise<IAgentPluginMarketplace>;
 
 	/** Browse one plugin marketplace through the provider that owns marketplace state. */
-	browsePluginMarketplace?(session: URI, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
+	browsePluginMarketplace?(session: URI | undefined, name: string, chat?: URI): Promise<readonly IAgentPluginMarketplaceItem[]>;
 
 	/** Remove a plugin marketplace through the provider that owns marketplace state. */
 	removePluginMarketplace?(session: URI, name: string, force?: boolean, chat?: URI): Promise<IAgentPluginMarketplaceRemoveResult>;
@@ -2197,6 +2243,11 @@ export interface IAgent {
 	 * stoppable. Resolves false when the entry is unknown or had already finished.
 	 */
 	stopBackgroundWork?(chat: URI, id: string): Promise<boolean>;
+	/**
+	 * Answers a pending shell authentication prompt of the chat; `undefined`
+	 * cancels it. Resolves false when the prompt is no longer pending.
+	 */
+	answerShellAuthentication?(chat: URI, requestId: string, answer: string | undefined): Promise<boolean>;
 	/** Manages the host's sandbox CA from saved runtime settings without creating a chat. */
 	manageHostSandboxCertificate?(operation: AgentSandboxCertificateOperation): Promise<void>;
 	/** Installs the live chat runtime's sandbox certificate after explicit client consent, preserving the advertised chat string. */
@@ -2245,8 +2296,11 @@ export interface IAgent {
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean, context?: IAgentPermissionResponseContext): void;
 
-	/** Respond to a pending user input request from the SDK's ask_user tool. */
-	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>): void;
+	/**
+	 * Respond to a pending user input request from the SDK's ask_user tool. `context` attributes the response to a
+	 * person only when a client reported their own interaction; omit it for any response the host produces itself.
+	 */
+	respondToUserInputRequest(requestId: string, response: ChatInputResponseKind, answers?: Record<string, ChatInputAnswer>, context?: IAgentChatInputResponseMeta): void;
 
 	// ---- Configuration and customizations ----------------------------------
 

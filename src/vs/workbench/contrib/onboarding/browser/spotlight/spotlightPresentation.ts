@@ -402,6 +402,7 @@ export class SpotlightPresentation extends Disposable implements IOnboardingPres
 			canGoBack,
 			isLastStep,
 			showEndTour: !!step.primaryAction || step.endTourLabel !== undefined,
+			focusEndTour: step.focusEndTour,
 		};
 
 		const openTarget = step.openTarget === 'ifUnselected' ? !hasSelection : step.openTarget;

@@ -60,11 +60,14 @@ import {
 	getActiveSessionServerDefinitionUnavailable,
 	getActiveSessionServerProvenance,
 	getBuiltinMcpServerEnablementActions,
+	getClientBundledMcpServerEntry,
+	getClientBundledMcpServerSource,
 	getActiveSessionServerOptionsActions,
 	getAgentHostMcpServerEnablementActions,
 	getMcpCompatibilityPresentation,
 	getMcpRowMessagePresentation,
 	getMcpEntryGroup,
+	getMcpEntrySourceUri,
 	getMarketplaceMcpManagementAction,
 	getMcpRowKey,
 	getLocalMcpServerEnablementActions,
@@ -93,6 +96,7 @@ import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getEffective
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -668,6 +672,44 @@ suite('mcpListWidget', () => {
 		]);
 	});
 
+	test('presents client-bundled servers by the VS Code configuration they came from, not the bundle', () => {
+		const mcpResource = URI.file('/workspace/web-app/.vscode/mcp.json');
+		const configured = { id: 'workspace-playwright', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer;
+		// Another folder configures the same name, but the runtime only defines the server above.
+		const shadowed = { id: 'shadowed-playwright', name: 'playwright', label: 'playwright', local: { scope: LocalMcpServerScope.Workspace, mcpResource: URI.file('/workspace/docs/.vscode/mcp.json') } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer;
+		const configuredRuntime = { definition: { id: configured.id, label: 'playwright' }, collection: { id: 'workspace-collection' }, readDefinitions: () => observableValue('definitions', {}) } as unknown as IMcpServer;
+		const contributed = { definition: { id: 'acme-docs-id', label: 'acme-docs' }, collection: { id: 'acme-collection' }, readDefinitions: () => observableValue('definitions', {}) } as unknown as IMcpServer;
+		const discoveredOrigin = URI.file('/workspace/.claude/settings.json');
+		const discovered = { definition: { id: 'discovered-id', label: 'discovered' }, collection: { id: 'discovered-collection' }, readDefinitions: () => observableValue('definitions', { server: { presentation: { origin: { uri: discoveredOrigin } } } }) } as unknown as IMcpServer;
+		const bundled = (name: string) => createAgentHostServer({ id: `session/${name}`, name, isPluginProvided: true, isClientBundled: true, source: 'plugin', sourcePluginName: 'VS Code Standalone Customizations', sourceUri: URI.file('/workspace/bundle/.mcp.json') });
+		const agentPluginService = { plugins: observableValue('plugins', []) } as unknown as IAgentPluginService;
+		const extensionsWorkbenchService = {
+			local: [{ identifier: { id: 'acme.acme-chat-kit' }, displayName: 'Acme Chat Kit' }],
+		} as unknown as IExtensionsWorkbenchService;
+		const labelService = new class extends mock<ILabelService>() {
+			override getUriLabel(resource: URI): string {
+				return resource.path.slice('/workspace/'.length);
+			}
+		}();
+
+		const presentations = [bundled('playwright'), bundled('acme-docs'), bundled('discovered'), bundled('unknown'), createAgentHostServer({ name: 'playwright' })].map(server => {
+			const entry = getClientBundledMcpServerEntry(server, [shadowed, configured], [configuredRuntime, contributed, discovered], [{ id: 'acme-collection', source: new ExtensionIdentifier('acme.acme-chat-kit') }, { id: 'discovered-collection', source: undefined }]);
+			return entry && {
+				group: getMcpEntryGroup(entry),
+				sourceUri: getMcpEntrySourceUri(entry)?.toString(),
+				label: getClientBundledMcpServerSource(entry, labelService, agentPluginService, extensionsWorkbenchService)?.label,
+			};
+		});
+
+		assert.deepStrictEqual(presentations, [
+			{ group: 'workspace', sourceUri: mcpResource.toString(), label: 'web-app/.vscode/mcp.json' },
+			{ group: 'user', sourceUri: undefined, label: 'Extension: Acme Chat Kit' },
+			{ group: 'user', sourceUri: discoveredOrigin.toString(), label: '.claude/settings.json' },
+			undefined,
+			undefined,
+		]);
+	});
+
 	test('renders Workspace before User even when User has no servers', () => {
 		const localEntry = (scope: LocalMcpServerScope): IMcpInstalledEntry => ({
 			type: 'server-item',
@@ -683,6 +725,8 @@ suite('mcpListWidget', () => {
 					},
 				},
 				installedEntries: entries.map(entry => ({ entry })),
+				collapsedGroups: new Set<string>(),
+				searchQuery: '',
 				isGalleryDiscoveryEnabled: () => true,
 				shouldShowLegacyGallery: () => false,
 				getAvailableGalleryServers: () => [],
@@ -691,7 +735,7 @@ suite('mcpListWidget', () => {
 				updateMcpTreeEmptyState: () => { },
 				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace() {
-						return { id: 'test', folders: [] };
+						return testIWorkspace({ id: 'test', folders: [] });
 					}
 				}(),
 			});
@@ -711,6 +755,49 @@ suite('mcpListWidget', () => {
 		}, {
 			bothGroupsPopulated: ['Workspace', 'User'],
 			userEmpty: ['Workspace', 'User'],
+		});
+	});
+
+	test('keeps collapsed groups collapsed when the server list changes', () => {
+		const localEntry = (id: string, scope: LocalMcpServerScope): IMcpInstalledEntry => ({
+			type: 'server-item',
+			server: { id, local: { scope } as IWorkbenchLocalMcpServer } as IWorkbenchMcpServer,
+		});
+		type TreeNode = { readonly element: { readonly type: string; readonly label?: string }; readonly collapsed?: unknown; readonly children?: readonly unknown[] };
+		const renders: (readonly TreeNode[] | undefined)[] = [];
+		const widget = Object.assign(Object.create(McpListWidget.prototype), {
+			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renders.push(children) },
+			installedEntries: [localEntry('workspace-one', LocalMcpServerScope.Workspace), localEntry('user-one', LocalMcpServerScope.User)].map(entry => ({ entry })),
+			collapsedGroups: new Set<string>(['user']),
+			searchQuery: '',
+			isGalleryDiscoveryEnabled: () => true,
+			shouldShowLegacyGallery: () => false,
+			getAvailableGalleryServers: () => [],
+			cardScrollableNode: document.createElement('div'),
+			cardDisposables: { clear() { } },
+			updateMcpTreeEmptyState: () => { },
+			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
+				override getWorkspace() {
+					return testIWorkspace({ id: 'test', folders: [] });
+				}
+			}(),
+		});
+		const renderMcpTree = Reflect.get(McpListWidget.prototype, 'renderMcpTree') as (this: object) => void;
+		const describeRenders = () => renders.splice(0).map(children => children?.map(child => `${child.element.label} (${child.children?.length}) ${child.collapsed ? 'collapsed' : 'expanded'}`));
+
+		renderMcpTree.call(widget);
+		const initial = describeRenders();
+		widget.installedEntries = [...widget.installedEntries, { entry: localEntry('user-two', LocalMcpServerScope.User) }];
+		renderMcpTree.call(widget);
+		const afterServerAdded = describeRenders();
+		widget.searchQuery = 'one';
+		renderMcpTree.call(widget);
+		const whileSearching = describeRenders();
+
+		assert.deepStrictEqual({ initial, afterServerAdded, whileSearching }, {
+			initial: [['Workspace (1) expanded', 'User (1) collapsed']],
+			afterServerAdded: [['Workspace (1) expanded', 'User (2) collapsed']],
+			whileSearching: [['Workspace (1) expanded', 'User (2) expanded']],
 		});
 	});
 
@@ -739,6 +826,8 @@ suite('mcpListWidget', () => {
 		const widget = Object.assign(Object.create(McpListWidget.prototype), {
 			list: { setChildren: (_input: null, children?: readonly TreeNode[]) => renderedChildren = children ?? [] },
 			installedEntries: [createEntry('first', folders[0]), createEntry('second', folders[1])].map(entry => ({ entry })),
+			collapsedGroups: new Set<string>(),
+			searchQuery: '',
 			isGalleryDiscoveryEnabled: () => true,
 			shouldShowLegacyGallery: () => false,
 			getAvailableGalleryServers: () => [],
@@ -747,7 +836,7 @@ suite('mcpListWidget', () => {
 			updateMcpTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 				override getWorkspace() {
-					return { id: 'test', folders };
+					return testIWorkspace({ id: 'test', folders });
 				}
 				override getWorkspaceFolder(resource: URI) {
 					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;
@@ -2460,7 +2549,13 @@ suite('mcpListWidget', () => {
 						dispose: () => { hoverContents.delete(target); },
 					};
 				}
-				override setupDelayedHover() { return Disposable.None; }
+				override setupDelayedHover(target: HTMLElement, options: Parameters<IHoverService['setupDelayedHover']>[1]) {
+					const content = typeof options === 'function' ? options().content : options.content;
+					if (typeof content === 'string') {
+						hoverContents.set(target, content);
+					}
+					return toDisposable(() => hoverContents.delete(target));
+				}
 			}();
 			const agentPluginService = {
 				plugins: observableValue('plugins', [{
@@ -2548,6 +2643,7 @@ suite('mcpListWidget', () => {
 				mcpService: { servers: runtimeServers },
 				workspaceService: { isSessionsWindow },
 				labelService,
+				hoverService,
 				agentHostCustomizationsChanged: observableSignalFromEvent('customizationsChanged', onDidChangeCustomizations.event),
 				mcpServerCompatibility: observableValue<ReadonlyMap<string, CustomizationMcpServerCompatibilityKind>>(widget, new Map(compatibilityKind ? [['native', compatibilityKind]] : [])),
 				getMcpServerCompatibilityKind: () => compatibilityKind,
@@ -2654,6 +2750,8 @@ suite('mcpListWidget', () => {
 				}),
 				notifyUnchanged: () => onDidChangeCustomizations.fire(),
 				setServers: (next: AgentHostMcpServer[]) => { servers = next; },
+				setInstalledEntries: (entries: readonly Entry[]) => { widget.installedEntries = entries.map(entry => ({ entry })); },
+				hoverContent: (element: HTMLElement) => hoverContents.get(element),
 				setMigratable: (value: boolean) => { migrationAvailable = value; },
 				setTheme: (type: ColorScheme) => {
 					themeType = type;
@@ -3315,6 +3413,70 @@ suite('mcpListWidget', () => {
 				calls: ctx.hostEnablementCalls,
 			}, { disabled: true, label: 'Server One is disabled by its plugin', calls: [] });
 		});
+
+		for (const layout of ['list', 'installed-home'] as const) {
+			test(`shows a waiting badge until plugin activation resolves in the ${layout} row`, () => {
+				const server = createAgentHostServer({
+					enabled: false, waitingForSessionStart: true,
+					status: McpServerStatus.Stopped, state: { kind: McpServerStatus.Stopped },
+					disabledReason: { source: 'plugin', plugin: { id: 'plugin', name: 'Plugin', uri: 'urn:peer:plugin', enablement: [{ kind: CustomizationEnablementKind.Global, enabled: false }] } },
+				});
+				const ctx = createRenderer(server, true, true);
+				disposables.add(ctx.store);
+				const entry: Entry = { type: 'session-server-item', server };
+				ctx.menu(entry);
+				const parent = DOM.append(document.body, DOM.$('.plugin-list-widget'));
+				parent.style.width = '600px';
+				disposables.add(toDisposable(() => parent.remove()));
+				if (layout === 'list') {
+					ctx.render(entry);
+					parent.appendChild(ctx.templateData.container);
+				} else {
+					ctx.setInstalledEntries([entry]);
+					ctx.renderInstalledRow(parent, entry);
+				}
+				const read = () => {
+					const badge = parent.querySelector<HTMLElement>('.mcp-server-session-start-badge')!;
+					const toggle = parent.querySelector<HTMLButtonElement>('[role="switch"]')!;
+					return {
+						badge: badge.style.display === 'none' ? undefined : badge.textContent,
+						badgeVisible: badge.getBoundingClientRect().width > 0,
+						disabledLabel: parent.querySelector('.mcp-server-disabled-label')?.textContent,
+						toggleDisabled: toggle.disabled,
+						toggleLabel: toggle.getAttribute('aria-label'),
+						toggleChecked: toggle.getAttribute('aria-checked'),
+						disabledRow: parent.querySelector('.mcp-server-item, .mcp-installed-home-row')?.classList.contains('disabled'),
+					};
+				};
+				const pending = read();
+				const hover = ctx.hoverContent(parent.querySelector<HTMLElement>('.mcp-server-session-start-badge')!);
+				parent.querySelector<HTMLButtonElement>('[role="switch"]')!.click();
+				const update = (next: AgentHostMcpServer) => {
+					ctx.setServers([next]);
+					ctx.setInstalledEntries([{ type: 'session-server-item', server: next }]);
+					ctx.notifyUnchanged();
+					return read();
+				};
+				const ready = update({ ...server, enabled: true, waitingForSessionStart: undefined, disabledReason: undefined });
+				const disabled = update({ ...server, waitingForSessionStart: undefined });
+				assert.deepStrictEqual({ pending, hover, ready, disabled, calls: ctx.hostEnablementCalls }, {
+					pending: {
+						badge: 'Waiting for Session Start', badgeVisible: true, disabledLabel: '',
+						toggleDisabled: true, toggleLabel: 'Server One, Waiting for Session Start', toggleChecked: 'true', disabledRow: false,
+					},
+					hover: 'The server\'s plugin activation has not yet been determined for this session.',
+					ready: {
+						badge: undefined, badgeVisible: false, disabledLabel: '',
+						toggleDisabled: false, toggleLabel: 'Disable Server One', toggleChecked: 'true', disabledRow: false,
+					},
+					disabled: {
+						badge: undefined, badgeVisible: false, disabledLabel: 'Disabled (Plugin)',
+						toggleDisabled: true, toggleLabel: 'Server One is disabled by its plugin', toggleChecked: 'false', disabledRow: true,
+					},
+					calls: [],
+				});
+			});
+		}
 
 		test('native management controls keep their durable local target', () => {
 			const ctx = createRenderer(erroring(), false, true);

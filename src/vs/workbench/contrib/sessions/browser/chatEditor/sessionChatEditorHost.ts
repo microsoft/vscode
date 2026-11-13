@@ -59,9 +59,15 @@ export async function waitForSessionChat(sessionsManagementService: ISessionsMan
 	const store = new DisposableStore();
 	try {
 		return await raceTimeout(new Promise<IResolvedSessionChat | undefined>(resolve => {
-			store.add(sessionsManagementService.onDidChangeSessions(() => {
+			// Of every session, also one outside a listing scope, such as of another folder, which a host can show
+			store.add(sessionsManagementService.onDidChangeSession(changes => {
+				if (store.isDisposed || (changes.length > 0 && changes.every(({ kind }) => kind === 'removed'))) {
+					return;
+				}
 				const loaded = resolveSessionChat(sessionsManagementService, resource);
 				if (loaded) {
+					// Stop following the sessions as soon as it resolves
+					store.dispose();
 					resolve(loaded);
 				}
 			}));
@@ -204,12 +210,38 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 		// session it reads from that session. So the many changes of other sessions, such as while they stream, pass it by.
 		// A replacement, such as a pending session committed under the same ID, comes as a change of another object.
 		const sessionsChanged = observableSignal(this);
-		this._register(this.sessionsManagementService.onDidChangeSessions(e => {
+
+		// A session replaced by one with another ID, such as one its host hands off to another connection, is removed right
+		// after: the chat follows to the chat of the replacement that continues it, rather than ending with the session.
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to, chats }) => {
 			const known = this._knownSession;
-			if (known && e.removed.some(removed => isEqual(removed.resource, known.resource))) {
+			if (this._ended || this._composer.get() || !known || !isEqual(known.resource, from.resource)) {
+				return;
+			}
+			const current = this.chat.get();
+			const next = chats?.get(current) ?? (isEqual(current, from.mainChat.get().resource) ? to.mainChat.get().resource : undefined);
+			if (!next) {
+				return;
+			}
+			this._knownSession = to;
+			this._knownSessionRemoved = false;
+			if (isEqual(next, current)) {
+				// Its chat stays, such as in a session replaced under the same ID, whose change that follows passes it by as
+				// the change of the session it knows already
+				sessionsChanged.trigger(undefined);
+			} else {
+				this.chat.set(next, undefined);
+				heldChat.hold(next, this._boundCheck());
+			}
+		}));
+
+		// Of every session, also one outside a listing scope, such as of another folder, which its host can show
+		this._register(this.sessionsManagementService.onDidChangeSession(changes => {
+			const known = this._knownSession;
+			if (known && changes.some(({ session, kind }) => kind === 'removed' && isEqual(session.resource, known.resource))) {
 				this._knownSessionRemoved = true;
 			}
-			if (!known || e.added.length || e.removed.length || e.changed.some(changed => changed !== known && changed.sessionId === known.sessionId)) {
+			if (!known || changes.some(({ session, kind }) => kind !== 'changed' || (session !== known && session.sessionId === known.sessionId))) {
 				sessionsChanged.trigger(undefined);
 			}
 		}));

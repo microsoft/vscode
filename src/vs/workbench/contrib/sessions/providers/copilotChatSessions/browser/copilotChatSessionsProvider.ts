@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event, Relay } from '../../../../../../base/common/event.js';
 import { raceCancellationError, raceTimeout } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
@@ -32,8 +32,9 @@ import { linkKey } from '../../../common/sessionLinks.js';
 import { getSessionApplication } from '../../../../../services/sessions/common/sessionApplication.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
-import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IHarnessPresentation, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../common/sessionsProvider.js';
+import { IAutomationSessionConfiguration, IChatMovedEvent, IDeleteChatOptions, IHarnessPresentation, IPreparedNewSession, ISessionChatMoveDestination, SessionMoveRefusedError, ISendRequestOptions, ISessionChangeEvent, ISessionConfigProvider, ISessionConfigurationSnapshot, ISessionModelPickerOptions, ISessionModelsSnapshot, ISessionsListingScope, ISessionsProvider, ISessionsProviderCreateSessionOptions, INestedChatFolderInfo, INestedChatWorkspace, INestedChatWorkspaceSupport, NestedChatWorkspaceError, ICreateNewChatOptions } from '../../../common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../../browser/newSession.js';
+import { SessionsListingScopeFilter } from '../../../browser/sessionScope.js';
 import { CancellationToken, CancellationTokenSource, cancelOnDispose } from '../../../../../../base/common/cancellation.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { COPILOT_VENDOR_ID, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../chat/common/languageModels.js';
@@ -1105,7 +1106,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+	/** The changes of every session, also of those the listing scope hides: see {@link getAllSessions}. */
+	readonly onDidChangeAllSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
+	private readonly _listedSessionChanges = this._register(new Relay<ISessionChangeEvent>());
+	/** The changes of the sessions it lists: of every session, unless {@link setListingScope} scopes them. */
+	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._listedSessionChanges.event;
+	private readonly _listingScope = this._register(new MutableDisposable<SessionsListingScopeFilter>());
 	/** Copilot Chat sessions never move their chats. */
 	readonly onDidMoveChat: Event<IChatMovedEvent> = Event.None;
 
@@ -1178,6 +1184,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
+		this._listedSessionChanges.input = this.onDidChangeAllSessions;
 
 		this._register(toDisposable(() => {
 			for (const sessionId of this._preparedSandboxes.keys()) {
@@ -1357,7 +1364,35 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return [];
 	}
 
+	/**
+	 * Reports that `event.from` was replaced by `event.to`, once its listing scope lists the sessions as they are now: who
+	 * learns of the replacement, such as the sessions management service, can look either up at once.
+	 */
+	private _replaceSession(event: { readonly from: ISession; readonly to: ISession }): void {
+		this._listingScope.value?.rematch();
+		this._onDidReplaceSession.fire(event);
+	}
+
+	/**
+	 * Lists only the sessions of `scope` from then on, such as those of an editor window's folders, in {@link getSessions}
+	 * and {@link onDidChangeSessions}. Lookups, such as {@link getAllSessions}, still find every session.
+	 */
+	setListingScope(scope: ISessionsListingScope): void {
+		const previous = this.getSessions();
+		const filter = new SessionsListingScopeFilter(scope, () => this.getAllSessions(), this.onDidChangeAllSessions);
+		this._listingScope.value = filter;
+		this._listedSessionChanges.input = filter.onDidChangeSessions;
+		// Who listens already learns how the listing changed, also the first time. A window should still set its scope before
+		// its views subscribe, so that they never list sessions outside it.
+		filter.announceFrom(previous);
+	}
+
 	getSessions(): ISession[] {
+		const listingScope = this._listingScope.value;
+		return listingScope ? listingScope.getSessions() : this.getAllSessions();
+	}
+
+	getAllSessions(): ISession[] {
 		this._ensureSessionCache();
 		return Array.from(this._sessionCache.values(), chat => this._chatToSession(chat));
 	}
@@ -1516,7 +1551,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		if (workspaceUri && !workspace) {
 			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
 		}
-		const automationConfiguration = options?.automationConfiguration;
+		const automationConfiguration = options?.draftConfiguration ?? options?.automationConfiguration;
 		assertAutomationSessionTemplate(automationConfiguration?.sessionTemplate);
 
 		if (this.providerMode !== 'sandbox' && sessionTypeId !== CopilotCloudSessionType.id) {
@@ -1586,6 +1621,18 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				},
 			};
 		}
+		return this.getDraftSessionConfiguration(sessionId);
+	}
+
+	getDraftSessionConfiguration(sessionId: string): IAutomationSessionConfiguration | undefined {
+		const session = this._newSessions.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		const modelId = session.modelId.get();
+		const modelConfiguration = session.modelConfiguration.captureModelConfiguration(modelId);
+		const initialConfiguration = session.initialAutomationSessionConfiguration;
+		const initialTemplate = initialConfiguration?.sessionTemplate;
 		// Cloud sessions have no client-side mode or permission pickers, so the initial
 		// Automation configuration is carried through unchanged.
 		const initialMode = initialConfiguration?.mode ?? initialTemplate?.config?.[SessionConfigKey.Mode];
@@ -2293,7 +2340,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		this._sessionCache.delete(session.resource.toString());
 		this._sessionWrapperCache.delete(session.sessionId);
 		this._clearCurrentNewSessionIfMatch(session);
-		this._onDidReplaceSession.fire({ from: placeholder, to: committed });
+		this._replaceSession({ from: placeholder, to: committed });
 	}
 
 	async sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession> {
@@ -2399,7 +2446,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 					const committedSession = this._chatToSession(committedChat);
 					this._sessionWrapperCache.delete(session.sessionId);
-					this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
+					this._replaceSession({ from: newSession, to: committedSession });
 
 					return committedSession;
 				} finally {
@@ -2521,7 +2568,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const disposables = new DisposableStore();
 		try {
 			const sessionPromise = new Promise<AgentSessionAdapter>(resolve => {
-				disposables.add(this.onDidChangeSessions(e => {
+				disposables.add(this.onDidChangeAllSessions(e => {
 					const cached = this._sessionCache.get(key);
 					if (cached instanceof AgentSessionAdapter) {
 						resolve(cached);

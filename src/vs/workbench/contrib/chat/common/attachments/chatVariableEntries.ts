@@ -149,15 +149,6 @@ export function toAgentHostCompletionVariableEntry(kind: AgentHostCompletionRefe
 	};
 }
 
-export function toAgentHostCompletionVariableEntryFromMetadata(kind: AgentHostCompletionReferenceKind, name: string, _meta: Record<string, unknown> | undefined): IGenericChatRequestVariableEntry & { value: IAgentHostCompletionVariableValue } {
-	switch (kind) {
-		case AgentHostCompletionReferenceKind.Skill:
-			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.uri === 'string' ? _meta.uri : undefined, _meta);
-		case AgentHostCompletionReferenceKind.Command:
-			return toAgentHostCompletionVariableEntry(kind, name, typeof _meta?.command === 'string' ? _meta.command : undefined, _meta);
-	}
-}
-
 export function getAgentHostCompletionReferenceKind(entry: IChatRequestVariableEntry): AgentHostCompletionReferenceKind | undefined {
 	if (entry.kind !== 'generic') {
 		return undefined;

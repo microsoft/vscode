@@ -19,6 +19,7 @@ import { hasKey, isObject } from '../../../base/common/types.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { AnswerShellAuthenticationExtensionMethod } from '../common/agentHostExtensionProtocol.js';
 import { formatConnectionDiagnosticError, getConnectionDiagnosticError, type ConnectionCloseReason } from '../common/connectionDiagnostics.js';
 import { AhpJsonlLogger, getAhpLogByteLength } from '../common/ahpJsonlLogger.js';
 import { isJsonRpcResponse, type AhpServerNotification, type JsonRpcNotification, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
@@ -505,6 +506,10 @@ export class WebPubSubRelayTransport extends Disposable implements IClientTransp
 		if (hasKey(message, { method: true, params: true }) && message.method === 'authenticate'
 			&& (!isObject(message.params) || typeof message.params['token'] !== 'string' || !message.params['token'].startsWith('copilot-sealed.v1.'))) {
 			throw new Error('Refusing to send plaintext authentication over Web PubSub');
+		}
+		if (hasKey(message, { method: true }) && message.method === AnswerShellAuthenticationExtensionMethod
+			&& isObject(message.params) && (message.params as { readonly answer?: unknown }).answer !== undefined) {
+			throw new Error('Refusing to send a shell authentication answer over Web PubSub');
 		}
 		if (hasKey(message, { id: true, method: true }) && (typeof message.id === 'number' || typeof message.id === 'string')) {
 			if (this._requests.size >= 1024) {

@@ -142,7 +142,7 @@ registerAction2(class RunAutomationAction extends Action2 {
 			return;
 		}
 		const dispatch = await automationRunner.runOnce(automation).whenDispatched;
-		if (dispatch.kind !== 'accepted' && dispatch.kind !== 'started' && dispatch.kind !== 'alreadyRunning') {
+		if (dispatch.kind !== 'accepted' && dispatch.kind !== 'started' && dispatch.kind !== 'queued' && dispatch.kind !== 'alreadyRunning') {
 			return;
 		}
 		const sessionResource = dispatch.kind === 'started' ? dispatch.sessionResource
