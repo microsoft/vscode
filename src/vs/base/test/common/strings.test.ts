@@ -718,7 +718,9 @@ suite('Strings', () => {
 				`+C`,
 				`-C`,
 				`.C`,
-				`/C`
+				`/C`,
+				`=`, // DECKPAM, application keypad (zsh emits this around the prompt)
+				`>` // DECKPNM, normal keypad
 			];
 			const sequences = [];
 			for (const content of sequenceContent) {
