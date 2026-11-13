@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../base/common/async.js';
 import { $, append, EventType } from '../../../base/browser/dom.js';
 import { SessionView } from '../../../workbench/contrib/sessions/browser/parts/sessionView.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
@@ -40,6 +41,28 @@ import { ISessionPaneContent } from '../../../workbench/services/sessions/common
 
 suite('Sessions - Session View', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const created of [false, true]) {
+		test(`propagates delayed prompt submission through the session view (created: ${created})`, async () => {
+			const store = disposables.add(new DisposableStore());
+			const { instantiationService, chatViews } = createSessionViewTestServices(store);
+			const view = store.add(instantiationService.createInstance(SessionView, undefined));
+			view.openPane(testPaneOf(createTestActiveSession('migration', created)), {});
+			const submission = new DeferredPromise<boolean>();
+			const chatView = chatViews.at(-1);
+			assert.ok(chatView);
+			chatView.sendQuery = () => submission.p;
+
+			const result = view.sendQuery('/migrate-customizations');
+			const forwardsSubmission = result === submission.p;
+			await submission.complete(!created);
+
+			assert.deepStrictEqual({ forwardsSubmission, accepted: await result }, {
+				forwardsSubmission: true,
+				accepted: !created,
+			});
+		});
+	}
 
 	class TestNewSessionView extends AbstractChatView {
 		disposed = false;

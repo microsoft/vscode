@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../base/common/async.js';
 import { constObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -39,12 +40,13 @@ suite('NewChatInSessionsWindowAction', () => {
 	const resource = URI.parse(`${SessionType.AgentHostCopilot}:/new-session`);
 	const folderUri = URI.file('/workspace');
 
-	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; workspace?: boolean; sendFailed?: boolean } = {}) {
+	function createCommand(options: { active?: boolean; available?: boolean; creationFailed?: boolean; workspace?: boolean; sendFailed?: boolean; submission?: Promise<boolean> } = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ISessionDraftsService, { stowAndClear: () => undefined });
 		const opened: { target: ICreateNewSessionOptions | undefined; preserveNavigation: boolean | undefined }[] = [];
 		const openedWorkspace: (ICreateNewSessionOptions | undefined)[] = [];
 		const calls: string[] = [];
+		const sending = new DeferredPromise<void>();
 		const tools: { resource: URI; toolIds: readonly string[] }[] = [];
 		const session = upcastPartial<ITestSessionWithChat>({ resource, sessionId: 'new-session' });
 		instantiationService.stub(IAgentHostActiveClientService, {
@@ -53,11 +55,13 @@ suite('NewChatInSessionsWindowAction', () => {
 		});
 		instantiationService.stub(ISessionsPartService, {
 			getSessionView: sessionId => sessionId === session.sessionId ? upcastPartial<ISessionView>({
-				sendQuery: prompt => {
+				sendQuery: async prompt => {
 					calls.push(`send:${prompt}`);
+					await sending.complete();
 					if (options.sendFailed) {
 						throw new Error('Send failed');
 					}
+					return options.submission ?? true;
 				},
 				prefillInput: prompt => { calls.push(`prefill:${prompt}`); },
 			}) : undefined,
@@ -98,8 +102,9 @@ suite('NewChatInSessionsWindowAction', () => {
 			openedWorkspace,
 			calls,
 			tools,
+			sending: sending.p,
 			get navigations() { return navigations; },
-			run: (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
+			run: async (args: INewSessionInAgentsWindowOptions) => instantiationService.invokeFunction(command.handler, args),
 		};
 	}
 
@@ -165,6 +170,42 @@ suite('NewChatInSessionsWindowAction', () => {
 		const fixture = createCommand();
 		await fixture.run({ noWorkspace: true, prompt: '/migrate-customizations', prefillPrompt: true, sessionToolIds: ['migration-result'] });
 		assert.deepStrictEqual({ tools: fixture.tools, calls: fixture.calls }, { tools: [], calls: ['prefill:/migrate-customizations'] });
+	});
+
+	test('uses the initiating workspace instead of the main window workspace', async () => {
+		const fixture = createCommand({ active: true, workspace: true });
+		const initiatingFolder = URI.file('/initiating-workspace');
+		await fixture.run({ folderUri: initiatingFolder, agentHostProvider: 'copilotcli', prompt: '/migrate-customizations' });
+		assert.deepStrictEqual(fixture.openedWorkspace, [{
+			folderUri: initiatingFolder,
+			toSide: undefined,
+			providerId: LOCAL_AGENT_HOST_PROVIDER_ID,
+			sessionTypeId: 'copilotcli',
+		}]);
+	});
+
+	test('waits for delayed submission before returning the migration resource', async () => {
+		const submission = new DeferredPromise<boolean>();
+		const fixture = createCommand({ submission: submission.p });
+		let returned = false;
+		const result = fixture.run({ noWorkspace: true, prompt: '/migrate-customizations', sessionToolIds: ['migration-result'] }).then(resource => {
+			returned = true;
+			return resource;
+		});
+		await fixture.sending;
+		const returnedBeforeSubmission = returned;
+		await submission.complete(true);
+		assert.deepStrictEqual({ returnedBeforeSubmission, result: await result, calls: fixture.calls }, {
+			returnedBeforeSubmission: false,
+			result: resource,
+			calls: ['tools', 'send:/migrate-customizations'],
+		});
+	});
+
+	test('clears reporting tools when submission is rejected', async () => {
+		const fixture = createCommand({ submission: Promise.resolve(false) });
+		await assert.rejects(async () => fixture.run({ noWorkspace: true, prompt: '/migrate-customizations', sessionToolIds: ['migration-result'] }), /Could not send the initial prompt/);
+		assert.deepStrictEqual(fixture.calls, ['tools', 'send:/migrate-customizations', 'clear']);
 	});
 
 	test('clears session tools and surfaces a failure to send the prompt', async () => {

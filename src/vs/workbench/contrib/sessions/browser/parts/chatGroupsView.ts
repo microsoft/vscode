@@ -1215,8 +1215,8 @@ export class ChatGroupsView extends Themable {
 		this._activeGroup?.view.prefillInput(text);
 	}
 
-	sendQuery(text: string): void {
-		this._activeGroup?.view.sendQuery(text);
+	sendQuery(text: string): Promise<boolean> {
+		return this._activeGroup?.view.sendQuery(text) ?? Promise.resolve(false);
 	}
 
 	attach(uris: URI[]): void {

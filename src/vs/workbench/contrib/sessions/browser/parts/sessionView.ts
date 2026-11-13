@@ -562,9 +562,9 @@ export class SessionView extends Disposable implements ISerializableView, ISessi
 		standaloneView ? standaloneView.prefillInput(text) : this._groupsView.prefillInput(text);
 	}
 
-	sendQuery(text: string): void {
+	sendQuery(text: string): Promise<boolean> {
 		const standaloneView = this._visibleStandaloneView;
-		standaloneView ? standaloneView.sendQuery(text) : this._groupsView.sendQuery(text);
+		return standaloneView ? standaloneView.sendQuery(text) : this._groupsView.sendQuery(text);
 	}
 
 	submitInput(): Promise<boolean> {

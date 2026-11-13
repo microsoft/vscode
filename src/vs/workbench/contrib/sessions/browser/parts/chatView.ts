@@ -375,8 +375,8 @@ export abstract class AbstractChatView extends Disposable implements ISerializab
 	 * a no-op; subclasses that host an input widget (e.g. `NewChatView`)
 	 * override this.
 	 */
-	sendQuery(_text: string): void {
-		// no-op by default
+	sendQuery(_text: string): Promise<boolean> {
+		return Promise.resolve(false);
 	}
 
 	/** Submit the current composer input, returning whether it was sent. */

@@ -557,8 +557,8 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		this._currentView.value?.prefillInput(text);
 	}
 
-	sendQuery(text: string): void {
-		this._currentView.value?.sendQuery(text);
+	sendQuery(text: string): Promise<boolean> {
+		return this._currentView.value?.sendQuery(text) ?? Promise.resolve(false);
 	}
 
 	attach(uris: URI[]): void {

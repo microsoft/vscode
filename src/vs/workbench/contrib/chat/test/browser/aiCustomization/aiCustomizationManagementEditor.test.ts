@@ -1145,6 +1145,7 @@ suite('aiCustomizationManagementEditor', () => {
 				assert.strictEqual(recoveries.children?.length, 1);
 				assert.strictEqual(await fileService.exists(URI.joinPath(recoveries.children[0].resource, 'manifest.json')), true);
 				calls.push('close');
+				editor.workspaceService.activeProjectRoot.set(URI.file('/main-window-workspace'), undefined);
 				return true;
 			};
 			editor.customizationMigrationTelemetryService.prepareAgentMigrationResult = () => {
@@ -1174,6 +1175,7 @@ suite('aiCustomizationManagementEditor', () => {
 				recoverySession: recoveries[0].manifest.sessionResource,
 				commandId,
 				agentHostProvider: commandOptions?.agentHostProvider,
+				folderUri: commandOptions?.folderUri?.toString(),
 				sessionToolIds: commandOptions?.sessionToolIds,
 				hasMigrationPrompt: commandOptions?.prompt?.startsWith('/migrate-customizations\n'),
 			}, {
@@ -1183,6 +1185,7 @@ suite('aiCustomizationManagementEditor', () => {
 				recoverySession: isSessionsWindow ? migrationSessionResource.toString() : undefined,
 				commandId: isSessionsWindow ? NEW_SESSION_IN_AGENTS_WINDOW_COMMAND_ID : 'workbench.action.chat.openNewSessionSidebar.agent-host-copilotcli',
 				agentHostProvider: isSessionsWindow ? 'copilotcli' : undefined,
+				folderUri: isSessionsWindow ? URI.file('/workspace').toString() : undefined,
 				sessionToolIds: [CustomizationMigrationResultToolId],
 				hasMigrationPrompt: true,
 			});

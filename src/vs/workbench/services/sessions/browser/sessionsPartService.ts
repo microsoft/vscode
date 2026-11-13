@@ -74,7 +74,7 @@ export interface ISessionView {
 	moveActiveChatToAdjacentGroup(direction: 'previous' | 'next'): void;
 
 	prefillInput(text: string): void;
-	sendQuery(text: string): void;
+	sendQuery(text: string): Promise<boolean>;
 	submitInput(): Promise<boolean>;
 	/** Attaches the given resources as context to the active chat group's input. */
 	attach(uris: URI[]): void;

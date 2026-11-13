@@ -48,6 +48,8 @@ export interface INewSessionInAgentsWindowOptions {
 	sessionToolIds?: readonly string[];
 	prefillPrompt?: boolean;
 	noWorkspace?: boolean;
+	/** Workspace to use instead of inheriting the main window's active workspace. */
+	folderUri?: URI;
 	/** Local Agent Host provider to use instead of inheriting the active target. */
 	agentHostProvider?: string;
 }

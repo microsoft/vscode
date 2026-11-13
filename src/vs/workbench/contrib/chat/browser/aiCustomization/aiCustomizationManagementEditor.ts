@@ -1842,6 +1842,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			return;
 		}
 		const sessionResource = this.harnessService.activeSessionResource.get();
+		const projectRoot = this.workspaceService.activeProjectRoot.get();
 		const customizations = [...this.customizationsByMigrationCategory].flatMap(([categoryId, candidates]) => {
 			const category = getCustomizationMigrationCategory(categoryId).migrationType;
 			return candidates
@@ -1921,6 +1922,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					: getOpenNewSessionSidebarCommandId(harness.id);
 				if (this.workspaceService.isSessionsWindow) {
 					options.agentHostProvider = parseAgentHostHarness(harness.id);
+					options.folderUri = projectRoot;
 				}
 				migrationSessionResource = await this.commandService.executeCommand<URI | undefined>(commandId, options);
 			} catch (error) {
