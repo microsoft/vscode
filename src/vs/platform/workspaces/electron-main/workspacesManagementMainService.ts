@@ -314,6 +314,7 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 		// Update window configuration properly based on transition to workspace
 		window.config.workspace = workspace;
 		window.config.backupPath = backupPath;
+		window.config.folderLocation = undefined; // folder locations only apply to single-folder windows
 
 		return { workspace, backupPath };
 	}

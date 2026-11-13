@@ -95,6 +95,8 @@ export class SessionsWorkspaceContextService extends Disposable implements IWork
 
 	async setFolderLocation(_location: URI, _options?: { readonly folder?: URI }): Promise<void> { }
 
+	async whenFolderLocationIdle(): Promise<void> { }
+
 	async enterWorkspace(_path: URI): Promise<void> { }
 
 	async createAndEnterWorkspace(_folders: IWorkspaceFolderCreationData[], _path?: URI): Promise<void> { }

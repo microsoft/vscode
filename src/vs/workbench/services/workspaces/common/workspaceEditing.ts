@@ -71,6 +71,12 @@ export interface IWorkspaceEditingService {
 	setFolderLocation(location: URI, options?: { readonly ifIdle?: boolean; readonly reason?: FolderLocationChangeReason; readonly folder?: URI }): Promise<void>;
 
 	/**
+	 * Resolves once no `setFolderLocation` request is in flight; immediately when none is.
+	 * Lets an `ifIdle` caller whose request was skipped retry after the competing request settled.
+	 */
+	whenFolderLocationIdle(): Promise<void>;
+
+	/**
 	 * Enters the workspace with the provided path.
 	 */
 	enterWorkspace(path: URI): Promise<void>;
