@@ -312,6 +312,10 @@ suite('SessionsChatAccessibilityHelp', () => {
 			earlyPreparation: content.includes(getCloudSandboxPreparationAccessibilityHelp()),
 			systemWideKeybindingTip: content.includes('Ctrl+Cmd+A as a system-wide shortcut for opening the Agents window'),
 			applicationFilter: content.includes('Enter or Space to open Filter Sessions with Created In focused.'),
+			commandCenterPreview: content.includes('hover over the session command center to preview recent sessions'),
+			commandCenterCurrentSession: content.includes('The current session is selected in the preview.'),
+			persistentAttention: content.includes('Opening that session dismisses the message; if you navigate to a different session while the request is still unresolved, a compact orange question marker remains as a reminder'),
+			attentionListModes: content.includes('the full orange attention message and its preview focuses on sessions needing attention') && content.includes('the preview returns to the full recent sessions list'),
 			detailPositions: content.includes('to the left or right of, above, or below editor content inside the side panel. The side panel stays beside chat.'),
 			floatingDetails: content.includes('Activate Unpin to return to hover-preview mode without collapsing the view or moving focus.'),
 			instantSelection: content.includes('Opening a file or diff collapses an unpinned preview immediately, without a delay or collapse animation; expanding a folder does not.'),
@@ -324,7 +328,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 			floatingResize: content.includes('Increase Current View Size and Decrease Current View Size resize the floating view while its tree or header has focus.'),
 			keyboardResize: content.includes('width or height resize handle, labelled with the view name'),
 			moveToSession: content.includes('choose Move to Session..., then pick the destination session from the list'),
-		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, detailPositions: true, floatingDetails: true, instantSelection: true, passiveDetailsHeader: true, hoverPreview: true, floatingMove: true, contentFit: true, floatingMarkdown: true, floatingFocus: true, floatingResize: true, keyboardResize: true, moveToSession: true });
+		}, { back: true, forward: true, singletonViews: true, parentContext: true, independentDrag: true, newSessionDrag: true, independentVisibility: true, positionalPaneFocus: true, keyboardDetach: true, keyboardMove: true, markRead: true, markUnread: true, nestedReadState: true, earlyPreparation: true, systemWideKeybindingTip: isMacintosh && !isWeb, applicationFilter: true, commandCenterPreview: true, commandCenterCurrentSession: true, persistentAttention: true, attentionListModes: true, detailPositions: true, floatingDetails: true, instantSelection: true, passiveDetailsHeader: true, hoverPreview: true, floatingMove: true, contentFit: true, floatingMarkdown: true, floatingFocus: true, floatingResize: true, keyboardResize: true, moveToSession: true });
 	});
 
 	test('documents terminal command descriptions and Explain in confirmations', () => {
