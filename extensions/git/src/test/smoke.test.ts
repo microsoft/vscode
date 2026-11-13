@@ -294,4 +294,44 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges.length, 0);
 		assert.strictEqual(repository.state.indexChanges.length, 0);
 	});
+
+	test('commits a merge whose resolution matches HEAD without staging unrelated changes', async function () {
+		fs.writeFileSync(file('conflict.txt'), 'base\n', 'utf8');
+		cp.execSync('git add conflict.txt', { cwd });
+		cp.execSync('git commit -m "add conflict.txt" -- conflict.txt', { cwd });
+
+		cp.execSync('git checkout -b merge-feature', { cwd });
+		fs.writeFileSync(file('conflict.txt'), 'feature\n', 'utf8');
+		cp.execSync('git commit -m "feature" -- conflict.txt', { cwd });
+
+		cp.execSync('git checkout main', { cwd });
+		fs.writeFileSync(file('conflict.txt'), 'main\n', 'utf8');
+		cp.execSync('git commit -m "main" -- conflict.txt', { cwd });
+
+		assert.throws(() => cp.execSync('git merge merge-feature', { cwd, stdio: 'ignore' }));
+
+		// Resolve the conflict with the HEAD version and modify an unrelated tracked file
+		fs.writeFileSync(file('conflict.txt'), 'main\n', 'utf8');
+		cp.execSync('git add conflict.txt', { cwd });
+		fs.writeFileSync(file('app.js'), 'unrelated change', 'utf8');
+		await repository.status();
+
+		repository.inputBox.value = 'Merge branch \'merge-feature\'';
+		await commands.executeCommand('git.commit');
+		await repository.status();
+
+		const parents = cp.execSync('git rev-list --parents -n 1 HEAD', { cwd }).toString().trim().split(' ').length - 1;
+		assert.deepStrictEqual({
+			parents,
+			indexChanges: repository.state.indexChanges.length,
+			workingTreeChanges: repository.state.workingTreeChanges.map(change => [path.basename(change.uri.fsPath), change.status])
+		}, {
+			parents: 2,
+			indexChanges: 0,
+			workingTreeChanges: [['app.js', Status.MODIFIED]]
+		});
+
+		cp.execSync('git checkout -- app.js', { cwd });
+		await repository.status();
+	});
 });
