@@ -93,6 +93,7 @@ import { ActiveSessionMcpServerMatcher, getEffectiveMcpServerCount, getEffective
 import { ICopilotConnector, ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationCardListController } from '../../../browser/aiCustomization/customizationCardList.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 function createAgentHostServer(overrides: Partial<AgentHostMcpServer> = {}): AgentHostMcpServer {
 	return {
@@ -691,7 +692,7 @@ suite('mcpListWidget', () => {
 				updateMcpTreeEmptyState: () => { },
 				workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 					override getWorkspace() {
-						return { id: 'test', folders: [] };
+						return testIWorkspace({ id: 'test', folders: [] });
 					}
 				}(),
 			});
@@ -747,7 +748,7 @@ suite('mcpListWidget', () => {
 			updateMcpTreeEmptyState: () => { },
 			workspaceContextService: new class extends mock<IWorkspaceContextService>() {
 				override getWorkspace() {
-					return { id: 'test', folders };
+					return testIWorkspace({ id: 'test', folders });
 				}
 				override getWorkspaceFolder(resource: URI) {
 					return folders.find(folder => resource.path.startsWith(folder.uri.path)) ?? null;

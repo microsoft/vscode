@@ -210,10 +210,12 @@ export class ArtifactDetailsModel extends Disposable {
 			}),
 			...(entry ? getChatPillEntryToolbarActions(entry) : []).map(action => {
 				const glyphClass = action.class?.split(' ').find(value => value.startsWith('codicon-'));
+				const glyph = glyphClass?.slice('codicon-'.length);
 				return {
 					id: `shell:${action.id}`, label: action.hoverLabel ?? action.label, ariaLabel: action.label,
 					description: action.tooltip || action.label, enabled: action.enabled,
-					icon: glyphClass ? getArtifactThemeIcon({ id: glyphClass.slice('codicon-'.length) }) : undefined,
+					// Close owns the X in the details header, so an action using it there, such as Remove Artifact, shows the trash glyph.
+					icon: glyph === Codicon.close.id ? Codicon.trash : glyph ? getArtifactThemeIcon({ id: glyph }) : undefined,
 					run: () => { void this.presentation.run(async () => { await action.run(); }); },
 				};
 			}),

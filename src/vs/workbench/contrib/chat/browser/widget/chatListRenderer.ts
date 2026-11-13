@@ -8,7 +8,7 @@ import { renderFormattedText } from '../../../../../base/browser/formattedTextRe
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { IActionViewItemOptions } from '../../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
-import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
+import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
 import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../../../base/browser/ui/list/list.js';
 import { IStickyScrollNodeSourceRange } from '../../../../../base/browser/ui/tree/abstractTree.js';
@@ -973,6 +973,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly toolConfirmationObservation = this._register(new MutableDisposable());
 	private readonly stickyProgressObservation = this._register(new MutableDisposable<DisposableStore>());
 	private readonly stickyProgressPart = this._register(new MutableDisposable<ChatWorkingProgressContentPart>());
+	private readonly pendingStickyProgressUpdate = this._register(new MutableDisposable());
 	private stickyProgressContainer: HTMLElement | undefined;
 	private stickyProgressResponse: IChatResponseViewModel | undefined;
 	private stickyProgressAnchor: ChatWorkingProgressAnchor | undefined;
@@ -1008,6 +1009,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	readonly onDidChangeItemHeight: Event<IItemHeightChangeParams> = this._onDidChangeItemHeight.event;
 
 	private readonly _onDidUpdateViewModel = this._register(new Emitter<void>());
+
+	/** Shared by the attachment pills of requests, so that moving between them shows the next preview right away. */
+	private readonly _requestAttachmentHoverDelegate = this._register(createInstantHoverDelegate());
 
 	private readonly _editorPool: EditorPool;
 	private readonly _toolEditorPool: EditorPool;
@@ -1354,6 +1358,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private clearStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const anchor = this.stickyProgressAnchor?.domNode;
 		const part = this.stickyProgressPart.value;
 		if (anchor?.isConnected && part && anchor.contains(part.domNode)) {
@@ -1436,7 +1441,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
+	/**
+	 * Places the working progress once before the next paint. Rendering and scrolling can happen
+	 * many times per frame while a response streams, and each placement reads layout.
+	 */
+	scheduleStickyProgressUpdate(): void {
+		const container = this.stickyProgressContainer;
+		if (this.pendingStickyProgressUpdate.value || !container || !this.stickyProgressPart.value) {
+			return;
+		}
+		this.pendingStickyProgressUpdate.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(container), () => {
+			this.pendingStickyProgressUpdate.clear();
+			this.updateStickyProgress();
+		});
+	}
+
 	updateStickyProgress(): void {
+		this.pendingStickyProgressUpdate.clear();
 		const container = this.stickyProgressContainer;
 		const response = this.stickyProgressResponse;
 		const part = this.stickyProgressPart.value;
@@ -3272,6 +3293,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				modelId: element.modelId,
 				resolvedModelId: element.resolvedModelId,
 				domNode: dom.$('span.chat-attached-context.chat-request-inline-attachment'),
+				hoverDelegate: this._requestAttachmentHoverDelegate,
 			}));
 			// Clicking the text of a request edits it, while clicking a pill is for the pill alone.
 			if (part.domNode) {
@@ -4104,7 +4126,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.updateCompletedResponseDisclosure(element, contentForThisTurn, templateData, animateCollapse);
 			templateData.wasResponseComplete = element.isComplete;
 		}
-		this.updateStickyProgress();
+		this.scheduleStickyProgressUpdate();
 	}
 
 	private insertRebuiltContentPart(node: HTMLElement, contentIndex: number, templateData: IChatListItemTemplate, retainedProgress?: HTMLElement): void {
@@ -6054,7 +6076,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			contentReferences,
 			modelId,
 			resolvedModelId,
-			domNode: undefined
+			domNode: undefined,
+			hoverDelegate: this._requestAttachmentHoverDelegate,
 		});
 	}
 
