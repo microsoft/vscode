@@ -132,8 +132,9 @@ export interface ITaskSystemInfo {
 	findExecutable(command: string, cwd?: string, paths?: string[]): Promise<string | undefined>;
 }
 
+/** Starts the callback synchronously with selecting a current registration. */
 export interface ITaskSystemInfoResolver {
-	(workspaceFolder: IWorkspaceFolder | undefined): ITaskSystemInfo | undefined;
+	<T>(workspaceFolder: IWorkspaceFolder | undefined, callback: (info: ITaskSystemInfo | undefined) => T | Promise<T>): Promise<T>;
 }
 
 export interface ITaskSystem {
