@@ -29,12 +29,13 @@ import { IPullRequestResources } from '../../../github/common/pullRequestResourc
 import { NullLogService } from '../../../log/common/log.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { IAgentHostGitService } from '../../common/agentHostGitService.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AgentHostConfigKey } from '../../common/agentHostCustomizationConfig.js';
 import { AgentHostGitHubArtifactIgnoredChecksConfigKey, platformSessionSchema } from '../../common/agentHostSchema.js';
 import { arePullRequestArtifactChecksReady, gitHubPullRequestArtifactIntegrationId, gitHubPullRequestArtifactWorkspaceSettingsKey } from '../../common/githubPullRequestArtifact.js';
-import { AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
+import { ActionType, AuthRequiredParams, AuthRequiredReason, NotificationType } from '../../common/state/sessionActions.js';
 import { AhpErrorCodes, ProtocolError } from '../../common/state/sessionProtocol.js';
-import { buildChatUri, buildDefaultChatUri, SessionStatus } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, MessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentConfigurationService } from '../../node/agentConfigurationService.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostGitHubService } from '../../node/agentHostGitHubService.js';
@@ -193,7 +194,11 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 		const isolatedGithub = store.add(new AgentHostGitHubService({}, authentication, endpoint, logService, NullTelemetryService));
 		github.captureSessionCredentialSource = (...args) => isolatedGithub.captureSessionCredentialSource(...args);
 	}
-	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint);
+	const gitRefreshes = store.add(new Emitter<string>());
+	const gitState = new class extends mock<IAgentHostGitStateService>() {
+		override readonly onDidRefreshSessionGitState = gitRefreshes.event;
+	};
+	const integration = new GitHubPullRequestArtifactIntegration(github, git, stateManager, configuration, events, logService, endpoint, gitState);
 	const registry = store.add(new ArtifactIntegrationRegistry());
 	store.add(registry.register(integration, 'test'));
 	let stored: string | undefined;
@@ -244,8 +249,11 @@ async function fixture(store: DisposableStore, initial = createPullRequestArtifa
 			commit = value.commit ?? commit;
 			dirty = value.dirty ?? dirty;
 			remote = value.remote ?? remote;
+			// A checkout that changed is announced by the Git state refresh that observed it.
+			gitRefreshes.fire(session);
 			configuration.updateSessionConfig(session, { checkoutRevision: ++request });
 		},
+		refreshGitState: () => gitRefreshes.fire(session),
 		setAccount: (id: string) => { accountId = id; invalidated.fire({ reason: 'account' }); },
 		reauthenticate: () => {
 			credentialError = undefined;
@@ -812,6 +820,28 @@ suite('GitHub pull request artifact integration', () => {
 		}));
 	}
 
+	test('probes the checkout once for unchanged inputs and again after a Git state refresh or a turn end', () => run(async store => {
+		const open = itemActionSnapshot();
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+
+		for (let i = 0; i < 10; i++) {
+			f.snapshot.set({ ...open }, undefined);
+			await timeout(60);
+		}
+		const afterEvents = f.checkoutRequests.length - initial;
+		f.refreshGitState();
+		await timeout(100);
+		const afterGitRefresh = f.checkoutRequests.length - initial;
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnStarted, turnId: 'turn', startedAt: new Date().toISOString(), message: { text: 'Fix it', origin: { kind: MessageKind.User } } });
+		f.stateManager.dispatchServerAction(f.chat, { type: ActionType.ChatTurnComplete, turnId: 'turn', duration: 1 });
+		await timeout(100);
+
+		assert.deepStrictEqual({ afterEvents, afterGitRefresh, afterTurnEnd: f.checkoutRequests.length - initial }, { afterEvents: 0, afterGitRefresh: 1, afterTurnEnd: 2 });
+	}));
+
 	test('does not publish an in-flight checkout after the pull request closes', () => run(async store => {
 		const open = itemActionSnapshot();
 		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
@@ -839,6 +869,33 @@ suite('GitHub pull request artifact integration', () => {
 		assert.deepStrictEqual({ beforeRefresh, afterRefresh: availability(), checkouts: f.checkoutRequests.length - initial }, {
 			beforeRefresh: false, afterRefresh: true, checkouts: 2,
 		});
+	}));
+
+	test('probes the checkout again when the pull request reopens after closing during a probe', () => run(async store => {
+		const open = itemActionSnapshot();
+		const closed = { ...open, core: { ...open.core, value: { ...open.core.value!, state: 'closed' as const } } };
+		const f = await fixture(store, open);
+		await f.model.configure(gitHubPullRequestArtifactIntegrationId, 0, { merge: 'ifUnchanged' });
+		await timeout(100);
+		const initial = f.checkoutRequests.length;
+		const entered = new DeferredPromise<void>();
+		const resume = new DeferredPromise<void>();
+		f.onCheckout(async () => {
+			await entered.complete();
+			await resume.p;
+		});
+		f.refreshGitState();
+		await entered.p;
+		f.snapshot.set(closed, undefined);
+		// The close is observed while the probe is pending.
+		await timeout(100);
+		await resume.complete();
+		await timeout(0);
+		f.onCheckout(undefined);
+		f.snapshot.set(open, undefined);
+		await timeout(100);
+
+		assert.strictEqual(f.checkoutRequests.length - initial, 2);
 	}));
 
 	test('keeps an applicable merge action visible when permissions prevent execution', () => run(async store => {
