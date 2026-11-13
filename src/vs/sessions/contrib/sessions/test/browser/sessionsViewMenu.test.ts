@@ -58,7 +58,8 @@ import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/br
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
 import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
-import { SessionsArchiveActionsContribution } from '../../browser/views/sessionsViewActions.js';
+import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import '../../browser/views/sessionsViewActions.js';
 
 suite('Sessions - View Menu', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

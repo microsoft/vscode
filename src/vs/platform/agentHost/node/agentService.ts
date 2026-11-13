@@ -16426,6 +16426,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 	async shutdown(): Promise<void> {
 		this._logService.info('AgentService: shutting down all providers...');
+		this._chatContributions.willShutdown();
 		this._catalogReconciliationService.dispose();
 		try {
 			try {
