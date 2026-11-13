@@ -14,6 +14,7 @@ import { extUri, isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { EditorActivation } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -30,6 +31,7 @@ import { ISessionsProvidersService } from '../../../../workbench/contrib/session
 import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ShownChatReadMarker } from '../../../../workbench/contrib/sessions/browser/shownChatReadMarker.js';
 import { isSideChat, ISideChatPlacementService } from '../../../../workbench/contrib/sessions/browser/sideChatPlacement.js';
+import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -241,6 +243,7 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 		this._owners = this._loadOwners();
@@ -287,6 +290,8 @@ export class SideChatPaneContribution extends Disposable implements IWorkbenchCo
 				this._closeAllTabs();
 			}
 		}));
+		const inSidePaneContext = ChatContextKeys.sideChatsInSidePane.bindTo(contextKeyService);
+		this._register(autorun(reader => inSidePaneContext.set(this._placementService.inSidePane.read(reader))));
 		this._register(runOnChange(_workingSetService.restoreState, state => {
 			if (state.restoring) {
 				this._captureShownOwner();
