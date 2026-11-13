@@ -147,8 +147,8 @@ const MOUSE_BOUNCE_MAX_HORIZONTAL_VELOCITY = 1_800;
 const CHAT_PET_DISPLAY_SIZE = 48;
 /** Maximum number of subagent pets shown at once. */
 const SUBAGENT_PET_MAX_COUNT = 10;
-/** Maximum stacking height before subagent pets share space. */
-const SUBAGENT_PET_MAX_HEIGHT = 96;
+/** Maximum stacking height (CSS pixels) before subagent pets share space. */
+const SUBAGENT_PET_MAX_STACKING_HEIGHT = 96;
 /** Tolerance for fractional pixels when checking subagent pet bounds. */
 const SUBAGENT_PET_BOUNDARY_EPSILON = 0.01;
 /** Distance kept between subagent pets and the edges of their platform. */
@@ -3239,7 +3239,7 @@ export class ChatPetWidget extends Disposable {
 		const afterPetStart = Math.max(minimumLeft, petLeft + this._getDisplaySize());
 		const afterPet = Math.max(0, maximumLeft - afterPetStart);
 		const available = beforePet + afterPet;
-		const minimumTop = Math.max(movement.top - overlay.top, bounds.bottom - SUBAGENT_PET_MAX_HEIGHT);
+		const minimumTop = Math.max(movement.top - overlay.top, bounds.bottom - SUBAGENT_PET_MAX_STACKING_HEIGHT);
 		const attempts = Math.max(1, Math.ceil(available / Math.max(1, size / 2)));
 		const start = this._random() * available;
 		let best: { left: number; top: number } | undefined;
