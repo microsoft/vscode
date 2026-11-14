@@ -91,6 +91,7 @@ suite('Chat move actions', () => {
 				return model;
 			},
 			focusInput() { },
+			reportOpened() { },
 		});
 		const viewsService = upcastPartial<IViewsService>({
 			openView: mockObject<IViewsService>()().openView.resolves(view),
