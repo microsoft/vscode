@@ -197,7 +197,7 @@ export class CursorConfiguration {
 	}
 
 	public normalizeIndentation(str: string): string {
-		return normalizeIndentation(str, this.indentSize, this.insertSpaces);
+		return normalizeIndentation(str, this.indentSize, this.insertSpaces, this.tabSize);
 	}
 
 	private _getShouldAutoClose(languageId: string, autoCloseConfig: EditorAutoClosingStrategy, forQuotes: boolean): (ch: string) => boolean {

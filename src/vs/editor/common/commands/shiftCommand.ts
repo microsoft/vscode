@@ -50,10 +50,8 @@ export class ShiftCommand implements ICommand {
 			const indentCount = desiredTabStop / indentSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
 		} else {
-			const indent = '\t';
-			const desiredTabStop = CursorColumns.prevRenderTabStop(contentStartVisibleColumn, tabSize);
-			const indentCount = desiredTabStop / tabSize; // will be an integer
-			return cachedStringRepeat(indent, indentCount);
+			const desiredTabStop = CursorColumns.prevIndentTabStop(contentStartVisibleColumn, indentSize);
+			return cachedStringRepeat('\t', Math.floor(desiredTabStop / tabSize)) + cachedStringRepeat(' ', desiredTabStop % tabSize);
 		}
 	}
 
@@ -67,10 +65,8 @@ export class ShiftCommand implements ICommand {
 			const indentCount = desiredTabStop / indentSize; // will be an integer
 			return cachedStringRepeat(indent, indentCount);
 		} else {
-			const indent = '\t';
-			const desiredTabStop = CursorColumns.nextRenderTabStop(contentStartVisibleColumn, tabSize);
-			const indentCount = desiredTabStop / tabSize; // will be an integer
-			return cachedStringRepeat(indent, indentCount);
+			const desiredTabStop = CursorColumns.nextIndentTabStop(contentStartVisibleColumn, indentSize);
+			return cachedStringRepeat('\t', Math.floor(desiredTabStop / tabSize)) + cachedStringRepeat(' ', desiredTabStop % tabSize);
 		}
 	}
 

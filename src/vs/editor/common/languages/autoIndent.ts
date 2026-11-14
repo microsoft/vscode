@@ -13,6 +13,7 @@ import { ILanguageConfigurationService } from './languageConfigurationRegistry.j
 import { IViewLineTokens } from '../tokens/lineTokens.js';
 import { IndentationContextProcessor, isLanguageDifferentFromLineStart, ProcessedIndentRulesSupport } from './supports/indentationLineProcessor.js';
 import { CursorConfiguration } from '../cursorCommon.js';
+import { normalizeIndentationWithLogicalTabs } from '../core/misc/indentation.js';
 
 export interface IVirtualModel {
 	tokenization: {
@@ -222,7 +223,8 @@ export function getGoodIndentForLine(
 	languageId: string,
 	lineNumber: number,
 	indentConverter: IIndentConverter,
-	languageConfigurationService: ILanguageConfigurationService
+	languageConfigurationService: ILanguageConfigurationService,
+	indentOptions?: { tabSize: number; indentSize: number; insertSpaces: boolean }
 ): string | null {
 	if (autoIndent < EditorAutoIndentStrategy.Full) {
 		return null;
@@ -276,7 +278,13 @@ export function getGoodIndentForLine(
 					}
 
 					if (enterResult.appendText) {
-						indentation += enterResult.appendText;
+						// `enterResult.appendText` contains logical tab markers (one per
+						// indentation level), while `indentation` is existing file whitespace
+						if (indentOptions) {
+							indentation = normalizeIndentationWithLogicalTabs(indentation, enterResult.appendText, indentOptions.tabSize, indentOptions.indentSize, indentOptions.insertSpaces);
+						} else {
+							indentation += enterResult.appendText;
+						}
 					}
 
 					return strings.getLeadingWhitespace(indentation);
