@@ -198,6 +198,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _activeInput = observableValue<EditorInput | undefined>(this, undefined);
 	/** Why the active tab became active: as {@link restore} showed it, or else as the user opened or picked it. */
 	private readonly _activeReason = observableValue<IChatViewHostShownSession['reason']>(this, 'open');
+	/** The tabs that {@link restore} shows, while it does: a chat the user opens meanwhile is opened, not restored. */
+	private readonly _restoringTabs = new Set<EditorInput>();
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	private readonly _composerFolderProviders: (() => IAgentsChatPartComposerFolderOptions)[] = [];
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
@@ -432,10 +434,17 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 		const part = this._ensurePart();
 		const active = chats[Math.min(Math.max(stored?.active ?? 0, 0), chats.length - 1)];
-		// Only the active tab shows its chat: the others create their views once they show. A group activates the first editor
-		// it opens, inactive or not, so the active tab opens last.
-		await this._editorService.openEditors(chats.map(chat => ({ editor: chat.input, options: { pinned: true, preserveFocus: true, inactive: true } })), part.activeGroup);
-		await this._editorService.openEditor(active.input, { pinned: true, preserveFocus: true }, part.activeGroup);
+		for (const chat of chats) {
+			this._restoringTabs.add(chat.input);
+		}
+		try {
+			// Only the active tab shows its chat: the others create their views once they show. A group activates the first
+			// editor it opens, inactive or not, so the active tab opens last.
+			await this._editorService.openEditors(chats.map(chat => ({ editor: chat.input, options: { pinned: true, preserveFocus: true, inactive: true } })), part.activeGroup);
+			await this._editorService.openEditor(active.input, { pinned: true, preserveFocus: true }, part.activeGroup);
+		} finally {
+			this._restoringTabs.clear();
+		}
 		this.composers.didOpen(chats.map(chat => chat.chat.get()));
 		if (this._layoutService.isVisible(Parts.CHAT_PART)) {
 			this._log('restore');
@@ -538,7 +547,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			const active = part.activeGroup.activeEditor ?? undefined;
 			if (active !== this._activeInput.get()) {
 				transaction(tx => {
-					this._activeReason.set(this._restoring ? 'restore' : 'open', tx);
+					this._activeReason.set(active && this._restoringTabs.has(active) ? 'restore' : 'open', tx);
 					this._activeInput.set(active, tx);
 				});
 			}
