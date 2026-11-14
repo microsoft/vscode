@@ -28,10 +28,6 @@ const modeAndPermissionsWhen = ContextKeyExpr.and(
  * menu by VS Code's menu/toolbar convention.
  *
  * Order layout in the secondary toolbar (existing items annotated):
- *  -1    OpenAgentHostFolderPickerAction      (NEW — Folder, with worktree support
- *                                              in a single-folder window: first,
- *                                              as the new-session composer leads
- *                                              with its workspace)
  *   0    OpenSessionTargetPickerAction        (Copilot CLI - Agent Host)
  *   0.5  OpenDelegationPickerAction
  *   0.7  OpenAgentHostModePickerAction        (NEW — Mode)
@@ -76,8 +72,7 @@ export class OpenAgentHostFolderPickerAction extends Action2 {
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
-				// First, before the session type, as the new-session composer leads with its workspace
-				order: -1,
+				order: 1.1,
 				// With worktree support, a window with a single local folder offers New Worktree, the folder and its worktrees
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
