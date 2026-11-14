@@ -12,6 +12,16 @@ import { IChatWidget } from './chat.js';
 
 export const IChatViewHostService = createDecorator<IChatViewHostService>('chatViewHostService');
 
+/** The chat that a host shows ({@link IChatViewHost.shownSession}), and why it shows it. */
+export interface IChatViewHostShownSession {
+	readonly resource: URI;
+	/**
+	 * `open` when the user brought the chat up, such as by picking it in the sessions list, starting a new chat or sending
+	 * the first request of one; `restore` when the host shows the chat it last showed, such as as the window starts.
+	 */
+	readonly reason: 'open' | 'restore';
+}
+
 /** How {@link IChatViewHost.reveal} shows the host. */
 export interface IChatViewHostRevealOptions {
 	/**
@@ -81,6 +91,8 @@ export interface IChatViewHost {
 	 * implement it leaves New Chat to the chat widget it acts on.
 	 */
 	newChat?(): boolean;
+	/** The chat the host shows; a host that does not implement it reports none. */
+	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
 
 /**
@@ -96,6 +108,12 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
 	readonly replaced: IObservable<boolean>;
+	/**
+	 * The chat that the host that showed a chat last shows: the one that opened or started a chat last, the Chat view for the
+	 * chats the host in use leaves to it, or the one that restored its chat last. None while that host does not report one
+	 * ({@link IChatViewHost.shownSession}).
+	 */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in

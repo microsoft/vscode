@@ -32,7 +32,7 @@ suite('openPanelChatAndGetWidget', () => {
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
-		return { service: instantiationService.createInstance(ChatViewHostService) as IChatViewHostService, calls };
+		return { service: disposables.add(instantiationService.createInstance(ChatViewHostService)) as IChatViewHostService, calls };
 	}
 
 	test('returns the Chat view\'s widget, not a chat editor opened before it', async () => {

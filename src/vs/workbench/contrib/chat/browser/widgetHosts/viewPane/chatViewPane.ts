@@ -72,6 +72,7 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { IChatViewHostShownSession } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -170,6 +171,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
+	/** Whether the view restores the chat it last showed, rather than showing one that the user brought up. */
+	private _restoringModel = false;
+	private readonly _shownSession = observableValue<IChatViewHostShownSession | undefined>(this, undefined);
+	/** The chat the view shows, and whether it shows it as the user brought it up or as it restored it. */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined> = this._shownSession;
 	private readonly customizationMigrationsAvailable = observableValue(this, false);
 	/**
 	 * Session resource of the last-focused chat widget, or this pane's own
@@ -380,8 +386,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
+							this._restoringModel = true;
 							await this.showModel(cts.token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
 						} finally {
+							this._restoringModel = false;
 							this._widget.setVisible(wasVisible);
 						}
 					}).catch(error => {
@@ -1288,6 +1296,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
 			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
+			const shownResource = chatWidget.viewModel?.sessionResource;
+			this._shownSession.set(shownResource && { resource: shownResource, reason: this._restoringModel ? 'restore' : 'open' }, undefined);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
@@ -1427,7 +1437,12 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
 		const session = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
-		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
+		this._restoringModel = true;
+		try {
+			await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
+		} finally {
+			this._restoringModel = false;
+		}
 	}
 
 	/**

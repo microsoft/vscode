@@ -79,7 +79,7 @@ suite('Editor Agent Host policy continuation presenter', () => {
 		// The sidebar is the Chat view, as in the workbench
 		services.stub(IViewDescriptorService, {});
 		services.stub(IWorkbenchLayoutService, {});
-		services.stub(IChatViewHostService, services.createInstance(ChatViewHostService));
+		services.stub(IChatViewHostService, store.add(services.createInstance(ChatViewHostService)));
 		const presenter = services.createInstance(EditorAgentHostPolicyContinuationPresenter);
 		return {
 			state, navigation,

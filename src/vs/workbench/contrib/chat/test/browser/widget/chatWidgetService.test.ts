@@ -39,7 +39,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
-		instantiationService.stub(IChatViewHostService, instantiationService.createInstance(ChatViewHostService));
+		instantiationService.stub(IChatViewHostService, store.add(instantiationService.createInstance(ChatViewHostService)));
 	}
 
 	test('only input-request routing prefers the full session over Inbox, preserving the submitting input context', () => {
