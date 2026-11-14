@@ -53,13 +53,24 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (view && !options?.preserveFocus) {
 			view.focus();
 		}
+		if (options?.restore) {
+			view?.reportRestored(sessionResource);
+		} else {
+			view?.reportOpened(sessionResource);
+		}
 		return view?.widget;
 	}
 
 	async openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 		if (chatView) {
-			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason);
+			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, options?.restore ? 'restore' : 'open');
+			// Also a chat it showed already, which loading does not set again
+			if (options?.restore) {
+				chatView.reportRestored(sessionResource);
+			} else {
+				chatView.reportOpened(sessionResource);
+			}
 			if (!options?.preserveFocus) {
 				chatView.focusInput();
 			}

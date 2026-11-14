@@ -347,7 +347,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			const modelRef = await this.chatService.acquireOrLoadSession(e.committed, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidCommitSession');
-			await this.showModel(CancellationToken.None, modelRef);
+			// The chat the first request made: a session the user did not pick
+			await this.showModel(CancellationToken.None, modelRef, undefined, undefined, undefined, undefined, 'commit');
 		}));
 
 		// Layout changes
@@ -1544,13 +1545,37 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& sessionType === localChatSessionType;
 	}
 
+	/**
+	 * Reports the chat of `sessionResource` as one that the user brought up, also where the view shows it already, such as
+	 * one it restored, or one the user picks again in a sessions list, which is reported again.
+	 */
+	reportOpened(sessionResource: URI): void {
+		this._reportShown(sessionResource, 'open');
+	}
+
+	/**
+	 * Reports the chat of `sessionResource` as one that it restores, also where the view shows it already as opened, such
+	 * as the last chat of where the user moved the window's folder.
+	 */
+	reportRestored(sessionResource: URI): void {
+		this._reportShown(sessionResource, 'restore');
+	}
+
+	private _reportShown(sessionResource: URI, reason: 'open' | 'restore'): void {
+		const shown = this._shownSession.get();
+		// Each time the user opens it, also where it is reported as opened already, as where it works may matter again
+		if (shown && (reason === 'open' || shown.reason !== reason) && isEqual(shown.resource, sessionResource)) {
+			this._shownSession.set({ resource: sessionResource, reason }, undefined);
+		}
+	}
+
 	/** Reports the chat that the view shows now ({@link shownSession}), as its widget's chat changes. */
 	private updateShownSession(): void {
 		const shownResource = this._widget.viewModel?.sessionResource;
 		this._shownSession.set(shownResource && { resource: shownResource, reason: this._showReason }, undefined);
 	}
 
-	/** @param showReason why it shows the chat ({@link shownSession}): only the view's own restore passes `restore`. */
+	/** @param showReason why it shows the chat ({@link shownSession}). */
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason, showReason: IChatViewHostShownSession['reason'] = 'open'): Promise<IChatModel | undefined> {
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			modelRef?.dispose();
@@ -1703,7 +1728,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
+	/** @param showReason why it shows the chat ({@link shownSession}). */
+	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason, showReason: 'open' | 'restore' = 'open'): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
@@ -1761,7 +1787,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					}
 
 					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
-					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason, showReason);
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 					return result;
 				} catch (err) {
