@@ -42,7 +42,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 
 /** An editor group that keeps its editors in memory, as the chat part's groups do, without rendering them. */
 class FakeGroup {
@@ -149,7 +149,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined> }) {
+	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void> }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -187,6 +187,8 @@ suite('AgentsChatPartService', () => {
 				if (!editorOptions?.inactive) {
 					part.activate(group);
 				}
+				// An open may complete only after its editor activates, as the editor part resolves it
+				await options?.holdOpen?.();
 				return undefined;
 			}) as IEditorService['openEditor'],
 			openEditors: async (editors: EditorInputWithOptions[], group?: PreferredGroup) => {
@@ -367,6 +369,31 @@ suite('AgentsChatPartService', () => {
 		await service.openChat(restoredSession.session, main);
 
 		assert.deepStrictEqual({ restored, committed, opened: await shown() }, { restored: 'main restore', committed: 'main commit', opened: 'main open' });
+	});
+
+	test('a tab recalled as restored that activates before its open completes shows as restored, never as opened in between', async () => {
+		const recalled = buildTestSession({ id: 'recalled', title: 'Recalled' });
+		const other = buildTestSession({ id: 'other', title: 'Other' });
+		const recalledChat = recalled.mainChat.chat.resource;
+		const otherChat = other.mainChat.chat.resource;
+		let held: DeferredPromise<void> | undefined = undefined;
+		const { service } = createService({ sessions: () => [recalled.session, other.session], holdOpen: () => held?.p ?? Promise.resolve() });
+		await service.openChat(recalled.session, recalledChat);
+		await service.openChat(other.session, otherChat);
+		await timeout(0);
+		const reports: string[] = [];
+		const listener = autorun(reader => { const value = service.shownSession.read(reader); if (value) { reports.push(`${isEqual(value.resource, recalledChat) ? 'recalled' : 'other'} ${value.reason}`); } });
+
+		held = new DeferredPromise<void>();
+		const recall = service.openChat(recalled.session, recalledChat, { restore: true });
+		await timeout(0);
+		const whileHeld = [...reports];
+		held.complete();
+		await recall;
+		await timeout(0);
+		listener.dispose();
+
+		assert.deepStrictEqual({ whileHeld, reports }, { whileHeld: ['other open', 'recalled restore'], reports: ['other open', 'recalled restore'] });
 	});
 
 	test('its composers that aim at the folder their host aimed them at follow it to another folder, also the active one a new session reuses', async () => {
