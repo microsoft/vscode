@@ -3019,6 +3019,14 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		return Position.LEFT; // Always left in this layout
 	}
 
+	setChatPartAnchor(): void {
+		// This layout has no chat part
+	}
+
+	getChatPartPosition(): Position.LEFT {
+		return Position.LEFT;
+	}
+
 	getDetailsPosition(): DetailsPosition {
 		return this._detailsPosition === 'left' || this._detailsPosition === 'top' || this._detailsPosition === 'bottom' ? this._detailsPosition : 'right';
 	}

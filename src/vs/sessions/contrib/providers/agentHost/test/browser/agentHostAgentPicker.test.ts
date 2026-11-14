@@ -139,6 +139,7 @@ suite('agentHostAgentPicker', () => {
 
 	test('keeps the new-session agent in the session options', () => {
 		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		ChatContextKeys.enabled.bindTo(context).set(true);
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		IsPhoneLayoutContext.bindTo(context).set(false);
 		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);
@@ -191,6 +192,7 @@ suite('agentHostAgentPicker', () => {
 		const configuration = new TestConfigurationService();
 		disposables.add(configuration.onDidChangeConfigurationEmitter);
 		const context = disposables.add(new ContextKeyService(configuration));
+		ChatContextKeys.enabled.bindTo(context).set(true);
 		SessionProviderIdContext.bindTo(context).set(LOCAL_AGENT_HOST_PROVIDER_ID);
 		IsPhoneLayoutContext.bindTo(context).set(false);
 		ChatContextKeys.inAutomationsDialog.bindTo(context).set(false);

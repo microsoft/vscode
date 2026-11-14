@@ -11,7 +11,7 @@ import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js
 import { IAction } from '../../../../../base/common/actions.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IEditorOptions } from '../../../../../editor/common/config/editorOptions.js';
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
@@ -116,8 +116,13 @@ export interface INewSessionDraftHost {
 	 * offers no other. Unset, it offers any workspace.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/**
+	 * Fires as the host aims the composer at another folder, such as the location the window's folder moved to: the composer
+	 * creates its draft for it, unless it sent its session already.
+	 */
+	readonly onDidRetarget?: Event<INewSessionTarget>;
 	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
-	getFolderPresentation?(folderUri: URI): IFolderLocation | undefined;
+	getFolderPresentation?(folderUri: URI): IAllowedFolderPresentation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */
 	openStartedSession(session: ISession): Promise<void>;
 	/**
@@ -175,6 +180,11 @@ export interface IChatViewInputOptions {
 	readonly minLines?: number;
 	/** Whether the status pills of the session show above the input; `true` by default. */
 	readonly showPills?: boolean;
+	/**
+	 * Whether the changes of an Agent Host session show as a working set above the input, with Keep and Undo, in place of
+	 * its Changes pill, as the editor window's chat shows them. Never in the Agents window; `false` by default.
+	 */
+	readonly workingSet?: boolean;
 }
 
 /**

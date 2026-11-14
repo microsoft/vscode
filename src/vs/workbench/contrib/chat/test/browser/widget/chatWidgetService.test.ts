@@ -39,7 +39,7 @@ suite('ChatWidgetService', () => {
 		instantiationService.stub(IViewDescriptorService, {});
 		instantiationService.stub(IWorkbenchLayoutService, {});
 		instantiationService.stub(IProgressService, {});
-		instantiationService.stub(IChatViewHostService, instantiationService.createInstance(ChatViewHostService));
+		instantiationService.stub(IChatViewHostService, store.add(instantiationService.createInstance(ChatViewHostService)));
 	}
 
 	test('only input-request routing prefers the full session over Inbox, preserving the submitting input context', () => {
@@ -218,9 +218,10 @@ suite('ChatWidgetService', () => {
 			const oldWidget = createWidget(session);
 			const emptyOldWidget = createWidget(undefined);
 			const hostWidget = upcastPartial<IChatWidget>({});
-			const view = { widget: oldWidget, focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); } };
+			const view = { widget: oldWidget, shownSession: constObservable(undefined), focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); }, reportShown: (_resource: URI, reason: string) => calls.push(`view.reportShown ${reason}`) };
 			instantiationService.stub(IEditorGroupsService, { groups: [] });
 			instantiationService.stub(IViewsService, {
+				onDidChangeViewVisibility: Event.None,
 				getViewWithId: (() => view) as unknown as IViewsService['getViewWithId'],
 				openView: (async (id: string) => { calls.push(`openView ${id}`); return view; }) as unknown as IViewsService['openView'],
 			});
@@ -275,7 +276,7 @@ suite('ChatWidgetService', () => {
 
 			const widget = await service.openSession(session);
 
-			assert.deepStrictEqual({ shown: widget === oldWidget, calls }, { shown: true, calls: [`openView ${ChatViewId}`, 'view.focus'] });
+			assert.deepStrictEqual({ shown: widget === oldWidget, calls }, { shown: true, calls: [`openView ${ChatViewId}`, 'view.focus', 'view.reportShown open'] });
 		});
 	});
 });

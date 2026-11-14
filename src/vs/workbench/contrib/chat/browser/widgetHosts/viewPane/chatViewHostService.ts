@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { derived, IObservable, ISettableObservable, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -13,7 +14,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidget } from '../../chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions } from '../../chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 /** The Chat view, as the host of its chats. */
@@ -27,7 +28,13 @@ export class ChatViewPaneHost implements IChatViewHost {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IProgressService private readonly progressService: IProgressService,
-	) { }
+	) {
+		// The view exists once it first shows; it keeps its chat while hidden
+		const view = observableFromEvent(this, viewsService.onDidChangeViewVisibility, () => viewsService.getViewWithId<ChatViewPane>(ChatViewId));
+		this.shownSession = derived(this, reader => view.read(reader)?.shownSession.read(reader));
+	}
+
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	async reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
 		const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !preserveFocus);
@@ -46,18 +53,30 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (view && !options?.preserveFocus) {
 			view.focus();
 		}
+		view?.reportShown(sessionResource, getChatViewHostOpenReason(options));
 		return view?.widget;
 	}
 
 	async openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 		if (chatView) {
-			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason);
+			const reason = getChatViewHostOpenReason(options);
+			// Loading reports the chat once, also one it showed already, unless a later open supersedes it
+			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, reason);
 			if (!options?.preserveFocus) {
 				chatView.focusInput();
 			}
 		}
 		return chatView?.widget;
+	}
+
+	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
+		if (options?.ownChat) {
+			const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options.preserveFocus);
+			return !!view && await view.newChat(target, options);
+		}
+		const view = this.viewsService.isViewVisible(ChatViewId) ? this.viewsService.getViewWithId<ChatViewPane>(ChatViewId) : undefined;
+		return !!view && await view.newChat(target, options);
 	}
 
 	async toggle(): Promise<boolean> {
@@ -111,7 +130,8 @@ export class ChatViewPaneHost implements IChatViewHost {
 		return {
 			moved: async movedSessionResource => {
 				const movedView = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-				await movedView.loadSession(movedSessionResource);
+				// The session that the first request made: shown as committed, not as one the user opened
+				await movedView.loadSession(movedSessionResource, undefined, 'commit');
 			},
 			complete: async () => {
 				transition.dispose();
@@ -123,52 +143,169 @@ export class ChatViewPaneHost implements IChatViewHost {
 	}
 }
 
-export class ChatViewHostService implements IChatViewHostService {
+export class ChatViewHostService extends Disposable implements IChatViewHostService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly chatViewHost: IChatViewHost;
 	/** The registrations of the hosts that replace the Chat view, the one in use last: one each, also of the same host. */
 	private readonly registrations: { readonly host: IChatViewHost }[] = [];
+	private readonly hostInUse: ISettableObservable<IChatViewHost>;
+	/**
+	 * The host that showed something last, whose shown chat the service reports: none while it shows a new chat that New Chat
+	 * started, until it shows a chat.
+	 */
+	private readonly latest: ISettableObservable<{ readonly host: IChatViewHost; readonly newChat: boolean }>;
+
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
+		super();
 		this.chatViewHost = instantiationService.createInstance(ChatViewPaneHost);
+		this.hostInUse = observableValue<IChatViewHost>(this, this.chatViewHost);
+		this.latest = observableValue(this, { host: this.chatViewHost, newChat: false });
+		this.shownSession = derived(this, reader => {
+			const latest = this.latest.read(reader);
+			return latest.newChat ? undefined : latest.host.shownSession?.read(reader);
+		});
+	}
+
+	/** Tracks the chats that the Chat view shows (see {@link updateChatViewTracking}); otherwise it is the latest host, as it shows them. */
+	private readonly chatViewTracking = this._register(new MutableDisposable());
+
+	/** Makes `host` the latest host whenever it shows another chat, such as one it restores or one opened in it directly. */
+	private trackShownSession(host: IChatViewHost): IDisposable {
+		return host.shownSession ? runOnChange(host.shownSession, shown => {
+			if (shown) {
+				this.claim(host, false, false);
+			}
+		}) : Disposable.None;
+	}
+
+	private readonly _replaced = observableValue(this, false);
+	readonly replaced: IObservable<boolean> = this._replaced;
+
+	/** Counts the claims that something asked for, such as an open, as opposed to a host showing a chat on its own. */
+	private requestedClaims = 0;
+	/** Counts the New Chats started: the one started last supersedes those still under way. */
+	private newChats = 0;
+
+	/**
+	 * Makes `host` the host that showed something last: a new chat of New Chat while `newChat`. A claim that something asked
+	 * for (`requested`) supersedes a New Chat under way, which then no longer claims its host.
+	 */
+	private claim(host: IChatViewHost, newChat = false, requested = true): void {
+		// A host no longer registered, such as one that completes a reveal after it was removed, shows nothing of the Chat view's,
+		// and supersedes nothing
+		if (host !== this.chatViewHost && !this.registrations.some(registration => registration.host === host)) {
+			return;
+		}
+		if (requested && !newChat) {
+			this.requestedClaims++;
+		}
+		this.latest.set({ host, newChat }, undefined);
+		this.updateChatViewTracking();
+	}
+
+	/** Tracks the Chat view's shown chat while it may be other than the latest host's, or ends a new chat it shows. */
+	private updateChatViewTracking(): void {
+		if (this.registrations.length === 0 && !this.latest.get().newChat) {
+			this.chatViewTracking.clear();
+		} else if (!this.chatViewTracking.value) {
+			this.chatViewTracking.value = this.trackShownSession(this.chatViewHost);
+		}
 	}
 
 	private get host(): IChatViewHost {
-		return this.registrations.at(-1)?.host ?? this.chatViewHost;
+		return this.hostInUse.get();
+	}
+
+	/** The host of the chat of `sessionResource`: the Chat view, for a chat the host in use leaves to it. */
+	private hostOf(sessionResource: URI): IChatViewHost {
+		const host = this.host;
+		return host.canShow?.(sessionResource) === false ? this.chatViewHost : host;
 	}
 
 	registerHost(host: IChatViewHost): IDisposable {
 		const registration = { host };
 		this.registrations.push(registration);
+		this.updateHostInUse();
+		this.claim(host);
+		const tracking = this.trackShownSession(host);
 		return toDisposable(() => {
+			tracking.dispose();
 			const index = this.registrations.indexOf(registration);
 			if (index >= 0) {
 				this.registrations.splice(index, 1);
+				this.updateHostInUse();
+				// The host that showed something last reports it until it is no longer registered: then the host in use does
+				if (this.latest.get().host === host && !this.registrations.some(other => other.host === host)) {
+					this.claim(this.host);
+				}
 			}
 		});
 	}
 
-	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
-		return this.host.reveal(preserveFocus, options);
+	private updateHostInUse(): void {
+		const host = this.registrations.at(-1)?.host ?? this.chatViewHost;
+		this.hostInUse.set(host, undefined);
+		this._replaced.set(this.registrations.length > 0, undefined);
+		this.updateChatViewTracking();
+	}
+
+	async reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
+		const host = this.host;
+		const widget = await host.reveal(preserveFocus, options);
+		this.claim(host);
+		return widget;
 	}
 
 	async revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
-		return this.host.revealIfShowing?.(sessionResource, options);
+		const host = this.hostOf(sessionResource);
+		const widget = await host.revealIfShowing?.(sessionResource, options);
+		if (widget) {
+			this.claim(host);
+		}
+		return widget;
 	}
 
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
-		return this.host.openSession(sessionResource, options);
+		const host = this.hostOf(sessionResource);
+		this.claim(host);
+		return host.openSession(sessionResource, options);
 	}
 
-	toggle(): Promise<boolean> {
-		return this.host.toggle();
+	async toggle(): Promise<boolean> {
+		const host = this.host;
+		const shows = await host.toggle();
+		if (shows) {
+			this.claim(host);
+		}
+		return shows;
 	}
 
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
-		return this.host.startSession(sessionResource, options);
+		const host = this.hostOf(sessionResource);
+		this.claim(host);
+		return host.startSession(sessionResource, options);
+	}
+
+	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
+		// An open or other request that completes meanwhile shows what it asked for, and a later New Chat its new chat: the New
+		// Chat, superseded, claims nothing
+		const newChat = ++this.newChats;
+		const requestedClaims = this.requestedClaims;
+		let host = this.host;
+		let taken = await host.newChat?.(target, options) ?? false;
+		if (!taken && options?.ownChat && host !== this.chatViewHost) {
+			host = this.chatViewHost;
+			taken = await host.newChat?.(target, options) ?? false;
+		}
+		if (taken && newChat === this.newChats && requestedClaims === this.requestedClaims) {
+			this.claim(host, true);
+		}
+		return taken;
 	}
 }

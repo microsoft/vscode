@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { Event, Emitter } from '../../base/common/event.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { alert } from '../../base/browser/ui/aria/aria.js';
-import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension, isHTMLElement } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
@@ -27,7 +27,7 @@ import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
-import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
+import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing, GridBranchNode, GridNode, isGridBranchNode } from '../../base/browser/ui/grid/grid.js';
 import { Part, relayoutWorkbenchParts, updateSashEndpoints } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
@@ -42,7 +42,8 @@ import { isHighContrast } from '../../platform/theme/common/theme.js';
 import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 import { LineNumbersType } from '../../editor/common/config/editorOptions.js';
 import { URI } from '../../base/common/uri.js';
-import { IViewDescriptorService, ViewContainerLocation } from '../common/views.js';
+import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../common/views.js';
+import { Registry } from '../../platform/registry/common/platform.js';
 import { DiffEditorInput } from '../common/editor/diffEditorInput.js';
 import { mark } from '../../base/common/performance.js';
 import { IExtensionService } from '../services/extensions/common/extensions.js';
@@ -325,6 +326,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private chatPartHidden = true;
 	/** Whether the layout hid the chat part, such as for a maximized panel, and shows it again with the editor. */
 	private chatPartHiddenByLayout = false;
+	/** The view the chat part docks beside (see {@link setChatPartAnchor}). */
+	private chatPartAnchor: { readonly viewId: string } | undefined;
+	/** The side of the editor the chat part is on in the grid, once there is one. */
+	private chatPartPosition: Position.LEFT | Position.RIGHT | undefined;
 
 	private environmentService!: IBrowserWorkbenchEnvironmentService;
 	private extensionService!: IExtensionService;
@@ -1800,6 +1805,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
 			}));
 			this._register(this.storageService.onWillSaveState(() => this.saveChatPartLayout()));
+
+			this._register(this.followChatPartAnchor());
 		}
 
 		// The floating cards abut the top window edge only while neither of the two grid rows
@@ -2471,8 +2478,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
 		const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
+		const shownWidth = hidden ? undefined : this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
 		this.chatPartHidden = hidden;
 		this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
+		if (!hidden) {
+			this.ensureChatPartFits(shownWidth);
+		}
 		// The sashes beside it move: where they meet the others changes too
 		this.updateSashEndpoints();
 		if (hadFocus) {
@@ -2499,14 +2510,67 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.chatPartView && this.chatPartHiddenByLayout) {
 			this.chatPartHiddenByLayout = false;
 			this.chatPartHidden = false;
+			const shownWidth = this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
 			this.workbenchGrid.setViewVisible(this.chatPartView, true);
+			this.ensureChatPartFits(shownWidth);
 			this.updateSashEndpoints();
 		}
 	}
 
-	/** The side of the editor the chat part is on: the primary side bar's. */
+	setChatPartAnchor(anchor: { readonly viewId: string } | undefined): void {
+		this.chatPartAnchor = anchor;
+		this.updateChatPartPosition();
+	}
+
+	getChatPartPosition(): Position.LEFT | Position.RIGHT {
+		return this.chatPartPosition ?? this.computeChatPartPosition();
+	}
+
+	/** Has the chat part follow its anchor view as the view, its container or its location changes. */
+	private followChatPartAnchor(): IDisposable {
+		return Event.any<unknown>(
+			this.viewDescriptorService.onDidChangeContainerLocation,
+			this.viewDescriptorService.onDidChangeContainer,
+			this.viewDescriptorService.onDidChangeLocation,
+			this.viewDescriptorService.onDidChangeViewContainers,
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered,
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsDeregistered
+		)(() => this.updateChatPartPosition());
+	}
+
+	/**
+	 * The side of the editor the chat part belongs on: the side of its anchor view's container. A view in a panel at the
+	 * top or bottom, an unknown view, or no anchor take the primary side bar's side.
+	 */
+	private computeChatPartPosition(): Position.LEFT | Position.RIGHT {
+		const sideBarPosition = this.getSideBarPosition() === Position.RIGHT ? Position.RIGHT : Position.LEFT;
+		// A view that is not registered has no location, also where a move of it was saved
+		const location = this.chatPartAnchor && this.viewDescriptorService.getViewDescriptorById(this.chatPartAnchor.viewId) ? this.viewDescriptorService.getViewLocationById(this.chatPartAnchor.viewId) : null;
+		switch (location) {
+			case ViewContainerLocation.AuxiliaryBar:
+				return sideBarPosition === Position.LEFT ? Position.RIGHT : Position.LEFT;
+			case ViewContainerLocation.Panel: {
+				const panelPosition = this.getPanelPosition();
+				return panelPosition === Position.LEFT || panelPosition === Position.RIGHT ? panelPosition : sideBarPosition;
+			}
+			default:
+				return sideBarPosition;
+		}
+	}
+
+	/** Moves the chat part to the side of the editor it belongs on, if it is not there already. */
+	private updateChatPartPosition(): void {
+		if (!this.chatPartView || !this.workbenchGrid || this.chatPartPosition === this.computeChatPartPosition()) {
+			return;
+		}
+
+		this.moveChatPartBesideEditor();
+		this.updateSashEndpoints();
+	}
+
+	/** The side of the editor the chat part is on. */
 	private getChatPartDirection(): Direction {
-		return this.getSideBarPosition() === Position.LEFT ? Direction.Left : Direction.Right;
+		return this.getChatPartPosition() === Position.LEFT ? Direction.Left : Direction.Right;
 	}
 
 	/** What a part placed beside the editor in `direction` goes beside: the chat part on its side, so that it stays inside. */
@@ -2514,18 +2578,112 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.chatPartView && direction === this.getChatPartDirection() ? this.chatPartView : this.editorPartView;
 	}
 
-	/** Moves the chat part immediately beside the editor, on the primary side bar's side, at the size it has. */
+	/**
+	 * Makes room for a visible chat part where the editor's column is too narrow for the editor and the chat part at
+	 * `width` (its own width by default), so that neither overflows the column: the parts beyond the column on the chat
+	 * part's side, closest first, such as the secondary side bar that holds its anchor, give up width down to their
+	 * minimum. The chat part then takes its width, leaving the editor its minimum.
+	 */
+	private ensureChatPartFits(width?: number): void {
+		const grid = this.workbenchGrid;
+		if (!this.chatPartView || this.chatPartHidden || !grid) {
+			return;
+		}
+		const columnWidth = () => this.getChatPartColumnWidth();
+		const target = Math.max(this.chatPartView.minimumWidth, width ?? grid.getViewSize(this.chatPartView).width);
+		let missing = this.editorPartView.minimumWidth + target - columnWidth();
+		for (const neighbour of this.getChatPartSideNeighbours()) {
+			if (missing <= 0) {
+				break;
+			}
+			const size = grid.getViewSize(neighbour);
+			const given = Math.min(missing, size.width - neighbour.minimumWidth);
+			if (given > 0) {
+				grid.resizeView(neighbour, { width: size.width - given, height: size.height });
+				missing = this.editorPartView.minimumWidth + target - columnWidth();
+			}
+		}
+		const chatWidth = Math.min(target, columnWidth() - this.editorPartView.minimumWidth);
+		if (chatWidth !== grid.getViewSize(this.chatPartView).width) {
+			grid.resizeView(this.chatPartView, { width: chatWidth, height: grid.getViewSize(this.chatPartView).height });
+		}
+	}
+
+	/**
+	 * The width the grid gives the editor and the chat part together: that of the branch that holds both, less that of its
+	 * other children, such as the primary side bar beside them when the panel is aligned to its side. Their own widths
+	 * exceed it where they are at their minimum in too narrow a branch.
+	 */
+	private getChatPartColumnWidth(): number {
+		const isEditorOrChat = (node: GridNode<ISerializableView>) => !isGridBranchNode(node) && (node.view === this.editorPartView || node.view === this.chatPartView);
+		const find = (node: GridNode<ISerializableView>): GridBranchNode<ISerializableView> | undefined => {
+			if (!isGridBranchNode(node)) {
+				return undefined;
+			}
+			if (node.children.filter(isEditorOrChat).length === 2) {
+				return node;
+			}
+			for (const child of node.children) {
+				const found = find(child);
+				if (found) {
+					return found;
+				}
+			}
+			return undefined;
+		};
+		const branch = find(this.workbenchGrid.getViews());
+		if (!branch) {
+			return this.workbenchGrid.getViewSize(this.editorPartView).width + this.workbenchGrid.getViewSize(this.chatPartView!).width;
+		}
+		const others = branch.children.filter(child => !isEditorOrChat(child)).reduce((width, child) => width + child.box.width, 0);
+		return branch.box.width - others;
+	}
+
+	/** The visible parts beyond the editor's column on the chat part's side, closest first. */
+	private getChatPartSideNeighbours(): ISerializableView[] {
+		const side = this.getChatPartPosition();
+		const sideBarSide = this.getSideBarPosition();
+		const panelPosition = this.getPanelPosition();
+		const neighbours: ISerializableView[] = [];
+		if (panelPosition === side && this.isVisible(Parts.PANEL_PART)) {
+			neighbours.push(this.panelPartView);
+		}
+		const auxiliaryBarSide = sideBarSide === Position.LEFT ? Position.RIGHT : Position.LEFT;
+		if (auxiliaryBarSide === side && this.isVisible(Parts.AUXILIARYBAR_PART)) {
+			neighbours.push(this.auxiliaryBarPartView);
+		}
+		if (sideBarSide === side && this.isVisible(Parts.SIDEBAR_PART)) {
+			neighbours.push(this.sideBarPartView);
+		}
+		return neighbours;
+	}
+
+	/** Moves the chat part immediately beside the editor, on the side it belongs on, at the size it has. */
 	private moveChatPartBesideEditor(): void {
 		if (!this.chatPartView) {
 			return;
 		}
 
+		this.chatPartPosition = this.computeChatPartPosition();
+
+		// Moving a view in the grid takes it out of the DOM and back: what had focus in it gets it again, such as a link of
+		// the transcript or a button of its toolbar, else the chat part's default
+		const hadFocus = this.hasFocus(Parts.CHAT_PART);
+		const focused = hadFocus ? getActiveElement() : null;
 		const visible = !this.chatPartHidden;
 		const width = visible ? this.workbenchGrid.getViewSize(this.chatPartView).width : undefined;
 		const sizing = width ?? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView) ?? this.chatPartView.minimumWidth);
 		this.workbenchGrid.moveView(this.chatPartView, sizing, this.editorPartView, this.getChatPartDirection());
 		if (width !== undefined) {
 			this.workbenchGrid.resizeView(this.chatPartView, { width, height: this.workbenchGrid.getViewSize(this.chatPartView).height });
+			this.ensureChatPartFits(width);
+		}
+		if (hadFocus) {
+			if (isHTMLElement(focused) && focused.isConnected && this.chatPartView.element.contains(focused)) {
+				focused.focus();
+			} else {
+				this.focusPart(Parts.CHAT_PART);
+			}
 		}
 	}
 
@@ -2689,6 +2847,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.workbenchGrid.moveView(this.panelPartView, editorHidden ? size.width : this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_LAST_NON_MAXIMIZED_WIDTH), this.getChatPartOrEditorView(Direction.Left), Direction.Left);
 		}
 
+		// The chat part docks beside a view in the panel on the panel's side
+		this.updateChatPartPosition();
+
 		if (hadFocus) {
 			this.focusPart(Parts.PANEL_PART);
 		}
@@ -2813,10 +2974,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		};
 	}
 
-	/** Puts the chat node immediately beside the editor node in `nodes`, on the primary side bar's side, out of the editor's width. */
+	/** Puts the chat node immediately beside the editor node in `nodes`, on the side it belongs on, out of the editor's width. */
 	private insertChatNodeBesideEditor(nodes: ISerializedNode[], editor: ISerializedNode, chat: ISerializedNode): void {
+		this.chatPartPosition = this.computeChatPartPosition();
 		const index = nodes.indexOf(editor);
-		nodes.splice(this.stateModel.getRuntimeValue(LayoutStateKeys.SIDEBAR_POSITON) === Position.LEFT ? index : index + 1, 0, chat);
+		nodes.splice(this.chatPartPosition === Position.LEFT ? index : index + 1, 0, chat);
 		editor.size -= chat.visible ? chat.size : 0;
 	}
 

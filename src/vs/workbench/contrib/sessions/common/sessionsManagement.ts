@@ -302,6 +302,12 @@ export interface ISessionsManagementService {
 	getSession(resource: URI): ISession | undefined;
 
 	/**
+	 * Every session the providers know, also those outside their listing scope, such as of another folder: not only the
+	 * listed ones of {@link getSessions}. {@link onDidChangeSession} reports their changes.
+	 */
+	getAllSessions(): readonly ISession[];
+
+	/**
 	 * Resolves a session resource to the one that should actually be opened.
 	 * Open paths address sessions by URI, so a superseded resource (a legacy
 	 * Copilot CLI session with an agent-host twin) is redirected here rather

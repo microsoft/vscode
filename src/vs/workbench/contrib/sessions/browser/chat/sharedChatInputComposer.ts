@@ -1078,7 +1078,17 @@ export class SharedChatInputComposer extends Disposable implements INewSessionCo
 		}
 	}
 
+	/** Sends the input, marked as submitting from here on, before any check or wait, so its host doesn't retarget it meanwhile. */
 	private async _send(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
+		const submitting = this.options.inputSnapshot?.beginSubmit();
+		try {
+			return await this._doSend(rawQuery, attachments, background);
+		} finally {
+			submitting?.dispose();
+		}
+	}
+
+	private async _doSend(rawQuery: string, attachments: readonly IChatRequestVariableEntry[], background: boolean): Promise<boolean> {
 		const widget = this._widget;
 		const query = rawQuery.trim();
 		const hasAdditionalSendContent = this.options.hasAdditionalSendContent?.get() ?? false;
