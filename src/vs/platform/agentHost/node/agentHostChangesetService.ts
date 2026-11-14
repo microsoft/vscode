@@ -379,6 +379,10 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 		if (!state || state?.lifecycle === SessionLifecycle.Failed) {
 			return;
 		}
+		// A chat that is not in memory, such as an archived one, has no catalogue to update; its own restore publishes it.
+		if (isAhpChatChannel(session) && !this._stateManager.getChatState(session)) {
+			return;
+		}
 
 		const chatOwned = isAhpChatChannel(session);
 		const branchChangesetOwner = this._getBranchChangesetOwner(session);

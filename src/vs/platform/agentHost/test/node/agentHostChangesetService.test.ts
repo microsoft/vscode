@@ -2795,6 +2795,22 @@ suite('AgentHostChangesetService - multi-root and recomputation', () => {
 		assert.strictEqual(stateManager.getChatState(peer)?.changesets?.find(changeset => changeset.changeKind === 'branch')?.description, 'peer-feature → origin/peer-base');
 	});
 
+	test('refreshing the catalogue of a chat that is only listed in its session publishes nothing', () => {
+		const listed = buildChatUri(sessionStr, 'listed');
+		const { svc, stateManager } = build({ workingDirectories: ['file:///repo'], git: createNoopGitService(), checkpoint: NULL_CHECKPOINT_SERVICE });
+		stateManager.dispatchServerAction(sessionStr, { type: ActionType.SessionReady });
+		stateManager.dispatchServerAction(sessionStr, {
+			type: ActionType.SessionChatAdded,
+			summary: { resource: listed, title: 'Listed only', status: SessionStatus.Idle, modifiedAt: '2025-01-01T00:00:00.000Z' },
+		});
+		const published: string[] = [];
+		stateManager.setChangesets = owner => { published.push(owner.toString()); };
+
+		svc.refreshChangesetCatalog(listed);
+
+		assert.deepStrictEqual({ chatState: stateManager.getChatState(listed), published }, { chatState: undefined, published: [] });
+	});
+
 	test('ready sessions publish session changes and chat catalogues using the chat Git state', () => {
 		const peerResource = buildChatUri(sessionStr, 'peer');
 		const { svc, stateManager } = build({
