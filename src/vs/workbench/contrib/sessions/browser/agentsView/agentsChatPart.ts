@@ -45,7 +45,7 @@ import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
-import { AgentsChatPartAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
+import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
 /** The chats of the chat part, which it shows again as the window restores. */
@@ -146,7 +146,7 @@ export async function restoreAgentsChatPart(layoutService: IWorkbenchLayoutServi
 	if (!layoutService.isVisible(Parts.CHAT_PART)) {
 		return;
 	}
-	if (!contextKeyService.contextMatchesRules(AgentsChatPartAvailable)) {
+	if (!contextKeyService.contextMatchesRules(AgentsViewAvailable)) {
 		layoutService.setPartHidden(true, Parts.CHAT_PART);
 		return;
 	}

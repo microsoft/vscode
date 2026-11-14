@@ -25,7 +25,7 @@ import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
-import { AgentsChatPartAvailable } from './agentsChatPartContext.js';
+import { AgentsViewAvailable } from './agentsChatPartContext.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -87,7 +87,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 
 	/** Whether it shows anything: not while chat is hidden or disabled, such as with AI features off. */
 	private get _available(): boolean {
-		return this._contextKeyService.contextMatchesRules(AgentsChatPartAvailable);
+		return this._contextKeyService.contextMatchesRules(AgentsViewAvailable);
 	}
 
 	async reveal(preserveFocus?: boolean): Promise<IChatWidget | undefined> {

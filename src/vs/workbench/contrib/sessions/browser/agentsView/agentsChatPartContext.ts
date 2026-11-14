@@ -10,10 +10,10 @@ import { ChatEntitlementContextKeys } from '../../../../services/chat/common/cha
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 
 /**
- * Where the chat part can show chats of sessions in an editor window: where AI features and agents are enabled, as for the
- * Agents window, in local windows.
+ * Where an editor window can show sessions, such as in the chat part or a sessions list: where AI features and agents are
+ * enabled, as for the Agents window, in local windows. Known as the window starts, so that what shows sessions restores.
  */
-export const AgentsChatPartAvailable: ContextKeyExpression = ContextKeyExpr.and(
+export const AgentsViewAvailable: ContextKeyExpression = ContextKeyExpr.and(
 	ChatEntitlementContextKeys.Setup.hidden.negate(),
 	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
 	ContextKeyExpr.has(`config.${ChatConfiguration.AgentEnabled}`),
