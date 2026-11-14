@@ -356,4 +356,29 @@ suite('ChatViewHostService', () => {
 
 		assert.deepStrictEqual({ shown: service.shownSession.get()?.resource.path, replaced: service.replaced.get() }, { shown: '/chat-view', replaced: false });
 	});
+
+	test('a host that completes a reveal after it is removed does not supersede a New Chat under way', async () => {
+		const { service, shownSession, showView } = createService();
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/chat-view'), reason: 'open' }, undefined);
+		showView();
+		const revealed = new DeferredPromise<undefined>();
+		const removed = service.registerHost({ ...upcastPartial<IChatViewHost>({}), reveal: () => revealed.p });
+		const revealing = service.reveal();
+		removed.dispose();
+		const newChatShown = new DeferredPromise<boolean>();
+		const registration = service.registerHost({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: constObservable({ resource: URI.parse('agent-host-copilot:/before'), reason: 'open' as const }),
+			newChat: () => newChatShown.p,
+		});
+		const newChat = service.newChat();
+		await revealed.complete(undefined);
+		await revealing;
+		await newChatShown.complete(true);
+		const taken = await newChat;
+		const shown = service.shownSession.get();
+		registration.dispose();
+
+		assert.deepStrictEqual({ taken, shown }, { taken: true, shown: undefined });
+	});
 });
