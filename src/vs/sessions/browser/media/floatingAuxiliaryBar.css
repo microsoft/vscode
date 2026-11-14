@@ -1,0 +1,240 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Keep pane scrollbars below floating details without trapping the shared frame beneath webviews. */
+.agent-sessions-workbench.dock-detail-panel .part.editor.floating-details-visible:not(.modal-editor-part) > .content .editor-group-container > .editor-container {
+	isolation: isolate;
+}
+
+.agent-sessions-workbench .floating-details {
+	position: absolute;
+	z-index: 10;
+}
+
+.agent-sessions-workbench .floating-details-surface {
+	position: relative;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+	border: var(--vscode-strokeThickness) solid var(--vscode-contrastBorder, var(--vscode-editorWidget-border, transparent));
+	border-radius: var(--vscode-cornerRadius-large);
+	background: var(--vscode-editorWidget-background);
+	box-shadow: var(--vscode-shadow-md);
+}
+
+.agent-sessions-workbench .floating-details.collapsed .floating-details-surface {
+	width: max-content;
+	max-width: 100%;
+}
+
+.agent-sessions-workbench .floating-details.animating .floating-details-surface {
+	width: 100%;
+}
+
+.agent-sessions-workbench .floating-details.collapsed.animating {
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .floating-details.collapsed.animating .floating-details-header {
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench .floating-details-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	height: 32px;
+	font-size: var(--vscode-fontSize-label1);
+	color: var(--vscode-icon-foreground);
+}
+
+.agent-sessions-workbench .floating-details.anchored-bottom .floating-details-header {
+	position: relative;
+	top: calc(100% - 32px);
+}
+
+.agent-sessions-workbench .floating-details-drag-handle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 var(--vscode-spacing-size240);
+	align-self: stretch;
+	border-radius: var(--vscode-cornerRadius-small);
+	cursor: grab;
+	touch-action: none;
+}
+
+.agent-sessions-workbench .floating-details-drag-handle .codicon {
+	font-size: var(--vscode-codiconFontSize);
+	opacity: 0.5;
+}
+
+.agent-sessions-workbench .floating-details-drag-handle:hover,
+.agent-sessions-workbench .floating-details-header .action-label.floating-details-toggle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	outline: var(--vscode-strokeThickness) dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .floating-details.dragging .floating-details-drag-handle {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .floating-details.dragging .floating-details-drag-handle {
+	cursor: grabbing;
+}
+
+.agent-sessions-workbench .floating-details.dragging .floating-details-drag-handle .codicon,
+.agent-sessions-workbench .floating-details-drag-handle:hover .codicon,
+.agent-sessions-workbench .floating-details-drag-handle:focus-visible .codicon,
+.agent-sessions-workbench.hc-black .floating-details-drag-handle .codicon,
+.agent-sessions-workbench.hc-light .floating-details-drag-handle .codicon {
+	opacity: 1;
+}
+
+.agent-sessions-workbench .floating-details:focus-visible,
+.agent-sessions-workbench .floating-details-drag-handle:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: calc(-1 * var(--vscode-strokeThickness));
+}
+
+.agent-sessions-workbench .floating-details-title {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	font-weight: var(--vscode-fontWeight-semiBold);
+}
+
+.agent-sessions-workbench .floating-details-caption {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	min-width: 0;
+	gap: var(--vscode-spacing-size60);
+	padding: 0 var(--vscode-spacing-size80);
+	cursor: default;
+}
+
+.agent-sessions-workbench .floating-details-header > .monaco-action-bar {
+	flex: 0 0 auto;
+}
+
+.agent-sessions-workbench .floating-details.collapsed .floating-details-header > .monaco-action-bar {
+	display: none;
+}
+
+.agent-sessions-workbench .floating-details-header .actions-container,
+.agent-sessions-workbench .floating-details-header .action-item {
+	margin: 0;
+}
+
+.agent-sessions-workbench .floating-details-header .action-label.floating-details-toggle {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--vscode-spacing-size240);
+	height: var(--vscode-spacing-size240);
+	box-sizing: border-box;
+	padding: 0;
+	border-radius: var(--vscode-cornerRadius-small);
+	color: inherit;
+}
+
+.agent-sessions-workbench .floating-details-icon,
+.agent-sessions-workbench .floating-details-state-icon {
+	flex-shrink: 0;
+	font-size: var(--vscode-codiconFontSize);
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.floating-auxiliarybar {
+	--vscode-agentsDetail-background: var(--vscode-editorWidget-background);
+	--vscode-sideBar-background: var(--vscode-editorWidget-background);
+	border: 0;
+}
+
+.agent-sessions-workbench.dock-detail-panel .part.auxiliarybar.floating-auxiliarybar::before {
+	display: none;
+}
+
+.agent-sessions-workbench .floating-details-resize-width,
+.agent-sessions-workbench .floating-details-resize-height {
+	position: absolute;
+	pointer-events: none;
+}
+
+.agent-sessions-workbench .floating-details.anchored-left .floating-details-resize-width {
+	left: auto;
+	right: 0;
+}
+
+.agent-sessions-workbench .floating-details.anchored-bottom .floating-details-resize-height {
+	bottom: auto;
+	top: 0;
+}
+
+.agent-sessions-workbench .floating-details-resize-width {
+	left: 0;
+	top: 0;
+	width: var(--vscode-spacing-size40);
+	height: 100%;
+}
+
+.agent-sessions-workbench .floating-details-resize-height {
+	left: 0;
+	bottom: 0;
+	width: 100%;
+	height: var(--vscode-spacing-size40);
+}
+
+.agent-sessions-workbench .floating-details [role="separator"]:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.agent-sessions-workbench.hc-black .floating-details-surface,
+.agent-sessions-workbench.hc-light .floating-details-surface {
+	box-shadow: none;
+}
+
+@supports (backdrop-filter: blur(12px)) and (background-color: color-mix(in srgb, black 92%, transparent)) {
+	@media (prefers-reduced-transparency: no-preference) and (forced-colors: none) {
+		.monaco-workbench.agent-sessions-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) .floating-details-surface {
+			--modern-ui-glass-background: color-mix(in srgb, var(--vscode-editorWidget-background) var(--modern-ui-glass-opacity, 92%), transparent);
+			background: transparent;
+			isolation: isolate;
+
+			&::before {
+				content: '';
+				position: absolute;
+				inset: 0;
+				z-index: -1;
+				border-radius: inherit;
+				pointer-events: none;
+				background-color: var(--modern-ui-glass-background);
+				backdrop-filter: blur(12px);
+			}
+
+			& .part.auxiliarybar.floating-auxiliarybar {
+				--vscode-agentsDetail-background: transparent;
+				--vscode-sideBar-background: transparent;
+			}
+		}
+
+		.monaco-workbench.agent-sessions-workbench.modern-ui-frosted-glass:not(.hc-black):not(.hc-light) .floating-details.changes-view-active .floating-details-surface {
+			background: var(--vscode-editor-background);
+
+			&::before {
+				display: none;
+			}
+
+			@supports (color: rgb(from red r g b / 1)) {
+				background: rgb(from var(--vscode-editorWidget-background) r g b / 1);
+			}
+		}
+	}
+}

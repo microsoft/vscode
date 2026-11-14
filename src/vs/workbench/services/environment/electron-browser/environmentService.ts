@@ -5,7 +5,7 @@
 
 import { PerformanceMark } from '../../../../base/common/performance.js';
 import { IBrowserWorkbenchEnvironmentService } from '../browser/environmentService.js';
-import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor } from '../../../../platform/window/common/window.js';
+import { IColorScheme, INativeWindowConfiguration, IOSConfiguration, IPath, IPathsToWaitFor, IWindowFolderLocation } from '../../../../platform/window/common/window.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AbstractNativeEnvironmentService } from '../../../../platform/environment/common/environmentService.js';
@@ -14,7 +14,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
+import { decodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 
 export const INativeWorkbenchEnvironmentService = refineServiceDecorator<IEnvironmentService, INativeWorkbenchEnvironmentService>(IEnvironmentService);
 
@@ -44,6 +44,12 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly devDeviceId: string;
 	readonly isPortable: boolean;
 
+	// --- Folder Location
+	/** The alternate location the window was started at, if any. */
+	readonly folderLocation?: IWindowFolderLocation;
+	/** Set when the window was meant to start at an alternate location that no longer exists. */
+	readonly folderLocationMissing?: { readonly label: string };
+
 	// --- Paths
 	readonly execPath: string;
 	readonly backupPath?: string;
@@ -72,6 +78,10 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get isPortable() { return this.configuration.isPortable; }
+
+	get folderLocation() { return this.configuration.folderLocation; }
+
+	get folderLocationMissing() { return this.configuration.folderLocationMissing; }
 
 	@memoize
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
@@ -153,6 +163,12 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 
 	@memoize
 	get isSessionsWindow(): boolean { return !!this.configuration.isSessionsWindow; }
+
+	@memoize
+	get sessionTitle(): string | undefined {
+		const encodedSessionTitle = this.configuration['session-title-base64'];
+		return encodedSessionTitle ? decodeBase64(encodedSessionTitle).toString() : undefined;
+	}
 
 	constructor(
 		private readonly configuration: INativeWindowConfiguration,

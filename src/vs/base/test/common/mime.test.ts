@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { getExtensionForMimeType, normalizeMimeType } from '../../common/mime.js';
+import { getExtensionForMimeType, getMediaMime, getMediaOrTextMime, normalizeMimeType } from '../../common/mime.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 suite('Mime', () => {
@@ -24,12 +24,25 @@ suite('Mime', () => {
 		assert.ok(['.jpe', '.jpeg', '.jpg'].includes(getExtensionForMimeType('image/jpg')!));
 		// image/jpeg is an alias for image/jpg and should also return a valid extension
 		assert.ok(['.jpe', '.jpeg', '.jpg'].includes(getExtensionForMimeType('image/jpeg')!));
+		assert.strictEqual(getExtensionForMimeType('image/avif'), '.avif');
 		assert.strictEqual(getExtensionForMimeType('image/png'), '.png');
 		assert.strictEqual(getExtensionForMimeType('image/gif'), '.gif');
 		assert.strictEqual(getExtensionForMimeType('image/webp'), '.webp');
 		assert.ok(['.mp2', '.mp2a', '.mp3', '.mpga', '.m2a', '.m3a'].includes(getExtensionForMimeType('audio/mpeg')!));
 		assert.ok(['.mp4', '.mp4v', '.mpg4'].includes(getExtensionForMimeType('video/mp4')!));
+		assert.strictEqual(getExtensionForMimeType('text/plain'), '.txt');
 		assert.strictEqual(getExtensionForMimeType('unknown/type'), undefined);
+	});
+
+	test('getMediaMime', () => {
+		assert.strictEqual(getMediaMime('profile.avif'), 'image/avif');
+	});
+
+	test('getMediaOrTextMime', () => {
+		assert.deepStrictEqual(
+			['a.json', 'a.js.map', 'a.pdf', 'a.wasm', 'a.woff2', 'a.ttf', 'a.otf', 'a.PDF', 'a.png', 'a.unknown'].map(getMediaOrTextMime),
+			['application/json', 'application/json', 'application/pdf', 'application/wasm', 'font/woff2', 'font/ttf', 'font/otf', 'application/pdf', 'image/png', undefined]
+		);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

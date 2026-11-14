@@ -4,35 +4,65 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { Emitter } from '../../../../../base/common/event.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { IStorageChangeEvent } from '../../../../../base/parts/storage/common/storage.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { AgentSessionApprovalKind, AgentSessionApprovalModel, agentSessionApprovalId, IAgentSessionApprovalInfo } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionApprovalModel.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../blockedSessions/browser/blockedSessions.js';
+import { IAgentHostFilterEntry, IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
+import { IChat, ISession, SessionRemoteConnectionStatus, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
+import { ISessionsChangeEvent, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { BlockedSessionReason, BlockedSessions, IBlockedSession } from '../../../../../workbench/contrib/sessions/browser/blockedSessions.js';
 import { BlockedSessionsCIFixModel } from '../../browser/blockedSessionsCIFixModel.js';
 import { BlockedSessionsIndicatorModel, RequiresInputKind } from '../../browser/blockedSessionsIndicatorModel.js';
+import { ITestSessionWithChat, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
+
+class PausedStorageEventsService extends InMemoryStorageService {
+	private paused = false;
+	private readonly pendingChanges: { readonly scope: StorageScope; readonly event: IStorageChangeEvent }[] = [];
+
+	pauseChangeEvents(): void {
+		this.paused = true;
+	}
+
+	flushChangeEvents(): void {
+		this.paused = false;
+		for (const change of this.pendingChanges.splice(0)) {
+			super.emitDidChangeValue(change.scope, change.event);
+		}
+	}
+
+	protected override emitDidChangeValue(scope: StorageScope, event: IStorageChangeEvent): void {
+		if (this.paused) {
+			this.pendingChanges.push({ scope, event });
+			return;
+		}
+		super.emitDidChangeValue(scope, event);
+	}
+}
 
 suite('BlockedSessionsIndicatorModel', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createModel(options?: { quality?: string }): {
-		model: BlockedSessionsIndicatorModel;
-		blockedModel: TestBlockedSessions;
-		approvalModel: TestApprovalModel;
-		ciFixModel: TestCIFixModel;
-		sessionsService: TestSessionsService;
-	} {
-		const blockedModel = new TestBlockedSessions();
+	const storageKey = 'sessions.blockedIndicator.ignoredOccurrences';
+
+	function createModel(options?: { quality?: string; storageService?: InMemoryStorageService; logService?: NullLogService }) {
+		const storageService = options?.storageService ?? store.add(new InMemoryStorageService());
+		const sessionsManagementService = new TestSessionsManagementService(store.add(new Emitter<ISessionsChangeEvent>()));
+		const blockedModel = new TestBlockedSessions(sessionsManagementService);
 		const approvalModel = new TestApprovalModel();
 		const ciFixModel = new TestCIFixModel();
 		const sessionsService = new TestSessionsService();
+		const filterService = new TestAgentHostFilterService(store.add(new Emitter<void>()));
 		const productService = { quality: options?.quality ?? 'insider' } as unknown as IProductService;
 		const instantiationService = new class extends mock<IInstantiationService>() { }();
 		const model = store.add(new BlockedSessionsIndicatorModel(
@@ -42,23 +72,150 @@ suite('BlockedSessionsIndicatorModel', () => {
 			sessionsService as unknown as ISessionsService,
 			instantiationService,
 			productService,
+			options?.logService ?? new NullLogService(),
+			storageService,
+			sessionsManagementService,
+			filterService,
 		));
 		// Keep the derived live so it recomputes on visibility/dismissal changes.
 		store.add(autorun(reader => { model.blockedSessions.read(reader); }));
-		return { model, blockedModel, approvalModel, ciFixModel, sessionsService };
+		return { model, blockedModel, approvalModel, ciFixModel, sessionsService, storageService, sessionsManagementService, filterService };
 	}
 
 	function blockedIds(model: BlockedSessionsIndicatorModel): string[] {
 		return model.blockedSessions.get().map(entry => entry.session.sessionId);
 	}
 
-	test('excludes visible sessions from the blocked set', () => {
+	function unacknowledgedBlockedIds(model: BlockedSessionsIndicatorModel): string[] {
+		return model.unacknowledgedBlockedSessions.get().map(entry => entry.session.sessionId);
+	}
+
+	function reminderIds(model: BlockedSessionsIndicatorModel): string[] {
+		return model.reminderSessions.get().map(entry => entry.session.sessionId);
+	}
+
+	function attentionCount(model: BlockedSessionsIndicatorModel): number {
+		return model.attentionSessionCount.get();
+	}
+
+	test('excludes visible sessions and keeps unseen away sessions in the full attention set', () => {
 		const { model, blockedModel, sessionsService } = createModel();
 		const s1 = new TestSession('s1');
 		const s2 = new TestSession('s2');
 		blockedModel.setBlocked([needsInput(s1), needsInput(s2)]);
 		sessionsService.setVisible([s1]);
-		assert.deepStrictEqual(blockedIds(model), ['s2']);
+		assert.deepStrictEqual({
+			blocked: blockedIds(model),
+			unacknowledged: unacknowledgedBlockedIds(model),
+			reminders: reminderIds(model),
+			attentionCount: attentionCount(model),
+		}, {
+			blocked: ['s2'],
+			unacknowledged: ['s2'],
+			reminders: [],
+			attentionCount: 2,
+		});
+	});
+
+	test('scopes the blocked set, count and label to the selected host providers', () => {
+		const { model, blockedModel, approvalModel, filterService } = createModel();
+		const remote = new TestSession('remote', 'remote-host');
+		const sandboxOne = new TestSession('sandbox-one', 'sandbox-one-host');
+		const sandboxTwo = new TestSession('sandbox-two', 'sandbox-two-host');
+		approvalModel.setApproval(remote.resource, approval(AgentSessionApprovalKind.Question));
+		approvalModel.setApproval(sandboxOne.resource, approval(AgentSessionApprovalKind.Terminal));
+		approvalModel.setApproval(sandboxTwo.resource, approval(AgentSessionApprovalKind.Terminal));
+		blockedModel.setBlocked([needsInput(remote), needsInput(sandboxOne), needsInput(sandboxTwo)]);
+
+		const snapshot = () => {
+			const ids = blockedIds(model);
+			return { ids, label: ids.length ? model.getRequiresInputLabel(ids.length, model.requiresInputKind.get()) : undefined };
+		};
+		filterService.setSelectedProviders(['remote-host']);
+		const remoteScope = snapshot();
+		filterService.setSelectedProviders(['sandbox-one-host', 'sandbox-two-host']);
+		const groupedScope = snapshot();
+		filterService.setSelectedProviders([]);
+		const emptyGroup = snapshot();
+		filterService.setSelectedProviders(['sandbox-two-host']);
+		const changedMembership = snapshot();
+		filterService.setSelectedProviders(undefined);
+
+		assert.deepStrictEqual({ remoteScope, groupedScope, emptyGroup, changedMembership, unscoped: snapshot() }, {
+			remoteScope: { ids: ['remote'], label: '1 session has a question' },
+			groupedScope: { ids: ['sandbox-one', 'sandbox-two'], label: '2 sessions require terminal approval' },
+			emptyGroup: { ids: [], label: undefined },
+			changedMembership: { ids: ['sandbox-two'], label: '1 session requires terminal approval' },
+			unscoped: { ids: ['remote', 'sandbox-one', 'sandbox-two'], label: '3 sessions require input' },
+		});
+	});
+
+	test('does not request a blink for an excluded host or when switching into its scope', () => {
+		const { model, blockedModel, filterService } = createModel();
+		filterService.setSelectedProviders(['remote-host']);
+		let blinkRequests = 0;
+		store.add(model.onDidRequestBlink(() => blinkRequests++));
+		blockedModel.setBlocked([needsInput(new TestSession('sandbox', 'sandbox-host'))]);
+		const excluded = { ids: blockedIds(model), blink: model.consumePendingBlink(), blinkRequests };
+		filterService.setSelectedProviders(['sandbox-host']);
+
+		assert.deepStrictEqual({ excluded, selected: { ids: blockedIds(model), blink: model.consumePendingBlink(), blinkRequests } }, {
+			excluded: { ids: [], blink: false, blinkRequests: 0 },
+			selected: { ids: ['sandbox'], blink: false, blinkRequests: 0 },
+		});
+	});
+
+	test('drops a queued blink when its host is excluded before the blink plays', () => {
+		const { model, blockedModel, filterService } = createModel();
+		filterService.setSelectedProviders(['sandbox-host']);
+		blockedModel.setBlocked([needsInput(new TestSession('sandbox', 'sandbox-host'))]);
+		filterService.setSelectedProviders(['remote-host']);
+		filterService.setSelectedProviders(['sandbox-host']);
+
+		assert.deepStrictEqual({ ids: blockedIds(model), blink: model.consumePendingBlink() }, { ids: ['sandbox'], blink: false });
+	});
+
+	test('ignore all acknowledges only the selected host and survives scope changes', () => {
+		const { model, blockedModel, filterService } = createModel();
+		const remote = new TestSession('remote', 'remote-host');
+		const sandbox = new TestSession('sandbox', 'sandbox-host');
+		blockedModel.setBlocked([needsInput(remote), needsInput(sandbox)]);
+		filterService.setSelectedProviders(['remote-host']);
+		model.ignoreAllSessions();
+		filterService.setSelectedProviders(['sandbox-host']);
+		const sandboxScope = blockedIds(model);
+		filterService.setSelectedProviders(['remote-host']);
+		const remoteScope = blockedIds(model);
+		filterService.setSelectedProviders(undefined);
+
+		assert.deepStrictEqual({ sandboxScope, remoteScope, unscoped: blockedIds(model) }, {
+			sandboxScope: ['sandbox'],
+			remoteScope: [],
+			unscoped: ['sandbox'],
+		});
+	});
+
+	test('tracks requests arriving and resolving while their host is excluded', () => {
+		const { model, blockedModel, filterService } = createModel();
+		const sandbox = new TestSession('sandbox', 'sandbox-host');
+		filterService.setSelectedProviders(['sandbox-host']);
+		blockedModel.setBlocked([needsInput(sandbox)]);
+		model.ignoreAllSessions();
+		filterService.setSelectedProviders(['remote-host']);
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([needsInput(sandbox)]);
+		const excluded = blockedIds(model);
+		filterService.setSelectedProviders(['sandbox-host']);
+		const newRequest = blockedIds(model);
+		filterService.setSelectedProviders(['remote-host']);
+		blockedModel.setBlocked([]);
+		filterService.setSelectedProviders(['sandbox-host']);
+
+		assert.deepStrictEqual({ excluded, newRequest, resolved: blockedIds(model) }, {
+			excluded: [],
+			newRequest: ['sandbox'],
+			resolved: [],
+		});
 	});
 
 	test('excludes sessions whose CI fix is being submitted', () => {
@@ -82,36 +239,85 @@ suite('BlockedSessionsIndicatorModel', () => {
 		const s1 = new TestSession('s1');
 		sessionsService.setVisible([s1]);
 		blockedModel.setBlocked([needsInput(s1)]);
-		assert.strictEqual(model.consumePendingBlink(), false);
+		assert.deepStrictEqual({
+			blocked: blockedIds(model),
+			unacknowledged: unacknowledgedBlockedIds(model),
+			reminders: reminderIds(model),
+			blink: model.consumePendingBlink(),
+		}, {
+			blocked: [],
+			unacknowledged: [],
+			reminders: [],
+			blink: false,
+		});
 	});
 
-	test('acknowledges a blocked session when it becomes visible', () => {
+	test('shows a compact reminder after leaving a viewed unresolved session', () => {
 		const { model, blockedModel, sessionsService } = createModel();
 		const s1 = new TestSession('s1');
 		blockedModel.setBlocked([needsInput(s1)]);
 		assert.strictEqual(model.consumePendingBlink(), true);
 
 		sessionsService.setVisible([s1]);
-		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
+		const visible = {
+			blocked: blockedIds(model),
+			unacknowledged: unacknowledgedBlockedIds(model),
+			reminders: reminderIds(model),
+			attentionCount: attentionCount(model),
+			blink: model.consumePendingBlink(),
+		};
 
 		sessionsService.setVisible([]);
-		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
+		assert.deepStrictEqual({
+			visible,
+			away: {
+				blocked: blockedIds(model),
+				unacknowledged: unacknowledgedBlockedIds(model),
+				reminders: reminderIds(model),
+				attentionCount: attentionCount(model),
+				blink: model.consumePendingBlink(),
+			},
+		}, {
+			visible: { blocked: [], unacknowledged: [], reminders: [], attentionCount: 1, blink: false },
+			away: { blocked: ['s1'], unacknowledged: [], reminders: ['s1'], attentionCount: 1, blink: false },
+		});
 	});
 
-	test('keeps an approval acknowledged when its chat model reloads', () => {
+	test('keeps a viewed approval as a reminder while its chat model reloads', () => {
 		const { model, blockedModel, approvalModel, sessionsService } = createModel();
 		const s1 = new TestSession('s1');
 		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(1000), 'tool-call-1'));
 		blockedModel.setBlocked([needsInput(s1)]);
 		sessionsService.setVisible([s1]);
+		const visible = {
+			blocked: blockedIds(model),
+			unacknowledged: unacknowledgedBlockedIds(model),
+			reminders: reminderIds(model),
+		};
 		sessionsService.setVisible([]);
 
 		approvalModel.setApproval(s1.resource, undefined);
 		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(2000), 'tool-call-1'));
-		const afterReload = blockedIds(model);
+		const afterReload = {
+			blocked: blockedIds(model),
+			unacknowledged: unacknowledgedBlockedIds(model),
+			reminders: reminderIds(model),
+		};
 		approvalModel.setApproval(s1.resource, approval(AgentSessionApprovalKind.Terminal, new Date(3000), 'tool-call-2'));
 
-		assert.deepStrictEqual({ afterReload, afterNewApproval: blockedIds(model) }, { afterReload: [], afterNewApproval: ['s1'] });
+		assert.deepStrictEqual({
+			visible,
+			afterReload,
+			afterNewApproval: {
+				blocked: blockedIds(model),
+				unacknowledged: unacknowledgedBlockedIds(model),
+				reminders: reminderIds(model),
+			},
+		}, {
+			visible: { blocked: [], unacknowledged: [], reminders: [] },
+			afterReload: { blocked: ['s1'], unacknowledged: [], reminders: ['s1'] },
+			afterNewApproval: { blocked: ['s1'], unacknowledged: ['s1'], reminders: [] },
+		});
 	});
 
 	test('blinks again when an additional, not-yet-visible session becomes blocked', () => {
@@ -137,13 +343,23 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.strictEqual(model.consumePendingBlink(), false);
 	});
 
-	test('does not blink when a queued block becomes visible then remains acknowledged', () => {
+	test('does not blink when a queued block becomes visible then resurfaces away', () => {
 		const { model, blockedModel, sessionsService } = createModel();
 		const s1 = new TestSession('s1');
 		blockedModel.setBlocked([needsInput(s1)]);
 		sessionsService.setVisible([s1]);
 		sessionsService.setVisible([]);
-		assert.deepStrictEqual({ blocked: blockedIds(model), blink: model.consumePendingBlink() }, { blocked: [], blink: false });
+		assert.deepStrictEqual({
+			blocked: blockedIds(model),
+			unacknowledged: unacknowledgedBlockedIds(model),
+			reminders: reminderIds(model),
+			blink: model.consumePendingBlink(),
+		}, {
+			blocked: ['s1'],
+			unacknowledged: [],
+			reminders: ['s1'],
+			blink: false,
+		});
 	});
 
 	test('does not blink when a queued block unblocks before the blink plays', () => {
@@ -247,6 +463,21 @@ suite('BlockedSessionsIndicatorModel', () => {
 		assert.deepStrictEqual(blockedIds(model), ['s1']);
 	});
 
+	test('keeps an ignored CI failure ignored when the session drops out of the blocked set', () => {
+		// The raw blocked set drops a session whenever its pull request / CI data is
+		// momentarily unavailable (e.g. while those models reload). Nothing changed
+		// about the failure, so the acknowledgement must survive that gap.
+		const { model, blockedModel } = createModel();
+		const s1 = new TestSession('s1');
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+		model.ignoreSession(s1 as unknown as ISession);
+
+		blockedModel.setBlocked([]);
+		blockedModel.setBlocked([failingCI(s1, 'sha1')]);
+
+		assert.deepStrictEqual(blockedIds(model), []);
+	});
+
 	test('ignores all currently surfaced blocked sessions', () => {
 		const { model, blockedModel } = createModel();
 		const input = new TestSession('input');
@@ -260,6 +491,413 @@ suite('BlockedSessionsIndicatorModel', () => {
 
 		assert.deepStrictEqual({ ignored, afterNewOccurrences: blockedIds(model) }, { ignored: [], afterNewOccurrences: ['input', 'ci'] });
 	});
+
+	test('restores ignored occurrences before sessions and approvals finish loading', () => {
+		const first = createModel();
+		const input = new TestSession('input');
+		const ci = new TestSession('ci');
+		first.approvalModel.setApproval(input.resource, approval(AgentSessionApprovalKind.Terminal, new Date(1000), 'tool-call-1'));
+		first.blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha1')]);
+		first.model.ignoreAllSessions();
+		first.model.dispose();
+
+		const restored = createModel({ storageService: first.storageService });
+		const storedWhileLoading = restored.storageService.getObject(storageKey, StorageScope.PROFILE);
+		restored.sessionsManagementService.setSessions([input, ci]);
+		restored.blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha1')]);
+		const beforeApproval = blockedIds(restored.model);
+		restored.approvalModel.setApproval(input.resource, approval(AgentSessionApprovalKind.Terminal, new Date(2000), 'tool-call-1'));
+		const afterApproval = { blocked: blockedIds(restored.model), blink: restored.model.consumePendingBlink() };
+		restored.approvalModel.setApproval(input.resource, approval(AgentSessionApprovalKind.Terminal, new Date(3000), 'tool-call-2'));
+		restored.blockedModel.setBlocked([needsInput(input), failingCI(ci, 'sha2')]);
+
+		assert.deepStrictEqual({
+			storedWhileLoading,
+			beforeApproval,
+			afterApproval,
+			newOccurrences: blockedIds(restored.model),
+			storedAfterNewOccurrences: restored.storageService.get(storageKey, StorageScope.PROFILE),
+		}, {
+			storedWhileLoading: [
+				['input', { occurrenceId: 'needsInput:approval:tool-call-1', reason: BlockedSessionReason.NeedsInput }],
+				['ci', { occurrenceId: 'failingCI:sha1', reason: BlockedSessionReason.FailingCI }],
+			],
+			beforeApproval: [],
+			afterApproval: { blocked: [], blink: false },
+			newOccurrences: ['input', 'ci'],
+			storedAfterNewOccurrences: undefined,
+		});
+	});
+
+	for (const acknowledge of ['ignore', 'approve'] as const) {
+		test(`persists ${acknowledge} acknowledgements across reload`, () => {
+			const first = createModel();
+			const session = new TestSession('input');
+			const pendingApproval = approval(AgentSessionApprovalKind.Terminal, new Date(1000), 'tool-call');
+			first.approvalModel.setApproval(session.resource, pendingApproval);
+			first.blockedModel.setBlocked([needsInput(session)]);
+			switch (acknowledge) {
+				case 'ignore':
+					first.model.ignoreSession(session);
+					break;
+				case 'approve':
+					first.model.dismissApproval({ session, approvalId: agentSessionApprovalId(pendingApproval) });
+					break;
+			}
+			first.model.dispose();
+			const restored = createModel({ storageService: first.storageService });
+			restored.blockedModel.setBlocked([needsInput(session)]);
+			restored.approvalModel.setApproval(session.resource, pendingApproval);
+
+			assert.deepStrictEqual({ blocked: blockedIds(restored.model), blink: restored.model.consumePendingBlink() }, { blocked: [], blink: false });
+		});
+	}
+
+	test('viewing a blocked session persists a reminder without ignoring it', () => {
+		const first = createModel();
+		const session = new TestSession('input');
+		first.blockedModel.setBlocked([needsInput(session)]);
+		first.sessionsService.setVisible([session]);
+		first.sessionsService.setVisible([]);
+		first.model.dispose();
+
+		const restored = createModel({ storageService: first.storageService });
+		restored.blockedModel.setBlocked([needsInput(session)]);
+
+		assert.deepStrictEqual({
+			blocked: blockedIds(restored.model),
+			unacknowledged: unacknowledgedBlockedIds(restored.model),
+			reminders: reminderIds(restored.model),
+			stored: restored.storageService.getObject(storageKey, StorageScope.PROFILE),
+		}, {
+			blocked: ['input'],
+			unacknowledged: [],
+			reminders: ['input'],
+			stored: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput, kind: 'viewed' }]],
+		});
+	});
+
+	test('keeps restored input ignores while a provider is temporarily absent', () => {
+		const first = createModel();
+		const session = new TestSession('input');
+		first.blockedModel.setBlocked([needsInput(session)]);
+		first.model.ignoreSession(session);
+		first.model.dispose();
+		const restored = createModel({ storageService: first.storageService });
+		restored.blockedModel.setBlocked([needsInput(session)]);
+		transaction(tx => {
+			restored.sessionsManagementService.setSessions([]);
+			restored.blockedModel.blockedSessionsWithReasons.set([], tx);
+			restored.blockedModel.blockedSessions.set([], tx);
+		});
+		restored.blockedModel.setBlocked([needsInput(session)]);
+		const afterReconnect = blockedIds(restored.model);
+		restored.blockedModel.setBlocked([]);
+		restored.blockedModel.setBlocked([needsInput(session)]);
+
+		assert.deepStrictEqual({ afterReconnect, afterNewInput: blockedIds(restored.model) }, { afterReconnect: [], afterNewInput: ['input'] });
+	});
+
+	for (const initialStatus of [SessionStatus.Completed, SessionStatus.Error]) {
+		test(`retains restored input acknowledgements while a fresh facade initially reports ${initialStatus}`, () => {
+			const first = createModel();
+			const input = new TestSession('input');
+			first.blockedModel.setBlocked([needsInput(input)]);
+			first.model.ignoreSession(input);
+			first.model.dispose();
+
+			const restored = createModel({ storageService: first.storageService });
+			const cached = new TestSession('input');
+			cached.status.set(initialStatus, undefined);
+			restored.sessionsManagementService.setSessions([cached]);
+			const beforeHydration = restored.storageService.getObject(storageKey, StorageScope.PROFILE);
+			restored.blockedModel.setBlocked([needsInput(cached)]);
+			const afterHydration = blockedIds(restored.model);
+			restored.blockedModel.setBlocked([]);
+			restored.blockedModel.setBlocked([needsInput(cached)]);
+
+			assert.deepStrictEqual({ beforeHydration, afterHydration, afterNewInput: blockedIds(restored.model) }, {
+				beforeHydration: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+				afterHydration: [],
+				afterNewInput: ['input'],
+			});
+		});
+	}
+
+	for (const replaceFacade of [false, true]) {
+		test(`retains input acknowledgements across disconnect with a ${replaceFacade ? 'replacement' : 'reused'} facade`, () => {
+			const { model, blockedModel, sessionsManagementService, storageService } = createModel();
+			const input = new TestSession('input');
+			blockedModel.setBlocked([needsInput(input)]);
+			model.ignoreSession(input);
+
+			const reconnecting = replaceFacade ? new TestSession('input') : input;
+			transaction(tx => {
+				reconnecting.remoteConnectionStatus.set({ kind: 'reconnecting' }, tx);
+				reconnecting.status.set(SessionStatus.Error, tx);
+				sessionsManagementService.setSessions([reconnecting]);
+				blockedModel.blockedSessionsWithReasons.set([], tx);
+				blockedModel.blockedSessions.set([], tx);
+			});
+			const whileDisconnected = storageService.getObject(storageKey, StorageScope.PROFILE);
+			transaction(tx => {
+				reconnecting.status.set(SessionStatus.Completed, tx);
+				reconnecting.remoteConnectionStatus.set({ kind: 'connected' }, tx);
+			});
+			blockedModel.setBlocked([needsInput(reconnecting)]);
+
+			assert.deepStrictEqual({ whileDisconnected, afterReconnect: blockedIds(model), blink: model.consumePendingBlink() }, {
+				whileDisconnected: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+				afterReconnect: [],
+				blink: false,
+			});
+		});
+	}
+
+	test('reconciles interleaved window acknowledgements, new occurrences, and archive removals', () => {
+		const first = createModel();
+		const second = createModel({ storageService: first.storageService });
+		const sessions = ['a', 'b', 'c'].map(id => new TestSession(id));
+		first.blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+		second.blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+
+		first.model.ignoreSession(sessions[0]);
+		second.model.ignoreSession(sessions[1]);
+		first.model.ignoreSession(sessions[2]);
+		const afterIgnores = [blockedIds(first.model), blockedIds(second.model)];
+		transaction(() => {
+			first.blockedModel.setBlocked([failingCI(sessions[0], 'new-sha'), failingCI(sessions[1]), failingCI(sessions[2])]);
+			second.blockedModel.setBlocked([failingCI(sessions[0], 'new-sha'), failingCI(sessions[1]), failingCI(sessions[2])]);
+		});
+		second.model.ignoreSession(sessions[0]);
+		sessions[1].isArchived.set(true, undefined);
+
+		assert.deepStrictEqual({ afterIgnores, stored: first.storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+			afterIgnores: [[], []],
+			stored: [
+				['c', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+				['a', { occurrenceId: 'failingCI:new-sha', reason: BlockedSessionReason.FailingCI }],
+			],
+		});
+	});
+
+	test('preserves an external ignore when the same occurrence is viewed before its storage event arrives', () => {
+		const storageService = store.add(new PausedStorageEventsService());
+		const first = createModel({ storageService });
+		const second = createModel({ storageService });
+		const session = new TestSession('input');
+		first.blockedModel.setBlocked([needsInput(session)]);
+		second.blockedModel.setBlocked([needsInput(session)]);
+
+		storageService.pauseChangeEvents();
+		first.model.ignoreSession(session);
+		second.sessionsService.setVisible([session]);
+		second.sessionsService.setVisible([]);
+		const beforeStorageEvent = {
+			blocked: blockedIds(second.model),
+			unacknowledged: unacknowledgedBlockedIds(second.model),
+			reminders: reminderIds(second.model),
+			stored: storageService.getObject(storageKey, StorageScope.PROFILE),
+		};
+		storageService.flushChangeEvents();
+
+		assert.deepStrictEqual({
+			beforeStorageEvent,
+			afterStorageEvent: {
+				blocked: blockedIds(second.model),
+				unacknowledged: unacknowledgedBlockedIds(second.model),
+				reminders: reminderIds(second.model),
+				stored: storageService.getObject(storageKey, StorageScope.PROFILE),
+			},
+		}, {
+			beforeStorageEvent: {
+				blocked: [],
+				unacknowledged: [],
+				reminders: [],
+				stored: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+			},
+			afterStorageEvent: {
+				blocked: [],
+				unacknowledged: [],
+				reminders: [],
+				stored: [['input', { occurrenceId: 'needsInput', reason: BlockedSessionReason.NeedsInput }]],
+			},
+		});
+	});
+
+	test('does not write external storage updates back or resurrect removed acknowledgements', () => {
+		const { model, blockedModel, storageService } = createModel();
+		const sessions = ['a', 'b', 'c'].map(id => new TestSession(id));
+		blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+		model.ignoreSession(sessions[0]);
+		let changes = 0;
+		const listenerStore = store.add(new DisposableStore());
+		listenerStore.add(storageService.onDidChangeValue(StorageScope.PROFILE, storageKey, listenerStore)(() => changes++));
+		storageService.storeAll([{
+			key: storageKey,
+			value: JSON.stringify([['b', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]]),
+			scope: StorageScope.PROFILE,
+			target: StorageTarget.MACHINE,
+		}], true);
+		const afterExternalUpdate = { blocked: blockedIds(model), changes };
+		model.ignoreSession(sessions[2]);
+
+		assert.deepStrictEqual({ afterExternalUpdate, stored: storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+			afterExternalUpdate: { blocked: ['a', 'c'], changes: 1 },
+			stored: [
+				['b', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+				['c', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+			],
+		});
+	});
+
+	for (const hasSavedIgnores of [false, true]) {
+		test(`replaces acknowledgements on a profile storage switch ${hasSavedIgnores ? 'with' : 'without'} saved ignores`, () => {
+			const { model, blockedModel, storageService } = createModel();
+			const sessions = Array.from({ length: 52 }, (_, i) => new TestSession(`ci-${i}`));
+			blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+			for (const session of sessions.slice(0, 51)) {
+				model.ignoreSession(session);
+			}
+			const saved = [['ci-51', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]];
+			storageService.storeAll([{
+				key: storageKey,
+				value: hasSavedIgnores ? JSON.stringify(saved) : undefined,
+				scope: StorageScope.PROFILE,
+				target: StorageTarget.MACHINE,
+			}], true);
+			const afterSwitch = blockedIds(model);
+			model.ignoreSession(sessions[0]);
+
+			assert.deepStrictEqual({ afterSwitch, stored: storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+				afterSwitch: sessions.slice(0, hasSavedIgnores ? 51 : 52).map(session => session.sessionId),
+				stored: [
+					...(hasSavedIgnores ? saved : []),
+					['ci-0', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }],
+				],
+			});
+		});
+	}
+
+	for (const archiveBeforeReload of [false, true]) {
+		test(`removes archived sessions from storage ${archiveBeforeReload ? 'during restoration' : 'when archived'}`, () => {
+			const first = createModel();
+			const input = new TestSession('input');
+			const ci = new TestSession('ci');
+			const retained = new TestSession('retained');
+			first.blockedModel.setBlocked([needsInput(input), failingCI(ci), failingCI(retained)]);
+			first.model.ignoreAllSessions();
+			first.model.dispose();
+			if (archiveBeforeReload) {
+				input.isArchived.set(true, undefined);
+				ci.isArchived.set(true, undefined);
+			}
+			const restored = createModel({ storageService: first.storageService });
+			restored.sessionsManagementService.setSessions([input, ci, retained]);
+			restored.blockedModel.setBlocked([failingCI(retained)]);
+			input.isArchived.set(true, undefined);
+			ci.isArchived.set(true, undefined);
+			const storedAfterArchive = restored.storageService.getObject(storageKey, StorageScope.PROFILE);
+			input.isArchived.set(false, undefined);
+			ci.isArchived.set(false, undefined);
+			restored.blockedModel.setBlocked([needsInput(input), failingCI(ci), failingCI(retained)]);
+
+			assert.deepStrictEqual({ storedAfterArchive, afterUnarchive: blockedIds(restored.model) }, {
+				storedAfterArchive: [['retained', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]],
+				afterUnarchive: ['input', 'ci'],
+			});
+		});
+	}
+
+	test('removes the storage key when the last ignored session is archived', () => {
+		const { model, blockedModel, storageService } = createModel();
+		const session = new TestSession('ci');
+		blockedModel.setBlocked([failingCI(session)]);
+		model.ignoreSession(session);
+		blockedModel.setBlocked([]);
+		session.isArchived.set(true, undefined);
+
+		assert.strictEqual(storageService.get(storageKey, StorageScope.PROFILE), undefined);
+	});
+
+	for (const ignoreAll of [false, true]) {
+		test(`stores only the latest 50 ignored sessions with ${ignoreAll ? 'ignore all' : 'individual ignores'}`, () => {
+			const first = createModel();
+			const sessions = Array.from({ length: 51 }, (_, i) => new TestSession(`ci-${i}`));
+			first.blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+			if (ignoreAll) {
+				first.model.ignoreAllSessions();
+			} else {
+				for (const session of sessions) {
+					first.model.ignoreSession(session);
+				}
+			}
+			const beforeReload = blockedIds(first.model);
+			const stored = first.storageService.getObject(storageKey, StorageScope.PROFILE);
+			first.model.dispose();
+			const restored = createModel({ storageService: first.storageService });
+			restored.blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+
+			assert.deepStrictEqual({ beforeReload, stored, afterReload: blockedIds(restored.model) }, {
+				beforeReload: [],
+				stored: sessions.slice(1).map(session => [session.sessionId, { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]),
+				afterReload: ['ci-0'],
+			});
+		});
+	}
+
+	test('refreshes acknowledgement order when a session is ignored again', () => {
+		const { model, blockedModel, storageService } = createModel();
+		const sessions = Array.from({ length: 51 }, (_, i) => new TestSession(`ci-${i}`));
+		blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+		for (const session of sessions.slice(0, 50)) {
+			model.ignoreSession(session);
+		}
+		model.ignoreSession(sessions[0]);
+		model.ignoreSession(sessions[50]);
+
+		assert.deepStrictEqual(storageService.getObject(storageKey, StorageScope.PROFILE),
+			[...sessions.slice(2, 50), sessions[0], sessions[50]].map(session => [session.sessionId, { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]));
+	});
+
+	test('deduplicates and bounds restored history to the latest 50 sessions', () => {
+		const storageService = store.add(new InMemoryStorageService());
+		const sessions = Array.from({ length: 51 }, (_, i) => new TestSession(`ci-${i}`));
+		const entries = sessions.map(session => [session.sessionId, { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]);
+		storageService.store(storageKey, JSON.stringify([...entries, entries[0]]), StorageScope.PROFILE, StorageTarget.MACHINE);
+		const { model, blockedModel } = createModel({ storageService });
+		blockedModel.setBlocked(sessions.map(session => failingCI(session)));
+
+		assert.deepStrictEqual({ blocked: blockedIds(model), stored: storageService.getObject(storageKey, StorageScope.PROFILE) }, {
+			blocked: ['ci-1'],
+			stored: [...entries.slice(2), entries[0]],
+		});
+	});
+
+	for (const invalid of ['{', '{}', '[null]', '[["ci", null]]', '[["ci", {"occurrenceId": 1, "reason": "failingCI"}]]', '[["ci", {"occurrenceId": "sha", "reason": "invalid"}]]', '[["ci", {"occurrenceId": "sha", "reason": "failingCI", "kind": "invalid"}]]']) {
+		test(`logs and recovers from invalid persisted state: ${invalid}`, () => {
+			const storageService = store.add(new InMemoryStorageService());
+			storageService.store(storageKey, invalid, StorageScope.PROFILE, StorageTarget.MACHINE);
+			const warnings: string[] = [];
+			const logService = new class extends NullLogService {
+				override warn(message: string): void { warnings.push(message); }
+			};
+			const { model, blockedModel } = createModel({ storageService, logService });
+			const session = new TestSession('ci');
+			blockedModel.setBlocked([failingCI(session)]);
+			model.ignoreSession(session);
+
+			assert.deepStrictEqual({
+				warnings,
+				blocked: blockedIds(model),
+				stored: storageService.getObject(storageKey, StorageScope.PROFILE),
+			}, {
+				warnings: ['[BlockedSessionsIndicator] Failed to load acknowledged occurrences'],
+				blocked: [],
+				stored: [['ci', { occurrenceId: 'failingCI:sha', reason: BlockedSessionReason.FailingCI }]],
+			});
+		});
+	}
 
 	test('reports nothing and never blinks when disabled (stable quality)', () => {
 		const { model, blockedModel } = createModel({ quality: 'stable' });
@@ -280,13 +918,51 @@ function approval(kind: AgentSessionApprovalKind, since: Date = new Date(), appr
 	return { approvalId, kind, label: 'npm run build', languageId: undefined, since, confirm: () => { } };
 }
 
-class TestSession {
-	readonly resource: URI;
-	readonly chats: IObservable<readonly { readonly resource: URI }[]>;
+class TestSession extends mock<ISession>() {
+	override readonly resource: URI;
+	override readonly chats: IObservable<readonly IChat[]>;
+	override readonly isArchived = observableValue('isArchived', false);
+	override readonly status = observableValue('status', SessionStatus.Completed);
+	override readonly remoteConnectionStatus = observableValue<SessionRemoteConnectionStatus>('remoteConnectionStatus', { kind: 'connected' });
 
-	constructor(readonly sessionId: string) {
+	constructor(override readonly sessionId: string, override readonly providerId: string = 'test-provider') {
+		super();
 		this.resource = URI.parse(`test-session:/${sessionId}`);
-		this.chats = constObservable([{ resource: this.resource }]);
+		this.chats = constObservable([upcastPartial<IChat>({ resource: this.resource })]);
+	}
+}
+
+class TestAgentHostFilterService extends mock<IAgentHostFilterService>() {
+	override readonly onDidChange;
+	override selectedHost: IAgentHostFilterEntry | undefined;
+
+	constructor(private readonly _onDidChange: Emitter<void>) {
+		super();
+		this.onDidChange = _onDidChange.event;
+	}
+
+	setSelectedProviders(providerIds: readonly string[] | undefined): void {
+		this.selectedHost = providerIds === undefined ? undefined : upcastPartial<IAgentHostFilterEntry>({ providerIds });
+		this._onDidChange.fire();
+	}
+}
+
+class TestSessionsManagementService extends mock<ISessionsManagementService>() {
+	private _sessions: ISession[] = [];
+	override readonly onDidChangeSessions;
+
+	constructor(private readonly _onDidChangeSessions: Emitter<ISessionsChangeEvent>) {
+		super();
+		this.onDidChangeSessions = _onDidChangeSessions.event;
+	}
+
+	override getSessions(): ISession[] {
+		return this._sessions;
+	}
+
+	setSessions(sessions: readonly ISession[]): void {
+		this._sessions = [...sessions];
+		this._onDidChangeSessions.fire({ added: sessions, removed: [], changed: [] });
 	}
 }
 
@@ -294,8 +970,23 @@ class TestBlockedSessions {
 	readonly blockedSessionsWithReasons = observableValue<readonly IBlockedSession[]>('withReasons', []);
 	readonly blockedSessions = observableValue<readonly ISession[]>('blocked', []);
 
+	constructor(private readonly _sessionsManagementService: TestSessionsManagementService) { }
+
 	setBlocked(blocked: readonly IBlockedSession[]): void {
 		transaction(tx => {
+			const sessions = new Map(this._sessionsManagementService.getSessions().map(session => [session.sessionId, session]));
+			for (const entry of this.blockedSessionsWithReasons.get()) {
+				if (entry.session instanceof TestSession) {
+					entry.session.status.set(SessionStatus.Completed, tx);
+				}
+			}
+			for (const entry of blocked) {
+				sessions.set(entry.session.sessionId, entry.session);
+				if (entry.session instanceof TestSession) {
+					entry.session.status.set(entry.reason === BlockedSessionReason.NeedsInput ? SessionStatus.NeedsInput : SessionStatus.Completed, tx);
+				}
+			}
+			this._sessionsManagementService.setSessions([...sessions.values()]);
 			this.blockedSessionsWithReasons.set(blocked, tx);
 			this.blockedSessions.set(blocked.map(entry => entry.session), tx);
 		});
@@ -332,9 +1023,10 @@ class TestCIFixModel {
 }
 
 class TestSessionsService {
-	readonly visibleSessions = observableValue<readonly (IActiveSession | undefined)[]>('visible', []);
+	readonly visibleSessions = observableValue<readonly (ITestSessionWithChat | undefined)[]>('visible', []);
+	readonly slotPanes = testGridPanes(this.visibleSessions);
 
 	setVisible(sessions: readonly TestSession[]): void {
-		this.visibleSessions.set(sessions as unknown as readonly IActiveSession[], undefined);
+		this.visibleSessions.set(sessions as unknown as readonly ITestSessionWithChat[], undefined);
 	}
 }

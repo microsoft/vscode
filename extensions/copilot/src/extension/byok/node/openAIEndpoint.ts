@@ -6,9 +6,10 @@ import type { CancellationToken } from 'vscode';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { isKimiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IDomainService } from '../../../platform/endpoint/common/domainService';
 import { IChatModelInformation } from '../../../platform/endpoint/common/endpointProvider';
-import { ChatEndpoint } from '../../../platform/endpoint/node/chatEndpoint';
+import { ChatEndpoint, normalizeKimiToolCallIds } from '../../../platform/endpoint/node/chatEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { isOpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
@@ -24,7 +25,9 @@ function hydrateBYOKErrorMessages(response: ChatResponse): ChatResponse {
 			type: response.type,
 			requestId: response.requestId,
 			serverRequestId: response.serverRequestId,
-			reason: JSON.stringify(response.streamError),
+			// A stream error carrying no message has no diagnostic value, so keep the
+			// original reason rather than replacing it with a hollow serialized struct.
+			reason: response.streamError.message ? JSON.stringify(response.streamError) : response.reason,
 		};
 	} else if (response.type === ChatFetchResponseType.RateLimited) {
 		return {
@@ -145,6 +148,29 @@ export class OpenAIEndpoint extends ChatEndpoint {
 	 */
 	public readonly ownsAuthorization = true;
 
+	/**
+	 * BYOK gateways (e.g. LiteLLM) may not forward `prompt_cache_breakpoint` markers, so explicit
+	 * Responses API prompt caching stays off unless the user opts in.
+	 */
+	public readonly promptCacheBreakpointsRequireOptIn = true;
+
+	protected override getCompletionsCallback(): RawMessageConversionCallback {
+		const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
+		return (out, data) => {
+			if (data) {
+				const text = Array.isArray(data.text) ? data.text.join('') : data.text;
+				if (data.id) {
+					out.cot_id = data.id;
+					out.cot_summary = text;
+				}
+				if (supportsThinking) {
+					out.reasoning_content = text;
+					out.reasoning = text;
+				}
+			}
+		};
+	}
+
 	protected _isReservedHeader(lowerKey: string): boolean {
 		return OpenAIEndpoint._reservedHeaders.has(lowerKey);
 	}
@@ -245,24 +271,42 @@ export class OpenAIEndpoint extends ChatEndpoint {
 		return trimmed;
 	}
 
+	/**
+	 * Whether the Responses API server retains prior responses so requests can
+	 * chain via `previous_response_id` and send only post-marker history.
+	 */
+	protected get supportsStatefulResponses(): boolean {
+		return true;
+	}
+
+	/**
+	 * Whether this endpoint can resume a Responses API response ID.
+	 */
+	protected override canResumeResponses(responseId: string): boolean {
+		return !this.modelMetadata.zeroDataRetentionEnabled
+			&& this.supportsStatefulResponses
+			&& responseId.startsWith('resp_');
+	}
+
 	override createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
 		if (this.useResponsesApi) {
 			// Handle Responses API: customize the body directly
 			const zdr = !!this.modelMetadata.zeroDataRetentionEnabled;
 			// When ZDR is on the server refuses to retain responses, so we must
 			// not chain via `previous_response_id` and must not ask it to `store`.
-			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr;
-			const body = super.createRequestBody(options);
+			options.ignoreStatefulMarker = options.ignoreStatefulMarker || zdr || !this.supportsStatefulResponses;
+			let body = super.createRequestBody(options);
+			if (body.previous_response_id && !body.previous_response_id.startsWith('resp_')) {
+				// The marker (e.g. a CAPI response ID) can't be chained here, but history was
+				// already sliced at it. Rebuild so the server receives the full history.
+				body = super.createRequestBody({ ...options, ignoreStatefulMarker: true });
+			}
 			body.store = !zdr;
 			body.n = undefined;
 			body.stream_options = undefined;
 			if (!this.modelMetadata.capabilities.supports.thinking) {
 				body.reasoning = undefined;
 				body.include = undefined;
-			}
-			if (body.previous_response_id && (!body.previous_response_id.startsWith('resp_') || zdr)) {
-				// Don't use a response ID from CAPI or when zero data retention is enabled
-				body.previous_response_id = undefined;
 			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
@@ -272,25 +316,10 @@ export class OpenAIEndpoint extends ChatEndpoint {
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		} else {
-			// Handle Chat Completions: provide callback for thinking data processing
-			const supportsThinking = !!this.modelMetadata.capabilities.supports.thinking;
-			const callback: RawMessageConversionCallback = (out, data) => {
-				if (data && data.id) {
-					out.cot_id = data.id;
-					const text = Array.isArray(data.text) ? data.text.join('') : data.text;
-					out.cot_summary = text;
-					if (supportsThinking) {
-						// Reasoning models require the assistant message to echo back its
-						// prior reasoning. DeepSeek, Moonshot (Kimi), Minimax, and similar
-						// OpenAI-compatible providers expect `reasoning_content`; OpenRouter's
-						// BYOK proxy expects `reasoning`. Without these, the turn after a tool
-						// call is rejected with HTTP 400.
-						out.reasoning_content = text;
-						out.reasoning = text;
-					}
-				}
-			};
-			const body = createCapiRequestBody(options, this.model, callback);
+			const body = createCapiRequestBody(options, this.model, this.getCompletionsCallback());
+			if (body.messages && isKimiFamily(this)) {
+				body.messages = normalizeKimiToolCallIds(body.messages);
+			}
 			this._applyReasoningEffort(body, options);
 			return this._applyConfiguredModelOptions(body, options);
 		}

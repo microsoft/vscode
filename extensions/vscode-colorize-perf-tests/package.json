@@ -18,11 +18,10 @@
     "watch": "gulp watch-extension:vscode-colorize-perf-tests",
     "compile": "gulp compile-extension:vscode-colorize-perf-tests"
   },
-  "dependencies": {
-    "jsonc-parser": "^3.2.0"
-  },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "mocha": "^10.8.2"
   },
   "repository": {
     "type": "git",

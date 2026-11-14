@@ -8,12 +8,16 @@ import { readFileSync, realpathSync, writeFileSync } from 'fs';
 import { FileAccess } from '../../../../../../base/common/network.js';
 import { dirname, win32 } from '../../../../../../base/common/path.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { scrubUserName } from './userNameScrub.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ActionType, type ActionEnvelope, type StateAction } from '../../../../common/state/sessionActions.js';
 import type { DispatchActionParams } from '../../../../common/state/protocol/commands.js';
 import type { AhpNotification } from '../../../../common/state/sessionProtocol.js';
-import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, buildDefaultChatUri, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
+import { MessageKind, ResponsePartKind, ToolCallConfirmationReason, ToolCallContributorKind, ToolResultContentType, type StringOrMarkdown, type ToolCallContributor } from '../../../../common/state/sessionState.js';
+import { withAgentHostE2ESnapshotDiagnostics } from './agentHostE2EDiagnostics.js';
+import { defaultChatChannel } from '../../hostDefaultChats.js';
+import { agentModelConfigurationReportKey } from '../../../../common/agentModelConfiguration.js';
 
 const nodeRequire = createRequire(import.meta.url);
 const yamlModule = nodeRequire('js-yaml') as { load(input: string): unknown; dump(obj: unknown, opts?: { lineWidth?: number; noRefs?: boolean }): string };
@@ -74,6 +78,11 @@ interface IAhpSnapshotClient {
 
 export interface IAhpSnapshotOptions {
 	readonly profile?: 'protocol' | 'behavior';
+	readonly ignoredActionTypes?: readonly ActionType[];
+	/** Server action types whose cross-channel interleaving is canonicalized while preserving per-channel order. */
+	readonly orderIndependentActionTypes?: readonly ActionType[];
+	/** Provider tool names whose completion success is omitted before snapshot name normalization. */
+	readonly omitToolCallSuccessForToolNames?: readonly string[];
 }
 
 export interface IAhpSnapshotNormalization {
@@ -113,9 +122,11 @@ export class AhpSnapshotRecorder {
 		const channelCounts = new Map<string, number>();
 		const turns = new Map<string, string>();
 		const toolCalls = new Map<string, string>();
+		const toolCallNames = new Map<string, string>();
 		const responseParts = new Map<string, { content: string }>();
 		const roundStarts = this._roundStarts.length > 0 ? this._roundStarts : [0];
 		const rounds = roundStarts.map(() => ({ clientToServer: [] as object[], serverToClient: [] as object[] }));
+		const orderIndependentActionTypes = new Set<string>(options.orderIndependentActionTypes ?? []);
 		let roundIndex = 0;
 
 		for (let messageIndex = 0; messageIndex < this._messages.length; messageIndex++) {
@@ -141,6 +152,15 @@ export class AhpSnapshotRecorder {
 					const params = asRecord(message.params);
 					const action = params?.action as StateAction | undefined;
 					if (action) {
+						if (options.ignoredActionTypes?.includes(action.type)) {
+							continue;
+						}
+						// Asynchronous model readbacks are checked as state, not as conversation-event ordering.
+						if (direction === 's2c' && !params?.origin && !params?.rejectionReason
+							&& action.type === ActionType.SessionConfigChanged && !action.replace
+							&& Object.keys(action.config).length === 1 && Object.hasOwn(action.config, agentModelConfigurationReportKey)) {
+							continue;
+						}
 						if (action.type === ActionType.SessionCustomizationUpdated) {
 							continue;
 						}
@@ -148,7 +168,7 @@ export class AhpSnapshotRecorder {
 							continue;
 						}
 						const channel = typeof params?.channel === 'string' ? params.channel : '';
-						const projectedAction = projectAction(action, turns, toolCalls, responseParts, channel, profile);
+						const projectedAction = projectAction(action, turns, toolCalls, toolCallNames, responseParts, channel, profile, new Set(options.omitToolCallSuccessForToolNames));
 						if (!projectedAction) {
 							continue;
 						}
@@ -176,6 +196,7 @@ export class AhpSnapshotRecorder {
 		}
 
 		for (const round of rounds) {
+			round.serverToClient = canonicalizeActionInterleaving(dropReasoning(round.serverToClient), orderIndependentActionTypes);
 			normalizeSnapshotObjects(round.clientToServer, this._normalization);
 			normalizeSnapshotObjects(round.serverToClient, this._normalization);
 		}
@@ -187,10 +208,46 @@ export class AhpSnapshotRecorder {
 export async function assertRecordedAhpSnapshot(test: Mocha.Runnable, client: IAhpSnapshotClient, options?: IAhpSnapshotOptions): Promise<void> {
 	const actual = client.serializeAhpSnapshot(options);
 	if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
-		writeFileSync(snapshotPathForTest(test), actual);
+		writeFileSync(snapshotPathForTest(test, 'traffic', 'ahp.yaml'), actual);
 		return;
 	}
-	await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+	await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' }));
+}
+
+export async function waitForChatUnreadAfterTurn(client: Pick<IAhpSnapshotClient, 'waitForNotification'>, chat: string, afterServerSeq: number): Promise<void> {
+	await client.waitForNotification(notification => {
+		if (notification.method !== 'action') {
+			return false;
+		}
+		const envelope = notification.params as ActionEnvelope;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& envelope.action.type === ActionType.ChatIsReadChanged
+			&& !envelope.action.isRead;
+	}, 90_000);
+}
+
+/** Waits for the exact turn outcome and its subsequent unread transition before observing completed-turn traffic. */
+export async function waitForChatTurnComplete(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, chat: string, turnId: string, afterServerSeq = 0): Promise<void> {
+	const notification = await client.waitForNotification(candidate => {
+		if (candidate.method !== 'action') {
+			return false;
+		}
+		const envelope = candidate.params;
+		const action = envelope.action;
+		return envelope.channel === chat
+			&& envelope.serverSeq > afterServerSeq
+			&& (action.type === ActionType.ChatTurnComplete || action.type === ActionType.ChatError)
+			&& action.turnId === turnId;
+	}, 90_000);
+	if (notification.method !== 'action') {
+		throw new Error('[ahp-snapshot] expected a turn outcome action');
+	}
+	const action = notification.params.action;
+	if (action.type === ActionType.ChatError) {
+		throw client.takeReplayError() ?? new Error(`Turn ${turnId} failed: ${action.part.error.errorType}: ${action.part.error.message}`);
+	}
+	await waitForChatUnreadAfterTurn(client, chat, notification.params.serverSeq);
 }
 
 /** Loads client actions from an AHP snapshot, dispatches them, and asserts the resulting traffic. */
@@ -201,7 +258,7 @@ export class AhpSnapshotScenario {
 	) { }
 
 	static load(test: Mocha.Runnable): AhpSnapshotScenario {
-		const fixturePath = snapshotPathForTest(test);
+		const fixturePath = snapshotPathForTest(test, 'traffic', 'ahp.yaml');
 		return new AhpSnapshotScenario(fixturePath, parseFixture(yamlModule.load(readFileSync(fixturePath, 'utf8')), fixturePath));
 	}
 
@@ -216,10 +273,10 @@ export class AhpSnapshotScenario {
 		throw new Error('[ahp-snapshot] scenario must set an active client so its client id can initialize the session');
 	}
 
-	async run(client: IAhpSnapshotClient, sessionUri: string): Promise<void> {
+	async run(client: IAhpSnapshotClient, sessionUri: string, options?: IAhpSnapshotOptions): Promise<void> {
 		const bindings = new Map<string, string>([
 			['${session_0}', sessionUri],
-			['${chat_0}', buildDefaultChatUri(sessionUri)],
+			['${chat_0}', defaultChatChannel(sessionUri)],
 		]);
 		const seenPrerequisites = new Set<object>();
 		let clientSeq = 1;
@@ -240,10 +297,10 @@ export class AhpSnapshotScenario {
 					action: parseClientAction(resolvePlaceholders(entry.action, bindings)),
 				});
 			}
-			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound);
+			await waitForFinalServerMessage(client, round.serverToClient, notificationsBeforeRound, bindings);
 		}
 
-		const actual = client.serializeAhpSnapshot();
+		const actual = client.serializeAhpSnapshot(options);
 		if (UPDATE_AHP_SNAPSHOTS || UPDATE_ALL_SNAPSHOTS) {
 			const actualFixture = parseFixture(yamlModule.load(actual), 'recorded AHP traffic');
 			if (actualFixture.rounds.length !== this._fixture.rounds.length) {
@@ -257,7 +314,7 @@ export class AhpSnapshotScenario {
 				})),
 			}));
 		} else {
-			await assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' });
+			await withAgentHostE2ESnapshotDiagnostics(() => assertSnapshot(actual, { name: 'traffic', extension: 'ahp.yaml' }));
 		}
 	}
 }
@@ -306,9 +363,11 @@ function projectAction(
 	action: StateAction,
 	turns: Map<string, string>,
 	toolCalls: Map<string, string>,
+	toolCallNames: Map<string, string>,
 	responseParts: Map<string, { content: string }>,
 	channel: string,
 	profile: NonNullable<IAhpSnapshotOptions['profile']>,
+	omitToolCallSuccessForToolNames: ReadonlySet<string>,
 ): object | undefined {
 	switch (action.type) {
 		case ActionType.SessionActiveClientSet:
@@ -362,17 +421,20 @@ function projectAction(
 				content: action.content,
 			};
 		}
-		case ActionType.ChatToolCallStart:
+		case ActionType.ChatToolCallStart: {
+			const toolName = normalizeShellToolName(action.toolName);
+			toolCallNames.set(action.toolCallId, action.toolName);
 			return {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
-				toolName: action.toolName,
+				toolName,
 				...(profile === 'protocol' ? {
 					displayName: action.displayName,
 					contributor: projectContributor(action.contributor),
 				} : {}),
 			};
+		}
 		case ActionType.ChatToolCallReady:
 			return {
 				type: action.type,
@@ -395,31 +457,126 @@ function projectAction(
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
 				toolCallId: normalizeIdentifier(action.toolCallId, 'toolCall', toolCalls),
-				result: {
-					success: action.result.success,
-					...(profile === 'protocol' ? {
-						pastTenseMessage: projectStringOrMarkdown(action.result.pastTenseMessage),
-						content: action.result.content?.map(content => content.type === ToolResultContentType.Text
-							? { type: content.type, text: content.text }
-							: { type: content.type }),
-					} : {}),
-				},
+				...(profile === 'protocol' || !omitToolCallSuccessForToolNames.has(toolCallNames.get(action.toolCallId) ?? '') ? {
+					result: {
+						success: action.result.success,
+						...(profile === 'protocol' ? {
+							pastTenseMessage: projectStringOrMarkdown(action.result.pastTenseMessage),
+							content: action.result.content?.map(content => content.type === ToolResultContentType.Text
+								? { type: content.type, text: content.text }
+								: { type: content.type }),
+						} : {}),
+					},
+				} : {}),
 			};
 		case ActionType.ChatError:
 			return profile === 'behavior' ? {
 				type: action.type,
 				turnId: normalizeIdentifier(action.turnId, 'turn', turns),
-				error: {
-					errorType: action.error.errorType,
-					message: action.error.message,
+				part: {
+					kind: action.part.kind,
+					error: {
+						errorType: action.part.error.errorType,
+						message: action.part.error.message,
+					},
+					...(action.part.resumable ? { resumable: true } : {}),
 				},
 			} : { type: action.type };
 		case ActionType.ChatUsage:
+		case ActionType.ChatTurnResume:
 		case ActionType.ChatTurnComplete:
 			return { type: action.type, turnId: normalizeIdentifier(action.turnId, 'turn', turns) };
 		default:
 			return { type: action.type };
 	}
+}
+
+/**
+ * Drops reasoning traffic from the snapshot.
+ *
+ * Reasoning cannot survive the capture round-trip: `capiWireCodec` drops
+ * reasoning items when aggregating a response, because their content is opaque
+ * and provider-encrypted. Replay therefore rebuilds the stream from a fixture
+ * that has no reasoning in it, and any reasoning the live recording observed —
+ * whether an empty part the provider opened and closed without a delta, or a
+ * partial one carrying a few characters — can never be reproduced.
+ *
+ * Keeping it would make a snapshot permanently unreplayable depending on
+ * whether the provider happened to emit reasoning during the recording, which
+ * says nothing about the behavior under test.
+ *
+ * Runs after projection because `ChatDelta` fills in a part's content by
+ * mutating the object recorded here, so the final content is only known once
+ * every message has been projected.
+ */
+function dropReasoning(actions: object[]): object[] {
+	return actions.filter(entry => {
+		const action = (entry as { action?: { type?: string; part?: { kind?: string } } }).action;
+		return action?.type !== ActionType.ChatReasoning
+			&& !(action?.type === ActionType.ChatResponsePart && action.part?.kind === ResponsePartKind.Reasoning);
+	});
+}
+
+function canonicalizeActionInterleaving(entries: object[], actionTypes: ReadonlySet<string>): object[] {
+	if (actionTypes.size === 0) {
+		return entries;
+	}
+
+	const participatingChannels = new Set(entries.filter(entry => hasActionType(entry, actionTypes)).map(entry => actionChannel(entry)));
+	const channelCounts = new Map<string, number>();
+	const canonicalEntries: Array<{ entry: object; channel: string; channelIndex: number }> = [];
+	for (const entry of entries) {
+		const channel = actionChannel(entry);
+		if (!channel || !participatingChannels.has(channel)) {
+			continue;
+		}
+		const channelIndex = channelCounts.get(channel) ?? 0;
+		channelCounts.set(channel, channelIndex + 1);
+		canonicalEntries.push({ entry, channel, channelIndex });
+	}
+	canonicalEntries.sort((a, b) => a.channel < b.channel ? -1 : a.channel > b.channel ? 1 : a.channelIndex - b.channelIndex);
+
+	let nextCanonicalEntry = 0;
+	return entries.map(entry => {
+		const channel = actionChannel(entry);
+		return channel && participatingChannels.has(channel) ? canonicalEntries[nextCanonicalEntry++].entry : entry;
+	});
+}
+
+function hasActionType(entry: object, actionTypes: ReadonlySet<string>): boolean {
+	const action = asRecord(asRecord(entry)?.action);
+	return typeof action?.type === 'string' && actionTypes.has(action.type);
+}
+
+function actionChannel(entry: object): string | undefined {
+	const entryRecord = asRecord(entry);
+	return asRecord(entryRecord?.action) && typeof entryRecord?.channel === 'string' ? entryRecord.channel : undefined;
+}
+
+/**
+ * Collapses the platform-specific Copilot shell tool names to stable
+ * placeholders.
+ *
+ * The Copilot CLI names its shell tools after the shell it runs: `bash` and
+ * friends on POSIX, `powershell` and friends on Windows. That name reaches the
+ * client verbatim in `chat/toolCallStart`, so a snapshot recorded on macOS or
+ * Linux can never match the same behavior on Windows even when the recorded
+ * command itself is portable.
+ *
+ * Only the names that actually vary by platform are mapped. Claude's `Bash` and
+ * Codex's `shell` are fixed strings their SDKs use everywhere, so they are left
+ * alone — rewriting them would hide a genuine provider change.
+ */
+function normalizeShellToolName(toolName: string): string {
+	const shellToolPlaceholders: Record<string, string> = {
+		bash: '${shell}', powershell: '${shell}',
+		read_bash: '${read_shell}', read_powershell: '${read_shell}',
+		write_bash: '${write_shell}', write_powershell: '${write_shell}',
+		stop_bash: '${stop_shell}', stop_powershell: '${stop_shell}',
+		bash_shutdown: '${shell_shutdown}', powershell_shutdown: '${shell_shutdown}',
+		list_bash: '${list_shell}', list_powershell: '${list_shell}',
+	};
+	return shellToolPlaceholders[toolName] ?? toolName;
 }
 
 function isBehaviorSnapshotNoise(type: ActionType): boolean {
@@ -511,6 +668,14 @@ function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormali
 		// The workspace can be deleted during teardown after the traffic was captured.
 	}
 	let normalized = value;
+	// Line endings first, so every line-anchored pattern below sees LF-only
+	// text. Windows produces CRLF for the same behavior a POSIX host reports
+	// with LF, which would otherwise fail a snapshot recorded on macOS/Linux
+	// for a reason unrelated to the behavior under test. The escaped form is
+	// normalized too because tool inputs are often embedded JSON, where the
+	// carriage return survives as a literal `\r` escape rather than a control
+	// character.
+	normalized = normalized.replaceAll('\r\n', '\n').replaceAll('\\r\\n', '\\n');
 	for (const workDir of [...workDirs].sort((a, b) => b.length - a.length)) {
 		normalized = normalized
 			.replaceAll(JSON.stringify(workDir).slice(1, -1), '${workdir}')
@@ -534,8 +699,8 @@ function normalizeSnapshotText(value: string, normalization: IAhpSnapshotNormali
 	}
 	normalized = normalized
 		.replaceAll(normalization.homeDirectory, '${homedir}')
-		.replaceAll(URI.file(normalization.homeDirectory).toString(), '${homedir}')
-		.replaceAll(normalization.userName, '${user}');
+		.replaceAll(URI.file(normalization.homeDirectory).toString(), '${homedir}');
+	normalized = scrubUserName(normalized, normalization.userName);
 	if (!normalized.includes('${temp}')) {
 		normalized = normalized.replace(/ahp-coverage-([a-z-]+)-[A-Za-z0-9]{6}/g, 'ahp-coverage-$1-${temp}');
 	}
@@ -547,14 +712,19 @@ function escapeRegExpCharacters(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function snapshotPathForTest(test: Mocha.Runnable): string {
+/**
+ * Resolves the file {@link assertSnapshot} would compare against, so an update
+ * run writes the path the assert run reads. Mirrors `SnapshotContext`: the
+ * snapshot sits next to the test's *source*, though the test runs from `out/`.
+ */
+export function snapshotPathForTest(test: Mocha.Runnable, name: string, extension: string): string {
 	if (!test.file) {
 		throw new Error('[ahp-snapshot] current test file is not set');
 	}
 	const src = URI.joinPath(FileAccess.asFileUri(''), '../src');
 	const parts = test.file.split(/[/\\]/g);
 	const snapshotsDir = URI.joinPath(src, ...parts.slice(0, -1), '__snapshots__');
-	const fileName = `${sanitizeName(test.fullTitle())}.traffic.ahp.yaml`;
+	const fileName = `${sanitizeName(test.fullTitle())}.${sanitizeName(name)}.${extension}`;
 	return URI.joinPath(snapshotsDir, fileName).fsPath;
 }
 
@@ -626,7 +796,7 @@ async function bindPrerequisites(
 		if (replayError) {
 			throw replayError;
 		}
-		throw new Error(`[ahp-snapshot] turn failed before chat/toolCallReady: ${readyAction.error.errorType}: ${readyAction.error.message}`);
+		throw new Error(`[ahp-snapshot] turn failed before chat/toolCallReady: ${readyAction.part.error.errorType}: ${readyAction.part.error.message}`);
 	}
 	if (readyAction.type !== ActionType.ChatToolCallReady) {
 		throw new Error('[ahp-snapshot] expected chat/toolCallReady prerequisite');
@@ -809,19 +979,50 @@ function readStringArray(value: unknown, name: string): string[] {
 	return value;
 }
 
-async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>): Promise<void> {
-	const finalEntry = entries.at(-1);
+export async function waitForFinalServerMessage(client: Pick<IAhpSnapshotClient, 'waitForNotification' | 'takeReplayError'>, entries: readonly IAhpSnapshotEntry[], seenNotifications: Set<object>, bindings: Map<string, string>): Promise<void> {
+	const lastEntry = entries.at(-1);
+	const finalEntry = lastEntry?.action?.type === ActionType.ChatIsReadChanged
+		? entries.findLast(entry => entry.channel === lastEntry.channel && entry.action?.type === ActionType.ChatTurnComplete) ?? lastEntry
+		: lastEntry;
 	if (!finalEntry) {
 		throw new Error('[ahp-snapshot] serverToClient must not be empty');
 	}
 	const finalActionType = finalEntry.action ? readString(finalEntry.action, 'type') : undefined;
+	const finalChannel = finalEntry.channel ? resolvePlaceholder(finalEntry.channel, bindings) : undefined;
+	const finalTurnIdPlaceholder = finalEntry.action ? readOptionalString(finalEntry.action, 'turnId') : undefined;
+	const finalTurnId = finalTurnIdPlaceholder ? resolvePlaceholder(finalTurnIdPlaceholder, bindings) : undefined;
+	if (finalActionType === ActionType.ChatTurnComplete) {
+		if (!finalChannel || !finalTurnId) {
+			throw new Error('[ahp-snapshot] turn completion must identify its chat and turn');
+		}
+		let afterServerSeq = 0;
+		for (const seen of seenNotifications) {
+			if (isMethodMessage(seen) && seen.method === 'action') {
+				const envelope = asRecord(seen.params);
+				if (envelope?.channel === finalChannel && typeof envelope.serverSeq === 'number') {
+					afterServerSeq = Math.max(afterServerSeq, envelope.serverSeq);
+				}
+			}
+		}
+		await waitForChatTurnComplete(client, finalChannel, finalTurnId, afterServerSeq);
+		return;
+	}
 	const notification = await client.waitForNotification(candidate => {
 		if (seenNotifications.has(candidate as object)) {
 			return false;
 		}
 		if (candidate.method === 'action') {
-			const actionType = (candidate.params as ActionEnvelope).action.type;
-			return actionType === finalActionType || actionType === ActionType.ChatError;
+			const envelope = candidate.params as ActionEnvelope;
+			if (finalChannel && envelope.channel !== finalChannel) {
+				return false;
+			}
+			const action = envelope.action;
+			if (action.type === ActionType.ChatError) {
+				return finalTurnId === undefined || action.turnId === finalTurnId;
+			}
+			return action.type === finalActionType
+				&& (action.type !== ActionType.ChatIsReadChanged || !action.isRead)
+				&& (finalTurnId === undefined || (action as { turnId?: string }).turnId === finalTurnId);
 		}
 		return candidate.method === finalEntry.method;
 	}, 90_000);
@@ -833,7 +1034,7 @@ async function waitForFinalServerMessage(client: IAhpSnapshotClient, entries: re
 			if (replayError) {
 				throw replayError;
 			}
-			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.error.errorType}: ${action.error.message}`);
+			throw new Error(`[ahp-snapshot] round failed before ${finalActionType}: ${action.part.error.errorType}: ${action.part.error.message}`);
 		}
 	}
 }

@@ -37,7 +37,10 @@ async function getExtensionHostPort(
 	dialogService: IDialogService,
 	productService: IProductService,
 ): Promise<number | undefined> {
-	const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, false);
+	// Try to enable the inspector on the running extension host (same as profiling does)
+	// so that debugging does not require a restart. Only fall back to restarting with
+	// `--inspect-extensions` if the inspector could not be enabled.
+	const inspectPorts = await extensionService.getInspectPorts(ExtensionHostKind.LocalProcess, true);
 	if (inspectPorts.length === 0) {
 		const res = await dialogService.confirm({
 			message: nls.localize('restart1', "Debug Extensions"),
@@ -55,12 +58,20 @@ async function getExtensionHostPort(
 	return inspectPorts[0].port;
 }
 
-async function getRendererDebugPort(
+interface IRendererDebugAttach {
+	readonly port: number;
+	readonly webSocketUrl: string;
+}
+
+async function getRendererDebugAttach(
 	extensionHostDebugService: IExtensionHostDebugService,
 	windowId: number,
-): Promise<number | undefined> {
+): Promise<IRendererDebugAttach | undefined> {
 	const result = await extensionHostDebugService.attachToCurrentWindowRenderer(windowId);
-	return result.success ? result.port : undefined;
+	if (!result.success || result.port === undefined || !result.rendererDebugAddr) {
+		return undefined;
+	}
+	return { port: result.port, webSocketUrl: result.rendererDebugAddr };
 }
 
 export class DebugExtensionHostInDevToolsAction extends Action2 {
@@ -161,13 +172,13 @@ export class DebugRendererInNewWindowAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const hostService = accessor.get(IHostService);
 
-		const port = await getRendererDebugPort(extensionHostDebugService, environmentService.window.id);
-		if (port === undefined) {
+		const attach = await getRendererDebugAttach(extensionHostDebugService, environmentService.window.id);
+		if (!attach) {
 			return;
 		}
 
 		const storage = instantiationService.createInstance(Storage);
-		storage.storeRendererDebugOnNewWindow(port);
+		storage.storeRendererDebugOnNewWindow(attach);
 		// Force local window since Chrome debugging only works locally
 		hostService.openWindow({ remoteAuthority: null });
 	}
@@ -193,18 +204,18 @@ export class DebugExtensionHostAndRendererAction extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const hostService = accessor.get(IHostService);
 
-		const [extHostPort, rendererPort] = await Promise.all([
+		const [extHostPort, rendererAttach] = await Promise.all([
 			getExtensionHostPort(extensionService, nativeHostService, dialogService, productService),
-			getRendererDebugPort(extensionHostDebugService, environmentService.window.id)
+			getRendererDebugAttach(extensionHostDebugService, environmentService.window.id)
 		]);
 
-		if (extHostPort === undefined || rendererPort === undefined) {
+		if (extHostPort === undefined || !rendererAttach) {
 			return;
 		}
 
 		const storage = instantiationService.createInstance(Storage);
 		storage.storeDebugOnNewWindow(extHostPort);
-		storage.storeRendererDebugOnNewWindow(rendererPort);
+		storage.storeRendererDebugOnNewWindow(rendererAttach);
 		// Force local window since Chrome debugging only works locally
 		hostService.openWindow({ remoteAuthority: null });
 	}
@@ -226,16 +237,24 @@ class Storage {
 		return port;
 	}
 
-	storeRendererDebugOnNewWindow(targetPort: number) {
-		this._storageService.store('debugRenderer.debugPort', targetPort, StorageScope.APPLICATION, StorageTarget.MACHINE);
+	storeRendererDebugOnNewWindow(attach: IRendererDebugAttach) {
+		this._storageService.store('debugRenderer.debugPort', attach.port, StorageScope.APPLICATION, StorageTarget.MACHINE);
+		this._storageService.store('debugRenderer.webSocketUrl', attach.webSocketUrl, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	getAndDeleteRendererDebugPortIfSet(): number | undefined {
+	getAndDeleteRendererDebugAttachIfSet(): IRendererDebugAttach | undefined {
 		const port = this._storageService.getNumber('debugRenderer.debugPort', StorageScope.APPLICATION);
+		const webSocketUrl = this._storageService.get('debugRenderer.webSocketUrl', StorageScope.APPLICATION);
 		if (port !== undefined) {
 			this._storageService.remove('debugRenderer.debugPort', StorageScope.APPLICATION);
 		}
-		return port;
+		if (webSocketUrl) {
+			this._storageService.remove('debugRenderer.webSocketUrl', StorageScope.APPLICATION);
+		}
+		if (port === undefined || !webSocketUrl) {
+			return undefined;
+		}
+		return { port, webSocketUrl };
 	}
 }
 
@@ -259,7 +278,7 @@ export class DebugExtensionsContribution extends Disposable implements IWorkbenc
 
 		const storage = this._instantiationService.createInstance(Storage);
 		const extHostPort = storage.getAndDeleteDebugPortIfSet();
-		const rendererPort = storage.getAndDeleteRendererDebugPortIfSet();
+		const rendererAttach = storage.getAndDeleteRendererDebugAttachIfSet();
 
 		// Start both debug sessions in parallel
 		const debugPromises: Promise<void>[] = [];
@@ -280,18 +299,21 @@ export class DebugExtensionsContribution extends Disposable implements IWorkbenc
 			}));
 		}
 
-		if (rendererPort !== undefined) {
+		if (rendererAttach) {
 			debugPromises.push(_progressService.withProgress({
 				location: ProgressLocation.Notification,
 				title: nls.localize('debugRenderer.progress', "Attaching Debugger To Renderer"),
 			}, async () => {
+				// js-debug discovers a placeholder URL, then connects with inspectUri.
+				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				await this._debugService.startDebugging(undefined, {
 					type: 'chrome',
 					name: nls.localize('debugRenderer.launch.name', "Attach Renderer"),
 					request: 'attach',
-					port: rendererPort,
+					port: rendererAttach.port,
+					inspectUri: rendererAttach.webSocketUrl,
 					...defaultDebugConfig,
-				});
+				} as IConfig);
 			}));
 		}
 

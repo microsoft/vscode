@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ISession } from '../../../../services/sessions/common/session.js';
+import { ISession } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionTaskRunner, SessionTaskRunnerRegistry } from '../../browser/sessionTaskRunner.js';
 
 function makeRunner(id: string, priority: number, canRun: (session: ISession) => boolean = () => true): ISessionTaskRunner {
@@ -20,11 +19,7 @@ function makeRunner(id: string, priority: number, canRun: (session: ISession) =>
 
 suite('SessionTaskRunnerRegistry', () => {
 
-	const store = new DisposableStore();
-
-	teardown(() => store.clear());
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const fakeSession = {} as ISession;
 

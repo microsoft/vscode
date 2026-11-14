@@ -24,12 +24,26 @@ export interface ILabelService {
 	 */
 	getUriLabel(resource: URI, options?: { relative?: boolean; noPrefix?: boolean; separator?: '/' | '\\'; appendWorkspaceSuffix?: boolean }): string;
 	getUriBasenameLabel(resource: URI): string;
-	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose: Verbosity }): string;
+	/**
+	 * Gets the label of a workspace. With `withLocation`, the label of a single folder
+	 * is followed by the location label of the folder (see `getFolderLocationLabel`), if there is one.
+	 */
+	getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI | IWorkspace), options?: { verbose?: Verbosity; withLocation?: boolean }): string;
+	/**
+	 * Gets the label of the alternate location the folder is at, or `undefined` if there is none.
+	 */
+	getFolderLocationLabel(folder: URI): string | undefined;
+	/**
+	 * Registers a decorator that provides the location labels of folders.
+	 */
+	registerWorkspaceLabelDecorator(decorator: IWorkspaceLabelDecorator): IDisposable;
 	getHostLabel(scheme: string, authority?: string): string;
 	getHostTooltip(scheme: string, authority?: string): string | undefined;
 	getSeparator(scheme: string, authority?: string): '/' | '\\';
+	/** Returns the display home containing `resource`. */
+	getUriHome(resource: URI): URI | undefined;
 
-	registerFormatter(formatter: ResourceLabelFormatter): IDisposable;
+	registerFormatter(formatter: ResourceLabelFormatter | ResourceLabelTemplateFormatter): IDisposable;
 	readonly onDidChangeFormatters: Event<IFormatterChangeEvent>;
 
 	/**
@@ -46,6 +60,17 @@ export const enum Verbosity {
 	LONG
 }
 
+/**
+ * Provides the label of the alternate location a folder is at.
+ */
+export interface IWorkspaceLabelDecorator {
+	/**
+	 * Fires with the folder whose location label changed.
+	 */
+	readonly onDidChange: Event<URI>;
+	getFolderLocationLabel(folder: URI): string | undefined;
+}
+
 export interface IFormatterChangeEvent {
 	scheme: string;
 }
@@ -53,8 +78,25 @@ export interface IFormatterChangeEvent {
 export interface ResourceLabelFormatter {
 	scheme: string;
 	authority?: string;
+	/** URI path used as a display home. Runtime registrations only. */
+	home?: string;
 	priority?: boolean;
 	formatting: ResourceLabelFormatting;
+}
+
+export interface ResourceLabelTemplateFormatter {
+	/** URI home whose optional template parameters occupy an entire path segment, such as `/sessions/${sessionId}`. */
+	home: URI;
+	/** Fires when state used by `formatting` changes and existing labels must be recomputed. */
+	onDidChangeFormatting: Event<void>;
+	/** Resolves formatting whose label is treated as literal text. */
+	formatting(context: ResourceLabelFormattingContext): ResourceLabelFormatting | undefined;
+}
+
+export interface ResourceLabelFormattingContext {
+	readonly resource: URI;
+	readonly home: URI;
+	readonly parameters: ReadonlyMap<string, string>;
 }
 
 export interface ResourceLabelFormatting {

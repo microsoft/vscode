@@ -8,10 +8,10 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../../base/common/keyCodes.j
 import { ResolvedKeybinding } from '../../../../../base/common/keybindings.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
-import { selectSystemWideKeybindings } from '../../electron-browser/systemWideKeybindings.contribution.js';
+import { selectSystemWideKeybindings } from '../../electron-browser/systemWideKeybindings.js';
 
 suite('SystemWideKeybindings selection', () => {
 
@@ -44,7 +44,7 @@ suite('SystemWideKeybindings selection', () => {
 			item(acceleratorBinding, 'workbench.action.openAgentsWindow', { commandArgs: { foo: 1 }, when: 'editorFocus', systemWide: true }),
 			// ignored: not system-wide
 			item(resolve(KeyMod.CtrlCmd | KeyCode.KeyB), 'noop.notSystemWide'),
-			// ignored: default keybinding even if flagged
+			// ignored: default keybinding even if flagged, without the context of a window
 			item(resolve(KeyMod.CtrlCmd | KeyCode.KeyC), 'noop.default', { isDefault: true, systemWide: true }),
 			// ignored: removal / no command
 			item(resolve(KeyMod.CtrlCmd | KeyCode.KeyD), null, { systemWide: true }),
@@ -57,6 +57,7 @@ suite('SystemWideKeybindings selection', () => {
 				args: { foo: 1 },
 				userSettingsLabel: 'ctrl+cmd+a',
 				hasWhen: true,
+				isDefault: false,
 			}],
 			unsupported: [],
 			duplicates: [],
@@ -72,7 +73,47 @@ suite('SystemWideKeybindings selection', () => {
 
 		assert.deepStrictEqual(selection, {
 			candidates: [],
-			unsupported: ['cmd+k cmd+c'],
+			unsupported: [{
+				commandId: 'noop.chord',
+				userSettingsLabel: 'cmd+k cmd+c',
+			}],
+			duplicates: [],
+		});
+	});
+
+	test('selects default bindings while their when clause holds, after the user\'s and never over their keys or chords', () => {
+		const context = {
+			contextMatchesRules: (rules: ContextKeyExpression | undefined) => !rules || rules.evaluate({ getValue: <T>(key: string) => (key === 'featureOn' ? true : undefined) as T | undefined }),
+		};
+
+		const selection = selectSystemWideKeybindings([
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyS), 'default.on', { isDefault: true, systemWide: true, when: 'featureOn' }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyO), 'default.off', { isDefault: true, systemWide: true, when: 'featureOff' }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyA), 'default.taken', { isDefault: true, systemWide: true }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyB), 'default.inAppTaken', { isDefault: true, systemWide: true }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyC), 'default.chordTaken', { isDefault: true, systemWide: true }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyA), 'user.systemWide', { systemWide: true }),
+			item(resolve(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyB), 'user.inApp'),
+			item(resolve(KeyChord(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyC, KeyMod.CtrlCmd | KeyCode.KeyX)), 'user.chord'),
+		], context);
+
+		assert.deepStrictEqual(selection, {
+			candidates: [{
+				accelerator: 'Ctrl+Cmd+A',
+				commandId: 'user.systemWide',
+				args: undefined,
+				userSettingsLabel: 'ctrl+cmd+a',
+				hasWhen: false,
+				isDefault: false,
+			}, {
+				accelerator: 'Ctrl+Cmd+S',
+				commandId: 'default.on',
+				args: undefined,
+				userSettingsLabel: 'ctrl+cmd+s',
+				hasWhen: false,
+				isDefault: true,
+			}],
+			unsupported: [],
 			duplicates: [],
 		});
 	});
@@ -90,9 +131,13 @@ suite('SystemWideKeybindings selection', () => {
 				args: undefined,
 				userSettingsLabel: 'cmd+a',
 				hasWhen: false,
+				isDefault: false,
 			}],
 			unsupported: [],
-			duplicates: ['cmd+a'],
+			duplicates: [{
+				commandId: 'second.loses',
+				userSettingsLabel: 'cmd+a',
+			}],
 		});
 	});
 });

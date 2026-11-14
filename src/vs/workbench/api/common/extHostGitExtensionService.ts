@@ -11,8 +11,9 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostExtensionService } from './extHostExtensionService.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
-import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
+import { ExtHostGitExtensionShape, GitBranchDto, GitChangeDto, GitCommitOptionsDto, GitDiffChangeDto, GitRefDto, GitRefQueryDto, GitRefTypeDto, GitRepositoryStateDto, GitUpstreamRefDto, MainContext, MainThreadGitExtensionShape } from './extHost.protocol.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 
 const GIT_EXTENSION_ID = 'vscode.git';
 
@@ -96,6 +97,8 @@ interface Repository {
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
 	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 	isBranchProtected(branch?: Branch): boolean;
+	add(paths: string[]): Promise<void>;
+	commit(message: string, opts?: { noVerify?: boolean; signCommit?: boolean }): Promise<void>;
 }
 
 interface Change {
@@ -331,6 +334,39 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			}));
 		} catch {
 			return [];
+		}
+	}
+
+	async $commitFiles(handle: number, files: UriComponents[], message: string, options?: GitCommitOptionsDto): Promise<void> {
+		if (files.length === 0) {
+			return;
+		}
+
+		const repository = this._repositories.get(handle);
+		if (!repository) {
+			throw new Error(`Unknown git repository handle: ${handle}`);
+		}
+
+		const fileUris = files.map(file => URI.revive(file));
+		try {
+			// The git extension commits the whole index and has no pathspec commit, so refuse rather than
+			// sweep staged changes to unrelated files into this commit. Refresh first so the index is current.
+			await repository.status();
+			const isRequested = (uri: vscode.Uri) => fileUris.some(file => extUriBiasedIgnorePathCase.isEqualOrParent(uri, file));
+			const unrelatedChanges = repository.state.indexChanges.filter(change => ![change.uri, change.renameUri].every(uri => !uri || isRequested(uri)));
+			if (unrelatedChanges.length > 0) {
+				throw new Error(`Cannot commit: ${unrelatedChanges.length} staged change(s) in the index are not part of the requested files.`);
+			}
+
+			await repository.add(fileUris.map(file => file.fsPath));
+			await repository.commit(message, options);
+		} catch (error) {
+			const { stdout = '', stderr = '', gitErrorCode } = error as { stdout?: string; stderr?: string; gitErrorCode?: string };
+			// Nothing to commit, a non-repository root and paths git never tracked are expected no-ops, not failures
+			if (gitErrorCode === 'NoLocalChanges' || gitErrorCode === 'NotAGitRepository' || /nothing to commit|did not match any files/i.test(`${stdout}\n${stderr}`)) {
+				return;
+			}
+			throw error;
 		}
 	}
 

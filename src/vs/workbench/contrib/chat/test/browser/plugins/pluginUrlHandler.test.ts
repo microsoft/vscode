@@ -4,327 +4,832 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { encodeBase64, VSBuffer } from '../../../../../../base/common/buffer.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { isWeb } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { CustomizationMarketplaceMediaType, ICustomizationMarketplaceQuery, ICustomizationMarketplaceService } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
+import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService, IConfigurationUpdateOverrides } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IConfirmation, IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
 import { IURLService } from '../../../../../../platform/url/common/url.js';
-import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IHostService } from '../../../../../services/host/browser/host.js';
-import { IExtensionsWorkbenchService } from '../../../../extensions/common/extensions.js';
-import { AgentPluginEditorInput } from '../../../browser/agentPluginEditor/agentPluginEditorInput.js';
 import { PluginUrlHandler } from '../../../browser/pluginUrlHandler.js';
+import { ICopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
+import { CustomizationMarketplaceWorkbenchService, getProviderMarketplaceSourceId } from '../../../browser/aiCustomization/customizationMarketplaceWorkbenchService.js';
+import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
+import { SessionType } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
-import { IInstallPluginFromSourceOptions, IInstallPluginFromSourceResult, IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
-import { IMarketplacePlugin, MarketplaceReferenceKind, MarketplaceType, PluginSourceKind } from '../../../common/plugins/pluginMarketplaceService.js';
-
-function toBase64(value: string): string {
-	return encodeBase64(VSBuffer.fromString(value));
-}
+import { ICustomizationHarnessService, ICustomizationMarketplaceManagementProvider, IHarnessDescriptor } from '../../../common/customizationHarnessService.js';
+import { ICustomizationMarketplaceInstallProvider } from '../../../common/customizationMarketplaceInstallService.js';
+import { IPluginInstallService } from '../../../common/plugins/pluginInstallService.js';
+import { IPluginMarketplaceService } from '../../../common/plugins/pluginMarketplaceService.js';
 
 suite('PluginUrlHandler', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const desktopTest = isWeb ? test.skip : test;
+	const sessionResource = URI.parse(`${SessionType.AgentHostCopilot}:/existing`);
 
-	interface MockState {
-		dialogConfirmResult: boolean;
-		installedSources: string[];
-		configUpdates: { key: string; value: unknown; target: ConfigurationTarget }[];
-		openedEditorInputs: AgentPluginEditorInput[];
-		openSearchQueries: string[];
-		installFromSourceResult: IInstallPluginFromSourceResult;
-		notifications: { severity: number; message: string }[];
-	}
-
-	function createHandler(stateOverrides?: Partial<MockState>): { handler: PluginUrlHandler; state: MockState } {
-		const state: MockState = {
-			dialogConfirmResult: true,
-			installedSources: [],
-			configUpdates: [],
-			openedEditorInputs: [],
-			openSearchQueries: [],
-			installFromSourceResult: { success: true },
-			notifications: [],
-			...stateOverrides,
-		};
-
+	function createHandler(options: {
+		harness?: 'copilot' | 'vscode';
+		cancelPicker?: boolean;
+		confirmed?: boolean;
+		confirmation?: Promise<boolean>;
+		existingMarketplaceSource?: string;
+		existingMarketplaceIsDefault?: boolean;
+		existingMarketplaceManaged?: boolean;
+		hidden?: boolean;
+		disabledInWorkspace?: boolean;
+		pluginsEnabled?: boolean;
+		managementUnavailable?: boolean;
+		installUnavailable?: boolean;
+		marketplaceTrusted?: boolean;
+		installResult?: { success: boolean; message?: string };
+		remoteAuthority?: string;
+		isSessionsWindow?: boolean;
+		failure?: 'list' | 'add' | 'browse' | 'agentFinderQuery' | 'install';
+		agentFinderAvailable?: boolean;
+		agentFinderEnabled?: boolean;
+		agentFinderMatchCount?: number;
+		agentFinderIdentity?: string | null;
+		agentFinderProviderPlugin?: boolean;
+		agentFinderProviderPluginSource?: string;
+		agentFinderBrowseError?: boolean;
+		agentFinderBrowseDuplicate?: boolean;
+		agentFinderPaginated?: boolean;
+		agentFinderSourceError?: boolean;
+		cancelled?: boolean;
+	} = {}) {
 		const instantiationService = store.add(new TestInstantiationService());
-
-		instantiationService.stub(IURLService, {
-			registerHandler: () => ({ dispose() { } }),
-		} as unknown as IURLService);
-
-		instantiationService.stub(IPluginInstallService, {
-			installPluginFromSource: async (source: string, _options?: IInstallPluginFromSourceOptions) => {
-				state.installedSources.push(source);
-				return state.installFromSourceResult;
-			},
-		} as unknown as IPluginInstallService);
-
-		instantiationService.stub(IDialogService, {
-			confirm: async () => ({ confirmed: state.dialogConfirmResult }),
-		} as unknown as IDialogService);
-
-		const configService = new TestConfigurationService({
-			[ChatConfiguration.PluginMarketplaces]: ['existing/marketplace'],
-		});
-		// Track updateValue calls
-		const origUpdate = configService.updateValue.bind(configService);
-		configService.updateValue = async (key: string, value: unknown, target?: ConfigurationTarget) => {
-			state.configUpdates.push({ key, value, target: target ?? ConfigurationTarget.USER });
-			return origUpdate(key, value);
+		const calls: unknown[] = [];
+		const dialogs: IConfirmation[] = [];
+		const errors: string[] = [];
+		const commands: { id: string; args: unknown[] }[] = [];
+		const picks: { items: readonly IQuickPickItem[]; activeLabel?: string }[] = [];
+		const fail = (phase: typeof options.failure) => {
+			if (phase === options.failure) {
+				throw options.cancelled ? new CancellationError() : new Error(`${phase} failed`);
+			}
 		};
-		instantiationService.stub(IConfigurationService, configService);
-
-		instantiationService.stub(IHostService, {
-			focus: async () => { },
-		} as unknown as IHostService);
-
-		instantiationService.stub(IExtensionsWorkbenchService, {
-			openSearch: (query: string) => { state.openSearchQueries.push(query); },
-		} as unknown as IExtensionsWorkbenchService);
-
-		instantiationService.stub(IEditorService, {
-			openEditor: async (input: AgentPluginEditorInput) => {
-				state.openedEditorInputs.push(input);
-				store.add(input);
-				return undefined;
+		let marketplaces = options.existingMarketplaceSource ? [{
+			name: 'catalog', source: options.existingMarketplaceSource, isDefault: options.existingMarketplaceIsDefault ?? false, managed: options.existingMarketplaceManaged ?? false, available: true,
+		}] : [];
+		instantiationService.stub(IAgentHostService, {
+			listPluginMarketplaces: options.managementUnavailable ? undefined : async (provider, session, chat) => {
+				calls.push(['list', provider, session, chat]);
+				fail('list');
+				return marketplaces;
 			},
-		} as unknown as IEditorService);
-
-		// IInstantiationService: delegate createInstance to the TestInstantiationService itself
-		instantiationService.stub(IInstantiationService, instantiationService);
-
+			addPluginMarketplace: async (provider, session, source, chat) => {
+				calls.push(['add', provider, session, source, chat]);
+				fail('add');
+				const marketplace = { name: 'catalog', source, isDefault: false, managed: false, available: true };
+				marketplaces = [...marketplaces, marketplace];
+				return marketplace;
+			},
+			browsePluginMarketplace: async (provider, session, name, chat) => {
+				calls.push(['browse', provider, session, name, chat]);
+				fail('browse');
+				return [{ name: 'my-plugin' }, { name: 'other-plugin' }];
+			},
+			installPlugin: options.installUnavailable ? undefined : async (provider, request, session, chat) => {
+				calls.push(['install', provider, request, session, chat]);
+				fail('install');
+			},
+		});
+		const marketplaceSources = options.agentFinderAvailable ? [CustomizationMarketplaceSources.AgentFinderPublicFeed] : [];
+		const agentFinderProviderPlugin = {
+			identifier: 'agentFinder/accessibility-agents',
+			displayName: 'Accessibility Agents',
+			description: '',
+			mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+			sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+			tags: [],
+			capabilities: [],
+			representativeQueries: [],
+			installation: {
+				kind: 'providerPlugin' as const,
+				name: 'accessibility-agents',
+				marketplace: 'awesome-copilot',
+				marketplaceSource: options.agentFinderProviderPluginSource ?? 'GitHub: github/awesome-copilot',
+			},
+		};
+		instantiationService.stub(ICustomizationMarketplaceService, new class extends mock<ICustomizationMarketplaceService>() {
+			override readonly sources = marketplaceSources;
+			override async query(query: ICustomizationMarketplaceQuery) {
+				calls.push(`agentFinderQuery:${query.query ?? ''}:${query.cursor?.token ?? ''}`);
+				fail('agentFinderQuery');
+				const paginatedFirstPage = options.agentFinderPaginated && !query.cursor;
+				return {
+					items: Array.from({ length: options.agentFinderMatchCount ?? 1 }, (_, index) => ({
+						identifier: `agentFinder/my-plugin-${index}`,
+						displayName: 'My Plugin',
+						description: '',
+						mediaType: CustomizationMarketplaceMediaType.CopilotPlugin,
+						sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+						tags: [],
+						capabilities: [],
+						representativeQueries: [],
+						installation: {
+							kind: 'providerCatalog' as const,
+							resourceKind: 'plugin' as const,
+							selectionId: `my-plugin-${index}`,
+							catalogIdentity: options.agentFinderIdentity === null ? undefined : options.agentFinderIdentity ?? `urn:air:github.com:github:awesome-copilot:${paginatedFirstPage ? 'other-plugin' : 'my-plugin'}`,
+						},
+					})),
+					...(paginatedFirstPage ? { nextCursor: { token: 'next' } } : {}),
+					...(options.agentFinderSourceError ? { sourceErrors: [{ sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id, message: 'feed failed' }] } : {}),
+				};
+			}
+			override async getBrowseSections() {
+				calls.push('agentFinderBrowse');
+				return {
+					sourceId: CustomizationMarketplaceSources.AgentFinderPublicFeed.id,
+					sections: options.agentFinderProviderPlugin ? [
+						{ id: 'featured', title: 'Featured', items: [agentFinderProviderPlugin] },
+						...(options.agentFinderBrowseDuplicate ? [{ id: 'more', title: 'More', items: [agentFinderProviderPlugin] }] : []),
+					] : [],
+					...(options.agentFinderBrowseError ? { error: 'browse failed' } : {}),
+				};
+			}
+		}());
+		const marketplaceChanges = store.add(new Emitter<void>());
+		const managementProvider = new class extends mock<ICustomizationMarketplaceManagementProvider>() {
+			override readonly onDidChange = Event.None;
+			override readonly onDidChangeMarketplaces = marketplaceChanges.event;
+			override async list(session: URI) {
+				return instantiationService.get(IAgentHostService).listPluginMarketplaces!('copilotcli', session);
+			}
+			override async add(session: URI | undefined, source: string) {
+				const marketplace = await instantiationService.get(IAgentHostService).addPluginMarketplace!('copilotcli', session, source);
+				marketplaceChanges.fire();
+				return marketplace;
+			}
+		}();
+		const installProvider = new class extends mock<ICustomizationMarketplaceInstallProvider>() {
+			override readonly onDidChange = Event.None;
+			override async install(session: URI, resource: Parameters<ICustomizationMarketplaceInstallProvider['install']>[1]) {
+				calls.push(`install:${session}:${resource.identifier}`);
+				fail('install');
+			}
+		}();
+		const descriptor: IHarnessDescriptor = {
+			id: SessionType.AgentHostCopilot, label: 'Copilot', icon: { id: 'copilot' }, marketplaceManagementProvider: managementProvider,
+			marketplaceInstallProvider: options.installUnavailable ? undefined : installProvider,
+		};
+		const harnessService = instantiationService.stub(ICustomizationHarnessService, {
+			activeHarness: observableValue('harness', descriptor.id),
+			activeSessionResource: observableValue('activeSession', sessionResource),
+			availableHarnesses: observableValue('harnesses', [descriptor]),
+			getDescriptorForSession: () => descriptor,
+			getSessionResourceForHarness: () => sessionResource,
+		});
+		instantiationService.stub(IPluginInstallService, {
+			ensureMarketplaceTrusted: async reference => {
+				calls.push(['trustMarketplace', reference.rawValue]);
+				return options.marketplaceTrusted ?? true;
+			},
+			installPluginFromSource: async (source, installOptions) => {
+				calls.push(['vscodeInstall', source, installOptions]);
+				fail('install');
+				return options.installResult ?? { success: true };
+			},
+		});
+		instantiationService.stub(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+		instantiationService.stub(IQuickInputService, 'pick', async (items: IQuickPickItem[], pickOptions?: IPickOptions<IQuickPickItem>) => {
+			const activeItem = await pickOptions?.activeItem;
+			picks.push({ items, activeLabel: activeItem?.label });
+			return options.cancelPicker ? undefined : options.harness
+				? items.find(item => item.label === (options.harness === 'copilot' ? 'Copilot' : 'VS Code'))
+				: activeItem;
+		});
+		instantiationService.stub(IURLService, { registerHandler: () => ({ dispose() { } }) });
+		instantiationService.stub(IDialogService, {
+			confirm: async confirmation => {
+				dialogs.push(confirmation);
+				return { confirmed: options.confirmation ? await options.confirmation : options.confirmed ?? true };
+			},
+		});
+		const configuration = new class extends TestConfigurationService {
+			override async updateValue(key: string, value: unknown, overridesOrTarget?: ConfigurationTarget | IConfigurationOverrides | IConfigurationUpdateOverrides): Promise<void> {
+				assert.strictEqual(overridesOrTarget, ConfigurationTarget.USER);
+				await this.setUserConfiguration(key, value);
+			}
+		}({
+			[ChatConfiguration.PluginsEnabled]: options.pluginsEnabled ?? true,
+			[ChatConfiguration.PluginMarketplaces]: options.existingMarketplaceSource ? [options.existingMarketplaceSource] : [],
+			[CustomizationMarketplaceConfiguration.MarketplaceEnabled]: true,
+			[CustomizationMarketplaceConfiguration.AgentFinderPublicFeedEnabled]: options.agentFinderEnabled ?? true,
+		});
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: options.hidden, disabledInWorkspace: options.disabledInWorkspace } });
+		instantiationService.stub(ICommandService, new class extends mock<ICommandService>() { }());
+		instantiationService.stub(ICommandService, 'executeCommand', async (id: string, ...args: unknown[]) => {
+			assert.strictEqual(id, AICustomizationManagementCommands.OpenEditor);
+			commands.push({ id, args });
+		});
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => false,
+			onDidChangeTrust: Event.None,
+			setWorkspaceTrust: async () => { throw new Error('Plugin links must not trust the workspace'); },
+		});
+		instantiationService.stub(IWorkbenchEnvironmentService, { remoteAuthority: options.remoteAuthority, isSessionsWindow: options.isSessionsWindow ?? false });
+		instantiationService.stub(IHostService, { focus: async () => { } });
 		instantiationService.stub(ILogService, new NullLogService());
-
-		instantiationService.stub(INotificationService, {
-			notify: (notification: { severity: number; message: string }) => {
-				state.notifications.push({ severity: notification.severity, message: notification.message });
-				return undefined;
-			},
-		} as unknown as INotificationService);
-
-		const handler = store.add(instantiationService.createInstance(PluginUrlHandler));
-		return { handler, state };
+		instantiationService.stub(INotificationService, { error: message => { errors.push(String(message)); } });
+		return { handler: store.add(instantiationService.createInstance(PluginUrlHandler)), calls, dialogs, errors, commands, picks, configuration, harnessService, instantiationService };
 	}
 
-	function uri(path: string, query: string): URI {
+	function uri(path = '/add-marketplace', query = 'ref=acme/plugins'): URI {
 		return URI.from({ scheme: 'vscode', authority: 'chat-plugin', path, query });
 	}
 
-	// --- routing ---
-
-	test('ignores unrelated authority', async () => {
+	test('ignores unrelated authorities and paths', async () => {
 		const { handler } = createHandler();
-		assert.strictEqual(await handler.handleURL(URI.parse('vscode://other/install?source=foo/bar')), false);
+		assert.deepStrictEqual([
+			await handler.handleURL(URI.parse('vscode://other/install?source=acme/plugins')),
+			await handler.handleURL(uri('/unknown')),
+		], [false, false]);
 	});
 
-	test('ignores unknown path', async () => {
-		const { handler } = createHandler();
-		assert.strictEqual(await handler.handleURL(uri('/unknown', 'source=foo/bar')), false);
+	(isWeb ? test : test.skip)('rejects web plugin links before selection, consent, or mutation', async () => {
+		const fixture = createHandler();
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin&harness=copilot'));
+		assert.deepStrictEqual({ picks: fixture.picks.length, dialogs: fixture.dialogs.length, calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, {
+			picks: 0,
+			dialogs: 0,
+			calls: [],
+			commands: [],
+			errors: ['Unable to complete the plugin link: Open this plugin link in a local VS Code desktop window. Plugin links do not install into a remote workspace or web environment.'],
+		});
 	});
 
-	// --- install: plain text ---
+	desktopTest('refreshes Discover sources for an add-only link while Copilot is already selected', async () => {
+		const fixture = createHandler();
+		const activeSession = fixture.harnessService.activeSessionResource.get();
+		const marketplaceService = store.add(new CustomizationMarketplaceWorkbenchService(
+			fixture.configuration,
+			new class extends mock<ICustomizationMarketplaceService>() {
+				override readonly sources = [];
+			}(),
+			new class extends mock<IPluginMarketplaceService>() {
+				override readonly onDidChangeMarketplaces = Event.None;
+				override isStrictMarketplacePolicyActive() { return false; }
+			}(),
+			new class extends mock<ICopilotConnectorsService>() { }(),
+			fixture.harnessService,
+			fixture.instantiationService,
+			new class extends mock<IDefaultAccountService>() {
+				override readonly onDidChangeDefaultAccount = Event.None;
+			}(),
+			new class extends mock<IAuthenticationService>() {
+				override readonly onDidChangeSessions = Event.None;
+			}(),
+			NullTelemetryService,
+		));
+		const sourceId = getProviderMarketplaceSourceId('catalog');
+		const before = marketplaceService.sources.some(source => source.id === sourceId);
+		const refreshed = new DeferredPromise<void>();
+		store.add(marketplaceService.onDidChangeSources(() => {
+			if (marketplaceService.sources.some(source => source.id === sourceId)) {
+				refreshed.complete();
+			}
+		}));
 
-	test('install with plain-text owner/repo source', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/install', 'source=anthropics/claude-code'));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, ['anthropics/claude-code']);
+		await fixture.handler.handleURL(uri('/add-marketplace', 'ref=acme/plugins&harness=copilot'));
+		await refreshed.p;
+		assert.deepStrictEqual({
+			before,
+			after: marketplaceService.sources.some(source => source.id === sourceId),
+			sameSession: fixture.harnessService.activeSessionResource.get() === activeSession,
+			errors: fixture.errors,
+		}, { before: false, after: true, sameSession: true, errors: [] });
 	});
 
-	// --- install: base64 ---
-
-	test('install with base64-encoded source', async () => {
-		const { handler, state } = createHandler();
-		const encoded = toBase64('anthropics/claude-code');
-		const result = await handler.handleURL(uri('/install', `source=${encoded}`));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, ['anthropics/claude-code']);
-	});
-
-	// --- install: dialog declined ---
-
-	test('install does nothing when dialog is declined', async () => {
-		const { handler, state } = createHandler({ dialogConfirmResult: false });
-		const result = await handler.handleURL(uri('/install', 'source=anthropics/claude-code'));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, []);
-	});
-
-	// --- install: missing/invalid source ---
-
-	test('install handles missing source param', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/install', ''));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, []);
-	});
-
-	test('install handles invalid source', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/install', 'source=not-a-valid-ref'));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, []);
-	});
-
-	test('install rejects local file URI sources', async () => {
-		const { handler, state } = createHandler();
-		const encoded = toBase64('file:///home/user/my-plugin');
-		const result = await handler.handleURL(uri('/install', `source=${encodeURIComponent(encoded)}`));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, []);
-	});
-
-	// --- add-marketplace: plain text ---
-
-	test('add-marketplace with plain-text ref', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/add-marketplace', 'ref=anthropics/claude-code'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 1);
-		assert.deepStrictEqual(state.configUpdates[0].value, ['existing/marketplace', 'anthropics/claude-code']);
-	});
-
-	// --- add-marketplace: base64 ---
-
-	test('add-marketplace with base64-encoded ref', async () => {
-		const { handler, state } = createHandler();
-		const encoded = toBase64('anthropics/claude-code');
-		const result = await handler.handleURL(uri('/add-marketplace', `ref=${encoded}`));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 1);
-		assert.deepStrictEqual(state.configUpdates[0].value, ['existing/marketplace', 'anthropics/claude-code']);
-	});
-
-	// --- add-marketplace: dedup ---
-
-	test('add-marketplace does not duplicate existing entry', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/add-marketplace', 'ref=existing/marketplace'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 0);
-	});
-
-	test('add-marketplace deduplicates by canonical ID', async () => {
-		const { handler, state } = createHandler();
-		// The URL form of the same GitHub shorthand should match canonically
-		const result = await handler.handleURL(uri('/add-marketplace', 'ref=existing%2Fmarketplace'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 0);
-	});
-
-	// --- add-marketplace: dialog declined ---
-
-	test('add-marketplace does nothing when dialog is declined', async () => {
-		const { handler, state } = createHandler({ dialogConfirmResult: false });
-		const result = await handler.handleURL(uri('/add-marketplace', 'ref=anthropics/claude-code'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 0);
-	});
-
-	// --- add-marketplace: missing/invalid ref ---
-
-	test('add-marketplace handles missing ref param', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/add-marketplace', ''));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 0);
-	});
-
-	test('add-marketplace handles invalid ref', async () => {
-		const { handler, state } = createHandler();
-		const result = await handler.handleURL(uri('/add-marketplace', 'ref=not-valid'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.configUpdates.length, 0);
-	});
-
-	// --- install with plugin targeting ---
-
-	function makeMarketplacePlugin(name: string, marketplace: string): IMarketplacePlugin {
-		const [owner, repo] = marketplace.split('/');
-		const ref = {
-			kind: MarketplaceReferenceKind.GitHubShorthand as const,
-			rawValue: marketplace,
-			displayLabel: marketplace,
-			canonicalId: `github:${owner.toLowerCase()}/${repo.toLowerCase()}`,
-			cloneUrl: `https://github.com/${marketplace}.git`,
-			githubRepo: marketplace,
-			cacheSegments: ['github.com', owner, repo],
-		};
-		return {
-			name,
-			description: `${name} description`,
-			version: '1.0.0',
-			source: name,
-			sourceDescriptor: { kind: PluginSourceKind.RelativePath, path: name },
-			marketplace,
-			marketplaceReference: ref,
-			marketplaceType: MarketplaceType.OpenPlugin,
-		};
+	for (const [source, expectedSource] of [
+		['acme/plugins', 'acme/plugins'],
+		[encodeBase64(VSBuffer.fromString('acme/plugins')), 'acme/plugins'],
+		['https://github.com/acme/plugins.git', 'https://github.com/acme/plugins.git'],
+		['acme/plugins#feature/beta', 'acme/plugins#feature/beta'],
+		[encodeBase64(VSBuffer.fromString('acme/plugins#feature/beta')), 'acme/plugins#feature/beta'],
+		['https://github.com/acme/plugins.git#v1.2.3', 'https://github.com/acme/plugins.git#v1.2.3'],
+	]) {
+		for (const harness of ['copilot', 'vscode'] as const) {
+			desktopTest(`adds the exact marketplace for ${harness}: ${source}`, async () => {
+				const fixture = createHandler({ harness });
+				await fixture.handler.handleURL(uri('/add-marketplace', `ref=${encodeURIComponent(source)}`));
+				assert.deepStrictEqual({
+					calls: fixture.calls,
+					marketplaces: fixture.configuration.getValue(ChatConfiguration.PluginMarketplaces),
+					errors: fixture.errors,
+					commands: fixture.commands,
+				}, {
+					calls: harness === 'copilot'
+						? [['list', 'copilotcli', undefined, undefined], ['add', 'copilotcli', undefined, expectedSource, undefined]]
+						: [['trustMarketplace', expectedSource]],
+					marketplaces: harness === 'copilot' ? [] : [expectedSource],
+					errors: [],
+					commands: [{
+						id: AICustomizationManagementCommands.OpenEditor,
+						args: [{ showDiscover: true, sessionType: harness === 'copilot' ? SessionType.AgentHostCopilot : SessionType.Local, searchQuery: '' }],
+					}],
+				});
+			});
+		}
 	}
 
-	test('install with plugin param targets the plugin and opens editor', async () => {
-		const plugin = makeMarketplacePlugin('my-plugin', 'acme/plugins');
-		const { handler, state } = createHandler({
-			installFromSourceResult: { success: true, matchedPlugin: plugin },
+	for (const isSessionsWindow of [false, true]) {
+		desktopTest(`installs the exact Copilot plugin without a session in a restricted workspace (Agents window: ${isSessionsWindow})`, async () => {
+			const fixture = createHandler({ isSessionsWindow });
+			await fixture.handler.handleURL(uri('/install', 'source=acme%2Fplugins%23feature%2Fbeta&plugin=my-plugin&harness=copilot'));
+			assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs.length, errors: fixture.errors }, {
+				calls: [
+					['list', 'copilotcli', undefined, undefined],
+					['add', 'copilotcli', undefined, 'acme/plugins#feature/beta', undefined],
+					['browse', 'copilotcli', undefined, 'catalog', undefined],
+					['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+				],
+				dialogs: 1,
+				errors: [],
+			});
+			assert.ok(typeof fixture.dialogs[0].detail === 'string' && fixture.dialogs[0].detail.includes('Copilot\'s user installation on this machine'));
 		});
-		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, ['acme/plugins']);
-		// Plugin editor was opened
-		assert.strictEqual(state.openedEditorInputs.length, 1);
-		assert.strictEqual(state.openedEditorInputs[0].item.name, 'my-plugin');
+	}
+
+	desktopTest('uses the VS Code source installer with the exact plugin and revision', async () => {
+		const fixture = createHandler();
+		await fixture.handler.handleURL(uri('/install', 'source=acme%2Fplugins%23feature%2Fbeta&plugin=my-plugin&harness=vscode'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [['vscodeInstall', 'acme/plugins#feature/beta', { plugin: 'my-plugin' }]],
+			errors: [],
+		});
+		assert.ok(typeof fixture.dialogs[0].detail === 'string' && fixture.dialogs[0].detail.includes('VS Code\'s shared plugin installation on this machine'));
 	});
 
-	test('install with plugin param does nothing when dialog is declined', async () => {
-		const plugin = makeMarketplacePlugin('my-plugin', 'acme/plugins');
-		const { handler, state } = createHandler({
-			dialogConfirmResult: false,
-			installFromSourceResult: { success: true, matchedPlugin: plugin },
+	for (const source of ['GitHub: acme/plugins', 'GitHub: acme/plugins#other']) {
+		desktopTest(`does not confuse ${source} with the requested revision`, async () => {
+			const fixture = createHandler({ existingMarketplaceSource: source });
+			await fixture.handler.handleURL(uri('/add-marketplace', 'ref=acme%2Fplugins%23feature%2Fbeta'));
+			assert.deepStrictEqual(fixture.calls, [
+				['list', 'copilotcli', undefined, undefined],
+				['add', 'copilotcli', undefined, 'acme/plugins#feature/beta', undefined],
+			]);
 		});
-		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
-		assert.strictEqual(result, true);
-		assert.deepStrictEqual(state.installedSources, []);
-		assert.strictEqual(state.openedEditorInputs.length, 0);
-		assert.strictEqual(state.openSearchQueries.length, 0);
+	}
+
+	for (const source of ['acme/plugins#feature/beta', 'GitHub: acme/plugins#feature/beta', 'URL: https://github.com/ACME/plugins.git#feature/beta']) {
+		desktopTest(`reuses an exact Copilot marketplace identity: ${source}`, async () => {
+			const fixture = createHandler({ existingMarketplaceSource: source });
+			await fixture.handler.handleURL(uri('/install', 'source=acme%2Fplugins%23feature%2Fbeta&plugin=my-plugin'));
+			assert.deepStrictEqual(fixture.calls, [
+				['list', 'copilotcli', undefined, undefined],
+				['browse', 'copilotcli', undefined, 'catalog', undefined],
+				['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+			]);
+		});
+	}
+
+	for (const source of [
+		'github/awesome-copilot',
+		'GitHub:github/awesome-copilot',
+		'GitHub: github/awesome-copilot',
+		'URL:https://github.com/GitHub/Awesome-Copilot.git',
+		'URL: https://github.com/GitHub/Awesome-Copilot.git',
+	]) {
+		desktopTest(`resolves a legacy Awesome Copilot plugin name through Agent Finder: ${source}`, async () => {
+			const fixture = createHandler({ agentFinderAvailable: true, managementUnavailable: true, agentFinderIdentity: 'urn:air:github.com:github:awesome-copilot:MY-PLUGIN' });
+			await fixture.handler.handleURL(uri('/install', `source=${encodeURIComponent(source)}&plugin=my-plugin`));
+			assert.deepStrictEqual({
+				calls: fixture.calls,
+				errors: fixture.errors,
+				commands: fixture.commands,
+			}, {
+				calls: [
+					'agentFinderQuery:my-plugin:',
+					`install:${sessionResource}:agentFinder/my-plugin-0`,
+				],
+				errors: [],
+				commands: [{
+					id: AICustomizationManagementCommands.OpenEditor,
+					args: [{ showDiscover: true, sessionType: SessionType.AgentHostCopilot, searchQuery: 'my-plugin' }],
+				}],
+			});
+		});
+	}
+
+	desktopTest('keeps an explicit VS Code target on its source installer when Agent Finder is available', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin&harness=vscode'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [['vscodeInstall', 'github/awesome-copilot', { plugin: 'my-plugin' }]],
+			errors: [],
+		});
 	});
 
-	test('install with base64-encoded plugin param opens editor', async () => {
-		const plugin = makeMarketplacePlugin('my-plugin', 'acme/plugins');
-		const { handler, state } = createHandler({
-			installFromSourceResult: { success: true, matchedPlugin: plugin },
+	desktopTest('adds an Awesome Copilot marketplace without using Agent Finder or creating a session', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/add-marketplace', 'ref=github%2Fawesome-copilot&harness=copilot'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				['list', 'copilotcli', undefined, undefined],
+				['add', 'copilotcli', undefined, 'github/awesome-copilot', undefined],
+			],
+			errors: [],
 		});
-		const encodedPlugin = toBase64('my-plugin');
-		const result = await handler.handleURL(uri('/install', `source=acme/plugins&plugin=${encodedPlugin}`));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.openedEditorInputs.length, 1);
-		assert.strictEqual(state.openedEditorInputs[0].item.name, 'my-plugin');
 	});
 
-	test('install with plugin param falls back to search on failure', async () => {
-		const { handler, state } = createHandler({
-			installFromSourceResult: { success: false, message: 'Plugin not found' },
+	desktopTest('resolves a full Awesome Copilot catalog identity through Agent Finder', async () => {
+		const catalogIdentity = 'urn:air:github.com:github:awesome-copilot:my-plugin';
+		const fixture = createHandler({ agentFinderAvailable: true, managementUnavailable: true, agentFinderIdentity: catalogIdentity.toUpperCase() });
+		await fixture.handler.handleURL(uri('/install', `source=github%2Fawesome-copilot&plugin=${encodeURIComponent(catalogIdentity)}`));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+		}, {
+			calls: [
+				`agentFinderQuery:${catalogIdentity}:`,
+				`install:${sessionResource}:agentFinder/my-plugin-0`,
+			],
+			errors: [],
 		});
-		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=nonexistent'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.openedEditorInputs.length, 0);
-		assert.strictEqual(state.openSearchQueries.length, 1);
-		assert.ok(state.openSearchQueries[0].includes('acme/plugins'));
 	});
 
-	test('install with plugin param falls back to search when no matchedPlugin', async () => {
-		const { handler, state } = createHandler({
-			installFromSourceResult: { success: true },
+	desktopTest('rejects an external listing with the same name from another Agent Finder marketplace', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+			agentFinderProviderPluginSource: 'GitHub: other/marketplace',
 		});
-		const result = await handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
-		assert.strictEqual(result, true);
-		assert.strictEqual(state.openedEditorInputs.length, 0);
-		assert.strictEqual(state.openSearchQueries.length, 1);
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+			],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	for (const options of [
+		{ agentFinderAvailable: false },
+		{ agentFinderAvailable: true, agentFinderEnabled: false },
+	]) {
+		desktopTest(`falls back to the configured Awesome Copilot marketplace when Agent Finder is unavailable: ${JSON.stringify(options)}`, async () => {
+			const fixture = createHandler(options);
+			await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+			assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+				calls: [
+					['list', 'copilotcli', undefined, undefined],
+					['add', 'copilotcli', undefined, 'github/awesome-copilot', undefined],
+					['browse', 'copilotcli', undefined, 'catalog', undefined],
+					['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+				],
+				errors: [],
+			});
+		});
+	}
+
+	desktopTest('resolves an external Awesome Copilot listing through Agent Finder browse metadata', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			managementUnavailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+			commands: fixture.commands,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+				`install:${sessionResource}:agentFinder/accessibility-agents`,
+			],
+			errors: [],
+			commands: [{
+				id: AICustomizationManagementCommands.OpenEditor,
+				args: [{ showDiscover: true, sessionType: SessionType.AgentHostCopilot, searchQuery: 'accessibility-agents' }],
+			}],
+		});
+	});
+
+	for (const options of [
+		{ agentFinderMatchCount: 0 },
+		{ agentFinderMatchCount: 2 },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'my-plugin' },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'other-plugin' },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: 'urn:air:github.com:other:awesome-copilot:my-plugin' },
+		{ agentFinderMatchCount: 1, agentFinderIdentity: null },
+		{ agentFinderMatchCount: 1, agentFinderSourceError: true },
+	] as const) {
+		desktopTest(`rejects invalid Agent Finder resolution without adding the legacy marketplace: ${JSON.stringify(options)}`, async () => {
+			const fixture = createHandler({ agentFinderAvailable: true, ...options });
+			await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+			assert.deepStrictEqual({
+				calls: fixture.calls,
+				errors: fixture.errors.length,
+				commands: fixture.commands,
+			}, {
+				calls: options.agentFinderMatchCount === 0 || options.agentFinderIdentity === 'my-plugin' ||
+					options.agentFinderIdentity === 'other-plugin' ||
+					options.agentFinderIdentity === 'urn:air:github.com:other:awesome-copilot:my-plugin' ||
+					options.agentFinderIdentity === null
+					? ['agentFinderQuery:my-plugin:', 'agentFinderBrowse']
+					: ['agentFinderQuery:my-plugin:'],
+				errors: 1,
+				commands: [],
+			});
+		});
+	}
+
+	desktopTest('rejects a full Agent Finder identity from another repository', async () => {
+		const catalogIdentity = 'urn:air:github.com:other:awesome-copilot:my-plugin';
+		const fixture = createHandler({ agentFinderAvailable: true, agentFinderIdentity: catalogIdentity });
+		await fixture.handler.handleURL(uri('/install', `source=github%2Fawesome-copilot&plugin=${encodeURIComponent(catalogIdentity)}`));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: [`agentFinderQuery:${catalogIdentity}:`],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	desktopTest('surfaces Agent Finder browse failures without adding the legacy marketplace', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderBrowseError: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors.length,
+			commands: fixture.commands,
+		}, {
+			calls: ['agentFinderQuery:my-plugin:', 'agentFinderBrowse'],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	desktopTest('deduplicates an external Awesome Copilot listing across Agent Finder browse sections', async () => {
+		const fixture = createHandler({
+			agentFinderAvailable: true,
+			managementUnavailable: true,
+			agentFinderMatchCount: 0,
+			agentFinderProviderPlugin: true,
+			agentFinderBrowseDuplicate: true,
+		});
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=accessibility-agents'));
+		assert.deepStrictEqual({
+			calls: fixture.calls,
+			errors: fixture.errors,
+		}, {
+			calls: [
+				'agentFinderQuery:accessibility-agents:',
+				'agentFinderBrowse',
+				`install:${sessionResource}:agentFinder/accessibility-agents`,
+			],
+			errors: [],
+		});
+	});
+
+	desktopTest('follows Agent Finder pagination to find an exact catalog identity', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true, agentFinderPaginated: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				'agentFinderQuery:my-plugin:',
+				'agentFinderQuery:my-plugin:next',
+				`install:${sessionResource}:agentFinder/my-plugin-0`,
+			],
+			errors: [],
+		});
+	});
+
+	desktopTest('surfaces Agent Finder query failures without adding the legacy marketplace', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true, failure: 'agentFinderQuery' });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length, commands: fixture.commands }, {
+			calls: ['agentFinderQuery:my-plugin:'],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	desktopTest('preserves a pinned Awesome Copilot reference on the configured marketplace path', async () => {
+		const fixture = createHandler({ agentFinderAvailable: true });
+		await fixture.handler.handleURL(uri('/install', 'source=github%2Fawesome-copilot%23v1.2.3&plugin=my-plugin'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+			calls: [
+				['list', 'copilotcli', undefined, undefined],
+				['add', 'copilotcli', undefined, 'github/awesome-copilot#v1.2.3', undefined],
+				['browse', 'copilotcli', undefined, 'catalog', undefined],
+				['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+			],
+			errors: [],
+		});
+	});
+
+	for (const source of ['GitHub: github/awesome-copilot', 'URL: https://github.com/GitHub/Awesome-Copilot.git']) {
+		for (const path of ['/install', '/add-marketplace']) {
+			desktopTest(`reuses the built-in published Awesome Copilot marketplace for ${path}: ${source}`, async () => {
+				const fixture = createHandler({
+					existingMarketplaceSource: source,
+					existingMarketplaceIsDefault: true,
+					agentFinderAvailable: true,
+					failure: 'add',
+				});
+				await fixture.handler.handleURL(uri(path, 'source=github%2Fawesome-copilot%23marketplace&ref=github%2Fawesome-copilot%23marketplace&plugin=my-plugin&harness=copilot'));
+				assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors }, {
+					calls: [
+						['list', 'copilotcli', undefined, undefined],
+						...(path === '/install' ? [
+							['browse', 'copilotcli', undefined, 'catalog', undefined],
+							['install', 'copilotcli', { source: 'my-plugin@catalog' }, undefined, undefined],
+						] : []),
+					],
+					errors: [],
+				});
+			});
+		}
+	}
+
+	for (const [source, isDefault, revision, managed] of [
+		['GitHub: github/awesome-copilot', true, 'feature/beta', false],
+		['GitHub: github/awesome-copilot#other', true, 'marketplace', false],
+		['GitHub: github/awesome-copilot', false, 'marketplace', false],
+		['GitHub: github/awesome-copilot', true, 'marketplace', true],
+	] as const) {
+		desktopTest(`does not substitute ${source} for revision ${revision} (default: ${isDefault}, managed: ${managed})`, async () => {
+			const fixture = createHandler({ existingMarketplaceSource: source, existingMarketplaceIsDefault: isDefault, existingMarketplaceManaged: managed, failure: 'add' });
+			await fixture.handler.handleURL(uri('/install', `source=${encodeURIComponent(`github/awesome-copilot#${revision}`)}&plugin=my-plugin&harness=copilot`));
+			assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length }, {
+				calls: [
+					['list', 'copilotcli', undefined, undefined],
+					['add', 'copilotcli', undefined, `github/awesome-copilot#${revision}`, undefined],
+				],
+				errors: 1,
+			});
+		});
+	}
+
+	desktopTest('does not duplicate a configured VS Code marketplace', async () => {
+		const fixture = createHandler({ harness: 'vscode', existingMarketplaceSource: 'https://github.com/ACME/plugins.git#feature/beta' });
+		await fixture.handler.handleURL(uri('/add-marketplace', 'ref=acme%2Fplugins%23feature%2Fbeta'));
+		assert.deepStrictEqual(fixture.configuration.getValue(ChatConfiguration.PluginMarketplaces), ['https://github.com/ACME/plugins.git#feature/beta']);
+	});
+
+	for (const harness of ['copilot', 'vscode'] as const) {
+		for (const path of ['/install', '/add-marketplace']) {
+			desktopTest(`an explicit ${harness} target skips the picker but still requires consent for ${path}`, async () => {
+				const fixture = createHandler({ harness: harness === 'copilot' ? 'vscode' : 'copilot', confirmed: false });
+				await fixture.handler.handleURL(uri(path, `source=acme/plugins&ref=acme/plugins&plugin=my-plugin&harness=${harness}`));
+				assert.deepStrictEqual({ picks: fixture.picks.length, dialogs: fixture.dialogs.length, calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, {
+					picks: 0, dialogs: 1, calls: [], commands: [], errors: [],
+				});
+				assert.ok(typeof fixture.dialogs[0].detail === 'string' && fixture.dialogs[0].detail.includes(harness === 'copilot' ? 'Copilot\'s user installation' : 'VS Code\'s shared plugin installation'));
+			});
+		}
+	}
+
+	desktopTest('cancelling owner selection performs no mutations or confirmation', async () => {
+		const fixture = createHandler({ cancelPicker: true });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs, errors: fixture.errors, commands: fixture.commands }, {
+			calls: [], dialogs: [], errors: [], commands: [],
+		});
+	});
+
+	desktopTest('does not mutate anything while consent is pending', async () => {
+		const confirmation = new DeferredPromise<boolean>();
+		const fixture = createHandler({ confirmation: confirmation.p });
+		const handling = fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		await Promise.resolve();
+		assert.deepStrictEqual(fixture.calls, []);
+		await confirmation.complete(false);
+		await handling;
+		assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, { calls: [], commands: [], errors: [] });
+	});
+
+	desktopTest('rechecks plugin availability after consent', async () => {
+		const confirmation = new DeferredPromise<boolean>();
+		const fixture = createHandler({ confirmation: confirmation.p });
+		const handling = fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		await fixture.configuration.setUserConfiguration(ChatConfiguration.PluginsEnabled, false);
+		await confirmation.complete(true);
+		await handling;
+		assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors.length }, { calls: [], commands: [], errors: 1 });
+	});
+
+	for (const harness of ['copilot', 'vscode'] as const) {
+		desktopTest(`declining consent does not access the ${harness} installer`, async () => {
+			const fixture = createHandler({ harness, confirmed: false });
+			await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+			assert.deepStrictEqual({ calls: fixture.calls, commands: fixture.commands, errors: fixture.errors }, { calls: [], commands: [], errors: [] });
+		});
+	}
+
+	for (const query of ['', 'ref=invalid', 'ref=file:///local/repo', 'ref=acme/plugins&ref=evil/plugins', 'ref=acme/plugins&harness=', 'ref=acme/plugins&harness=claude', 'ref=acme/plugins&harness=copilot&harness=vscode']) {
+		test(`rejects invalid marketplace or harness input: ${query}`, async () => {
+			const fixture = createHandler();
+			await fixture.handler.handleURL(uri('/add-marketplace', query));
+			assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs.length, picks: fixture.picks.length, errors: fixture.errors.length }, {
+				calls: [], dialogs: 0, picks: 0, errors: 1,
+			});
+		});
+	}
+
+	for (const query of ['source=acme/plugins', 'source=acme/plugins&plugin=', 'source=acme/plugins&plugin=one&plugin=two', 'source=acme/plugins&plugin=evil%40other', 'source=acme/plugins&plugin=evil%0Aname']) {
+		test(`requires an unambiguous plugin name: ${query}`, async () => {
+			const fixture = createHandler();
+			await fixture.handler.handleURL(uri('/install', query));
+			assert.deepStrictEqual({ calls: fixture.calls, dialogs: fixture.dialogs.length, errors: fixture.errors.length }, { calls: [], dialogs: 0, errors: 1 });
+		});
+	}
+
+	for (const options of [{ hidden: true }, { disabledInWorkspace: true }, { pluginsEnabled: false }, { remoteAuthority: 'ssh-remote+host' }]) {
+		test(`rejects disabled or nonlocal flows before owner selection: ${JSON.stringify(options)}`, async () => {
+			const fixture = createHandler(options);
+			await fixture.handler.handleURL(uri());
+			assert.deepStrictEqual({ calls: fixture.calls, picks: fixture.picks.length, errors: fixture.errors.length }, { calls: [], picks: 0, errors: 1 });
+		});
+	}
+
+	for (const options of [{ managementUnavailable: true }, { installUnavailable: true }]) {
+		desktopTest(`reports unavailable Copilot capabilities without switching owners: ${JSON.stringify(options)}`, async () => {
+			const fixture = createHandler(options);
+			await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+			assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length, commands: fixture.commands }, { calls: [], errors: 1, commands: [] });
+		});
+	}
+
+	desktopTest('reports a missing plugin without installing a different one', async () => {
+		const fixture = createHandler();
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=missing'));
+		assert.deepStrictEqual({ calls: fixture.calls, errors: fixture.errors.length, commands: fixture.commands }, {
+			calls: [['list', 'copilotcli', undefined, undefined], ['add', 'copilotcli', undefined, 'acme/plugins', undefined], ['browse', 'copilotcli', undefined, 'catalog', undefined]],
+			errors: 1,
+			commands: [],
+		});
+	});
+
+	for (const failure of ['list', 'add', 'browse', 'install'] as const) {
+		desktopTest(`surfaces ${failure} failures without switching owners`, async () => {
+			const fixture = createHandler({ failure });
+			await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+			assert.deepStrictEqual({ errors: fixture.errors.length, commands: fixture.commands, usedVSCode: fixture.calls.some(call => Array.isArray(call) && call[0] === 'vscodeInstall') }, {
+				errors: 1, commands: [], usedVSCode: false,
+			});
+		});
+	}
+
+	desktopTest('reports the VS Code installer error', async () => {
+		const fixture = createHandler({ harness: 'vscode', installResult: { success: false, message: 'Installation failed' } });
+		await fixture.handler.handleURL(uri('/install', 'source=acme/plugins&plugin=my-plugin'));
+		assert.deepStrictEqual({ errors: fixture.errors, commands: fixture.commands }, { errors: ['Unable to complete the plugin link: Installation failed'], commands: [] });
+	});
+
+	desktopTest('respects marketplace trust refusal for VS Code', async () => {
+		const fixture = createHandler({ harness: 'vscode', marketplaceTrusted: false });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ marketplaces: fixture.configuration.getValue(ChatConfiguration.PluginMarketplaces), errors: fixture.errors, commands: fixture.commands }, {
+			marketplaces: [], errors: [], commands: [],
+		});
+	});
+
+	desktopTest('does not report user cancellation as an error', async () => {
+		const fixture = createHandler({ failure: 'add', cancelled: true });
+		await fixture.handler.handleURL(uri());
+		assert.deepStrictEqual({ errors: fixture.errors, commands: fixture.commands }, { errors: [], commands: [] });
 	});
 });

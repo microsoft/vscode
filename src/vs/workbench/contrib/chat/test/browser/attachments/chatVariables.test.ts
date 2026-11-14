@@ -5,14 +5,22 @@
 
 import assert from 'assert';
 import { Emitter } from '../../../../../../base/common/event.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { ICodeEditorService } from '../../../../../../editor/browser/services/codeEditorService.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
+import { TrackedRangeStickiness } from '../../../../../../editor/common/model.js';
+import { TestCodeEditorService } from '../../../../../../editor/test/browser/editorTestServices.js';
+import { createTestCodeEditor } from '../../../../../../editor/test/browser/testCodeEditor.js';
+import { createTextModel } from '../../../../../../editor/test/common/testTextModel.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { TestThemeService } from '../../../../../../platform/theme/test/common/testThemeService.js';
 import { IDynamicVariable, toAttachedContextDynamicVariable } from '../../../common/attachments/chatVariables.js';
 import { IChatWidget } from '../../../browser/chat.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../../../browser/attachments/chatVariables.js';
-import { ChatDynamicVariableModel } from '../../../browser/attachments/chatDynamicVariables.js';
+import { ChatDynamicVariableModel, dynamicVariableDecorationType } from '../../../browser/attachments/chatDynamicVariables.js';
 import { IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
 import { IToolData, ToolDataSource, ToolAndToolSetEnablementMap } from '../../../common/tools/languageModelToolsService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
@@ -83,9 +91,13 @@ suite('getDynamicVariablesForWidget', () => {
 		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
 	});
 
-	test('returns empty when file references not supported', () => {
-		const widget = createMockWidget({ supportsFileReferences: false });
-		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), []);
+	test('returns only attachment references when file references are not supported', () => {
+		const attachmentReference = createMockVariable({ id: 'attachment', isAttachmentReference: true });
+		const widget = createMockWidget({
+			supportsFileReferences: false,
+			contribVariables: [createMockVariable(), attachmentReference],
+		});
+		assert.deepStrictEqual(getDynamicVariablesForWidget(widget), [attachmentReference]);
 	});
 
 	test('returns contrib model variables when not editing', () => {
@@ -220,6 +232,228 @@ suite('inline attachment references', () => {
 suite('ChatDynamicVariableModel', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	function createDynamicVariableModel(text: string, updateAttachmentsBeforeReferences = false): { editor: ReturnType<typeof createTestCodeEditor>; model: ChatDynamicVariableModel } {
+		const textModel = store.add(createTextModel(text));
+		const codeEditorService = store.add(new TestCodeEditorService(new TestThemeService()));
+		store.add(codeEditorService.registerDecorationType('test', dynamicVariableDecorationType, {
+			rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		}));
+		const editor = store.add(createTestCodeEditor(textModel, {
+			serviceCollection: new ServiceCollection([ICodeEditorService, codeEditorService]),
+		}));
+		const onDidChangeActiveInputEditor = store.add(new Emitter<void>());
+		const onDidChangeAttachments = store.add(new Emitter<{ deleted: readonly string[]; added: readonly IChatRequestVariableEntry[]; updated: readonly IChatRequestVariableEntry[] }>());
+		if (updateAttachmentsBeforeReferences) {
+			store.add(editor.onDidChangeModelContent(() => {
+				onDidChangeAttachments.fire({ deleted: [], added: [], updated: [createMockAttachment()] });
+			}));
+		}
+		const widget = {
+			input: {
+				attachmentModel: {
+					attachments: [],
+					onDidChange: onDidChangeAttachments.event,
+				},
+			},
+			inputEditor: editor,
+			onDidChangeActiveInputEditor: onDidChangeActiveInputEditor.event,
+			refreshParsedInput: () => { },
+		} as unknown as IChatWidget;
+		const model = store.add(new ChatDynamicVariableModel(widget, {
+			getUriLabel: () => '',
+		} as unknown as ILabelService));
+		return { editor, model };
+	}
+
+	test('replaces covered references only when requested and publishes once after disposing them', () => {
+		const { model } = createDynamicVariableModel('/mcp enable /mcp');
+		const disposed: string[] = [];
+		model.addReference(Object.assign(toDisposable(() => disposed.push('parent')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 1, 1, 5),
+		})));
+		model.addReference(Object.assign(toDisposable(() => disposed.push('other')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 13, 1, 17),
+		})));
+		model.addReference(Object.assign(toDisposable(() => disposed.push('partial')), createMockVariable({
+			id: 'partial',
+			range: new Range(1, 10, 1, 17),
+		})));
+		const changes: { disposed: string[]; ranges: IDynamicVariable['range'][] }[] = [];
+		store.add(model.onDidChangeReferences(() => changes.push({
+			disposed: [...disposed],
+			ranges: model.variables.map(reference => reference.range),
+		})));
+
+		model.addReference(Object.assign(toDisposable(() => disposed.push('previous')), createMockVariable({
+			id: 'command',
+			range: new Range(1, 1, 1, 12),
+		})));
+		model.addReference(createMockVariable({ id: 'command', range: new Range(1, 1, 1, 12) }), true);
+
+		assert.deepStrictEqual(changes, [
+			{
+				disposed: [],
+				ranges: [new Range(1, 1, 1, 5), new Range(1, 13, 1, 17), new Range(1, 10, 1, 17), new Range(1, 1, 1, 12)],
+			},
+			{
+				disposed: ['parent', 'previous'],
+				ranges: [new Range(1, 13, 1, 17), new Range(1, 10, 1, 17), new Range(1, 1, 1, 12)],
+			},
+		]);
+	});
+
+	test('keeps an inline skill highlight when parsing updates attachments before reference tracking', () => {
+		const { editor, model } = createDynamicVariableModel('explain /skill now', true);
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 15),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 1),
+			text: 'Please ',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+			highlights: editor.getModel()!.getAllDecorations()
+				.filter(decoration => decoration.options.description === 'test')
+				.map(decoration => ({ range: decoration.range, text: editor.getModel()!.getValueInRange(decoration.range) })),
+		}, {
+			text: 'Please explain /skill now',
+			variables: [new Range(1, 16, 1, 22)],
+			highlights: [{ range: new Range(1, 16, 1, 22), text: '/skill' }],
+		});
+	});
+
+	test('tracks multiple inline skills across newline edits when attachments update first', () => {
+		const { editor, model } = createDynamicVariableModel('use /skill and /other now', true);
+		model.addReference(createMockVariable({
+			id: 'skill',
+			range: new Range(1, 5, 1, 11),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+		model.addReference(createMockVariable({
+			id: 'other',
+			range: new Range(1, 16, 1, 22),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 1),
+			text: 'First\n',
+		}]);
+		const afterInsertion = model.variables.map(variable => variable.range);
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 2, 5),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			afterInsertion,
+			text: editor.getValue(),
+			variables: model.variables.map(variable => ({ id: variable.id, range: variable.range })),
+		}, {
+			afterInsertion: [new Range(2, 5, 2, 11), new Range(2, 16, 2, 22)],
+			text: '/skill and /other now',
+			variables: [
+				{ id: 'skill', range: new Range(1, 1, 1, 7) },
+				{ id: 'other', range: new Range(1, 12, 1, 18) },
+			],
+		});
+	});
+
+	test('atomically removes an edited inline skill without losing another when attachments update first', () => {
+		const { editor, model } = createDynamicVariableModel('use /skill and /other now', true);
+		model.addReference(createMockVariable({
+			id: 'skill',
+			range: new Range(1, 5, 1, 11),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+		model.addReference(createMockVariable({
+			id: 'other',
+			range: new Range(1, 16, 1, 22),
+			data: { $mid: 'agentHostCompletion', kind: 'skill' },
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 5, 1, 6),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => ({ id: variable.id, range: variable.range })),
+		}, {
+			text: 'use  and /other now',
+			variables: [{ id: 'other', range: new Range(1, 10, 1, 16) }],
+		});
+	});
+
+	test('keeps a reference when editing text before it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 21),
+			text: 'describe #sym:example',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'describe #sym:example ',
+			variables: [new Range(1, 10, 1, 22)],
+		});
+	});
+
+	test('removes a reference without deleting replacement text', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 21),
+			text: 'describe',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables,
+		}, {
+			text: 'describe ',
+			variables: [],
+		});
+	});
+
+	test('removes the whole reference when editing inside it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 14, 1, 15),
+			text: 'X',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables,
+		}, {
+			text: 'explain  ',
+			variables: [],
+		});
+	});
+
 	test('does not retain attachment payload after the backing attachment is removed', () => {
 		const attachment = createMockAttachment({
 			kind: 'image',
@@ -301,8 +535,10 @@ suite('ChatDynamicVariableModel', () => {
 			inputEditor: {
 				onDidChangeModelContent: onDidChangeModelContent.event,
 				getModel: () => ({
+					getVersionId: () => 1,
 					getValueInRange: () => '#attachment',
 					getDecorationRange: () => new Range(1, 1, 1, 20),
+					getOffsetAt: (position: { column: number }) => position.column - 1,
 				}),
 				setDecorationsByType: (_owner: string, _type: string, decorations: Array<{ hoverMessage?: { value: string } }>) => {
 					for (const decoration of decorations) {
@@ -333,6 +569,86 @@ suite('ChatDynamicVariableModel', () => {
 		}, {
 			folderHover: 'workspace/assets',
 			hasImageDecorationHover: false,
+		});
+	});
+
+	test('recovers a reference range after a delete strictly before it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 8, 1, 9),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'explain#sym:example ',
+			variables: [new Range(1, 8, 1, 20)],
+		});
+	});
+
+	test('recovers a reference range after a replace strictly before it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 1, 1, 8),
+			text: 'describe',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'describe #sym:example ',
+			variables: [new Range(1, 10, 1, 22)],
+		});
+	});
+
+	test('removes the reference when a delete touches its first character', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example ');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [{
+			range: new Range(1, 9, 1, 10),
+			text: '',
+		}]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables,
+		}, {
+			text: 'explain  ',
+			variables: [],
+		});
+	});
+
+	test('recovers a reference range across edits before and after it', () => {
+		const { editor, model } = createDynamicVariableModel('explain #sym:example please');
+		model.addReference(createMockVariable({
+			range: new Range(1, 9, 1, 21),
+		}));
+
+		editor.executeEdits('test', [
+			{ range: new Range(1, 1, 1, 8), text: 'describe' },
+			{ range: new Range(1, 22, 1, 28), text: 'now' },
+		]);
+
+		assert.deepStrictEqual({
+			text: editor.getValue(),
+			variables: model.variables.map(variable => variable.range),
+		}, {
+			text: 'describe #sym:example now',
+			variables: [new Range(1, 10, 1, 22)],
 		});
 	});
 });

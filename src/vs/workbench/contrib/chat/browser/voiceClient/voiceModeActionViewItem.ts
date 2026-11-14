@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IManagedHoverContent } from '../../../../../base/browser/ui/hover/hover.js';
 import { MenuItemAction } from '../../../../../platform/actions/common/actions.js';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
@@ -13,6 +14,8 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { getVoiceModeHoverContent } from '../speechToText/micButtonHovers.js';
+import { IVoiceSessionController } from './voiceSessionController.js';
 import { addMicButtonContextMenuListener, getVoiceModeContextMenuActions } from '../speechToText/micButtonMenuActions.js';
 
 /**
@@ -27,7 +30,9 @@ const VOICE_START_COMMAND = 'agentsVoice.startVoiceInChat';
  * toolbar voice-mode toggle (click to start/stop) but adds a right-click context
  * menu with voice-specific entries — "Configure Keybinding" (mirroring the
  * standard toolbar affordance), "Select Microphone" and "Disable Voice Mode" —
- * instead of the generic toolbar context menu. Mirrors {@link DictationActionViewItem}.
+ * instead of the generic toolbar context menu. Its hover also explains that
+ * Voice Mode is a spoken conversation driven by its own online model, distinct
+ * from dictation. Mirrors {@link DictationActionViewItem}.
  */
 export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 
@@ -42,6 +47,7 @@ export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IVoiceSessionController private readonly _voiceSessionController: IVoiceSessionController,
 	) {
 		super(action, options, keybindingService, notificationService, contextKeyService, themeService, contextMenuService, accessibilityService);
 	}
@@ -54,5 +60,9 @@ export class VoiceModeActionViewItem extends MenuEntryActionViewItem {
 			() => getVoiceModeContextMenuActions(this._commandService, this._configurationService, this._keybindingService, VOICE_START_COMMAND),
 			this._contextMenuService,
 		));
+	}
+
+	protected override getHoverContents(): IManagedHoverContent {
+		return getVoiceModeHoverContent(this.getTooltip() ?? '', this._voiceSessionController.isUsingGptLive);
 	}
 }

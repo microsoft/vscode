@@ -9,92 +9,216 @@ on:
     branches:
       - main
       - 'release/*'
+  # Screenshots & Tests is a required check, which the merge queue of main waits for
+  merge_group:
+    types:
+      - checks_requested
+    branches:
+      - main
 
 permissions:
   contents: read
   statuses: write
   pull-requests: write
   id-token: write
+  # Finds and downloads the workspace image (see .github/workflows/workspace_image/README.md)
+  actions: read
 
 concurrency:
   group: component-fixtures-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
-  screenshots:
-    name: Screenshots & Tests
-    runs-on: ubuntu-latest
+  playwright:
+    name: Playwright Fixture Tests
+    # The merge queue and the pull requests to release branches run on dedicated runners, like pr.yml (see the comment at the top of its jobs)
+    runs-on: &runner ${{ (github.event_name == 'merge_group' || startsWith(github.base_ref, 'release/')) && 'vscode-large-runners-ubuntu-8-core-merge-queue' || 'vscode-large-runners-ubuntu-8-core' }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-        with:
-          # Need enough history for the merge-base lookup below to succeed even
-          # when the target branch has advanced since the PR was opened. Full
-          # clone would be wasteful for this large repo, so cap at 50.
-          fetch-depth: 50
+      # The jobs start from a workspace image of main, like the test jobs of pr.yml (see
+      # .github/workflows/workspace_image/README.md): its dependencies are installed, and its .git
+      # holds the commit it was built at, so the checkout writes and the install steps install only
+      # what changed since. Its scripts run before the checkout, so they come from the API, at the
+      # commit that the job tests, as in pr-workspace-images.yml. Without an image, or on any error,
+      # the install steps install everything, without the pnpm store cache. Screenshots reuses these
+      # steps.
+      - &image-scripts
+        name: Download the workspace image scripts
+        id: image-scripts
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/workspace-image"
+          mkdir -p "$dir"
+          echo '{ "type": "module" }' > "$dir/package.json"
+          # The scripts keep their folders below workspace_image, such as win32/vhd.ps1
+          files=(.nvmrc .github/workflows/workspace_image/{image.ts,win32/vhd.ps1,win32/Vhd.cs})
+          args=()
+          for file in "${files[@]}"; do
+            args+=(-o "$dir/${file#.github/workflows/workspace_image/}" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/contents/$file?ref=$GITHUB_SHA")
+          done
+          curl -fsSL --retry 3 --parallel --create-dirs -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github.raw' "${args[@]}"
+          for file in "${files[@]}"; do
+            [ -s "$dir/${file#.github/workflows/workspace_image/}" ]
+          done
+          echo "node-version=$(tr -d '[:space:]' < "$dir/.nvmrc")" >> "$GITHUB_OUTPUT"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
+      - &image-node
+        name: Setup Node.js
+        if: steps.image-scripts.outcome == 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ steps.image-scripts.outputs.node-version }}
+
+      # An ext4 volume, which a loop device mounts at the parent of the workspace. image.ts gives up
+      # before the timeout of the step, and then unmounts the image, so that the job sets up as
+      # without an image. Pull requests and pushes use the images of their base branch or branch:
+      # pr-workspace-images.yml only builds those of main.
+      - &image-restore
+        name: Restore the workspace image
+        id: image
+        if: steps.image-scripts.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 5
+        working-directory: ${{ runner.temp }}
+        run: node "$RUNNER_TEMP/workspace-image/image.ts" restore --name workspace-image-linux-x64.img --branch "$WORKSPACE_IMAGE_BRANCH" --timeout-seconds 240
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # The merge queue, whose temporary branches have no images, uses the images of main
+          WORKSPACE_IMAGE_BRANCH: ${{ github.base_ref || github.event_name == 'merge_group' && 'main' || github.ref_name }}
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
+
+      - &node-without-image
+        name: Setup Node.js
+        if: steps.image-scripts.outcome != 'success'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
 
-      - name: Restore node_modules cache
-        id: cache-node-modules
-        uses: ./.github/actions/restore-node-modules
-        with:
-          key-prefix: node_modules-component-fixtures
-          key-args: "compile $(node -p process.arch)"
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
 
+      # Only the dependencies of the root project and the Playwright fixture tests, without the
+      # root install scripts that install every other install root.
       - name: Install dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci --ignore-scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter ./test/componentFixtures/playwright
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install build dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
-        working-directory: build
-
+      # build/rspack is a member of the build workspace. pnpm also installs the build project's own
+      # dependencies, so skip their install scripts (native modules): rspack doesn't need them.
       - name: Install rspack dependencies
-        if: steps.cache-node-modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter .
         working-directory: build/rspack
-
-      - name: Save node_modules cache
-        # Only seed the cache on branch pushes — PR-scoped caches are not shared with other refs.
-        if: github.event_name != 'pull_request' && steps.cache-node-modules.outputs.cache-hit != 'true'
-        uses: ./.github/actions/save-node-modules
 
       - name: Copy codicons
         run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
 
+      - name: Build component explorer
+        run: pnpm exec rspack build --config rspack.serve-out.config.mts
+        working-directory: build/rspack
+        env:
+          COMPONENT_EXPLORER_STATIC_BUILD: 1
+
+      # Pushes to main save this cache, so pull requests don't download the browsers. Also with a
+      # workspace image, whose browsers are only Chromium's headless shell: the action points
+      # PLAYWRIGHT_BROWSERS_PATH at the cached browsers in the workspace instead.
+      - name: Restore Playwright browsers
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: chromium
+          save-cache: ${{ github.event_name == 'push' }}
+
       - name: Install Playwright Chromium
-        run: npx playwright install chromium
-
-      - name: Install Playwright test dependencies
-        run: npm ci
-        working-directory: test/componentFixtures/playwright
-
-      - name: Install Playwright Chromium (tests)
-        run: npx playwright install chromium
+        run: pnpm exec playwright install chromium
         working-directory: test/componentFixtures/playwright
 
       - name: Run Playwright fixture tests
-        run: npx playwright test
+        run: pnpm exec playwright test
         working-directory: test/componentFixtures/playwright
 
       - name: Upload Playwright test results
         if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: playwright-test-results
           path: test/componentFixtures/playwright/test-results/
 
+  screenshots:
+    name: Screenshots
+    runs-on: *runner
+    steps:
+      - *image-scripts
+      - *image-node
+      - *image-restore
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Need enough history for the merge-base lookup below to succeed even
+          # when the target branch has advanced since the PR was opened. Full
+          # clone would be wasteful for this large repo, so cap at 150.
+          fetch-depth: 150
+          # With a workspace image, keeps its untracked files, such as node_modules, and reuses its .git
+          clean: ${{ steps.image.outputs.used != 'true' }}
+
+      - *node-without-image
+
+      - name: Setup pnpm
+        uses: ./.github/actions/setup-pnpm
+
+      # Only the dependencies of the root project and the Playwright fixture tests, without the
+      # root install scripts that install every other install root.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter . --filter ./test/componentFixtures/playwright
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Also installs build/rspack, a member of the build workspace.
+      - name: Install build dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: build
+
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+
+      - name: Build component explorer
+        run: pnpm exec rspack build --config rspack.serve-out.config.mts
+        working-directory: build/rspack
+        env:
+          COMPONENT_EXPLORER_STATIC_BUILD: 1
+
+      - name: Upload component explorer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: component-explorer
+          path: .build/rspack-serve-out/
+
+      # Pushes to main save this cache, so pull requests don't download the browsers. Also with a
+      # workspace image (see Playwright Fixture Tests).
+      - name: Restore Playwright browsers
+        uses: ./.github/actions/restore-playwright
+        with:
+          browsers: chromium
+          save-cache: ${{ github.event_name == 'push' }}
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install chromium
+
       - name: Capture screenshots
-        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
+        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json --fixture-id-regex '/Light$'
 
       - name: Check fixture errors
         id: fixture_errors
@@ -152,18 +276,12 @@ jobs:
             || {
               echo "match=false" >> "$GITHUB_OUTPUT"
               cat /tmp/blocks-ci-stderr.txt >&2
-              CONTENT=$(cat /tmp/blocks-ci-updated.md)
-              echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              echo "$CONTENT" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
-              PATCH=$(diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true)
-              echo "patch<<BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
-              echo "$PATCH" >> "$GITHUB_OUTPUT"
-              echo "BLOCKS_CI_PATCH_EOF" >> "$GITHUB_OUTPUT"
+              diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md \
+                > /tmp/blocks-ci.patch || true
             }
 
       - name: Upload screenshots as artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: screenshots
@@ -175,11 +293,19 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
           EVENT_SHA: ${{ github.sha }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
+          if [ "${{ github.event_name }}" = "merge_group" ]; then
+            # The diff is feedback for pull requests, which showed it before they entered the queue. The
+            # parent of a merge group can be the merge group ahead of it, which has no screenshots on the service.
+            echo "Merge group: skipping screenshot comparison."
+            exit 0
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
             # For PRs, diff against the merge-base with the target branch.
             TARGET_REF="origin/$BASE_REF"
-            git fetch --no-tags --depth=50 origin "$BASE_REF"
-            BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF")
+            git fetch --no-tags --depth=150 origin "$BASE_REF"
+            if ! BASE_SHA=$(git merge-base "$EVENT_SHA" "$TARGET_REF"); then
+              echo "::warning::Unable to find a merge base between $EVENT_SHA and $TARGET_REF. The depth-150 shallow history may not contain their common ancestor; skipping screenshot comparison."
+              exit 0
+            fi
           else
             # For push events, diff against the parent commit.
             BASE_SHA=$(git rev-parse "$EVENT_SHA^")
@@ -223,6 +349,7 @@ jobs:
 
       - name: Fetch base commit manifest
         id: base_manifest
+        if: steps.base.outputs.base_sha != ''
         env:
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
         run: |
@@ -244,19 +371,17 @@ jobs:
 
       - name: Diff screenshots
         id: diff
-        if: always()
+        if: always() && steps.base.outputs.base_sha != ''
         run: |
-          BODY=$(node build/lib/screenshotDiffReport.ts \
+          node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
             "${{ steps.base.outputs.base_sha }}" \
             ${{ github.sha }} \
             "${{ steps.base_manifest.outputs.path }}" \
-            test/componentFixtures/.screenshots/current/manifest.json)
-          if [ -n "$BODY" ]; then
+            test/componentFixtures/.screenshots/current/manifest.json \
+            > /tmp/screenshot-diff-comment.md
+          if [ -s /tmp/screenshot-diff-comment.md ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
-            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
-            echo "$BODY" >> "$GITHUB_OUTPUT"
-            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
           else
             echo "No screenshot changes to report."
           fi
@@ -271,33 +396,33 @@ jobs:
         if: always() && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
         # Single source of truth for the markdown body shared by the job
         # summary (the only surface fork PRs see) and the non-fork PR comment.
-        # Fixture rendering errors are already part of COMMENT_BODY via the
+        # Fixture rendering errors are already part of the screenshot diff via the
         # "Errored" section emitted by screenshotDiffReport.ts, so reporting
         # errors is not tied to blocks-ci here.
         run: |
           {
-            if [ -n "$COMMENT_BODY" ]; then
-              printf '%s\n' "$COMMENT_BODY"
+            if [ -s /tmp/screenshot-diff-comment.md ]; then
+              cat /tmp/screenshot-diff-comment.md
             fi
-            if [ -n "$BLOCKS_CI_CONTENT" ]; then
-              if [ -n "$COMMENT_BODY" ]; then printf '\n---\n\n'; fi
+            if [ -s /tmp/blocks-ci-updated.md ]; then
+              if [ -s /tmp/screenshot-diff-comment.md ]; then printf '\n---\n\n'; fi
               printf '### blocks-ci screenshots changed\n\n'
               printf 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n'
               printf '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n'
-              printf '```md\n%s\n```\n\n' "$BLOCKS_CI_CONTENT"
+              printf '```md\n'
+              cat /tmp/blocks-ci-updated.md
+              printf '```\n\n'
               printf '</details>\n'
-              if [ -n "$BLOCKS_CI_PATCH" ]; then
+              if [ -s /tmp/blocks-ci.patch ]; then
                 printf '\n<details open>\n<summary>Patch</summary>\n\n'
-                printf '```diff\n%s\n```\n\n' "$BLOCKS_CI_PATCH"
+                printf '```diff\n'
+                cat /tmp/blocks-ci.patch
+                printf '```\n\n'
                 printf '</details>\n'
               fi
             fi
           } > /tmp/comment-body.md
           echo "path=/tmp/comment-body.md" >> "$GITHUB_OUTPUT"
-        env:
-          COMMENT_BODY: ${{ steps.diff.outputs.body }}
-          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
-          BLOCKS_CI_PATCH: ${{ steps.blocks-ci.outputs.patch }}
 
       - name: Write job summary
         if: always() && steps.comment_body.outputs.path
@@ -305,11 +430,14 @@ jobs:
 
       - name: Post PR comment (non-fork PR only)
         if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');
-            const marker = '<!-- screenshot-diff-report -->';
+            const { pathToFileURL } = require('url');
+            const { COMMENT_MARKER: marker, formatScreenshotComment } = await import(
+              pathToFileURL(`${process.env.GITHUB_WORKSPACE}/build/lib/screenshotComment.ts`).href
+            );
             const bodyPath = process.env.COMMENT_BODY_PATH;
             let body = bodyPath && fs.existsSync(bodyPath)
               ? fs.readFileSync(bodyPath, 'utf8').replace(/\s+$/, '')
@@ -342,7 +470,11 @@ jobs:
               return;
             }
 
-            body = marker + '\n' + body;
+            body = formatScreenshotComment(body, {
+              runUrl: process.env.WORKFLOW_RUN_URL,
+              baseSha: process.env.BASE_SHA,
+              currentSha: process.env.CURRENT_SHA,
+            });
 
             if (existing) {
               await github.rest.issues.updateComment({
@@ -361,6 +493,7 @@ jobs:
             }
         env:
           COMMENT_BODY_PATH: ${{ steps.comment_body.outputs.path }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BASE_SHA: ${{ steps.base.outputs.base_sha }}
           CURRENT_SHA: ${{ github.sha }}
 
@@ -378,23 +511,6 @@ jobs:
         run: |
           echo "::error::One or more component fixtures failed to render. See the 'Check fixture errors' step for details."
           exit 1
-
-
-      # - name: Prepare explorer artifact
-      #   run: |
-      #     mkdir -p /tmp/explorer-artifact/screenshot-report
-      #     cp -r build/vite/dist/* /tmp/explorer-artifact/
-      #     if [ -d test/componentFixtures/.screenshots/report ]; then
-      #       cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
-      #     fi
-
-      # - name: Upload explorer artifact
-      #   uses: actions/upload-artifact@v7
-      #   with:
-      #     name: component-explorer
-      #     path: /tmp/explorer-artifact/
-
-
       # - name: Set check title
       #   env:
       #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -428,3 +544,21 @@ jobs:
       #       --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
       #     {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
       #     EOF
+
+  component-fixtures:
+    name: Screenshots & Tests
+    if: ${{ always() }}
+    needs:
+      - playwright
+      - screenshots
+    runs-on: *runner
+    steps:
+      - name: Verify fixture test results
+        run: |
+          if [[ '${{ needs.playwright.result }}' != 'success' ||
+                '${{ needs.screenshots.result }}' != 'success' ]]; then
+            echo "::error::Component fixture checks failed."
+            echo "Playwright: ${{ needs.playwright.result }}"
+            echo "Screenshots: ${{ needs.screenshots.result }}"
+            exit 1
+          fi

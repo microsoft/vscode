@@ -576,6 +576,18 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.agentsChangeInline', "The Changes view inline menu in the agents window."),
 		proposed: 'chatSessionsProvider'
 	},
+	{
+		key: 'titleBar',
+		id: MenuId.TitleBar,
+		description: localize('menus.titleBar', "The title bar of the editor window."),
+		proposed: 'contribTitleBar'
+	},
+	{
+		key: 'agents/titleBar',
+		id: MenuId.AgentsTitleBar,
+		description: localize('menus.agentsTitleBar', "The title bar of the agents window."),
+		proposed: 'contribTitleBar'
+	},
 ];
 
 namespace schema {
@@ -1186,18 +1198,18 @@ class CommandsTableRenderer extends Disposable implements IExtensionFeatureTable
 
 		// Add to commandPalette array any commands not explicitly contributed to it
 		const implicitlyOnCommandPalette = index(commands, c => c.id);
-		if (menus['commandPalette']) {
-			for (const command of menus['commandPalette']) {
+		if (menus.commandPalette) {
+			for (const command of menus.commandPalette) {
 				delete implicitlyOnCommandPalette[command.command];
 			}
 		}
 
 		if (Object.keys(implicitlyOnCommandPalette).length) {
-			if (!menus['commandPalette']) {
-				menus['commandPalette'] = [];
+			if (!menus.commandPalette) {
+				menus.commandPalette = [];
 			}
 			for (const command in implicitlyOnCommandPalette) {
-				menus['commandPalette'].push({ command });
+				menus.commandPalette.push({ command });
 			}
 		}
 

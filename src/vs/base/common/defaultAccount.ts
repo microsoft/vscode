@@ -37,18 +37,21 @@ export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly can_signup_for_limited: boolean;
 	readonly copilot_plan: string;
 	readonly organization_login_list: string[];
+	readonly is_staff?: boolean;
 	readonly analytics_tracking_id: string;
 	readonly limited_user_reset_date?: string; 	// for Copilot Free
 	readonly quota_reset_date?: string; 		// for all other Copilot SKUs
 	readonly quota_reset_date_utc?: string; 	// for all other Copilot SKUs (includes time)
 	readonly token_based_billing?: boolean;
 	readonly can_upgrade_plan?: boolean;
+	readonly cloud_sessions_enabled?: boolean;
 	readonly cloud_session_storage_enabled?: boolean;
 	readonly quota_snapshots?: {
 		chat?: IQuotaSnapshotData;
 		completions?: IQuotaSnapshotData;
 		premium_interactions?: IQuotaSnapshotData;
 	};
+	readonly endpoints?: Record<string, string>;
 }
 
 export interface IPolicyData {
@@ -68,11 +71,22 @@ export interface IPolicyData {
 	 * `enabledPlugins`, `extraKnownMarketplaces`) are carried as canonical JSON strings.
 	 */
 	readonly managedSettings?: ManagedSettingsData;
+
+	/**
+	 * Whether at least one managed-settings delivery channel currently contributes governance.
+	 * The harness permissions `vscode.temporaryAllowLocalHarness` and `vscode.allowedHarnesses` do
+	 * not contribute to this flag; other settings retain presence-based governance.
+	 *
+	 * Unlike {@link managedSettings}, this also reflects structured runtime-owned keys that the
+	 * policy projection does not retain.
+	 */
+	readonly managedSettingsActive?: boolean;
 }
 
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
 	readonly fcv1?: string;
+	readonly st?: string;
 }
 
 export interface IDefaultAccountAuthenticationProvider {

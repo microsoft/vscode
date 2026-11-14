@@ -6,13 +6,18 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { CAPIClient, RequestType, type CCAModel, type IExtensionInformation } from '@vscode/copilot-api';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { getDevDeviceId, getMachineId } from '../../../../base/node/id.js';
+import { getInternalOrg, isInternalAccount } from '../../../assignment/common/assignment.js';
+import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
-import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { COPILOT_LICENSE_AGREEMENT } from '../../../endpoint/common/licenseAgreement.js';
-import { parseCopilotTokenFields } from '../copilot/copilotTokenFields.js';
+import { ITelemetryService } from '../../../telemetry/common/telemetry.js';
+import type { IAgentTelemetryContext } from '../../common/agent.js';
+import { IAgentHostGitHubEndpointService } from '../agentHostGitHubEndpointService.js';
+import type { IAgentHostGitHubTelemetryContext } from '../agentHostRestrictedTelemetry.js';
+import { getUtilityModelCallFailureOutcome, reportUtilityModelCall, toUtilityModelCallGitHubTelemetry, type AgentHostUtilityModelCallOutcome, type IAgentHostUtilityModelCallTelemetryContext } from './utilityModelCallTelemetry.js';
 
 // #region Types
 
@@ -23,9 +28,8 @@ import { parseCopilotTokenFields } from '../copilot/copilotTokenFields.js';
  * sensitive headers (`Authorization`, `Content-Type`, `X-Request-Id`,
  * `OpenAI-Intent`), so callers cannot override those.
  *
- * `signal` propagates to the outgoing API request but **not** to the
- * shared token mint. The mint is deduped across concurrent callers, so
- * a single caller's abort must not cancel it for everyone.
+ * `signal` propagates to the outgoing API request but not to the shared
+ * endpoint-discovery request.
  */
 export interface ICopilotApiServiceRequestOptions {
 	readonly headers?: Readonly<Record<string, string>>;
@@ -64,26 +68,31 @@ export interface ICopilotUtilityChatMessage {
  * service forwards the messages and returns the assistant text.
  *
  * `temperature` defaults to `0.1` (matching the Copilot Chat extension's
- * default `IConversationOptions.temperature`). All other parameters
- * (`top_p`, model family) are fixed defaults inside the service — callers
- * should not need to tune them for utility flows. `max_tokens` is left
- * unset so CAPI applies its per-model default, matching what the
- * extension's `copilot-utility-small` endpoint sends today.
+ * default `IConversationOptions.temperature`). `top_p` and the model family
+ * are fixed defaults inside the service. Callers may set `maxTokens` when
+ * their utility flow has a naturally bounded output.
+ *
+ * `telemetry` attributes the call in the `agentHost.utilityModelCall` event.
  */
 export interface ICopilotUtilityChatCompletionRequest {
 	readonly messages: readonly ICopilotUtilityChatMessage[];
 	readonly temperature?: number;
+	readonly maxTokens?: number;
+	readonly telemetry: IAgentHostUtilityModelCallTelemetryContext;
 }
 
 /**
  * Subset of the GitHub `copilot_internal/user` response we care about.
- * The full payload carries entitlement info; we only need `endpoints` (for
- * routing CAPI requests) and `access_type_sku` (which `CAPIClient.updateDomains`
- * stamps onto requests).
+ * Provides CAPI routing and SKU data together with the account metadata used
+ * for restricted and internal telemetry.
  */
 interface ICopilotUserResponse {
 	readonly login?: string;
 	readonly copilotignore_enabled?: boolean;
+	readonly restricted_telemetry?: boolean;
+	readonly analytics_tracking_id?: string;
+	readonly is_staff?: boolean;
+	readonly organization_login_list?: readonly string[];
 	readonly endpoints?: {
 		readonly api?: string;
 		readonly telemetry?: string;
@@ -93,9 +102,46 @@ interface ICopilotUserResponse {
 	readonly access_type_sku?: string;
 }
 
+/**
+ * Subset of a CAPI `/chat/completions` response read by
+ * {@link ICopilotApiService.utilityChatCompletion}. The values come from the
+ * network, so telemetry validates them before reporting.
+ */
+interface ICapiChatCompletionResponse {
+	readonly model?: string;
+	readonly choices?: ReadonlyArray<{ readonly message?: { readonly content?: unknown }; readonly finish_reason?: string }>;
+	readonly usage?: {
+		readonly prompt_tokens?: number;
+		readonly completion_tokens?: number;
+		readonly total_tokens?: number;
+		readonly prompt_tokens_details?: { readonly cached_tokens?: number };
+		readonly completion_tokens_details?: { readonly reasoning_tokens?: number };
+	};
+}
+
+/** What a utility chat completion has reached so far, for its telemetry event. */
+interface IUtilityChatCompletionCall {
+	readonly startTime: number;
+	gitHubTelemetry?: IAgentHostGitHubTelemetryContext;
+	modelId?: string;
+	/** Set just before the request is sent; calls that fail earlier are not reported. */
+	requestId?: string;
+	response?: Response;
+	json?: ICapiChatCompletionResponse;
+}
+
+/** Reads a response request-id header when it is a short identifier that is safe to report. */
+function readTelemetryRequestId(headers: Headers, name: string): string | undefined {
+	const value = headers.get(name);
+	return value && value.length <= 128 && /^[a-z0-9:-]+$/i.test(value) ? value : undefined;
+}
+
 interface ICachedClient {
 	readonly capiClient: CAPIClient;
 	readonly expiresAt: number;
+	readonly utilityModelIdsByFamily: Map<string, string>;
+	/** The raw Copilot entitlement SKU returned by `/copilot_internal/user`, when present. */
+	readonly copilotSku?: string;
 	/** GitHub login returned by `/copilot_internal/user`, when present. */
 	readonly login?: string;
 	/** The CAPI `endpoints.telemetry` base URL discovered for this token, if any. */
@@ -103,30 +149,67 @@ interface ICachedClient {
 	/** The CAPI `endpoints.api` base URL discovered (or overridden) for this token, if any. */
 	readonly apiEndpoint?: string;
 	readonly copilotIgnoreEnabled?: boolean;
-}
-
-/**
- * Subset of the `RequestType.CopilotToken` mint response we care about.
- */
-interface ICopilotTokenEnvelope {
-	readonly token?: unknown;
-	readonly expires_at?: unknown;
-	readonly refresh_in?: unknown;
-	readonly organization_list?: unknown;
-}
-
-/**
- * Per-GitHub-token Copilot session token cache entry, plus a per-family
- * resolved utility model id. The model id is bound to the same lifetime as
- * the Copilot token so the entry can be evicted atomically on 401/403.
- */
-interface ICachedCopilotToken {
-	readonly token: string;
-	readonly expiresAt: number;
-	readonly modelIdsByFamily: Map<string, string>;
+	readonly restrictedTelemetryEnabled: boolean;
+	readonly trackingId?: string;
 	readonly isInternal: boolean;
 	readonly isVscodeTeamMember: boolean;
 }
+
+interface ICopilotSkuCacheCell {
+	valid: boolean;
+	value?: ICachedClient;
+	/** Account identity outlives endpoint/SKU expiry, but not explicit invalidation or a replacement discovery result. */
+	trackingId?: string;
+}
+
+interface IClientRequest {
+	promise: Promise<ICachedClient> | undefined;
+	discoveryGeneration: number;
+	/** Retains rejection provenance when a transient refresh failure clears the discovery value. */
+	lastPublishedClient: CAPIClient | undefined;
+	readonly skuCell: ICopilotSkuCacheCell;
+	telemetryCaptured: boolean;
+}
+
+type CopilotAccountDiscoveryTrigger = 'initial' | 'cacheRefresh' | 'entitlementChange';
+type CopilotAccountDiscoveryOutcome = 'published' | 'superseded' | 'failed';
+
+interface ICopilotAccountDiscoveryAttempt {
+	readonly trigger: CopilotAccountDiscoveryTrigger;
+	readonly previousSku?: string;
+	readonly cacheAgeMs?: number;
+	startedAt?: number;
+	httpStatus?: number;
+	gitHubRequestId?: string;
+	copilotSku?: string;
+	copilotTrackingId?: string;
+}
+
+type CopilotAccountDiscoveryEvent = {
+	trigger: CopilotAccountDiscoveryTrigger;
+	outcome: CopilotAccountDiscoveryOutcome;
+	copilotSku?: string;
+	previousSku?: string;
+	copilotTrackingId?: string;
+	httpStatus?: number;
+	gitHubRequestId?: string;
+	durationMs: number;
+	cacheAgeMs?: number;
+};
+
+type CopilotAccountDiscoveryClassification = {
+	owner: 'amunger';
+	comment: 'Diagnoses Copilot account discovery freshness and endpoint responses; emitted once per actual user-endpoint lookup, not on cache hits.';
+	trigger: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Initial discovery, ordinary cache refresh, or client-observed entitlement change.' };
+	outcome: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Whether discovery was published to the cache, superseded by other discovery or invalidation, or failed.' };
+	copilotSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Raw access_type_sku returned by this user-endpoint lookup, when available.' };
+	previousSku?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Raw SKU in the previous discovery cache entry when the lookup was requested.' };
+	copilotTrackingId?: { classification: 'EndUserPseudonymizedInformation'; purpose: 'BusinessInsight'; endpoint: 'GoogleAnalyticsID'; comment: 'Analytics tracking ID returned by this discovery response, without an additional hash.' };
+	httpStatus?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'User-endpoint HTTP response status, absent when no response was received.' };
+	gitHubRequestId?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Validated x-github-request-id response header for tracing the discovery request, when present.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Milliseconds from starting the user-endpoint HTTP request through discovery completion or failure, including body consumption.' };
+	cacheAgeMs?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Age in milliseconds of the previous cache entry when lookup was requested; absent on initial discovery. Not the age of a model-request entitlement.' };
+};
 
 /**
  * Memoized parts of `CAPIClient` construction that don't depend on the user
@@ -134,7 +217,6 @@ interface ICachedCopilotToken {
  */
 interface ICapiBase {
 	readonly extensionInfo: IExtensionInformation;
-	readonly userUrl: string;
 }
 
 // #endregion
@@ -209,13 +291,6 @@ function isAllowedCapiUrlOverride(url: string): boolean {
 }
 
 /**
- * Re-mint the Copilot session token this many seconds before its
- * server-reported `expires_at`, mirroring the Copilot Chat extension's
- * `RefreshableCopilotTokenManager` 5-minute refresh buffer.
- */
-const COPILOT_TOKEN_REFRESH_BUFFER_SECONDS = 5 * 60;
-
-/**
  * Default CAPI model family for {@link ICopilotApiService.utilityChatCompletion}.
  * Matches the Copilot Chat extension's `copilot-utility-small` resolver
  * (`CopilotUtilitySmallChatEndpoint.capiFamily === CHAT_MODEL.GPT4OMINI`).
@@ -226,13 +301,13 @@ const UTILITY_DEFAULT_MODEL_FAMILY = 'gpt-4o-mini';
  * Default `temperature` for utility chat completions. Matches the Copilot
  * Chat extension's default `IConversationOptions.temperature`.
  */
-const UTILITY_DEFAULT_TEMPERATURE = 0.1;
+export const UTILITY_DEFAULT_TEMPERATURE = 0.1;
 
 /**
  * Default `top_p` for utility chat completions. Matches the Copilot Chat
  * extension's default `IConversationOptions.topP`.
  */
-const UTILITY_DEFAULT_TOP_P = 1;
+export const UTILITY_DEFAULT_TOP_P = 1;
 
 /**
  * `OpenAI-Intent` value for utility chat completions. Matches the extension
@@ -240,15 +315,6 @@ const UTILITY_DEFAULT_TOP_P = 1;
  * calls (chat title generation, commit messages, branch names, etc.).
  */
 const UTILITY_INTENT = 'conversation-background';
-
-const INTERNAL_COPILOT_ORGANIZATIONS = new Set([
-	'4535c7beffc844b46bb1ed4aa04d759a',
-	'a5db0bcaae94032fe715fb34a5e4bce2',
-	'7184f66dfcee98cb5f08a1cb936d5225',
-	'1cb18ac6eedd49b43d74a1c5beb0b955',
-	'ea9395b9a9248c05ee6847cbd24355ed',
-]);
-const VSCODE_COPILOT_ORGANIZATIONS = new Set(['551cca60ce19654d894e786220822482']);
 
 // #endregion
 
@@ -373,13 +439,6 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  * works for both consumer (`api.githubcopilot.com`) and Enterprise
  * (`api.enterprise.githubcopilot.com`) accounts without configuration.
  *
- * {@link utilityChatCompletion} is the one exception to the
- * GitHub-token-IS-the-credential rule: CAPI's `/chat/completions` endpoint
- * expects a Copilot session token (the same one the Copilot Chat extension
- * mints via `RequestType.CopilotToken`). The service mints it internally
- * from the supplied GitHub token, caches it per-token alongside the
- * resolved utility model id, and refreshes ahead of expiry.
- *
  * ## Non-goals
  *
  * - Per-conversation history, retry/backoff, or rate-limit handling. Callers
@@ -419,18 +478,16 @@ export const ICopilotApiService = createDecorator<ICopilotApiService>('copilotAp
  * - Malformed JSON in an SSE `data:` line is logged and skipped, not thrown.
  */
 /**
- * Restricted/enhanced telemetry context derived from a user's minted CAPI Copilot session token,
- * mirroring what the Copilot extension reads off its `CopilotToken` (`rt` opt-in, `tid` tracking id)
- * plus the CAPI `endpoints.telemetry` host.
+ * Restricted/enhanced telemetry context derived from the GitHub `/copilot_internal/user` response.
  */
 export interface IRestrictedTelemetryContext {
-	/** Whether the token opts into enhanced/restricted telemetry (the `rt=1` claim). */
+	/** Whether `/copilot_internal/user` enables enhanced/restricted telemetry. */
 	readonly restrictedTelemetryEnabled: boolean;
-	/** The Copilot user tracking id (`tid` claim), or `undefined` when absent. */
+	/** The Copilot analytics tracking ID, or `undefined` when absent. */
 	readonly trackingId: string | undefined;
 	/** The CAPI `endpoints.telemetry` base URL, resolved only when enabled; `undefined` otherwise. */
 	readonly telemetryEndpoint: string | undefined;
-	/** Whether the token belongs to a GitHub or Microsoft internal organization. */
+	/** Whether the account is staff or belongs to an internal organization. */
 	readonly isInternal?: boolean;
 	/** GitHub login returned by `/copilot_internal/user`. */
 	readonly userName?: string;
@@ -514,12 +571,10 @@ export interface ICopilotApiService {
 	 * Send arbitrary user chat messages through CAPI's `/chat/completions`
 	 * endpoint and return the assistant text.
 	 *
-	 * Internally mints (and caches) a Copilot session token from the
-	 * supplied GitHub token — the same flow the Copilot Chat extension
-	 * uses for its `copilot-utility-small` endpoint (PR title/description,
-	 * commit messages, branch names, chat titles, etc.). Uses the
-	 * `gpt-4o-mini` model family with `top_p = 1` and `temperature = 0.1`
-	 * by default (override via `request.temperature`).
+	 * Uses the supplied GitHub OAuth token directly. This is the same
+	 * credential flow as the other CAPI model endpoints. Uses the `gpt-4o-mini`
+	 * model family with `top_p = 1` and `temperature = 0.1` by default
+	 * (override via `request.temperature`).
 	 *
 	 * Non-streaming. Callers own prompt construction and any
 	 * domain-specific parsing of the returned text.
@@ -535,11 +590,8 @@ export interface ICopilotApiService {
 	): Promise<string>;
 
 	/**
-	 * Resolve this user's restricted-telemetry context from the minted CAPI Copilot session token —
-	 * the `rt` opt-in and `tid` tracking id — plus the CAPI `endpoints.telemetry` host. The GitHub
-	 * token itself carries none of these claims; they live in the Copilot session token (minted via
-	 * `RequestType.CopilotToken`), exactly as the Copilot extension reads them off its `CopilotToken`.
-	 * The telemetry endpoint is resolved only when enabled, so public users incur no extra discovery.
+	 * Resolve this user's restricted-telemetry context from `/copilot_internal/user`.
+	 * The telemetry endpoint is returned only when restricted telemetry is enabled.
 	 */
 	resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext>;
 
@@ -555,15 +607,27 @@ export interface ICopilotApiService {
 
 	/** Resolve the GitHub login cached from `/copilot_internal/user`. */
 	resolveUserLogin?(githubToken: string): Promise<string | undefined>;
+
+	/** Resolve the raw Copilot entitlement SKU cached from `/copilot_internal/user`. */
+	resolveCopilotSku?(githubToken: string): Promise<string | undefined>;
+
+	/** Revalidates discovery when a client observes a different SKU for the same analytics account. */
+	refreshCopilotUser?(githubToken: string, trackingId: string, sku: string): Promise<void>;
+
+	/** Read the SKU only while its account discovery cache entry remains usable. */
+	getCachedCopilotSku?(githubToken: string): string | undefined;
+
+	/** Capture expiring SKU and credential-scoped identity; both are invalidated when this credential's cache is rejected. */
+	captureCopilotTelemetryContext?(githubToken: string): () => IAgentTelemetryContext | undefined;
 }
 
-export class CopilotApiService implements ICopilotApiService {
+export class CopilotApiService extends Disposable implements ICopilotApiService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private _capiBasePromise: Promise<ICapiBase> | null = null;
-	private readonly _clientsByToken = new Map<string, Promise<ICachedClient>>();
-	private readonly _copilotTokensByGithub = new Map<string, Promise<ICachedCopilotToken>>();
+	private readonly _clientsByToken = new Map<string, IClientRequest>();
+	private readonly _entitlementRefreshes = new WeakMap<IClientRequest, Promise<void>>();
 	private readonly _fetch: FetchFunction;
 
 	constructor(
@@ -571,8 +635,12 @@ export class CopilotApiService implements ICopilotApiService {
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IAgentHostGitHubEndpointService private readonly _gitHubEndpointService: IAgentHostGitHubEndpointService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
+		super();
 		this._fetch = fetchFn ?? globalThis.fetch;
+		this._register(this._gitHubEndpointService.onDidChange(() => this._clearClients()));
+		this._register(toDisposable(() => this._clearClients()));
 	}
 
 	// #region Public API
@@ -628,7 +696,7 @@ export class CopilotApiService implements ICopilotApiService {
 
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
-				this._invalidateClientForToken(githubToken);
+				this._invalidateClientForToken(githubToken, capiClient);
 			}
 			const text = await response.text().catch(() => '');
 			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI models request failed');
@@ -678,7 +746,7 @@ export class CopilotApiService implements ICopilotApiService {
 
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
-				this._invalidateClientForToken(githubToken);
+				this._invalidateClientForToken(githubToken, capiClient);
 			}
 			const text = await response.text().catch(() => '');
 			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI responses request failed');
@@ -691,51 +759,90 @@ export class CopilotApiService implements ICopilotApiService {
 		request: ICopilotUtilityChatCompletionRequest,
 		options?: ICopilotApiServiceRequestOptions,
 	): Promise<string> {
-		const capiClient = await this._getClientForToken(githubToken);
-		const copilotToken = await this._getCopilotToken(githubToken);
-		const modelId = await this._resolveUtilityModelId(githubToken, UTILITY_DEFAULT_MODEL_FAMILY);
-		const requestId = generateUuid();
+		const call: IUtilityChatCompletionCall = { startTime: Date.now() };
+		try {
+			const entry = await this._getEntryForToken(githubToken);
+			const capiClient = entry.capiClient;
+			// Attribute the call to the account whose credential sends it, even if
+			// the signed-in account changes before the call completes.
+			call.gitHubTelemetry = toUtilityModelCallGitHubTelemetry(entry);
+			const modelId = call.modelId = await this._resolveUtilityModelId(githubToken, UTILITY_DEFAULT_MODEL_FAMILY);
+			const requestId = call.requestId = generateUuid();
 
-		this._logService.debug('[CopilotApiService] POST chat completions', `model=${modelId} requestId=${requestId}`);
+			this._logService.debug('[CopilotApiService] POST chat completions', `model=${modelId} requestId=${requestId}`);
 
-		const body = JSON.stringify({
-			model: modelId,
-			messages: request.messages.map(m => ({ role: m.role, content: m.content })),
-			stream: false,
-			temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
-			top_p: UTILITY_DEFAULT_TOP_P,
-		});
+			const body = JSON.stringify({
+				model: modelId,
+				messages: request.messages.map(m => ({ role: m.role, content: m.content })),
+				stream: false,
+				temperature: request.temperature ?? UTILITY_DEFAULT_TEMPERATURE,
+				top_p: UTILITY_DEFAULT_TOP_P,
+				max_tokens: request.maxTokens,
+			});
 
-		const response = await capiClient.makeRequest<Response>(
-			{
-				method: 'POST',
-				headers: {
-					...options?.headers,
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${copilotToken}`,
-					'X-Request-Id': requestId,
-					'OpenAI-Intent': UTILITY_INTENT,
+			const response = call.response = await capiClient.makeRequest<Response>(
+				{
+					method: 'POST',
+					headers: {
+						...options?.headers,
+						'Content-Type': 'application/json',
+						'Authorization': `Bearer ${githubToken}`,
+						'X-Request-Id': requestId,
+						'OpenAI-Intent': UTILITY_INTENT,
+					},
+					body,
+					signal: options?.signal,
 				},
-				body,
-				signal: options?.signal,
-			},
-			{ type: RequestType.ChatCompletions },
-		);
+				{ type: RequestType.ChatCompletions },
+			);
 
-		if (!response.ok) {
-			if (response.status === 401 || response.status === 403) {
-				this._invalidateCopilotTokenForGithub(githubToken);
+			if (!response.ok) {
+				if (response.status === 401 || response.status === 403) {
+					this._invalidateClientForToken(githubToken, capiClient);
+				}
+				const text = await response.text().catch(() => '');
+				throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI chat completion request failed');
 			}
-			const text = await response.text().catch(() => '');
-			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'CAPI chat completion request failed');
-		}
 
-		const json = await response.json() as { choices?: ReadonlyArray<{ message?: { content?: unknown } }> };
-		const content = json?.choices?.[0]?.message?.content;
-		if (typeof content !== 'string') {
-			throw new Error('CAPI chat completion returned no text content');
+			const json = call.json = await response.json() as ICapiChatCompletionResponse;
+			const content = json?.choices?.[0]?.message?.content;
+			if (typeof content !== 'string') {
+				throw new Error('CAPI chat completion returned no text content');
+			}
+			this._reportUtilityChatCompletion(request.telemetry, 'success', call);
+			return content;
+		} catch (err) {
+			if (call.requestId !== undefined) {
+				this._reportUtilityChatCompletion(request.telemetry, getUtilityModelCallFailureOutcome(err, options?.signal), call);
+			}
+			throw err;
 		}
-		return content;
+	}
+
+	private _reportUtilityChatCompletion(context: IAgentHostUtilityModelCallTelemetryContext, outcome: AgentHostUtilityModelCallOutcome, call: IUtilityChatCompletionCall): void {
+		if (this._store.isDisposed) {
+			return;
+		}
+		const usage = call.json?.usage;
+		reportUtilityModelCall(this._telemetryService, {
+			context,
+			outcome,
+			isBYOK: false,
+			gitHubTelemetry: call.gitHubTelemetry,
+			model: call.modelId,
+			modelInvoked: call.json?.model,
+			finishReason: call.json?.choices?.[0]?.finish_reason,
+			requestId: call.requestId,
+			gitHubRequestId: call.response ? readTelemetryRequestId(call.response.headers, 'x-github-request-id') : undefined,
+			copilotServiceRequestId: call.response ? readTelemetryRequestId(call.response.headers, 'x-copilot-service-request-id') : undefined,
+			httpStatus: call.response?.status,
+			promptTokenCount: usage?.prompt_tokens,
+			promptCacheTokenCount: usage?.prompt_tokens_details?.cached_tokens,
+			completionTokens: usage?.completion_tokens,
+			tokenCount: usage?.total_tokens,
+			reasoningTokens: usage?.completion_tokens_details?.reasoning_tokens,
+			timeToComplete: Date.now() - call.startTime,
+		});
 	}
 
 	// #endregion
@@ -768,15 +875,7 @@ export class CopilotApiService implements ICopilotApiService {
 			buildType: this._productService.quality === 'stable' ? 'prod' : 'dev',
 		};
 
-		// Copilot endpoint discovery: GET `/copilot_internal/user` on the GitHub API
-		// host. For GitHub Enterprise the host is derived from `githubEnterpriseUri`
-		// (via the endpoint service); the response's `endpoints.api` then carries the
-		// enterprise CAPI base that CAPIClient routes through. Defaults to
-		// api.github.com when no enterprise URI is set. (GHE Cloud `*.ghe.com` is
-		// handled; GHE Server on-prem `/copilot_internal` routing is unverified.)
-		const userUrl = `${this._gitHubEndpointService.getApiBaseUri()}/copilot_internal/user`;
-
-		return { extensionInfo, userUrl };
+		return { extensionInfo };
 	}
 
 	// #endregion
@@ -863,7 +962,7 @@ export class CopilotApiService implements ICopilotApiService {
 		);
 		if (!response.ok) {
 			if (response.status === 401 || response.status === 403) {
-				this._invalidateClientForToken(githubToken);
+				this._invalidateClientForToken(githubToken, capiClient);
 			}
 			const text = await response.text().catch(() => '');
 			throw buildCopilotApiHttpError(response.status, response.statusText, text);
@@ -888,28 +987,18 @@ export class CopilotApiService implements ICopilotApiService {
 		return this._getEntryForToken(githubToken).then(entry => entry.capiClient);
 	}
 
-	/**
-	 * Resolve this user's restricted-telemetry context. Reads the `rt`/`tid` claims from the minted
-	 * CAPI Copilot session token (the GitHub token has neither), and resolves the CAPI
-	 * `endpoints.telemetry` host from the cached `/copilot_internal/user` discovery only when the
-	 * user is opted in, so public users pay no extra discovery call.
-	 */
 	async resolveRestrictedTelemetryContext(githubToken: string): Promise<IRestrictedTelemetryContext> {
-		const token = await this._getCopilotTokenEntry(githubToken);
 		const client = await this._getEntryForToken(githubToken);
-		const fields = parseCopilotTokenFields(token.token);
-		const restrictedTelemetryEnabled = fields.get('rt') === '1';
-		const trackingId = fields.get('tid');
-		const telemetryEndpoint = restrictedTelemetryEnabled
+		const telemetryEndpoint = client.restrictedTelemetryEnabled
 			? client.telemetryEndpoint
 			: undefined;
 		return {
-			restrictedTelemetryEnabled,
-			trackingId,
+			restrictedTelemetryEnabled: client.restrictedTelemetryEnabled,
+			trackingId: client.trackingId,
 			telemetryEndpoint,
-			isInternal: token.isInternal,
+			isInternal: client.isInternal,
 			userName: client.login,
-			isVscodeTeamMember: token.isVscodeTeamMember,
+			isVscodeTeamMember: client.isVscodeTeamMember,
 			copilotIgnoreEnabled: client.copilotIgnoreEnabled,
 		};
 	}
@@ -922,41 +1011,209 @@ export class CopilotApiService implements ICopilotApiService {
 		return (await this._getEntryForToken(githubToken)).login;
 	}
 
+	async resolveCopilotSku(githubToken: string): Promise<string | undefined> {
+		return (await this._getEntryForToken(githubToken)).copilotSku;
+	}
+
+	async refreshCopilotUser(githubToken: string, trackingId: string, sku: string): Promise<void> {
+		const request = this._clientsByToken.get(githubToken);
+		const entry = this._readCachedClient(request?.skuCell);
+		if (!entry || entry.trackingId !== trackingId || entry.copilotSku === sku) {
+			return;
+		}
+		if (!request) {
+			return;
+		}
+		const existing = this._entitlementRefreshes.get(request);
+		if (existing) {
+			return existing;
+		}
+		const generation = ++request.discoveryGeneration;
+		const attempt = this._createDiscoveryAttempt('entitlementChange', entry);
+		const pending = this._buildClientForToken(githubToken, attempt).then(refreshed => {
+			let outcome: CopilotAccountDiscoveryOutcome = 'superseded';
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.discoveryGeneration === generation) {
+				request.discoveryGeneration++;
+				request.skuCell.value = refreshed;
+				request.skuCell.trackingId = refreshed.trackingId;
+				request.lastPublishedClient = refreshed.capiClient;
+				outcome = 'published';
+			}
+			this._reportDiscovery(attempt, outcome);
+		}).catch(error => {
+			this._reportDiscovery(attempt, 'failed');
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid && request.discoveryGeneration === generation) {
+				request.discoveryGeneration++;
+				if (error instanceof CopilotApiError && (error.status === 401 || error.status === 403)) {
+					this._invalidateClientRequest(githubToken, request);
+				} else {
+					request.skuCell.value = undefined;
+				}
+			}
+			throw error;
+		}).finally(() => this._entitlementRefreshes.delete(request));
+		this._entitlementRefreshes.set(request, pending);
+		return pending;
+	}
+
+	getCachedCopilotSku(githubToken: string): string | undefined {
+		return this._readCopilotSku(this._clientsByToken.get(githubToken)?.skuCell);
+	}
+
+	captureCopilotTelemetryContext(githubToken: string): () => IAgentTelemetryContext | undefined {
+		if (this._store.isDisposed) {
+			return () => undefined;
+		}
+		const request = this._getOrCreateClientRequest(githubToken);
+		request.telemetryCaptured = true;
+		const cell = request.skuCell;
+		return () => {
+			if (!cell.valid) {
+				return undefined;
+			}
+			const entry = this._readCachedClient(cell);
+			return entry || cell.trackingId ? {
+				copilotSku: entry?.copilotSku,
+				...(cell.trackingId ? { copilotTrackingId: cell.trackingId } : {}),
+			} : undefined;
+		};
+	}
+
 	private _getEntryForToken(githubToken: string): Promise<ICachedClient> {
 		const nowSeconds = Date.now() / 1000;
-		const existing = this._clientsByToken.get(githubToken);
-		if (existing) {
-			return existing.then(entry => {
-				if (entry.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
-					return entry;
-				}
-				// Stale — evict and recurse to build a fresh entry.
-				this._clientsByToken.delete(githubToken);
-				return this._getEntryForToken(githubToken);
-			}).catch(err => {
-				// A previous failed build leaked into the cache; evict and rebuild.
-				this._clientsByToken.delete(githubToken);
-				throw err;
-			});
+		const request = this._getOrCreateClientRequest(githubToken);
+		if (request.promise) {
+			return request.promise;
+		}
+		const existing = request.skuCell.value;
+		if (existing && existing.expiresAt - nowSeconds > CAPI_CONTEXT_REFRESH_BUFFER_SECONDS) {
+			return Promise.resolve(existing);
 		}
 
 		// Omit the caller's signal here: a deduped build is shared across
 		// concurrent callers, so aborting one must not cancel it for the
 		// others. Each caller still forwards its signal to the API call.
-		const pending = this._buildClientForToken(githubToken).catch(err => {
-			this._clientsByToken.delete(githubToken);
+		const generation = request.discoveryGeneration;
+		const attempt = this._createDiscoveryAttempt(existing ? 'cacheRefresh' : 'initial', existing);
+		const pending = this._buildClientForToken(githubToken, attempt).then(entry => {
+			let outcome: CopilotAccountDiscoveryOutcome = 'superseded';
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
+				request.promise = undefined;
+				if (request.discoveryGeneration === generation && !this._entitlementRefreshes.has(request)) {
+					request.skuCell.value = entry;
+					request.skuCell.trackingId = entry.trackingId;
+					request.lastPublishedClient = entry.capiClient;
+					outcome = 'published';
+				}
+			}
+			this._reportDiscovery(attempt, outcome);
+			return entry;
+		}).catch(err => {
+			this._reportDiscovery(attempt, 'failed');
+			if (this._clientsByToken.get(githubToken) === request && request.skuCell.valid) {
+				request.promise = undefined;
+				if (request.discoveryGeneration !== generation || this._entitlementRefreshes.has(request)) {
+					throw err;
+				}
+				if (err instanceof CopilotApiError && (err.status === 401 || err.status === 403)) {
+					this._invalidateClientRequest(githubToken, request);
+				} else if (existing && existing.expiresAt > Date.now() / 1000) {
+					request.skuCell.value = existing;
+				} else if (request.telemetryCaptured || request.skuCell.trackingId !== undefined) {
+					request.skuCell.value = undefined;
+				} else {
+					this._invalidateClientRequest(githubToken, request);
+				}
+			}
 			throw err;
 		});
-		this._clientsByToken.set(githubToken, pending);
+		request.promise = pending;
 		return pending;
 	}
 
-	private _invalidateClientForToken(githubToken: string): void {
+	private _getOrCreateClientRequest(githubToken: string): IClientRequest {
+		let request = this._clientsByToken.get(githubToken);
+		if (!request) {
+			request = {
+				promise: undefined,
+				discoveryGeneration: 0,
+				lastPublishedClient: undefined,
+				skuCell: { valid: true },
+				telemetryCaptured: false,
+			};
+			this._clientsByToken.set(githubToken, request);
+		}
+		return request;
+	}
+
+	private _readCopilotSku(cell: ICopilotSkuCacheCell | undefined): string | undefined {
+		return this._readCachedClient(cell)?.copilotSku;
+	}
+
+	private _readCachedClient(cell: ICopilotSkuCacheCell | undefined): ICachedClient | undefined {
+		const entry = cell?.valid ? cell.value : undefined;
+		return entry && entry.expiresAt > Date.now() / 1000 ? entry : undefined;
+	}
+
+	private _invalidateClientForToken(githubToken: string, capiClient: CAPIClient): void {
+		const request = this._clientsByToken.get(githubToken);
+		if (request?.lastPublishedClient === capiClient) {
+			this._invalidateClientRequest(githubToken, request);
+		}
+	}
+
+	private _invalidateClientRequest(githubToken: string, request: IClientRequest): void {
+		if (this._clientsByToken.get(githubToken) !== request) {
+			return;
+		}
+		request.skuCell.valid = false;
+		request.skuCell.value = undefined;
+		request.skuCell.trackingId = undefined;
+		request.lastPublishedClient = undefined;
+		request.promise = undefined;
 		this._clientsByToken.delete(githubToken);
 	}
 
-	private async _buildClientForToken(githubToken: string): Promise<ICachedClient> {
-		const { extensionInfo, userUrl } = await this._getCapiBase();
+	private _clearClients(): void {
+		for (const request of this._clientsByToken.values()) {
+			request.skuCell.valid = false;
+			request.skuCell.value = undefined;
+			request.skuCell.trackingId = undefined;
+			request.lastPublishedClient = undefined;
+			request.promise = undefined;
+		}
+		this._clientsByToken.clear();
+	}
+
+	private _createDiscoveryAttempt(trigger: CopilotAccountDiscoveryTrigger, previous: ICachedClient | undefined): ICopilotAccountDiscoveryAttempt {
+		return {
+			trigger,
+			previousSku: previous?.copilotSku,
+			cacheAgeMs: previous ? Math.max(0, Math.round(Date.now() - (previous.expiresAt - CAPI_CONTEXT_TTL_SECONDS) * 1000)) : undefined,
+		};
+	}
+
+	private _reportDiscovery(attempt: ICopilotAccountDiscoveryAttempt, outcome: CopilotAccountDiscoveryOutcome): void {
+		if (attempt.startedAt === undefined || this._store.isDisposed) {
+			return;
+		}
+		this._telemetryService.publicLog2<CopilotAccountDiscoveryEvent, CopilotAccountDiscoveryClassification>('agentHost.copilotAccountDiscovery', {
+			trigger: attempt.trigger,
+			outcome,
+			durationMs: Math.max(0, Date.now() - attempt.startedAt),
+			...(attempt.copilotSku ? { copilotSku: attempt.copilotSku } : {}),
+			...(attempt.previousSku ? { previousSku: attempt.previousSku } : {}),
+			...(attempt.copilotTrackingId ? { copilotTrackingId: attempt.copilotTrackingId } : {}),
+			...(attempt.httpStatus !== undefined ? { httpStatus: attempt.httpStatus } : {}),
+			...(attempt.gitHubRequestId ? { gitHubRequestId: attempt.gitHubRequestId } : {}),
+			...(attempt.cacheAgeMs !== undefined ? { cacheAgeMs: attempt.cacheAgeMs } : {}),
+		});
+	}
+
+	private async _buildClientForToken(githubToken: string, attempt: ICopilotAccountDiscoveryAttempt): Promise<ICachedClient> {
+		const userUrl = `${this._gitHubEndpointService.getApiBaseUri()}/copilot_internal/user`;
+		const enterpriseUri = this._gitHubEndpointService.getEnterpriseUri();
+		const { extensionInfo } = await this._getCapiBase();
 		const fetch = this._fetch;
 		const capiClient = new CAPIClient(extensionInfo, COPILOT_LICENSE_AGREEMENT, {
 			fetch: (url, options) => fetch(url, {
@@ -980,12 +1237,17 @@ export class CopilotApiService implements ICopilotApiService {
 				return {
 					capiClient,
 					expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+					utilityModelIdsByFamily: new Map(),
 					apiEndpoint: overrideApi,
+					restrictedTelemetryEnabled: false,
+					isInternal: false,
+					isVscodeTeamMember: false,
 				};
 			}
 			this._logService.warn(`[CopilotApiService] Ignoring non-loopback CAPI URL override ${overrideApi}; falling back to normal endpoint discovery`);
 		}
 
+		attempt.startedAt = Date.now();
 		const response = await this._fetch(userUrl, {
 			method: 'GET',
 			headers: {
@@ -994,22 +1256,25 @@ export class CopilotApiService implements ICopilotApiService {
 				'X-GitHub-Api-Version': USER_API_VERSION,
 			},
 		});
+		attempt.httpStatus = response.status;
+		attempt.gitHubRequestId = readTelemetryRequestId(response.headers, 'x-github-request-id');
 
 		if (!response.ok) {
 			const text = await response.text().catch(() => '');
-			throw new Error(`Copilot endpoint discovery failed: ${response.status} ${response.statusText} — ${text}`);
+			throw buildCopilotApiHttpError(response.status, response.statusText, text, 'Copilot endpoint discovery failed');
 		}
 
 		const envelope: ICopilotUserResponse = await response.json();
+		const internalOrganization = getInternalOrg(envelope.organization_login_list);
+		const copilotSku = typeof envelope.access_type_sku === 'string' && envelope.access_type_sku.length > 0 ? envelope.access_type_sku : undefined;
+		attempt.copilotSku = copilotSku;
+		attempt.copilotTrackingId = typeof envelope.analytics_tracking_id === 'string' && envelope.analytics_tracking_id.trim().length > 0 ? envelope.analytics_tracking_id : undefined;
 
 		capiClient.updateDomains(
-			{ endpoints: envelope.endpoints ?? {}, sku: envelope.access_type_sku ?? '' },
+			{ endpoints: envelope.endpoints ?? {}, sku: copilotSku ?? '' },
 			// Enterprise base URI (e.g. `https://acme.ghe.com`), or `undefined` for
-			// github.com. The package derives the GitHub API host (`api.<host>`) from
-			// this for `copilot_internal` endpoints - notably the Copilot session
-			// token mint (`/copilot_internal/v2/token`). Omitting it strands the mint
-			// on `api.github.com`, which 401s an enterprise token ("Bad credentials").
-			this._gitHubEndpointService.getEnterpriseUri(),
+			// github.com. The package uses this when routing enterprise CAPI requests.
+			enterpriseUri,
 		);
 
 		this._logService.debug('[CopilotApiService] CAPI endpoint discovered, api=', envelope.endpoints?.api);
@@ -1017,127 +1282,27 @@ export class CopilotApiService implements ICopilotApiService {
 		return {
 			capiClient,
 			expiresAt: Date.now() / 1000 + CAPI_CONTEXT_TTL_SECONDS,
+			utilityModelIdsByFamily: new Map(),
+			copilotSku,
 			login: envelope.login,
 			telemetryEndpoint: envelope.endpoints?.telemetry,
 			apiEndpoint: envelope.endpoints?.api,
 			copilotIgnoreEnabled: envelope.copilotignore_enabled,
-		};
-	}
-
-	// #endregion
-
-	// #region Per-Token Copilot Session Token
-
-	/**
-	 * Resolve the Copilot session token for a GitHub token, minting and
-	 * caching one if needed. Concurrent callers for the same GitHub token
-	 * share a single in-flight mint; the caller's `AbortSignal` is
-	 * deliberately NOT forwarded so cancelling one caller does not poison
-	 * the shared mint for the others.
-	 */
-	private _getCopilotToken(githubToken: string): Promise<string> {
-		return this._getCopilotTokenEntry(githubToken).then(entry => entry.token);
-	}
-
-	private _getCopilotTokenEntry(githubToken: string): Promise<ICachedCopilotToken> {
-		const nowSeconds = Date.now() / 1000;
-		const existing = this._copilotTokensByGithub.get(githubToken);
-		if (existing) {
-			return existing.then(entry => {
-				if (entry.expiresAt - nowSeconds > COPILOT_TOKEN_REFRESH_BUFFER_SECONDS) {
-					return entry;
-				}
-				// Stale — evict only if the map still points at this
-				// promise. A concurrent caller may already have raced ahead
-				// and minted a fresh token; deleting unconditionally would
-				// evict that newer entry and cause a redundant re-mint.
-				if (this._copilotTokensByGithub.get(githubToken) === existing) {
-					this._copilotTokensByGithub.delete(githubToken);
-				}
-				return this._getCopilotTokenEntry(githubToken);
-			}).catch(err => {
-				if (this._copilotTokensByGithub.get(githubToken) === existing) {
-					this._copilotTokensByGithub.delete(githubToken);
-				}
-				throw err;
-			});
-		}
-
-		const pending: Promise<ICachedCopilotToken> = this._buildCopilotToken(githubToken).catch(err => {
-			if (this._copilotTokensByGithub.get(githubToken) === pending) {
-				this._copilotTokensByGithub.delete(githubToken);
-			}
-			throw err;
-		});
-		this._copilotTokensByGithub.set(githubToken, pending);
-		return pending;
-	}
-
-	private _invalidateCopilotTokenForGithub(githubToken: string): void {
-		this._copilotTokensByGithub.delete(githubToken);
-	}
-
-	private async _buildCopilotToken(githubToken: string): Promise<ICachedCopilotToken> {
-		const capiClient = await this._getClientForToken(githubToken);
-
-		this._logService.debug('[CopilotApiService] Minting Copilot session token');
-
-		const response = await capiClient.makeRequest<Response>(
-			{
-				method: 'GET',
-				headers: {
-					'Authorization': `token ${githubToken}`,
-					'X-GitHub-Api-Version': USER_API_VERSION,
-				},
-			},
-			{ type: RequestType.CopilotToken },
-		);
-
-		if (!response.ok) {
-			const text = await response.text().catch(() => '');
-			throw new Error(`Copilot session token mint failed: ${response.status} ${response.statusText} \u2014 ${text}`);
-		}
-
-		const envelope = await response.json() as ICopilotTokenEnvelope;
-		if (typeof envelope.token !== 'string' || typeof envelope.expires_at !== 'number') {
-			throw new Error('Copilot session token mint returned malformed envelope');
-		}
-
-		// Prefer `now + refresh_in` over the server-reported `expires_at`:
-		// users with a fast local clock can see `expires_at` already in the
-		// past, which would cause us to re-mint on every call. Mirror what
-		// the Copilot Chat extension's `RefreshableCopilotTokenManager`
-		// does. Floor at `now + 60s` so a malformed/short `refresh_in`
-		// can't trigger a tight re-mint loop.
-		const nowSeconds = Date.now() / 1000;
-		const refreshIn = typeof envelope.refresh_in === 'number' ? envelope.refresh_in : undefined;
-		const organizationList = Array.isArray(envelope.organization_list)
-			? envelope.organization_list.filter((organization): organization is string => typeof organization === 'string')
-			: [];
-		const expiresAt = Math.max(
-			refreshIn !== undefined ? nowSeconds + refreshIn : envelope.expires_at,
-			nowSeconds + 60,
-		);
-
-		return {
-			token: envelope.token,
-			expiresAt,
-			modelIdsByFamily: new Map(),
-			isInternal: organizationList.some(organization => INTERNAL_COPILOT_ORGANIZATIONS.has(organization)),
-			isVscodeTeamMember: organizationList.some(organization => VSCODE_COPILOT_ORGANIZATIONS.has(organization)),
+			restrictedTelemetryEnabled: envelope.restricted_telemetry === true,
+			trackingId: attempt.copilotTrackingId,
+			isInternal: isInternalAccount(envelope.is_staff, envelope.organization_login_list),
+			isVscodeTeamMember: internalOrganization === 'vscode',
 		};
 	}
 
 	/**
 	 * Resolve the concrete CAPI model id for the supplied family (e.g.
-	 * `gpt-4o-mini`). Cached per GitHub token + family alongside the
-	 * Copilot session token so eviction on 401/403 also clears the cached
-	 * model id.
+	 * `gpt-4o-mini`). Cached with the per-GitHub-token CAPI client so
+	 * endpoint or authentication invalidation also clears the model id.
 	 */
 	private async _resolveUtilityModelId(githubToken: string, modelFamily: string): Promise<string> {
-		const pendingEntry = this._copilotTokensByGithub.get(githubToken);
-		const entry = pendingEntry ? await pendingEntry : undefined;
-		const cached = entry?.modelIdsByFamily.get(modelFamily);
+		const entry = await this._getEntryForToken(githubToken);
+		const cached = entry.utilityModelIdsByFamily.get(modelFamily);
 		if (cached) {
 			return cached;
 		}
@@ -1148,7 +1313,7 @@ export class CopilotApiService implements ICopilotApiService {
 			throw new Error(`No CAPI model available for family '${modelFamily}'`);
 		}
 
-		entry?.modelIdsByFamily.set(modelFamily, match.id);
+		entry.utilityModelIdsByFamily.set(modelFamily, match.id);
 		return match.id;
 	}
 

@@ -8,6 +8,8 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../platform/hover/test/browser/nullHoverService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import {
 	IQuickInput,
@@ -139,11 +141,12 @@ suite('BrowserUrlBarWidget', () => {
 		readonly inputState: { url: string; navigate(url: string): void };
 		readonly navigated: readonly string[];
 		readonly ensureBrowserFocusCalls: () => number;
+		readonly hoverShowCount: () => number;
 		/** Simulate another picker (e.g. command palette) taking over. */
 		setReplaced(active: boolean): void;
 	}
 
-	function makeHarness(): ITestHarness {
+	function makeHarness(readonly = false): ITestHarness {
 		const picker = new FakeQuickPick<IQuickPickItem>();
 		// Ensure the picker hides before the widget is disposed so the widget's
 		// per-picker DisposableStore (released in onDidHide) doesn't leak.
@@ -176,11 +179,20 @@ suite('BrowserUrlBarWidget', () => {
 		let ensureBrowserFocusCalls = 0;
 		const host: IBrowserUrlBarHost = {
 			get input() { return asInput(inputState); },
+			isReadonly: readonly,
 			ensureBrowserFocus() { ensureBrowserFocusCalls++; },
 		};
 
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IQuickInputService, quickInputService);
+		let hoverShowCount = 0;
+		instantiationService.stub(IHoverService, {
+			...NullHoverService,
+			setupManagedHover: (...args: Parameters<IHoverService['setupManagedHover']>) => ({
+				...NullHoverService.setupManagedHover(...args),
+				show: () => { hoverShowCount++; },
+			}),
+		});
 
 		const widget = store.add(instantiationService.createInstance(BrowserUrlBarWidget, host));
 		widget.mountContributions([]);
@@ -196,6 +208,7 @@ suite('BrowserUrlBarWidget', () => {
 			inputState,
 			navigated,
 			ensureBrowserFocusCalls: () => ensureBrowserFocusCalls,
+			hoverShowCount: () => hoverShowCount,
 			setReplaced: (active: boolean) => { replacementActive = active; },
 		};
 	}
@@ -209,6 +222,52 @@ suite('BrowserUrlBarWidget', () => {
 		} as unknown as BrowserEditorContribution;
 		widget.mountContributions([contribution]);
 	}
+
+	test('readonly URL bar remains focusable without opening the picker', () => {
+		const harness = makeHarness(true);
+
+		harness.widget.openUrlPicker();
+		harness.display.dispatchEvent(new FocusEvent('focus', { relatedTarget: mainWindow.document.body }));
+		harness.display.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+		assert.deepStrictEqual({
+			activeElement: mainWindow.document.activeElement === harness.display,
+			contentEditable: harness.display.contentEditable,
+			ariaReadonly: harness.display.getAttribute('aria-readonly'),
+			ariaLabel: harness.display.getAttribute('aria-label'),
+			pickerVisible: harness.picker.visible,
+			navigated: harness.navigated
+		}, {
+			activeElement: true,
+			contentEditable: 'false',
+			ariaReadonly: 'true',
+			ariaLabel: 'Address. This address cannot be changed because the browser is locked to a file resource.',
+			pickerVisible: false,
+			navigated: []
+		});
+	});
+
+	test('edit attempts on a readonly URL bar show the read-only hover', () => {
+		const readonlyHarness = makeHarness(true);
+		const editableHarness = makeHarness(false);
+		const attempt = (harness: ITestHarness) => {
+			const inits: KeyboardEventInit[] = [
+				{ key: 'x' },
+				{ key: 'Backspace', keyCode: 8 },
+				{ key: 'Delete', keyCode: 46 },
+				{ key: 'Enter', keyCode: 13 },
+				{ key: 'a', keyCode: 65, ctrlKey: true },
+				{ key: 'c', keyCode: 67, metaKey: true },
+			];
+			for (const init of inits) {
+				harness.display.dispatchEvent(new KeyboardEvent('keydown', { ...init, bubbles: true, cancelable: true }));
+			}
+			harness.display.dispatchEvent(new Event('paste', { bubbles: true }));
+			return harness.hoverShowCount();
+		};
+
+		assert.deepStrictEqual({ readonly: attempt(readonlyHarness), editable: attempt(editableHarness) }, { readonly: 5, editable: 0 });
+	});
 
 	function mountPickerActionProvider(widget: BrowserUrlBarWidget, provider: IBrowserUrlPickerActionProvider): void {
 		const contribution = {

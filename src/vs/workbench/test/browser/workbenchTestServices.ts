@@ -91,7 +91,7 @@ import { TestNotificationService } from '../../../platform/notification/test/com
 import product from '../../../platform/product/common/product.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IProgress, IProgressCompositeOptions, IProgressDialogOptions, IProgressIndicator, IProgressNotificationOptions, IProgressOptions, IProgressService, IProgressStep, IProgressWindowOptions, Progress } from '../../../platform/progress/common/progress.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInput, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickInputAlignment, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { IRemoteExtensionsScannerService } from '../../../platform/remote/common/remoteExtensionsScanner.js';
@@ -117,7 +117,7 @@ import { IEnterWorkspaceResult, IRecent, IRecentlyOpened, IWorkspaceFolderCreati
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../browser/editor.js';
 import { PaneComposite, PaneCompositeDescriptor, Extensions as PaneCompositeExtensions } from '../../browser/panecomposite.js';
 import { Part } from '../../browser/part.js';
-import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
+import { DEFAULT_EDITOR_PART_OPTIONS, EditorServiceImpl, GroupTransferKind, IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView } from '../../browser/parts/editor/editor.js';
 import { EditorPane } from '../../browser/parts/editor/editorPane.js';
 import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
 import { EditorParts } from '../../browser/parts/editor/editorParts.js';
@@ -145,12 +145,17 @@ import { IEnvironmentVariableService } from '../../contrib/terminal/common/envir
 import { EnvironmentVariableService } from '../../contrib/terminal/common/environmentVariableService.js';
 import { IRegisterContributedProfileArgs, IShellLaunchConfigResolveOptions, ITerminalProfileProvider, ITerminalProfileResolverService, ITerminalProfileService, type ITerminalConfiguration } from '../../contrib/terminal/common/terminal.js';
 import { IChatEntitlementService } from '../../services/chat/common/chatEntitlementService.js';
+import { ChatSideChatService, IChatSideChatService } from '../../contrib/chat/common/chatSideChatService.js';
+import { IChatThinkingTitleService } from '../../contrib/chat/common/chatThinkingTitleService.js';
+import { ChatRequestOriginService, IChatRequestOriginService } from '../../contrib/chat/common/chatRequestOrigin.js';
+import { IManagedSettingsService, NullManagedSettingsService } from '../../../platform/policy/common/copilotManagedSettings.js';
+import { AccountPolicyGateState, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 import { IDecoration, IDecorationData, IDecorationsProvider, IDecorationsService, IResourceDecorationChangeEvent } from '../../services/decorations/common/decorations.js';
 import { CodeEditorService } from '../../services/editor/browser/codeEditorService.js';
 import { EditorPaneService } from '../../services/editor/browser/editorPaneService.js';
 import { EditorResolverService } from '../../services/editor/browser/editorResolverService.js';
 import { CustomEditorLabelService, ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
-import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart } from '../../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, ICloseAllEditorsOptions, ICloseEditorOptions, ICloseEditorsFilter, IEditorDropTargetDelegate, IEditorGroup, IEditorGroupActivationEvent, IEditorGroupContextKeyProvider, IEditorGroupsContainer, IEditorGroupsService, IEditorPart, IEditorReplacement, IEditorWorkingSet, IEditorWorkingSetOptions, IFindGroupScope, IMergeGroupOptions, IModalEditorPart, IContentPart, IResolvedEditorWorkingSet } from '../../services/editor/common/editorGroupsService.js';
 import { IEditorPaneService } from '../../services/editor/common/editorPaneService.js';
 import { IEditorResolverService } from '../../services/editor/common/editorResolverService.js';
 import { IEditorsChangeEvent, IEditorService, IRevertAllEditorsOptions, ISaveEditorsOptions, ISaveEditorsResult, IVisibleEditorsChangeEvent, PreferredGroup } from '../../services/editor/common/editorService.js';
@@ -167,9 +172,12 @@ import { LabelService } from '../../services/label/common/labelService.js';
 import { ILanguageDetectionService } from '../../services/languageDetection/common/languageDetectionWorkerService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, PanelAlignment, Position as PartPosition, Parts, SINGLE_WINDOW_PARTS } from '../../services/layout/browser/layoutService.js';
 import { ILifecycleService, InternalBeforeShutdownEvent, IWillShutdownEventJoiner, ShutdownReason, WillShutdownEvent } from '../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService, UnattendedRestartService } from '../../services/lifecycle/common/unattendedRestart.js';
 import { IPaneCompositePartService } from '../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../services/path/common/pathService.js';
+import { ICopilotHomeService } from '../../../platform/environment/common/copilotHome.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
+import { NullOpenerService } from '../../../platform/opener/test/common/nullOpenerService.js';
 import { IExtensionHostExitInfo, IRemoteAgentConnection, IRemoteAgentService } from '../../services/remote/common/remoteAgentService.js';
 import { BrowserTextFileService } from '../../services/textfile/browser/browserTextFileService.js';
 import { EncodingOracle, IEncodingOverride } from '../../services/textfile/browser/textFileService.js';
@@ -192,6 +200,7 @@ import { IWorkingCopyFileService, WorkingCopyFileService } from '../../services/
 import { IWorkingCopyService, WorkingCopyService } from '../../services/workingCopy/common/workingCopyService.js';
 import { TestChatEntitlementService, TestContextService, TestExtensionService, TestFileService, TestHistoryService, TestLifecycleService, TestLoggerService, TestMarkerService, TestProductService, TestStorageService, TestTextResourcePropertiesService, TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from '../common/workbenchTestServices.js';
 import { DefaultAccountService } from '../../services/accounts/browser/defaultAccount.js';
+import { IAgentHostConnectionsService } from '../../../platform/agentHost/common/agentHostConnectionsService.js';
 
 // Backcompat export
 export { TestFileService, TestLifecycleService };
@@ -283,6 +292,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IEnvironmentService, environmentService);
 	instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 	instantiationService.stub(ILogService, new NullLogService());
+	instantiationService.stub(IUnattendedRestartService, new UnattendedRestartService(new NullLogService()));
 	const contextKeyService = overrides?.contextKeyService ? overrides.contextKeyService(instantiationService) : instantiationService.createInstance(MockContextKeyService);
 	instantiationService.stub(IContextKeyService, contextKeyService);
 	instantiationService.stub(IProgressService, new TestProgressService());
@@ -302,7 +312,13 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IRemoteAgentService, new TestRemoteAgentService());
 	instantiationService.stub(ILanguageDetectionService, new TestLanguageDetectionService());
-	instantiationService.stub(IPathService, overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService());
+	const pathService = overrides?.pathService ? overrides.pathService(instantiationService) : new TestPathService();
+	instantiationService.stub(IPathService, pathService);
+	instantiationService.stub(ICopilotHomeService, {
+		_serviceBrand: undefined,
+		get home() { return URI.joinPath(pathService.userHome({ preferLocal: true }), '.copilot'); },
+		source: 'userHome',
+	});
 	const layoutService = new TestLayoutService();
 	instantiationService.stub(IWorkbenchLayoutService, layoutService);
 	instantiationService.stub(IDialogService, new TestDialogService());
@@ -362,7 +378,7 @@ export function workbenchInstantiationService(
 	instantiationService.stub(IListService, new TestListService());
 	instantiationService.stub(IContextViewService, disposables.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.stub(IContextMenuService, disposables.add(instantiationService.createInstance(ContextMenuService)));
-	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService)));
+	instantiationService.stub(IQuickInputService, disposables.add(new QuickInputService(configService, instantiationService, keybindingService, contextKeyService, themeService, layoutService, NullOpenerService)));
 	instantiationService.stub(IWorkspacesService, new TestWorkspacesService());
 	instantiationService.stub(IWorkspaceTrustManagementService, disposables.add(new TestWorkspaceTrustManagementService()));
 	instantiationService.stub(IWorkspaceTrustRequestService, disposables.add(new TestWorkspaceTrustRequestService(false)));
@@ -379,6 +395,12 @@ export function workbenchInstantiationService(
 	instantiationService.stub(ICustomEditorLabelService, disposables.add(new CustomEditorLabelService(configService, workspaceContextService)));
 	instantiationService.stub(IHoverService, NullHoverService);
 	instantiationService.stub(IChatEntitlementService, new TestChatEntitlementService());
+	instantiationService.stub(IChatSideChatService, disposables.add(new ChatSideChatService()));
+	instantiationService.stub(IChatThinkingTitleService, { getCachedTitle: () => undefined, generateTitle: async () => undefined });
+	instantiationService.stub(IChatRequestOriginService, disposables.add(new ChatRequestOriginService()));
+	instantiationService.stub(IAgentHostConnectionsService, { resolveSessionResourceIdentity: () => undefined });
+	instantiationService.stub(IManagedSettingsService, new NullManagedSettingsService());
+	instantiationService.stub(IAccountPolicyGateService, { _serviceBrand: undefined, gateInfo: { state: AccountPolicyGateState.Inactive }, onDidChangeGateInfo: Event.None, whenInitialized: async () => { } });
 	instantiationService.stub(IMarkdownRendererService, instantiationService.createInstance(MarkdownRendererService));
 	instantiationService.stub(IChatWidgetService, instantiationService.createInstance(TestChatWidgetService));
 	instantiationService.stub(IDefaultAccountService, DefaultAccountService);
@@ -659,6 +681,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	whenRestored: Promise<void> = Promise.resolve(undefined);
 	hasFocus(_part: Parts): boolean { return false; }
 	isFloatingPanelsEnabled(): boolean { return false; }
+	isModernUICompact(): boolean { return false; }
+	getPanelSpacing(): number { return this.isModernUICompact() ? 0 : 4; }
 	focusPart(_part: Parts): void { }
 	hasMainWindowBorder(): boolean { return false; }
 	getMainWindowBorderRadius(): string | undefined { return undefined; }
@@ -871,6 +895,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
+	supportsSplitting = true;
+
 	windowId = mainWindow.vscodeWindowId;
 
 	readonly onDidCreateAuxiliaryEditorPart: Event<IAuxiliaryEditorPart> = Event.None;
@@ -883,6 +909,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	readonly onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
 	readonly onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	readonly onDidChangeGroupMaximized: Event<boolean> = Event.None;
+	readonly onDidFocus: Event<void> = Event.None;
 	readonly onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 	onDidScroll = Event.None;
@@ -904,6 +931,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
 	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
@@ -939,6 +967,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
+	createEditorPart(): IContentPart { throw new Error('Method not implemented.'); }
 	createModalEditorPart(): Promise<IModalEditorPart> { throw new Error('Method not implemented.'); }
 }
 
@@ -970,6 +999,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	titleHeight!: IEditorGroupTitleHeight;
 
 	isEmpty = true;
+	isOpeningEditor = false;
 
 	readonly onWillDispose: Event<void> = Event.None;
 	readonly onDidModelChange: Event<IGroupModelChangeEvent> = Event.None;
@@ -1039,6 +1069,8 @@ export class TestEditorGroupAccessor implements IEditorGroupsView {
 	activateGroup(identifier: number | IEditorGroupView): IEditorGroupView { throw new Error('Method not implemented.'); }
 	restoreGroup(identifier: number | IEditorGroupView): IEditorGroupView { throw new Error('Method not implemented.'); }
 	addGroup(location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
+	getAddGroupLocation(location: IEditorGroupView): IEditorGroupView { return location; }
+	getTransferTarget(_kind: GroupTransferKind, _source: IEditorGroupView | number, location: IEditorGroupView): IEditorGroupView { return location; }
 	mergeGroup(group: number | IEditorGroupView, target: number | IEditorGroupView, options?: IMergeGroupOptions | undefined): boolean { throw new Error('Method not implemented.'); }
 	moveGroup(group: number | IEditorGroupView, location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
 	copyGroup(group: number | IEditorGroupView, location: number | IEditorGroupView, direction: GroupDirection): IEditorGroupView { throw new Error('Method not implemented.'); }
@@ -1360,6 +1392,10 @@ export class TestHostService implements IHostService {
 		this._onDidChangeFocus.fire(this._hasFocus);
 	}
 
+	setActiveWindow(windowId: number) {
+		this._onDidChangeWindow.fire(windowId);
+	}
+
 	async restart(): Promise<void> { }
 	async reload(): Promise<void> { }
 	async close(): Promise<void> { }
@@ -1642,6 +1678,13 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		}
 		return super.canMove(sourceGroup, targetGroup);
 	}
+
+	override canMoveToNewWindow(sourceGroup: GroupIdentifier): string | true {
+		if (typeof this.moveDisabledReason === 'string') {
+			return this.moveDisabledReason;
+		}
+		return super.canMoveToNewWindow(sourceGroup);
+	}
 }
 
 export class TestForceRevealFileEditorInput extends TestFileEditorInput {
@@ -1653,6 +1696,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	declare readonly _serviceBrand: undefined;
 
+	floatingBorderWidth: number | undefined;
+
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
 	readonly activeModalEditorPart: IModalEditorPart | undefined = undefined;
@@ -1661,6 +1706,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	testSaveState(): void {
 		return super.saveState();
+	}
+
+	protected override getFloatingBorderWidth(): number {
+		return this.floatingBorderWidth ?? super.getFloatingBorderWidth();
 	}
 
 	clearState(): void {
@@ -1683,6 +1732,10 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 		throw new Error('Method not implemented.');
 	}
 
+	createEditorPart(): IContentPart {
+		throw new Error('Method not implemented.');
+	}
+
 	createModalEditorPart(): Promise<IModalEditorPart> {
 		throw new Error('Method not implemented.');
 	}
@@ -1696,6 +1749,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	saveWorkingSet(name: string): IEditorWorkingSet { throw new Error('Method not implemented.'); }
 	getWorkingSets(): IEditorWorkingSet[] { throw new Error('Method not implemented.'); }
 	applyWorkingSet(workingSet: IEditorWorkingSet | 'empty', options?: IEditorWorkingSetOptions): Promise<boolean> { throw new Error('Method not implemented.'); }
+	resolveWorkingSet(workingSet: IEditorWorkingSet): IResolvedEditorWorkingSet | undefined { throw new Error('Method not implemented.'); }
 	deleteWorkingSet(workingSet: IEditorWorkingSet): Promise<boolean> { throw new Error('Method not implemented.'); }
 
 	registerContextKeyProvider<T extends ContextKeyValue>(provider: IEditorGroupContextKeyProvider<T>): IDisposable { throw new Error('Method not implemented.'); }
@@ -1753,6 +1807,18 @@ export class TestPathService implements IPathService {
 	}
 
 	get path() { return Promise.resolve(isWindows ? win32 : posix); }
+
+	async getOperatingSystem(_resource: URI): Promise<OperatingSystem | undefined> {
+		return isWindows ? OperatingSystem.Windows : OperatingSystem.Linux;
+	}
+
+	async getPath(_resource: URI) {
+		return this.path;
+	}
+
+	registerPathProvider(): IDisposable {
+		return Disposable.None;
+	}
 
 	userHome(options?: { preferLocal: boolean }): Promise<URI>;
 	userHome(options: { preferLocal: true }): URI;
@@ -1933,6 +1999,10 @@ export class TestQuickInputService implements IQuickInputService {
 	readonly currentQuickInput = undefined;
 	readonly quickAccess = undefined!;
 	backButton!: IQuickInputButton;
+
+	withQuickInputAnchor<T>(_anchor: IQuickInput['anchor'], _anchorPosition: IQuickInput['anchorPosition'], operation: () => Promise<T>): Promise<T> {
+		return operation();
+	}
 
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: true }, token?: CancellationToken): Promise<T[]>;
 	pick<T extends IQuickPickItem>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options?: IPickOptions<T> & { canPickMany: false }, token?: CancellationToken): Promise<T>;
@@ -2149,6 +2219,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 	lastFocusedWidget: IChatWidget | undefined;
 
 	onDidAddWidget = Event.None;
+	onDidRemoveWidget = Event.None;
 	onDidChangeWidgetVisibility = Event.None;
 	onDidBackgroundSession = Event.None;
 	onDidChangeFocusedWidget = Event.None;
@@ -2156,6 +2227,7 @@ export class TestChatWidgetService implements IChatWidgetService {
 
 	async reveal(widget: IChatWidget, preserveFocus?: boolean): Promise<boolean> { return false; }
 	async revealWidget(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
+	async revealChatView(preserveFocus?: boolean): Promise<IChatWidget | undefined> { return undefined; }
 	getAllWidgets(): ReadonlyArray<IChatWidget> { return []; }
 	getWidgetByInputUri(uri: URI): IChatWidget | undefined { return undefined; }
 	openSession(sessionResource: URI): Promise<IChatWidget | undefined>;

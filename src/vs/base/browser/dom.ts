@@ -11,7 +11,7 @@ import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadl
 import { BugIndicatingError, onUnexpectedError } from '../common/errors.js';
 import * as event from '../common/event.js';
 import { KeyCode } from '../common/keyCodes.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton, MutableDisposable, toDisposable } from '../common/lifecycle.js';
 import { RemoteAuthorities } from '../common/network.js';
 import * as platform from '../common/platform.js';
 import { URI } from '../common/uri.js';
@@ -26,6 +26,9 @@ export interface IRegisteredCodeWindow {
 }
 
 //# region Multi-Window Support Utilities
+
+/** The registered window that received focus last, for {@link getActiveDocument}. */
+let lastFocusedWindowId: number | undefined;
 
 export const {
 	registerWindow,
@@ -45,6 +48,8 @@ export const {
 	ensureCodeWindow(mainWindow, 1);
 	const mainWindowRegistration = { window: mainWindow, disposables: new DisposableStore() };
 	windows.set(mainWindow.vscodeWindowId, mainWindowRegistration);
+	// The main window lives as long as this module, before which `addDisposableListener` cannot be used yet.
+	mainWindow.addEventListener('focus', () => lastFocusedWindowId = mainWindow.vscodeWindowId);
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
@@ -83,6 +88,14 @@ export const {
 			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
 				onWillUnregisterWindow.fire(window);
 			}));
+
+			disposables.add(addDisposableListener(window, EventType.FOCUS, () => {
+				lastFocusedWindowId = window.vscodeWindowId;
+			}));
+			// A window can take focus as it opens, before it registers, and then has no focus event to come.
+			if (window.document.hasFocus()) {
+				lastFocusedWindowId = window.vscodeWindowId;
+			}
 
 			onDidRegisterWindow.fire(registeredWindow);
 
@@ -445,7 +458,22 @@ class AnimationFrameQueueItem implements IDisposable {
 	 */
 	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
+	markAsSingleton(onDidUnregisterWindow(({ vscodeWindowId }) => {
+		// A callback can close its window while the current queue is being processed.
+		const currentQueue = CURRENT_QUEUE.get(vscodeWindowId);
+		if (currentQueue) {
+			currentQueue.length = 0;
+		}
+		NEXT_QUEUE.delete(vscodeWindowId);
+		CURRENT_QUEUE.delete(vscodeWindowId);
+		animFrameRequested.delete(vscodeWindowId);
+		inAnimationFrameRunner.delete(vscodeWindowId);
+	}));
+
 	const animationFrameRunner = (targetWindowId: number) => {
+		if (!animFrameRequested.has(targetWindowId)) {
+			return;
+		}
 		animFrameRequested.set(targetWindowId, false);
 
 		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
@@ -458,7 +486,9 @@ class AnimationFrameQueueItem implements IDisposable {
 			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner.set(targetWindowId, false);
+		if (inAnimationFrameRunner.has(targetWindowId)) {
+			inAnimationFrameRunner.set(targetWindowId, false);
+		}
 	};
 
 	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
@@ -842,18 +872,108 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
  */
 export function getDomNodeZoomLevel(domNode: HTMLElement): number {
 	let testElement: HTMLElement | null = domNode;
-	let zoom = 1.0;
-	do {
-		// eslint-disable-next-line local/code-no-any-casts
-		const elementZoomLevel = (getComputedStyle(testElement) as any).zoom;
-		if (elementZoomLevel !== null && elementZoomLevel !== undefined && elementZoomLevel !== '1') {
-			zoom *= elementZoomLevel;
+	let zoom = 1;
+	const targetWindow = getWindow(domNode);
+	while (testElement !== null) {
+		const elementZoomLevel = targetWindow.getComputedStyle(testElement).getPropertyValue('zoom');
+		if (elementZoomLevel !== '' && elementZoomLevel !== '1') {
+			const value = Number(elementZoomLevel);
+			if (!isNaN(value) && value > 0) {
+				zoom *= value;
+			}
 		}
 
-		testElement = testElement.parentElement;
-	} while (testElement !== null && testElement !== testElement.ownerDocument.documentElement);
+		if (testElement.parentElement) {
+			testElement = testElement.parentElement;
+		} else {
+			const root = testElement.getRootNode();
+			testElement = isShadowRoot(root) && isHTMLElement(root.host) ? root.host : null;
+		}
+	}
 
 	return zoom;
+}
+
+/**
+ * How {@link alignToDevicePixels} rounds each axis: `'start'` rounds up or to the left, `'end'` down
+ * or to the right, `'nearest'` (the default) to the nearest device pixel, and `'none'` leaves the
+ * axis unchanged. `'nearestEnd'` moves the element so that its far edge, which Chromium paints at
+ * the start plus the size rounded to device pixels, lands on the device pixel nearest to it. Like
+ * `'nearest'` for the near edge, that is where Chromium paints the edge of an element ending at the
+ * same position, so an element meeting another one keeps meeting it.
+ */
+export type DevicePixelRounding = 'start' | 'end' | 'nearest' | 'nearestEnd' | 'none';
+
+export interface IDevicePixelAlignment {
+	readonly horizontal?: DevicePixelRounding;
+	readonly vertical?: DevicePixelRounding;
+}
+
+/**
+ * Moves an element positioned with inline pixel insets so that its border box starts on a whole
+ * device pixel. Chromium paints a transformed (e.g. scaling) element from a pixel-snapped offset,
+ * but its untransformed content at the exact fractional offset, so content that animates a scale
+ * at a fractional device position can jump by a device pixel when the animation ends.
+ *
+ * Horizontally, `left` is adjusted when it is a pixel value, otherwise `right` when that is;
+ * vertically the same applies to `top` and `bottom`. Other insets are left unchanged. Offsets
+ * within Chromium's layout precision (positions are floored to 1/64 device pixel) are ignored, so
+ * repeated calls are stable.
+ */
+export function alignToDevicePixels(element: HTMLElement, direction: IDevicePixelAlignment = {}): void {
+	const targetWindow = getWindow(element);
+	const devicePixelRatio = targetWindow.devicePixelRatio;
+	const zoom = getDomNodeZoomLevel(element);
+	const rect = element.getBoundingClientRect();
+	alignInset(element, 'left', 'right', getDevicePixelAlignmentOffset(rect.left, devicePixelRatio, direction.horizontal, rect.width) / zoom);
+	alignInset(element, 'top', 'bottom', getDevicePixelAlignmentOffset(rect.top, devicePixelRatio, direction.vertical, rect.height) / zoom);
+}
+
+/**
+ * Returns how far, in CSS pixels, to move a client position so that it lands on a whole device
+ * pixel, rounding as {@link alignToDevicePixels} does. `size` is the rendered size of the element.
+ * `'nearestEnd'` moves the element so that its far edge paints at the device pixel nearest to `end`,
+ * by default where that edge is rendered. Offsets within Chromium's layout precision are returned as
+ * 0, and without an `end`, `'nearestEnd'` leaves a position already on a whole device pixel in place,
+ * so repeated calls on a measured element are stable.
+ */
+export function getDevicePixelAlignmentOffset(position: number, devicePixelRatio: number, rounding: DevicePixelRounding = 'nearest', size = 0, end?: number): number {
+	if (rounding === 'none') {
+		return 0;
+	}
+	// Chromium floors positions to 1/64 device pixel, so a whole device pixel can only be reached to within that. Above a ratio of 1,
+	// the 1/64 CSS pixel already allowed is at least that. The small margin absorbs float32 client rects.
+	const tolerance = Math.max(devicePixelRatio, 1) / 64 * 1.05;
+	const device = position * devicePixelRatio;
+	// An aligned start already paints the far edge its rounded size further on. Recomputing that edge from a start floored just short of
+	// its device pixel can round it a device pixel earlier, and so move an aligned element again. An explicit `end` is not read back, so
+	// it is always targeted.
+	if (rounding === 'nearestEnd' && end === undefined && Math.abs(Math.round(device) - device) <= tolerance) {
+		return 0;
+	}
+	let target: number;
+	switch (rounding) {
+		case 'start': target = Math.floor(device + tolerance); break;
+		case 'end': target = Math.ceil(device - tolerance); break;
+		case 'nearestEnd': target = Math.round((end ?? position + size) * devicePixelRatio) - Math.round(size * devicePixelRatio); break;
+		default: target = Math.round(device); break;
+	}
+	return Math.abs(target - device) <= tolerance ? 0 : (target - device) / devicePixelRatio;
+}
+
+function alignInset(element: HTMLElement, start: 'left' | 'top', end: 'right' | 'bottom', offset: number): void {
+	if (offset === 0) {
+		return;
+	}
+	const startValue = element.style[start];
+	if (startValue.endsWith('px')) {
+		element.style[start] = `${parseFloat(startValue) + offset}px`;
+		return;
+	}
+	const endValue = element.style[end];
+	if (endValue.endsWith('px')) {
+		element.style[end] = `${parseFloat(endValue) - offset}px`;
+	}
 }
 
 
@@ -928,7 +1048,7 @@ export function setParentFlowTo(fromChildElement: HTMLElement, toParentElement: 
 function getParentFlowToElement(node: HTMLElement): HTMLElement | null {
 	const flowToParentId = node.dataset[parentFlowToDataKey];
 	if (typeof flowToParentId === 'string') {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return node.ownerDocument.getElementById(flowToParentId);
 	}
 	return null;
@@ -1057,10 +1177,11 @@ export function getActiveDocument(): Document {
 		return mainWindow.document;
 	}
 
-	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	const focusedDoc = documents.find(doc => doc.hasFocus());
-	if (focusedDoc) {
-		return focusedDoc;
+	const focusedWindows = Array.from(getWindows(), ({ window }) => window).filter(window => window.document.hasFocus());
+	if (focusedWindows.length) {
+		// A window can take focus without the window focused before it losing focus, such as a panel on macOS, so that
+		// both report focus. The one focused last is then the active one.
+		return (focusedWindows.find(window => window.vscodeWindowId === lastFocusedWindowId) ?? focusedWindows[0]).document;
 	}
 
 	// Check if an external component (like browser view) has focus
@@ -1150,62 +1271,62 @@ function createHeadElement<K extends keyof HTMLElementTagNameMap>(tagName: K, co
 }
 
 export function isHTMLElement(e: unknown): e is HTMLElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLElement || e instanceof getWindow(e as Node).HTMLElement;
 }
 
 export function isHTMLAnchorElement(e: unknown): e is HTMLAnchorElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLAnchorElement || e instanceof getWindow(e as Node).HTMLAnchorElement;
 }
 
 export function isHTMLSpanElement(e: unknown): e is HTMLSpanElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLSpanElement || e instanceof getWindow(e as Node).HTMLSpanElement;
 }
 
 export function isHTMLTextAreaElement(e: unknown): e is HTMLTextAreaElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLTextAreaElement || e instanceof getWindow(e as Node).HTMLTextAreaElement;
 }
 
 export function isHTMLInputElement(e: unknown): e is HTMLInputElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLInputElement || e instanceof getWindow(e as Node).HTMLInputElement;
 }
 
 export function isHTMLButtonElement(e: unknown): e is HTMLButtonElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLButtonElement || e instanceof getWindow(e as Node).HTMLButtonElement;
 }
 
 export function isHTMLDivElement(e: unknown): e is HTMLDivElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof HTMLDivElement || e instanceof getWindow(e as Node).HTMLDivElement;
 }
 
 export function isSVGElement(e: unknown): e is SVGElement {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof SVGElement || e instanceof getWindow(e as Node).SVGElement;
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;
 }
 
 export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof KeyboardEvent || e instanceof getWindow(e as UIEvent).KeyboardEvent;
 }
 
 export function isPointerEvent(e: unknown): e is PointerEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof PointerEvent || e instanceof getWindow(e as UIEvent).PointerEvent;
 }
 
 export function isDragEvent(e: unknown): e is DragEvent {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	return e instanceof DragEvent || e instanceof getWindow(e as UIEvent).DragEvent;
 }
 
@@ -1637,6 +1758,85 @@ export function windowOpenPopup(url: string): void {
 	);
 }
 
+let reservedExternalWindow: Window | undefined;
+
+function isUsable(candidate: Window | undefined): candidate is Window {
+	return !!candidate && !candidate.closed;
+}
+
+/**
+ * Opens a blank window now, for a later {@link windowOpenWithSuccess} to navigate.
+ *
+ * Browsers only allow `window.open` while a click's user activation is still live.
+ * Sign-in shows a dialog, activates an extension and fetches an authorization URL
+ * first, so by then the gesture has expired and the window is refused — fatal in an
+ * installed web app (PWA), where there is no tab to fall back to.
+ *
+ * Callers must consume or {@link releaseReservedWindowForExternalOpen} the
+ * reservation, or a blank window is left covering the app.
+ *
+ * @param targetWindow the window that was clicked; activation belongs to it.
+ * @param placeholder already-translated text, since `vs/base` cannot localize.
+ */
+export function reserveWindowForExternalOpen(targetWindow: Window = mainWindow, placeholder?: string): void {
+	if (isUsable(reservedExternalWindow)) {
+		return;
+	}
+
+	reservedExternalWindow = targetWindow.open() ?? undefined;
+	if (!isUsable(reservedExternalWindow)) {
+		reservedExternalWindow = undefined;
+		return;
+	}
+
+	if (placeholder) {
+		showMessageInWindow(reservedExternalWindow, placeholder);
+	}
+}
+
+/** Uses `textContent` so the message cannot inject markup. */
+function showMessageInWindow(target: Window, message: string): void {
+	try {
+		const doc = target.document;
+		doc.title = message; // otherwise announced as `about:blank`
+		doc.documentElement.style.cssText = 'color-scheme:light dark';
+		doc.body.style.cssText = 'margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:Canvas;color:CanvasText;font:16px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif';
+		doc.body.textContent = message;
+	} catch {
+		// the window may already have navigated
+	}
+}
+
+function takeReservedWindowForExternalOpen(): Window | undefined {
+	const reserved = reservedExternalWindow;
+	reservedExternalWindow = undefined;
+	return isUsable(reserved) ? reserved : undefined;
+}
+
+/**
+ * Closes an unused reservation.
+ *
+ * @param fallbackMessage shown if the window refuses to close — an in-app browser
+ * view on iOS may ignore `close()`, and a blank window covering the app is worse
+ * than the problem this solves.
+ */
+export function releaseReservedWindowForExternalOpen(fallbackMessage?: string): void {
+	const reserved = takeReservedWindowForExternalOpen();
+	if (!reserved) {
+		return;
+	}
+
+	try {
+		reserved.close();
+	} catch {
+		// the window may already have navigated
+	}
+
+	if (!reserved.closed && fallbackMessage) {
+		showMessageInWindow(reserved, fallbackMessage);
+	}
+}
+
 /**
  * Attempts to open a window and returns whether it succeeded. This technique is
  * not appropriate in certain contexts, like for example when the JS context is
@@ -1650,10 +1850,11 @@ export function windowOpenPopup(url: string): void {
  * @param url the url to open
  * @param noOpener whether or not to set the {@link window.opener} to null. You should leave the default
  * (true) unless you trust the url that is being opened.
+ * @param targetWindow the window to open from when no window was reserved.
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
-export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = mainWindow.open();
+export function windowOpenWithSuccess(url: string, noOpener = true, targetWindow: Window = mainWindow): boolean {
+	const newTab = takeReservedWindowForExternalOpen() ?? targetWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
@@ -1805,12 +2006,19 @@ export interface IModifierKeyStatus {
 	metaKey: boolean;
 	lastKeyPressed?: ModifierKey;
 	lastKeyReleased?: ModifierKey;
+	/**
+	 * The keyboard event that caused the change. Only available while
+	 * listeners of {@link ModifierKeyEmitter} are notified.
+	 */
 	event?: KeyboardEvent;
 }
 
 export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
-	private readonly _subscriptions = new DisposableStore();
+	// This emitter is a lazily created singleton (see `getInstance`) that is allowed
+	// to outlive the test that happens to create it first. `Emitter` itself is not
+	// tracked, so the store has to be marked to keep it out of leak detection.
+	private readonly _subscriptions = markAsSingleton(new DisposableStore());
 	private _keyStatus: IModifierKeyStatus;
 	private static instance: ModifierKeyEmitter | undefined;
 
@@ -1860,8 +2068,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyPressed) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
+				this.fireWithEvent(e);
 			}
 		}, true));
 
@@ -1892,8 +2099,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			this._keyStatus.shiftKey = e.shiftKey;
 
 			if (this._keyStatus.lastKeyReleased) {
-				this._keyStatus.event = e;
-				this.fire(this._keyStatus);
+				this.fireWithEvent(e);
 			}
 		}, true));
 
@@ -1918,6 +2124,21 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 
 	get keyStatus(): IModifierKeyStatus {
 		return this._keyStatus;
+	}
+
+	/**
+	 * The keyboard event is only exposed while listeners are notified. Holding on to it
+	 * would retain its target and event path, e.g. the DOM of an editor that was detached
+	 * after the key press (#146841).
+	 */
+	private fireWithEvent(e: KeyboardEvent): void {
+		const keyStatus = this._keyStatus;
+		keyStatus.event = e;
+		try {
+			this.fire(keyStatus);
+		} finally {
+			keyStatus.event = undefined;
+		}
 	}
 
 	get isModifierPressed(): boolean {
@@ -1995,6 +2216,12 @@ export class DragAndDropObserver extends Disposable {
 		this.registerListeners();
 	}
 
+	/** Resets tracking when a nested drop target consumes the end of a drag. */
+	reset(): void {
+		this.counter = 0;
+		this.dragStartTime = 0;
+	}
+
 	private registerListeners(): void {
 		if (this.callbacks.onDragStart) {
 			this._register(addDisposableListener(this.element, EventType.DRAG_START, (e: DragEvent) => {
@@ -2032,16 +2259,12 @@ export class DragAndDropObserver extends Disposable {
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DRAG_END, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDragEnd?.(e);
 		}));
 
 		this._register(addDisposableListener(this.element, EventType.DROP, (e: DragEvent) => {
-			this.counter = 0;
-			this.dragStartTime = 0;
-
+			this.reset();
 			this.callbacks.onDrop?.(e);
 		}));
 	}
@@ -2058,16 +2281,18 @@ export class DragAndDropObserver extends Disposable {
  * 1. Lifetime management: `dispose()` disconnects the underlying observer.
  * 2. Auxiliary-window support: pass `targetWindow` so the observer is
  *    constructed in the realm of the element being observed.
- * 3. Attribution for the
+ * 3. Context for the
  *    `ResizeObserver loop completed with undelivered notifications` warning:
- *    each instance carries a stable `name`, and just before invoking the
- *    user callback we publish that name to a module-level slot. The warning
- *    is delivered as a stackless `ErrorEvent` on `window` after callbacks
- *    run, so error telemetry can swap in the most-recently-invoked
- *    observer's name to pinpoint the offending consumer (see
- *    {@link getRecentDisposableResizeObserverAttributionForLoopError}).
+ *    each instance carries a stable `name`, and just before invoking the user
+ *    callback we add that name to a bounded, per-window set that is cleared
+ *    at the next animation frame. The warning is delivered as a stackless
+ *    `ErrorEvent` on `window` after callbacks run, so error telemetry can
+ *    include the wrapped observers that recently ran in that window (see
+ *    {@link getRecentDisposableResizeObserverContextForLoopError}). This is
+ *    delivery context, not causal attribution: the browser does not expose
+ *    which observer or skipped target caused the warning.
  *
- * @param name Stable identifier used in attribution. Prefer something that
+ * @param name Stable identifier used in loop-warning context. Prefer one that
  * survives minification and refactors (e.g. the consumer class + purpose)
  * since callstacks change across releases.
  * @param callback Invoked synchronously when the browser delivers resize
@@ -2094,24 +2319,7 @@ export class DisposableResizeObserver extends Disposable {
 		this.name = name;
 		const ctor = options?.resizeObserverCtor ?? targetWindow.ResizeObserver;
 		this.observer = new ctor((entries: ResizeObserverEntry[], observer) => {
-			_lastInvokedDisposableResizeObserver = this;
-			// Clear via a 0-ms timer (a new macrotask) rather than a
-			// microtask: microtask checkpoints run at the end of every
-			// script, i.e. after each ResizeObserver callback returns, but
-			// Chromium dispatches the synthetic `ResizeObserver loop
-			// completed with undelivered notifications` error *after* all
-			// callbacks in the observation phase finish. A microtask would
-			// clear the slot before the warning fires; a setTimeout(0)
-			// runs after the entire current task completes (callbacks +
-			// loop-error dispatch), so attribution survives long enough to
-			// be picked up by `window.onerror` while still being scoped to
-			// the same task that produced it. The equality check ensures
-			// only the *last* writer in a phase actually clears the slot.
-			setTimeout(() => {
-				if (_lastInvokedDisposableResizeObserver === this) {
-					_lastInvokedDisposableResizeObserver = undefined;
-				}
-			}, 0);
+			recordDisposableResizeObserverInvocation(targetWindow, this.name);
 			try {
 				callback(entries, observer);
 			} catch (e) {
@@ -2128,32 +2336,75 @@ export class DisposableResizeObserver extends Disposable {
 }
 
 /**
- * The most recently invoked `DisposableResizeObserver`. Set just before each
- * user callback runs and cleared by a 0-ms timer scheduled in the same step,
- * so the slot only carries an attribution within the same task as the
- * `ResizeObserver loop completed with undelivered notifications` warning
- * (which fires synchronously at the end of the resize-observation phase).
- * A microtask would be too eager — microtask checkpoints run between each
- * callback, before the loop-error dispatch.
+ * Keep the context bounded so a large delivery phase cannot create an
+ * unbounded telemetry value. Names are static component identifiers, and are
+ * sorted when read so equivalent phases share a stable bucket.
  */
-let _lastInvokedDisposableResizeObserver: DisposableResizeObserver | undefined;
+const maxRecentDisposableResizeObservers = 8;
 
 /**
- * If `message` looks like the ResizeObserver loop warning, return an
- * attribution string built from the most recently invoked
- * `DisposableResizeObserver` so error telemetry can replace its synthetic,
- * stackless callstack with the offending observer's `name`. Returns
- * `undefined` for unrelated messages or when no observer has fired yet.
+ * Wrapped observers that ran recently in one window. This is deliberately
+ * scoped by window because auxiliary windows have independent documents and
+ * resize-observation delivery loops.
  */
-export function getRecentDisposableResizeObserverAttributionForLoopError(message: string | undefined | null): string | undefined {
+interface IRecentDisposableResizeObserverContext {
+	readonly names: Set<string>;
+	overflow: boolean;
+}
+
+const recentDisposableResizeObserverContexts = new WeakMap<CodeWindow, IRecentDisposableResizeObserverContext>();
+
+function recordDisposableResizeObserverInvocation(targetWindow: CodeWindow, name: string): void {
+	let context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
+		context = { names: new Set(), overflow: false };
+		recentDisposableResizeObserverContexts.set(targetWindow, context);
+
+		// ResizeObserver callbacks and the synthetic loop error are delivered
+		// after requestAnimationFrame callbacks in the rendering update. A
+		// request made here therefore clears this context at the next frame,
+		// after telemetry has observed any warning from the current update.
+		targetWindow.requestAnimationFrame(() => recentDisposableResizeObserverContexts.delete(targetWindow));
+	}
+
+	if (context.names.has(name)) {
+		return;
+	}
+	if (context.names.size < maxRecentDisposableResizeObservers) {
+		context.names.add(name);
+	} else {
+		context.overflow = true;
+		const largestName = Array.from(context.names).sort().at(-1)!;
+		if (name < largestName) {
+			context.names.delete(largestName);
+			context.names.add(name);
+		}
+	}
+}
+
+/**
+ * If `message` looks like the ResizeObserver loop warning, return a stable
+ * context string containing the wrapped observers that ran recently in
+ * `targetWindow`. The names are delivery context only; the browser does not
+ * expose the observer or skipped target that caused the warning. Returns
+ * `undefined` for unrelated messages or when no wrapped observer has fired.
+ */
+export function getRecentDisposableResizeObserverContextForLoopError(
+	message: string | undefined | null,
+	targetWindow: CodeWindow = mainWindow,
+): string | undefined {
 	if (typeof message !== 'string' || !message.includes('ResizeObserver loop')) {
 		return undefined;
 	}
-	const observer = _lastInvokedDisposableResizeObserver;
-	if (!observer) {
+	const context = recentDisposableResizeObserverContexts.get(targetWindow);
+	if (!context) {
 		return undefined;
 	}
-	return `[DisposableResizeObserver(${observer.name})] ${message}`;
+	const names = Array.from(context.names).sort();
+	if (context.overflow) {
+		names.push('<overflow>');
+	}
+	return `[ResizeObserverLoopContext(${names.join(',')})] ${message}`;
 }
 
 type HTMLElementAttributeKeys<T> = Partial<{ [K in keyof T]: T[K] extends Function ? never : T[K] extends object ? HTMLElementAttributeKeys<T[K]> : T[K] }>;

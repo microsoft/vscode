@@ -48,6 +48,7 @@ export interface IAuxiliaryWindowOpenOptions {
 
 	readonly mode?: AuxiliaryWindowMode;
 	readonly zoomLevel?: number;
+	/** Initial state; native windows inherit the main window's current state when omitted. */
 	readonly alwaysOnTop?: boolean;
 
 	readonly nativeTitlebar?: boolean;
@@ -55,8 +56,16 @@ export interface IAuxiliaryWindowOpenOptions {
 	readonly frameless?: boolean;
 	readonly transparent?: boolean;
 	readonly notResizable?: boolean;
+	readonly disableMaximize?: boolean;
 	readonly noBackgroundThrottling?: boolean;
 	readonly backgroundColor?: string;
+	/**
+	 * Whether the window floats as a utility panel: on macOS a non-activating panel that also shows over full-screen
+	 * spaces, elsewhere a window without a taskbar entry. Desktop only.
+	 */
+	readonly panel?: boolean;
+	/** The opacity the window starts with, from 0 (transparent) to 1 (opaque). Desktop only, and not on Linux. */
+	readonly opacity?: number;
 }
 
 export interface IAuxiliaryWindowService {
@@ -71,7 +80,17 @@ export interface IAuxiliaryWindowService {
 }
 
 export interface BeforeAuxiliaryWindowUnloadEvent {
+
+	/**
+	 * Prevents the window from closing and tells the user why.
+	 */
 	veto(reason: string | undefined): void;
+
+	/**
+	 * Prevents the window from closing without telling the user, for a component that asks the
+	 * user itself, for example whether to discard changes, and closes the window afterwards.
+	 */
+	vetoSilently(): void;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -88,6 +107,8 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly container: HTMLElement;
 
 	updateOptions(options: { compact: boolean } | undefined): void;
+
+	setBounds(bounds: IRectangle): Promise<void>;
 
 	layout(): void;
 
@@ -138,6 +159,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		this.compact = options.compact;
 	}
 
+	async setBounds(bounds: IRectangle): Promise<void> {
+		this.window.moveTo(bounds.x, bounds.y);
+		this.window.resizeTo(bounds.width, bounds.height);
+	}
+
 	private registerListeners(): void {
 		this._register(addDisposableListener(this.window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.handleBeforeUnload(e)));
 		this._register(addDisposableListener(this.window, EventType.UNLOAD, () => this.handleUnload()));
@@ -165,15 +191,24 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		// Check for veto from a listening component
 		let veto: string | undefined;
+		let silentVeto = false;
 		this._onBeforeUnload.fire({
 			veto(reason) {
 				if (reason) {
 					veto = reason;
 				}
+			},
+			vetoSilently() {
+				silentVeto = true;
 			}
 		});
 		if (veto) {
 			this.handleVetoBeforeClose(e, veto);
+
+			return;
+		}
+		if (silentVeto) {
+			this.preventUnload(e);
 
 			return;
 		}
@@ -371,7 +406,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			options?.frameless ? 'window-frameless=yes' : undefined,
 			options?.transparent ? 'window-transparent=yes' : undefined,
 			options?.notResizable ? 'window-not-resizable=yes' : undefined,
+			options?.disableMaximize ? 'window-disable-maximize=yes' : undefined,
 			options?.noBackgroundThrottling ? 'window-no-background-throttling=yes' : undefined,
+			options?.panel ? 'window-panel=yes' : undefined,
+			typeof options?.opacity === 'number' ? `window-opacity=${options.opacity}` : undefined,
 			options?.backgroundColor && /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(options.backgroundColor) ? `window-background-color=${options.backgroundColor}` : undefined,
 		]);
 
@@ -417,7 +455,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private applyMeta(auxiliaryWindow: CodeWindow): void {
 		for (const metaTag of ['meta[charset="utf-8"]', 'meta[http-equiv="Content-Security-Policy"]', 'meta[name="viewport"]', 'meta[name="theme-color"]']) {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			const metaElement = mainWindow.document.querySelector(metaTag);
 			if (metaElement) {
 				const clonedMetaElement = createMetaElement(auxiliaryWindow.document.head);
@@ -432,7 +470,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			}
 		}
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const originalIconLinkTag = mainWindow.document.querySelector('link[rel="icon"]');
 		if (originalIconLinkTag) {
 			const icon = createLinkElement(auxiliaryWindow.document.head);
@@ -480,7 +518,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// all style related nodes have been cloned.
 		pendingLinksToSettle++;
 		try {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 				cloneNode(originalNode);
 			}

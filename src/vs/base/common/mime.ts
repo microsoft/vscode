@@ -26,6 +26,8 @@ const mapExtToTextMimes: Record<string, string> = {
 	'.html': 'text/html',
 	'.ics': 'text/calendar',
 	'.js': 'text/javascript',
+	'.json': 'application/json',
+	'.map': 'application/json',
 	'.mjs': 'text/javascript',
 	'.txt': 'text/plain',
 	'.xml': 'text/xml'
@@ -35,6 +37,7 @@ const mapExtToTextMimes: Record<string, string> = {
 const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.aac': 'audio/x-aac',
 	'.avi': 'video/x-msvideo',
+	'.avif': 'image/avif',
 	'.bmp': 'image/bmp',
 	'.flv': 'video/x-flv',
 	'.gif': 'image/gif',
@@ -68,6 +71,8 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.ogg': 'audio/ogg',
 	'.opus': 'audio/opus',
 	'.ogv': 'video/ogg',
+	'.otf': 'font/otf',
+	'.pdf': 'application/pdf',
 	'.png': 'image/png',
 	'.psd': 'image/vnd.adobe.photoshop',
 	'.qt': 'video/quicktime',
@@ -76,12 +81,15 @@ const mapExtToMediaMimes: MapExtToMediaMimes = {
 	'.tga': 'image/x-tga',
 	'.tif': 'image/tiff',
 	'.tiff': 'image/tiff',
+	'.ttf': 'font/ttf',
+	'.wasm': 'application/wasm',
 	'.wav': 'audio/x-wav',
 	'.webm': 'video/webm',
 	'.webp': 'image/webp',
 	'.wma': 'audio/x-ms-wma',
 	'.wmv': 'video/x-ms-wmv',
 	'.woff': 'application/font-woff',
+	'.woff2': 'font/woff2',
 };
 
 export function getMediaOrTextMime(path: string): string | undefined {
@@ -101,10 +109,12 @@ export function getMediaMime(path: string): string | undefined {
 }
 
 export function getExtensionForMimeType(mimeType: string): string | undefined {
-	for (const extension in mapExtToMediaMimes) {
-		const value = mapExtToMediaMimes[extension];
-		if (Array.isArray(value) ? value.includes(mimeType) : value === mimeType) {
-			return extension;
+	for (const mapping of [mapExtToTextMimes, mapExtToMediaMimes]) {
+		for (const extension in mapping) {
+			const value = mapping[extension];
+			if (Array.isArray(value) ? value.includes(mimeType) : value === mimeType) {
+				return extension;
+			}
 		}
 	}
 

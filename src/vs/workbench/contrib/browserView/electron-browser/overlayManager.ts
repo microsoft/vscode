@@ -15,6 +15,8 @@ export enum BrowserOverlayType {
 	Hover = 'hover',
 	Dialog = 'dialog',
 	Notification = 'notification',
+	/** The screenshot tool's selection overlay, which shows the page's last screenshot underneath without pausing it visibly. */
+	ScreenshotTool = 'screenshotTool',
 	Unknown = 'unknown'
 }
 
@@ -29,17 +31,30 @@ const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverl
 	{ className: 'monaco-modal-editor-block', type: BrowserOverlayType.Dialog },
 	{ className: 'notifications-center', type: BrowserOverlayType.Notification },
 	{ className: 'notification-toast-container', type: BrowserOverlayType.Notification },
+	{ className: 'spotlight-overlay', type: BrowserOverlayType.Unknown },
+	{ className: 'screenshot-tool-overlay', type: BrowserOverlayType.ScreenshotTool },
+	// The markup of a screenshot covers pages like a dialog.
+	{ className: 'screenshot-annotation-editor', type: BrowserOverlayType.Dialog },
+	{ className: 'part-grid-motion', type: BrowserOverlayType.Unknown },
 	// Context view is very generic, so treat the content as unknown
 	{ className: 'context-view', type: BrowserOverlayType.Unknown }
 ];
 
-// Transparent full-screen layers that context menus and action widgets render to capture clicks.
-// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
-// so hit-testing must skip them to find the overlay actually painted underneath.
-const CONTEXT_VIEW_BLOCKER_CLASSES = ['context-view-block', 'context-view-pointerBlock'];
+const HIT_TEST_EXCLUDED_CLASSES = [
+	// Transparent full-screen layers that context menus and action widgets render to capture clicks.
+	// They sit in higher z-index stacking contexts above other UI, but are not tracked overlays,
+	// so hit-testing must skip them to find the overlay actually painted underneath.
+	'context-view-block',
 
-function isContextViewBlocker(element: Element): boolean {
-	return CONTEXT_VIEW_BLOCKER_CLASSES.some(className => element.classList.contains(className));
+	// Webview overlay elements exist in their own DOM structure and are positioned dynamically,
+	// so they interfere with hit-testing because they are not descendants of the tracked overlay.
+	// Ignore them and depend on the element the webview is anchored to for overlay detection.
+	'webview',
+	'webview-overlay-content'
+];
+
+function isExcludedFromOverlayHitTest(element: Element): boolean {
+	return HIT_TEST_EXCLUDED_CLASSES.some(className => element.classList.contains(className));
 }
 
 export const IBrowserOverlayManager = createDecorator<IBrowserOverlayManager>('browserOverlayManager');
@@ -107,14 +122,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			this._overlayCollections.set(overlayDefinition.className, {
 				type: overlayDefinition.type,
 				// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				collection: this.targetWindow.document.getElementsByClassName(overlayDefinition.className)
 			});
 		}
 
 		// Initialize live collection for shadow root hosts
 		// We need dynamic collections for overlay detection, using getElementsByClassName is intentional here
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		this._shadowRootHostCollection = this.targetWindow.document.getElementsByClassName('shadow-root-host');
 
 		// Setup structural observer to watch for element additions/removals
@@ -170,7 +185,7 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 					cache = [];
 					for (const overlayDefinition of OVERLAY_DEFINITIONS) {
 						// We need to query shadow roots for overlay detection, using querySelectorAll is intentional here
-						// eslint-disable-next-line no-restricted-syntax
+						// eslint-disable-next-line eslint-js/no-restricted-syntax
 						const elements = shadowRoot.querySelectorAll(`.${overlayDefinition.className}`);
 						for (const element of elements) {
 							cache.push({ element: element as HTMLElement, type: overlayDefinition.type });
@@ -293,14 +308,14 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 			// overlay state change, which can fire frequently, so favor it whenever the
 			// topmost hit is a real element we care about.
 			const elementAtPoint = root.elementFromPoint(clientX, clientY);
-			if (elementAtPoint && !isContextViewBlocker(elementAtPoint)) {
+			if (elementAtPoint && !isExcludedFromOverlayHitTest(elementAtPoint)) {
 				return elementAtPoint;
 			}
-			// Slow path: the topmost hit is a transparent context-view blocker (or there
-			// was no hit). Walk the full front-to-back hit list and return the first
-			// element that is not a blocker, i.e. the overlay actually painted beneath it.
+			// Slow path: the topmost hit is an excluded overlay (or there was no hit).
+			// Walk the full front-to-back hit list and return the first element
+			// that is not excluded, i.e. the overlay actually painted beneath it.
 			return root.elementsFromPoint(clientX, clientY)
-				.find(el => !isContextViewBlocker(el)) ?? null;
+				.find(el => !isExcludedFromOverlayHitTest(el)) ?? null;
 		};
 
 		const elementAtPoint = topmostAt(this.targetWindow.document);

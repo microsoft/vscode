@@ -7,10 +7,9 @@ parameters:
 steps:
   - template: ../common/checkout.yml@self
 
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
+  - template: ../common/setup-node.yml@self
+    parameters:
+      os: windows
 
   - task: UsePythonVersion@0
     inputs:
@@ -48,6 +47,11 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Authentication
 
+  - template: ../common/install-pnpm.yml@self
+
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
+
   - pwsh: |
       $includes = @'
         {
@@ -79,21 +83,66 @@ steps:
       echo $includes > "~/.gyp/include.gypi"
     displayName: Create include.gypi
 
+  # The store doesn't depend on include.gypi, which only changes how the native modules build, so the
+  # job shares the store of the other Windows jobs.
+  - template: ../common/restore-pnpm-store.yml@self
+    parameters:
+      keyArgs: win32 ${{ parameters.VSCODE_ARCH }}
+      os: windows
+
+  - powershell: node build/setup-npm-registry.ts $env:NPM_REGISTRY
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Registry
+
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
       $ErrorActionPreference = "Stop"
-      exec { npm ci }
+      # Set the private registry globally so authentication works in subfolders without their own .npmrc file
+      exec { npm config set registry "$env:NPM_REGISTRY" }
+      $NpmrcPath = (npm config get userconfig)
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$NpmrcPath"
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+    displayName: Setup NPM Authentication
+
+  - task: NuGetAuthenticate@1
+    displayName: Setup NuGet Authentication
+
+  - powershell: |
+      . build/azure-pipelines/win32/exec.ps1
+      $ErrorActionPreference = "Stop"
+      exec { pnpm install --frozen-lockfile }
     env:
       npm_config_arch: ${{ parameters.VSCODE_ARCH }}
-      npm_config_foreground_scripts: "true"
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
       GITHUB_TOKEN: "$(github-token-code-oss)"
+      FOUNDRY_LOCAL_NUGET_MODE: dotnet
+      FOUNDRY_LOCAL_NUGET_FEEDS: "https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/nuget/v3/index.json"
     retryCountOnTaskFailure: 5
     displayName: Install dependencies
 
+  # NuGetAuthenticate@1 exposes its access token to all later steps as the
+  # VSS_NUGET_ACCESSTOKEN environment variable, from where they can write it to
+  # logs. Only installing dependencies needs it, so clear it now.
+  - powershell: echo "##vso[task.setvariable variable=VSS_NUGET_ACCESSTOKEN]"
+    displayName: Clear package feed credentials
+    condition: always()
+
+  - powershell: node build/azure-pipelines/common/checkNativeOptionalDeps.ts
+    displayName: Verify native optional dependency binaries
+
   - script: node build/azure-pipelines/distro/mixin-npm.ts
     displayName: Mixin distro node modules
+
+  - template: ../common/prune-pnpm-store.yml@self
+    parameters:
+      os: windows
 
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
@@ -102,14 +151,17 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
+  - script: node build/npm/electronTypes.ts
+    displayName: Prepare Electron types
+
   - template: ../common/mixin-vscode-capi.yml@self
 
-  - powershell: npm run gulp core-ci
+  - powershell: pnpm run gulp core-ci
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
     displayName: Compile
 
-  - powershell: npm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
+  - powershell: pnpm run gulp "vscode-symbols-win32-${{ parameters.VSCODE_ARCH }}"
     env:
       GITHUB_TOKEN: "$(github-token-code-oss)"
       AZURE_DEVOPS_EXT_PAT: $(System.AccessToken)

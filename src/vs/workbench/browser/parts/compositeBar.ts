@@ -380,7 +380,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (this.model.activate(id)) {
 			// Update if current composite is neither visible nor pinned
 			// or previous active composite is not pinned
-			if (this.visibleComposites.indexOf(id) === - 1 || (!!this.model.activeItem && !this.model.activeItem.pinned) || (previousActiveItem && !previousActiveItem.pinned)) {
+			if (this.visibleComposites.indexOf(id) === -1 || (!!this.model.activeItem && !this.model.activeItem.pinned) || (previousActiveItem && !previousActiveItem.pinned)) {
 				this.updateCompositeSwitcher();
 			}
 		}

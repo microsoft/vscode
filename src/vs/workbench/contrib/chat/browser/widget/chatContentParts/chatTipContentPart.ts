@@ -9,8 +9,9 @@ import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { FileAccess } from '../../../../../../base/common/network.js';
 import { localize, localize2 } from '../../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -19,17 +20,24 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { IContextMenuService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { IMarkdownRenderer, openLinkFromMarkdown } from '../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { IChatTip, IChatTipService } from '../../chatTipService.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../../../services/chat/common/chatEntitlementService.js';
+import { ChatInputNoticeVariant, ChatInputNoticeWidget } from '../input/chatInputNoticeWidget.js';
 
 const $ = dom.$;
 
 export class ChatTipContentPart extends Disposable {
-	public readonly domNode: HTMLElement;
+
+	private readonly _notice: ChatInputNoticeWidget;
+
+	public get domNode(): HTMLElement {
+		return this._notice.domNode;
+	}
 
 	private readonly _onDidHide = this._register(new Emitter<void>());
 	public readonly onDidHide = this._onDidHide.event;
@@ -39,6 +47,8 @@ export class ChatTipContentPart extends Disposable {
 
 	private readonly _inChatTipContextKey: IContextKey<boolean>;
 	private readonly _multipleChatTipsContextKey: IContextKey<boolean>;
+	private readonly _contextKeyService: IContextKeyService;
+	private readonly _instantiationService: IInstantiationService;
 
 	constructor(
 		tip: IChatTip,
@@ -46,19 +56,24 @@ export class ChatTipContentPart extends Disposable {
 		@IChatTipService private readonly _chatTipService: IChatTipService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IMenuService private readonly _menuService: IMenuService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
-		this.domNode = $('.chat-tip-widget');
-		this.domNode.tabIndex = 0;
-		this.domNode.setAttribute('role', 'region');
-		this.domNode.setAttribute('aria-roledescription', localize('chatTipRoleDescription', "tip"));
+		// Built detached: the presenter commits this part before parenting it, so
+		// a re-entrant render cannot leave a second tip in the container.
+		this._notice = this._register(new ChatInputNoticeWidget({
+			variant: ChatInputNoticeVariant.Tip,
+			className: 'chat-tip-widget',
+			ariaRoleDescription: localize('chatTipRoleDescription', "tip"),
+		}));
 
+		this._contextKeyService = this._register(contextKeyService.createScoped(this.domNode));
+		this._instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this._contextKeyService])));
 		this._inChatTipContextKey = ChatContextKeys.inChatTip.bindTo(this._contextKeyService);
 		this._multipleChatTipsContextKey = ChatContextKeys.multipleChatTips.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
@@ -104,23 +119,33 @@ export class ChatTipContentPart extends Disposable {
 	}
 
 	hasFocus(): boolean {
-		return dom.isAncestorOfActiveElement(this.domNode);
+		return this._notice.hasFocus();
 	}
 
 	focus(): void {
-		this.domNode.focus();
+		this._notice.focus();
 	}
 
 	private _renderTip(tip: IChatTip): void {
 		dom.clearNode(this.domNode);
 		this._toolbar.clear();
 		this._multipleChatTipsContextKey.set(this._chatTipService.hasMultipleTips());
+		const renderStore = new DisposableStore();
 
 		const markdownContent = this._renderer.render(tip.content, {
 			actionHandler: (link, md) => { this._handleTipAction(link, md).catch(onUnexpectedError); }
 		});
-		this._renderedContent.value = markdownContent;
+		renderStore.add(markdownContent);
+		if (tip.icon) {
+			const icon = $('img.chat-tip-icon') as HTMLImageElement;
+			icon.src = FileAccess.uriToBrowserUri(tip.icon).toString(true);
+			icon.alt = '';
+			icon.setAttribute('aria-hidden', 'true');
+			renderStore.add(dom.addDisposableListener(icon, dom.EventType.ERROR, () => icon.remove()));
+			this.domNode.appendChild(icon);
+		}
 		this.domNode.appendChild(markdownContent.element);
+		this._renderedContent.value = renderStore;
 
 		// Toolbar with previous, next, and dismiss actions via MenuWorkbenchToolBar
 		const toolbarContainer = $('.chat-tip-toolbar');
@@ -136,7 +161,7 @@ export class ChatTipContentPart extends Disposable {
 		const ariaLabel = hasLink
 			? localize('chatTipWithAction', "{0} Tab to reach the action.", textContent)
 			: textContent;
-		this.domNode.setAttribute('aria-label', ariaLabel);
+		this._notice.setAriaLabel(ariaLabel);
 	}
 
 	private async _handleTipAction(link: string, mdStr: IMarkdownString): Promise<void> {

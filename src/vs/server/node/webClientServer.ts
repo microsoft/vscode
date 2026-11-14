@@ -5,7 +5,6 @@
 
 import { createReadStream, promises } from 'fs';
 import type * as http from 'http';
-import * as url from 'url';
 import * as cookie from 'cookie';
 import * as crypto from 'crypto';
 import { isEqualOrParent } from '../../base/common/extpath.js';
@@ -28,6 +27,7 @@ import { isString, Mutable } from '../../base/common/types.js';
 import { CharCode } from '../../base/common/charCode.js';
 import { IExtensionManifest } from '../../platform/extensions/common/extensions.js';
 import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService.js';
+import { htmlAttributeEncodeValue } from '../../base/common/strings.js';
 
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
@@ -59,12 +59,11 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 
 			// Check if file modified since
 			const etag = `W/"${[stat.ino, stat.size, stat.mtime.getTime()].join('-')}"`; // weak validator (https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/ETag)
+			responseHeaders['Etag'] = etag;
 			if (req.headers['if-none-match'] === etag) {
-				res.writeHead(304);
+				res.writeHead(304, responseHeaders);
 				return void res.end();
 			}
-
-			responseHeaders['Etag'] = etag;
 		} else if (cacheControl === CacheControl.NO_EXPIRY) {
 			responseHeaders['Cache-Control'] = 'public, max-age=31536000';
 		} else if (cacheControl === CacheControl.NO_CACHING) {
@@ -112,8 +111,56 @@ export async function serveFile(filePath: string, cacheControl: CacheControl, lo
 const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
 
 const STATIC_PATH = `/static`;
+const MANIFEST_PATH = `/resources/server/manifest.json`;
 const CALLBACK_PATH = `/callback`;
 const WEB_EXTENSION_PATH = `/web-extension-resource`;
+const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
+
+/**
+ * Substitutes the `{{...}}` placeholders of a workbench template. Placeholders must only ever
+ * appear as quoted HTML attribute values, which is what makes attribute encoding sufficient.
+ */
+export function renderWorkbenchTemplate(template: string, values: Record<string, string>): string {
+	return template.replace(/\{\{([^}]+)\}\}/g, (_, key) => htmlAttributeEncodeValue(values[key] ?? 'undefined'));
+}
+
+/**
+ * Returns whether a reverse proxy supplied prefix is a plain absolute path. Values that could
+ * change the origin of a redirect or smuggle a query, fragment or control character are rejected.
+ */
+export function isSafeBasePath(basePath: string): boolean {
+	return basePath.startsWith('/')
+		&& !basePath.startsWith('//')
+		&& !/[?#\\]|[\u0000-\u001F\u007F]/.test(basePath);
+}
+
+export function createScriptNonce(): string {
+	return crypto.randomBytes(16).toString('base64url');
+}
+
+export function createNlsUrl(nlsBaseUrl: string, commit: string | undefined, version: string | undefined, locale: string): string {
+	return `${nlsBaseUrl}${commit}/${version}/${encodeURIComponent(locale)}/nls.messages.js`;
+}
+
+export function createWorkbenchContentSecurityPolicy(scriptNonce: string, nlsBaseUrl: string | undefined, remoteAuthority: string, useTestResolver: boolean): string {
+	return [
+		'default-src \'self\';',
+		'img-src \'self\' https: data: blob:;',
+		'media-src \'self\';',
+		`script-src 'self' 'unsafe-eval' ${nlsBaseUrl ?? ''} blob: 'nonce-${scriptNonce}' '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`,  // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
+		'child-src \'self\';',
+		`frame-src 'self' https://*.vscode-cdn.net data:;`,
+		'worker-src \'self\' data: blob:;',
+		'style-src \'self\' \'unsafe-inline\';',
+		'connect-src \'self\' ws: wss: https:;',
+		'font-src \'self\' blob:;',
+		'manifest-src \'self\';'
+	].join(' ');
+}
+
+interface IWebManifest {
+	start_url: string;
+}
 
 export class WebClientServer {
 
@@ -139,8 +186,11 @@ export class WebClientServer {
 	 * @param parsedUrl The URL to handle, including base and product path
 	 * @param pathname The pathname of the URL, without base and product path
 	 */
-	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery, pathname: string): Promise<void> {
+	async handle(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL, pathname: string): Promise<void> {
 		try {
+			if (pathname === `${STATIC_PATH}${MANIFEST_PATH}`) {
+				return await this._handleManifest(req, res);
+			}
 			if (pathname.startsWith(STATIC_PATH) && pathname.charCodeAt(STATIC_PATH.length) === CharCode.Slash) {
 				return this._handleStatic(req, res, pathname.substring(STATIC_PATH.length));
 			}
@@ -164,6 +214,28 @@ export class WebClientServer {
 			return serveError(req, res, 500, 'Internal Server Error.');
 		}
 	}
+
+	private async _handleManifest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const filePath = join(APP_ROOT, MANIFEST_PATH);
+		let manifest: IWebManifest;
+		try {
+			manifest = JSON.parse((await promises.readFile(filePath)).toString());
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return serveError(req, res, 404, 'Not found');
+			}
+			throw error;
+		}
+
+		manifest.start_url = posix.join(this._getEffectiveBasePath(req), '/');
+		res.writeHead(200, {
+			'Cache-Control': 'no-store',
+			'Content-Type': 'application/json',
+			'Vary': 'X-Forwarded-Prefix'
+		});
+		return void res.end(JSON.stringify(manifest));
+	}
+
 	/**
 	 * Handle HTTP requests for /static/*
 	 * @param resourcePath The path after /static/
@@ -257,18 +329,13 @@ export class WebClientServer {
 	/**
 	 * Handle HTTP requests for /
 	 */
-	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: url.UrlWithParsedQuery): Promise<void> {
-
-		const getFirstHeader = (headerName: string) => {
-			const val = req.headers[headerName];
-			return Array.isArray(val) ? val[0] : val;
-		};
-
+	private async _handleRoot(req: http.IncomingMessage, res: http.ServerResponse, parsedUrl: URL): Promise<void> {
 		// Prefix routes with basePath for clients
-		const basePath = getFirstHeader('x-forwarded-prefix') || this._basePath;
+		const basePath = this._getEffectiveBasePath(req);
 
-		const queryConnectionToken = parsedUrl.query[connectionTokenQueryName];
-		if (typeof queryConnectionToken === 'string') {
+		const queryConnectionTokens = parsedUrl.searchParams.getAll(connectionTokenQueryName);
+		if (queryConnectionTokens.length === 1) {
+			const queryConnectionToken = queryConnectionTokens[0];
 			// We got a connection token as a query parameter.
 			// We want to have a clean URL, so we strip it
 			const responseHeaders: Record<string, string> = Object.create(null);
@@ -281,13 +348,10 @@ export class WebClientServer {
 				}
 			);
 
-			const newQuery = Object.create(null);
-			for (const key in parsedUrl.query) {
-				if (key !== connectionTokenQueryName) {
-					newQuery[key] = parsedUrl.query[key];
-				}
-			}
-			const newLocation = url.format({ pathname: basePath, query: newQuery });
+			const newQuery = new URLSearchParams(parsedUrl.searchParams);
+			newQuery.delete(connectionTokenQueryName);
+			const queryString = newQuery.toString();
+			const newLocation = queryString ? `${basePath}?${queryString}` : basePath;
 			responseHeaders['Location'] = newLocation;
 
 			res.writeHead(302, responseHeaders);
@@ -303,22 +367,22 @@ export class WebClientServer {
 			return host;
 		};
 
-		const useTestResolver = (!this._environmentService.isBuilt && this._environmentService.args['use-test-resolver']);
+		const useTestResolver = (!this._environmentService.isBuilt && !!this._environmentService.args['use-test-resolver']);
 		let remoteAuthority = (
 			useTestResolver
 				? 'test+test'
-				: (getFirstHeader('x-original-host') || getFirstHeader('x-forwarded-host') || req.headers.host)
+				: (this._getFirstHeader(req, 'x-original-host') || this._getFirstHeader(req, 'x-forwarded-host') || req.headers.host)
 		);
 		if (!remoteAuthority) {
 			return serveError(req, res, 400, `Bad request.`);
 		}
-		const forwardedPort = getFirstHeader('x-forwarded-port');
+		const forwardedPort = this._getFirstHeader(req, 'x-forwarded-port');
 		if (forwardedPort) {
 			remoteAuthority = replacePort(remoteAuthority, forwardedPort);
 		}
 
 		function asJSON(value: unknown): string {
-			return JSON.stringify(value).replace(/"/g, '&quot;');
+			return JSON.stringify(value);
 		}
 
 		let _wrapWebWorkerExtHostInIframe: undefined | false = undefined;
@@ -330,7 +394,7 @@ export class WebClientServer {
 
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			['x-original-host', 'x-forwarded-host', 'x-forwarded-port', 'host'].forEach(header => {
-				const value = getFirstHeader(header);
+				const value = this._getFirstHeader(req, header);
 				if (value) {
 					this._logService.trace(`[WebClientServer] ${header}: ${value}`);
 				}
@@ -379,6 +443,7 @@ export class WebClientServer {
 			developmentOptions: { enableSmokeTestDriver: this._environmentService.args['enable-smoke-test-driver'] ? true : undefined, logLevel: this._logService.getLevel() },
 			settingsSyncOptions: !this._environmentService.isBuilt && this._environmentService.args['enable-sync'] ? { enabled: true } : undefined,
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
+			enabledExtensionProposedApi: this._environmentService.args['enable-proposed-api'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
 			productConfiguration,
@@ -391,17 +456,19 @@ export class WebClientServer {
 		let WORKBENCH_NLS_URL: string;
 		if (!locale.startsWith('en') && this._productService.nlsCoreBaseUrl) {
 			WORKBENCH_NLS_BASE_URL = this._productService.nlsCoreBaseUrl;
-			WORKBENCH_NLS_URL = `${WORKBENCH_NLS_BASE_URL}${this._productService.commit}/${this._productService.version}/${locale}/nls.messages.js`;
+			WORKBENCH_NLS_URL = createNlsUrl(WORKBENCH_NLS_BASE_URL, this._productService.commit, this._productService.version, locale);
 		} else {
 			WORKBENCH_NLS_URL = ''; // fallback will apply
 		}
 
+		const scriptNonce = createScriptNonce();
 		const values: { [key: string]: string } = {
 			WORKBENCH_WEB_CONFIGURATION: asJSON(workbenchWebConfiguration),
 			WORKBENCH_AUTH_SESSION: authSessionInfo ? asJSON(authSessionInfo) : '',
 			WORKBENCH_WEB_BASE_URL: staticRoute,
 			WORKBENCH_NLS_URL,
-			WORKBENCH_NLS_FALLBACK_URL: `${staticRoute}/out/nls.messages.js`
+			WORKBENCH_NLS_FALLBACK_URL: `${staticRoute}/out/nls.messages.js`,
+			WORKBENCH_SCRIPT_NONCE: scriptNonce
 		};
 
 		// DEV ---------------------------------------------------------------------------------------
@@ -426,27 +493,13 @@ export class WebClientServer {
 		let data;
 		try {
 			const workbenchTemplate = (await promises.readFile(filePath)).toString();
-			data = workbenchTemplate.replace(/\{\{([^}]+)\}\}/g, (_, key) => values[key] ?? 'undefined');
+			data = renderWorkbenchTemplate(workbenchTemplate, values);
 		} catch (e) {
 			res.writeHead(404, { 'Content-Type': 'text/plain' });
 			return void res.end('Not found');
 		}
 
-		const webWorkerExtensionHostIframeScriptSHA = 'sha256-daEgfo2VIXpx2Np71KqCCbkeQwv+68vPrx54XRcbdcs=';
-
-		const cspDirectives = [
-			'default-src \'self\';',
-			'img-src \'self\' https: data: blob:;',
-			'media-src \'self\';',
-			`script-src 'self' 'unsafe-eval' ${WORKBENCH_NLS_BASE_URL ?? ''} blob: 'nonce-1nline-m4p' ${this._getScriptCspHashes(data).join(' ')} '${webWorkerExtensionHostIframeScriptSHA}' 'sha256-/r7rqQ+yrxt57sxLuQ6AMYcy/lUpvAIzHjIJt/OeLWU=' ${useTestResolver ? '' : `http://${remoteAuthority}`};`,  // the sha is the same as in src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html
-			'child-src \'self\';',
-			`frame-src 'self' https://*.vscode-cdn.net data:;`,
-			'worker-src \'self\' data: blob:;',
-			'style-src \'self\' \'unsafe-inline\';',
-			'connect-src \'self\' ws: wss: https:;',
-			'font-src \'self\' blob:;',
-			'manifest-src \'self\';'
-		].join(' ');
+		const cspDirectives = createWorkbenchContentSecurityPolicy(scriptNonce, WORKBENCH_NLS_BASE_URL, remoteAuthority, useTestResolver);
 
 		const headers: http.OutgoingHttpHeaders = {
 			'Content-Type': 'text/html',
@@ -468,6 +521,19 @@ export class WebClientServer {
 
 		res.writeHead(200, headers);
 		return void res.end(data);
+	}
+
+	private _getEffectiveBasePath(req: http.IncomingMessage): string {
+		const forwardedPrefix = this._getFirstHeader(req, 'x-forwarded-prefix');
+		if (forwardedPrefix && isSafeBasePath(forwardedPrefix)) {
+			return forwardedPrefix;
+		}
+		return this._basePath;
+	}
+
+	private _getFirstHeader(req: http.IncomingMessage, headerName: string): string | undefined {
+		const value = req.headers[headerName];
+		return Array.isArray(value) ? value[0] : value;
 	}
 
 	private _getScriptCspHashes(content: string): string[] {

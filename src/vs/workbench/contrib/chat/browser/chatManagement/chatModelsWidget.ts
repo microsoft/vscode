@@ -18,13 +18,14 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchTable } from '../../../../../platform/list/browser/listService.js';
 import { ITableVirtualDelegate, ITableRenderer } from '../../../../../base/browser/ui/table/table.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeMarkdownLinkText, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { escapeIcons } from '../../../../../base/common/iconLabels.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IAction, toAction, Action, Separator } from '../../../../../base/common/actions.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatModelsViewModel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
+import { ChatModelsViewModel, getManageModelsProviderLabel, ILanguageModel, ILanguageModelEntry, ILanguageModelProviderEntry, ILanguageModelGroupEntry, SEARCH_SUGGESTIONS, isLanguageModelProviderEntry, isLanguageModelGroupEntry, IViewModelEntry, isStatusEntry, IStatusEntry } from './chatModelsViewModel.js';
 import { HighlightedLabel } from '../../../../../base/browser/ui/highlightedlabel/highlightedLabel.js';
 import { Link } from '../../../../../platform/opener/browser/link.js';
 import { SuggestEnabledInput } from '../../../codeEditor/browser/suggestEnabledInput/suggestEnabledInput.js';
@@ -49,6 +50,9 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import Severity from '../../../../../base/common/severity.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { formatTokenCount } from '../../../../../base/common/numbers.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { CHAT_SETUP_ACTION_ID } from '../actions/chatActions.js';
+import { getAddModelsUnavailableReason } from '../../common/chatSessionsService.js';
 
 const $ = DOM.$;
 
@@ -57,27 +61,50 @@ const VENDOR_ROW_HEIGHT = 30;
 const MODEL_ROW_HEIGHT = 26;
 const CLOSE_MODAL_EDITOR_COMMAND_ID = 'workbench.action.closeModalEditor';
 
-export function getModelHoverContent(model: ILanguageModel): MarkdownString {
-	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-	markdown.appendMarkdown(`**${model.metadata.name}**`);
+/**
+ * Escapes text that a model provider controls so that it renders literally: no links
+ * (including `<command:...>` autolinks, bare URLs and email addresses), no theme icons
+ * and no block structure.
+ */
+function escapeModelText(text: string): string {
+	return escapeMarkdownLinkText(escapeIcons(text));
+}
+
+/**
+ * The hover shows model metadata only and has no command links. The empty allow list keeps
+ * the Markdown trusted, which the id badge needs for its styling, without enabling commands.
+ */
+function createModelHoverMarkdown(): MarkdownString {
+	return new MarkdownString('', { isTrusted: { enabledCommands: [] }, supportThemeIcons: true });
+}
+
+/**
+ * Builds the name, id and status summary shown at the top of a model hover.
+ */
+export function getModelNameHoverContent(model: ILanguageModel): MarkdownString {
+	const markdown = createModelHoverMarkdown();
+	markdown.appendMarkdown(`**${escapeModelText(model.metadata.name)}**`);
 	if (model.metadata.id !== model.metadata.version) {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}&#64;${model.metadata.version}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(model.metadata.id)}&#64;${escapeModelText(model.metadata.version)}_&nbsp;</span>`);
 	} else {
-		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${model.metadata.id}_&nbsp;</span>`);
+		markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(model.metadata.id)}_&nbsp;</span>`);
 	}
 	markdown.appendText(`\n`);
 
 	if (model.metadata.statusIcon && model.metadata.tooltip) {
-		if (model.metadata.statusIcon) {
-			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
-		}
-		markdown.appendMarkdown(`${model.metadata.tooltip}`);
+		markdown.appendMarkdown(`$(${escapeMarkdownLinkText(model.metadata.statusIcon.id)})&nbsp;`);
+		markdown.appendMarkdown(escapeModelText(model.metadata.tooltip));
 		markdown.appendText(`\n`);
 	}
+	return markdown;
+}
+
+export function getModelHoverContent(model: ILanguageModel): MarkdownString {
+	const markdown = getModelNameHoverContent(model);
 
 	if (model.metadata.pricing) {
 		markdown.appendMarkdown(`${localize('models.pricing', 'Pricing')}: `);
-		markdown.appendMarkdown(model.metadata.pricing);
+		markdown.appendMarkdown(escapeModelText(model.metadata.pricing));
 		markdown.appendText(`\n`);
 	}
 
@@ -157,7 +184,7 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${localize('models.agentMode', 'Agent Mode')}_&nbsp;</span>`);
 		}
 		for (const editTool of model.metadata.capabilities.editTools ?? []) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${editTool}_&nbsp;</span>`);
+			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${escapeModelText(editTool)}_&nbsp;</span>`);
 		}
 		markdown.appendText(`\n`);
 	}
@@ -168,16 +195,16 @@ export function getModelHoverContent(model: ILanguageModel): MarkdownString {
 /**
  * Pure helper for building the dropdown actions shown by the **Add Models** button.
  *
- * Exposed for unit testing. When `supportsAddingModels` is false, no actions are returned
- * regardless of the other inputs so that the existing entitlement/managed-by-organization
- * restriction is preserved.
+ * Exposed for unit testing. The Copilot sign-in action is independent of whether adding
+ * configurable BYOK vendors is supported.
  */
 export function buildAddModelsDropdownActions(
 	configurableVendors: ILanguageModelProviderDescriptor[],
 	supportsAddingModels: boolean,
 	runVendorAction: (vendor: ILanguageModelProviderDescriptor) => void | Promise<void>,
+	runCopilotSignInAction?: () => void | Promise<void>,
 ): IAction[] {
-	if (!supportsAddingModels) {
+	if (!supportsAddingModels && !runCopilotSignInAction) {
 		return [];
 	}
 
@@ -208,13 +235,28 @@ export function buildAddModelsDropdownActions(
 		}
 	});
 
-	const actions: IAction[] = sortedVendors.map(toVendorAction);
-	if (customEndpointVendor) {
-		if (actions.length > 0) {
-			actions.push(new Separator());
+	const vendorActions: IAction[] = supportsAddingModels ? sortedVendors.map(toVendorAction) : [];
+	if (supportsAddingModels && customEndpointVendor) {
+		if (vendorActions.length > 0) {
+			vendorActions.push(new Separator());
 		}
-		actions.push(toVendorAction(customEndpointVendor));
+		vendorActions.push(toVendorAction(customEndpointVendor));
 	}
+
+	const actions: IAction[] = [];
+	if (runCopilotSignInAction) {
+		actions.push(toAction({
+			id: 'signIn-github-copilot',
+			label: localize('models.signInGitHubCopilot', "GitHub Copilot"),
+			run: async () => {
+				await runCopilotSignInAction();
+			},
+		}));
+	}
+	if (actions.length > 0 && vendorActions.length > 0) {
+		actions.push(new Separator());
+	}
+	actions.push(...vendorActions);
 
 	return actions;
 }
@@ -501,7 +543,9 @@ class GutterColumnRenderer extends ModelsTableColumnRenderer<IToggleCollapseColu
 
 interface IModelNameColumnTemplateData extends IModelTableColumnTemplateData {
 	readonly statusIcon: HTMLElement;
+	readonly providerIcon: HTMLElement;
 	readonly nameLabel: HighlightedLabel;
+	readonly sourceDescription: HTMLElement;
 	readonly modelStatusIcon: HTMLElement;
 	readonly deprecationLinkContainer: HTMLElement;
 	readonly deprecationLink: Link;
@@ -515,7 +559,8 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 	constructor(
 		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 	}
@@ -525,7 +570,11 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		const elementDisposables = new DisposableStore();
 		const nameContainer = DOM.append(container, $('.model-name-container'));
 		const statusIcon = DOM.append(nameContainer, $('.status-icon'));
+		const providerIcon = DOM.append(nameContainer, $('.model-provider-icon'));
+		providerIcon.setAttribute('aria-hidden', 'true');
 		const nameLabel = disposables.add(new HighlightedLabel(DOM.append(nameContainer, $('.model-name'))));
+		const sourceDescription = DOM.append(nameContainer, $('.model-source-description'));
+		sourceDescription.style.display = 'none';
 		const deprecationLinkContainer = DOM.append(nameContainer, $('.model-deprecation-link'));
 		deprecationLinkContainer.style.display = 'none';
 		const deprecationLink = disposables.add(this.instantiationService.createInstance(Link, deprecationLinkContainer, { label: '', href: '' }, {}));
@@ -533,7 +582,9 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 		return {
 			container,
 			statusIcon,
+			providerIcon,
 			nameLabel,
+			sourceDescription,
 			modelStatusIcon,
 			deprecationLinkContainer,
 			deprecationLink,
@@ -544,6 +595,10 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderElement(entry: IViewModelEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		DOM.clearNode(templateData.modelStatusIcon);
+		templateData.providerIcon.className = 'model-provider-icon';
+		templateData.providerIcon.style.display = 'none';
+		templateData.sourceDescription.textContent = '';
+		templateData.sourceDescription.style.display = 'none';
 		templateData.nameLabel.element.classList.remove('error-status', 'warning-status', 'info-status');
 		templateData.deprecationLinkContainer.style.display = 'none';
 		super.renderElement(entry, index, templateData);
@@ -551,9 +606,17 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 	override renderVendorElement(entry: ILanguageModelProviderEntry, index: number, templateData: IModelNameColumnTemplateData): void {
 		templateData.nameLabel.set(entry.vendorEntry.group.name, undefined);
+		if (entry.sourcePresentation?.icon) {
+			templateData.providerIcon.classList.add(...ThemeIcon.asClassNameArray(entry.sourcePresentation.icon));
+			templateData.providerIcon.style.display = '';
+		}
+		if (entry.sourcePresentation?.description) {
+			templateData.sourceDescription.textContent = entry.sourcePresentation.description;
+			templateData.sourceDescription.style.display = '';
+		}
 
 		const deprecationLink = entry.vendorEntry.vendor.deprecation?.link;
-		if (deprecationLink) {
+		if (deprecationLink && !this.environmentService.isSessionsWindow) {
 			const icon = $('span');
 			icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.linkExternal));
 			icon.setAttribute('aria-hidden', 'true');
@@ -585,22 +648,7 @@ class ModelNameColumnRenderer extends ModelsTableColumnRenderer<IModelNameColumn
 
 		templateData.nameLabel.set(modelEntry.metadata.name, modelNameMatches);
 
-		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		markdown.appendMarkdown(`**${entry.model.metadata.name}**`);
-		if (entry.model.metadata.id !== entry.model.metadata.version) {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}&#64;${entry.model.metadata.version}_&nbsp;</span>`);
-		} else {
-			markdown.appendMarkdown(`&nbsp;<span style="background-color:#8080802B;">&nbsp;_${entry.model.metadata.id}_&nbsp;</span>`);
-		}
-		markdown.appendText(`\n`);
-
-		if (entry.model.metadata.statusIcon && entry.model.metadata.tooltip) {
-			if (entry.model.metadata.statusIcon) {
-				markdown.appendMarkdown(`$(${entry.model.metadata.statusIcon.id})&nbsp;`);
-			}
-			markdown.appendMarkdown(`${entry.model.metadata.tooltip}`);
-			markdown.appendText(`\n`);
-		}
+		const markdown = getModelNameHoverContent(entry.model);
 
 		templateData.elementDisposables.add(this.hoverService.setupDelayedHoverAtMouse(templateData.container!, () => ({
 			content: markdown,
@@ -1080,7 +1128,7 @@ class ProviderColumnRenderer extends ModelsTableColumnRenderer<IProviderColumnTe
 	}
 
 	override renderModelElement(entry: ILanguageModelEntry, index: number, templateData: IProviderColumnTemplateData): void {
-		templateData.providerElement.textContent = entry.model.provider.vendor.displayName;
+		templateData.providerElement.textContent = getManageModelsProviderLabel(entry.model);
 	}
 }
 
@@ -1108,6 +1156,8 @@ export class ChatModelsWidget extends Disposable {
 	private addButtonContainer!: HTMLElement;
 	private addButton!: Button;
 	private dropdownActions: IAction[] = [];
+	private defaultAccountResolved = false;
+	private sessionType: string | undefined;
 	private viewModel: ChatModelsViewModel;
 	private delayedFiltering: Delayer<void>;
 
@@ -1128,6 +1178,7 @@ export class ChatModelsWidget extends Disposable {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -1136,6 +1187,16 @@ export class ChatModelsWidget extends Disposable {
 		this.viewModel = this._register(this.instantiationService.createInstance(ChatModelsViewModel));
 		this.element = DOM.$('.models-widget');
 		this.create(this.element);
+		this._register(this.defaultAccountService.onDidChangeDefaultAccount(() => {
+			this.defaultAccountResolved = true;
+			this.updateAddModelsButton();
+		}));
+		this.defaultAccountService.getDefaultAccount().then(() => {
+			if (!this._store.isDisposed) {
+				this.defaultAccountResolved = true;
+				this.updateAddModelsButton();
+			}
+		});
 
 		const loadingPromise = this.extensionService.whenInstalledExtensionsRegistered().then(() => this.viewModel.refresh());
 		this.editorProgressService.showWhile(loadingPromise, 300);
@@ -1231,11 +1292,10 @@ export class ChatModelsWidget extends Disposable {
 		this.addButtonContainer = DOM.append(searchAndButtonContainer, $('.section-title-actions'));
 		const buttonOptions: IButtonOptions = {
 			...defaultButtonStyles,
-			supportIcons: true,
 		};
 
 		this.addButton = this._register(new Button(this.addButtonContainer, buttonOptions));
-		this.addButton.label = `$(${Codicon.add.id}) ${localize('models.enableModelProvider', 'Add Models')}`;
+		this.addButton.label = localize('models.enableModelProvider', 'Add Models');
 		this.addButton.element.classList.add('models-add-model-button');
 		this.updateAddModelsButton();
 		this._register(this.addButton.onDidClick((e) => {
@@ -1254,7 +1314,7 @@ export class ChatModelsWidget extends Disposable {
 				...buttonOptions,
 				secondary: true,
 			}));
-			browseMarketplaceButton.label = `$(${Codicon.extensions.id}) ${localize('models.installProviderExtensions', "Install Model Providers")}`;
+			browseMarketplaceButton.label = localize('models.installProviderExtensions', "Install Model Providers");
 			browseMarketplaceButton.element.classList.add('models-browse-marketplace-button');
 			this._register(browseMarketplaceButton.onDidClick(() => this.openLanguageModelProviderExtensionsSearch()));
 		}
@@ -1400,8 +1460,8 @@ export class ChatModelsWidget extends Disposable {
 						}
 						const ariaLabels = [];
 						ariaLabels.push(e.model.hidden
-							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, e.model.provider.vendor.displayName)
-							: localize('model.name', '{0} from {1}', e.model.metadata.name, e.model.provider.vendor.displayName));
+							? localize('model.name.hidden', '{0} from {1} (hidden)', e.model.metadata.name, getManageModelsProviderLabel(e.model))
+							: localize('model.name', '{0} from {1}', e.model.metadata.name, getManageModelsProviderLabel(e.model)));
 						if (e.model.metadata.maxInputTokens || e.model.metadata.maxOutputTokens) {
 							const totalTokens = (e.model.metadata.maxInputTokens ?? 0) + (e.model.metadata.maxOutputTokens ?? 0);
 							ariaLabels.push(localize('model.contextSize.totalTokens', 'Context size: {0} tokens', formatTokenCount(totalTokens)));
@@ -1595,6 +1655,14 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private updateAddModelsButton(): void {
+		const unavailableReason = getAddModelsUnavailableReason(this.sessionType, this.environmentService.remoteAuthority);
+		if (unavailableReason) {
+			this.dropdownActions = [];
+			this.addButton.enabled = false;
+			this.addButton.setTitle(unavailableReason);
+			return;
+		}
+
 		const configurableVendors = this.languageModelsService.getVendors().filter(vendor => vendor.managementCommand || vendor.configuration);
 
 		const entitlement = this.chatEntitlementService.entitlement;
@@ -1609,9 +1677,12 @@ export class ChatModelsWidget extends Disposable {
 			configurableVendors,
 			supportsAddingModels,
 			vendor => this.addModelsForVendor(vendor),
+			this.defaultAccountResolved && this.defaultAccountService.currentDefaultAccount === null
+				? () => this.commandService.executeCommand(CHAT_SETUP_ACTION_ID)
+				: undefined,
 		);
 
-		this.addButton.enabled = supportsAddingModels && this.dropdownActions.length > 0;
+		this.addButton.enabled = this.dropdownActions.length > 0;
 		this.addButton.setTitle(!supportsAddingModels && isManagedEntitlement ? localize('models.managedByOrganization', "Adding models is managed by your organization") : '');
 	}
 
@@ -1659,6 +1730,16 @@ export class ChatModelsWidget extends Disposable {
 	public clearSearch(): void {
 		this.focusSearch();
 		this.searchWidget.setValue('');
+	}
+
+	/**
+	 * Lists only the Copilot models of the given session type (harness).
+	 * Pass `undefined` to list every model.
+	 */
+	public setSessionType(sessionType: string | undefined): void {
+		this.sessionType = sessionType;
+		this.viewModel.setSessionType(sessionType);
+		this.updateAddModelsButton();
 	}
 
 	public render(): void {

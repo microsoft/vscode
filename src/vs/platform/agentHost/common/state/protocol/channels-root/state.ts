@@ -16,6 +16,7 @@ import type { Customization } from '../channels-session/state.js';
  * Policy configuration state for a model.
  *
  * @category Root State
+ * @exhaustive
  */
 export const enum PolicyState {
 	Enabled = 'enabled',
@@ -106,14 +107,15 @@ export interface AgentCapabilities {
 	 * clients MUST NOT call `createChat` to open chats beyond the default one the
 	 * session starts with. An empty object `{}` advertises multi-chat without
 	 * source-based creation; set {@link MultipleChatsCapability.fork} or
-	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding mode.
+	 * {@link MultipleChatsCapability.sideChat} to allow the corresponding
+	 * creation mode.
 	 */
 	multipleChats?: MultipleChatsCapability;
 	/**
 	 * The session's agent can be granted tool access to more than one working
 	 * directory. The directories are treated as equal peers except where the
-	 * agent advertises {@link MultipleWorkingDirectoriesCapability.requiresPrimary}
-	 * (some backends need one directory designated as a primary root).
+	 * agent advertises a protected primary-slot option (some backends pin or
+	 * replace their first directory as a process root).
 	 *
 	 * When absent, clients MUST NOT mutate a session's or chat's working-directory
 	 * set and MUST NOT set more than one entry in
@@ -157,20 +159,36 @@ export interface MultipleChatsCapability {
  */
 export interface MultipleWorkingDirectoriesCapability {
 	/**
-	 * The agent requires each chat to designate one of its working directories as
-	 * the **primary** — a distinguished root the chat is centered on (e.g. the
-	 * agent's process root for that chat, the default location for relative
-	 * paths). Primary is a **per-chat** notion, fixed at chat creation. When
-	 * `true`, a client SHOULD supply {@link CreateChatParams.primaryWorkingDirectory}
-	 * (and {@link CreateSessionParams.primaryWorkingDirectory}, which seeds the
-	 * session's default chat); a host MAY reject creation that omits it, or fall
-	 * back to the first entry of the chat's working directories. The chosen
-	 * primary is reported (read-only) on {@link ChatState.primaryWorkingDirectory}.
+	 * The agent's **first** working directory (index `0` of
+	 * {@link CreateSessionParams.workingDirectories}) is an immutable primary:
+	 * its URI is fixed for the lifetime of the session — clients MUST NOT remove,
+	 * reorder, or replace it. Additional directories after it remain equal peers
+	 * that can be added and removed freely. When
+	 * {@link primaryReplacement} is also `true`, clients that recognize that
+	 * capability MUST instead treat the primary as protected and replaceable.
 	 *
-	 * When absent or `false`, the agent has no primary — all directories are
-	 * equal peers and clients need not designate one.
+	 * Advertised by backends whose agent process is rooted at a single directory
+	 * that cannot change once the session has started. A backend MAY also
+	 * advertise this with {@link primaryReplacement} for compatibility with
+	 * clients that do not recognize the newer capability: those clients retain
+	 * the safe immutable-primary behavior, while newer clients allow only the
+	 * targeted replacement action. When both are absent or `false`, all
+	 * directories are equal peers.
 	 */
-	requiresPrimary?: boolean;
+	immutablePrimary?: boolean;
+	/**
+	 * The agent's first working-directory slot (index `0`) is a protected primary
+	 * whose URI can be atomically replaced with
+	 * `session/workingDirectoryReplaced`. Clients MUST NOT remove that slot with
+	 * generic membership actions; additional directories remain equal peers.
+	 *
+	 * Backends use this when their cwd-bearing directory can move during a
+	 * session. It MAY be `true` together with {@link immutablePrimary}; this
+	 * preserves the immutable-primary guarantee for older clients that do not
+	 * recognize this capability. Clients that recognize this capability MUST
+	 * allow a targeted replacement even when `immutablePrimary` is also `true`.
+	 */
+	primaryReplacement?: boolean;
 }
 
 /**
@@ -179,7 +197,7 @@ export interface MultipleWorkingDirectoriesCapability {
 export interface SessionModelInfo {
 	/** Model identifier */
 	id: string;
-	/** Provider this model belongs to */
+	/** Agent provider that owns this model. Matches {@link AgentInfo.provider}. */
 	provider: string;
 	/** Human-readable model name */
 	name: string;
@@ -206,6 +224,16 @@ export interface SessionModelInfo {
 	 * For example, a `pricing` key may carry model pricing metadata.
 	 */
 	_meta?: Record<string, unknown>;
+	/**
+	 * Vendor of this model as the provider reports it, for example `Anthropic`
+	 * or `Azure OpenAI`. This is sometimes the company that serves the model
+	 * rather than the one that built it. Not the same as {@link provider},
+	 * which names the agent provider that owns this model. Absent when the
+	 * provider does not report a vendor. Providers MAY send any value; clients
+	 * SHOULD fall back to a generic presentation for values they do not
+	 * recognize.
+	 */
+	vendor?: string;
 }
 
 /**
@@ -214,6 +242,7 @@ export interface SessionModelInfo {
  * {@link SessionModelInfo.configSchema}.
  *
  * @category Root State
+ * @preserveUnknownMembers
  */
 export interface ModelSelection {
 	/** Model identifier */

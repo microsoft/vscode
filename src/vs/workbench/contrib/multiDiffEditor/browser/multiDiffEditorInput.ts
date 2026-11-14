@@ -4,19 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LazyStatefulPromise, raceTimeout } from '../../../../base/common/async.js';
-import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
+import { cancelOnDispose } from '../../../../base/common/cancellation.js';
+import { BugIndicatingError, CancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
 import { Event, ValueWithChangeEvent } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, IReference } from '../../../../base/common/lifecycle.js';
 import { parse } from '../../../../base/common/marshalling.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { deepClone } from '../../../../base/common/objects.js';
-import { ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange } from '../../../../base/common/observable.js';
+import { IObservable, ObservableLazyPromise, ValueWithChangeEventFromObservable, autorun, constObservable, derived, mapObservableArrayCached, observableFromEvent, observableFromValueWithChangeEvent, observableValue, recomputeInitiallyAndOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isDefined, isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { RefCounted } from '../../../../editor/browser/widget/diffEditor/utils.js';
-import { IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
+import { DiffItemSource, IDocumentDiffItem, IMultiDiffEditorModel } from '../../../../editor/browser/widget/multiDiffEditor/model.js';
 import { MultiDiffEditorViewModel } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorViewModel.js';
 import { IDiffEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../editor/common/services/resolverService.js';
@@ -28,9 +29,14 @@ import { IEditorConfiguration } from '../../../browser/parts/editor/textEditor.j
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, EditorInputWithOptions, GroupIdentifier, IEditorSerializer, IResourceMultiDiffEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput } from '../../../common/editor.js';
 import { EditorInput, IEditorCloseHandler } from '../../../common/editor/editorInput.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
-import { ILanguageSupport, ITextFileEditorModel, ITextFileService } from '../../../services/textfile/common/textfiles.js';
+import { ILanguageSupport, ITextFileEditorModel, ITextFileService, TextFileOperationError, TextFileOperationResult } from '../../../services/textfile/common/textfiles.js';
 import { MultiDiffEditorIcon } from './icons.contribution.js';
 import { IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from './multiDiffSourceResolverService.js';
+
+function isBinaryTextFileOperationError(error: unknown): error is TextFileOperationError {
+	return TextFileOperationError.isTextFileOperationError(error)
+		&& error.textFileOperationResult === TextFileOperationResult.FILE_IS_BINARY;
+}
 
 export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	public static fromResourceMultiDiffEditorInput(input: IResourceMultiDiffEditorInput, instantiationService: IInstantiationService): MultiDiffEditorInput {
@@ -94,12 +100,25 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		super();
 		this._name = '';
 		this._viewModel = new LazyStatefulPromise(async () => {
-			const model = await this._createModel();
-			this._register(model);
-			const vm = new MultiDiffEditorViewModel(model, this._instantiationService);
-			this._register(vm);
-			await raceTimeout(vm.waitForDiffOr1s(), 1000);
-			return vm;
+			const store = new DisposableStore();
+			try {
+				const model = store.add(await this._createModel());
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+
+				const vm = store.add(this._instantiationService.createInstance(MultiDiffEditorViewModel, model));
+				await raceTimeout(vm.waitForDiffOr1s(), 1000);
+				if (this._store.isDisposed) {
+					throw new CancellationError();
+				}
+
+				this._register(store);
+				return vm;
+			} catch (error) {
+				store.dispose();
+				throw error;
+			}
 		});
 		this._resolvedSource = new ObservableLazyPromise(async () => {
 			const source: IResolvedMultiDiffSource | undefined = this.initialResources
@@ -108,6 +127,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return {
 				source,
 				resources: source ? observableFromValueWithChangeEvent(this, source.resources) : constObservable([]),
+				label: source?.label ? observableFromValueWithChangeEvent(this, source.label) : undefined,
 			};
 		});
 		this.resources = derived(this, reader => this._resolvedSource.cachedPromiseResult.read(reader)?.data?.resources.read(reader));
@@ -141,7 +161,8 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		this._register(autorun((reader) => {
 			/** @description Updates name */
 			const resources = this.resources.read(reader);
-			const label = this.label ?? localize('name', "Multi Diff Editor");
+			const resolvedSource = this._resolvedSource.cachedPromiseResult.read(reader)?.data;
+			const label = resolvedSource?.label?.read(reader) ?? this.label ?? localize('name', "Multi Diff Editor");
 			if (resources && resources.length === 1) {
 				this._name = localize({ key: 'nameWithOneFile', comment: ['{0} is the name of the editor'] }, "{0} (1 file)", label);
 			} else if (resources) {
@@ -169,16 +190,35 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const activeDiffItem = this._viewModel.requireValue().activeDiffItem.get();
 		const value = activeDiffItem?.documentDiffItem;
 		if (!value) { return; }
-		const target = value.modified ?? value.original;
+		const target = (value.modified ?? value.original)?.textModel;
 		if (!target) { return; }
 		target.setLanguage(languageId, source);
 	}
 
 	public async getViewModel(): Promise<MultiDiffEditorViewModel> {
+		const viewModel = this._viewModel.currentValue;
+		if (viewModel && this._resourceOrder.get()) {
+			await raceTimeout(viewModel.waitForDiffOr1s(), 1000);
+		}
 		return this._viewModel.getPromise();
 	}
 
 	private readonly _viewModel;
+
+	private readonly _resourceOrder = observableValue<((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined>(this, undefined);
+
+	/** Orders resolved resources before their diffs are created, and reorders them when the order changes. */
+	public setResourceOrder(order: ((resources: readonly MultiDiffEditorItem[]) => readonly MultiDiffEditorItem[]) | undefined): void {
+		this._resourceOrder.set(order, undefined);
+	}
+
+	private readonly _resolvingDocuments = observableValue<IObservable<boolean> | undefined>(this, undefined);
+
+	/**
+	 * Whether the documents of the resources are resolving: from a change of the resources until the documents of all of
+	 * them resolved or failed to, during which the view model keeps the documents of before.
+	 */
+	public readonly isResolvingDocuments: IObservable<boolean> = derived(this, reader => this._resolvingDocuments.read(reader)?.read(reader) ?? false);
 
 	private async _createModel(): Promise<IMultiDiffEditorModel & IDisposable> {
 		const source = await this._resolvedSource.getPromise();
@@ -190,26 +230,47 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			let modified: IReference<IResolvedTextEditorModel> | undefined;
 
 			const multiDiffItemStore = new DisposableStore();
+			const createModelReference = async (resource: URI | undefined) => resource ? this._textModelService.createModelReference(resource) : undefined;
 
-			try {
-				[original, modified] = await Promise.all([
-					r.originalUri ? this._textModelService.createModelReference(r.originalUri) : undefined,
-					r.modifiedUri ? this._textModelService.createModelReference(r.modifiedUri) : undefined,
-				]);
+			const [originalResult, modifiedResult] = await Promise.allSettled([
+				createModelReference(r.originalUri),
+				createModelReference(r.modifiedUri),
+			]);
+
+			if (originalResult.status === 'fulfilled') {
+				original = originalResult.value;
 				if (original) { multiDiffItemStore.add(original); }
+			}
+			if (modifiedResult.status === 'fulfilled') {
+				modified = modifiedResult.value;
 				if (modified) { multiDiffItemStore.add(modified); }
-			} catch (e) {
-				// e.g. "File seems to be binary and cannot be opened as text"
-				console.error(e);
-				onUnexpectedError(e);
+			}
+
+			if (store.isDisposed) {
+				multiDiffItemStore.dispose();
 				return undefined;
+			}
+
+			const errorResults = [originalResult, modifiedResult].filter((result): result is PromiseRejectedResult => result.status === 'rejected');
+			const errorResult = errorResults.find(result => !isBinaryTextFileOperationError(result.reason));
+			if (errorResult) {
+				multiDiffItemStore.dispose();
+				onUnexpectedError(errorResult.reason);
+				return undefined;
+			}
+
+			const isBinary = errorResults.length > 0;
+			if (isBinary) {
+				multiDiffItemStore.clear();
+				original = undefined;
+				modified = undefined;
 			}
 
 			const uri = (r.modifiedUri ?? r.originalUri)!;
 			const result: IDocumentDiffItemWithMultiDiffEditorItem = {
 				multiDiffEditorItem: r,
-				original: original?.object.textEditorModel,
-				modified: modified?.object.textEditorModel,
+				original: r.originalUri ? new DiffItemSource(r.originalUri, original?.object.textEditorModel) : undefined,
+				modified: r.modifiedUri ? new DiffItemSource(r.modifiedUri, modified?.object.textEditorModel) : undefined,
 				contextKeys: r.contextKeys,
 				get options() {
 					return {
@@ -226,22 +287,45 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 			return store.add(RefCounted.createOfNonDisposable(result, multiDiffItemStore, this));
 		}, i => JSON.stringify([i.modifiedUri?.toString(), i.originalUri?.toString()]));
 
-		const documents = observableValue<readonly RefCounted<IDocumentDiffItem>[] | 'loading'>('documents', 'loading');
+		const documents = observableValue<readonly RefCounted<IDocumentDiffItemWithMultiDiffEditorItem>[] | 'loading'>('documents', 'loading');
+		const orderedDocuments = derived(this, reader => {
+			const resolvedDocuments = documents.read(reader);
+			const order = this._resourceOrder.read(reader);
+			if (resolvedDocuments === 'loading' || !order) {
+				return resolvedDocuments;
+			}
+			const documentsByResource = new Map(resolvedDocuments.map(document => [document.object.multiDiffEditorItem, document]));
+			return order(resolvedDocuments.map(document => document.object.multiDiffEditorItem))
+				.map(resource => documentsByResource.get(resource)!);
+		});
 
+		// The resolution of the documents of these resources settled, whether they resolved or failed to.
+		const settledDocumentsPromises = observableValue<readonly Promise<RefCounted<IDocumentDiffItemWithMultiDiffEditorItem> | undefined>[] | undefined>('settledDocumentsPromises', undefined);
 		const updateDocuments = derived(async reader => {
 			/** @description Update documents */
+			const cancellationToken = cancelOnDispose(reader.store);
 			const docsPromises = documentsWithPromises.read(reader);
 			const docs = await Promise.all(docsPromises);
+			if (cancellationToken.isCancellationRequested) {
+				return;
+			}
 			const newDocuments = docs.filter(isDefined);
-			documents.set(newDocuments, undefined);
+			transaction(tx => {
+				documents.set(newDocuments, tx);
+				settledDocumentsPromises.set(docsPromises, tx);
+			});
 		});
 
 		const a = recomputeInitiallyAndOnChange(updateDocuments);
+		this._resolvingDocuments.set(derived(reader => documentsWithPromises.read(reader) !== settledDocumentsPromises.read(reader)), undefined);
 		await updateDocuments.get();
 
 		const result: IMultiDiffEditorModel & IDisposable = {
-			dispose: () => a.dispose(),
-			documents: new ValueWithChangeEventFromObservable(documents),
+			dispose: () => {
+				a.dispose();
+				this._resolvingDocuments.set(undefined, undefined);
+			},
+			documents: new ValueWithChangeEventFromObservable(orderedDocuments),
 			contextKeys: source.source?.contextKeys,
 		};
 		return result;
@@ -286,6 +370,9 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		const items = this._viewModel.currentValue?.items.get();
 		if (items) {
 			await Promise.all(items.map(async item => {
+				if (item.isBinary) {
+					return;
+				}
 				const model = item.diffEditorViewModel.model;
 				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
 
@@ -381,6 +468,10 @@ function computeOptions(configuration: IEditorConfiguration): IDiffEditorOptions
 	// Handle diff editor specially by merging in diffEditor configuration
 	if (isObject(configuration.diffEditor)) {
 		const diffEditorConfiguration: IDiffEditorOptions = deepClone(configuration.diffEditor);
+
+		if (diffEditorConfiguration.hideOriginalLineNumbers === null) {
+			delete diffEditorConfiguration.hideOriginalLineNumbers;
+		}
 
 		// User settings defines `diffEditor.codeLens`, but here we rename that to `diffEditor.diffCodeLens` to avoid collisions with `editor.codeLens`.
 		diffEditorConfiguration.diffCodeLens = diffEditorConfiguration.codeLens;

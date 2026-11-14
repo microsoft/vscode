@@ -10,7 +10,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
-import { KeyboardVisibleContext } from '../../../common/contextkeys.js';
+import { KeyboardVisibleContext } from '../../../common/agentsWindowContextKeys.js';
 
 /**
  * Threshold (in CSS pixels) above which the visual viewport delta is
@@ -19,6 +19,14 @@ import { KeyboardVisibleContext } from '../../../common/contextkeys.js';
  * require a clearly keyboard-sized delta before flipping the context.
  */
 export const KEYBOARD_VISIBLE_THRESHOLD_PX = 50;
+
+export function getMobileViewportDimension(layoutViewport: DOM.Dimension, visualViewport: Pick<VisualViewport, 'height'> | null | undefined): DOM.Dimension {
+	if (!visualViewport) {
+		return layoutViewport;
+	}
+
+	return new DOM.Dimension(layoutViewport.width, Math.min(layoutViewport.height, visualViewport.height));
+}
 
 /**
  * CSS custom property exposed on the workbench main container that

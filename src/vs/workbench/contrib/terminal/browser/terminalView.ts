@@ -185,7 +185,7 @@ export class TerminalViewPane extends ViewPane {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
@@ -241,7 +241,7 @@ export class TerminalViewPane extends ViewPane {
 		this._terminalTabbedView = this._register(this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement));
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._terminalTabbedView?.layout(width, height);
@@ -462,7 +462,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}
 	}
 
-	// eslint-disable-next-line @typescript-eslint/naming-convention
+	// eslint-disable-next-line ts-eslint-js/naming-convention
 	protected override updateLabel(e?: ITerminalInstance): void {
 		// Only update if it's the active instance
 		if (e && e !== this._terminalGroupService.activeInstance) {
@@ -515,7 +515,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				}
 			}
 			label.style.color = colorStyle;
-			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(this._commandAction.item.icon) ? this._commandAction.item.icon : undefined)));
+			const primaryActionIcon = this._menuItemAction.item.icon;
+			dom.reset(label, ...renderLabelWithIcons(this._instantiationService.invokeFunction(getSingleTabLabel, instance, this._terminaConfigurationService.config.tabs.separator, ThemeIcon.isThemeIcon(primaryActionIcon) ? primaryActionIcon : undefined)));
 
 			if (this._altCommand) {
 				label.classList.remove(this._altCommand);
@@ -540,7 +541,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 				this._class = uriClasses?.[0];
 				label.classList.add(...uriClasses);
 			}
-			if (this._commandAction.item.icon) {
+			if (primaryActionIcon) {
 				this._altCommand = `alt-command`;
 				label.classList.add(this._altCommand);
 			}

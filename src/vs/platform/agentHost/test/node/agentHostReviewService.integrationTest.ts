@@ -13,6 +13,7 @@ import assert from 'assert';
 import * as cp from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import { Event } from '../../../../base/common/event.js';
 import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -25,8 +26,12 @@ import { AgentHostGitService } from '../../node/agentHostGitService.js';
 import { AgentHostReviewService } from '../../node/agentHostReviewService.js';
 import { buildReviewedRefName } from '../../common/agentHostReviewService.js';
 import { createSessionDataService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
+import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
+import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { INativeEnvironmentService } from '../../../environment/common/environment.js';
+import { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
+import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 
 function rmDirWithRetry(path: string | undefined): void {
 	if (!path) {
@@ -58,7 +63,20 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		db = new TestSessionDatabase();
 		const sessionDataService = createSessionDataService(db);
 		const stateManager = disposables.add(new AgentHostStateManager(logService));
-		return store.add(new AgentHostReviewService(stateManager, gitService, sessionDataService, logService,));
+		const gitStateService: IAgentHostGitStateService = {
+			_serviceBrand: undefined,
+			onDidRefreshSessionGitState: Event.None,
+			onDidChangeSessionGitHubState: Event.None,
+			refreshSessionGitState: async () => { },
+			getSessionGitState: () => undefined,
+			getMaterializedWorktreeMeta: () => undefined,
+			setFolderGitState: async () => { },
+			resolveSessionBaseBranchName: async () => undefined,
+			setSessionGitHubState: async () => { },
+			recordSessionMerge: async () => { },
+			attachSessionGitHubPullRequest: async () => { },
+		};
+		return store.add(new AgentHostReviewService(stateManager, gitService, sessionDataService, createTestSessionStateStore(store.add(new AgentHostDatabase(':memory:')), sessionDataService), gitStateService, logService, createTestChatOwnershipService(stateManager)));
 	}
 
 	setup(() => {
@@ -164,7 +182,7 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		await svc!.markFileReviewed(sessionUri.toString(), wd(), undefined, URI.file(join(tmpRoot!, 'a.txt')));
 		const beforeDispose = chainLength();
 
-		await svc!.disposeSessionData(sessionUri.toString());
+		await svc!.disposeSessionData(sessionUri.toString(), [wd().toString()]);
 		const afterDispose = chainLength();
 
 		assert.deepStrictEqual({ beforeDispose, afterDispose }, { beforeDispose: 1, afterDispose: 0 });
@@ -177,7 +195,7 @@ suite.skip('AgentHostReviewService (real git)', () => {
 		await svc!.markFileReviewed(sessionUri.toString(), wd(), undefined, URI.file(join(tmpRoot!, 'a.txt')));
 
 		const forkUri = URI.parse('copilot:/forked-session');
-		await svc!.copyReviewedRef(sessionUri.toString(), forkUri.toString(), wd());
+		await svc!.copyReviewedRef(sessionUri.toString(), forkUri.toString(), [wd()], [wd()]);
 
 		const forkReviewed = [...await svc!.getReviewedPaths(forkUri.toString(), wd(), undefined)].sort();
 		const sourceReviewed = await reviewedPaths();

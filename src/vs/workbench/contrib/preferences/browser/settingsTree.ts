@@ -819,7 +819,7 @@ export interface ISettingLinkClickEvent {
 }
 
 function removeChildrenFromTabOrder(node: Element): void {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const focusableElements = node.querySelectorAll(`
 		[tabindex="0"],
 		input:not([tabindex="-1"]),
@@ -837,7 +837,7 @@ function removeChildrenFromTabOrder(node: Element): void {
 }
 
 function addChildrenToTabOrder(node: Element): void {
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	const focusableElements = node.querySelectorAll(
 		`[${AbstractSettingRenderer.ELEMENT_FOCUSABLE_ATTR}="true"]`
 	);
@@ -950,7 +950,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		const deprecationWarningElement = DOM.append(container, $('.setting-item-deprecation-message'));
 
 		const toolbarContainer = DOM.append(container, $('.setting-toolbar-container'));
-		const toolbar = this.renderSettingToolbar(toolbarContainer);
+		const toolbar = toDispose.add(this.renderSettingToolbar(toolbarContainer));
 
 		const template: ISettingItemTemplate = {
 			toDispose,
@@ -1061,8 +1061,15 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		} else {
 			template.deprecationWarningElement.innerText = deprecationText;
 		}
-		template.deprecationWarningElement.prepend($('.codicon.codicon-error'));
+		const isInformationalDeprecation = element.setting.deprecationMessageSeverity === 'info';
+		const deprecationIcon = isInformationalDeprecation ? $('.codicon.codicon-info') : $('.codicon.codicon-error');
+		deprecationIcon.setAttribute('role', 'img');
+		deprecationIcon.setAttribute('aria-label', isInformationalDeprecation
+			? localize('setting.deprecationMessageSeverity.info', "Info")
+			: localize('setting.deprecationMessageSeverity.warning', "Warning"));
+		template.deprecationWarningElement.prepend(deprecationIcon);
 		template.containerElement.classList.toggle('is-deprecated', !!deprecationText);
+		template.containerElement.classList.toggle('is-deprecated-info', !!deprecationText && isInformationalDeprecation);
 
 		this.renderValue(element, <ISettingItemTemplate>template, onChange);
 
@@ -1323,7 +1330,7 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 
 	renderTemplate(container: HTMLElement): ISettingListItemTemplate {
 		const common = this.renderCommonTemplate(null, container, 'list');
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
@@ -1384,6 +1391,8 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 			}
 
 			if (
+				template.context.settingsTarget !== ConfigurationTarget.WORKSPACE &&
+				!URI.isUri(template.context.settingsTarget) &&
 				template.context.defaultValue &&
 				Array.isArray(template.context.defaultValue) &&
 				template.context.defaultValue.length === newValue.length &&
@@ -1406,7 +1415,8 @@ class SettingArrayRenderer extends AbstractSettingRenderer implements ITreeRende
 		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
 			showAddButton: getShowAddButtonList(dataElement, value),
-			keySuggester
+			keySuggester,
+			isReadOnly: dataElement.hasPolicyValue || dataElement.isAgentsWindowReadOnly
 		});
 		template.context = dataElement;
 
@@ -1436,7 +1446,7 @@ abstract class AbstractSettingObjectRenderer extends AbstractSettingRenderer imp
 		widget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
 		common.toDispose.add(widget);
 
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const descriptionElement = common.containerElement.querySelector('.setting-item-description')!;
 		const validationErrorMessageElement = $('.setting-item-validation-message');
 		descriptionElement.after(validationErrorMessageElement);
@@ -1886,7 +1896,7 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 
 		common.toDispose.add(selectBox);
 		selectBox.render(common.controlElement);
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const selectElement = common.controlElement.querySelector('select');
 		if (selectElement) {
 			selectElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
@@ -2302,7 +2312,7 @@ export class SettingTreeRenderers extends Disposable {
 	}
 
 	showContextMenu(element: SettingsTreeSettingElement, settingDOMElement: HTMLElement): void {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const toolbarElement = settingDOMElement.querySelector('.monaco-toolbar');
 		if (toolbarElement) {
 			this._contextMenuService.showContextMenu({
@@ -2323,7 +2333,7 @@ export class SettingTreeRenderers extends Disposable {
 	}
 
 	getDOMElementsForSettingKey(treeContainer: HTMLElement, key: string): NodeListOf<HTMLElement> {
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		return treeContainer.querySelectorAll(`[${AbstractSettingRenderer.SETTING_KEY_ATTR}="${key}"]`);
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ResourceMap, ResourceSet } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,7 +18,7 @@ import { Extensions, IConfigurationRegistry } from '../../../../platform/configu
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { canLog, ILogService, LogLevel } from '../../../../platform/log/common/log.js';
 import { IProgress, IProgressStep, Progress } from '../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { UndoRedoGroup, UndoRedoSource } from '../../../../platform/undoRedo/common/undoRedo.js';
@@ -27,6 +27,7 @@ import { BulkFileEdits } from './bulkFileEdits.js';
 import { BulkTextEdits } from './bulkTextEdits.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IUnattendedRestartService } from '../../../services/lifecycle/common/unattendedRestart.js';
 import { IWorkingCopyService } from '../../../services/workingCopy/common/workingCopyService.js';
 import { OpaqueEdits, ResourceAttachmentEdit } from './opaqueEdits.js';
 import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
@@ -141,37 +142,45 @@ class BulkEdit {
 		return resources.flat();
 	}
 
+	private _logEdits(operation: string, edits: ResourceEdit[]): void {
+		// avoid serializing (potentially very many) edits when debug logging is off
+		if (canLog(this._logService.getLevel(), LogLevel.Debug)) {
+			this._logService.debug(operation, JSON.stringify(edits));
+		}
+	}
+
 	private async _performFileEdits(edits: ResourceFileEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, confirmBeforeUndo: boolean, progress: IProgress<void>): Promise<readonly URI[]> {
-		this._logService.debug('_performFileEdits', JSON.stringify(edits));
+		this._logEdits('_performFileEdits', edits);
 		const model = this._instaService.createInstance(BulkFileEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', undoRedoGroup, undoRedoSource, confirmBeforeUndo, progress, this._token, edits);
 		return await model.apply();
 	}
 
 	private async _performTextEdits(edits: ResourceTextEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>, reason: TextModelEditSource | undefined): Promise<readonly URI[]> {
-		this._logService.debug('_performTextEdits', JSON.stringify(edits));
+		this._logEdits('_performTextEdits', edits);
 		const model = this._instaService.createInstance(BulkTextEdits, this._label || localize('workspaceEdit', "Workspace Edit"), this._code || 'undoredo.workspaceEdit', this._editor, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		return await model.apply(reason);
 	}
 
 	private async _performCellEdits(edits: ResourceNotebookCellEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
-		this._logService.debug('_performCellEdits', JSON.stringify(edits));
+		this._logEdits('_performCellEdits', edits);
 		const model = this._instaService.createInstance(BulkCellEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		return await model.apply();
 	}
 
 	private async _performOpaqueEdits(edits: ResourceAttachmentEdit[], undoRedoGroup: UndoRedoGroup, undoRedoSource: UndoRedoSource | undefined, progress: IProgress<void>): Promise<readonly URI[]> {
-		this._logService.debug('_performOpaqueEdits', JSON.stringify(edits));
+		this._logEdits('_performOpaqueEdits', edits);
 		const model = this._instaService.createInstance(OpaqueEdits, undoRedoGroup, undoRedoSource, progress, this._token, edits);
 		return await model.apply();
 	}
 }
 
-export class BulkEditService implements IBulkEditService {
+export class BulkEditService extends Disposable implements IBulkEditService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _activeUndoRedoGroups = new LinkedList<UndoRedoGroup>();
 	private _previewHandler?: IBulkEditPreviewHandler;
+	private _performingEdits = 0;
 
 	constructor(
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -181,7 +190,15 @@ export class BulkEditService implements IBulkEditService {
 		@IDialogService private readonly _dialogService: IDialogService,
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-	) { }
+		@IUnattendedRestartService unattendedRestartService: IUnattendedRestartService,
+	) {
+		super();
+
+		// Shutting down while edits are performed asks for confirmation
+		this._register(unattendedRestartService.registerParticipant({
+			check: () => this._performingEdits > 0 ? 'bulkEdit.inProgress' : undefined
+		}));
+	}
 
 	setPreviewHandler(handler: IBulkEditPreviewHandler): IDisposable {
 		this._previewHandler = handler;
@@ -256,6 +273,7 @@ export class BulkEditService implements IBulkEditService {
 		);
 
 		let listener: IDisposable | undefined;
+		this._performingEdits++;
 		try {
 			listener = this._lifecycleService.onBeforeShutdown(e => e.veto(this._shouldVeto(label, e.reason), 'veto.blukEditService'));
 			const resources = await bulkEdit.perform(options?.reason);
@@ -273,6 +291,7 @@ export class BulkEditService implements IBulkEditService {
 			this._logService.error(err);
 			throw err;
 		} finally {
+			this._performingEdits--;
 			listener?.dispose();
 			undoRedoGroupRemove();
 		}

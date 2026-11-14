@@ -43,9 +43,10 @@ import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/participants/chatAgents.js';
 import { IChatRequestModeInstructions } from '../../contrib/chat/common/model/chatModel.js';
-import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
+import { IChatAgentMarkdownContentWithVulnerability, IChatAutoModeResolutionPart, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatExternalToolInvocationUpdate, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffDataSerialized, IChatProgressMessage, IChatPullRequestContent, IChatQuestionCarousel, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTerminalToolInvocationData, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatVoiceProgressPart, IChatWarningMessage, IChatInfoMessage, IChatWorkspaceEdit } from '../../contrib/chat/common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js';
-import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
+import { coerceImageBuffer } from '../../contrib/chat/common/chatImageExtraction.js';
 import { ChatSessionStatus, IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { ChatRequestHooks, resolveEffectiveCommand } from '../../contrib/chat/common/promptSyntax/hookSchema.js';
@@ -737,6 +738,7 @@ export namespace WorkspaceEdit {
 				let editOrSnippetTest: types.TextEdit | types.SnippetTextEdit;
 				if (isSnippet) {
 					editOrSnippetTest = types.SnippetTextEdit.replace(range, new types.SnippetString(text));
+					editOrSnippetTest.keepWhitespace = item.textEdit.keepWhitespace;
 				} else {
 					editOrSnippetTest = types.TextEdit.replace(range, text);
 				}
@@ -877,6 +879,111 @@ export namespace DocumentSymbol {
 			result.children = info.children.map(to) as any;
 		}
 		return result;
+	}
+}
+
+export namespace StructuralDiffContext {
+	export function to(context: languages.StructuralDiffContext): vscode.StructuralDiffContext {
+		return {
+			changes: context.changes.map(change => ({
+				originalRange: Range.to(change.originalRange),
+				modifiedRange: Range.to(change.modifiedRange),
+			})),
+		};
+	}
+}
+
+export namespace StructuralDiff {
+	/**
+	 * Converts the result of a provider. The main thread validates the result, so values are passed on unchanged or
+	 * checked before they are converted, because a conversion must not turn an invalid value into a valid one.
+	 */
+	export function from(diff: vscode.StructuralDiff): languages.StructuralDiff {
+		return {
+			root: nodeFrom(diff.root),
+			isIncomplete: diff.isIncomplete,
+		};
+	}
+
+	function nodeFrom(node: vscode.StructuralDiffNode): languages.StructuralDiffNode {
+		return {
+			id: node.id,
+			originalItem: node.originalItem && itemFrom(node, 'original', node.originalItem),
+			modifiedItem: node.modifiedItem && itemFrom(node, 'modified', node.modifiedItem),
+			originalChanges: node.originalChanges.map(coverage => coverageFrom(node, 'original', coverage)),
+			modifiedChanges: node.modifiedChanges.map(coverage => coverageFrom(node, 'modified', coverage)),
+			// Only a missing list means no children, so that null does not become a valid value.
+			children: node.children === undefined ? [] : node.children.map(nodeFrom),
+		};
+	}
+
+	function itemFrom(node: vscode.StructuralDiffNode, side: 'original' | 'modified', item: vscode.StructuralDiffItem): languages.StructuralDiffItem {
+		// SymbolKind.from turns unknown kinds and numeric strings, such as '0', into valid kinds.
+		if (typeof item.kind !== 'number' || typeof types.SymbolKind[item.kind] !== 'string') {
+			throw new Error(`Invalid structural diff: node '${node.id}' has an invalid ${side} item kind`);
+		}
+		return {
+			name: item.name,
+			detail: item.detail,
+			kind: SymbolKind.from(item.kind),
+			range: rangeFrom(node, `${side} item range`, item.range),
+			selectionRange: item.selectionRange && rangeFrom(node, `${side} selection range`, item.selectionRange),
+		};
+	}
+
+	function coverageFrom(node: vscode.StructuralDiffNode, side: 'original' | 'modified', coverage: vscode.StructuralDiffCoverage): languages.StructuralDiffCoverage {
+		return {
+			textChangeIndex: coverage.textChangeIndex,
+			range: rangeFrom(node, `${side} change range`, coverage.range),
+			classification: coverage.classification,
+			tags: Array.isArray(coverage.tags) ? coverage.tags.slice() : coverage.tags,
+		};
+	}
+
+	function rangeFrom(node: vscode.StructuralDiffNode, description: string, range: vscode.Range): editorRange.IRange {
+		// Range.from turns lines and characters that are not numbers, such as null, into numbers.
+		if (!types.Range.isRange(range)) {
+			throw new Error(`Invalid structural diff: node '${node.id}' has an invalid ${description}`);
+		}
+		return Range.from(range);
+	}
+
+	export function to(result: languages.StructuralDiffResult): vscode.StructuralDiffResult {
+		return {
+			root: nodeTo(result.root),
+			isIncomplete: result.isIncomplete,
+			context: StructuralDiffContext.to(result.context),
+		};
+	}
+
+	function nodeTo(node: languages.StructuralDiffNode): vscode.StructuralDiffNode {
+		return {
+			id: node.id,
+			originalItem: node.originalItem && itemTo(node.originalItem),
+			modifiedItem: node.modifiedItem && itemTo(node.modifiedItem),
+			originalChanges: node.originalChanges.map(coverageTo),
+			modifiedChanges: node.modifiedChanges.map(coverageTo),
+			children: node.children.map(nodeTo),
+		};
+	}
+
+	function itemTo(item: languages.StructuralDiffItem): vscode.StructuralDiffItem {
+		return {
+			name: item.name,
+			detail: item.detail,
+			kind: SymbolKind.to(item.kind),
+			range: Range.to(item.range),
+			selectionRange: item.selectionRange && Range.to(item.selectionRange),
+		};
+	}
+
+	function coverageTo(coverage: languages.StructuralDiffCoverage): vscode.StructuralDiffCoverage {
+		return {
+			textChangeIndex: coverage.textChangeIndex,
+			range: Range.to(coverage.range),
+			classification: coverage.classification,
+			tags: coverage.tags?.slice(),
+		};
 	}
 }
 
@@ -2854,23 +2961,25 @@ export namespace ChatResponseHookPart {
 	}
 }
 
-export namespace ChatResponseAutoModeResolutionPart {
-	const validLabels = new Set<IChatAutoModeResolutionPart['predictedLabel']>(['needs_reasoning', 'no_reasoning', 'fallback']);
+export namespace ChatResponseVoiceProgressPart {
+	export function from(part: vscode.ChatResponseVoiceProgressPart): Dto<IChatVoiceProgressPart> {
+		return {
+			kind: 'voiceProgress',
+			id: part.id,
+			value: part.value,
+		};
+	}
+}
 
+export namespace ChatResponseAutoModeResolutionPart {
 	export function from(part: vscode.ChatResponseAutoModeResolutionPart): Dto<IChatAutoModeResolutionPart> {
-		const label = validLabels.has(part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel'])
-			? part.predictedLabel as IChatAutoModeResolutionPart['predictedLabel']
-			: 'fallback';
 		return {
 			kind: 'autoModeResolution',
-			resolvedModel: part.resolvedModel,
-			resolvedModelName: part.resolvedModelName,
-			predictedLabel: label,
-			confidence: Math.max(0, Math.min(1, part.confidence)),
+			resolved: part.resolvedModel,
 		};
 	}
 	export function to(part: Dto<IChatAutoModeResolutionPart>): vscode.ChatResponseAutoModeResolutionPart {
-		return new types.ChatResponseAutoModeResolutionPart(part.resolvedModel, part.resolvedModelName, part.predictedLabel, part.confidence);
+		return new types.ChatResponseAutoModeResolutionPart(part.resolved);
 	}
 }
 
@@ -3253,12 +3362,14 @@ export namespace ChatResponseTextEditPart {
 			kind: 'textEdit',
 			uri: part.uri,
 			edits: part.edits.map(e => TextEdit.from(e)),
-			done: part.isDone
+			done: part.isDone,
+			...(part.autoTier !== undefined ? { autoTier: part.autoTier } : {}),
 		};
 	}
 	export function to(part: Dto<IChatTextEdit>): vscode.ChatResponseTextEditPart {
 		const result = new types.ChatResponseTextEditPart(URI.revive(part.uri), part.edits.map(e => TextEdit.to(e)));
 		result.isDone = part.done;
+		result.autoTier = part.autoTier;
 		return result;
 	}
 
@@ -3295,7 +3406,8 @@ export namespace ChatResponseNotebookEditPart {
 			kind: 'notebookEdit',
 			uri: part.uri,
 			edits: part.edits.map(NotebookEdit.from),
-			done: part.isDone
+			done: part.isDone,
+			...(part.autoTier !== undefined ? { autoTier: part.autoTier } : {}),
 		};
 	}
 }
@@ -3385,6 +3497,8 @@ export namespace ChatResponsePart {
 			return ChatResponseThinkingProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseHookPart) {
 			return ChatResponseHookPart.from(part);
+		} else if (part instanceof types.ChatResponseVoiceProgressPart) {
+			return ChatResponseVoiceProgressPart.from(part);
 		} else if (part instanceof types.ChatResponseFileTreePart) {
 			return ChatResponseFilesPart.from(part);
 		} else if (part instanceof types.ChatResponseMultiDiffPart) {
@@ -3478,17 +3592,17 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
+			isVoiceModeInput: request.isVoiceModeInput,
 			sessionId,
 			sessionResource: request.sessionResource,
 			references: variableReferences
-				.map(v => ChatPromptReference.to(v, diagnostics, logService))
-				.filter(isDefined),
+				.flatMap(v => ChatPromptReference.toReferences(v, diagnostics, logService)),
 			toolReferences: toolReferences.map(ChatLanguageModelToolReference.to),
 			location: ChatLocation.to(request.location),
 			acceptedConfirmationData: request.acceptedConfirmationData,
 			rejectedConfirmationData: request.rejectedConfirmationData,
 			location2,
-			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, workingDirectory: URI.revive(request.workingDirectory) }) as never,
+			toolInvocationToken: Object.freeze<IToolInvocationContext>({ sessionResource: request.sessionResource, requestId: request.requestId, workingDirectory: URI.revive(request.workingDirectory) }) as never,
 			tools,
 			model,
 			modelConfiguration,
@@ -3513,6 +3627,8 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).enableCommandDetection;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).isParticipantDetected;
+			// eslint-disable-next-line local/code-no-any-casts
+			delete (requestWithAllProps as any).isVoiceModeInput;
 			// eslint-disable-next-line local/code-no-any-casts
 			delete (requestWithAllProps as any).location;
 			// eslint-disable-next-line local/code-no-any-casts
@@ -3584,6 +3700,35 @@ export namespace ChatSessionCustomizationType {
 }
 
 export namespace ChatPromptReference {
+	export function toReferences(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], logService: ILogService): vscode.ChatPromptReference[] {
+		const reference = to(variable, diagnostics, logService);
+		if (!reference) {
+			return [];
+		}
+
+		const element = isElementVariableEntry(variable) ? variable : undefined;
+		if (!element) {
+			return [reference];
+		}
+
+		const imageData = coerceImageBuffer(element.imageData);
+		if (!imageData) {
+			return [reference];
+		}
+
+		return [
+			reference,
+			{
+				id: `${variable.id}-screenshot`,
+				name: `${variable.name} screenshot`,
+				value: new types.ChatReferenceBinaryData(
+					element.imageMimeType ?? 'image/png',
+					() => Promise.resolve(imageData),
+				),
+			}
+		];
+	}
+
 	export function to(variable: IChatRequestVariableEntry, diagnostics: readonly [vscode.Uri, readonly vscode.Diagnostic[]][], logService: ILogService): vscode.ChatPromptReference | undefined {
 		let value: vscode.ChatPromptReference['value'] = variable.value;
 		if (!value) {

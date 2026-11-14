@@ -6,6 +6,7 @@
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { NodeRemoteResourceResponse } from '../../remote/common/electronRemoteResources.js';
 
 export const IProtocolMainService = createDecorator<IProtocolMainService>('protocolMainService');
 
@@ -44,4 +45,16 @@ export interface IProtocolMainService {
 	 * @param root the path to allow for file access
 	 */
 	addValidFileRoot(root: string): IDisposable;
+
+	/**
+	 * Registers the protocol used to load resources from a remote file system.
+	 */
+	registerManagedRemoteResourceProtocol(requestRemoteResource: (url: URI) => Promise<NodeRemoteResourceResponse>): void;
+
+	/**
+	 * Reads a resource through the handler registered with {@link registerManagedRemoteResourceProtocol}
+	 * without going through the protocol, which only serves requests from trusted frames.
+	 * Callers must authorize the request themselves.
+	 */
+	requestManagedRemoteResource(url: URI): Promise<GlobalResponse>;
 }

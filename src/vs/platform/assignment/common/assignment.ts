@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
 import type { IExperimentationFilterProvider } from 'tas-client';
+import { COPILOT_INTEGRATION_ID } from '../../endpoint/common/licenseAgreement.js';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
 export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
@@ -13,6 +14,7 @@ export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
 
+	/** Signals refreshed live assignments, including periodic refreshes. Consumers should read their treatments again. */
 	readonly onDidRefetchAssignments: Event<void>;
 	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 }
@@ -124,24 +126,10 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 		private windowKind: WindowKind
 	) { }
 
-	/**
-	 * Returns a version string that can be parsed by the TAS client.
-	 * The tas client cannot handle suffixes lke "-insider"
-	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
-	 *
-	 * @param version Version string to be trimmed.
-	*/
-	private static trimVersionSuffix(version: string): string {
-		const regex = /\-[a-zA-Z0-9]+$/;
-		const result = version.split(regex);
-
-		return result[0];
-	}
-
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
 			case Filters.ApplicationVersion:
-				return AssignmentFilterProvider.trimVersionSuffix(this.version); // productService.version
+				return trimVersionSuffix(this.version); // productService.version
 			case Filters.Build:
 				return this.appName; // productService.nameLong
 			case Filters.ClientId:
@@ -159,26 +147,12 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 			case Filters.Platform:
 				return platform.PlatformToString(platform.platform);
 			case Filters.ReleaseDate:
-				return AssignmentFilterProvider.formatReleaseDate(this.releaseDate);
+				return formatReleaseDate(this.releaseDate);
 			case Filters.WindowKind:
 				return this.windowKind;
 			default:
 				return '';
 		}
-	}
-
-	private static formatReleaseDate(iso: string): string {
-		// Expect ISO format, fall back to empty string if not provided
-		if (!iso) {
-			return '';
-		}
-		// Remove separators and milliseconds: YYYY-MM-DDTHH:MM:SS.sssZ -> YYYYMMDDHH
-		// Trimmed to 10 digits to fit within int32 bounds (ExP requirement)
-		const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
-		if (!match) {
-			return '';
-		}
-		return match.slice(1, 5).join('');
 	}
 
 	getFilters(): Map<string, unknown> {
@@ -192,9 +166,103 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 	}
 }
 
-export function getInternalOrg(organisations: string[] | undefined): 'vscode' | 'github' | 'microsoft' | undefined {
+/**
+ * Trims a TAS-incompatible version suffix (e.g. `-insider`) so the value can be parsed
+ * into a .NET Build object by the experimentation backend.
+ */
+function trimVersionSuffix(version: string): string {
+	return version.split(/\-[a-zA-Z0-9]+$/)[0];
+}
+
+/**
+ * Formats an ISO release date into the `yyyymmddHH` form the experimentation backend
+ * expects (10 digits: yyyymmddHH). Returns an empty string when unavailable.
+ */
+function formatReleaseDate(iso: string): string {
+	if (!iso) {
+		return '';
+	}
+	const match = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2})/.exec(iso);
+	if (!match) {
+		return '';
+	}
+	return match.slice(1, 5).join('');
+}
+
+/**
+ * userParam names for the new TAS assignments API (POST /api/v1/assignments), emitted by
+ * {@link VSCodeCoreAssignmentsFilterProvider}. These are sent only in the new endpoint's JSON body.
+ */
+export enum AssignmentsFilters {
+	IntegratorId = 'integratorid',
+	ApplicationVersion = 'vscode_core_appversion',
+	Build = 'vscode_core_build',
+	DeveloperDeviceId = 'devdeviceid',
+	ExtensionName = 'vscode_core_extensionname',
+	ExtensionNameShort = 'extensionname',
+	TargetPopulation = 'vscode_core_targetpopulation',
+	Platform = 'vscode_core_platform',
+	ReleaseDate = 'vscode_core_releasedate',
+	WindowKind = 'vscode_core_windowkind',
+}
+
+/**
+ * Emits the shared integrator and VS Code core userParams for the new TAS assignments API.
+ */
+export class VSCodeCoreAssignmentsFilterProvider implements IExperimentationFilterProvider {
+	constructor(
+		private version: string,
+		private appName: string,
+		private devDeviceId: string,
+		private targetPopulation: TargetPopulation,
+		private releaseDate: string,
+		private windowKind: WindowKind
+	) { }
+
+	getFilterValue(filter: string): string | null {
+		switch (filter) {
+			case AssignmentsFilters.IntegratorId:
+				return COPILOT_INTEGRATION_ID;
+			case AssignmentsFilters.ApplicationVersion:
+				return trimVersionSuffix(this.version);
+			case AssignmentsFilters.Build:
+				return this.appName;
+			case AssignmentsFilters.DeveloperDeviceId:
+				return this.devDeviceId;
+			case AssignmentsFilters.ExtensionName:
+			case AssignmentsFilters.ExtensionNameShort:
+				return 'vscode-core';
+			case AssignmentsFilters.TargetPopulation:
+				return this.targetPopulation;
+			case AssignmentsFilters.Platform:
+				return platform.PlatformToString(platform.platform);
+			case AssignmentsFilters.ReleaseDate:
+				return formatReleaseDate(this.releaseDate);
+			case AssignmentsFilters.WindowKind:
+				return this.windowKind;
+			default:
+				return null;
+		}
+	}
+
+	getFilters(): Map<string, unknown> {
+		const filters: Map<string, unknown> = new Map<string, unknown>();
+		for (const value of Object.values(AssignmentsFilters)) {
+			filters.set(value, this.getFilterValue(value));
+		}
+
+		return filters;
+	}
+}
+
+export function getInternalOrg(organisations: readonly string[] | undefined): 'vscode' | 'github' | 'microsoft' | undefined {
 	const isVSCodeInternal = organisations?.includes('Visual-Studio-Code');
 	const isGitHubInternal = organisations?.includes('github');
 	const isMicrosoftInternal = organisations?.includes('microsoft') || organisations?.includes('ms-copilot') || organisations?.includes('MicrosoftCopilot');
 	return isVSCodeInternal ? 'vscode' : isGitHubInternal ? 'github' : isMicrosoftInternal ? 'microsoft' : undefined;
+}
+
+/** Whether the account is staff or belongs to an internal org; the machine half is `verifyMicrosoftInternalDomain`. */
+export function isInternalAccount(isStaff: boolean | undefined, organisations: readonly string[] | undefined): boolean {
+	return isStaff === true || getInternalOrg(organisations) !== undefined;
 }

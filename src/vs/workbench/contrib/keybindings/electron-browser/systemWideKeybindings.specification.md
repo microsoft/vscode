@@ -22,17 +22,29 @@ A user adds `"systemWide": true` to a keybinding entry in **`keybindings.json`**
 
 While VS Code is running (even unfocused), pressing that combination runs the command. Rules:
 
-- **User keybindings only.** Default and extension-contributed keybindings can never be
+- **User keybindings, and built-in ones that opt in.** A built-in keybinding rule can set
+  `systemWide: true` (`IKeybindingRule.systemWide`), such as Attach Screenshot of App Window,
+  which is system-wide while `chat.appWindowScreenshots.enabled` is on. When the OS refuses a
+  built-in one, that is only logged, as the user didn't ask for it. Editing a built-in one in the
+  Keyboard Shortcuts editor gives a user keybinding that is not system-wide, and the default
+  keybindings JSON doesn't show the flag, because a user's system-wide keybinding ignores its
+  `when` clause and would always register. Extension-contributed keybindings can never be
   system-wide — this prevents extensions from silently grabbing OS-global shortcuts.
 - **Single key combinations only.** Chords (`ctrl+k ctrl+c`) and single-modifier bindings cannot be
   expressed as an Electron accelerator; they are skipped with a `warn` log.
 - **`when` clauses are ignored** for the global trigger — an OS-global shortcut has no editor/UI
   context, so it is always active while VS Code runs. The user is warned once per binding label.
+  The `when` clause of a built-in system-wide keybinding instead decides whether it is registered:
+  each window evaluates it in its own context, without regard to focus, and registers it again as
+  the context keys in it change. Such a clause should only depend on keys like settings.
 - **First binding wins** on accelerator conflicts (deduped both in the renderer selection and in the
-  main-process per-window payload).
+  main-process per-window payload). The user's keybindings come before built-in ones, and a
+  built-in one also gives way to the user's keybindings of other commands at its key, and to the
+  user's chords that start with its key, so that it never takes over a key that the user bound.
 - **Desktop only.** The flag is inert on web/server (there is no `globalShortcut` there, and the
   contribution is `electron-browser`).
 - **Always on.** There is no setting to enable/disable it and no first-run dialog.
+- **Features can offer a one-click opt-in.** The Agents Window's Open Agents Window tip writes a user keybinding with `"systemWide": true` through `IKeybindingEditingService`, after checking `selectSystemWideKeybindings` for conflicts. Features never register OS shortcuts themselves. The Agents window registers the system-wide keybindings of Open Agents Window, Show Agents Launcher and Attach Screenshot of App Window, so that they work while it is the only window open.
 
 The `systemWide` boolean is declared in the `keybindings.json` JSON schema in
 `src/vs/workbench/services/keybinding/browser/keybindingService.ts`.
@@ -46,6 +58,7 @@ existing native-host IPC channel.
 sequenceDiagram
     participant KB as IKeybindingService (renderer)
     participant C as SystemWideKeybindingsContribution (renderer)
+    participant A as OpenAgentsWindowSystemWideKeybindingContribution (Agents renderer)
     participant NH as NativeHostMainService (main)
     participant G as GlobalKeybindingsMainService (main)
     participant OS as Electron globalShortcut / OS
@@ -54,6 +67,9 @@ sequenceDiagram
     KB->>C: onDidUpdateKeybindings (also fires on layout change)
     C->>C: selectSystemWideKeybindings() (debounced 200ms)
     C->>NH: syncSystemWideKeybindings(payload)  [per window]
+    KB->>A: initial sync after restore / onDidUpdateKeybindings
+    A->>A: select all, then keep direct Open Agents Window bindings
+    A->>NH: syncSystemWideKeybindings(payload)  [Agents window]
     NH->>G: updateKeybindings(windowId, payload)
     G->>OS: register / unregister accelerators (union across windows)
     G-->>C: { failed: string[] }  (surfaced as a warning notification)
@@ -64,23 +80,47 @@ sequenceDiagram
 
 ### Renderer
 
-**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.contribution.ts`** —
-the heart of the renderer side. Registered as a workbench contribution at
+**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.ts`** contains the
+shared, side-effect-free selection contract.
+
+- `selectSystemWideKeybindings(items, context?)` — a **pure** function that filters the full set of
+  resolved keybindings down to eligible candidates. Eligibility: `item.systemWide && !item.isDefault &&
+  item.command && item.resolvedKeybinding && getElectronAccelerator() !== null` and the accelerator
+  has not already been claimed. Given the context of a window, it then adds the default ones whose
+  `when` clause holds there, unless the accelerator is claimed or bound by the user to another
+  command; it leaves those out silently. Returns `{ candidates, unsupported, duplicates }` so the
+  caller can log why entries were dropped. Kept pure and separately unit-tested.
+
+**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindingsSynchronizer.ts`**
+contains the shared renderer-to-main synchronization client. It debounces keybinding changes, and
+changes of the context keys in the `when` clauses of default system-wide keybindings,
+serializes updates, maps candidates to the native IPC payload, skips payloads already processed by
+the main process, and deduplicates registration-failure reporting. The initial payload, including
+an empty one, is always sent so a reloaded renderer clears stale main-process ownership. A
+successful IPC result with no registration failures is cached; rejected accelerators and IPC
+exceptions can be retried on a later keybinding update. Results arriving after disposal are ignored.
+
+**`src/vs/workbench/contrib/keybindings/electron-browser/systemWideKeybindings.contribution.ts`**
+owns the standard desktop workbench synchronization. Registered as a workbench contribution at
 `WorkbenchPhase.AfterRestored` (never blocks startup).
 
-- `selectSystemWideKeybindings(items)` — a **pure** function that filters the full set of resolved
-  keybindings down to eligible candidates. Eligibility: `item.systemWide && !item.isDefault &&
-  item.command && item.resolvedKeybinding && getElectronAccelerator() !== null` and the accelerator
-  has not already been claimed. Returns `{ candidates, unsupported, duplicates }` so the caller can
-  log why entries were dropped. Kept pure and separately unit-tested.
 - `SystemWideKeybindingsContribution` — subscribes to `IKeybindingService.onDidUpdateKeybindings`
   (which also fires on keyboard-layout changes, since accelerator strings depend on layout),
   debounces via a 200ms `RunOnceScheduler`, and on each `sync()`:
   1. collects candidates (logging unsupported/duplicate entries),
   2. warns once per label about ignored `when` clauses (`warnedWhenLabels` guard),
-  3. pushes the payload to the main process via `INativeHostService.syncSystemWideKeybindings`,
-  4. reports registration failures via `INotificationService`, deduped against the last reported set
-     (`lastReportedFailures`) so unchanged failures are not re-notified.
+  3. delegates payload synchronization and deduplicated failure reporting to the shared client.
+
+**`src/vs/sessions/contrib/openAgentsWindow/electron-browser/openAgentsWindow.contribution.ts`**
+is the narrow Agents Window owner. It runs the shared selection over the complete resolved
+keybinding list before retaining only direct `workbench.action.openAgentsWindow`,
+`workbench.action.agentsLauncher` and `workbench.action.chat.attachAppWindowScreenshot` candidates. This preserves global first-binding-wins semantics when another command claims the same accelerator.
+It synchronizes immediately after `WorkbenchPhase.AfterRestored`, debounces later keybinding
+updates, and skips unchanged payloads. The Agents owner suppresses duplicate ignored-`when`
+warnings but reports OS registration failures because it may be the only open feedback surface.
+
+The Agents-specific ownership and profile contract is specified in
+[`src/vs/sessions/SYSTEM_WIDE_KEYBINDING.md`](../../../../sessions/SYSTEM_WIDE_KEYBINDING.md).
 
 **`src/vs/workbench/electron-browser/window.ts`** — handles the `vscode:runAction` IPC in the
 renderer. For `request.from === 'systemWideKeybinding'` it runs the command with **exactly** the
@@ -129,13 +169,21 @@ registrations. Wired up in `src/vs/code/electron-main/app.ts` with the real Elec
   registered **once** with a stable callback `() => this.onTrigger(accelerator)` that reads the
   **current** registry at fire time, so command/args are never captured from a stale snapshot.
 - `onTrigger(accelerator)` — resolves the target window: the focused window if it owns the
-  accelerator, otherwise the deterministic winner (lowest window id) among alive owners. Sends
+  accelerator, otherwise the window that was active last if it owns it (the user just left it for
+  another app), otherwise the deterministic winner (lowest window id) among alive owners. Sends
   `vscode:runAction` via `target.sendWhenReady(...)`. It deliberately does **not** force-focus the
   routing window — a system-wide keybinding fires while VS Code is typically unfocused, and pulling
   the routing window forward would flicker when the command opens/reveals a *different* window
   (e.g. `workbench.action.openAgentsWindow`). This matches every other `vscode:runAction` sender.
-- Lifecycle: on `IWindowsMainService.onDidDestroyWindow` it drops the window's entry and reconciles;
-  on `ILifecycleMainService.onWillShutdown` and on dispose it unregisters everything.
+- Lifecycle: on `ILifecycleMainService.onBeforeCloseWindow` (a normal close) and
+  `IWindowsMainService.onDidDestroyWindow` (destroying a crashed or unresponsive window) it drops the
+  window's entry and reconciles, so accelerators that no open window wants are unregistered. Each
+  path fires only its own event, so both are needed. On `ILifecycleMainService.onWillShutdown` and
+  on dispose it unregisters everything. When the last window closes on macOS (the app keeps
+  running), all system-wide accelerators are released; previously they stayed registered but inert.
+  An open Agents Window still owns the Open Agents Window, Show Agents Launcher and Attach Screenshot of
+  App Window bindings after all editor windows close (see
+  [`src/vs/sessions/SYSTEM_WIDE_KEYBINDING.md`](../../../../sessions/SYSTEM_WIDE_KEYBINDING.md)).
 
 ### How the `systemWide` flag is plumbed
 
@@ -155,7 +203,7 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
    enforced and surfaced (log for unsupported/duplicate, notification for ignored `when`).
 2. **Per-window registry + union registration** — multiple windows may each request the same or
    different system-wide bindings. The main service registers the union and routes a press to a
-   single window (focused owner, else deterministic lowest id). It only ever unregisters
+   single window (focused owner, else the last active owner, else deterministic lowest id). It only ever unregisters
    accelerators it owns, so it never stomps global shortcuts registered by the OS or other apps.
 3. **No force-focus on trigger** — avoids visible flicker and lets the invoked command decide what
    to surface/focus.
@@ -166,17 +214,31 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
    a persistent conflict is reported once, not on every re-sync.
 6. **Stable trigger callback reading live state** — registering once per accelerator (rather than
    re-registering on every payload change) avoids races and stale command/args capture.
+7. **Narrow Agents Window ownership** — the Agents renderer reports only a globally selected direct
+   Open Agents Window binding. This keeps the shortcut registered after editor windows close without
+   making the Agents Window a dispatcher for unrelated commands.
+8. **Per-owner failure feedback** — registration failures are returned to each renderer that owns
+   the accelerator. Each owner may surface the same warning, which ensures the error remains visible
+   when only one renderer survives.
 
 ## Testing
 
 - `src/vs/platform/globalKeybindings/test/electron-main/globalKeybindingsMainService.test.ts` — the
-  main service against a fake `IGlobalShortcutRegistry` and fake windows service: register/reconcile,
-  dedup within a window, failed-registration reporting + retry, trigger routing (focused owner,
-  deterministic lowest-id, no force-focus, undefined args), cross-window conflict resolution, window
-  destroy unregistration, and shutdown unregister-all. Pure electron-main (node-safe, no DOM/CSS).
+  main service against a fake `IGlobalShortcutRegistry` and fake windows and lifecycle services:
+  register/reconcile, dedup within a window, failed-registration reporting + retry, trigger routing
+  (focused owner, last active owner, deterministic lowest-id, no force-focus, undefined args), cross-window conflict
+  resolution, dropping a window's bindings on a normal close (everything is released once the last
+  window closes) and on a crashed-window destroy (shared accelerators route to the surviving owner),
+  and shutdown unregister-all. The fakes keep the two removal paths separate:
+  `FakeLifecycleMainService.closeWindow()` fires only `onBeforeCloseWindow` and
+  `FakeWindowsMainService.destroyWindow()` fires only `onDidDestroyWindow`, so a normal close is
+  never modeled as a destroy. Pure electron-main (node-safe, no DOM/CSS).
 - `src/vs/workbench/contrib/keybindings/test/electron-browser/systemWideKeybindings.test.ts` — the
   pure `selectSystemWideKeybindings`: eligibility filtering, unsupported (chords/modifiers),
   duplicates.
+- `src/vs/sessions/contrib/openAgentsWindow/test/electron-browser/openAgentsWindow.contribution.test.ts`
+  — post-selection Open Agents Window filtering, argument preservation, payload deduplication and
+  clearing, registration-failure reporting, and the command-only Agents registration.
 - `keybindingIO.test.ts` / `keybindingEditing.test.ts` — round-trip of the `systemWide` flag through
   parse/serialize.
 
@@ -192,3 +254,7 @@ The boolean travels from `keybindings.json` to `ResolvedKeybindingItem`:
   reconcile, and are surfaced to the user as a warning.
 - Keep `selectSystemWideKeybindings` pure — it is the primary unit-tested seam for renderer
   eligibility logic.
+- Commands run by system-wide keybindings usually execute while VS Code is inactive or hidden, and
+  `onTrigger` does not focus any window. A command that surfaces UI must focus its window with
+  `FocusMode.Force` (as `workbench.action.focusWindow` and Open Agents Window do), because
+  `FocusMode.Transfer` is a no-op for a hidden app on macOS.

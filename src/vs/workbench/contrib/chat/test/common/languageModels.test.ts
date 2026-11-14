@@ -6,21 +6,24 @@
 import assert from 'assert';
 import { AsyncIterableObject, AsyncIterableSource, DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import Severity from '../../../../../base/common/severity.js';
 import { SubmenuAction } from '../../../../../base/common/actions.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID } from '../../common/languageModels.js';
+import { ChatMessageRole, LanguageModelsService, IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, createModelConfigurationActions, ILanguageModelConfigurationSchema, getAutoModelTier, getByokProviderTelemetryName, THIRD_PARTY_PROVIDER_TELEMETRY_NAME, COPILOT_VENDOR_ID, getLanguageModelDisplayNameWithProvider, getTelemetryModelIdentifier, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, resolveLanguageModelProviderIcon } from '../../common/languageModels.js';
 import { IPromptChoice, IPromptOptions } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { NullOpenerService } from '../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { TestStorageService, TestUserDataProfileService } from '../../../../test/common/workbenchTestServices.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -30,7 +33,10 @@ import { TestSecretStorageService } from '../../../../../platform/secrets/test/c
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { IRequestService } from '../../../../../platform/request/common/request.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService, TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { getLanguageModelDisplayNameWithSubscriptionSource, languageModelSourcePresentationRegistry } from '../../common/languageModelSourcePresentation.js';
+import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
+import { createTestProfile, createTestProfileService, SharedApplicationStorageDatabase, TestWindowStorageService } from './testSharedApplicationStorage.js';
 
 suite('LanguageModels', function () {
 
@@ -39,9 +45,8 @@ suite('LanguageModels', function () {
 	const store = new DisposableStore();
 	const activationEvents = new Set<string>();
 
-	setup(function () {
-
-		languageModels = new LanguageModelsService(
+	function createLanguageModelsService(storageService: IStorageService, userDataProfileService: IUserDataProfileService = new TestUserDataProfileService()): LanguageModelsService {
+		return new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent(name: string) {
 					activationEvents.add(name);
@@ -49,7 +54,7 @@ suite('LanguageModels', function () {
 				}
 			},
 			new NullLogService(),
-			new TestStorageService(),
+			storageService,
 			new MockContextKeyService(),
 			new class extends mock<ILanguageModelsConfigurationService>() {
 				override onDidChangeLanguageModelGroups = Event.None;
@@ -64,7 +69,13 @@ suite('LanguageModels', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			userDataProfileService,
 		);
+	}
+
+	setup(function () {
+
+		languageModels = createLanguageModelsService(new TestStorageService());
 
 		languageModels.deltaLanguageModelChatProviderDescriptors([
 			{ vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
@@ -121,12 +132,60 @@ suite('LanguageModels', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('bounds Auto edit attribution to known tiers and leaves other models unset', () => {
+		const known = ['efficiency', 'balance', 'intelligence', 'fast'];
+		const tiers = [undefined, ...known, '', 'auto', 'default', 'balanced', 'Efficiency', ' efficiency ', ...Array.from({ length: 100 }, (_, i) => `unknown-${i}`)];
+		const modelIds = ['copilot/auto', undefined, 'copilot/gpt-5', 'copilot|auto', 'auto'];
+
+		assert.deepStrictEqual(modelIds.map(modelId => tiers.map(tier => getAutoModelTier(modelId, tier))),
+			modelIds.map(modelId => tiers.map(tier => modelId === 'copilot/auto' && tier !== undefined && known.includes(tier) ? tier : undefined)));
+	});
+
 	test('empty selector returns all', async function () {
 
 		const result1 = await languageModels.selectLanguageModels({});
 		assert.deepStrictEqual(result1.length, 2);
 		assert.deepStrictEqual(result1[0], 'test-id-1');
 		assert.deepStrictEqual(result1[1], 'test-id-12');
+	});
+
+	test('adds a source suffix only to ChatGPT subscription models', function () {
+		store.add(languageModelSourcePresentationRegistry.register({
+			ownerVendor: 'test-agent-host-codex',
+			sourceId: 'chatgptSubscription',
+			label: 'ChatGPT',
+			icon: Codicon.openai,
+			description: 'Models provided by your ChatGPT subscription',
+		}));
+		const createModel = (identifier: string, modelGroup: NonNullable<ILanguageModelChatMetadata['modelGroup']>): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier,
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				id: identifier,
+				name: 'GPT-5.6 Sol',
+				vendor: 'test-agent-host-codex',
+				family: 'gpt-5.6-sol',
+				version: '1.0',
+				maxInputTokens: 1_000_000,
+				maxOutputTokens: 32_000,
+				isDefaultForLocation: {},
+				targetChatSessionType: 'agent-host-codex',
+				modelGroup,
+			},
+		});
+		const copilot = createModel('agent-host-codex:@provider=vscode-proxy:gpt-5.6-sol', { id: 'copilot' });
+		const chatGPT = createModel('agent-host-codex:@provider=openai:gpt-5.6-sol', { id: 'chatgpt', sourceId: 'chatgptSubscription' });
+		const unrelated = createModel('agent-host-codex:anthropic/claude-opus', { id: 'anthropic' });
+
+		assert.deepStrictEqual({
+			copilot: getLanguageModelDisplayNameWithSubscriptionSource(copilot),
+			chatGPT: getLanguageModelDisplayNameWithSubscriptionSource(chatGPT),
+			unrelated: getLanguageModelDisplayNameWithSubscriptionSource(unrelated),
+		}, {
+			copilot: 'GPT-5.6 Sol',
+			chatGPT: 'GPT-5.6 Sol (ChatGPT)',
+			unrelated: 'GPT-5.6 Sol',
+		});
 	});
 
 	test('selector with id works properly', async function () {
@@ -141,6 +200,39 @@ suite('LanguageModels', function () {
 
 		const result2 = await languageModels.selectLanguageModels({ vendor: 'test-vendor', family: 'FAKE' });
 		assert.deepStrictEqual(result2.length, 0);
+	});
+
+	test('requests made while a resolution waits behind another share it', async function () {
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'slow-vendor', displayName: 'Slow Vendor', configuration: undefined, managementCommand: undefined, when: undefined },
+		], []);
+		const started = new DeferredPromise<void>();
+		const firstResolution = new DeferredPromise<void>();
+		let resolutions = 0;
+		store.add(languageModels.registerLanguageModelProvider('slow-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => {
+				if (++resolutions === 1) {
+					started.complete();
+					await firstResolution.p;
+				}
+				return [];
+			},
+			sendChatRequest: async () => {
+				throw new Error();
+			},
+			provideTokenCount: async () => {
+				throw new Error();
+			}
+		}));
+
+		const running = languageModels.selectLanguageModels({ vendor: 'slow-vendor' });
+		await started.p;
+		const waiting = [1, 2, 3].map(() => languageModels.selectLanguageModels({ vendor: 'slow-vendor' }));
+		firstResolution.complete();
+		await Promise.all([running, ...waiting]);
+
+		assert.strictEqual(resolutions, 2);
 	});
 
 	test('sendChatRequest returns a response-stream', async function () {
@@ -220,6 +312,129 @@ suite('LanguageModels', function () {
 		assert.ok(vendors.some(v => v.vendor === 'actual-vendor'));
 	});
 
+	test('contributed provider icons resolve against the extension and reach the vendor', function () {
+		const extensionLocation = URI.file('/extensions/publisher.provider');
+		const resolve = (icon: Parameters<typeof resolveLanguageModelProviderIcon>[0]) => {
+			const resolved = resolveLanguageModelProviderIcon(icon, extensionLocation);
+			return resolved && !ThemeIcon.isThemeIcon(resolved) ? { light: resolved.light.path, dark: resolved.dark.path } : resolved;
+		};
+		const icon = { light: URI.joinPath(extensionLocation, 'light.svg'), dark: URI.joinPath(extensionLocation, 'dark.svg') };
+		languageModels.deltaLanguageModelChatProviderDescriptors([{ vendor: 'icon-vendor', displayName: 'Icon Vendor', configuration: undefined, managementCommand: undefined, when: undefined, icon }], []);
+
+		assert.deepStrictEqual({
+			themeIcon: resolve('$(zap)'),
+			singlePath: resolve('media/icon.svg'),
+			lightAndDark: resolve({ light: 'media/light.svg', dark: 'media/dark.svg' }),
+			malformed: resolve({ light: 'media/light.svg' } as unknown as Parameters<typeof resolveLanguageModelProviderIcon>[0]),
+			outsideExtension: [resolve('../other.provider/icon.svg'), resolve({ light: 'media/light.svg', dark: '../../dark.svg' })],
+			// Loading the image decodes `%2e%2e` and treats `\` as a separator, which would reach the
+			// sibling extension even though both paths stay inside the folder as written.
+			encodedTraversal: [
+				resolve('%2e%2e/other.provider/icon.svg'),
+				resolve({ light: 'media/light.svg', dark: '%2e%2e/other.provider/dark.svg' }),
+				resolve('%252e%252e/other.provider/icon.svg'),
+			],
+			backslashTraversal: [
+				resolve('..\\other.provider\\icon.svg'),
+				resolve({ light: '..\\other.provider\\light.svg', dark: 'media/dark.svg' }),
+			],
+			vendorIcon: languageModels.getVendors().find(vendor => vendor.vendor === 'icon-vendor')?.icon,
+		}, {
+			themeIcon: { id: 'zap' },
+			singlePath: { light: '/extensions/publisher.provider/media/icon.svg', dark: '/extensions/publisher.provider/media/icon.svg' },
+			lightAndDark: { light: '/extensions/publisher.provider/media/light.svg', dark: '/extensions/publisher.provider/media/dark.svg' },
+			malformed: undefined,
+			outsideExtension: [undefined, undefined],
+			encodedTraversal: [undefined, undefined, undefined],
+			backslashTraversal: [undefined, undefined],
+			vendorIcon: icon,
+		});
+	});
+
+	test('BYOK display names use provider and optional configured group paths', function () {
+		const originalIdentifier = 'openrouter/OpenRouter 2/amazon/nova-micro-v1';
+		const originalModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: originalIdentifier,
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Amazon: Nova Micro 1.0 (amazon/nova-micro-v1)',
+				id: 'amazon/nova-micro-v1',
+				vendor: 'openrouter',
+				version: '1.0',
+				family: 'amazon/nova-micro-v1',
+				maxInputTokens: 100,
+				maxOutputTokens: 100,
+				isDefaultForLocation: {},
+				isBYOK: true,
+			},
+		};
+		const bridgedModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:openrouter/amazon/nova-micro-v1',
+			metadata: {
+				...originalModel.metadata,
+				vendor: 'agent-host-copilotcli',
+				isBYOK: undefined,
+				modelGroup: { id: 'openrouter' },
+				byokModelIdentifier: originalIdentifier,
+			},
+		};
+		const nativeModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'agent-host-copilotcli:claude-sonnet-4.6',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Claude Sonnet 4.6',
+				vendor: 'agent-host-copilotcli',
+				isBYOK: undefined,
+				modelGroup: { id: 'copilotcli' },
+			},
+		};
+		const geminiModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'gemini/models/gemini-3.1-pro-preview',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Gemini 3.1 Pro Preview (models/gemini-3.1-pro-preview)',
+				id: 'models/gemini-3.1-pro-preview',
+				vendor: 'gemini',
+			},
+		};
+		const meaningfulParenthesesModel: ILanguageModelChatMetadataAndIdentifier = {
+			identifier: 'openrouter/amazon/nova-micro-v1',
+			metadata: {
+				...originalModel.metadata,
+				name: 'Amazon: Nova Micro 1.0 (Preview)',
+			},
+		};
+		const createService = (groupName?: string): ILanguageModelsService => ({
+			getVendors: () => [
+				{ vendor: 'openrouter', displayName: 'OpenRouter' },
+				{ vendor: 'gemini', displayName: 'Gemini' },
+			],
+			getLanguageModelGroups: (vendor: string) => vendor === 'openrouter' && groupName ? [{
+				group: { vendor, name: groupName },
+				modelIdentifiers: [originalIdentifier],
+			}] : [],
+			lookupLanguageModel: (identifier: string) => identifier === originalIdentifier ? originalModel.metadata : undefined,
+		} as unknown as ILanguageModelsService);
+
+		assert.deepStrictEqual({
+			direct: getLanguageModelDisplayNameWithProvider(originalModel, createService()),
+			bridged: getLanguageModelDisplayNameWithProvider(bridgedModel, createService()),
+			grouped: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter 2')),
+			duplicateGroup: getLanguageModelDisplayNameWithProvider(bridgedModel, createService('OpenRouter')),
+			gemini: getLanguageModelDisplayNameWithProvider(geminiModel, createService()),
+			meaningfulParentheses: getLanguageModelDisplayNameWithProvider(meaningfulParenthesesModel, createService()),
+			native: getLanguageModelDisplayNameWithProvider(nativeModel, createService('OpenRouter 2')),
+		}, {
+			direct: 'OpenRouter/Amazon: Nova Micro 1.0',
+			bridged: 'OpenRouter/Amazon: Nova Micro 1.0',
+			grouped: 'OpenRouter/OpenRouter 2/Amazon: Nova Micro 1.0',
+			duplicateGroup: 'OpenRouter/Amazon: Nova Micro 1.0',
+			gemini: 'Gemini/Gemini 3.1 Pro Preview',
+			meaningfulParentheses: 'OpenRouter/Amazon: Nova Micro 1.0 (Preview)',
+			native: 'Claude Sonnet 4.6',
+		});
+	});
+
 	test('selectLanguageModels matches by id for copilot vendor models even when isUserSelectable is false', async function () {
 		// Mirrors how the copilot extension publishes utility aliases such as
 		// `copilot-utility-small`: under the `copilot` (default) vendor, with
@@ -291,6 +506,24 @@ suite('LanguageModels', function () {
 
 		languageModels.setModelHidden('test-id-1', false);
 		assert.strictEqual(languageModels.isModelHidden('test-id-1'), false);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
+		assert.strictEqual(fired, 2);
+	});
+
+	test('model visibility — bulk updates fire once', async function () {
+		await languageModels.selectLanguageModels({});
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], true);
+		assert.deepStrictEqual(languageModels.getHiddenModelIds(), ['test-id-1', 'test-id-12']);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], true);
+		assert.strictEqual(fired, 1);
+
+		languageModels.setModelsHidden(['test-id-1', 'test-id-12'], false);
 		assert.deepStrictEqual(languageModels.getHiddenModelIds(), []);
 		assert.strictEqual(fired, 2);
 	});
@@ -451,6 +684,269 @@ suite('LanguageModels', function () {
 			byokCopyHidden: false,
 		});
 	});
+
+	/** Registers the default provider with its `Auto` model plus one regular model. */
+	async function registerDefaultVendorWithAutoModel(): Promise<void> {
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: COPILOT_VENDOR_ID, displayName: 'GitHub Copilot', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		store.add(languageModels.registerLanguageModelProvider(COPILOT_VENDOR_ID, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Auto', vendor: COPILOT_VENDOR_ID, family: 'auto', version: '1.0',
+						id: 'auto', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'copilot/auto',
+				},
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'GPT-5', vendor: COPILOT_VENDOR_ID, family: 'gpt-5', version: '1.0',
+						id: 'gpt-5', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'copilot/gpt-5',
+				},
+			],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await languageModels.selectLanguageModels({ vendor: COPILOT_VENDOR_ID });
+	}
+
+	test('model visibility — the default provider Auto model cannot be hidden, directly or via its group', async function () {
+		// Auto has no row in Manage Language Models, so hiding it would be unrecoverable.
+		await registerDefaultVendorWithAutoModel();
+
+		let fired = 0;
+		store.add(languageModels.onDidChangeModelVisibility(() => fired++));
+
+		languageModels.setModelHidden('copilot/auto', true);
+		assert.deepStrictEqual({ hiddenModels: languageModels.getHiddenModelIds(), events: fired }, { hiddenModels: [], events: 0 });
+
+		languageModels.setGroupHidden(COPILOT_VENDOR_ID, 'GitHub Copilot', true);
+
+		assert.deepStrictEqual({
+			hiddenModels: languageModels.getHiddenModelIds(),
+			autoHidden: languageModels.isModelHidden('copilot/auto'),
+			groupHidden: languageModels.isGroupHidden(COPILOT_VENDOR_ID, 'GitHub Copilot'),
+			events: fired,
+		}, {
+			hiddenModels: ['copilot/gpt-5'],
+			autoHidden: false,
+			groupHidden: true,
+			events: 1,
+		});
+	});
+
+	test('model visibility — a non-default provider Auto model stays hideable', async function () {
+		// Copilot CLI's Auto gets a row, so it has a toggle that can bring it back.
+		languageModels.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'copilotcli', displayName: 'Copilot CLI', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		store.add(languageModels.registerLanguageModelProvider('copilotcli', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [
+				{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Auto', vendor: 'copilotcli', family: 'auto', version: '1.0',
+						id: 'auto', maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						targetChatSessionType: 'copilotcli',
+					} satisfies ILanguageModelChatMetadata,
+					identifier: 'copilotcli/auto',
+				},
+			],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await languageModels.selectLanguageModels({ vendor: 'copilotcli' });
+
+		languageModels.setModelHidden('copilotcli/auto', true);
+
+		assert.deepStrictEqual({
+			hiddenModels: languageModels.getHiddenModelIds(),
+			autoHidden: languageModels.isModelHidden('copilotcli/auto'),
+		}, {
+			hiddenModels: ['copilotcli/auto'],
+			autoHidden: true,
+		});
+	});
+
+	test('model visibility — an Auto model hidden by an older version is visible again', function () {
+		// Recovery for users already stuck: no UI can clear the entry, so it is ignored
+		// on read. Asserted before models resolve, which is when the picker first asks.
+		// Only one service at a time can own the language model provider extension point.
+		languageModels.dispose();
+
+		const storageService = store.add(new TestStorageService());
+		storageService.store(
+			'chatModelVisibility',
+			JSON.stringify({ hiddenModels: ['copilot/auto', 'copilot/gpt-5'] }),
+			StorageScope.PROFILE,
+			StorageTarget.USER,
+		);
+
+		const service = store.add(createLanguageModelsService(storageService));
+
+		assert.deepStrictEqual({
+			autoHidden: service.isModelHidden('copilot/auto'),
+			siblingHidden: service.isModelHidden('copilot/gpt-5'),
+		}, {
+			autoHidden: false,
+			siblingHidden: true,
+		});
+	});
+
+	function readModelPreferences(storageService: IStorageService, scope: StorageScope) {
+		return {
+			pinned: storageService.getObject('chatModelPinned', scope),
+			hidden: storageService.getObject('chatModelVisibility', scope),
+		};
+	}
+
+	test('model preferences — another window\'s changes are picked up instead of overwritten', function () {
+		languageModels.dispose();
+		const storageService = store.add(new TestStorageService());
+		const service = store.add(createLanguageModelsService(storageService));
+		const events: string[] = [];
+		store.add(service.onDidChangePinnedModels(() => events.push('pinned')));
+		store.add(service.onDidChangeModelVisibility(() => events.push('visibility')));
+
+		storageService.storeAll([
+			{ key: 'chatModelPinned', value: ['other/pinned'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
+			{ key: 'chatModelVisibility', value: { hiddenModels: ['other/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
+		], true);
+		service.pinModel('this/pinned');
+		service.setModelHidden('this/hidden', true);
+
+		assert.deepStrictEqual({ events, ...readModelPreferences(storageService, StorageScope.PROFILE) }, {
+			events: ['pinned', 'visibility', 'pinned', 'visibility'],
+			pinned: ['other/pinned', 'this/pinned'],
+			hidden: { hiddenModels: ['other/hidden', 'this/hidden'] },
+		});
+	});
+
+	async function createDefaultProfileAndAgentsWindows() {
+		const shared = new SharedApplicationStorageDatabase();
+		return {
+			editorStorage: await store.add(new TestWindowStorageService(shared, { useApplicationStorageForProfile: true })).init(),
+			agentsStorage: await store.add(new TestWindowStorageService(shared)).init(),
+		};
+	}
+
+	test('model preferences — the Agents window shares them with default profile windows', async function () {
+		languageModels.dispose();
+		const { editorStorage, agentsStorage } = await createDefaultProfileAndAgentsWindows();
+		editorStorage.store('chatModelPinned', ['editor/first'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(agentsStorage, createTestProfileService(createTestProfile('agents'))));
+		const pinnedOnLoad = service.isModelPinned('editor/first');
+		let pinnedChanges = 0;
+		store.add(service.onDidChangePinnedModels(() => pinnedChanges++));
+
+		editorStorage.store('chatModelPinned', ['editor/first', 'editor/second'], StorageScope.PROFILE, StorageTarget.USER);
+		service.pinModel('agents/pinned');
+
+		assert.deepStrictEqual({
+			pinnedOnLoad,
+			pinnedChanges,
+			editorPinned: editorStorage.getObject('chatModelPinned', StorageScope.PROFILE),
+			agentsProfilePinned: agentsStorage.getObject('chatModelPinned', StorageScope.PROFILE),
+		}, {
+			pinnedOnLoad: true,
+			pinnedChanges: 2,
+			editorPinned: ['editor/first', 'editor/second', 'agents/pinned'],
+			agentsProfilePinned: undefined,
+		});
+	});
+
+	test('model preferences — default profile windows see changes from the Agents window', async function () {
+		languageModels.dispose();
+		const { editorStorage, agentsStorage } = await createDefaultProfileAndAgentsWindows();
+		const service = store.add(createLanguageModelsService(editorStorage, createTestProfileService(createTestProfile('__default__profile__', { isDefault: true }))));
+		let pinnedChanges = 0;
+		store.add(service.onDidChangePinnedModels(() => pinnedChanges++));
+
+		agentsStorage.store('chatModelPinned', ['agents/pinned'], StorageScope.APPLICATION, StorageTarget.USER);
+		service.pinModel('editor/pinned');
+
+		assert.deepStrictEqual({
+			pinnedChanges,
+			agentsPinned: agentsStorage.getObject('chatModelPinned', StorageScope.APPLICATION),
+		}, {
+			pinnedChanges: 2,
+			agentsPinned: ['agents/pinned', 'editor/pinned'],
+		});
+	});
+
+	test('model preferences — the Agents window merges its own profile values into application storage once', async function () {
+		languageModels.dispose();
+		const shared = new SharedApplicationStorageDatabase();
+		const agentsStorage = await store.add(new TestWindowStorageService(shared)).init();
+		const agentsProfileService = createTestProfileService(createTestProfile('agents'));
+		agentsStorage.storeAll([
+			{ key: 'chatModelPinned', value: ['both', 'application'], scope: StorageScope.APPLICATION, target: StorageTarget.USER },
+			{ key: 'chatModelPinned', value: ['agents', 'both'], scope: StorageScope.PROFILE, target: StorageTarget.USER },
+			{ key: 'chatModelVisibility', value: { hiddenModels: ['agents/hidden'] }, scope: StorageScope.PROFILE, target: StorageTarget.USER },
+		], false);
+
+		createLanguageModelsService(agentsStorage, agentsProfileService).dispose();
+		agentsStorage.store('chatModelPinned', ['agents/later'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(agentsStorage, agentsProfileService));
+
+		assert.deepStrictEqual({ ...readModelPreferences(agentsStorage, StorageScope.APPLICATION), laterPinned: service.isModelPinned('agents/later') }, {
+			pinned: ['both', 'application', 'agents'],
+			hidden: { hiddenModels: ['agents/hidden'] },
+			laterPinned: false,
+		});
+	});
+
+	test('pins — copies of a model match across vendors, so the Agents window shows pins from the editor\'s picker', async function () {
+		languageModels.dispose();
+		const storageService = store.add(new TestStorageService());
+		// Pinned in the editor's local picker, where extensions provide the models.
+		storageService.store('chatModelPinned', ['copilot/gpt-5', 'openai/gpt-5', 'copilot/gpt-5.6-sol'], StorageScope.PROFILE, StorageTarget.USER);
+		const service = store.add(createLanguageModelsService(storageService));
+		// Agent-host copies, as [id, model group, original identifier of a model the user brought].
+		const copies: Record<string, [string, string, string?][]> = {
+			'agent-host-copilotcli': [['gpt-5', 'copilot'], ['claude', 'copilot'], ['auto', 'copilot'], ['openai/gpt-5', 'openai', 'openai/gpt-5']],
+			// Codex and Claude qualify ids with the provider; only their Copilot transports serve Copilot's models.
+			'codex': [['@provider=vscode-proxy:gpt-5.6-sol', 'copilot'], ['@provider=openai:gpt-5.6-sol', 'chatgpt']],
+			'claude': [['@provider=copilot:claude-opus-4.6', 'copilot'], ['@provider=anthropic:claude-opus-4.6', 'anthropic']],
+		};
+		for (const [vendor, models] of Object.entries(copies)) {
+			service.deltaLanguageModelChatProviderDescriptors([{ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined }], []);
+			store.add(service.registerLanguageModelProvider(vendor, {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => models.map(([id, modelGroupId, byokModelIdentifier]) => ({
+					identifier: `${vendor}:${id}`,
+					metadata: { extension: nullExtensionDescription.identifier, name: id, vendor, family: id, version: '1.0', id, maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}, modelGroup: { id: modelGroupId }, byokModelIdentifier },
+				})),
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => { throw new Error(); },
+			}));
+			await service.selectLanguageModels({ vendor });
+		}
+
+		const pinnedFromEditor = service.getPinnedModelIds();
+		service.pinModel('agent-host-copilotcli:claude');
+		service.pinModel('claude:@provider=copilot:claude-opus-4.6');
+		service.pinModel('agent-host-copilotcli:auto');
+		service.unpinModel('agent-host-copilotcli:gpt-5');
+
+		assert.deepStrictEqual({
+			pinnedFromEditor,
+			pinned: service.getPinnedModelIds(),
+			// Stored under the extension's identifiers, so the editor's picker matches them too.
+			stored: storageService.getObject('chatModelPinned', StorageScope.PROFILE),
+		}, {
+			pinnedFromEditor: ['agent-host-copilotcli:gpt-5', 'agent-host-copilotcli:openai/gpt-5', 'codex:@provider=vscode-proxy:gpt-5.6-sol'],
+			pinned: ['agent-host-copilotcli:openai/gpt-5', 'codex:@provider=vscode-proxy:gpt-5.6-sol', 'agent-host-copilotcli:claude', 'claude:@provider=copilot:claude-opus-4.6', 'agent-host-copilotcli:auto'],
+			stored: ['openai/gpt-5', 'copilot/gpt-5.6-sol', 'copilot/claude', 'copilot/claude-opus-4.6', 'agent-host-copilotcli:auto'],
+		});
+	});
 });
 
 suite('LanguageModels - When Clause', function () {
@@ -499,6 +995,7 @@ suite('LanguageModels - When Clause', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsWithWhen.deltaLanguageModelChatProviderDescriptors([
@@ -565,6 +1062,7 @@ suite('LanguageModels - Model Change Events', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		// Register the vendor first
@@ -579,6 +1077,228 @@ suite('LanguageModels - Model Change Events', function () {
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('notifies model consumers after disposing a resolved provider', async function () {
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+
+		const changes: { vendor: string; models: string[]; groups: number; resolved: boolean }[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push({
+			vendor,
+			models: languageModelsService.getLanguageModelIds(),
+			groups: languageModelsService.getLanguageModelGroups(vendor).length,
+			resolved: languageModelsService.hasResolvedVendor(vendor)
+		})));
+		registration.dispose();
+
+		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: [], groups: 0, resolved: false }]);
+	});
+
+	test('does not notify twice when the vendor descriptor is disposed before its provider', async function () {
+		const registrations = disposables.add(new DisposableStore());
+		registrations.add(toDisposable(() => languageModelsService.deltaLanguageModelChatProviderDescriptors([], [
+			{ vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		])));
+		const emitter = disposables.add(new Emitter<void>());
+		registrations.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: emitter.event,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		const changes: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+
+		registrations.dispose();
+
+		assert.deepStrictEqual({
+			changes,
+			models: languageModelsService.getLanguageModelIds(),
+			groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+			resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+			hasListeners: emitter.hasListeners()
+		}, { changes: ['test-vendor'], models: [], groups: [], resolved: false, hasListeners: false });
+	});
+
+	test('disposing a stale registration preserves the replacement provider', async function () {
+		const emitter = disposables.add(new Emitter<void>());
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: emitter.event,
+			provideLanguageModelChatInfo: async () => [],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const descriptor = { vendor: 'test-vendor', displayName: 'Test Vendor', configuration: undefined, managementCommand: undefined, when: undefined };
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([], [descriptor]);
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([descriptor], []);
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: 'test-vendor/replacement-model',
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Replacement Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'replacement-model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		const changes: string[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+
+		registration.dispose();
+
+		assert.deepStrictEqual({
+			selected: await languageModelsService.selectLanguageModels({ vendor: 'test-vendor' }),
+			groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+			resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+			changes,
+			hasListeners: emitter.hasListeners()
+		}, {
+			selected: ['test-vendor/replacement-model'],
+			groups: [{ modelIdentifiers: ['test-vendor/replacement-model'] }],
+			resolved: true,
+			changes: [],
+			hasListeners: false
+		});
+	});
+
+	for (const outcome of ['resolve', 'reject']) {
+		test(`does not restore models when discovery ${outcome}s after provider disposal`, async function () {
+			const started = new DeferredPromise<void>();
+			const discovery = new DeferredPromise<ILanguageModelChatMetadataAndIdentifier[]>();
+			const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: () => {
+					started.complete();
+					return discovery.p;
+				},
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => 0
+			}));
+			const changes: string[] = [];
+			disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push(vendor)));
+			const resolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+			await started.p;
+			registration.dispose();
+			if (outcome === 'resolve') {
+				await discovery.complete([{
+					identifier: 'test-vendor/model',
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+						maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+					}
+				}]);
+			} else {
+				await discovery.error(new Error('Discovery failed'));
+			}
+
+			assert.deepStrictEqual({
+				selected: await resolution,
+				models: languageModelsService.getLanguageModelIds(),
+				groups: languageModelsService.getLanguageModelGroups('test-vendor'),
+				resolved: languageModelsService.hasResolvedVendor('test-vendor'),
+				changes
+			}, { selected: [], models: [], groups: [], resolved: false, changes: ['test-vendor'] });
+		});
+	}
+
+	test('ignores pending and queued discovery from a replaced provider', async function () {
+		const started = new DeferredPromise<void>();
+		const discovery = new DeferredPromise<ILanguageModelChatMetadataAndIdentifier[]>();
+		const models: ILanguageModelChatMetadataAndIdentifier[] = [{
+			identifier: 'test-vendor/model',
+			metadata: {
+				extension: nullExtensionDescription.identifier,
+				name: 'Model', vendor: 'test-vendor', family: 'family', version: '1', id: 'model',
+				maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+			}
+		}];
+		let oldProviderCalls = 0;
+		const registration = disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: () => {
+				oldProviderCalls++;
+				started.complete();
+				return discovery.p;
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const changes: string[][] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(() => changes.push(languageModelsService.getLanguageModelIds())));
+		const pendingResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		await started.p;
+		const queuedResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		registration.dispose();
+		disposables.add(languageModelsService.registerLanguageModelProvider('test-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => models,
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const replacementResolution = languageModelsService.selectLanguageModels({ vendor: 'test-vendor' });
+		await discovery.complete(models.map(model => ({ ...model, identifier: 'test-vendor/stale-model' })));
+		await Promise.all([pendingResolution, queuedResolution, replacementResolution]);
+
+		assert.deepStrictEqual({ oldProviderCalls, changes, models: languageModelsService.getLanguageModelIds() }, {
+			oldProviderCalls: 1,
+			changes: [[], ['test-vendor/model']],
+			models: ['test-vendor/model']
+		});
+	});
+
+	test('provider disposal preserves other models and only notifies once', async function () {
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'other-vendor', displayName: 'Other Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+		const register = (vendor: string) => disposables.add(languageModelsService.registerLanguageModelProvider(vendor, {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: `${vendor}/model`,
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Model', vendor, family: 'family', version: '1', id: 'model',
+					maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {}
+				}
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => 0
+		}));
+		const registration = register('test-vendor');
+		register('other-vendor');
+		await languageModelsService.selectLanguageModels({});
+
+		const changes: { vendor: string; models: string[] }[] = [];
+		disposables.add(languageModelsService.onDidChangeLanguageModels(vendor => changes.push({ vendor, models: languageModelsService.getLanguageModelIds() })));
+		registration.dispose();
+		registration.dispose();
+
+		assert.deepStrictEqual(changes, [{ vendor: 'test-vendor', models: ['other-vendor/model'] }]);
+	});
 
 	test('fires onChange event when new models are added', async function () {
 		// Create a promise that resolves when the event fires
@@ -930,6 +1650,7 @@ suite('LanguageModels - Vendor Change Events', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 	});
 
@@ -1055,6 +1776,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1135,6 +1857,23 @@ suite('LanguageModels - Per-Model Configuration', function () {
 	test('getModelConfiguration returns undefined for unknown model', function () {
 		const config = languageModelsService.getModelConfiguration('config-vendor/default/model-c');
 		assert.strictEqual(config, undefined);
+	});
+
+	test('getModelConfiguration can omit derived defaults without exposing mutable stored preferences', () => {
+		const preferences = languageModelsService.getModelConfiguration('config-vendor/default/model-a', false);
+		const snapshot = { ...preferences };
+		if (preferences) {
+			preferences.temperature = 1;
+		}
+		assert.deepStrictEqual({
+			preferences: snapshot,
+			resolved: languageModelsService.getModelConfiguration('config-vendor/default/model-a'),
+			unknown: languageModelsService.getModelConfiguration('config-vendor/default/model-c', false),
+		}, {
+			preferences: { temperature: 0.7, reasoningEffort: 'high' },
+			resolved: { temperature: 0.7, reasoningEffort: 'high', maxTokens: 4096 },
+			unknown: undefined,
+		});
 	});
 
 	test('sendChatRequest merges schema defaults with user config', async function () {
@@ -1240,6 +1979,7 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1290,6 +2030,167 @@ suite('LanguageModels - Per-Model Configuration with multiple same-vendor groups
 
 		const deepSeek = providerGroups.find(g => g.name === 'DeepSeek');
 		assert.strictEqual(deepSeek?.settings, undefined, 'the DeepSeek group must be left untouched');
+	});
+});
+
+suite('LanguageModels - Duplicate configuration-only groups', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	const vendor = 'agent-host-copilotcli';
+	const modelId = `${vendor}:test-model`;
+	let service: LanguageModelsService;
+	let groups: ILanguageModelsProviderGroup[];
+	let configurationDefaultKeys: readonly string[] | undefined;
+	let thinkingLevelPolicy: { default: string; readOnly: boolean } | undefined;
+	let modelChanges: Emitter<void>;
+
+	setup(async () => {
+		configurationDefaultKeys = undefined;
+		thinkingLevelPolicy = undefined;
+		modelChanges = disposables.add(new Emitter<void>());
+		const onDidChangeGroups = disposables.add(new Emitter<readonly ILanguageModelsProviderGroup[]>());
+		groups = [
+			{ vendor, name: 'Copilot CLI', settings: { 'test-model': { thinkingLevel: 'max' }, other: { thinkingLevel: 'high' } } },
+			{ vendor, name: 'Copilot', settings: { 'test-model': { thinkingLevel: 'medium', contextSize: 272000 } } },
+			{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+		];
+		service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() { },
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			disposables.add(new MockContextKeyService()),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = onDidChangeGroups.event;
+				override getLanguageModelsProviderGroups() { return groups; }
+				override async updateLanguageModelsProviderGroup(from: ILanguageModelsProviderGroup, to: ILanguageModelsProviderGroup): Promise<ILanguageModelsProviderGroup> {
+					groups = groups.map(group => group === from ? to : group);
+					onDidChangeGroups.fire([to]);
+					return to;
+				}
+				override async removeLanguageModelsProviderGroup(toRemove: ILanguageModelsProviderGroup): Promise<void> {
+					groups = groups.filter(group => group !== toRemove);
+					onDidChangeGroups.fire([toRemove]);
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			disposables.add(new TestSecretStorageService()),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
+			NullTelemetryService,
+			new TestUserDataProfileService(),
+		));
+		service.deltaLanguageModelChatProviderDescriptors([
+			{ vendor, displayName: 'Copilot', configuration: undefined, managementCommand: undefined, when: undefined },
+		], []);
+		disposables.add(service.registerLanguageModelProvider(vendor, {
+			onDidChange: modelChanges.event,
+			provideLanguageModelChatInfo: async () => [{
+				identifier: modelId,
+				metadata: {
+					extension: nullExtensionDescription.identifier,
+					name: 'Test Model', vendor, id: 'test-model', family: 'test-model', version: '1.0',
+					maxInputTokens: 272000, maxOutputTokens: 32000, isDefaultForLocation: {},
+					configurationDefaultKeys,
+					configurationSchema: {
+						properties: {
+							thinkingLevel: { type: 'string', default: 'medium', ...thinkingLevelPolicy },
+							contextSize: { type: 'number', default: 272000 },
+						},
+					},
+				},
+			}],
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); },
+		}));
+		await service.selectLanguageModels({ vendor });
+	});
+
+	test('each edit survives a catalogue refresh and preserves the other parameter', async () => {
+		const configurations = [];
+		for (const values of [
+			{ thinkingLevel: 'max' },
+			{ contextSize: 1050000 },
+			{ thinkingLevel: 'high' },
+			{ contextSize: 272000 },
+			{ thinkingLevel: 'medium' },
+		]) {
+			await service.setModelConfiguration(modelId, values);
+			await service.selectLanguageModels({ vendor });
+			configurations.push(service.getModelConfiguration(modelId));
+		}
+		assert.deepStrictEqual(configurations, [
+			{ thinkingLevel: 'max', contextSize: 272000 },
+			{ thinkingLevel: 'max', contextSize: 1050000 },
+			{ thinkingLevel: 'high', contextSize: 1050000 },
+			{ thinkingLevel: 'high', contextSize: 272000 },
+			{ thinkingLevel: 'medium', contextSize: 272000 },
+		]);
+	});
+
+	test('explicit host-default choices remain in saved configuration instead of becoming omissions', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		await service.setModelConfiguration(modelId, { thinkingLevel: 'medium', contextSize: 272000 });
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual(service.getModelConfiguration(modelId, false), { thinkingLevel: 'medium', contextSize: 272000 });
+	});
+
+	test('undefined resets remove shared overrides even when host defaults are tracked explicitly', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		await service.setModelConfiguration(modelId, { thinkingLevel: undefined, contextSize: undefined });
+		assert.deepStrictEqual({
+			cached: service.getModelConfiguration(modelId, false),
+			effective: service.getModelConfiguration(modelId),
+			groups,
+		}, {
+			cached: undefined,
+			effective: { thinkingLevel: 'medium', contextSize: 272000 },
+			groups: [
+				{ vendor, name: 'Copilot CLI', settings: { other: { thinkingLevel: 'high' } } },
+				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+			],
+		});
+	});
+
+	test('locked host defaults override saved preferences without replacing them', async () => {
+		configurationDefaultKeys = ['thinkingLevel', 'contextSize'];
+		thinkingLevelPolicy = { default: 'high', readOnly: true };
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		const locked = service.getModelConfiguration(modelId);
+		const preferences = service.getModelConfiguration(modelId, false);
+
+		thinkingLevelPolicy = undefined;
+		modelChanges.fire();
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual({
+			locked,
+			preferences,
+			unlocked: service.getModelConfiguration(modelId),
+		}, {
+			locked: { thinkingLevel: 'high', contextSize: 272000 },
+			preferences: { thinkingLevel: 'medium', contextSize: 272000 },
+			unlocked: { thinkingLevel: 'medium', contextSize: 272000 },
+		});
+	});
+
+	test('reset removes shadowed preferences without removing other models or vendors', async () => {
+		await service.setModelConfiguration(modelId, { thinkingLevel: 'medium', contextSize: 272000 });
+		await service.selectLanguageModels({ vendor });
+		assert.deepStrictEqual({
+			configuration: service.getModelConfiguration(modelId),
+			groups,
+		}, {
+			configuration: { thinkingLevel: 'medium', contextSize: 272000 },
+			groups: [
+				{ vendor, name: 'Copilot CLI', settings: { other: { thinkingLevel: 'high' } } },
+				{ vendor: 'other-vendor', name: 'Other', settings: { 'test-model': { thinkingLevel: 'high' } } },
+			],
+		});
 	});
 });
 
@@ -1384,6 +2285,7 @@ suite('LanguageModels - Provider Group Management', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		);
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1438,27 +2340,19 @@ suite('LanguageModels - Provider Group Management', function () {
 		}]);
 	});
 
-	test('updateLanguageModelsProviderGroupApiKey stores the new secret and preserves model settings', async function () {
-		acceptedInputValues.push('new-api-key');
-		await secretStorageService.set('existing-secret', 'old-api-key');
+	test('updateLanguageModelsProviderGroupApiKey trims whitespace from the new apiKey secret', async function () {
+		acceptedInputValues.push('new-api-key\r\n');
 
 		await languageModelsService.updateLanguageModelsProviderGroupApiKey('custom-vendor', 'Custom Group');
 
-		const updatedGroup = updateCalls[0]?.to;
-		const encodedApiKey = typeof updatedGroup?.apiKey === 'string' ? updatedGroup.apiKey : '';
+		const encodedApiKey = typeof updateCalls[0]?.to.apiKey === 'string' ? updateCalls[0].to.apiKey : '';
 		const secretKey = encodedApiKey.substring('${input:'.length, encodedApiKey.length - 1);
 		assert.deepStrictEqual({
 			encodedApiKeyUsesSecretStorage: encodedApiKey.startsWith('${input:chat.lm.secret.'),
-			newSecretValue: await secretStorageService.get(secretKey),
-			oldSecretValue: await secretStorageService.get('existing-secret'),
-			settings: updatedGroup?.settings,
-			identity: { name: updatedGroup?.name, vendor: updatedGroup?.vendor }
+			newSecretValue: await secretStorageService.get(secretKey)
 		}, {
 			encodedApiKeyUsesSecretStorage: true,
-			newSecretValue: 'new-api-key',
-			oldSecretValue: undefined,
-			settings: { model: { temperature: 0.7 } },
-			identity: { name: 'Custom Group', vendor: 'custom-vendor' }
+			newSecretValue: 'new-api-key'
 		});
 	});
 
@@ -1516,13 +2410,7 @@ suite('LanguageModels - Provider Group Management', function () {
 
 suite('LanguageModels - Provider Group Detail Fallback', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('model.detail falls back to the group name so multiple instances of the same vendor are distinguishable', async function () {
 		const languageModelsService = disposables.add(new LanguageModelsService(
@@ -1550,6 +2438,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1625,6 +2514,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1689,6 +2579,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		languageModelsService.deltaLanguageModelChatProviderDescriptors([
@@ -1739,13 +2630,7 @@ suite('LanguageModels - Provider Group Detail Fallback', function () {
 
 suite('LanguageModels - Provider Deprecation Notice', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class RecordingNotificationService extends TestNotificationService {
 		readonly prompts: { message: string; choices: IPromptChoice[]; options?: IPromptOptions }[] = [];
@@ -1783,7 +2668,8 @@ suite('LanguageModels - Provider Deprecation Notice', function () {
 					return true;
 				}
 			},
-			NullTelemetryService
+			NullTelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		service.deltaLanguageModelChatProviderDescriptors([
@@ -1859,7 +2745,7 @@ suite('createModelConfigurationActions', function () {
 	const schema: ILanguageModelConfigurationSchema = {
 		properties: {
 			thinkingEffort: {
-				title: 'Thinking Effort',
+				title: 'Effort Level',
 				enum: ['low', 'medium', 'high'],
 				enumItemLabels: ['Low', 'Medium', 'High'],
 				enumDescriptions: ['Fast', 'Balanced', 'Thorough'],
@@ -1877,13 +2763,23 @@ suite('createModelConfigurationActions', function () {
 		assert.deepStrictEqual(createModelConfigurationActions({}, {}, () => { }), []);
 	});
 
+	test('read-only options stay visible with disabled choices', () => {
+		const actions = createModelConfigurationActions({
+			properties: { effort: { title: 'Effort', enum: ['low', 'high'], default: 'high', readOnly: true } },
+		}, {}, () => { throw new Error('Read-only choice invoked'); });
+		assert.ok(actions[0] instanceof SubmenuAction);
+		assert.deepStrictEqual(actions[0].actions.map(action => ({ enabled: action.enabled, checked: action.checked })), [
+			{ enabled: false, checked: false }, { enabled: false, checked: true },
+		]);
+	});
+
 	test('builds one submenu per enum property with >= 1 values', () => {
 		const actions = createModelConfigurationActions(schema, {}, () => { });
 		assert.strictEqual(actions.length, 2);
 		const submenu = actions[0] as SubmenuAction;
 		assert.ok(submenu instanceof SubmenuAction);
 		assert.strictEqual(submenu.id, 'configureModel.thinkingEffort');
-		assert.strictEqual(submenu.label, 'Thinking Effort');
+		assert.strictEqual(submenu.label, 'Effort Level');
 		assert.strictEqual(submenu.actions.length, 3);
 		const singleSubmenu = actions[1] as SubmenuAction;
 		assert.ok(singleSubmenu instanceof SubmenuAction);
@@ -1928,13 +2824,7 @@ suite('createModelConfigurationActions', function () {
 
 suite('LanguageModels - provider usage telemetry', function () {
 
-	const disposables = new DisposableStore();
-
-	teardown(function () {
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	class CapturingTelemetryService implements Partial<ITelemetryService> {
 		readonly events: { eventName: string; data: any }[] = [];
@@ -1963,6 +2853,7 @@ suite('LanguageModels - provider usage telemetry', function () {
 			new TestNotificationService(),
 			NullOpenerService,
 			telemetry as unknown as ITelemetryService,
+			new TestUserDataProfileService(),
 		));
 
 		service.deltaLanguageModelChatProviderDescriptors([
@@ -2040,5 +2931,84 @@ suite('LanguageModels - provider usage telemetry', function () {
 	test('sendChatRequest does not report first-party Copilot models', async function () {
 		const events = await sendRequestForVendor(COPILOT_VENDOR_ID, new ExtensionIdentifier('github.copilot-chat'));
 		assert.strictEqual(events.length, 0);
+	});
+});
+
+suite('LanguageModels - pin telemetry', function () {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reports only real pin changes, naming built-in models wherever they are relayed from', async function () {
+		const events: { eventName: string; data: unknown }[] = [];
+		const service = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() { return Promise.resolve(); }
+			},
+			new NullLogService(),
+			disposables.add(new TestStorageService()),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() { return []; }
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+			new TestNotificationService(),
+			NullOpenerService,
+			new class extends mock<ITelemetryService>() {
+				override publicLog2(eventName: string, data?: unknown) { events.push({ eventName, data }); }
+			},
+			new TestUserDataProfileService(),
+		));
+		const vendors = ['agent-host-copilotcli', 'ollama'];
+		service.deltaLanguageModelChatProviderDescriptors(vendors.map(vendor => ({ vendor, displayName: vendor, configuration: undefined, managementCommand: undefined, when: undefined })), []);
+		for (const vendor of vendors) {
+			disposables.add(service.registerLanguageModelProvider(vendor, {
+				onDidChange: Event.None,
+				provideLanguageModelChatInfo: async () => [{
+					identifier: `${vendor}/model`,
+					metadata: {
+						extension: nullExtensionDescription.identifier, name: 'Model', vendor, family: 'family', version: '1.0', id: 'model',
+						maxInputTokens: 100, maxOutputTokens: 100, isDefaultForLocation: {},
+						// Agent-host copies of the built-in models keep the built-in provider's group.
+						...(vendor === 'agent-host-copilotcli' ? { isBYOK: true, modelGroup: { id: 'copilot' } } : {}),
+					} satisfies ILanguageModelChatMetadata,
+				}],
+				sendChatRequest: async () => { throw new Error(); },
+				provideTokenCount: async () => { throw new Error(); },
+			}));
+		}
+		await service.selectLanguageModels({});
+
+		service.pinModel('agent-host-copilotcli/model', { pickerSessionId: 'picker-1' });
+		service.pinModel('agent-host-copilotcli/model');
+		service.pinModel('ollama/model');
+		service.unpinModel('ollama/model');
+		service.unpinModel('ollama/model');
+		service.unpinModel('removed/model');
+
+		assert.deepStrictEqual(events.filter(event => event.eventName === 'chat.modelPinChange').map(event => event.data), [
+			{ model: new TelemetryTrustedValue('agent-host-copilotcli/model'), pinned: true, pickerSessionId: 'picker-1' },
+			{ model: 'unknown', pinned: true, pickerSessionId: undefined },
+			{ model: 'unknown', pinned: false, pickerSessionId: undefined },
+		]);
+	});
+});
+
+suite('LanguageModels - telemetry identifiers', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('model routers report as modelRouter, matched on the model id rather than the vendor-prefixed identifier', function () {
+		const service = { getVendors: () => [] } as unknown as ILanguageModelsService;
+		const model = (id: string): ILanguageModelChatMetadataAndIdentifier => ({
+			identifier: `copilotcli:${id}`,
+			metadata: { id, name: id, vendor: 'copilotcli' } as ILanguageModelChatMetadata,
+		});
+		assert.deepStrictEqual([
+			getTelemetryModelIdentifier(model('model-router:secret'), service),
+			getTelemetryModelIdentifier(model('claude-opus-5'), service),
+		], [new TelemetryTrustedValue('modelRouter'), new TelemetryTrustedValue('copilotcli:claude-opus-5')]);
 	});
 });

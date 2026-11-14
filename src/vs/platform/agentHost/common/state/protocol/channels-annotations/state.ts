@@ -20,9 +20,8 @@ import type { URI, StringOrMarkdown, TextRange } from '../common/state.js';
 export interface AnnotationsSummary {
 	/**
 	 * The subscribable annotations channel URI for the owning session
-	 * (typically `ahp-session:/<uuid>/annotations`). Surfaced explicitly even
-	 * though it is derivable from the session URI so badge UI does not need
-	 * to know the derivation rule.
+	 * (`ahp-annotations:/<uuid>`, where `<uuid>` is the owning session's id).
+	 * Clients should use this value rather than derive it from the session URI.
 	 */
 	resource: URI;
 	/** Total number of {@link Annotation} entries in the channel. */
@@ -35,7 +34,7 @@ export interface AnnotationsSummary {
 
 /**
  * Full state for a session's annotations channel, returned when a client
- * subscribes to an `ahp-session:/<uuid>/annotations` URI.
+ * subscribes to an `ahp-annotations:/<uuid>` URI.
  *
  * @category Annotations
  */
@@ -44,17 +43,29 @@ export interface AnnotationsState {
 	annotations: Annotation[];
 }
 
+/**
+ * Provenance of the content an annotation is anchored to.
+ *
+ * @category Annotations
+ */
+export interface AnnotationOrigin {
+	/** Owning session URI. */
+	session: URI;
+	/** Owning chat URI, when the annotation is scoped to a chat. */
+	chat?: URI;
+	/** Turn identifier within {@link chat}, when the annotation is scoped to a turn. */
+	turnId?: string;
+}
+
 // ─── Annotation ──────────────────────────────────────────────────────────────
 
 /**
- * A conversation anchored to a specific file produced by a specific turn,
- * optionally narrowed to a range within that file.
+ * A conversation anchored to a specific file in a session, optionally scoped
+ * to a chat and turn and narrowed to a range within that file.
  *
- * {@link turnId} anchors the annotation to the file versions that turn
- * produced, so a later turn that rewrites the same file does not silently
- * invalidate the annotation's anchor — clients can resolve {@link resource}
- * and {@link range} against the turn's changeset. When {@link range} is
- * omitted the annotation is anchored to the entire file.
+ * {@link origin} identifies the owning session and, when available, the chat
+ * and turn that produced the file version. When {@link range} is omitted the
+ * annotation is anchored to the entire file.
  *
  * Every annotation MUST contain at least one {@link AnnotationEntry}. An
  * {@link AnnotationsSetAction} that creates an annotation therefore carries
@@ -70,11 +81,8 @@ export interface Annotation {
 	 * that dispatches the creating {@link AnnotationsSetAction}.
 	 */
 	id: string;
-	/**
-	 * Turn that produced the file versions this annotation is anchored to.
-	 * Matches a {@link Turn.id} on the owning session.
-	 */
-	turnId: string;
+	/** Provenance of the content this annotation is anchored to. */
+	origin: AnnotationOrigin;
 	/** The file the annotation is anchored to. */
 	resource: URI;
 	/**

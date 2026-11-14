@@ -5,15 +5,17 @@
 
 import assert from 'assert';
 import { IEntitlementsData } from '../../../../../base/common/defaultAccount.js';
+import { Emitter } from '../../../../../base/common/event.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyChangeEvent } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
-import { ChatEntitlementService, parseQuotas } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementContextKeys, ChatEntitlementService, getChatEntitlement, getQuotaReset, getQuotaUsage, parseQuotas, QuotaUsageKind, SIMULATABLE_CHAT_ENTITLEMENTS, simulateEntitlementsData } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 
@@ -501,20 +503,208 @@ suite('parseQuotas', () => {
 	});
 });
 
+suite('getQuotaUsage', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('derives usage for every quota shape', () => {
+		assert.deepStrictEqual({
+			missing: getQuotaUsage(undefined),
+			unlimitedWithCredits: getQuotaUsage({ percentRemaining: 100, unlimited: true, creditsUsed: 206141 }),
+			unlimitedWithoutCredits: getQuotaUsage({ percentRemaining: 100, unlimited: true }),
+			unlimitedPooledDepleted: getQuotaUsage({ percentRemaining: 0, unlimited: true, hasQuota: false, creditsUsed: 500 }),
+			cappedWithRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400, quotaRemaining: 100 }),
+			cappedIgnoresCreditsUsed: getQuotaUsage({ percentRemaining: 6.2, unlimited: false, entitlement: 13000, quotaRemaining: 807.7, creditsUsed: 14517 }),
+			cappedWithoutRemaining: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 400 }),
+			cappedWithoutEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false }),
+			cappedZeroEntitlement: getQuotaUsage({ percentRemaining: 25, unlimited: false, entitlement: 0 }),
+		}, {
+			missing: undefined,
+			unlimitedWithCredits: { kind: QuotaUsageKind.CreditsUsed, creditsUsed: 206141 },
+			unlimitedWithoutCredits: undefined,
+			unlimitedPooledDepleted: undefined,
+			cappedWithRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
+			cappedIgnoresCreditsUsed: { kind: QuotaUsageKind.Percentage, usedPercentage: 93.8, used: 12192.3, total: 13000 },
+			cappedWithoutRemaining: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: 300, total: 400 },
+			cappedWithoutEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
+			cappedZeroEntitlement: { kind: QuotaUsageKind.Percentage, usedPercentage: 75, used: undefined, total: undefined },
+		});
+	});
+});
+
+suite('getQuotaReset', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const account = { resetDate: '2026-09-01T00:00:00Z', resetDateHasTime: true };
+	const snapshotResetAt = Math.floor(Date.UTC(2026, 7, 20, 14, 0, 0) / 1000);
+
+	test('prefers the snapshot reset over the account reset', () => {
+		assert.deepStrictEqual({
+			snapshotWins: getQuotaReset({ percentRemaining: 50, unlimited: false, resetAt: snapshotResetAt }, account),
+			fallsBackToAccount: getQuotaReset({ percentRemaining: 50, unlimited: false }, account),
+			accountWithoutTime: getQuotaReset(undefined, { resetDate: '2026-09-01T00:00:00Z' }),
+			malformedAccountDate: getQuotaReset(undefined, { resetDate: 'not-a-date' }),
+			noSnapshotNoAccount: getQuotaReset(undefined, {}),
+		}, {
+			snapshotWins: { date: new Date(snapshotResetAt * 1000), hasTime: true },
+			fallsBackToAccount: { date: new Date('2026-09-01T00:00:00Z'), hasTime: true },
+			accountWithoutTime: { date: new Date('2026-09-01T00:00:00Z'), hasTime: false },
+			malformedAccountDate: undefined,
+			noSnapshotNoAccount: undefined,
+		});
+	});
+});
+
+suite('simulateEntitlementsData', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('every simulated entitlement resolves to itself and keeps the account identity', () => {
+		const actual: IEntitlementsData = {
+			access_type_sku: 'copilot_enterprise_seat_quota',
+			chat_enabled: true,
+			assigned_date: '2026-04-17T12:53:45-07:00',
+			can_signup_for_limited: false,
+			copilot_plan: 'enterprise',
+			organization_login_list: ['microsoft'],
+			is_staff: true,
+			analytics_tracking_id: 'tracking-id',
+		};
+
+		const simulated = SIMULATABLE_CHAT_ENTITLEMENTS.map(entitlement => {
+			const data = simulateEntitlementsData(entitlement, actual);
+			const quotas = parseQuotas(data);
+			return { entitlement: getChatEntitlement(data), organisations: data.organization_login_list, isStaff: data.is_staff, trackingId: data.analytics_tracking_id, limitedChat: quotas.chat?.unlimited === false, premiumChat: quotas.premiumChat !== undefined };
+		});
+
+		const expected = (entitlement: ChatEntitlement, limitedChat: boolean, premiumChat: boolean) => ({ entitlement, organisations: ['microsoft'], isStaff: true, trackingId: 'tracking-id', limitedChat, premiumChat });
+		assert.deepStrictEqual(simulated, [
+			expected(ChatEntitlement.Available, false, false),
+			expected(ChatEntitlement.Unavailable, false, false),
+			expected(ChatEntitlement.Free, true, false),
+			expected(ChatEntitlement.EDU, false, true),
+			expected(ChatEntitlement.Pro, false, true),
+			expected(ChatEntitlement.ProPlus, false, true),
+			expected(ChatEntitlement.Max, false, true),
+			expected(ChatEntitlement.Business, false, true),
+			expected(ChatEntitlement.Enterprise, false, true),
+		]);
+	});
+});
+
 suite('ChatEntitlementService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(): ChatEntitlementService {
+	class ChangeEmittingContextKeyService extends MockContextKeyService {
+		private readonly _onDidChangeContext = store.add(new Emitter<IContextKeyChangeEvent>());
+		override get onDidChangeContext() { return this._onDidChangeContext.event; }
+
+		fireChange(key: string): void {
+			this._onDidChangeContext.fire({
+				affectsSome: keys => keys.has(key),
+				allKeysContainedIn: keys => keys.has(key),
+			});
+		}
+	}
+
+	function createService(contextKeyService = store.add(new MockContextKeyService())): ChatEntitlementService {
 		return store.add(new ChatEntitlementService(
 			store.add(new TestInstantiationService()),
 			new class extends mock<IProductService>() { },
 			new class extends mock<IWorkbenchEnvironmentService>() { },
-			store.add(new MockContextKeyService()),
+			contextKeyService,
 			new TestConfigurationService(),
 			NullTelemetryService,
 			new NullLogService(),
 			store.add(new TestStorageService()),
 		));
+	}
+
+	test('signals sentiment changes for every setup key that sentiment reads', () => {
+		const contextKeyService = store.add(new ChangeEmittingContextKeyService());
+		const service = createService(contextKeyService);
+		const fired: string[] = [];
+		const keys = [
+			ChatEntitlementContextKeys.Setup.hidden.key,
+			ChatEntitlementContextKeys.Setup.disabled.key,
+			ChatEntitlementContextKeys.Setup.disabledInWorkspace.key,
+			ChatEntitlementContextKeys.chatAnonymous.key,
+		];
+		for (const key of keys) {
+			const listener = service.onDidChangeSentiment(() => fired.push(key));
+			contextKeyService.fireChange(key);
+			listener.dispose();
+		}
+
+		assert.deepStrictEqual(fired, [
+			ChatEntitlementContextKeys.Setup.hidden.key,
+			ChatEntitlementContextKeys.Setup.disabled.key,
+			ChatEntitlementContextKeys.Setup.disabledInWorkspace.key,
+		]);
+	});
+
+	test('signals changed usage when only consumed credits move on an unlimited plan', () => {
+		const service = createService();
+		const fired: string[] = [];
+		service.acceptQuotas({ premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 100 } });
+		store.add(service.onDidChangeQuotaRemaining(() => fired.push('remaining')));
+
+		service.acceptQuotas({ premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 250 } });
+		const afterCreditsChange = [...fired];
+
+		service.acceptQuotas({ premiumChat: { percentRemaining: 100, unlimited: true, creditsUsed: 250 } });
+
+		assert.deepStrictEqual({ afterCreditsChange, afterNoChange: fired }, {
+			afterCreditsChange: ['remaining'],
+			afterNoChange: ['remaining'],
+		});
+	});
+
+	const availabilityChanges: { name: string; before: ChatEntitlementService['quotas']; after: ChatEntitlementService['quotas'] }[] = [
+		{
+			name: 'additional usage permission',
+			before: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: true },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false }, additionalUsageEnabled: false },
+		},
+		{
+			name: 'pooled allowance availability',
+			before: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: true } },
+			after: { premiumChat: { percentRemaining: 100, unlimited: true, hasQuota: false } },
+		},
+		{
+			name: 'premium allowance becomes limited',
+			before: { premiumChat: { percentRemaining: 0, unlimited: true } },
+			after: { premiumChat: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'session rate limit becomes limited',
+			before: { sessionRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { sessionRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+		{
+			name: 'weekly rate limit becomes limited',
+			before: { weeklyRateLimit: { percentRemaining: 0, unlimited: true } },
+			after: { weeklyRateLimit: { percentRemaining: 0, unlimited: false } },
+		},
+	];
+	for (const { name, before, after } of availabilityChanges) {
+		test(`signals quota availability changes without a percentage change: ${name}`, () => {
+			const service = createService();
+			service.acceptQuotas(before);
+			let changes = 0;
+			store.add(service.onDidChangeQuotaRemaining(() => changes++));
+
+			service.acceptQuotas(after);
+			const afterChange = changes;
+			service.acceptQuotas(after);
+			const afterIdenticalSnapshot = changes;
+			service.acceptQuotas(before);
+
+			assert.deepStrictEqual({ afterChange, afterIdenticalSnapshot, afterRecovery: changes }, {
+				afterChange: 1, afterIdenticalSnapshot: 1, afterRecovery: 2,
+			});
+		});
 	}
 
 	test('merges defined snapshot fields until the snapshot is removed', () => {
@@ -584,6 +774,39 @@ suite('ChatEntitlementService', () => {
 				creditsUsed: 700,
 			},
 			removed: undefined,
+		});
+	});
+});
+
+suite('ChatEntitlementContext', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	async function resolveInternal(organisations: string[], isStaff: boolean | undefined): Promise<boolean | undefined> {
+		const contextKeyService = store.add(new MockContextKeyService());
+		const context = store.add(new ChatEntitlementContext(
+			contextKeyService,
+			store.add(new TestStorageService()),
+			new NullLogService(),
+			new TestConfigurationService(),
+			NullTelemetryService,
+		));
+
+		await context.update({ entitlement: ChatEntitlement.Pro, organisations, isStaff, sku: undefined, copilotTrackingId: undefined });
+
+		return contextKeyService.getContextKeyValue(ChatEntitlementContextKeys.Entitlement.internal.key);
+	}
+
+	test('treats staff and internal organisation members as internal', async () => {
+		assert.deepStrictEqual({
+			external: await resolveInternal(['contoso'], false),
+			staff: await resolveInternal(['contoso'], true),
+			internalOrg: await resolveInternal(['microsoft'], false),
+			unknownStaff: await resolveInternal(['contoso'], undefined),
+		}, {
+			external: false,
+			staff: true,
+			internalOrg: true,
+			unknownStaff: false,
 		});
 	});
 });

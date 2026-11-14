@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 use base64::{engine::general_purpose as b64, Engine as _};
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
+use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::{
 	net::{IpAddr, Ipv4Addr, SocketAddr},
 	str::FromStr,
-	sync::Arc,
 	time::Duration,
 };
 use sysinfo::Pid;
@@ -20,7 +19,6 @@ use tokio::{
 };
 
 use super::{
-	agent_host::ensure_supervisor_running,
 	args::{
 		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelArgs, TunnelForwardArgs,
 		TunnelRenameArgs, TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
@@ -41,7 +39,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		legal, local_forwarding,
+		legal, local_forwarding, machine_status,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -50,7 +48,6 @@ use crate::{
 			make_singleton_server, start_singleton_server, BroadcastLogSink, SingletonServerArgs,
 		},
 		AuthRequired, Next, ServeStreamParams, ServiceContainer, ServiceManager,
-		SharedActiveAgentHost,
 	},
 	util::{
 		app_lock::AppMutex,
@@ -78,7 +75,7 @@ impl From<AuthProvider> for crate::auth::AuthProvider {
 	}
 }
 
-pub(super) fn fulfill_existing_tunnel_args(
+fn fulfill_existing_tunnel_args(
 	d: ExistingTunnelArgs,
 	name_arg: &Option<String>,
 ) -> Option<dev_tunnels::ExistingTunnel> {
@@ -150,28 +147,10 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
 	}
 
-	// Kick off the agent host supervisor in the background. The supervisor
-	// is what lets the renderer reach the agent host via the
-	// `agentHostProxy` IPC channel on the spawned VS Code server. We do
-	// NOT await it here — `command-shell` needs to start listening
-	// immediately. `handle_serve` awaits the shared future on demand and
-	// mixes the bridge endpoint into the per-request `code_server_args`.
-	// On failure the renderer just won't see `agentHostProxy`; editing
-	// and the extension host still work.
-	let active_agent_host: SharedActiveAgentHost = {
-		let paths = ctx.paths.clone();
-		let log = ctx.log.clone();
-		async move {
-			ensure_supervisor_running(&paths, &log)
-				.await
-				.map(Arc::new)
-				.map_err(Arc::new)
-		}
-		.boxed()
-		.shared()
-	};
-	tokio::spawn(active_agent_host.clone());
-
+	// No agent host supervisor here: the spawned VS Code server is the client's
+	// own commit, so it uses a live shared agent host from the endpoint registry
+	// or starts and publishes its own, and stays alive while that agent host
+	// has sessions or clients.
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -182,7 +161,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.unwrap_or(AuthRequired::VSDA),
 		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
-		active_agent_host: Some(active_agent_host),
+		active_agent_host: None,
 	};
 
 	args.server_args.apply_to(&mut params.code_server_args);
@@ -595,6 +574,8 @@ async fn serve_with_csa(
 	mut csa: CodeServerArgs,
 	app_mutex_name: Option<&'static str>,
 ) -> Result<i32, AnyError> {
+	machine_status::set_stdout_enabled(gateway_args.machine_status);
+
 	let log_broadcast = BroadcastLogSink::new();
 	log = log.tee(log_broadcast.clone());
 	log::install_global_logger(log.clone()); // re-install so that library logs are captured
@@ -645,6 +626,7 @@ async fn serve_with_csa(
 					log: log.clone(),
 					shutdown: shutdown.clone(),
 					stream,
+					machine_status_enabled: gateway_args.machine_status,
 				})
 				.await;
 				if should_exit {
@@ -688,6 +670,8 @@ async fn serve_with_csa(
 			paths: &paths,
 			code_server_args: &csa,
 			platform,
+			user_data_dir: gateway_args.user_data_dir.clone(),
+			delegate_to_editor: gateway_args.delegate_to_editor,
 			log_broadcast: &log_broadcast,
 			shutdown: shutdown.clone(),
 			server: &mut server,

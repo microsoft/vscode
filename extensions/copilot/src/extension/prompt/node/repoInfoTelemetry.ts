@@ -10,6 +10,7 @@ import { RelativePattern } from '../../../platform/filesystem/common/fileTypes';
 import { IGitDiffService } from '../../../platform/git/common/gitDiffService';
 import { IGitExtensionService } from '../../../platform/git/common/gitExtensionService';
 import { getOrderedRepoInfosFromContext, IGitService, normalizeFetchUrl, RepoContext, ResolvedRepoRemoteInfo } from '../../../platform/git/common/gitService';
+// eslint-disable-next-line local/code-layering -- Pre-existing layering violation found when the zone check started resolving extensionless imports.
 import { Change, Repository } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService, multiplexProperties } from '../../../platform/telemetry/common/telemetry';
@@ -242,9 +243,9 @@ export class RepoInfoTelemetry {
 
 			if (isInternal) {
 				const { headBranchName: _, fileRelativePaths: _2, ...msftProperties } = internalProperties;
-				this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', multiplexProperties(msftProperties), data.measurements);
+				void multiplexProperties(msftProperties).then(properties => this._telemetryService.sendInternalMSFTTelemetryEvent('request.repoInfo', properties, data.measurements)).catch(() => { /* best-effort telemetry */ });
 			}
-			this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', multiplexProperties(internalProperties), data.measurements);
+			void multiplexProperties(internalProperties).then(properties => this._telemetryService.sendEnhancedGHTelemetryEvent('request.repoInfo', properties, data.measurements)).catch(() => { /* best-effort telemetry */ });
 		}
 
 		return results;

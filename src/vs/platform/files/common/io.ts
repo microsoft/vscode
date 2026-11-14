@@ -98,14 +98,9 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 			}
 		} while (bytesRead > 0 && (typeof allowedRemainingBytes !== 'number' || allowedRemainingBytes > 0) && throwIfCancelled(token) && throwIfTooLarge(totalBytesRead, options));
 
-		// wrap up with last buffer (also respect maxBytes if provided)
+		// wrap up with last buffer, which is only partially filled
 		if (posInBuffer > 0) {
-			let lastChunkLength = posInBuffer;
-			if (typeof allowedRemainingBytes === 'number') {
-				lastChunkLength = Math.min(posInBuffer, allowedRemainingBytes);
-			}
-
-			target.write(transformer(buffer.slice(0, lastChunkLength)));
+			target.write(transformer(buffer.slice(0, posInBuffer)));
 		}
 	} catch (error) {
 		throw ensureFileSystemProviderError(error);

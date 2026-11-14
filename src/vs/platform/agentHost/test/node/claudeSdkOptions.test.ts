@@ -6,8 +6,11 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { buildOptions, buildSubprocessEnv } from '../../node/claude/claudeSdkOptions.js';
+import { buildClaudeTelemetryEnv, buildOptions, buildSubprocessEnv, toClaudeMcpServers } from '../../node/claude/claudeSdkOptions.js';
 import type { ClaudeTransport, IClaudeProxyHandle } from '../../node/claude/claudeProxyService.js';
+import { McpServerType } from '../../../mcp/common/mcpPlatformTypes.js';
+import { CustomizationType, McpServerStatus, type McpServerCustomization } from '../../common/state/protocol/state.js';
+import type { IMcpServerDefinition } from '../../../agentPlugins/common/pluginParsers.js';
 
 suite('claudeSdkOptions / buildSubprocessEnv', () => {
 
@@ -77,6 +80,59 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 		});
 	});
 
+	test('maps Agent Host traces to loopback and logs/metrics to the external sink', () => {
+		const env = buildClaudeTelemetryEnv({
+			traces: { endpoint: 'http://127.0.0.1:4567/v1/traces', protocol: 'http/json' },
+			external: { endpoint: 'http://collector:4318', protocol: 'http/protobuf', headers: { authorization: 'Bearer test/token' } },
+			captureContent: false,
+			resourceAttributes: { 'service.namespace': 'vscode.agent-host', region: 'west us' },
+		}, {
+			traceId: '1'.repeat(32),
+			spanId: '2'.repeat(16),
+			traceparent: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+		});
+
+		assert.deepStrictEqual(env, {
+			CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+			OTEL_SERVICE_NAME: 'claude-code',
+			OTEL_RESOURCE_ATTRIBUTES: 'service.namespace=vscode.agent-host,region=west%20us',
+			CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
+			OTEL_TRACES_EXPORTER: 'otlp',
+			OTEL_LOGS_EXPORTER: 'otlp',
+			OTEL_METRICS_EXPORTER: 'otlp',
+			OTEL_LOG_USER_PROMPTS: '0',
+			OTEL_LOG_ASSISTANT_RESPONSES: '0',
+			OTEL_LOG_TOOL_DETAILS: '0',
+			OTEL_LOG_TOOL_CONTENT: '0',
+			OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: 'http://127.0.0.1:4567/v1/traces',
+			OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: 'http/json',
+			OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: 'http://collector:4318/v1/logs',
+			OTEL_EXPORTER_OTLP_LOGS_PROTOCOL: 'http/protobuf',
+			OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: 'http://collector:4318/v1/metrics',
+			OTEL_EXPORTER_OTLP_METRICS_PROTOCOL: 'http/protobuf',
+			OTEL_EXPORTER_OTLP_HEADERS: 'authorization=Bearer%20test%2Ftoken',
+			TRACEPARENT: `00-${'1'.repeat(32)}-${'2'.repeat(16)}-01`,
+		});
+	});
+
+	test('keeps gRPC signal endpoints unchanged', () => {
+		const env = buildClaudeTelemetryEnv({
+			traces: { endpoint: 'https://collector:4317', protocol: 'grpc' },
+			external: { endpoint: 'https://collector:4317', protocol: 'grpc' },
+			captureContent: false,
+			resourceAttributes: {},
+		});
+		assert.deepStrictEqual({
+			trace: env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
+			logs: env.OTEL_EXPORTER_OTLP_LOGS_ENDPOINT,
+			metrics: env.OTEL_EXPORTER_OTLP_METRICS_ENDPOINT,
+		}, {
+			trace: 'https://collector:4317',
+			logs: 'https://collector:4317',
+			metrics: 'https://collector:4317',
+		});
+	});
+
 	test('always sets ELECTRON_RUN_AS_NODE=1 even when not present in process.env', () => {
 		clearAndSet({});
 
@@ -125,6 +181,57 @@ suite('claudeSdkOptions / buildSubprocessEnv', () => {
 	});
 });
 
+suite('claudeSdkOptions / MCP server projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const customization: McpServerCustomization = {
+		type: CustomizationType.McpServer,
+		id: 'mcp',
+		uri: 'file:///mcp',
+		name: 'mcp',
+		state: { kind: McpServerStatus.Stopped },
+	};
+	const definition = (name: string, defaultCwd: URI, remote = false): IMcpServerDefinition => ({
+		name,
+		defaultCwd,
+		uri: URI.file('/mcp.json'),
+		configuration: remote
+			? { type: McpServerType.REMOTE, url: 'https://example.com/mcp' }
+			: { type: McpServerType.LOCAL, command: name },
+		customization: { ...customization, name },
+	});
+
+	test('keeps primary stdio and all remote servers while skipping additional-root stdio', () => {
+		const primary = URI.file('/primary');
+		const remotePrimary = URI.parse('vscode-remote://ssh-remote+linux/primary');
+		const relativePrimary = {
+			...definition('relative-primary', primary),
+			configuration: { type: McpServerType.LOCAL, command: 'relative-primary', cwd: '.' },
+		} satisfies IMcpServerDefinition;
+		const normalizedPrimary = {
+			...definition('normalized-primary', primary),
+			configuration: { type: McpServerType.LOCAL, command: 'normalized-primary', cwd: `${primary.fsPath}/child/..` },
+		} satisfies IMcpServerDefinition;
+		const result = toClaudeMcpServers([
+			definition('primary', primary),
+			definition('remote-primary', remotePrimary),
+			relativePrimary,
+			normalizedPrimary,
+			definition('additional', URI.file('/additional')),
+			definition('remote', URI.file('/additional'), true),
+			{
+				...definition('sse', URI.file('/additional'), true),
+				configuration: { type: McpServerType.REMOTE, transport: 'sse', url: 'https://example.com/sse' },
+			},
+		], primary);
+
+		assert.deepStrictEqual(Object.keys(result.servers), ['primary', 'remote-primary', 'relative-primary', 'normalized-primary', 'remote', 'sse']);
+		assert.strictEqual(result.servers.sse.type, 'sse');
+		assert.deepStrictEqual(result.skipped, ['additional']);
+	});
+});
+
 suite('claudeSdkOptions / buildOptions plugins projection', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -136,7 +243,7 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	};
 	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
 
-	function input(plugins: readonly URI[] | undefined) {
+	function input(pluginUris: readonly URI[] | undefined) {
 		return {
 			sessionId: 's1',
 			workingDirectory: URI.file('/tmp/x'),
@@ -147,19 +254,19 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 			onElicitation: async () => ({ action: 'cancel' as const }),
 			isResume: false,
 			mcpServers: undefined,
-			...(plugins !== undefined ? { plugins } : {}),
+			...(pluginUris !== undefined ? { plugins: pluginUris.map(uri => ({ uri, skipMcpDiscovery: true })) } : {}),
 		};
 	}
 
-	test('non-empty plugins project to Options.plugins as local entries', async () => {
+	test('non-empty plugins project without duplicate SDK MCP discovery', async () => {
 		const opts = await buildOptions(
 			input([URI.file('/p/a'), URI.file('/p/b')]),
 			proxyTransport,
 			() => { },
 		);
 		assert.deepStrictEqual(opts.plugins, [
-			{ type: 'local', path: URI.file('/p/a').fsPath },
-			{ type: 'local', path: URI.file('/p/b').fsPath },
+			{ type: 'local', path: URI.file('/p/a').fsPath, skipMcpDiscovery: true },
+			{ type: 'local', path: URI.file('/p/b').fsPath, skipMcpDiscovery: true },
 		]);
 	});
 
@@ -171,6 +278,67 @@ suite('claudeSdkOptions / buildOptions plugins projection', () => {
 	test('undefined plugins omits Options.plugins', async () => {
 		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
 		assert.strictEqual(opts.plugins, undefined);
+	});
+
+	test('projects denied workspace MCP servers into startup settings', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			deniedMcpServers: [
+				{ serverCommand: ['node', 'server.js'] },
+				{ serverUrl: 'https://disabled.example.com/mcp' },
+			],
+		}, proxyTransport, () => { });
+		assert.deepStrictEqual(typeof opts.settings === 'string' ? undefined : opts.settings?.deniedMcpServers, [
+			{ serverCommand: ['node', 'server.js'] },
+			{ serverUrl: 'https://disabled.example.com/mcp' },
+		]);
+	});
+
+	test('UserPromptSubmit adds transient host context', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			getUserPromptAdditionalContext: () => 'Rename with exact casing',
+		}, proxyTransport, () => { });
+		const hook = opts.hooks?.UserPromptSubmit?.[0].hooks[0];
+		const result = await hook?.({
+			hook_event_name: 'UserPromptSubmit',
+			prompt: 'Keep GitHub casing',
+			session_id: 's1',
+			transcript_path: '/tmp/transcript',
+			cwd: '/tmp/x',
+		}, undefined, { signal: new AbortController().signal });
+
+		assert.deepStrictEqual(result, {
+			hookSpecificOutput: {
+				hookEventName: 'UserPromptSubmit',
+				additionalContext: 'Rename with exact casing',
+			},
+		});
+	});
+
+	test('PreToolUse projects a host runtime restriction', async () => {
+		const opts = await buildOptions({
+			...input(undefined),
+			onPreToolUse: (toolName, toolInput) => ({
+				continue: false,
+				stopReason: `${toolName}:${JSON.stringify(toolInput)}`,
+			}),
+		}, proxyTransport, () => { });
+		const hook = opts.hooks?.PreToolUse?.[0].hooks[0];
+		const result = await hook?.({
+			hook_event_name: 'PreToolUse',
+			tool_name: 'Bash',
+			tool_input: { command: 'gh pr merge' },
+			tool_use_id: 'tool-1',
+			session_id: 's1',
+			transcript_path: '/tmp/transcript',
+			cwd: '/tmp/x',
+		}, undefined, { signal: new AbortController().signal });
+
+		assert.deepStrictEqual(result, {
+			continue: false,
+			stopReason: 'Bash:{"command":"gh pr merge"}',
+		});
 	});
 
 	test('proxy transport sets ANTHROPIC_BASE_URL + per-session ANTHROPIC_AUTH_TOKEN', async () => {
@@ -254,5 +422,53 @@ suite('claudeSdkOptions / buildOptions resumeSessionAt projection', () => {
 			{ sessionId: opts.sessionId, resume: opts.resume, resumeSessionAt: opts.resumeSessionAt },
 			{ sessionId: 's1', resume: undefined, resumeSessionAt: undefined },
 		);
+	});
+});
+
+suite('claudeSdkOptions / buildOptions additionalDirectories projection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	const proxyHandle: IClaudeProxyHandle = {
+		baseUrl: 'http://127.0.0.1:0',
+		nonce: 'n',
+		dispose: () => { },
+	};
+	const proxyTransport: ClaudeTransport = { kind: 'proxy', handle: proxyHandle };
+
+	function input(additionalDirectories: readonly URI[] | undefined) {
+		return {
+			sessionId: 's1',
+			workingDirectory: URI.file('/tmp/primary'),
+			model: undefined,
+			abortController: new AbortController(),
+			permissionMode: 'default' as const,
+			canUseTool: async () => ({ behavior: 'allow' as const, updatedInput: {} }),
+			onElicitation: async () => ({ action: 'cancel' as const }),
+			isResume: false,
+			mcpServers: undefined,
+			...(additionalDirectories !== undefined ? { additionalDirectories } : {}),
+		};
+	}
+
+	test('projects cwd from the primary and additionalDirectories from the tail', async () => {
+		const opts = await buildOptions(input([URI.file('/tmp/b'), URI.file('/tmp/c')]), proxyTransport, () => { });
+		assert.deepStrictEqual(
+			{ cwd: opts.cwd, additionalDirectories: opts.additionalDirectories },
+			{ cwd: URI.file('/tmp/primary').fsPath, additionalDirectories: [URI.file('/tmp/b').fsPath, URI.file('/tmp/c').fsPath] },
+		);
+	});
+
+	test('empty additionalDirectories omits Options.additionalDirectories', async () => {
+		const opts = await buildOptions(input([]), proxyTransport, () => { });
+		assert.deepStrictEqual(
+			{ cwd: opts.cwd, additionalDirectories: opts.additionalDirectories },
+			{ cwd: URI.file('/tmp/primary').fsPath, additionalDirectories: undefined },
+		);
+	});
+
+	test('undefined additionalDirectories omits Options.additionalDirectories', async () => {
+		const opts = await buildOptions(input(undefined), proxyTransport, () => { });
+		assert.strictEqual(opts.additionalDirectories, undefined);
 	});
 });

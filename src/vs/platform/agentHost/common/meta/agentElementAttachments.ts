@@ -3,4 +3,5 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export const AgentHostElementAttachmentDisplayKind = 'element';
+export type { IAgentHostElementAttachmentMetadata } from './vscode/agentElementAttachments.js';
+export { AgentHostElementAttachmentDisplayKind, AgentHostElementAttachmentMetadataKey, toElementAttachmentMeta, getElementAttachmentCorrelationId } from './vscode/agentElementAttachments.js';

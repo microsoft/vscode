@@ -6,11 +6,15 @@
 import { localize } from '../../../../../nls.js';
 import { $, addDisposableListener, AnimationFrameScheduler, EventType, isHTMLInputElement } from '../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
+import { status } from '../../../../../base/browser/ui/aria/aria.js';
+import { IManagedHover } from '../../../../../base/browser/ui/hover/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem, IQuickPickSeparator, QuickInputHideReason } from '../../../../../platform/quickinput/common/quickInput.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import {
@@ -42,6 +46,7 @@ export type IUrlPickerItem = IQuickPickItem & {
  */
 export interface IBrowserUrlBarHost {
 	readonly input: BrowserEditorInput | undefined;
+	readonly isReadonly?: boolean;
 	ensureBrowserFocus(): void;
 	/**
 	 * Resolve the built-in primary picker item(s) for the given (trimmed,
@@ -57,6 +62,10 @@ export interface IBrowserUrlBarHost {
 	 * widget uses a plain "Enter a URL" placeholder.
 	 */
 	getPlaceholder?(): string;
+}
+
+function readonlyAddressMessage(): string {
+	return localize('browser.addressLockedTooltip', "The address is read-only because the browser is locked to a file resource.");
 }
 
 /**
@@ -82,8 +91,10 @@ export class BrowserUrlBarWidget extends Disposable {
 	private readonly _suggestionProviders: IBrowserUrlSuggestionProvider[] = [];
 	private readonly _pickerActionProviders: IBrowserUrlPickerActionProvider[] = [];
 	private readonly _picker = this._register(new MutableDisposable<IQuickPick<IUrlPickerItem, { useSeparators: true }>>());
+	private readonly _readonlyHover: IManagedHover;
 
 	private _suppressFocusOpen = false;
+	private _readonlyAnnounced = false;
 	private _suppressBlurRevert = false;
 	private _pickerEdited = false;
 	private _isSettingPickerValue = false;
@@ -91,6 +102,7 @@ export class BrowserUrlBarWidget extends Disposable {
 	constructor(
 		private readonly _host: IBrowserUrlBarHost,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IHoverService hoverService: IHoverService,
 	) {
 		super();
 
@@ -101,9 +113,17 @@ export class BrowserUrlBarWidget extends Disposable {
 		// (caret, typing, backspace, paste) while still permitting child spans for
 		// URL renderer styling (e.g. red strikethrough on `https:` for cert errors).
 		this._urlDisplay = $('div.browser-url-display');
-		this._urlDisplay.contentEditable = 'plaintext-only';
 		this._urlDisplay.spellcheck = false;
+		this._urlDisplay.tabIndex = 0;
+		this._urlDisplay.setAttribute('role', 'textbox');
+		this._urlDisplay.setAttribute('aria-multiline', 'false');
 		this._urlDisplay.setAttribute('data-placeholder', this._placeholder);
+		this._updateReadonly();
+		this._readonlyHover = this._register(hoverService.setupManagedHover(
+			getDefaultHoverDelegate('mouse'),
+			this._urlDisplay,
+			() => this._host.isReadonly ? readonlyAddressMessage() : undefined
+		));
 
 		this._urlBarWidgetsContainer = $('.browser-url-bar-widgets');
 
@@ -121,6 +141,7 @@ export class BrowserUrlBarWidget extends Disposable {
 	 * open picker in sync with the new URL.
 	 */
 	refreshUrl(): void {
+		this._updateReadonly();
 		const isEditing = !!this._picker.value || this._urlDisplay.ownerDocument.activeElement === this._urlDisplay;
 		if (!isEditing) {
 			this._renderUrl();
@@ -166,6 +187,10 @@ export class BrowserUrlBarWidget extends Disposable {
 	 * edit the URL (e.g. the "Focus URL Input" command / Ctrl+L).
 	 */
 	openUrlPicker(): void {
+		if (this._host.isReadonly) {
+			this.focusUrlInput();
+			return;
+		}
 		this._openPicker();
 	}
 
@@ -231,6 +256,9 @@ export class BrowserUrlBarWidget extends Disposable {
 				pendingMouseFocus = false;
 				return;
 			}
+			if (this._host.isReadonly) {
+				return;
+			}
 			// Only open the picker if focus is already within the workbench, and not being transferred from a quick input.
 			if (!(event.relatedTarget instanceof Element) || event.relatedTarget.closest('.quick-input-widget')) {
 				return;
@@ -242,6 +270,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		}));
 		this._register(addDisposableListener(this._urlDisplay, EventType.BLUR, () => {
 			pendingMouseFocus = false;
+			this._readonlyAnnounced = false;
 			// Snap the display back to the start of the URL so it doesn't stay
 			// scrolled to wherever the caret was (e.g. after arrow-keying to
 			// the end and then clicking away).
@@ -271,7 +300,7 @@ export class BrowserUrlBarWidget extends Disposable {
 		this._register(addDisposableListener(this._urlDisplay, EventType.CLICK, () => {
 			const isMouseFocusClick = pendingMouseFocus;
 			pendingMouseFocus = false;
-			if (!isMouseFocusClick) {
+			if (!isMouseFocusClick || this._host.isReadonly) {
 				return;
 			}
 			// Preserve drag-selection so users can copy parts of the URL.
@@ -288,9 +317,15 @@ export class BrowserUrlBarWidget extends Disposable {
 
 		this._register(addDisposableListener(this._urlDisplay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
+			if (this._host.isReadonly && this._isEditKey(event)) {
+				this._showReadonlyFeedback();
+			}
 			if (event.keyCode === KeyCode.Enter) {
 				// Prevent contenteditable from inserting a newline.
 				e.preventDefault();
+				if (this._host.isReadonly) {
+					return;
+				}
 				const value = this._urlDisplay.textContent?.trim() ?? '';
 				if (value) {
 					// Suppress the next BLUR-revert: the user committed to
@@ -327,6 +362,31 @@ export class BrowserUrlBarWidget extends Disposable {
 			const caret = this._getCaretOffset();
 			this._openPicker({ value, selection: [caret, caret], edited: true });
 		}));
+
+		for (const type of ['paste', 'cut']) {
+			this._register(addDisposableListener(this._urlDisplay, type, () => {
+				if (this._host.isReadonly) {
+					this._showReadonlyFeedback();
+				}
+			}));
+		}
+	}
+
+	/** Explain an attempted edit of a read-only address: show the hover, and announce it once per focus. */
+	private _showReadonlyFeedback(): void {
+		this._readonlyHover.show();
+		if (!this._readonlyAnnounced) {
+			this._readonlyAnnounced = true;
+			status(readonlyAddressMessage());
+		}
+	}
+
+	/** Whether the key would modify the address if it were editable. */
+	private _isEditKey(event: StandardKeyboardEvent): boolean {
+		if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Backspace || event.keyCode === KeyCode.Delete) {
+			return true;
+		}
+		return event.browserEvent.key.length === 1 && !event.ctrlKey && !event.metaKey;
 	}
 
 	private _selectAll(): void {
@@ -339,6 +399,21 @@ export class BrowserUrlBarWidget extends Disposable {
 		range.selectNodeContents(this._urlDisplay);
 		sel.removeAllRanges();
 		sel.addRange(range);
+	}
+
+	private _updateReadonly(): void {
+		const readonly = !!this._host.isReadonly;
+		this._urlDisplay.contentEditable = readonly ? 'false' : 'plaintext-only';
+		this._urlDisplay.setAttribute('aria-readonly', String(readonly));
+		this._urlDisplay.setAttribute(
+			'aria-label',
+			readonly
+				? localize('browser.addressLockedAriaLabel', "Address. This address cannot be changed because the browser is locked to a file resource.")
+				: localize('browser.address', "Address")
+		);
+		if (readonly) {
+			this._picker.value?.hide();
+		}
 	}
 
 	/** Character offset of the selection start within the display's text. */
@@ -495,6 +570,9 @@ export class BrowserUrlBarWidget extends Disposable {
 	 * @param initial Optional display state carried into the picker.
 	 */
 	private _openPicker(initial?: { value: string; selection: [number, number]; edited: boolean }): void {
+		if (this._host.isReadonly) {
+			return;
+		}
 		if (this._picker.value) {
 			return;
 		}

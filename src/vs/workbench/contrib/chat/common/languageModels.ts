@@ -21,10 +21,12 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { isObject, isString } from '../../../../base/common/types.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
+import { isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
+import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { parseProviderQualifiedModelId } from '../../../../platform/agentHost/common/providerQualifiedModelId.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -34,10 +36,13 @@ import { IProductService } from '../../../../platform/product/common/productServ
 import { asJson, IRequestService } from '../../../../platform/request/common/request.js';
 import { IQuickInputService, IQuickPickItem, QuickInputHideReason } from '../../../../platform/quickinput/common/quickInput.js';
 import { ISecretStorageService } from '../../../../platform/secrets/common/secrets.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { isProfileUsingDefaultStorage, IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { ITelemetryService, MODEL_ROUTER_TELEMETRY_ID, normalizeModelRouterTelemetryId } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
+import { IUserDataProfile } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../services/extensions/common/extensionsRegistry.js';
+import { IUserDataProfileService } from '../../../services/userDataProfile/common/userDataProfile.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsProviderGroup, ILanguageModelsConfigurationService } from './languageModelsConfiguration.js';
@@ -239,11 +244,27 @@ export interface ILanguageModelConfigurationSchema extends IJSONSchema {
 			group?: string;
 			/** Labels for enum values. If provided, these are shown instead of the raw enum values. */
 			enumItemLabels?: string[];
+			/** Enum values shown but not selectable, parallel to `enum`; `enumDescriptions` says why. */
+			enumItemDisabled?: boolean[];
+			/** When `true`, the property is displayed but cannot be modified by the user. */
+			readOnly?: boolean;
 		};
 	};
 }
 
+export interface IAutoModelTierPromotion {
+	readonly id: string;
+	readonly message?: string;
+	readonly discountPercent: number;
+	readonly tierIds: readonly string[];
+	readonly startsAt?: string;
+	readonly endsAt?: string;
+}
+
 export interface ILanguageModelChatMetadata {
+	/** Host-advertised options whose defaults are not explicit user choices. */
+	readonly configurationDefaultKeys?: readonly string[];
+	readonly managedModelDefaults?: { readonly model: boolean; readonly keys: readonly string[] };
 	readonly extension: ExtensionIdentifier;
 
 	readonly name: string;
@@ -252,6 +273,25 @@ export interface ILanguageModelChatMetadata {
 	readonly version: string;
 	readonly tooltip?: string;
 	readonly detail?: string;
+	/**
+	 * Auto's advertised discount, as a whole-number percentage. Set only by the agent host's
+	 * Auto model, whose {@link tooltip} then omits the discount so the picker can describe it
+	 * alongside Auto's routing tiers. Extension-provided Auto models describe their discount
+	 * in {@link tooltip} instead.
+	 */
+	readonly autoModelDiscountPercent?: number;
+	/** Whether the agent host presents its Auto model as Copilot Fusion. */
+	readonly autoModelFusion?: boolean;
+	/**
+	 * The tier the agent host runs Copilot Fusion at for editor and terminal inline chat, whatever
+	 * effort level is selected. Absent when the host pins no tier there. Inline chat offers no Fusion
+	 * effort level either way.
+	 */
+	readonly autoModelFusionInlineChatTier?: string;
+	/** Set only on the agent host's Auto model presented as Fusion. */
+	readonly autoModelTierPromotions?: readonly IAutoModelTierPromotion[];
+	/** Auto's tiers come from the provider, which may hide some, including HydraFusion ones. */
+	readonly autoModelProviderTiers?: boolean;
 	readonly multiplierNumeric?: number;
 	readonly isBYOK?: boolean;
 	readonly pricing?: string;
@@ -268,6 +308,8 @@ export interface ILanguageModelChatMetadata {
 	readonly family: string;
 	readonly maxInputTokens: number;
 	readonly maxOutputTokens: number;
+	/** The total context window, independent of the input and output token limits. */
+	readonly maxContextWindowTokens?: number;
 
 	readonly isDefaultForLocation: { [K in ChatAgentLocation]?: boolean };
 	readonly isUserSelectable?: boolean;
@@ -281,6 +323,8 @@ export interface ILanguageModelChatMetadata {
 		readonly toolCalling?: boolean;
 		readonly agentMode?: boolean;
 		readonly editTools?: ReadonlyArray<string>;
+		readonly apiType?: 'chatCompletions' | 'responses' | 'messages';
+		readonly adaptiveThinking?: boolean;
 	};
 	/**
 	 * When set, this model is only shown in the model picker for the specified chat session type.
@@ -296,7 +340,17 @@ export interface ILanguageModelChatMetadata {
 	 * ({@link ILanguageModelsService.getVendors}), the same source used for every other vendor.
 	 * Presentation-only; it does not affect model selection or routing.
 	 */
-	readonly modelGroup?: { readonly id: string };
+	readonly modelGroup?: {
+		readonly id: string;
+		/**
+		 * Identifies a trusted source presentation owned by this model's vendor.
+		 * Source ids are resolved together with {@link ILanguageModelChatMetadata.vendor},
+		 * so another vendor cannot claim the same presentation by reusing the id.
+		 */
+		readonly sourceId?: string;
+	};
+	/** A file that the model picker's Details opens instead of its details card, such as a model router's file. */
+	readonly detailsResource?: UriComponents;
 	/**
 	 * For an agent-host copy of an extension-provided BYOK model, the identifier the
 	 * original model is registered under in the renderer's LM service
@@ -318,15 +372,37 @@ export interface ILanguageModelChatMetadata {
 	 */
 	readonly warningText?: IStringDictionary<string>;
 	/**
-	 * Optional promotional information for this model. Positive discounts surface
-	 * promotional UI; non-positive discounts only feature the model in the picker.
+	 * Optional informational text to display in the model picker hover as an info banner.
+	 * The keys are info categories (e.g. "model_relocated") and the values are markdown strings.
+	 * Unlike {@link warningText}, these are neutral notices and never signal a problem with the model.
+	 */
+	readonly infoText?: IStringDictionary<string>;
+	/**
+	 * Optional promotional information for this model. A positive `discountPercent`
+	 * surfaces the full promotional UI; `0` is a message-only promo that features the
+	 * model without a price change; a negative value is malformed and is ignored.
+	 * `endsAt` is optional — open-ended promos omit it and render no end date.
+	 * `showBanner` is optional — the promo is banner-eligible unless it is `false`.
 	 */
 	readonly promo?: {
 		readonly id: string;
 		readonly discountPercent: number;
-		readonly endsAt: string;
+		readonly endsAt?: string;
 		readonly message: string;
+		readonly showBanner?: boolean;
 	};
+}
+
+/**
+ * Uses the declared context window, falling back to input/output budgets for legacy providers.
+ * A configured input limit can reduce the effective window, but never exceed the declared maximum.
+ */
+export function getModelContextWindowTotal(metadata: ILanguageModelChatMetadata, inputTokenLimit?: number): number {
+	const tokenBudget = (inputTokenLimit ?? metadata.maxInputTokens ?? 0) + (metadata.maxOutputTokens ?? 0);
+	if (metadata.maxContextWindowTokens === undefined) {
+		return tokenBudget;
+	}
+	return inputTokenLimit === undefined ? metadata.maxContextWindowTokens : Math.min(metadata.maxContextWindowTokens, tokenBudget);
 }
 
 export namespace ILanguageModelChatMetadata {
@@ -350,28 +426,97 @@ export namespace ILanguageModelChatMetadata {
 		return !!metadata.promo && metadata.promo.discountPercent > 0;
 	}
 
+	/** Whether the model has a promo message to surface, including message-only (0%) promos. */
+	export function hasPromoMessage(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return !!metadata.promo && metadata.promo.discountPercent >= 0 && !!metadata.promo.message;
+	}
+
+	/**
+	 * Whether the model's promo may also be surfaced as a banner above the chat input.
+	 * Promos are banner-eligible by default; `showBanner: false` keeps them in the model picker only.
+	 */
+	export function hasPromoBanner(metadata: ILanguageModelChatMetadata): metadata is ILanguageModelChatMetadata & { readonly promo: NonNullable<ILanguageModelChatMetadata['promo']> } {
+		return hasPromoMessage(metadata) && metadata.promo.showBanner !== false;
+	}
+
+	/** The localized "Ends {date}." sentence, or `undefined` for a missing or unparsable end date. */
+	export function getPromoEndsAtLabel(endsAt: string | undefined): string | undefined {
+		if (!endsAt) {
+			return undefined;
+		}
+		const endsAtDate = new Date(endsAt);
+		if (isNaN(endsAtDate.getTime())) {
+			return undefined;
+		}
+		const formattedDate = endsAtDate.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+		return localize('chat.promo.endsAt', "Ends {0}.", formattedDate);
+	}
+
+	export function isAutoTierPromotionActive(promotion: IAutoModelTierPromotion, now: number): boolean {
+		const startsAt = promotion.startsAt ? Date.parse(promotion.startsAt) : -Infinity;
+		const endsAt = promotion.endsAt ? Date.parse(promotion.endsAt) : Infinity;
+		// An unparsable boundary yields NaN, which fails both comparisons.
+		return now >= startsAt && now < endsAt;
+	}
+
+	/** The active promotion with the largest discount. */
+	export function getAutoTierPromotion(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): IAutoModelTierPromotion | undefined {
+		if (typeof tier !== 'string') {
+			return undefined;
+		}
+		let best: IAutoModelTierPromotion | undefined;
+		for (const promotion of metadata.autoModelTierPromotions ?? []) {
+			if ((!best || promotion.discountPercent > best.discountPercent) && promotion.tierIds.includes(tier) && isAutoTierPromotionActive(promotion, now)) {
+				best = promotion;
+			}
+		}
+		return best;
+	}
+
+	export function getAutoTierDiscountPercent(metadata: ILanguageModelChatMetadata, tier: unknown, now: number = Date.now()): number | undefined {
+		const promotion = getAutoTierPromotion(metadata, tier, now);
+		return promotion && promotion.discountPercent > 0 ? promotion.discountPercent : metadata.autoModelDiscountPercent;
+	}
+
 	/**
 	 * Documentation link explaining how Auto model selection works.
 	 * NOTE: Also defined in extensions/copilot/src/extension/conversation/common/languageModelAccess.ts — keep in sync.
 	 */
 	export const autoModelSelectionDocsUrl = 'https://docs.github.com/en/copilot/concepts/models/auto-model-selection';
 
+	/** Where Copilot Fusion's description links for more about it. */
+	export const fusionDocsUrl = 'https://aka.ms/vscode-copilot-fusion';
+
 	/**
 	 * Builds the shared description shown for the Auto model, rendered as Markdown
-	 * (it contains a "Learn More" link). The discount sentence is only included
-	 * when a positive discount is provided.
-	 *
-	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%). When
-	 * omitted or not positive, the discount sentence is left out entirely.
+	 * with a "Learn More" link. The discount is described separately by
+	 * {@link getAutoModelDiscountDescription}.
 	 */
-	export function getAutoModelDescription(discountPercent?: number): string {
+	export function getAutoModelDescription(fusion?: boolean): string {
+		if (fusion) {
+			const fusionLearnMore = localize('autoModel.fusionLearnMore', "[Learn more]({0})", fusionDocsUrl);
+			return `${getFusionSummary()} ${fusionLearnMore}`;
+		}
 		const base = localize('autoModel.description', "Auto routes based on your task and real-time system health and model performance.");
 		const learnMore = localize('autoModel.learnMore', "[Learn More]({0})", autoModelSelectionDocsUrl);
-		if (typeof discountPercent === 'number' && discountPercent > 0) {
-			const discount = localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
-			return `${base} ${discount} ${learnMore}`;
-		}
 		return `${base} ${learnMore}`;
+	}
+
+	/** Copilot Fusion's one-sentence description, as plain text without its "Learn more" link. */
+	export function getFusionSummary(): string {
+		return localize('autoModel.fusionDescription', "Copilot Fusion selects a single model or orchestrates multiple models to complete your task.");
+	}
+
+	/**
+	 * Describes Auto's discount, naming the tier it applies to when known.
+	 *
+	 * @param discountPercent Whole-number percentage (e.g. `10` for 10%).
+	 * @param tierLabel The label of Auto's selected tier, e.g. "Efficiency".
+	 */
+	export function getAutoModelDiscountDescription(discountPercent: number, tierLabel?: string): string {
+		return tierLabel
+			? localize('autoModel.tierDiscount', "Models routed via Auto {0} receive a {1}% discount.", tierLabel, discountPercent)
+			: localize('autoModel.discount', "Models routed via auto receive a {0}% discount.", discountPercent);
 	}
 
 	/**
@@ -485,6 +630,7 @@ export interface ILanguageModelChatInfoOptions {
 export interface ILanguageModelChatRequestOptions {
 	readonly modelOptions?: IStringDictionary<unknown>;
 	readonly configuration?: IStringDictionary<unknown>;
+	readonly includeEncryptedThinking?: boolean;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	readonly [name: string]: any;
 }
@@ -496,6 +642,28 @@ export interface ILanguageModelsGroup {
 		readonly message: string;
 		readonly severity: Severity;
 	};
+}
+
+/** Read/write access to model-specific configuration, globally or within one conversation. */
+export interface IModelConfigurationAccess {
+	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	/** Effective schema for this scope, including provider or managed startup defaults. */
+	getModelConfigurationSchema?(modelId: string): ILanguageModelConfigurationSchema | undefined;
+	setModelConfiguration(modelId: string, values: IStringDictionary<unknown>): Promise<void>;
+	/** Applies values in this scope without persisting them or reporting them as a selection. */
+	presentModelConfiguration?(modelId: string, values: IStringDictionary<unknown>): void;
+	getModelConfigurationActions(modelId: string): IAction[];
+	/**
+	 * Configuration changes within this scope, once per update with the models it changed, so an update covering
+	 * many models (such as a chat's snapshot) notifies once. Global access uses `onDidChangeLanguageModels`.
+	 */
+	readonly onDidChange?: Event<readonly string[]>;
+}
+
+/** Where a pin change was made, for telemetry. */
+export interface IModelPinTelemetryContext {
+	/** The model picker open the change was made in. */
+	readonly pickerSessionId: string;
 }
 
 export interface ILanguageModelsService {
@@ -542,10 +710,9 @@ export interface ILanguageModelsService {
 
 	/**
 	 * Returns the resolved per-model configuration for the given model identifier.
-	 * Includes schema defaults with user overrides applied on top.
-	 * Returns undefined if the model has no configuration schema and no user config.
+	 * Includes schema defaults unless `includeDefaults` is false.
 	 */
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined;
+	getModelConfiguration(modelId: string, includeDefaults?: boolean): IStringDictionary<unknown> | undefined;
 
 	/**
 	 * Updates the per-model configuration for the given model.
@@ -583,38 +750,25 @@ export interface ILanguageModelsService {
 	migrateLanguageModelsProviderGroup(languageModelsProviderGroup: ILanguageModelsProviderGroup): Promise<void>;
 
 	/**
-	 * Returns the most recently used model identifiers, ordered by most-recent-first.
-	 * @param maxCount Maximum number of entries to return (default 7).
-	 */
-	getRecentlyUsedModelIds(): string[];
-
-	/**
-	 * Records that a model was used, updating the recently used list.
-	 */
-	addToRecentlyUsedList(modelIdentifier: string): void;
-
-	/**
-	 * Clears the recently used model list.
-	 */
-	clearRecentlyUsedList(): void;
-
-	/**
-	 * Returns the pinned model identifiers, in the order they were pinned.
+	 * Returns the identifiers of available pinned models, in the order they were pinned.
+	 * A pinned model is returned under every vendor that offers a copy of it, such as
+	 * the extension and agent-host copies.
 	 */
 	getPinnedModelIds(): string[];
 
 	/**
 	 * Pins a model so it appears in the pinned section of the model picker.
 	 */
-	pinModel(modelIdentifier: string): void;
+	pinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void;
 
 	/**
 	 * Unpins a model, removing it from the pinned section.
 	 */
-	unpinModel(modelIdentifier: string): void;
+	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void;
 
 	/**
-	 * Returns whether the given model is pinned.
+	 * Returns whether the given model is pinned, including a copy of it pinned under
+	 * another vendor.
 	 */
 	isModelPinned(modelIdentifier: string): boolean;
 
@@ -640,12 +794,19 @@ export interface ILanguageModelsService {
 	setModelHidden(modelIdentifier: string, hidden: boolean): void;
 
 	/**
+	 * Hide or show multiple exact model identifiers in the chat model picker.
+	 * Models with no row in the Manage Language Models editor cannot be hidden.
+	 */
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void;
+
+	/**
 	 * Hide or show every model in a (vendor, groupName) bucket.
 	 */
 	setGroupHidden(vendor: string, groupName: string, hidden: boolean): void;
 
 	/**
-	 * Returns the persisted per-model hidden identifiers.
+	 * Returns the persisted per-model hidden identifiers. May include models that
+	 * cannot be hidden — use {@link isModelHidden} to test a single model.
 	 */
 	getHiddenModelIds(): string[];
 
@@ -672,9 +833,51 @@ export interface ILanguageModelsService {
 	readonly restrictedChatParticipants: IObservable<{ [name: string]: string[] }>;
 }
 
+export function getLanguageModelProviderDisplayName(languageModelsService: ILanguageModelsService, vendor: string): string {
+	if (vendor === 'copilotcli') {
+		// @vritant24: This is temporary until we have distinct vendors for Copilot CLI and Copilot Chat.
+		return localize('chat.languageModelProvider.copilot', "Copilot");
+	}
+	const descriptor = languageModelsService.getVendors().find(candidate => candidate.vendor === vendor);
+	return descriptor?.displayName ?? vendor.charAt(0).toUpperCase() + vendor.slice(1);
+}
+
+/** The icon a language model chat provider declared, if any. */
+export function getLanguageModelProviderIcon(languageModelsService: ILanguageModelsService, vendor: string): LanguageModelProviderIcon | undefined {
+	return languageModelsService.getVendors().find(candidate => candidate.vendor === vendor)?.icon;
+}
+
+export function getLanguageModelDisplayNameWithProvider(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService: ILanguageModelsService): string {
+	const { metadata } = model;
+	if (!metadata.isBYOK && !metadata.byokModelIdentifier) {
+		return metadata.name;
+	}
+
+	const originalIdentifier = metadata.byokModelIdentifier ?? model.identifier;
+	const originalMetadata = metadata.byokModelIdentifier ? languageModelsService.lookupLanguageModel(originalIdentifier) : metadata;
+	const providerVendor = originalMetadata?.vendor ?? metadata.modelGroup?.id ?? metadata.vendor;
+	const providerName = getLanguageModelProviderDisplayName(languageModelsService, providerVendor);
+	const identifierSuffix = originalMetadata?.id;
+	const modelName = identifierSuffix && metadata.name.endsWith(` (${identifierSuffix})`)
+		? metadata.name.slice(0, -identifierSuffix.length - 3)
+		: metadata.name;
+	const groupName = languageModelsService.getLanguageModelGroups(providerVendor)
+		.find(group => group.modelIdentifiers.includes(originalIdentifier))
+		?.group?.name;
+	return groupName && groupName !== providerName
+		? localize('chat.languageModelNameWithProviderAndGroup', "{0}/{1}/{2}", providerName, groupName, modelName)
+		: localize('chat.languageModelNameWithProvider', "{0}/{1}", providerName, modelName);
+}
+
 export interface IModelControlEntry {
 	readonly label: string;
 	readonly featured?: boolean;
+	/**
+	 * Keeps the model out of the shortlist the picker leads with, even when it is the
+	 * newest of its line. For a line that has been replaced by another rather than by a
+	 * newer version of itself, which no rule can work out on its own.
+	 */
+	readonly demoted?: boolean;
 	readonly minVSCodeVersion?: string;
 	readonly exists: boolean;
 }
@@ -737,6 +940,28 @@ const languageModelChatProviderType = {
 			deprecated: true,
 			deprecationMessage: localize('vscode.extension.contributes.languageModels.managementCommand.deprecated', "The managementCommand property is deprecated and will be removed in a future release. Use the new configuration property instead.")
 		},
+		icon: {
+			markdownDescription: localize('vscode.extension.contributes.languageModels.icon', "An icon that represents this language model chat provider, shown in the chat model picker. Either a theme icon reference, like `\\$(zap)`, a file path relative to the extension, or an object with file paths for light and dark themes."),
+			anyOf: [
+				{
+					type: 'string'
+				},
+				{
+					type: 'object',
+					properties: {
+						light: {
+							description: localize('vscode.extension.contributes.languageModels.icon.light', "Icon path when a light theme is used."),
+							type: 'string'
+						},
+						dark: {
+							description: localize('vscode.extension.contributes.languageModels.icon.dark', "Icon path when a dark theme is used."),
+							type: 'string'
+						}
+					},
+					required: ['light', 'dark']
+				}
+			]
+		},
 		deprecation: {
 			type: 'object',
 			description: localize('vscode.extension.contributes.languageModels.deprecation', "Marks this language model chat provider as deprecated. When set, the Manage Models view renders the provider with a link pointing to a replacement."),
@@ -754,14 +979,54 @@ const languageModelChatProviderType = {
 	}
 } as const satisfies IJSONSchema;
 
-export type IUserFriendlyLanguageModel = Omit<TypeFromJsonSchema<typeof languageModelChatProviderType>, 'deprecation'> & {
+/** A `languageModelChatProviders` entry as written in an extension's `package.json`. */
+type ILanguageModelChatProviderContribution = TypeFromJsonSchema<typeof languageModelChatProviderType>;
+
+/** The icon of a language model chat provider: a theme icon, or images for light and dark themes. */
+export type LanguageModelProviderIcon = ThemeIcon | { readonly light: URI; readonly dark: URI };
+
+export type IUserFriendlyLanguageModel = Omit<ILanguageModelChatProviderContribution, 'deprecation' | 'icon'> & {
 	/**
 	 * Marks a provider as deprecated. The Manage Models view renders a link
 	 * (pointing to a replacement, e.g. a `vscode:extension/<publisher>.<name>` URI)
 	 * next to the provider name. Optional so existing provider descriptors are unaffected.
 	 */
 	readonly deprecation?: { readonly link?: string };
+	/** The provider's icon, with any image paths already resolved against the contributing extension. */
+	readonly icon?: LanguageModelProviderIcon;
 };
+
+/**
+ * Resolves a contributed provider icon the way `languageModelTools` and `commands` do: a
+ * `$(name)` reference becomes a theme icon and anything else is a path relative to the
+ * contributing extension. Returns `undefined` for a malformed value, or for a path that
+ * leaves the extension's folder.
+ */
+export function resolveLanguageModelProviderIcon(icon: ILanguageModelChatProviderContribution['icon'], extensionLocation: URI): LanguageModelProviderIcon | undefined {
+	const resolvePath = (path: string) => {
+		// Images load from a URL that keeps `%` and `\` as written, and loading decodes `%2e%2e`
+		// and treats `\` as a separator, so either could reach outside the folder checked here.
+		if (/[%\\]/.test(path)) {
+			return undefined;
+		}
+		const location = joinPath(extensionLocation, path);
+		return isEqualOrParent(location, extensionLocation) ? location : undefined;
+	};
+	if (isString(icon)) {
+		const themeIcon = ThemeIcon.fromString(icon);
+		if (themeIcon) {
+			return themeIcon;
+		}
+		const path = resolvePath(icon);
+		return path && { light: path, dark: path };
+	}
+	if (isObject(icon) && isString(icon.light) && isString(icon.dark)) {
+		const light = resolvePath(icon.light);
+		const dark = resolvePath(icon.dark);
+		return light && dark && { light, dark };
+	}
+	return undefined;
+}
 
 export interface ILanguageModelProviderDescriptor extends IUserFriendlyLanguageModel {
 	readonly isDefault: boolean;
@@ -780,7 +1045,7 @@ export function resolveProviderDeprecationLink(link: string, urlProtocol: string
 	return uri.scheme === Schemas.vscode && urlProtocol ? uri.with({ scheme: urlProtocol }) : uri;
 }
 
-export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
+export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<ILanguageModelChatProviderContribution | ILanguageModelChatProviderContribution[]>({
 	extensionPoint: 'languageModelChatProviders',
 	jsonSchema: {
 		description: localize('vscode.extension.contributes.languageModelChatProviders', "Contribute language model chat providers of a specific vendor."),
@@ -792,16 +1057,17 @@ export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.regist
 			}
 		]
 	},
-	activationEventsGenerator: function* (contribs: readonly IUserFriendlyLanguageModel[]) {
+	activationEventsGenerator: function* (contribs: readonly ILanguageModelChatProviderContribution[]) {
 		for (const contrib of contribs) {
 			yield `onLanguageModelChatProvider:${contrib.vendor}`;
 		}
 	}
 });
 
-const CHAT_MODEL_RECENTLY_USED_STORAGE_KEY = 'chatModelRecentlyUsed';
 const CHAT_MODEL_PINNED_STORAGE_KEY = 'chatModelPinned';
 const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
+/** Application-scoped marker set once the Agents window's own model preferences were merged into application storage. */
+const CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY = 'chatModelPreferences.agentsWindowMigrated';
 
 /**
  * The identifier for the Auto model which dynamically routes to the best backend.
@@ -809,8 +1075,84 @@ const CHAT_MODEL_VISIBILITY_STORAGE_KEY = 'chatModelVisibility';
  */
 const AUTO_MODEL_IDENTIFIER = 'copilot/auto';
 
+/** Returns a known, client-resolved Auto tier suitable for edit attribution. */
+export function getAutoModelTier(modelId: string | undefined, autoTier: string | undefined) {
+	if (modelId === AUTO_MODEL_IDENTIFIER) {
+		switch (autoTier) {
+			case 'efficiency':
+			case 'balance':
+			case 'intelligence':
+			case 'fast':
+				return autoTier;
+		}
+	}
+	return undefined;
+}
+
+/** The provider-agnostic model id of the Auto meta-model. */
+export const AUTO_RAW_MODEL_ID = 'auto';
+
+/**
+ * Vendor ids that are the built-in provider under another name. Its models reach the
+ * picker from the extension, from the CLI harness, and as agent-host copies, and each
+ * of those names a different vendor.
+ */
+const BUILT_IN_GROUP_IDS: ReadonlySet<string> = new Set([COPILOT_VENDOR_ID, 'copilotcli']);
+
+/**
+ * Whether the user brought this model themselves rather than getting it from the
+ * built-in provider.
+ *
+ * This follows the provider group, the same thing the picker names a model's source by,
+ * rather than the BYOK flags: a host that forwards the built-in provider's models sets
+ * those flags on every model it relays, which would file the whole catalogue under the
+ * user's own models.
+ */
+export function isUserProvidedModel(
+	model: ILanguageModelChatMetadataAndIdentifier,
+	languageModelsService: ILanguageModelsService,
+): boolean {
+	const groupId = model.metadata.modelGroup?.id ?? model.metadata.vendor;
+	if (BUILT_IN_GROUP_IDS.has(groupId)) {
+		return false;
+	}
+	return groupId !== languageModelsService.getVendors().find(vendor => vendor.isDefault)?.vendor;
+}
+
+/**
+ * A model's identifier for telemetry. Only built-in models are reported, wherever they
+ * are relayed from; models the user brought, and unknown ones, report as "unknown".
+ */
+export function getTelemetryModelIdentifier(
+	model: ILanguageModelChatMetadataAndIdentifier | undefined,
+	languageModelsService: ILanguageModelsService,
+): string | TelemetryTrustedValue<string> {
+	if (!model || isUserProvidedModel(model, languageModelsService)) {
+		return 'unknown';
+	}
+	return new TelemetryTrustedValue(normalizeModelRouterTelemetryId(model.metadata.id) === MODEL_ROUTER_TELEMETRY_ID ? MODEL_ROUTER_TELEMETRY_ID : model.identifier);
+}
+
 export function isAutoLanguageModel(model: ILanguageModelChatMetadataAndIdentifier | undefined): boolean {
-	return model?.metadata.id === 'auto' || model?.identifier === AUTO_MODEL_IDENTIFIER;
+	return model?.metadata.id === AUTO_RAW_MODEL_ID || model?.identifier === AUTO_MODEL_IDENTIFIER;
+}
+
+/**
+ * Whether a model can be hidden from the picker. The default provider's `Auto` and
+ * agent-host BYOK copies have no row in Manage Language Models, so hiding them would
+ * be permanent. `metadata` is undefined before models resolve, hence the id check.
+ */
+export function canHideModel(identifier: string, metadata: ILanguageModelChatMetadata | undefined): boolean {
+	if (identifier === AUTO_MODEL_IDENTIFIER) {
+		return false;
+	}
+	if (!metadata) {
+		return true;
+	}
+	if (metadata.vendor === COPILOT_VENDOR_ID && metadata.id === AUTO_RAW_MODEL_ID) {
+		return false;
+	}
+	return ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) === undefined;
 }
 
 const CHAT_PARTICIPANT_NAME_REGISTRY_STORAGE_KEY = 'chat.participantNameRegistry';
@@ -861,7 +1203,7 @@ export function createModelConfigurationActions(
 				id: `configureModel.${key}.${value}`,
 				label: displayLabel,
 				class: undefined,
-				enabled: true,
+				enabled: !propSchema.readOnly && propSchema.enumItemDisabled?.[index] !== true,
 				tooltip,
 				checked: currentValue === value,
 				run: () => setValue(key, value)
@@ -871,6 +1213,13 @@ export function createModelConfigurationActions(
 	}
 
 	return actions;
+}
+
+/** A model resolution for a vendor that is waiting behind another one and can still be joined. */
+interface IQueuedModelResolution {
+	readonly provider: ILanguageModelChatProvider;
+	readonly silent: boolean;
+	readonly promise: Promise<void>;
 }
 
 export class LanguageModelsService implements ILanguageModelsService {
@@ -884,6 +1233,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 	private readonly _providers = new Map<string, ILanguageModelChatProvider>();
 	private readonly _vendors = new Map<string, ILanguageModelProviderDescriptor>();
+	/** Parsed `when` clauses of {@link _vendors}, by their source text, since {@link getVendors} is read for every model. */
+	private readonly _vendorWhenClauses = new Map<string, ContextKeyExpression | undefined>();
 
 	/** Vendors for which a deprecation notice has already been shown this session. */
 	private readonly _deprecationNoticeShownVendors = new Set<string>();
@@ -894,6 +1245,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _modelsGroups = new Map<string, ILanguageModelsGroup[]>();
 	private readonly _modelCache = new Map<string, ILanguageModelChatMetadata>();
 	private readonly _resolveLMSequencer = new SequencerByKey<string>();
+	/**
+	 * The resolution each vendor has queued but not started. Requests made meanwhile join it rather
+	 * than queue another, e.g. `selectChatModels` calls that each re-resolve every vendor.
+	 */
+	private readonly _queuedResolutions = new Map<string, IQueuedModelResolution>();
 	private readonly _modelConfigurations = new Map<string, IStringDictionary<unknown>>();
 	private readonly _hasUserSelectableModels: IContextKey<boolean>;
 	private readonly _hasNonCopilotUserSelectableModels: IContextKey<boolean>;
@@ -901,7 +1257,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 	private readonly _onLanguageModelChange = this._store.add(new Emitter<string>());
 	readonly onDidChangeLanguageModels: Event<string> = this._onLanguageModelChange.event;
 
-	private _recentlyUsedModelIds: string[] = [];
+	/** Where pinned and hidden models are stored, see the constructor. */
+	private readonly _modelPreferencesScope: StorageScope.APPLICATION | StorageScope.PROFILE;
 	private _pinnedModelIds: string[] = [];
 
 	private _hiddenModelIds = new Set<string>();
@@ -937,12 +1294,22 @@ export class LanguageModelsService implements ILanguageModelsService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 	) {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._hasNonCopilotUserSelectableModels = ChatContextKeys.nonCopilotLanguageModelsAreUserSelectable.bindTo(_contextKeyService);
-		this._recentlyUsedModelIds = this._readRecentlyUsedModels();
+
+		// The Agents window always runs in its own `agents` profile, which has separate profile storage.
+		// It keeps model preferences in application storage instead, which is the default profile's
+		// storage, so they are shared with editor windows using the default profile.
+		const profile = userDataProfileService.currentProfile;
+		this._modelPreferencesScope = profile.isAgentsWindowProfile ? StorageScope.APPLICATION : StorageScope.PROFILE;
+		if (profile.isAgentsWindowProfile) {
+			this._mergeAgentsWindowModelPreferences(profile);
+		}
 		this._pinnedModelIds = this._readPinnedModels();
-		this._readVisibility();
+		this._hiddenModelIds = new Set(this._readHiddenModelIds());
+		this._listenForModelPreferenceChanges();
 		this._initChatControlData();
 
 		this._store.add(this.onDidChangeLanguageModels(() => {
@@ -982,13 +1349,17 @@ export class LanguageModelsService implements ILanguageModelsService {
 						extension.collector.error(localize('vscode.extension.contributes.languageModels.whitespaceVendor', "The vendor field cannot start or end with whitespace."));
 						continue;
 					}
-					addedVendors.push(item);
+					const icon = item.icon !== undefined ? resolveLanguageModelProviderIcon(item.icon, extension.description.extensionLocation) : undefined;
+					if (item.icon !== undefined && !icon) {
+						extension.collector.warn(localize('vscode.extension.contributes.languageModels.invalidIcon', "The icon of vendor '{0}' must be a theme icon reference, a file path, or an object with 'light' and 'dark' file paths. File paths must stay inside the extension's folder, use '/' as the separator, and not contain '%'.", item.vendor));
+					}
+					addedVendors.push({ ...item, icon });
 				}
 			}
 
 			for (const extension of removed) {
 				for (const item of Iterable.wrap(extension.value)) {
-					removedVendors.push(item);
+					removedVendors.push({ ...item, icon: undefined });
 				}
 			}
 
@@ -1019,6 +1390,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				configuration: item.configuration,
 				managementCommand: item.managementCommand,
 				deprecation: item.deprecation,
+				icon: item.icon,
 				when: item.when,
 				isDefault: item.vendor === COPILOT_VENDOR_ID
 			};
@@ -1062,7 +1434,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!vendor.when) {
 					return true; // No when clause means always visible
 				}
-				const whenClause = ContextKeyExpr.deserialize(vendor.when);
+				let whenClause = this._vendorWhenClauses.get(vendor.when);
+				if (!this._vendorWhenClauses.has(vendor.when)) {
+					whenClause = ContextKeyExpr.deserialize(vendor.when);
+					this._vendorWhenClauses.set(vendor.when, whenClause);
+				}
 				return whenClause ? this._contextKeyService.contextMatchesRules(whenClause) : false;
 			});
 	}
@@ -1107,7 +1483,19 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		return this._resolveLMSequencer.queue(vendorId, async () => {
+		// A resolution that has not started yet will see everything that changed before this request.
+		const queued = this._queuedResolutions.get(vendorId);
+		if (queued?.provider === provider && queued.silent === silent) {
+			return queued.promise;
+		}
+
+		const promise = this._resolveLMSequencer.queue(vendorId, async () => {
+			if (this._queuedResolutions.get(vendorId)?.promise === promise) {
+				this._queuedResolutions.delete(vendorId);
+			}
+			if (this._providers.get(vendorId) !== provider) {
+				return;
+			}
 
 			const allModels: ILanguageModelChatMetadataAndIdentifier[] = [];
 			const languageModelsGroups: ILanguageModelsGroup[] = [];
@@ -1208,6 +1596,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 
+			if (this._providers.get(vendorId) !== provider) {
+				return;
+			}
+
 			const wasResolved = this._modelsGroups.has(vendorId);
 			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
 			this._modelsGroups.set(vendorId, languageModelsGroups);
@@ -1245,6 +1637,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+		this._queuedResolutions.set(vendorId, { provider, silent, promise });
+		return promise;
 	}
 
 	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {
@@ -1315,11 +1709,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		});
 
 		return toDisposable(() => {
+			modelChangeListener.dispose();
+			if (this._providers.get(vendor) !== provider) {
+				return;
+			}
+
 			this._logService.trace('[LM] UNregistered language model provider', vendor);
 			this._clearModelCache(vendor);
 			this._modelsGroups.delete(vendor);
 			this._providers.delete(vendor);
-			modelChangeListener.dispose();
+			this._onLanguageModelChange.fire(vendor);
 		});
 	}
 
@@ -1416,8 +1815,13 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return undefined;
 		}
 
-		// User config overrides defaults
-		return { ...defaults, ...userConfig };
+		const configuration = { ...defaults, ...userConfig };
+		for (const [key, property] of Object.entries(schema?.properties ?? {})) {
+			if (property.readOnly && property.default !== undefined) {
+				configuration[key] = property.default;
+			}
+		}
+		return configuration;
 	}
 
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number> {
@@ -1432,7 +1836,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return provider.provideTokenCount(modelId, message, token);
 	}
 
-	getModelConfiguration(modelId: string): IStringDictionary<unknown> | undefined {
+	getModelConfiguration(modelId: string, includeDefaults = true): IStringDictionary<unknown> | undefined {
+		if (!includeDefaults) {
+			const configuration = this._modelConfigurations.get(modelId);
+			return configuration ? { ...configuration } : undefined;
+		}
 		const metadata = this._modelCache.get(modelId);
 		return this._resolveModelConfigurationWithDefaults(modelId, metadata);
 	}
@@ -1445,10 +1853,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 
 		// Find the group from the configuration service (source of truth)
 		const allGroups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
+		const isGrouplessModel = this._modelsGroups.get(metadata.vendor)?.some(g => !g.group && g.modelIdentifiers.includes(modelId));
+		const configurationOnlyGroups = isGrouplessModel && !this._vendors.get(metadata.vendor)?.configuration
+			? allGroups.filter(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined)
+			: [];
 		let group: ILanguageModelsProviderGroup | undefined;
 
-		// First try to find a group that already has config for this model.
-		group = allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
+		// Configuration-only groups are read in order, with the last model entry winning.
+		group = configurationOnlyGroups.at(-1) ?? allGroups.find(g => g.vendor === metadata.vendor && g.settings?.[metadata.id] !== undefined);
 
 		// Otherwise find the group that actually *defines* this model. Several
 		// groups can share the same `vendor` (e.g. multiple `customendpoint`
@@ -1469,37 +1881,36 @@ export class LanguageModelsService implements ILanguageModelsService {
 			group = allGroups.find(g => g.vendor === metadata.vendor);
 		}
 
-		// Merge new values into existing config, removing properties set to their schema default
+		// Reset keys must be removed from both persisted settings and the in-memory cache.
 		const existingConfig = this._modelConfigurations.get(modelId) ?? {};
 		const updatedConfig = { ...existingConfig, ...values };
 		const schema = metadata.configurationSchema;
-		if (schema?.properties) {
-			for (const [key, value] of Object.entries(updatedConfig)) {
-				const propSchema = schema.properties[key];
-				if (propSchema?.default !== undefined && propSchema.default === value) {
-					delete updatedConfig[key];
-				}
+		for (const [key, value] of Object.entries(updatedConfig)) {
+			const propSchema = schema?.properties?.[key];
+			if (value === undefined || (propSchema?.default !== undefined && propSchema.default === value && !metadata.configurationDefaultKeys?.includes(key))) {
+				delete updatedConfig[key];
 			}
 		}
 
 		if (group) {
-			const existingSettings = (group.settings as IStringDictionary<IStringDictionary<unknown>> | undefined) ?? {};
-			let updatedSettings: IStringDictionary<IStringDictionary<unknown>>;
-			if (Object.keys(updatedConfig).length === 0) {
-				updatedSettings = { ...existingSettings };
-				delete updatedSettings[metadata.id];
-			} else {
-				updatedSettings = { ...existingSettings, [metadata.id]: updatedConfig };
-			}
-			const updatedGroup: ILanguageModelsProviderGroup = {
-				...group,
-				settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
-			};
-			if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
-				// Remove the group entirely if it only had model config
-				await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(group);
-			} else {
-				await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(group, updatedGroup);
+			for (const targetGroup of configurationOnlyGroups.length ? configurationOnlyGroups : [group]) {
+				const updatedSettings = { ...targetGroup.settings };
+				// Remove shadowed entries too, so resetting the winner cannot restore an older preference.
+				if (targetGroup !== group || Object.keys(updatedConfig).length === 0) {
+					delete updatedSettings[metadata.id];
+				} else {
+					updatedSettings[metadata.id] = updatedConfig;
+				}
+				const updatedGroup: ILanguageModelsProviderGroup = {
+					...targetGroup,
+					settings: Object.keys(updatedSettings).length > 0 ? updatedSettings : undefined
+				};
+				if (!updatedGroup.settings && Object.keys(updatedGroup).filter(k => k !== 'name' && k !== 'vendor' && k !== 'range' && k !== 'modelsRange' && k !== 'settings').length === 0) {
+					// Remove the group entirely if it only had model config
+					await this._languageModelsConfigurationService.removeLanguageModelsProviderGroup(targetGroup);
+				} else {
+					await this._languageModelsConfigurationService.updateLanguageModelsProviderGroup(targetGroup, updatedGroup);
+				}
 			}
 		} else if (Object.keys(updatedConfig).length > 0) {
 			// Only create a new group if there's non-default config
@@ -2151,7 +2562,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			let value = configuration[key];
 			if (schema.properties?.[key]?.secret && isString(value)) {
 				const secretKey = `${LanguageModelsService.SECRET_KEY_PREFIX}${hash(generateUuid()).toString(16)}`;
-				await this._secretStorageService.set(secretKey, value);
+				await this._secretStorageService.set(secretKey, key === 'apiKey' ? value.trim() : value);
 				value = this.encodeSecretKey(secretKey);
 			}
 			result[key] = value;
@@ -2194,84 +2605,158 @@ export class LanguageModelsService implements ILanguageModelsService {
 		await this.addLanguageModelsProviderGroup(name, vendor, configuration);
 	}
 
-	//#region Recently used models
+	//#region Model preferences shared across windows
 
-	private _readRecentlyUsedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, StorageScope.PROFILE, []);
+	/**
+	 * Picks up pinned and hidden models that other windows changed, so this window
+	 * shows them and does not overwrite them with a stale list on its next write.
+	 */
+	private _listenForModelPreferenceChanges(): void {
+		const scope = this._modelPreferencesScope;
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_PINNED_STORAGE_KEY, this._store)(() => {
+			const pinnedModelIds = this._readPinnedModels();
+			if (!equals(pinnedModelIds, this._pinnedModelIds)) {
+				this._pinnedModelIds = pinnedModelIds;
+				this._onDidChangePinnedModels.fire();
+			}
+		}));
+		this._store.add(this._storageService.onDidChangeValue(scope, CHAT_MODEL_VISIBILITY_STORAGE_KEY, this._store)(() => {
+			const hiddenModelIds = this._readHiddenModelIds();
+			if (!equals(hiddenModelIds, Array.from(this._hiddenModelIds))) {
+				this._hiddenModelIds = new Set(hiddenModelIds);
+				this._onDidChangeModelVisibility.fire();
+			}
+		}));
 	}
 
-	private _saveRecentlyUsedModels(): void {
-		this._storageService.store(CHAT_MODEL_RECENTLY_USED_STORAGE_KEY, this._recentlyUsedModelIds, StorageScope.PROFILE, StorageTarget.USER);
-	}
-
-	getRecentlyUsedModelIds(): string[] {
-		// Filter to only include models that still exist in the cache
-		return this._recentlyUsedModelIds
-			.filter(id => this._modelCache.has(id) && id !== AUTO_MODEL_IDENTIFIER)
-			.slice(0, 4);
-	}
-
-	addToRecentlyUsedList(modelIdentifier: string): void {
-		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
+	/**
+	 * The Agents window used to keep model preferences in its own profile storage. Merges them
+	 * into application storage once so they are not lost. Profile values are left in place for
+	 * older builds.
+	 */
+	private _mergeAgentsWindowModelPreferences(profile: IUserDataProfile): void {
+		if (isProfileUsingDefaultStorage(profile) || this._storageService.getBoolean(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, StorageScope.APPLICATION, false)) {
 			return;
 		}
 
-		// Remove if already present (to move to front)
-		const index = this._recentlyUsedModelIds.indexOf(modelIdentifier);
-		if (index !== -1) {
-			this._recentlyUsedModelIds.splice(index, 1);
-		}
-		// Add to front
-		this._recentlyUsedModelIds.unshift(modelIdentifier);
-		// Cap at a reasonable max to avoid unbounded growth
-		if (this._recentlyUsedModelIds.length > 20) {
-			this._recentlyUsedModelIds.length = 20;
-		}
-		this._saveRecentlyUsedModels();
+		const merge = (key: string, read: (scope: StorageScope) => string[], toStorageValue: (ids: string[]) => object) => {
+			const profileIds = read(StorageScope.PROFILE);
+			if (profileIds.length === 0) {
+				return;
+			}
+			const applicationIds = read(StorageScope.APPLICATION);
+			const merged = [...applicationIds, ...profileIds.filter(id => !applicationIds.includes(id))];
+			this._storageService.store(key, toStorageValue(merged), StorageScope.APPLICATION, StorageTarget.USER);
+		};
+		merge(CHAT_MODEL_PINNED_STORAGE_KEY, scope => this._readPinnedModels(scope), ids => ids);
+		merge(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope => this._readHiddenModelIds(scope), ids => ({ hiddenModels: ids }));
+
+		this._storageService.store(CHAT_MODEL_PREFERENCES_AGENTS_WINDOW_MIGRATED_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
 	}
 
-	clearRecentlyUsedList(): void {
-		this._recentlyUsedModelIds = [];
-		this._saveRecentlyUsedModels();
+	private _readModelIds(key: string, scope: StorageScope): string[] {
+		const value = this._storageService.getObject<unknown[]>(key, scope, []);
+		return Array.isArray(value) ? value.filter(isString) : [];
 	}
 
 	//#endregion
 
 	//#region Pinned models
 
-	private _readPinnedModels(): string[] {
-		return this._storageService.getObject<string[]>(CHAT_MODEL_PINNED_STORAGE_KEY, StorageScope.PROFILE, []);
+	private _readPinnedModels(scope: StorageScope = this._modelPreferencesScope): string[] {
+		return this._readModelIds(CHAT_MODEL_PINNED_STORAGE_KEY, scope);
 	}
 
 	private _savePinnedModels(): void {
-		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, StorageScope.PROFILE, StorageTarget.USER);
+		this._storageService.store(CHAT_MODEL_PINNED_STORAGE_KEY, this._pinnedModelIds, this._modelPreferencesScope, StorageTarget.USER);
+	}
+
+	/**
+	 * The identity a pin is stored and matched under, so a pin applies to every copy of a
+	 * model. The built-in provider's models reach the picker under several vendors (the
+	 * extension, the CLI harness and agent-host copies), so they share the extension's
+	 * identifier. Harnesses that reach a model through several providers qualify its id
+	 * with the provider, so that is decoded first; their other providers' copies group
+	 * elsewhere and keep their own identifiers. An agent-host copy of an extension-provided
+	 * model the user brought shares the original model's identifier. Auto routes differently
+	 * per harness, so it keeps its own identifier, like every other model.
+	 */
+	private _getPinIdentity(modelIdentifier: string): string {
+		const metadata = this._modelCache.get(modelIdentifier);
+		if (!metadata) {
+			return modelIdentifier;
+		}
+		const byokModelIdentifier = ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata);
+		if (byokModelIdentifier !== undefined) {
+			return byokModelIdentifier;
+		}
+		if (!BUILT_IN_GROUP_IDS.has(metadata.modelGroup?.id ?? metadata.vendor)) {
+			return modelIdentifier;
+		}
+		const modelId = parseProviderQualifiedModelId(metadata.id)?.modelId ?? metadata.id;
+		return modelId === AUTO_RAW_MODEL_ID ? modelIdentifier : `${COPILOT_VENDOR_ID}/${modelId}`;
 	}
 
 	getPinnedModelIds(): string[] {
-		return this._pinnedModelIds.filter(id => id !== AUTO_MODEL_IDENTIFIER && this._modelCache.has(id));
+		const identifiersByIdentity = new Map<string, string[]>();
+		for (const identifier of this._modelCache.keys()) {
+			if (identifier !== AUTO_MODEL_IDENTIFIER) {
+				const identity = this._getPinIdentity(identifier);
+				identifiersByIdentity.set(identity, [...identifiersByIdentity.get(identity) ?? [], identifier]);
+			}
+		}
+		return [...new Set(this._pinnedModelIds.flatMap(id => identifiersByIdentity.get(this._getPinIdentity(id)) ?? []))];
 	}
 
-	pinModel(modelIdentifier: string): void {
-		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this._pinnedModelIds.includes(modelIdentifier)) {
+	pinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER || this.isModelPinned(modelIdentifier)) {
 			return;
 		}
-		this._pinnedModelIds.push(modelIdentifier);
+		this._pinnedModelIds.push(this._getPinIdentity(modelIdentifier));
 		this._savePinnedModels();
+		this._logPinChange(modelIdentifier, true, telemetry);
 		this._onDidChangePinnedModels.fire();
 	}
 
-	unpinModel(modelIdentifier: string): void {
-		const index = this._pinnedModelIds.indexOf(modelIdentifier);
-		if (index === -1) {
+	unpinModel(modelIdentifier: string, telemetry?: IModelPinTelemetryContext): void {
+		const identity = this._getPinIdentity(modelIdentifier);
+		const remaining = this._pinnedModelIds.filter(id => this._getPinIdentity(id) !== identity);
+		if (remaining.length === this._pinnedModelIds.length) {
 			return;
 		}
-		this._pinnedModelIds.splice(index, 1);
+		this._pinnedModelIds = remaining;
 		this._savePinnedModels();
+		this._logPinChange(modelIdentifier, false, telemetry);
 		this._onDidChangePinnedModels.fire();
+	}
+
+	private _logPinChange(modelIdentifier: string, pinned: boolean, telemetry: IModelPinTelemetryContext | undefined): void {
+		type ChatModelPinChangeEvent = {
+			model: string | TelemetryTrustedValue<string>;
+			pinned: boolean;
+			pickerSessionId: string | undefined;
+		};
+		type ChatModelPinChangeClassification = {
+			owner: 'lramos15';
+			comment: 'Reporting when a model is pinned or unpinned, from the model picker or the Models editor';
+			model: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model that was pinned or unpinned; "unknown" for models the user brought or that are no longer available' };
+			pinned: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the model was pinned (true) or unpinned (false)' };
+			pickerSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The id of the model picker open this change was made in; empty when made elsewhere, such as the Models editor' };
+		};
+		const metadata = this.lookupLanguageModel(modelIdentifier);
+		this._telemetryService.publicLog2<ChatModelPinChangeEvent, ChatModelPinChangeClassification>('chat.modelPinChange', {
+			model: getTelemetryModelIdentifier(metadata && { identifier: modelIdentifier, metadata }, this),
+			pinned,
+			pickerSessionId: telemetry?.pickerSessionId,
+		});
 	}
 
 	isModelPinned(modelIdentifier: string): boolean {
-		return modelIdentifier !== AUTO_MODEL_IDENTIFIER && this._pinnedModelIds.includes(modelIdentifier);
+		if (modelIdentifier === AUTO_MODEL_IDENTIFIER) {
+			return false;
+		}
+		const identity = this._getPinIdentity(modelIdentifier);
+		return this._pinnedModelIds.some(id => this._getPinIdentity(id) === identity);
 	}
 
 	//#endregion
@@ -2293,15 +2778,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 			const name = g.group?.name ?? fallbackName;
 			if (name === groupName) {
 				for (const id of g.modelIdentifiers) {
-					// Exclude agent-host BYOK copies. They are not shown as rows in this
-					// group (they surface under their real provider), so group-level
-					// visibility toggles (`isGroupHidden` / `setGroupHidden`) must not
-					// touch them — otherwise hiding the agent-host group would flip the
-					// hidden state of these copies in the underlying model set even though
-					// the UI never lists them here. Their visibility is owned by the real
-					// provider row and honoured in the picker via the reconstructed id.
-					const metadata = this._modelCache.get(id);
-					if (metadata && ILanguageModelChatMetadata.getAgentHostByokManageModelsIdentifier(metadata) !== undefined) {
+					// Group toggles only own the models that have a row of their own.
+					if (!canHideModel(id, this._modelCache.get(id))) {
 						continue;
 					}
 					result.push(id);
@@ -2311,16 +2789,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 		return result;
 	}
 
-	private _readVisibility(): void {
-		const raw = this._storageService.getObject<{ hiddenModels?: string[] }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, StorageScope.PROFILE, {});
-		this._hiddenModelIds = new Set(Array.isArray(raw?.hiddenModels) ? raw.hiddenModels : []);
+	private _readHiddenModelIds(scope: StorageScope = this._modelPreferencesScope): string[] {
+		const raw = this._storageService.getObject<{ hiddenModels?: unknown }>(CHAT_MODEL_VISIBILITY_STORAGE_KEY, scope, {});
+		return Array.isArray(raw?.hiddenModels) ? raw.hiddenModels.filter(isString) : [];
 	}
 
 	private _saveVisibility(): void {
 		this._storageService.store(
 			CHAT_MODEL_VISIBILITY_STORAGE_KEY,
 			{ hiddenModels: Array.from(this._hiddenModelIds) },
-			StorageScope.PROFILE,
+			this._modelPreferencesScope,
 			StorageTarget.USER,
 		);
 	}
@@ -2331,14 +2809,29 @@ export class LanguageModelsService implements ILanguageModelsService {
 	}
 
 	isModelHidden(modelIdentifier: string): boolean {
-		return this._hiddenModelIds.has(modelIdentifier);
+		if (!this._hiddenModelIds.has(modelIdentifier)) {
+			return false;
+		}
+		// Ignore entries an older version persisted for models that have no toggle.
+		return canHideModel(modelIdentifier, this._modelCache.get(modelIdentifier));
 	}
 
 	setGroupHidden(vendor: string, groupName: string, hidden: boolean): void {
+		this.setModelsHidden(this._getModelIdsInGroup(vendor, groupName), hidden);
+	}
+
+	setModelHidden(modelIdentifier: string, hidden: boolean): void {
+		this.setModelsHidden([modelIdentifier], hidden);
+	}
+
+	setModelsHidden(modelIdentifiers: readonly string[], hidden: boolean): void {
 		let changed = false;
-		const modelIds = this._getModelIdsInGroup(vendor, groupName);
-		for (const id of modelIds) {
+		for (const id of modelIdentifiers) {
 			if (hidden) {
+				// Showing is always allowed so stale state can still be cleared.
+				if (!canHideModel(id, this._modelCache.get(id))) {
+					continue;
+				}
 				if (!this._hiddenModelIds.has(id)) {
 					this._hiddenModelIds.add(id);
 					changed = true;
@@ -2346,22 +2839,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 			} else if (this._hiddenModelIds.delete(id)) {
 				changed = true;
 			}
-		}
-		if (changed) {
-			this._saveVisibility();
-			this._onDidChangeModelVisibility.fire();
-		}
-	}
-
-	setModelHidden(modelIdentifier: string, hidden: boolean): void {
-		let changed = false;
-		if (hidden) {
-			if (!this._hiddenModelIds.has(modelIdentifier)) {
-				this._hiddenModelIds.add(modelIdentifier);
-				changed = true;
-			}
-		} else if (this._hiddenModelIds.delete(modelIdentifier)) {
-			changed = true;
 		}
 		if (changed) {
 			this._saveVisibility();
@@ -2397,7 +2874,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				free[entry.id] = { label: entry.label, featured: entry.featured, exists: this._modelCache.has(`copilot/${entry.id}`) };
+				free[entry.id] = { label: entry.label, featured: entry.featured, demoted: entry.demoted, exists: this._modelCache.has(`copilot/${entry.id}`) };
 			}
 		}
 
@@ -2407,7 +2884,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				if (!entry || !isObject(entry)) {
 					continue;
 				}
-				paid[entry.id] = { label: entry.label, featured: entry.featured, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelCache.has(`copilot/${entry.id}`) };
+				paid[entry.id] = { label: entry.label, featured: entry.featured, demoted: entry.demoted, minVSCodeVersion: entry.minVSCodeVersion, exists: this._modelCache.has(`copilot/${entry.id}`) };
 			}
 		}
 

@@ -9,8 +9,10 @@ import { DisposableStore, toDisposable } from '../../base/common/lifecycle.js';
 import { Schemas } from '../../base/common/network.js';
 import * as path from '../../base/common/path.js';
 import { IURITransformer } from '../../base/common/uriIpc.js';
+import { generateUuid } from '../../base/common/uuid.js';
 import { getMachineId, getSqmMachineId, getDevDeviceId } from '../../base/node/id.js';
 import { Promises } from '../../base/node/pfs.js';
+import { findFreePortFaster } from '../../base/node/ports.js';
 import { ClientConnectionEvent, IMessagePassingProtocol, IPCServer, StaticRouter } from '../../base/parts/ipc/common/ipc.js';
 import { ProtocolConstants } from '../../base/parts/ipc/common/ipc.net.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -19,6 +21,7 @@ import { ExtensionHostDebugBroadcastChannel } from '../../platform/debug/common/
 import { IDownloadService } from '../../platform/download/common/download.js';
 import { DownloadServiceChannelClient } from '../../platform/download/common/downloadIpc.js';
 import { IEnvironmentService, INativeEnvironmentService } from '../../platform/environment/common/environment.js';
+import { getUserDataPath } from '../../platform/environment/node/userDataPath.js';
 import { ExtensionGalleryServiceWithNoStorageService } from '../../platform/extensionManagement/common/extensionGalleryService.js';
 import { IAllowedExtensionsService, IExtensionGalleryService } from '../../platform/extensionManagement/common/extensionManagement.js';
 import { ExtensionSignatureVerificationService, IExtensionSignatureVerificationService } from '../../platform/extensionManagement/node/extensionSignatureVerificationService.js';
@@ -44,7 +47,7 @@ import { RequestService } from '../../platform/request/node/requestService.js';
 import { resolveCommonProperties } from '../../platform/telemetry/common/commonProperties.js';
 import { ITelemetryService, TelemetryLevel } from '../../platform/telemetry/common/telemetry.js';
 import { ITelemetryServiceConfig } from '../../platform/telemetry/common/telemetryService.js';
-import { getPiiPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
+import { getPiiPathsFromEnvironment, getUserContentPathsFromEnvironment, isInternalTelemetry, isLoggingOnly, ITelemetryAppender, NullAppender, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import ErrorTelemetry from '../../platform/telemetry/node/errorTelemetry.js';
 import { IPtyService, TerminalSettingId } from '../../platform/terminal/common/terminal.js';
 import { PtyHostService } from '../../platform/terminal/node/ptyHostService.js';
@@ -57,7 +60,7 @@ import { IServerTelemetryService, ServerNullTelemetryService, ServerTelemetrySer
 import { RemoteTerminalChannel } from './remoteTerminalChannel.js';
 import { createURITransformer } from '../../base/common/uriTransformer.js';
 import { ServerConnectionToken, ServerConnectionTokenType } from './serverConnectionToken.js';
-import { ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
+import { getRedactedServerParsedArgs, ServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { REMOTE_TERMINAL_CHANNEL_NAME } from '../../workbench/contrib/terminal/common/remote/remoteTerminalChannel.js';
 import { REMOTE_FILE_SYSTEM_CHANNEL_NAME } from '../../workbench/services/remote/common/remoteFileSystemProviderClient.js';
 import { ExtensionHostStatusService, IExtensionHostStatusService } from './extensionHostStatusService.js';
@@ -78,7 +81,10 @@ import { RemoteExtensionsScannerChannelName } from '../../platform/remote/common
 import { RemoteUserDataProfilesServiceChannel } from '../../platform/userDataProfile/common/userDataProfileIpc.js';
 import { NodePtyHostStarter } from '../../platform/terminal/node/nodePtyHostStarter.js';
 import { NodeAgentHostStarter } from '../../platform/agentHost/node/nodeAgentHostStarter.js';
-import { ServerAgentHostManager } from './serverAgentHostManager.js';
+import { readLocalAgentHostEndpoint } from '../../platform/agentHost/node/localAgentHostMetadata.js';
+import { formatAgentHostUrlHost } from '../../platform/agentHost/node/sshRemoteAgentHostHelpers.js';
+import '../../platform/agentHost/common/agentHostStarter.config.contribution.js';
+import { readGithubEnvironmentOptions, ServerAgentHostManager } from './serverAgentHostManager.js';
 import { AgentHostChannel, UnavailableAgentHostChannel } from './agentHostChannel.js';
 import { AgentHostIpcChannels } from '../../platform/agentHost/common/agentService.js';
 import { IServerLifetimeService, ServerLifetimeService } from './serverLifetimeService.js';
@@ -107,6 +113,10 @@ import { SandboxHelperService } from '../../platform/sandbox/node/sandboxHelper.
 const eventPrefix = 'monacoworkbench';
 
 export async function setupServerServices(connectionToken: ServerConnectionToken, args: ServerParsedArgs, REMOTE_DATA_FOLDER: string, disposables: DisposableStore) {
+	const githubEnvironment = readGithubEnvironmentOptions(process.env);
+	if (githubEnvironment && !(args['agent-host-port'] || args['agent-host-path'])) {
+		throw new Error('GitHub environment hosting requires an explicitly spawned agent host');
+	}
 	const services = new ServiceCollection();
 	const socketServer = new SocketServer<RemoteAgentConnectionContext>();
 
@@ -128,7 +138,7 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	disposables.add(logService.onDidChangeLogLevel(logLevel => log(logService, logLevel, `Log level changed to ${LogLevelToString(logService.getLevel())}`)));
 
 	logService.trace(`Remote configuration data at ${REMOTE_DATA_FOLDER}`);
-	logService.trace('process arguments:', environmentService.args);
+	logService.trace('process arguments:', getRedactedServerParsedArgs(environmentService.args));
 	if (Array.isArray(productService.serverGreeting)) {
 		logService.info(`\n\n${productService.serverGreeting.join('\n')}\n\n`);
 	}
@@ -187,7 +197,8 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 		const config: ITelemetryServiceConfig = {
 			appenders: [oneDsAppender, new TelemetryLogAppender('', true, loggerService, environmentService, productService)],
 			commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version + '-remote', machineId, sqmId, devDeviceId, isInternal, productService.date, 'remoteAgent'),
-			piiPaths: getPiiPathsFromEnvironment(environmentService)
+			piiPaths: getPiiPathsFromEnvironment(environmentService),
+			userContentPaths: getUserContentPathsFromEnvironment(environmentService)
 		};
 		const initialTelemetryLevelArg = environmentService.args['telemetry-level'];
 		let injectedTelemetryLevel: TelemetryLevel = TelemetryLevel.USAGE;
@@ -238,23 +249,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	const serverLifetimeService = instantiationService.createInstance(ServerLifetimeService, {
 		enableAutoShutdown: !!args['enable-remote-auto-shutdown'],
 		shutdownWithoutDelay: !!args['remote-auto-shutdown-without-delay'],
-	});
+	}, process.exit);
 	services.set(IServerLifetimeService, serverLifetimeService);
 
-	// ---- Agent host wiring -------------------------------------------------
-	//
-	// Two independent concerns:
-	//
-	// 1. SPAWN: when `--agent-host-port` / `--agent-host-path` is set, this
-	//    server spawns and owns an agent host child process.
-	// 2. BRIDGE: register the `agentHostProxy` IPC channel so renderers can
-	//    reach the agent host over the remote-agent connection. The upstream
-	//    is either the agent host we just spawned, or one specified via
-	//    `--agent-host-bridge-port` / `--agent-host-bridge-path` (e.g. when
-	//    a CLI sidecar manages the agent host lifecycle).
-	//
-	// The two concerns are deliberately separable so that scenarios with an
-	// externally-managed agent host don't accidentally fork a duplicate.
+	// Explicit endpoints are spawned; otherwise discover a shared host or lazily start a shareable TCP host.
 
 	const spawnPort = args['agent-host-port'];
 	const spawnPath = args['agent-host-path'];
@@ -267,44 +265,97 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 			host: args.host || 'localhost',
 			connectionToken: connectionToken.type === ServerConnectionTokenType.Mandatory ? connectionToken.value : undefined,
 		});
-		disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter));
-	}
+		const agentHostManager = disposables.add(instantiationService.createInstance(ServerAgentHostManager, agentHostStarter, {
+			githubEnvironment,
+			onGithubEnvironmentReady: environmentId => console.log(`__VSCODE_GITHUB_ENVIRONMENT_READY__:${environmentId}`),
+			onRestartLimitReached: githubEnvironment ? () => process.exit(1) : undefined,
+		}));
+		if (githubEnvironment) {
+			const shutdown = () => {
+				void agentHostManager.shutdown().then(() => process.exit(0), error => {
+					logService.error('GitHub environment shutdown failed', error);
+					process.exit(1);
+				});
+			};
+			process.stdin.once('end', shutdown);
+			disposables.add(toDisposable(() => process.stdin.removeListener('end', shutdown)));
+			process.stdin.resume();
+			await agentHostManager.ensureStarted();
+		}
 
-	// The bridge upstream defaults to the agent host this server just
-	// spawned, but ONLY when that endpoint is dialable at configuration
-	// time — i.e. an explicit non-zero port or a socket path. When
-	// `--agent-host-port=0` is used the OS picks a port at runtime that
-	// this server has no way of learning, so we refuse to register a
-	// bridge against a placeholder `0`; in that case the caller (the CLI
-	// `code tunnel` flow) is expected to capture the bound port from the
-	// AH's readiness line and pass it back as `--agent-host-bridge-port`
-	// on the renderer-serving servers. Explicit `--agent-host-bridge-*`
-	// always wins over the spawn fallback.
-	const spawnPortNumber = spawnPort ? parseInt(spawnPort, 10) : NaN;
-	const hasUsableSpawnPort = Number.isFinite(spawnPortNumber) && spawnPortNumber > 0;
-	const bridgePort = args['agent-host-bridge-port'] ?? (hasUsableSpawnPort ? spawnPort : undefined);
-	const bridgePath = args['agent-host-bridge-path'] ?? spawnPath;
-	const bridgeHost = args['agent-host-bridge-host'] ?? args.host ?? 'localhost';
-	const bridgeToken = args['agent-host-bridge-connection-token']
-		?? ((bridgePort || bridgePath) && spawnAgentHost && connectionToken.type === ServerConnectionTokenType.Mandatory
-			? connectionToken.value
-			: undefined);
-	if (bridgePort || bridgePath) {
-		const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
-			socketServer,
-			{
-				host: bridgeHost,
-				port: bridgePort,
-				socketPath: bridgePath,
-				connectionToken: bridgeToken,
-			},
-			logService,
-		));
-		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
-		logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${bridgePath ?? `${bridgeHost}:${bridgePort}`})`);
+		// A runtime-assigned port is not known here, so only bridge dialable spawn endpoints.
+		const spawnPortNumber = spawnPort ? parseInt(spawnPort, 10) : NaN;
+		const hasUsableSpawnPort = Number.isFinite(spawnPortNumber) && spawnPortNumber > 0;
+		const bridgePort = hasUsableSpawnPort ? spawnPort : undefined;
+		const bridgeHost = args.host ?? 'localhost';
+		if (bridgePort || spawnPath) {
+			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
+				socketServer,
+				{
+					host: bridgeHost,
+					port: bridgePort,
+					socketPath: spawnPath,
+					connectionToken: connectionToken.type === ServerConnectionTokenType.Mandatory ? connectionToken.value : undefined,
+				},
+				logService,
+			));
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
+			logService.info(`[AgentHostChannel] Registered IPC channel '${AgentHostIpcChannels.RemoteProxy}' (upstream: ${spawnPath ?? `${bridgeHost}:${bridgePort}`})`);
+		} else {
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
+			logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no dialable spawned endpoint.`);
+		}
 	} else {
-		socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
-		logService.info(`[AgentHostChannel] Registered unavailable IPC channel '${AgentHostIpcChannels.RemoteProxy}': no --agent-host-bridge-port / --agent-host-bridge-path set.`);
+		try {
+			const registryUserDataPath = getUserDataPath({ _: [] }, productService.nameShort);
+			const host = '127.0.0.1';
+			const connectionToken = generateUuid();
+			let ownPort: Promise<string> | undefined;
+			const agentHostStarter = instantiationService.createInstance(NodeAgentHostStarter);
+			const agentHostManager = disposables.add(instantiationService.createInstance(
+				ServerAgentHostManager,
+				agentHostStarter,
+				{ startMode: 'lazy' },
+			));
+			const agentHostBridge = disposables.add(new AgentHostChannel<RemoteAgentConnectionContext>(
+				socketServer,
+				async options => {
+					const sharedEndpoint = await readLocalAgentHostEndpoint(registryUserDataPath, productService.quality, options?.preferredAgentLocation, logService).catch(error => {
+						logService.warn('[AgentHostChannel] Failed to read the agent host endpoint registry; starting our own agent host', error);
+						return undefined;
+					});
+					if (sharedEndpoint) {
+						if (options?.env || options?.debugEnv) {
+							logService.trace('[AgentHostChannel] Ignoring renderer environment overrides for a shared agent host');
+						}
+						return sharedEndpoint.endpoint.type === 'tcp'
+							? { host: formatAgentHostUrlHost(sharedEndpoint.endpoint.host), port: String(sharedEndpoint.endpoint.port), connectionToken: sharedEndpoint.connectionToken }
+							: { socketPath: sharedEndpoint.endpoint.path, connectionToken: sharedEndpoint.connectionToken };
+					}
+					ownPort ??= findFreePortFaster(10000 + Math.floor(Math.random() * 50000), 100, 5000, host).then(freePort => {
+						if (!freePort) {
+							ownPort = undefined;
+							throw new Error('No free port available for the agent host');
+						}
+						const port = String(freePort);
+						agentHostStarter.setWebSocketConfig({ host, port, connectionToken, registryUserDataPath });
+						return port;
+					});
+					const port = await ownPort;
+					if (options?.env || options?.debugEnv) {
+						agentHostStarter.setEnvironment(options.env ?? {}, options.debugEnv);
+					}
+					await agentHostManager.ensureStarted();
+					return { host, port, connectionToken };
+				},
+				logService,
+			));
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, agentHostBridge);
+			logService.info(`[AgentHostChannel] Registered lazy IPC channel '${AgentHostIpcChannels.RemoteProxy}' with shared endpoint discovery`);
+		} catch (error) {
+			socketServer.registerChannel(AgentHostIpcChannels.RemoteProxy, new UnavailableAgentHostChannel<RemoteAgentConnectionContext>());
+			logService.error(`[AgentHostChannel] Failed to register IPC channel '${AgentHostIpcChannels.RemoteProxy}'`, error);
+		}
 	}
 
 	services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService));

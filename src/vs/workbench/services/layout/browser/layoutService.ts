@@ -26,6 +26,8 @@ export const enum Parts {
 	PANEL_PART = 'workbench.parts.panel',
 	AUXILIARYBAR_PART = 'workbench.parts.auxiliarybar',
 	SESSIONS_PART = 'workbench.parts.sessions',
+	CUSTOM_VIEW_GRID_PART = 'workbench.parts.customViewGrid',
+	CHAT_PART = 'workbench.parts.chat',
 	EDITOR_PART = 'workbench.parts.editor',
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
@@ -50,31 +52,76 @@ export const enum LayoutSettings {
 	COMMAND_CENTER = 'window.commandCenter',
 	LAYOUT_ACTIONS = 'workbench.layoutControl.enabled',
 	SHADOWS = 'workbench.shadows',
-	MODERN_UI = 'workbench.experimental.modernUI'
+	MODERN_UI = 'workbench.experimental.modernUI',
+	MODERN_UI_DENSITY = 'window.density.layout',
+	MODERN_UI_FROSTED_GLASS = 'workbench.modernUIFrostedGlass',
+	MODERN_UI_FROSTED_GLASS_OPACITY = 'workbench.modernUIFrostedGlassOpacity',
+	MODERN_UI_EDITOR_TAB_STYLE = 'workbench.experimental.modernUIEditorTabStyle',
+	MODERN_UI_UPPERCASE_VIEW_HEADERS = 'workbench.experimental.modernUIUppercaseViewHeaders'
 }
 
-/**
- * The margin (in pixels) reserved on each side of a part when the Modern UI Update
- * experiment (`LayoutSettings.MODERN_UI`) is enabled. Parts grow or shrink their
- * content by this amount to leave room for the margin/border applied in CSS
- * (`src/vs/workbench/browser/media/floatingPanels.css`, `.floating-panels`).
- * Keep in sync with the `--vscode-spacing-size40` (4px) token used there.
- */
+export const enum ModernUIFrostedGlassOpacity {
+	Minimum = 50,
+	Maximum = 100,
+	Default = 80
+}
+
+export const enum ModernUIEditorTabStyle {
+	Connected = 'connected',
+	Pill = 'pill'
+}
+
+export const enum ModernUIDensity {
+	Default = 'default',
+	Compact = 'compact'
+}
+
+/** Default panel gutter, retained at exterior edges. Inter-panel spacing is resolved separately. */
 export const FLOATING_PANEL_MARGIN = 4;
 
 /**
- * The trailing card margin (in pixels) when the Modern UI Update experiment is
- * enabled. Together with the next card's leading {@link FLOATING_PANEL_MARGIN},
- * it forms the 6px inter-card gap. Keep in sync with the
- * `--vscode-spacing-size20` (2px) token used in `floatingPanels.css`.
+ * Compact Modern UI density removes the gaps between cards.
  */
-export const FLOATING_PANEL_INNER_MARGIN = 2;
+export const COMPACT_FLOATING_PANEL_MARGIN = 0;
+
+/**
+ * Compact Modern UI density connects the card cluster directly to the window chrome.
+ */
+export const COMPACT_FLOATING_PANEL_OUTER_MARGIN = 0;
+/** The trailing card margin; the following card supplies the resolved inter-panel gap. */
+export const FLOATING_PANEL_INNER_MARGIN = 0;
+
+export function getFloatingPanelMargin(layoutService: IWorkbenchLayoutService): number {
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_MARGIN : layoutService.getPanelSpacing();
+}
+
+/**
+ * The density-specific perimeter gutter (in pixels) on an edge facing window chrome. Keep in sync with
+ * `--modern-ui-floating-card-outer-margin` in `floatingPanels.css`.
+ */
+export function getFloatingPanelOuterMargin(layoutService: IWorkbenchLayoutService): number {
+	return layoutService.isModernUICompact() ? COMPACT_FLOATING_PANEL_OUTER_MARGIN : FLOATING_PANEL_MARGIN;
+}
 
 export const enum ActivityBarPosition {
 	DEFAULT = 'default',
 	TOP = 'top',
 	BOTTOM = 'bottom',
 	HIDDEN = 'hidden'
+}
+
+/**
+ * Whether the compact menu is owned by the title bar rather than the activity bar.
+ * This is the case when the activity bar is at the top or bottom, because the activity
+ * bar then lives in the side bar and disappears with the side bar. The title bar
+ * only owns the menu while the custom title bar is shown in the main window; otherwise
+ * the activity bar keeps it so that the menu remains reachable.
+ */
+export function isCompactMenuInTitlebar(configurationService: IConfigurationService): boolean {
+	const activityBarLocation = configurationService.getValue<ActivityBarPosition>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+	return getMenuBarVisibility(configurationService) === 'compact'
+		&& (activityBarLocation === ActivityBarPosition.TOP || activityBarLocation === ActivityBarPosition.BOTTOM)
+		&& shouldShowCustomTitleBar(configurationService, mainWindow);
 }
 
 export const enum EditorTabsMode {
@@ -119,23 +166,29 @@ export function positionToString(position: Position): string {
 }
 
 /**
- * Determines which window edge (left/right) is owned by the outermost floating card
- * when the Modern UI Update experiment is enabled, and which {@link Parts} owns it.
- * The owning part receives a doubled outer gutter so its contents do not hug the
- * window edge. Returns `undefined` for an edge when no floating card owns it (for
- * example the activity bar sits flush against that edge) or when the experiment is
- * disabled.
+ * Whether the floating cards sit against the top window edge and take the density-specific
+ * outer gutter. Both grid rows above the middle section (title bar and banner) must be hidden.
+ */
+export function isFloatingTopEdgeExposed(layoutService: IWorkbenchLayoutService, targetWindow: Window): boolean {
+	return !layoutService.isVisible(Parts.TITLEBAR_PART, targetWindow) && !layoutService.isVisible(Parts.BANNER_PART);
+}
+
+/**
+ * Determines which horizontal edge of the floating-card cluster is owned by its outermost
+ * card when the Modern UI Update experiment is enabled, and which {@link Parts} owns it.
+ * The owning part receives the density-specific outer gutter. Compact density includes the
+ * default-position Activity Bar in the connected card cluster.
  *
  * The horizontal order of the parts is reconstructed from the same inputs the grid
  * layout uses (mirrors `Layout.adjustPartPositions` in `src/vs/workbench/browser/layout.ts`): the activity bar and primary side bar sit
  * on `getSideBarPosition()`, the secondary side bar on the opposite side, the editor in
  * the middle, and a vertical (left/right) panel immediately next to the editor on its
- * placement side. The outermost *visible* part on each edge wins; the activity bar is not
- * a floating card, so it yields no owner. A hidden editor is skipped, so a maximized side
- * bar (which spans the full content width) is correctly detected as the owner on both edges.
+ * placement side. The outermost *visible* part on each edge wins; a visible Activity Bar is the
+ * outermost card of the side bar cluster. A hidden editor is skipped, so a maximized side bar
+ * (which spans the full content width) is correctly detected as the owner on both edges.
  *
  * Consumed by `AbstractPaneCompositePart` (side bars and panel) and `EditorPart`
- * (main editor) so the doubled-gutter decision stays in sync between them.
+ * (main editor) so the outer-gutter decision stays in sync between them.
  */
 export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutService): { left: Parts | undefined; right: Parts | undefined } {
 	if (!layoutService.isFloatingPanelsEnabled()) {
@@ -158,12 +211,15 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
+	// A chat part, where a window has one, sits immediately beside the editor on the primary side bar's side, inside a
+	// vertical panel on that side.
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
 	const fullOrder: Parts[] = sideBarLeft
 		? [
 			...sideBarGroup,
 			...(panelInLeftSequence ? panelGroup : []),
+			Parts.CHAT_PART,
 			Parts.EDITOR_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			Parts.AUXILIARYBAR_PART
@@ -172,6 +228,7 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 			Parts.AUXILIARYBAR_PART,
 			...(panelInLeftSequence ? panelGroup : []),
 			Parts.EDITOR_PART,
+			Parts.CHAT_PART,
 			...(panelInRightSequence ? panelGroup : []),
 			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
 		];
@@ -183,10 +240,9 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 }
 
 /**
- * Walks the given window order (outermost -> innermost from a window edge) and returns the
- * first visible part as the owner of that edge. The activity bar hugs the window edge but is
- * not a floating card, so a visible activity bar yields no owner. Returns `undefined` when no
- * visible card sits on the edge.
+ * Walks the given window order (outermost -> innermost) and returns the first visible card
+ * owning the cluster edge. A visible default-position Activity Bar is a cluster card in both
+ * densities: it is the outermost card of the side bar cluster and carries the outer gutter.
  */
 function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, orderedParts: Parts[]): Parts | undefined {
 	for (const part of orderedParts) {
@@ -199,16 +255,15 @@ function resolveFloatingOuterOwner(layoutService: IWorkbenchLayoutService, order
 			continue;
 		}
 
-		// The activity bar hugs the window edge but is not a floating card.
-		return part === Parts.ACTIVITYBAR_PART ? undefined : part;
+		return part;
 	}
 
 	return undefined;
 }
 
 /**
- * The window edges on which the given part is the outermost floating card and should
- * therefore receive a doubled outer gutter. A part can own both edges at once (notably
+ * The horizontal cluster edges on which the given part is the outermost floating card and
+ * should therefore receive the density-specific outer gutter. A part can own both edges (notably
  * a horizontal bottom/top panel that spans the full width when the bars beside it are
  * hidden or not full-height). Convenience wrapper around {@link getFloatingOuterEdgeOwners}.
  */
@@ -225,6 +280,41 @@ export function getFloatingOuterGutterEdges(layoutService: IWorkbenchLayoutServi
 
 	const owners = getFloatingOuterEdgeOwners(layoutService);
 	return { left: owners.left === partId, right: owners.right === partId };
+}
+
+/**
+ * Horizontal margins (in pixels) a floating pane composite reserves, mirroring the
+ * margins in `floatingPanels.css`.
+ */
+export function getFloatingPaneCompositeHorizontalMargins(layoutService: IWorkbenchLayoutService, partId: Parts): { left: number; right: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { left: 0, right: 0 };
+	}
+
+	const outerGutter = getFloatingOuterGutterEdges(layoutService, partId);
+	const margin = getFloatingPanelMargin(layoutService);
+	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	// The primary side bar meets the activity bar rail flush so the two read as one connected
+	// surface. Only a left-positioned side bar needs this explicitly; on the right the seam is
+	// the side bar's trailing edge, which already uses the inner margin.
+	const meetsActivityBarRail = partId === Parts.SIDEBAR_PART
+		&& layoutService.getSideBarPosition() === Position.LEFT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART);
+	const leading = meetsActivityBarRail ? FLOATING_PANEL_INNER_MARGIN : margin;
+
+	const panelMeetsRightActivityBar = partId === Parts.PANEL_PART
+		&& isHorizontal(layoutService.getPanelPosition())
+		&& layoutService.getSideBarPosition() === Position.RIGHT
+		&& layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& layoutService.isVisible(Parts.SIDEBAR_PART)
+		&& getFloatingSidebarSiblingToEditorStatus(layoutService).sideBar;
+	const trailing = panelMeetsRightActivityBar ? margin : FLOATING_PANEL_INNER_MARGIN;
+
+	return {
+		left: outerGutter.left ? outerMargin : leading,
+		right: outerGutter.right ? outerMargin : trailing,
+	};
 }
 
 /**
@@ -246,8 +336,100 @@ export function getFloatingSidebarSiblingToEditorStatus(
 }
 
 /**
- * Whether a visible horizontal (bottom/top) panel reaches each window edge and should
- * therefore receive a doubled outer gutter so it aligns with the editor card above it.
+ * Vertical margins (in pixels) a floating pane composite (primary side bar, secondary side
+ * bar or panel) reserves, mirroring the margins in `floatingPanels.css`. Compact density
+ * uses the perimeter gutter whenever the edge faces window chrome rather than another card.
+ */
+export function getFloatingPaneCompositeVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	partId: Parts,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const outerEdges = getFloatingPaneCompositeVerticalOuterEdges(layoutService, partId, targetWindow);
+	const margin = getFloatingPanelMargin(layoutService);
+	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	return {
+		top: outerEdges.top
+			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
+			: margin,
+		bottom: outerEdges.bottom
+			? outerMargin
+			: FLOATING_PANEL_INNER_MARGIN
+	};
+}
+
+export function getFloatingPaneCompositeVerticalOuterEdges(
+	layoutService: IWorkbenchLayoutService,
+	partId: Parts,
+	targetWindow: Window
+): { top: boolean; bottom: boolean } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: false, bottom: false };
+	}
+
+	const panelPosition = layoutService.getPanelPosition();
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const isSideBar = partId === Parts.SIDEBAR_PART || partId === Parts.AUXILIARYBAR_PART;
+	const siblingStatus = getFloatingSidebarSiblingToEditorStatus(layoutService);
+	const isSiblingToEditor = partId === Parts.SIDEBAR_PART ? siblingStatus.sideBar : siblingStatus.auxBar;
+	const facesPanelAbove = panelVisible && panelPosition === Position.TOP && isSideBar && isSiblingToEditor;
+	const facesEditorAbove = partId === Parts.PANEL_PART && panelPosition === Position.BOTTOM && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
+	const facesEditorBelow = partId === Parts.PANEL_PART && panelPosition === Position.TOP && layoutService.isVisible(Parts.EDITOR_PART, targetWindow);
+	const facesPanelBelow = panelVisible && panelPosition === Position.BOTTOM && isSideBar && isSiblingToEditor;
+
+	return {
+		top: !facesPanelAbove && !facesEditorAbove,
+		bottom: !facesEditorBelow && !facesPanelBelow,
+	};
+}
+
+/**
+ * Vertical margins (in pixels) the floating main editor reserves, mirroring the margins in
+ * `floatingPanels.css`. A panel above or below takes the place of the corresponding window edge.
+ */
+export function getFloatingEditorVerticalMargins(
+	layoutService: IWorkbenchLayoutService,
+	targetWindow: Window
+): { top: number; bottom: number } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: 0, bottom: 0 };
+	}
+
+	const outerEdges = getFloatingEditorVerticalOuterEdges(layoutService);
+	const margin = getFloatingPanelMargin(layoutService);
+	const outerMargin = getFloatingPanelOuterMargin(layoutService);
+
+	return {
+		top: outerEdges.top
+			? isFloatingTopEdgeExposed(layoutService, targetWindow) ? outerMargin : FLOATING_PANEL_INNER_MARGIN
+			: margin,
+		bottom: outerEdges.bottom
+			? outerMargin
+			: FLOATING_PANEL_INNER_MARGIN
+	};
+}
+
+export function getFloatingEditorVerticalOuterEdges(layoutService: IWorkbenchLayoutService): { top: boolean; bottom: boolean } {
+	if (!layoutService.isFloatingPanelsEnabled()) {
+		return { top: false, bottom: false };
+	}
+
+	const panelVisible = layoutService.isVisible(Parts.PANEL_PART);
+	const panelPosition = layoutService.getPanelPosition();
+	return {
+		top: !(panelVisible && panelPosition === Position.TOP),
+		bottom: !(panelVisible && panelPosition === Position.BOTTOM),
+	};
+}
+
+/**
+ * Whether a visible horizontal (bottom/top) panel reaches each horizontal cluster edge and
+ * should therefore receive the density-specific outer gutter so it aligns with the editor above.
  * The panel spans underneath a bar that is not full-height, and reaches an edge whenever
  * the bar on that side is hidden or not full-height (and, on the side bar side, the
  * activity bar is absent). The full-height/sibling computation mirrors `Layout.adjustPartPositions`.
@@ -260,7 +442,8 @@ function getFloatingHorizontalPanelOuterEdges(layoutService: IWorkbenchLayoutSer
 	const sideBarLeft = layoutService.getSideBarPosition() === Position.LEFT;
 	const { sideBar: sideBarSiblingToEditor, auxBar: auxSiblingToEditor } = getFloatingSidebarSiblingToEditorStatus(layoutService);
 
-	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART) && (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
+	const sideBarSideReached = !layoutService.isVisible(Parts.ACTIVITYBAR_PART)
+		&& (!layoutService.isVisible(Parts.SIDEBAR_PART) || sideBarSiblingToEditor);
 	const auxSideReached = !layoutService.isVisible(Parts.AUXILIARYBAR_PART) || auxSiblingToEditor;
 
 	return sideBarLeft
@@ -391,6 +574,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * content insets.
 	 */
 	isFloatingPanelsEnabled(): boolean;
+
+	/**
+	 * Returns whether Modern UI uses its compact density.
+	 */
+	isModernUICompact(): boolean;
+
+	/** Effective gap between panel areas, in pixels. Compact and phone layouts return zero. */
+	getPanelSpacing(): number;
 
 	/**
 	 * Focuses the part in the target window. If the part is not visible this is a noop.

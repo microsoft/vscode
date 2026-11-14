@@ -9,6 +9,8 @@ import { AbstractDialogHandler, IConfirmation, IConfirmationResult, IPrompt, IAs
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export class NativeDialogHandler extends AbstractDialogHandler {
 
@@ -20,6 +22,15 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
+	/**
+	 * Native Electron message boxes have no Markdown rendering capability, so
+	 * a Markdown `detail` is degraded to its plain-text equivalent rather than
+	 * shown with raw Markdown/link syntax.
+	 */
+	private toNativeDetail(detail: string | IMarkdownString | undefined): string | undefined {
+		return typeof detail === 'object' ? renderAsPlaintext(detail) : detail;
+	}
+
 	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
@@ -29,7 +40,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			type: this.getDialogType(prompt.type),
 			title: prompt.title,
 			message: prompt.message,
-			detail: prompt.detail,
+			detail: this.toNativeDetail(prompt.detail),
 			buttons,
 			cancelId: prompt.cancelButton ? buttons.length - 1 : -1 /* Disabled */,
 			checkboxLabel: prompt.checkbox?.label,
@@ -49,7 +60,7 @@ export class NativeDialogHandler extends AbstractDialogHandler {
 			type: this.getDialogType(confirmation.type) ?? 'question',
 			title: confirmation.title,
 			message: confirmation.message,
-			detail: confirmation.detail,
+			detail: this.toNativeDetail(confirmation.detail),
 			buttons,
 			cancelId: buttons.length - 1,
 			checkboxLabel: confirmation.checkbox?.label,

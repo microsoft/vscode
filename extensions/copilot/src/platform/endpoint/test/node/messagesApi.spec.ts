@@ -5,7 +5,7 @@
 
 import type { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, TextBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
-import { beforeEach, describe, expect, suite, test } from 'vitest';
+import { beforeEach, describe, expect, suite, test, vi } from 'vitest';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatLocation } from '../../../chat/common/commonTypes';
@@ -19,9 +19,18 @@ import { HeadersImpl, Response } from '../../../networking/common/fetcherService
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { TestLogService } from '../../../testing/common/testLogService';
 import { NullTelemetryService } from '../../../telemetry/common/nullTelemetryService';
+import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { ConfigKey, IConfigurationService } from '../../../configuration/common/configurationService';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { InMemoryConfigurationService } from '../../../configuration/test/common/inMemoryConfigurationService';
+
+class RecordingLogService extends TestLogService {
+	readonly warnings: string[] = [];
+
+	override warn(message: string): void {
+		this.warnings.push(message);
+	}
+}
 
 function assertContentArray(content: MessageParam['content']): ContentBlockParam[] {
 	expect(Array.isArray(content)).toBe(true);
@@ -574,6 +583,116 @@ suite('rawMessagesToMessagesAPI', function () {
 			const result = rawMessagesToMessagesAPI(assistantWithThinking({ id: 't1', text: '', encrypted: 'blob123', redacted: true }));
 			const content = assertContentArray(result.messages[0].content);
 			expect(content[0]).toEqual({ type: 'redacted_thinking', data: 'blob123' });
+		});
+	});
+
+	suite('merging consecutive assistant messages', function () {
+		// #327646: merging rounds whose tool results were dropped used to splice several
+		// responses' signed thinking blocks into one assistant message, which the API
+		// rejects with "thinking or redacted_thinking blocks in the latest assistant
+		// message cannot be modified". Only one response's blocks may survive a merge.
+		function assistantRound(thinking: { text: string; encrypted: string; redacted?: boolean } | undefined, text: string, toolCallId?: string): Raw.ChatMessage {
+			return {
+				role: Raw.ChatRole.Assistant,
+				content: [
+					...(thinking ? [{ type: Raw.ChatCompletionContentPartKind.Opaque as const, value: { type: 'thinking', thinking: { id: thinking.encrypted, ...thinking } } }] : []),
+					{ type: Raw.ChatCompletionContentPartKind.Text, text },
+				],
+				...(toolCallId ? { toolCalls: [{ id: toolCallId, type: 'function' as const, function: { name: 'read_file', arguments: '{}' } }] } : {}),
+			};
+		}
+
+		test('drops all thinking when no merged round still owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old reasoning', encrypted: 'sigOLD' }, 'round one'),
+				assistantRound({ text: 'new reasoning', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('drops redacted_thinking blocks along with regular ones', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: '', encrypted: 'blobOLD', redacted: true }, 'round one'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('chains through three consecutive assistant messages', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'first', encrypted: 'sig1' }, 'a'),
+				assistantRound({ text: 'second', encrypted: 'sig2' }, 'b'),
+				assistantRound({ text: 'third', encrypted: 'sig3' }, 'c', 'toolu_c'),
+			]);
+			// Only the run belonging to the round that still owns a tool call survives.
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'third', signature: 'sig3' },
+					{ type: 'text', text: 'a' },
+					{ type: 'text', text: 'b' },
+					{ type: 'text', text: 'c' },
+					{ type: 'tool_use', id: 'toolu_c', name: 'read_file', input: {} },
+				],
+			}]);
+		});
+
+		test('keeps the thinking of the newest round that owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old', encrypted: 'sigOLD' }, 'round one'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two', 'toolu_1'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'new', signature: 'sigNEW' },
+					{ type: 'text', text: 'round one' },
+					{ type: 'text', text: 'round two' },
+					{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} },
+				],
+			}]);
+		});
+
+		test('falls back to the earlier round when only it owns a tool call', function () {
+			const result = rawMessagesToMessagesAPI([
+				assistantRound({ text: 'old', encrypted: 'sigOLD' }, 'round one', 'toolu_1'),
+				assistantRound({ text: 'new', encrypted: 'sigNEW' }, 'round two'),
+			]);
+			expect(result.messages).toEqual([{
+				role: 'assistant',
+				content: [
+					{ type: 'thinking', thinking: 'old', signature: 'sigOLD' },
+					{ type: 'text', text: 'round one' },
+					{ type: 'tool_use', id: 'toolu_1', name: 'read_file', input: {} },
+					{ type: 'text', text: 'round two' },
+				],
+			}]);
+		});
+
+		test('leaves consecutive user messages concatenated as-is', function () {
+			const result = rawMessagesToMessagesAPI([
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hello' }] },
+				{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'world' }] },
+			]);
+			expect(result.messages).toEqual([{
+				role: 'user',
+				content: [
+					{ type: 'text', text: 'hello' },
+					{ type: 'text', text: 'world' },
+				],
+			}]);
 		});
 	});
 });
@@ -1533,6 +1652,32 @@ function createNonStreamingResponse(body: object, contentType = 'application/jso
 }
 
 suite('processNonStreamingResponseFromMessagesEndpoint', () => {
+	test('retains native reasoning in telemetry without surfacing it in the response', async () => {
+		const content = [
+			{ type: 'thinking', thinking: 'Reasoning', signature: 'signature' },
+			{ type: 'redacted_thinking', data: 'opaque' },
+			{ type: 'text', text: 'Answer' },
+		];
+		const service = new SpyingTelemetryService();
+		const enhanced = vi.spyOn(service, 'sendEnhancedGHTelemetryEvent');
+		const response = createNonStreamingResponse({
+			id: 'message', type: 'message', role: 'assistant', model: 'claude', content,
+			stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 },
+		});
+		const stream = await processNonStreamingResponseFromMessagesEndpoint(service, new TestLogService(), response, async () => undefined, TelemetryData.createAndMarkAsIssued());
+		const returned: Raw.ChatMessage[] = [];
+		for await (const completion of stream) {
+			returned.push(completion.message);
+		}
+		await vi.waitFor(() => expect(service.getEvents().telemetryServiceEvents.filter(event => event.eventName === 'engine.messages')).toHaveLength(1));
+		const event = enhanced.mock.calls.find(([name]) => name === 'engine.messages')!;
+		const messages = JSON.parse(String(event[1]?.messagesJson));
+		expect({ content: messages[0].content, returned }).toEqual({
+			content,
+			returned: [{ role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }] }],
+		});
+	});
+
 	test('parses text content from non-streaming response', async () => {
 		const response = createNonStreamingResponse({
 			id: 'msg_123',
@@ -1862,7 +2007,8 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 		expect(results[0].message.content).toHaveLength(0);
 	});
 
-	test('maps refusal stop_reason to ClientDone', async () => {
+	test('maps refusal stop_reason to Refusal, keeping any text the model did produce', async () => {
+		const explanation = 'API integrators: configure a fallback model.\n</pre>';
 		const response = createNonStreamingResponse({
 			id: 'msg_refusal',
 			type: 'message',
@@ -1870,21 +2016,34 @@ suite('processNonStreamingResponseFromMessagesEndpoint', () => {
 			content: [{ type: 'text', text: 'refused' }],
 			model: 'claude-sonnet-4-20250514',
 			stop_reason: 'refusal',
+			stop_details: { type: 'refusal', category: 'cyber', explanation },
 			usage: { input_tokens: 10, output_tokens: 5 },
 		});
 		const telemetryData = TelemetryData.createAndMarkAsIssued();
+		const deltas: IResponseDelta[] = [];
+		const logService = new RecordingLogService();
 		const completions = await processNonStreamingResponseFromMessagesEndpoint(
 			new NullTelemetryService(),
-			new TestLogService(),
+			logService,
 			response,
-			async () => undefined,
+			async (_text, _idx, delta) => { deltas.push(delta); return undefined; },
 			telemetryData,
 		);
 		const results = [];
 		for await (const c of completions) {
 			results.push(c);
 		}
-		expect(results[0].finishReason).toBe('DONE');
+		expect({
+			finishReason: results[0].finishReason,
+			content: results[0].message.content,
+			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
+			loggedExplanation: logService.warnings.some(message => message.includes(explanation)),
+		}).toEqual({
+			finishReason: 'refusal',
+			content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'refused' }],
+			copilotErrors: [],
+			loggedExplanation: false,
+		});
 	});
 
 	test('reports tool calls through finishCallback delta', async () => {
@@ -1973,14 +2132,77 @@ suite('processResponseFromMessagesEndpoint routing', () => {
 	});
 });
 
+suite('processResponseFromMessagesEndpoint X-GitHub-Copilot-Request-Te', () => {
+	const messageBody = {
+		id: 'msg_te',
+		type: 'message',
+		role: 'assistant',
+		content: [{ type: 'text', text: 'hi' }],
+		model: 'claude-sonnet-4-20250514',
+		stop_reason: 'end_turn',
+		usage: { input_tokens: 10, output_tokens: 5 },
+	};
+
+	function createStreamingBody(): string {
+		const events = [
+			{ type: 'message_start', message: { ...messageBody, content: [], stop_reason: null, stop_sequence: null } },
+			{ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+			{ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hi' } },
+			{ type: 'content_block_stop', index: 0 },
+			{ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 5 } },
+			{ type: 'message_stop' },
+		];
+		return events.map(e => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join('');
+	}
+
+	async function collect(contentType: string, body: string, headers: Record<string, string>) {
+		const telemetryService = new SpyingTelemetryService();
+		const response = Response.fromText(200, 'OK', new HeadersImpl({ 'content-type': contentType, 'x-request-id': 'req-te', ...headers }), body, 'node-fetch');
+		const services = createPlatformServices().createTestingAccessor();
+		const completions = await processResponseFromMessagesEndpoint(
+			services.get(IInstantiationService),
+			telemetryService,
+			new TestLogService(),
+			response,
+			async () => undefined,
+			TelemetryData.createAndMarkAsIssued(),
+		);
+		const valueOrAbsent = (bag: object) => 'gitHubCopilotRequestTe' in bag ? (bag as { gitHubCopilotRequestTe: string }).gitHubCopilotRequestTe : '<absent>';
+		const requestTes: string[] = [];
+		for await (const c of completions) {
+			requestTes.push(valueOrAbsent(c.requestId));
+		}
+		const finishReasonEvents = telemetryService.getEvents().telemetryServiceEvents
+			.filter(e => e.eventName === 'completion.finishReason')
+			.map(e => valueOrAbsent(e.properties ?? {}));
+		return { requestTes, finishReasonEvents };
+	}
+
+	test('non-streaming response carries the raw value to the completion and completion.finishReason', async () => {
+		expect(await collect('application/json', JSON.stringify(messageBody), { 'X-GitHub-Copilot-Request-Te': ' TRUE ' }))
+			.toEqual({ requestTes: [' TRUE '], finishReasonEvents: [' TRUE '] });
+	});
+
+	test('streaming response carries the raw value to the completion and completion.finishReason', async () => {
+		expect(await collect('text/event-stream', createStreamingBody(), { 'x-github-copilot-request-te': 'false' }))
+			.toEqual({ requestTes: ['false'], finishReasonEvents: ['false'] });
+	});
+
+	test('absent header omits the property', async () => {
+		expect(await collect('text/event-stream', createStreamingBody(), {}))
+			.toEqual({ requestTes: ['<absent>'], finishReasonEvents: ['<absent>'] });
+	});
+});
+
 suite('AnthropicMessagesProcessor streaming cache_creation', () => {
-	function makeProcessor(): AnthropicMessagesProcessor {
+	function makeProcessor(logService: TestLogService = new TestLogService()): AnthropicMessagesProcessor {
 		return new AnthropicMessagesProcessor(
 			TelemetryData.createAndMarkAsIssued(),
 			'req-1',
 			'gh-req-1',
+			'svc-req-1',
 			'',
-			new TestLogService(),
+			logService,
 			new NullTelemetryService(),
 		);
 	}
@@ -2001,6 +2223,31 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		const thinkingDeltas = deltas.filter(d => d.thinking).map(d => d.thinking);
 		expect(thinkingDeltas).toHaveLength(1);
 		expect(thinkingDeltas[0]).toEqual({ id: 'thinking_0', encrypted: 'blob123', redacted: true });
+	});
+
+	test('retains streamed reasoning blocks and their order only in telemetry', () => {
+		const processor = makeProcessor();
+		const capture: FinishedCallback = async () => undefined;
+		processor.push({ type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '', signature: '' } }, capture);
+		processor.push({ type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'Reasoning' } }, capture);
+		processor.push({ type: 'content_block_delta', index: 0, delta: { type: 'signature_delta', signature: 'signature' } }, capture);
+		processor.push({ type: 'content_block_stop', index: 0 }, capture);
+		processor.push({ type: 'content_block_start', index: 1, content_block: { type: 'redacted_thinking', data: 'opaque' } }, capture);
+		processor.push({ type: 'content_block_stop', index: 1 }, capture);
+		processor.push({ type: 'content_block_start', index: 2, content_block: { type: 'text', text: '' } }, capture);
+		processor.push({ type: 'content_block_delta', index: 2, delta: { type: 'text_delta', text: 'Answer' } }, capture);
+		processor.push({ type: 'content_block_stop', index: 2 }, capture);
+		const completion = processor.push({ type: 'message_stop' }, capture);
+		expect({ returned: completion?.message, telemetry: completion?.telemetryMessages }).toEqual({
+			returned: { role: Raw.ChatRole.Assistant, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Answer' }] },
+			telemetry: [{
+				role: 'assistant', content: [
+					{ type: 'thinking', thinking: 'Reasoning', signature: 'signature' },
+					{ type: 'redacted_thinking', data: 'opaque' },
+					{ type: 'text', text: 'Answer' },
+				],
+			}],
+		});
 	});
 
 	test('regular thinking content block emits a signature without the redacted flag', () => {
@@ -2160,5 +2407,48 @@ suite('AnthropicMessagesProcessor streaming cache_creation', () => {
 		const completion = processor.push({ type: 'message_stop' }, noop);
 		expect(completion!.usage?.completion_tokens).toBe(2024);
 		expect(completion!.usage?.completion_tokens_details?.reasoning_tokens).toBe(639);
+	});
+
+	test('refusal stop_reason maps to Refusal even when it arrives alongside context management', () => {
+		const logService = new RecordingLogService();
+		const processor = makeProcessor(logService);
+		const deltas: IResponseDelta[] = [];
+		const capture: FinishedCallback = async (_text, _idx, delta) => { deltas.push(delta); return undefined; };
+		const explanation = 'API integrators: configure a fallback model.\n</pre>';
+
+		processor.push({
+			type: 'message_start',
+			message: {
+				id: 'msg_refusal_stream',
+				type: 'message',
+				role: 'assistant',
+				content: [],
+				model: 'claude-sonnet-4-20250514',
+				stop_reason: null,
+				stop_sequence: null,
+				usage: { input_tokens: 5, output_tokens: 0 },
+			},
+		}, capture);
+
+		processor.push({
+			type: 'message_delta',
+			delta: { type: 'message_delta', stop_reason: 'refusal', stop_details: { type: 'refusal', category: 'cyber', explanation } },
+			usage: { output_tokens: 0, input_tokens: 5 },
+			context_management: { applied_edits: [] },
+		}, capture);
+
+		const completion = processor.push({ type: 'message_stop' }, capture);
+
+		expect({
+			finishReason: completion!.finishReason,
+			contextManagement: deltas.find(d => d.contextManagement)?.contextManagement,
+			copilotErrors: deltas.flatMap(d => d.copilotErrors ?? []),
+			loggedExplanation: logService.warnings.some(message => message.includes(explanation)),
+		}).toEqual({
+			finishReason: 'refusal',
+			contextManagement: { applied_edits: [] },
+			copilotErrors: [],
+			loggedExplanation: false,
+		});
 	});
 });

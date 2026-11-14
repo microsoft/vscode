@@ -1,0 +1,54 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/**
+ * Client-side compatibility for older VS Code agent hosts. The protocol client
+ * applies these at the protocol boundary, so the rest of the client reads
+ * current-protocol data only. Delete each entry when support for the hosts it
+ * serves ends.
+ */
+
+import { deriveLegacyDefaultChat } from '../common/agentHostLegacyDefaultChat.js';
+import { subagentChatUri } from '../common/agentHostChatMinting.js';
+import { readCompletionAttachmentMeta, restoreLegacySkillAttachment } from '../common/meta/agentCompletionAttachmentMeta.js';
+import { isNativeAgentHost, supportsAgentHostChatUris } from '../common/meta/agentHostSessionUrisMeta.js';
+import type { InitializeResult } from '../common/state/protocol/common/commands.js';
+import { MessageAttachmentKind, type MessageAttachment, type MessageResourceAttachment, type RootState, type URI as ProtocolURI } from '../common/state/sessionState.js';
+
+/**
+ * Simple skill completions with `_meta.uri` were deprecated on 2026-11-12 in
+ * favor of Resource attachments with `displayKind: 'skill'`. Remove this
+ * adapter when support for pre-deprecation VS Code hosts ends.
+ */
+export function getOlderHostSkillCompletion(attachment: MessageAttachment, host: InitializeResult | undefined, root: RootState | undefined): MessageResourceAttachment | undefined {
+	if (!isNativeAgentHost(host, root) || attachment.type !== MessageAttachmentKind.Simple
+		|| (attachment.displayKind !== undefined && attachment.displayKind !== 'skill')
+		|| readCompletionAttachmentMeta(attachment)) {
+		return undefined;
+	}
+	return restoreLegacySkillAttachment({ ...attachment, displayKind: 'skill' });
+}
+
+/**
+ * The default chat of `session` on an older VS Code host, which did not
+ * advertise `defaultChat` and addressed the default chat by its legacy URI.
+ * The host is identified from its initialize result or, for older hosts that
+ * only report their build in root state, from `root`. `undefined` for any
+ * other host: a host that is not VS Code and advertises no default chat has none.
+ */
+export function getOlderHostDefaultChat(session: ProtocolURI, host: InitializeResult | undefined, root: RootState | undefined): ProtocolURI | undefined {
+	return isNativeAgentHost(host, root) ? deriveLegacyDefaultChat(session) : undefined;
+}
+
+/**
+ * The subagent chat URI of a tool call on a positively identified older VS Code
+ * host, which minted shaped subagent chat URIs and neither stamped them on
+ * restored history nor registered them in time. `undefined` for every other
+ * host: a host that supports `vscode.ahpChatUris` or is not recognized as VS
+ * Code records the chat, and the client must read it instead of deriving it.
+ */
+export function getOlderHostSubagentChatUri(session: ProtocolURI, toolCallId: string, host: InitializeResult | undefined, root: RootState | undefined): ProtocolURI | undefined {
+	return isNativeAgentHost(host, root) && !supportsAgentHostChatUris(host) ? subagentChatUri('shaped', session, '', toolCallId) : undefined;
+}

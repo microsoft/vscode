@@ -76,8 +76,15 @@ export class ResourceMap<T> implements Map<URI, T> {
 
 	constructor(arg?: ResourceMap<T> | ResourceMapKeyFn | readonly (readonly [URI, T])[], toKey?: ResourceMapKeyFn) {
 		if (arg instanceof ResourceMap) {
-			this.map = new Map(arg.map);
-			this.toKey = toKey ?? ResourceMap.defaultToKey;
+			this.toKey = toKey ?? arg.toKey;
+			if (this.toKey === arg.toKey) {
+				this.map = new Map(arg.map);
+			} else {
+				this.map = new Map();
+				for (const entry of arg.map.values()) {
+					this.set(entry.uri, entry.value);
+				}
+			}
 		} else if (isEntries(arg)) {
 			this.map = new Map();
 			this.toKey = toKey ?? ResourceMap.defaultToKey;
@@ -770,6 +777,10 @@ export class BidirectionalMap<K, V> {
 	}
 
 	set(key: K, value: V): void {
+		const previousValue = this._m1.get(key);
+		if (previousValue !== undefined) {
+			this._m2.delete(previousValue);
+		}
 		this._m1.set(key, value);
 		this._m2.set(value, key);
 	}

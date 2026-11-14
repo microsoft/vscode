@@ -788,4 +788,9 @@ suite('ExtHostTypes', function () {
 		m.content = 'Hello';
 		assert.deepStrictEqual(m.content, [new types.LanguageModelTextPart('Hello')]);
 	});
+
+	test('LanguageModelError.RateLimited keeps retryAfter across serialization', function () {
+		const error = types.LanguageModelError.tryDeserialize(types.serializeLanguageModelError(types.LanguageModelError.RateLimited('Too many requests', 1500)));
+		assert.deepStrictEqual({ name: error?.name, code: error?.code, retryAfter: error?.retryAfter }, { name: 'LanguageModelError', code: 'RateLimited', retryAfter: 1500 });
+	});
 });

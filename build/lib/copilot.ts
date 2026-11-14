@@ -4,12 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
-import { ensureNpmPackage, type EnsureNpmPackageOptions } from './npmPackage.ts';
+import { ensureNpmPackage, materializeNpmPackageVersion, type EnsureNpmPackageOptions } from './npmPackage.ts';
+import { getLockfileFolder, parsePackageKey, readPnpmLockfile, type PnpmLockfile } from './pnpmLock.ts';
 
 /**
- * The platforms that @github/copilot ships platform-specific packages for.
- * These are the `@github/copilot-{platform}` optional dependency packages.
+ * Options for {@link prepareBuiltInCopilotRipgrepShim}. Extends the npm packing
+ * options with an override for the extension lockfile used to verify natives
+ * fetched for the pinned version (defaults to the repo's lockfile that records
+ * `extensions/copilot`; overridable in tests).
+ */
+export interface PrepareBuiltInCopilotOptions extends EnsureNpmPackageOptions {
+	extensionLockfilePath?: string;
+}
+
+/**
+ * The platforms that Copilot ships platform-specific packages for.
  */
 export const copilotPlatforms = [
 	'darwin-arm64', 'darwin-x64',
@@ -17,6 +28,41 @@ export const copilotPlatforms = [
 	'linuxmusl-arm64', 'linuxmusl-x64',
 	'win32-arm64', 'win32-x64',
 ];
+
+/**
+ * Product values that {@link renderCopilotShimLauncher} writes into `resources/win32/bin/copilot.sh`.
+ */
+export interface CopilotShimLauncherOptions {
+	readonly commit: string;
+	readonly quality: string;
+	readonly applicationName: string;
+	readonly dataFolderName: string;
+	readonly serverDataFolderName: string;
+}
+
+/**
+ * Renders the POSIX `copilot` launcher that Windows builds ship next to `copilot.exe` in `bin/copilot-shim`, so that
+ * WSL, Git Bash, and Cygwin shells that use the Windows PATH get a `copilot` command, like `bin/code` next to `code.cmd`.
+ */
+export function renderCopilotShimLauncher(template: string, options: CopilotShimLauncherOptions): string {
+	return template
+		.replace(/@@COMMIT@@/g, () => options.commit)
+		.replace(/@@QUALITY@@/g, () => options.quality)
+		.replace(/@@APPNAME@@/g, () => options.applicationName)
+		.replace(/@@DATAFOLDER@@/g, () => options.dataFolderName)
+		.replace(/@@SERVERDATAFOLDER@@/g, () => options.serverDataFolderName);
+}
+
+export function getCopilotRuntimeVersion(nodeModulesRoot = 'node_modules'): string {
+	const packageJsonPath = path.join(nodeModulesRoot, '@github', 'copilot-sdk', 'package.json');
+	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { readonly copilotCliVersion?: string };
+	const runtimeVersion = packageJson.copilotCliVersion;
+	if (typeof runtimeVersion !== 'string' || !runtimeVersion) {
+		throw new Error(`@github/copilot-sdk is missing copilotCliVersion in ${packageJsonPath}.`);
+	}
+
+	return runtimeVersion;
+}
 
 /**
  * Converts VS Code build platform/arch to the values that Node.js reports
@@ -63,7 +109,12 @@ const copilotTgrepPlatforms = [
 	'win32-arm64', 'win32-x64',
 ];
 
-const mxcArchitectures = ['x64', 'arm64'];
+const copilotOutOfProcessRuntimeExecutables = [
+	'copilot-runtime',
+	'copilot-runtime-bin',
+	'copilot-runtime.exe',
+	'copilot-runtime-bin.exe',
+];
 
 function toCopilotTgrepPlatformArch(platform: string, arch: string): string {
 	if (platform === 'alpine') {
@@ -90,46 +141,25 @@ function toCopilotPackagePlatformArch(platform: string, arch: string): string {
 }
 
 const copilotOptionalNativePayloadDirs = [
+	'builtin',
+	'builtin-skills',
 	'clipboard',
 	'foundry-local-sdk',
-	'mxc-bin',
 	'pvrecorder',
 	'webview',
 ];
 
-function getCopilotOptionalNativePayloadFiles(platform: string): string[] {
-	const files = [
-		'prebuilds/*/computer.node',
-		'prebuilds/*/computer-use-mcp',
-		'prebuilds/*/computer-use-mcp.exe',
-		'prebuilds/*/Copilot Computer Use.app/**',
-		'prebuilds/*/CopilotComputerUse.exe',
-		'prebuilds/*/keytar.node',
-	];
-
-	if (platform !== 'win32') {
-		files.push('prebuilds/*/cli-native.node');
-	}
-
-	return files;
-}
-
-/**
- * Returns a glob filter that strips @microsoft/mxc-sdk `bin/<arch>` payload for
- * architectures other than the build target. `@microsoft/mxc-sdk` ships a full
- * set of sandbox binaries for every architecture under `bin/<arch>/`; only the
- * build target's architecture is needed. Architectures that mxc-sdk does not
- * ship (e.g. armhf) strip every `bin/<arch>` directory.
- */
-export function getMxcExcludeFilter(arch: string): string[] {
-	const target = mxcArchitectures.includes(arch) ? arch : undefined;
-	const nonTargetArchitectures = mxcArchitectures.filter(a => a !== target);
-
-	return [
-		'**',
-		...nonTargetArchitectures.map(a => `!**/node_modules/@microsoft/mxc-sdk/bin/${a}/**`),
-	];
-}
+const copilotOptionalNativePayloadFiles = [
+	// Computer Use ships under plugins/computer-use/** in current
+	// @github/copilot-sdk platform packages. Do not productize it.
+	'plugins/computer-use/**',
+	'prebuilds/*/computer.node',
+	'prebuilds/*/keytar.node',
+	// macOS voice media-pause helper (MediaRemote adapter). Optional and
+	// nested under prebuilds; keep it out of the product so universal
+	// merge does not need to special-case the framework binary tree.
+	'prebuilds/*/mediaremote-adapter/**',
+];
 
 /**
  * Returns a glob filter that strips @vscode/ripgrep-universal bin directories
@@ -157,7 +187,7 @@ export function getCopilotTgrepExcludeFilter(platform: string, arch: string): st
 }
 
 /**
- * Returns a glob filter that strips @github/copilot platform packages
+ * Returns a glob filter that strips Copilot platform packages
  * for architectures other than the build target.
  *
  * Alpine uses the linuxmusl-* packages. Other platform package names follow
@@ -169,43 +199,35 @@ export function getCopilotExcludeFilter(platform: string, arch: string): string[
 	const targetPlatformArch = toCopilotPackagePlatformArch(platform, arch);
 	const nonTargetPlatforms = copilotPlatforms.filter(p => p !== targetPlatformArch);
 
-	// Strip wrong-architecture @github/copilot-{platform} packages.
-	const excludes = nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`);
-
 	return [
 		'**',
-		...excludes,
-		'!**/node_modules/@github/copilot-*/copilot',
-		'!**/node_modules/@github/copilot-*/copilot.exe',
+		...copilotPlatforms.map(p => `!**/node_modules/@github/copilot-${p}/**`),
+		...nonTargetPlatforms.map(p => `!**/node_modules/@github/copilot-sdk-${p}/**`),
 	];
 }
 
 /**
- * Returns the public @github/copilot package files that must survive
- * app/remote packaging for the target platform.
+ * Returns the SDK-owned runtime files that must survive app/remote packaging
+ * for the target platform.
  *
- * .moduleignore strips all @github/copilot-* platform packages globally.
- * Re-add the selected runtime package so Agent Host can launch its index.js
- * entrypoint and load runtime prebuilds. Keep the standalone SEA executable
- * and optional native payload trees out of the product build.
+ * .moduleignore strips all platform packages globally. Re-add the selected SDK
+ * package while keeping optional native payloads out of the product build.
  */
 export function getCopilotRuntimePrebuildFiles(platform: string, arch: string, nodeModulesRoot = 'node_modules'): string[] {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
-	const copilotPlatformPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-${copilotPackagePlatformArch}`);
+	const copilotSdkPackageDir = path.posix.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
 
 	return [
-		path.posix.join(copilotPlatformPackageDir, '**'),
-		`!${path.posix.join(copilotPlatformPackageDir, 'copilot')}`,
-		`!${path.posix.join(copilotPlatformPackageDir, 'copilot.exe')}`,
-		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotPlatformPackageDir, dir, '**')}`),
-		...getCopilotOptionalNativePayloadFiles(platform).map(file => `!${path.posix.join(copilotPlatformPackageDir, file)}`),
+		path.posix.join(copilotSdkPackageDir, '**'),
+		...copilotOptionalNativePayloadDirs.map(dir => `!${path.posix.join(copilotSdkPackageDir, dir, '**')}`),
+		...copilotOptionalNativePayloadFiles.map(file => `!${path.posix.join(copilotSdkPackageDir, file)}`),
 	];
 }
 
 /**
- * Ensures the selected @github/copilot-{platform} package is present before
- * packaging. npm only installs the host-compatible optional dependency, but
- * VS Code packaging can cross-build targets such as darwin-x64 on arm64 hosts.
+ * Ensures the selected SDK platform package is present before packaging. npm
+ * only installs host-compatible optional dependencies, but VS Code packaging
+ * can cross-build targets such as darwin-x64 on arm64 hosts.
  */
 export function ensureCopilotPlatformPackage(platform: string, arch: string, nodeModulesRoot = 'node_modules', options: EnsureNpmPackageOptions = {}): void {
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
@@ -213,17 +235,30 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
 		return;
 	}
 
-	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
+	const packageName = `@github/copilot-sdk-${copilotPackagePlatformArch}`;
 	ensureNpmPackage(packageName, nodeModulesRoot, options);
+
+	const packageDir = path.join(nodeModulesRoot, '@github', `copilot-sdk-${copilotPackagePlatformArch}`);
+	const requiredFiles = [
+		'copilot-sdk/index.js',
+		path.join('prebuilds', copilotPackagePlatformArch, platform === 'win32' ? 'copilot-runtime.exe' : 'copilot-runtime'),
+		path.join('prebuilds', copilotPackagePlatformArch, 'runtime.node'),
+	];
+	const missingFiles = requiredFiles.filter(file => !fs.existsSync(path.join(packageDir, file)));
+	if (missingFiles.length > 0) {
+		throw new Error(`[ensureCopilotPlatformPackage] ${packageName} is missing SDK runtime files: ${missingFiles.join(', ')}.`);
+	}
 }
 
 /**
  * Materializes target-platform Copilot CLI SDK files directly inside the built-in copilot extension.
  *
  * This is used when copilot is shipped as a built-in extension so startup does
- * not need to create the shim at runtime. The Copilot VSIX is built once on the
- * Linux x64 host, so product packaging also restores target-platform SDK
- * natives from the selected @github/copilot-{platform} package.
+ * not need to create the shim at runtime. The built-in extension is packaged
+ * with the SDK natives of the build machine, which can differ from the target
+ * (for example darwin-x64 on arm64 Macs, or Alpine on glibc Linux), so product
+ * packaging also restores target-platform SDK natives from the selected
+ * @github/copilot-{platform} package.
  *
  * Note: `node-pty` is no longer shimmed. The copilot CLI SDK resolves
  * `node-pty` from the embedder (VS Code) via `hostRequire` and falls back to
@@ -232,7 +267,7 @@ export function ensureCopilotPlatformPackage(platform: string, arch: string, nod
  * Failures throw to fail the build because built-in packaging must guarantee
  * this artifact is present.
  */
-export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string): void {
+export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string, builtInCopilotExtensionDir: string, appNodeModulesDir: string, options: PrepareBuiltInCopilotOptions = {}): void {
 	const { nodePlatform, nodeArch } = toNodePlatformArch(platform, arch);
 	const platformArch = `${nodePlatform}-${nodeArch}`;
 	const copilotPackagePlatformArch = toCopilotPackagePlatformArch(platform, arch);
@@ -244,7 +279,7 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	if (!fs.existsSync(copilotSdkBase)) {
 		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot SDK directory not found at ${copilotSdkBase}`);
 	}
-	materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch, tgrepPlatformArch, copilotBase, appNodeModulesDir);
+	materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch, tgrepPlatformArch, copilotBase, appNodeModulesDir, options);
 	pruneNonTargetCopilotSdkPrebuilds(copilotPackagePlatformArch, path.join(copilotSdkBase, 'prebuilds'), copilotPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotSdkBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
 	pruneNonTargetCopilotSdkPrebuilds(tgrepPlatformArch, path.join(copilotBase, path.join('tgrep', 'bin')), copilotTgrepPlatforms);
@@ -277,37 +312,148 @@ export function prepareBuiltInCopilotRipgrepShim(platform: string, arch: string,
 	}
 }
 
-function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: string, tgrepPlatformArch: string, copilotBase: string, appNodeModulesDir: string): void {
+function materializeBuiltInCopilotSdkPlatformFiles(copilotPackagePlatformArch: string, tgrepPlatformArch: string, copilotBase: string, appNodeModulesDir: string, options: PrepareBuiltInCopilotOptions = {}): void {
 	if (!copilotPlatforms.includes(copilotPackagePlatformArch)) {
 		return;
 	}
 
-	const platformPackageDir = path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`);
-	if (!fs.existsSync(platformPackageDir)) {
-		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Copilot platform package not found at ${platformPackageDir}`);
+	// The SDK JavaScript shipped inside the built-in extension and the native
+	// `runtime.node` it loads MUST be the same @github/copilot version: the JS
+	// calls native functions the binary may not export (e.g. a newer CLI that
+	// removed one), which throws at load. Source the native from a platform
+	// package matching the EXTENSION's version rather than whatever app-root
+	// currently has — the extension is intentionally pinned to a fixed CLI
+	// version for the extension host while the agent host (app-root) keeps
+	// updating, so the two versions diverge by design.
+	const extVersion = readCopilotPackageVersion(copilotBase);
+	const { dir: platformPackageDir, cleanup } = resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch, extVersion, appNodeModulesDir, options);
+	try {
+		const sdkPrebuildsTarget = path.join(copilotBase, 'sdk', 'prebuilds', copilotPackagePlatformArch);
+		copyRequiredDirectory(
+			path.join(platformPackageDir, 'prebuilds', copilotPackagePlatformArch),
+			sdkPrebuildsTarget,
+			`Copilot SDK native prebuilds for ${copilotPackagePlatformArch}`
+		);
+		// Built-in materialization copies the whole prebuilds tree (not the gulp
+		// exclude globs above), so drop mediaremote-adapter explicitly afterward.
+		fs.rmSync(path.join(sdkPrebuildsTarget, 'mediaremote-adapter'), { recursive: true, force: true });
+		// The out-of-process runtime wrappers are not used by the built-in extension.
+		for (const executable of copilotOutOfProcessRuntimeExecutables) {
+			fs.rmSync(path.join(sdkPrebuildsTarget, executable), { force: true });
+		}
+
+		if (!copilotTgrepPlatforms.includes(tgrepPlatformArch)) {
+			return;
+		}
+
+		const tgrepSource = path.join(platformPackageDir, 'tgrep', 'bin', tgrepPlatformArch);
+		copyRequiredDirectory(
+			tgrepSource,
+			path.join(copilotBase, 'tgrep', 'bin', tgrepPlatformArch),
+			`Copilot tgrep for ${tgrepPlatformArch}`
+		);
+		copyRequiredDirectory(
+			tgrepSource,
+			path.join(copilotBase, 'sdk', 'tgrep', 'bin', tgrepPlatformArch),
+			`Copilot SDK tgrep for ${tgrepPlatformArch}`
+		);
+	} finally {
+		cleanup();
+	}
+}
+
+/**
+ * Resolves a `@github/copilot-{platform}` package directory whose version
+ * matches `extVersion`, so the native copied into the built-in extension always
+ * matches the extension's own SDK JavaScript.
+ *
+ * Prefers the app-root package when it already matches (no extra work), and
+ * otherwise fetches the exact extension version into a temp dir. The extension
+ * is pinned to a fixed CLI version for the extension host while the agent host
+ * (app-root) keeps updating, so app-root will normally NOT match and the fetch
+ * is the expected path once the two versions diverge. The fetched tarball is
+ * verified against the SHA-512 the extension lockfile pins for that version
+ * before extraction; resolution fails closed if that integrity is missing.
+ */
+function resolveVersionMatchedCopilotPlatformPackage(copilotPackagePlatformArch: string, extVersion: string, appNodeModulesDir: string, options: PrepareBuiltInCopilotOptions): { dir: string; cleanup: () => void } {
+	const noop = () => { };
+	const packageName = `@github/copilot-${copilotPackagePlatformArch}`;
+
+	const appRootDir = path.join(appNodeModulesDir, '@github', `copilot-${copilotPackagePlatformArch}`);
+	if (readOptionalPackageVersion(appRootDir) === extVersion) {
+		return { dir: appRootDir, cleanup: noop };
 	}
 
-	copyRequiredDirectory(
-		path.join(platformPackageDir, 'prebuilds', copilotPackagePlatformArch),
-		path.join(copilotBase, 'sdk', 'prebuilds', copilotPackagePlatformArch),
-		`Copilot SDK native prebuilds for ${copilotPackagePlatformArch}`
-	);
+	const integrity = resolvePinnedPlatformPackageIntegrity(packageName, extVersion, options);
+	const staged = fs.mkdtempSync(path.join(os.tmpdir(), 'vscode-copilot-native-'));
+	try {
+		const stagedPackageDir = path.join(staged, `copilot-${copilotPackagePlatformArch}`);
+		materializeNpmPackageVersion(packageName, extVersion, stagedPackageDir, integrity, options);
+		console.log(`[prepareBuiltInCopilotRipgrepShim] ${packageName} in app-root does not match the built-in extension's @github/copilot@${extVersion}; using the version-matched package instead.`);
+		return { dir: stagedPackageDir, cleanup: () => fs.rmSync(staged, { recursive: true, force: true }) };
+	} catch (err) {
+		fs.rmSync(staged, { recursive: true, force: true });
+		throw err;
+	}
+}
 
-	if (!copilotTgrepPlatforms.includes(tgrepPlatformArch)) {
-		return;
+/**
+ * Reads the `sha512-...` integrity the built-in extension's lockfile pins for
+ * `packageName` at `extVersion`. Fails closed: a missing lockfile, entry,
+ * version mismatch, or integrity means the fetched native cannot be verified,
+ * so the build must stop rather than ship an unverified binary.
+ */
+function resolvePinnedPlatformPackageIntegrity(packageName: string, extVersion: string, options: PrepareBuiltInCopilotOptions): string {
+	const lockfilePath = options.extensionLockfilePath ?? getCopilotLockfilePath();
+
+	let lockfile: PnpmLockfile;
+	try {
+		lockfile = readPnpmLockfile(lockfilePath);
+	} catch (err) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read ${lockfilePath} to verify ${packageName}@${extVersion}: ${err instanceof Error ? err.message : String(err)}`);
 	}
 
-	const tgrepSource = path.join(platformPackageDir, 'tgrep', 'bin', tgrepPlatformArch);
-	copyRequiredDirectory(
-		tgrepSource,
-		path.join(copilotBase, 'tgrep', 'bin', tgrepPlatformArch),
-		`Copilot tgrep for ${tgrepPlatformArch}`
-	);
-	copyRequiredDirectory(
-		tgrepSource,
-		path.join(copilotBase, 'sdk', 'tgrep', 'bin', tgrepPlatformArch),
-		`Copilot SDK tgrep for ${tgrepPlatformArch}`
-	);
+	const versions = Object.keys(lockfile.packages ?? {}).map(parsePackageKey).filter(p => p.name === packageName).map(p => p.version);
+	if (versions.length === 0) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is not recorded in ${lockfilePath}; refusing to fetch an unverifiable native.`);
+	}
+	if (!versions.includes(extVersion)) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName} is pinned to ${versions.join(', ')} in ${lockfilePath} but the built-in extension is @github/copilot@${extVersion}; refusing to fetch an unverifiable native.`);
+	}
+	const integrity = lockfile.packages?.[`${packageName}@${extVersion}`]?.resolution.integrity;
+	if (!integrity) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] ${packageName}@${extVersion} has no integrity in ${lockfilePath}; refusing to fetch an unverifiable native.`);
+	}
+	return integrity;
+}
+
+/**
+ * Returns the `pnpm-lock.yaml` that records the dependencies of `extensions/copilot`: the lockfile
+ * of its pnpm install root.
+ */
+function getCopilotLockfilePath(): string {
+	const lockfileFolder = getLockfileFolder('extensions/copilot');
+	if (lockfileFolder === undefined) {
+		throw new Error('[prepareBuiltInCopilotRipgrepShim] extensions/copilot is not a pnpm project.');
+	}
+	return path.join(import.meta.dirname, '..', '..', lockfileFolder, 'pnpm-lock.yaml');
+}
+
+function readCopilotPackageVersion(copilotBase: string): string {
+	const version = readOptionalPackageVersion(copilotBase);
+	if (!version) {
+		throw new Error(`[prepareBuiltInCopilotRipgrepShim] Could not read a version from ${path.join(copilotBase, 'package.json')}`);
+	}
+	return version;
+}
+
+function readOptionalPackageVersion(packageDir: string): string | undefined {
+	try {
+		const version = JSON.parse(fs.readFileSync(path.join(packageDir, 'package.json'), 'utf8')).version;
+		return typeof version === 'string' ? version : undefined;
+	} catch {
+		return undefined;
+	}
 }
 
 function copyRequiredDirectory(source: string, target: string, description: string): void {

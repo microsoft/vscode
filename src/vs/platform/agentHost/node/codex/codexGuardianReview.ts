@@ -7,6 +7,10 @@ import type { GuardianApprovalReviewAction } from './protocol/generated/v2/Guard
 import type { ItemGuardianApprovalReviewCompletedNotification } from './protocol/generated/v2/ItemGuardianApprovalReviewCompletedNotification.js';
 import type { RequestPermissionProfile } from './protocol/generated/v2/RequestPermissionProfile.js';
 import type { JsonValue } from './protocol/generated/serde_json/JsonValue.js';
+import { appendEscapedMarkdownCodeBlockFence } from '../../../../base/common/htmlContent.js';
+import { escapeControlAndFormatCharacters } from '../../../../base/common/strings.js';
+import { localize } from '../../../../nls.js';
+import type { StringOrMarkdown } from '../../common/state/sessionState.js';
 import { unwrapShellInvocation } from './codexShellCommand.js';
 
 /**
@@ -84,6 +88,8 @@ export function guardianReviewActionToEventAction(action: GuardianApprovalReview
 			return { type: 'command', source: commandSourceToEvent(action.source), command: action.command, cwd: action.cwd };
 		case 'execve':
 			return { type: 'execve', source: commandSourceToEvent(action.source), program: action.program, argv: action.argv, cwd: action.cwd };
+		case 'writeStdin':
+			return { type: 'write_stdin', approval_id: action.approvalId, process_id: action.processId, stdin: action.stdin, cwd: action.cwd };
 		case 'applyPatch':
 			return { type: 'apply_patch', cwd: action.cwd, files: action.files };
 		case 'networkAccess':
@@ -137,6 +143,8 @@ export interface IGuardianActionSummary {
 	readonly detail: string;
 	/** Closest matching tool kind for iconography, when one applies. */
 	readonly toolKind?: 'terminal' | 'search';
+	/** Where a reviewed command or program would run, verbatim as Codex reports it. */
+	readonly workingDirectory?: string;
 }
 
 /** Summarise a review action for display on the denied-action approval card. */
@@ -147,9 +155,11 @@ export function summarizeGuardianReviewAction(action: GuardianApprovalReviewActi
 			// denial notice and "Approve anyway" card show the same clean command
 			// as the terminal pill. The raw action is still round-tripped verbatim
 			// to the app-server via toGuardianAssessmentEventJson on approval.
-			return { title: 'Run command', detail: unwrapShellInvocation(action.command), toolKind: 'terminal' };
+			return { title: 'Run command', detail: unwrapShellInvocation(action.command), toolKind: 'terminal', workingDirectory: action.cwd };
 		case 'execve':
-			return { title: 'Run program', detail: unwrapShellInvocation([action.program, ...action.argv].join(' ')), toolKind: 'terminal' };
+			return { title: 'Run program', detail: unwrapShellInvocation([action.program, ...action.argv].join(' ')), toolKind: 'terminal', workingDirectory: action.cwd };
+		case 'writeStdin':
+			return { title: localize('codex.guardianReview.writeStdin', "Send input to program"), detail: action.stdin, toolKind: 'terminal' };
 		case 'applyPatch':
 			return { title: 'Apply file changes', detail: action.files.join(', ') };
 		case 'networkAccess':
@@ -170,6 +180,21 @@ function inlineCode(text: string): string {
 	const fence = '`'.repeat(longestRun + 1);
 	const padding = text.startsWith('`') || text.endsWith('`') ? ' ' : '';
 	return `${fence}${padding}${text}${padding}${fence}`;
+}
+
+/**
+ * Message of the "Approve anyway" card. Approving re-runs the exact denied
+ * action, so a command shows the directory it would run in: the same relative
+ * command line runs a different program elsewhere. The command is fenced so
+ * its own text cannot pass for that line.
+ */
+export function formatGuardianApprovalMessage(summary: IGuardianActionSummary): StringOrMarkdown {
+	const detail = summary.detail || summary.title;
+	if (!summary.workingDirectory) {
+		return detail;
+	}
+	const workingDirectory = localize('codex.guardianReview.workingDirectory', "Working directory: {0}", inlineCode(escapeControlAndFormatCharacters(summary.workingDirectory)));
+	return { markdown: `${appendEscapedMarkdownCodeBlockFence(detail, '')}\n\n${workingDirectory}` };
 }
 
 /**
@@ -198,4 +223,22 @@ export function formatGuardianDenialNotification(summary: IGuardianActionSummary
 	// Leading blank line separates the blockquote from any preceding Markdown
 	// part; trailing newline keeps subsequent model output on its own block.
 	return `\n\n${quoted}\n`;
+}
+
+/** Compose a compact, collapsible notification for a review that did not decide. */
+export function formatGuardianReviewStatusNotification(summary: IGuardianActionSummary, status: 'timedOut' | 'aborted', rationale: string | null): string {
+	const title = status === 'timedOut'
+		? localize('codex.guardianReview.timedOut', "Auto-review timed out")
+		: localize('codex.guardianReview.aborted', "Auto-review stopped");
+	const detail = summary.detail?.trim();
+	const action = detail ? `${summary.title} ${inlineCode(detail)}` : summary.title;
+	const lines = [
+		title,
+		localize('codex.guardianReview.requestedAction', "Requested action: {0}", action),
+	];
+	const reason = rationale?.trim();
+	if (reason) {
+		lines.push('', reason);
+	}
+	return lines.join('\n');
 }

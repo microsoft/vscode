@@ -12,7 +12,8 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { AquariumService, IAquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from './aquariumOverlay.js';
+import { AquariumService, SESSIONS_DEVELOPER_JOY_ENABLED_SETTING } from './aquariumOverlay.js';
+import { IAquariumService } from '../../../../workbench/contrib/sessions/browser/aquarium.js';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'sessions',
@@ -85,3 +86,23 @@ class SimulateFishFeedingStreakAction extends Action2 {
 }
 
 registerAction2(SimulateFishFeedingStreakAction);
+
+class ToggleAquariumActionVisibilityAction extends Action2 {
+
+	static readonly ID = 'sessions.aquarium.toggleActionVisibility';
+
+	constructor() {
+		super({
+			id: ToggleAquariumActionVisibilityAction.ID,
+			title: localize2('aquarium.toggleActionVisibility', "Toggle Aquarium Action Visibility"),
+			f1: true,
+			category: Categories.Developer,
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		accessor.get(IAquariumService).toggleActionVisibility();
+	}
+}
+
+registerAction2(ToggleAquariumActionVisibilityAction);

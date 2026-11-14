@@ -426,6 +426,18 @@ export class MenuBar extends Disposable {
 		if (menuToUpdate && menuToUpdate.length) {
 			menuToUpdate[0].actions = menu.actions;
 		}
+
+		// The overflow menu holds its own submenu actions for menus that do not fit
+		// (or all menus in compact mode), so keep the matching entry in sync
+		const overflowSubmenuId = MenuBar.getOverflowSubmenuId(menu.label);
+		const overflowIndex = this.overflowMenu.actions.findIndex(action => action.id === overflowSubmenuId);
+		if (overflowIndex !== -1) {
+			this.overflowMenu.actions[overflowIndex] = new SubmenuAction(overflowSubmenuId, menu.label, menu.actions);
+		}
+	}
+
+	private static getOverflowSubmenuId(label: string): string {
+		return `menubar.submenu.${label}`;
 	}
 
 	override dispose(): void {
@@ -523,7 +535,7 @@ export class MenuBar extends Disposable {
 		if (this.isCompact) {
 			this.overflowMenu.actions = [];
 			for (let idx = this.numMenusShown; idx < this.menus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${this.menus[idx].label}`, this.menus[idx].label, this.menus[idx].actions || []));
+				this.overflowMenu.actions.push(new SubmenuAction(MenuBar.getOverflowSubmenuId(this.menus[idx].label), this.menus[idx].label, this.menus[idx].actions || []));
 			}
 
 			const compactMenuActions = this.options.getCompactMenuActions?.();
@@ -544,7 +556,7 @@ export class MenuBar extends Disposable {
 
 			this.overflowMenu.actions = [];
 			for (let idx = this.numMenusShown; idx < showableMenus.length; idx++) {
-				this.overflowMenu.actions.push(new SubmenuAction(`menubar.submenu.${showableMenus[idx].label}`, showableMenus[idx].label, showableMenus[idx].actions || []));
+				this.overflowMenu.actions.push(new SubmenuAction(MenuBar.getOverflowSubmenuId(showableMenus[idx].label), showableMenus[idx].label, showableMenus[idx].actions || []));
 			}
 
 			if (this.overflowMenu.buttonElement.nextElementSibling !== showableMenus[this.numMenusShown].buttonElement) {
@@ -1006,33 +1018,34 @@ export class MenuBar extends Disposable {
 			return;
 		}
 
-		const menuHolder = $('div.menubar-menu-items-holder', { 'title': '' });
+		const menuHolder = $('div.menubar-menu-items-holder.monaco-menu-container', { 'title': '' });
 
 		customMenu.buttonElement.classList.add('open');
 
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
-		const titleBoundingRectZoom = DOM.getDomNodeZoomLevel(customMenu.titleElement);
+		const containerBoundingRect = this.container.getBoundingClientRect();
+
+		customMenu.buttonElement.appendChild(menuHolder);
+		const menuHolderZoom = DOM.getDomNodeZoomLevel(menuHolder);
 
 		if (this.options.compactMode?.horizontal === HorizontalDirection.Right) {
-			menuHolder.style.left = `${titleBoundingRect.left + this.container.clientWidth}px`;
+			menuHolder.style.left = `${(titleBoundingRect.left + containerBoundingRect.width) / menuHolderZoom}px`;
 		} else if (this.options.compactMode?.horizontal === HorizontalDirection.Left) {
 			const windowWidth = DOM.getWindow(this.container).innerWidth;
-			menuHolder.style.right = `${windowWidth - titleBoundingRect.left}px`;
+			menuHolder.style.right = `${(windowWidth - titleBoundingRect.left) / menuHolderZoom}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.left = `${titleBoundingRect.left * titleBoundingRectZoom}px`;
+			menuHolder.style.left = `${titleBoundingRect.left / menuHolderZoom}px`;
 		}
 
 		if (this.options.compactMode?.vertical === VerticalDirection.Above) {
 			// TODO@benibenj Do not hardcode the height of the menu holder
-			menuHolder.style.top = `${titleBoundingRect.top - this.menus.length * 30 + this.container.clientHeight}px`;
+			menuHolder.style.top = `${(titleBoundingRect.top - this.menus.length * 30 + containerBoundingRect.height) / menuHolderZoom}px`;
 		} else if (this.options.compactMode?.vertical === VerticalDirection.Below) {
-			menuHolder.style.top = `${titleBoundingRect.top}px`;
+			menuHolder.style.top = `${titleBoundingRect.top / menuHolderZoom}px`;
 		} else {
-			menuHolder.style.top = `${titleBoundingRect.bottom * titleBoundingRectZoom}px`;
+			menuHolder.style.top = `${titleBoundingRect.bottom / menuHolderZoom}px`;
 		}
-
-		customMenu.buttonElement.appendChild(menuHolder);
 
 		const menuOptions: IMenuOptions = {
 			getKeyBinding: this.options.getKeybinding,
@@ -1044,6 +1057,11 @@ export class MenuBar extends Disposable {
 		};
 
 		const menuWidget = this.menuDisposables.add(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
+		// Round the edge that meets the title to the device pixel the title's edge is painted at, so the menu neither covers the title nor leaves a gap
+		DOM.alignToDevicePixels(menuHolder, {
+			horizontal: this.options.compactMode?.horizontal === HorizontalDirection.Left ? 'nearestEnd' : 'nearest',
+			vertical: this.options.compactMode?.vertical === VerticalDirection.Above ? 'nearestEnd' : 'nearest'
+		});
 		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
 		}));

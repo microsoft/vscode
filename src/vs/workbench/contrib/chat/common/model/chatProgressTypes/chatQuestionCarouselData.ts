@@ -8,6 +8,21 @@ import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel } from '../../chatService/chatService.js';
 import { ToolDataSource } from '../../tools/languageModelToolsService.js';
 
+export const CHAT_QUESTION_PASSWORD_MASK = '••••••••';
+
+export function maskPasswordAnswers(questions: readonly IChatQuestion[], answers: IChatQuestionAnswers | undefined): IChatQuestionAnswers | undefined {
+	if (!answers || !questions.some(question => question.password && answers[question.id] !== undefined)) {
+		return answers;
+	}
+	const masked = { ...answers };
+	for (const question of questions) {
+		if (question.password && masked[question.id] !== undefined) {
+			masked[question.id] = CHAT_QUESTION_PASSWORD_MASK;
+		}
+	}
+	return masked;
+}
+
 /**
  * Runtime representation of a question carousel with a {@link DeferredPromise}
  * that is resolved when the user submits answers. {@link toJSON} strips the
@@ -26,10 +41,18 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public dismissedByTerminalInput?: boolean;
 
 	/**
-	 * True when the input was accepted/answered outside the carousel UI (e.g.
-	 * via voice) without structured answers, so the summary reads "Answered".
+	 * True when the input was accepted/answered outside the carousel UI, such
+	 * as by voice or automatic reply.
 	 */
 	public answeredExternally?: boolean;
+	public autoReply?: boolean;
+
+	/**
+	 * Set to `true` only when a person settled the carousel through its own UI, whether by submitting or
+	 * dismissing it. Answers submitted on their behalf (defaults, automatic replies, voice) and dismissals caused
+	 * by cancellation or disposal leave it unset. Not persisted.
+	 */
+	public submittedByUser?: boolean;
 
 	/**
 	 * Marks the carousel as dismissed with the given answers and clears draft
@@ -39,7 +62,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 		if (this.isUsed) {
 			return;
 		}
-		this.data = answers ?? {};
+		this.data = maskPasswordAnswers(this.questions, answers) ?? {};
 		this.isUsed = true;
 		this.draftAnswers = undefined;
 		this.draftCurrentIndex = undefined;
@@ -56,6 +79,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 		public message?: string | IMarkdownString,
 		public source?: ToolDataSource,
 		public terminalId?: string,
+		public answerPresentation?: 'conversation',
 	) { }
 
 	toJSON(): IChatQuestionCarousel {
@@ -67,9 +91,11 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 			data: this.data,
 			isUsed: this.isUsed,
 			answeredExternally: this.answeredExternally,
+			autoReply: this.autoReply,
 			message: this.message,
 			source: this.source,
 			terminalId: this.terminalId,
+			answerPresentation: this.answerPresentation,
 		};
 	}
 }

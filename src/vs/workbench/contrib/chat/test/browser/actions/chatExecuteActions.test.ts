@@ -4,22 +4,43 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
+import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { revive } from '../../../../../../base/common/marshalling.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { upcastPartial } from '../../../../../../base/test/common/mock.js';
+import { pasteWidgetVisibleCtx } from '../../../../../../editor/contrib/dropOrPasteInto/browser/copyPasteController.js';
+import { dropWidgetVisibleCtx } from '../../../../../../editor/contrib/dropOrPasteInto/browser/dropIntoEditorController.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ContextKeyValue } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { KeybindingResolver, ResultKind } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
+import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
+import { USLayoutResolvedKeybinding } from '../../../../../../platform/keybinding/common/usLayoutResolvedKeybinding.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
+import { AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY } from '../../../../../../platform/agentHost/common/agentHostEnablementService.js';
 import { type IChatAcceptInputOptions, IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { ChatSubmitAction, ExecuteHandoffActionId, GetHandoffsActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { CancelAction, ChatEditingSessionSubmitAction, ChatSubmitAction, createChatInputToolbarContext, ExecuteHandoffActionId, GetHandoffsActionId, OpenDelegationPickerAction, OpenModePickerAction, OpenSessionTargetPickerAction, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { ChatQueueMessageAction, ChatSteerWithMessageAction } from '../../../browser/actions/chatQueueActions.js';
+import { AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
+import { isChatViewTitleActionContext } from '../../../common/actions/chatActions.js';
+import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
+import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatMode, IChatModes, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
-import { ChatModeKind } from '../../../common/constants.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
-import { MockChatWidgetService } from '../widget/mockChatWidget.js';
+import { MockChatWidgetService, createCircularChatWidget } from '../widget/mockChatWidget.js';
 import { MockChatModeService } from '../../common/mockChatModeService.js';
+import { IChatService } from '../../../common/chatService/chatService.js';
 
 interface IExecuteHandoffResult {
 	success: boolean;
@@ -44,8 +65,202 @@ function createMockMode(overrides: Partial<IChatMode> & { id: string; kind: Chat
 	} as IChatMode;
 }
 
+suite('OpenModePickerAction keybinding', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		store.add(registerAction2(OpenModePickerAction));
+	});
+
+	function createResolver(os: OperatingSystem, overrides: ResolvedKeybindingItem[] = []): KeybindingResolver {
+		const items: ResolvedKeybindingItem[] = [];
+		for (const item of KeybindingsRegistry.getDefaultKeybindingsForOS(os)) {
+			if (item.command === OpenModePickerAction.ID && item.keybinding) {
+				const resolved = USLayoutResolvedKeybinding.resolveKeybinding(item.keybinding, os)[0];
+				items.push(new ResolvedKeybindingItem(resolved, item.command, item.commandArgs, item.when ?? undefined, true, null, false));
+			}
+		}
+		return new KeybindingResolver(items, overrides, () => { });
+	}
+
+	function resolve(resolver: KeybindingResolver, chord: string, values: Record<string, ContextKeyValue> = {}) {
+		const context = {
+			[ChatContextKeys.enabled.key]: true,
+			[ChatContextKeys.inChatInput.key]: true,
+			[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+			...values,
+		};
+		const result = resolver.resolve({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => context[key] as T,
+		}, [], chord);
+		return result.kind === ResultKind.KbFound ? result.commandId : undefined;
+	}
+
+	for (const [os, platform, chord] of [
+		[OperatingSystem.Windows, 'Windows', 'ctrl+.'],
+		[OperatingSystem.Linux, 'Linux', 'ctrl+.'],
+		[OperatingSystem.Macintosh, 'macOS', 'meta+.'],
+	] as const) {
+		test(`yields to paste and drop selectors without changing ordinary chat or editor shortcuts (${platform})`, () => {
+			const resolver = createResolver(os);
+			assert.deepStrictEqual({
+				chat: resolve(resolver, chord),
+				paste: resolve(resolver, chord, { [pasteWidgetVisibleCtx.key]: true }),
+				drop: resolve(resolver, chord, { [dropWidgetVisibleCtx.key]: true }),
+				editor: resolve(resolver, chord, { [ChatContextKeys.inChatInput.key]: false }),
+				inlineChat: resolve(resolver, chord, { [ChatContextKeys.location.key]: ChatAgentLocation.EditorInline }),
+				aiDisabled: resolve(resolver, chord, { [ChatContextKeys.enabled.key]: false }),
+			}, {
+				chat: OpenModePickerAction.ID,
+				paste: undefined,
+				drop: undefined,
+				editor: undefined,
+				inlineChat: undefined,
+				aiDisabled: undefined,
+			});
+		});
+
+		test(`preserves an explicit user binding while a paste selector is visible (${platform})`, () => {
+			const keybinding = decodeKeybinding(KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Period, os);
+			assert.ok(keybinding);
+			const resolved = USLayoutResolvedKeybinding.resolveKeybinding(keybinding, os)[0];
+			const override = new ResolvedKeybindingItem(resolved, OpenModePickerAction.ID, undefined, ChatContextKeys.inChatInput, false, null, false);
+			const resolver = createResolver(os, [override]);
+			const customChord = resolved.getDispatchChords()[0];
+			assert.ok(customChord);
+			assert.strictEqual(resolve(resolver, customChord, { [pasteWidgetVisibleCtx.key]: true }), OpenModePickerAction.ID);
+		});
+	}
+});
+
+suite('OpenDelegationPickerAction', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	function getState(values: Record<string, ContextKeyValue>) {
+		const action = new OpenDelegationPickerAction();
+		const context = {
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		};
+		assert.ok(Array.isArray(action.desc.menu));
+		const menu = action.desc.menu.find(item => item.id === MenuId.ChatInputSecondary);
+		assert.ok(menu?.when);
+		assert.ok(action.desc.precondition);
+		return {
+			visible: menu.when.evaluate(context),
+			enabled: action.desc.precondition.evaluate(context),
+		};
+	}
+
+	const context = {
+		[ChatContextKeys.enabled.key]: true,
+		[ChatContextKeys.location.key]: ChatAgentLocation.Chat,
+		[ChatContextKeys.chatSessionIsEmpty.key]: false,
+		[ChatContextKeys.chatSessionSupportsDelegation.key]: false,
+		[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: false,
+	};
+
+	for (const sessionType of [AgentSessionProviders.AgentHostCopilot, AgentSessionProviders.AgentHostClaude, AgentSessionProviders.AgentHostCodex, 'agent-host-custom', 'remote-test-host-copilot']) {
+		test(`gates the disabled editor harness for ${sessionType}`, () => {
+			const values = {
+				...context,
+				[ChatContextKeys.agentSessionType.key]: sessionType,
+				[IsSessionsWindowContext.key]: false,
+			};
+			assert.deepStrictEqual({
+				disabled: getState(values),
+				disabledBeforeRegistration: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: true }),
+				enabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+				enabledBeforeRegistration: getState({
+					...values,
+					[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+					[ChatContextKeys.chatSessionSupportsDelegation.key]: true,
+				}),
+			}, {
+				disabled: { visible: false, enabled: false },
+				disabledBeforeRegistration: { visible: false, enabled: false },
+				enabled: { visible: true, enabled: false },
+				enabledBeforeRegistration: { visible: true, enabled: false },
+			});
+		});
+
+		test(`never shows the existing-session harness for ${sessionType} in the Agents window`, () => {
+			const values = {
+				...context,
+				[ChatContextKeys.agentSessionType.key]: sessionType,
+				[IsSessionsWindowContext.key]: true,
+			};
+			assert.deepStrictEqual({
+				disabled: getState(values),
+				disabledBeforeRegistration: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: true }),
+				enabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+				enabledBeforeRegistration: getState({
+					...values,
+					[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+					[ChatContextKeys.chatSessionSupportsDelegation.key]: true,
+				}),
+			}, {
+				disabled: { visible: false, enabled: false },
+				disabledBeforeRegistration: { visible: false, enabled: false },
+				enabled: { visible: false, enabled: false },
+				enabledBeforeRegistration: { visible: false, enabled: false },
+			});
+		});
+	}
+
+	test('preserves non-Agent-Host visibility and delegation', () => {
+		const values = { ...context, [ChatContextKeys.agentSessionType.key]: AgentSessionProviders.Local, [ChatContextKeys.chatSessionSupportsDelegation.key]: true };
+		assert.deepStrictEqual({
+			localDisabled: getState(values),
+			localEnabled: getState({ ...values, [AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true }),
+			unsupported: getState({ ...values, [ChatContextKeys.chatSessionSupportsDelegation.key]: false }),
+			agentsWindow: getState({ ...values, [IsSessionsWindowContext.key]: true }),
+			editingInput: getState({ ...values, [ChatContextKeys.currentlyEditingInput.key]: true }),
+			editingRequest: getState({ ...values, [ChatContextKeys.currentlyEditing.key]: true }),
+		}, {
+			localDisabled: { visible: true, enabled: true },
+			localEnabled: { visible: true, enabled: true },
+			unsupported: { visible: false, enabled: false },
+			agentsWindow: { visible: false, enabled: true },
+			editingInput: { visible: true, enabled: false },
+			editingRequest: { visible: true, enabled: false },
+		});
+	});
+
+	test('preserves AI, chat location, quick chat, and empty-session visibility guards', () => {
+		const values = {
+			...context,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[AGENT_HOST_EXISTING_SESSION_HARNESS_PICKER_ENABLED_CONTEXT_KEY.key]: true,
+		};
+		assert.deepStrictEqual({
+			aiDisabled: getState({ ...values, [ChatContextKeys.enabled.key]: false }).visible,
+			quickChat: getState({ ...values, [ChatContextKeys.inQuickChat.key]: true }).visible,
+			editorInline: getState({ ...values, [ChatContextKeys.location.key]: ChatAgentLocation.EditorInline }).visible,
+			emptySession: getState({ ...values, [ChatContextKeys.chatSessionIsEmpty.key]: true }).visible,
+		}, {
+			aiDisabled: false,
+			quickChat: false,
+			editorInline: false,
+			emptySession: false,
+		});
+	});
+
+	test('leaves harness selection enabled for new Agent Host sessions', () => {
+		const action = new OpenSessionTargetPickerAction();
+		const values = {
+			...context,
+			[ChatContextKeys.agentSessionType.key]: AgentSessionProviders.AgentHostCopilot,
+			[ChatContextKeys.chatSessionIsEmpty.key]: true,
+		};
+		assert.ok(action.desc.precondition);
+		assert.strictEqual(action.desc.precondition.evaluate({
+			getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T,
+		}), true);
+	});
+});
+
 suite('GetHandoffsAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -60,12 +275,6 @@ suite('GetHandoffsAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should return all modes when no sourceCustomAgent is specified', async () => {
 		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
@@ -125,7 +334,7 @@ suite('GetHandoffsAction', () => {
 });
 
 suite('ExecuteHandoffAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -140,12 +349,6 @@ suite('ExecuteHandoffAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testHandoffs: IHandOff[] = [
 		{ agent: 'implement', label: 'Start Implementation', prompt: 'Implement the plan', send: true },
@@ -341,7 +544,7 @@ suite('ExecuteHandoffAction', () => {
 });
 
 suite('SwitchToNextPinnedModelAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
@@ -356,12 +559,6 @@ suite('SwitchToNextPinnedModelAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('invokes switchToNextPinnedModel on the last focused widget', async () => {
 		let switchCalls = 0;
@@ -397,12 +594,97 @@ suite('SwitchToNextPinnedModelAction', () => {
 });
 
 suite('ChatSubmitAction', () => {
-	const store = new DisposableStore();
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	let chatExecuteActions: DisposableStore;
 	suiteSetup(() => {
 		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suite('Transcript preparation execute actions', () => {
+		function createServices() {
+			const services = store.add(new TestInstantiationService());
+			services.set(IChatWidgetService, new MockChatWidgetService());
+			services.set(ITelemetryService, NullTelemetryService);
+			services.set(ILogService, new NullLogService());
+			return services;
+		}
+
+		test('Stop cancels preparation without a view model or cancelling a normal request', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			services.stub(IChatService, {
+				cancelCurrentRequestForSession: async () => { calls.push('request'); },
+			});
+			const widget = upcastPartial<IChatWidget>({
+				cancelTranscriptProgress: () => { calls.push('preparation'); return true; },
+			});
+			await services.invokeFunction(accessor => new CancelAction().run(accessor, { widget }));
+			assert.deepStrictEqual(calls, ['preparation']);
+		});
+
+		test('Stop continues to cancel ordinary requests once preparation clears', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			services.stub(IChatService, {
+				cancelCurrentRequestForSession: async () => { calls.push('request'); },
+			});
+			const widget = upcastPartial<IChatWidget>({
+				viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: URI.parse('test:session') }),
+				cancelTranscriptProgress: () => false,
+			});
+			await services.invokeFunction(accessor => new CancelAction().run(accessor, { widget }));
+			assert.deepStrictEqual(calls, ['request']);
+		});
+
+		test('preparation suppresses Send, queue and steer while showing the normal Stop action', () => {
+			const stop = new CancelAction();
+			assert.ok(Array.isArray(stop.desc.menu));
+			const stopMenu = stop.desc.menu.find(menu => menu.id === MenuId.ChatExecute)!;
+			const values: Record<string, ContextKeyValue> = {
+				[ChatContextKeys.transcriptProgressActive.key]: true,
+				[ChatContextKeys.inputHasText.key]: true,
+				[ChatContextKeys.inputHasSendableContent.key]: true,
+				[ChatContextKeys.chatSessionOptionsValid.key]: true,
+				[ChatContextKeys.chatModeKind.key]: ChatModeKind.Agent,
+			};
+			const context = { getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T };
+			const send = new ChatSubmitAction();
+			const editSend = new ChatEditingSessionSubmitAction();
+			const queue = new ChatQueueMessageAction();
+			const steer = new ChatSteerWithMessageAction();
+			const state = () => ({
+				stop: stopMenu.when!.evaluate(context),
+				send: send.desc.precondition!.evaluate(context),
+				editSend: editSend.desc.precondition!.evaluate(context),
+				queue: queue.desc.precondition!.evaluate(context),
+				steer: steer.desc.precondition!.evaluate(context),
+			});
+			const preparing = state();
+			values[ChatContextKeys.transcriptProgressActive.key] = false;
+			const idle = state();
+			values[ChatContextKeys.hasActiveRequest.key] = true;
+			values[ChatContextKeys.requestInProgress.key] = true;
+			assert.deepStrictEqual({ preparing, idle, requesting: state() }, {
+				preparing: { stop: true, send: false, editSend: false, queue: false, steer: false },
+				idle: { stop: false, send: true, editSend: true, queue: true, steer: true },
+				requesting: { stop: true, send: false, editSend: false, queue: true, steer: true },
+			});
+		});
+
+		test('direct Send and Stop and Send calls do not dispatch or alter preparation', async () => {
+			const services = createServices();
+			const calls: string[] = [];
+			const widget = upcastPartial<IChatWidget>({
+				isTranscriptProgressActive: true,
+				acceptInput: async () => { calls.push('send'); return undefined; },
+				cancelTranscriptProgress: () => { calls.push('cancel'); return true; },
+			});
+			await services.invokeFunction(accessor => new ChatSubmitAction().run(accessor, { widget }));
+			await services.invokeFunction(accessor => new ChatSubmitAction().run(accessor, { widget, acceptInputOptions: { cancelCurrentRequest: true } }));
+			assert.deepStrictEqual(calls, []);
+		});
 	});
 
 	suiteTeardown(() => {
@@ -412,12 +694,6 @@ suite('ChatSubmitAction', () => {
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
 	});
-
-	teardown(() => {
-		store.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('passes acceptInputOptions to the widget', async () => {
 		let acceptedOptions: unknown;
@@ -443,5 +719,29 @@ suite('ChatSubmitAction', () => {
 		});
 
 		assert.deepStrictEqual(acceptedOptions, { cancelCurrentRequest: true });
+	});
+});
+
+suite('createChatInputToolbarContext', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('keeps the live widget for built-in actions and serializes as the chat view context', () => {
+		const sessionResource = URI.parse('vscode-chat-session://local/session');
+		const inputUri = URI.parse('vscode-chat-input:input-1');
+		const widget = createCircularChatWidget(inputUri, sessionResource);
+		const widgetWithoutSession = createCircularChatWidget(inputUri, undefined);
+		const contexts = [createChatInputToolbarContext(widget), createChatInputToolbarContext(widgetWithoutSession)];
+		const [serialized, serializedWithoutSession] = revive<unknown[]>(JSON.parse(JSON.stringify(contexts)));
+
+		assert.throws(() => JSON.stringify({ widget }), TypeError);
+		assert.deepStrictEqual({
+			liveWidgets: contexts[0].widget === widget && contexts[1].widget === widgetWithoutSession,
+			serialized: isChatViewTitleActionContext(serialized) ? { sessionResource: serialized.sessionResource.toString(), inputUri: serialized.inputUri?.toString() } : serialized,
+			serializedWithoutSession,
+		}, {
+			liveWidgets: true,
+			serialized: { sessionResource: sessionResource.toString(), inputUri: inputUri.toString() },
+			serializedWithoutSession: null,
+		});
 	});
 });

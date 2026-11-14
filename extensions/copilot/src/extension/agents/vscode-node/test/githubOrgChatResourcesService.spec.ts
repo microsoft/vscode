@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assert } from 'chai';
-import { afterEach, beforeEach, suite, test } from 'vitest';
+import { afterEach, assert, beforeEach, suite, test } from 'vitest';
 import type { ExtensionContext } from 'vscode';
 import { AGENT_FILE_EXTENSION, INSTRUCTION_FILE_EXTENSION, PromptsType } from '../../../../platform/customInstructions/common/promptTypes';
 import { FileType } from '../../../../platform/filesystem/common/fileTypes';
@@ -542,6 +541,66 @@ suite('GitHubOrgChatResourcesService', () => {
 			const cacheUri = URI.file(`${storagePath}/github/neworg/agents/agent${AGENT_FILE_EXTENSION}`);
 			const content = await mockFileSystem.readFile(cacheUri);
 			assert.equal(new TextDecoder().decode(content), 'Content');
+		});
+
+		test('logs and rethrows directory creation failures', async () => {
+			const error = new Error('Create directory failed');
+			const loggedErrors: { error: string | Error; message?: string }[] = [];
+			mockFileSystem.createDirectory = async () => {
+				throw error;
+			};
+			logService.error = (loggedError, message) => {
+				loggedErrors.push({ error: loggedError, message });
+			};
+			const service = createService();
+
+			let rethrewOriginalError = false;
+			try {
+				await service.writeCacheFile(PromptsType.instructions, 'testorg', `default${INSTRUCTION_FILE_EXTENSION}`, 'Content');
+			} catch (caughtError) {
+				rethrewOriginalError = caughtError === error;
+			}
+
+			assert.deepEqual({
+				rethrewOriginalError,
+				loggedErrors,
+			}, {
+				rethrewOriginalError: true,
+				loggedErrors: [{
+					error,
+					message: '[GitHubOrgChatResourcesService] Failed to create cache directory',
+				}],
+			});
+		});
+
+		test('logs and rethrows cache file write failures', async () => {
+			const error = new Error('Write file failed');
+			const loggedErrors: { error: string | Error; message?: string }[] = [];
+			mockFileSystem.writeFile = async () => {
+				throw error;
+			};
+			logService.error = (loggedError, message) => {
+				loggedErrors.push({ error: loggedError, message });
+			};
+			const service = createService();
+
+			let rethrewOriginalError = false;
+			try {
+				await service.writeCacheFile(PromptsType.instructions, 'testorg', `default${INSTRUCTION_FILE_EXTENSION}`, 'Content');
+			} catch (caughtError) {
+				rethrewOriginalError = caughtError === error;
+			}
+
+			assert.deepEqual({
+				rethrewOriginalError,
+				loggedErrors,
+			}, {
+				rethrewOriginalError: true,
+				loggedErrors: [{
+					error,
+					message: '[GitHubOrgChatResourcesService] Failed to write cache file',
+				}],
+			});
 		});
 
 		test('sanitizes org name before writing', async () => {

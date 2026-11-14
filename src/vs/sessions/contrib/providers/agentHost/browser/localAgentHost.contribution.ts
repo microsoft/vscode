@@ -3,90 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
 import { AgentHostContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostChatContribution.js';
-import { IAgentHostSessionWorkingDirectoryResolver } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 import { AgentHostTerminalContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
-import { LocalAgentHostDefaultProviderSettingId } from '../../../../common/agentHostSessionsProvider.js';
-import { IAgentHostEnablementService } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
-import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { localize } from '../../../../../nls.js';
-import { LocalAgentHostSessionsProvider } from './localAgentHostSessionsProvider.js';
+import { AgentHostCopilotCliSettingsContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCopilotCliSettingsContribution.js';
+import { AgentHostSignedOutCompatibilityContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutCompatibilityContribution.js';
+import { AgentHostSdkSetupNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSdkSetupNotification.js';
+import { AgentHostSignedOutModelsNotificationContribution } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostSignedOutModelsNotification.js';
 import './codexCustomizationSettings.contribution.js';
+import { registerLocalAgentHostSessionsProvider } from '../../../../../workbench/contrib/sessions/providers/agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'sessions',
-	properties: {
-		[LocalAgentHostDefaultProviderSettingId]: {
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'startup' },
-			markdownDescription: localize('sessions.chat.agentHost.defaultSessionsProvider', "When enabled, the local agent host is used as the default sessions provider and its session types are shown first in the Agents window. Requires `#chat.agentHost.enabled#`."),
-		},
-	},
-});
-
-/**
- * Registers the {@link LocalAgentHostSessionsProvider} as a sessions provider
- * when `chat.agentHost.enabled` is true.
- *
- * {@link AgentHostContribution} handles all the heavy lifting — agent discovery,
- * session handler registration, language model providers, customization harness —
- * via {@link IChatSessionsService}. This contribution only bridges the session
- * listing and lifecycle to the {@link ISessionsProvidersService} layer used by
- * the Sessions app's UI.
- */
+/** Registers the local agent host sessions provider of the Agents window. */
 class LocalAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.localAgentHostContribution';
 
-	constructor(
-		@IAgentHostEnablementService private readonly _agentHostEnablementService: IAgentHostEnablementService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IAgentHostSessionWorkingDirectoryResolver workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
-	) {
+	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
-
-		if (!this._agentHostEnablementService.enabled) {
-			return;
-		}
-
-		const provider = this._register(instantiationService.createInstance(LocalAgentHostSessionsProvider));
-		this._register(sessionsProvidersService.registerProvider(provider));
-
-		const resolverRegistrations = this._register(new DisposableMap<string>());
-		const registerResolvers = () => {
-			const sessionTypeIds = new Set(provider.sessionTypes.map(sessionType => `agent-host-${sessionType.id}`));
-			for (const [sessionTypeId] of resolverRegistrations) {
-				if (!sessionTypeIds.has(sessionTypeId)) {
-					resolverRegistrations.deleteAndDispose(sessionTypeId);
-				}
-			}
-
-			for (const sessionType of provider.sessionTypes) {
-				const resourceScheme = `agent-host-${sessionType.id}`;
-				if (resolverRegistrations.has(resourceScheme)) {
-					continue;
-				}
-				resolverRegistrations.set(resourceScheme, workingDirectoryResolver.registerResolver(resourceScheme, sessionResource => {
-					return provider.getSessionByResource(sessionResource)?.workspace.get()?.folders[0]?.workingDirectory;
-				}, sessionResource => {
-					return provider.getSessionByResource(sessionResource)?.status.get() === SessionStatus.Untitled;
-				}));
-			}
-		};
-		registerResolvers();
-		this._register(provider.onDidChangeSessionTypes(registerResolvers));
+		this._register(instantiationService.invokeFunction(registerLocalAgentHostSessionsProvider));
 	}
 }
 
 registerWorkbenchContribution2(AgentHostContribution.ID, AgentHostContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
+// Forwards the `chat.agentHost.copilot.*` settings into the host's root config. Without it those
+// gates never reach the host here, so features like the Auto routing-profile picker stay off.
+registerWorkbenchContribution2(AgentHostCopilotCliSettingsContribution.ID, AgentHostCopilotCliSettingsContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSignedOutCompatibilityContribution.ID, AgentHostSignedOutCompatibilityContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSignedOutModelsNotificationContribution.ID, AgentHostSignedOutModelsNotificationContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(AgentHostSdkSetupNotificationContribution.ID, AgentHostSdkSetupNotificationContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(LocalAgentHostContribution.ID, LocalAgentHostContribution, WorkbenchPhase.AfterRestored);

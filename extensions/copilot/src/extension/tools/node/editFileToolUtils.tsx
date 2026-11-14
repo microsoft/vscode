@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { t } from '@vscode/l10n';
-import { realpath } from 'fs/promises';
 import { homedir } from 'os';
-import * as path from 'path';
 import type { LanguageModelChat, PreparedToolInvocation } from 'vscode';
 import { ToolName } from '../common/toolNames';
 import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
 import { NotebookDocumentSnapshot } from '../../../platform/editing/common/notebookDocumentSnapshot';
 import { OffsetLineColumnConverter } from '../../../platform/editing/common/offsetLineColumnConverter';
@@ -19,6 +16,7 @@ import { IFileSystemService } from '../../../platform/filesystem/common/fileSyst
 import { ILogService } from '../../../platform/log/common/logService';
 import { IAlternativeNotebookContentService } from '../../../platform/notebook/common/alternativeContent';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 import { IPromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { WorkingDirectory } from '../../../platform/workspace/common/workingDirectory';
@@ -27,8 +25,9 @@ import { findNotebook } from '../../../util/common/notebooks';
 import * as glob from '../../../util/vs/base/common/glob';
 import { ResourceMap, ResourceSet } from '../../../util/vs/base/common/map';
 import { Schemas } from '../../../util/vs/base/common/network';
+import { isAbsolute } from '../../../util/vs/base/common/path';
 import { isMacintosh, isWindows } from '../../../util/vs/base/common/platform';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../util/vs/base/common/resources';
+import { extUriBiasedIgnorePathCase, joinPath, normalizePath, removeTrailingPathSeparator, resolvePath } from '../../../util/vs/base/common/resources';
 import { isFalsyOrWhitespace } from '../../../util/vs/base/common/strings';
 import { isDefined } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -37,6 +36,7 @@ import { ServicesAccessor } from '../../../util/vs/platform/instantiation/common
 import { EndOfLine, Position, Range, TextEdit } from '../../../vscodeTypes';
 import { IBuildPromptContext } from '../../prompt/common/intents';
 import { formatUriForFileWidget } from '../common/toolUtils';
+import { resolveRealPathForNonexistent } from './toolUtils';
 
 // Simplified Hunk type for the patch
 interface Hunk {
@@ -710,7 +710,15 @@ export async function applyEdit(
 }
 
 const ALWAYS_CHECKED_EDIT_PATTERNS: Readonly<Record<string, boolean>> = {
+	'**/.mcp.json': false,
+	'**/.npmrc': false,
 	'**/.vscode/*.json': false,
+	// Dev Container configurations can run commands on the host whenever the container starts.
+	'**/.devcontainer.json': false,
+	'**/.devcontainer/devcontainer.json': false,
+	'**/.devcontainer/*/devcontainer.json': false,
+	'**/.github/copilot/settings.json': false,
+	'**/.github/copilot/settings.local.json': false,
 	// Markdown files in these folders are loaded as custom agents; their
 	// frontmatter can declare a `hooks:` block that runs shell commands during
 	// the agent lifecycle, so writing them must always be confirmed.
@@ -804,50 +812,11 @@ export const enum ConfirmationCheckResult {
 }
 
 /**
- * Resolves the real path of `fsPath`, walking up the parent chain when the path
- * (or its ancestors) does not yet exist on disk. This ensures that a symlink at
- * any ancestor.
- */
-async function resolveRealPathForNonexistent(fsPath: string): Promise<string> {
-	try {
-		return await realpath(fsPath);
-	} catch (e) {
-		if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
-			throw e;
-		}
-	}
-
-	const tail: string[] = [path.basename(fsPath)];
-	let current = path.dirname(fsPath);
-	while (true) {
-		const parent = path.dirname(current);
-		if (parent === current) {
-			// Reached the filesystem root without finding an existing ancestor.
-			// Don't attempt to resolve the root itself — on Windows, realpath('\\')
-			// normalizes to a drive letter (e.g. 'C:\\'), which would otherwise look
-			// like a redirect even though no symlink was involved.
-			return fsPath;
-		}
-		try {
-			const resolved = await realpath(current);
-			return path.join(resolved, ...tail);
-		} catch (e) {
-			const code = (e as NodeJS.ErrnoException).code;
-			if (code !== 'ENOENT' && code !== 'ENOTDIR') {
-				throw e;
-			}
-		}
-		tail.unshift(path.basename(current));
-		current = parent;
-	}
-}
-
-
-/**
  * Returns a function that returns whether a URI is approved for editing without
- * further user confirmation.
+ * further user confirmation. Configured agent locations are protected across all discovery roots,
+ * without expanding the editable workspace boundary.
  */
-export function makeUriConfirmationChecker(configuration: IConfigurationService, getWorkspaceFolder: (resource: URI) => URI | undefined, customInstructionsService: ICustomInstructionsService) {
+export function makeUriConfirmationChecker(configuration: IConfigurationService, getWorkspaceFolder: (resource: URI) => URI | undefined, discoveryRoots: readonly URI[]) {
 	const patterns = configuration.getNonExtensionConfig<Record<string, boolean>>('chat.tools.edits.autoApprove');
 	const hookFilesLocations = configuration.getNonExtensionConfig<Record<string, boolean>>('chat.hookFilesLocations');
 
@@ -860,17 +829,33 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 				// Ensure patterns have proper glob prefix to match within workspace
 				const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
 				hookFilesPatterns[normalizedPattern] = false;
-				// If the pattern looks like a folder (no file extension), also match JSON files within it
-				const lastSegment = normalizedPattern.split('/').pop() || '';
-				if (!lastSegment.includes('.')) {
-					const folderJsonPattern = normalizedPattern.endsWith('/') ? normalizedPattern + '*.json' : normalizedPattern + '/*.json';
-					hookFilesPatterns[folderJsonPattern] = false;
+				// Locations can be directories regardless of their filename suffix.
+				const folderJsonPattern = normalizedPattern.endsWith('/') ? normalizedPattern + '*.json' : normalizedPattern + '/*.json';
+				hookFilesPatterns[folderJsonPattern] = false;
+			}
+		}
+	}
+
+	const agentFilesPatterns: Record<string, boolean> = {};
+	const configuredAgentLocations: string[] = [];
+	for (const setting of ['chat.agentFilesLocations', 'chat.agentSkillsLocations']) {
+		const locations = configuration.getNonExtensionConfig<Record<string, boolean>>(setting);
+		for (const key of Object.keys(locations ?? {})) {
+			const pattern = key.trim();
+			if (pattern && !pattern.startsWith('~/')) {
+				if (/[*?[\]{}]/.test(pattern)) {
+					// Preserve conservative protection for glob locations.
+					const normalizedPattern = pattern.startsWith('**/') || pattern.startsWith('/') ? pattern : '**/' + pattern;
+					agentFilesPatterns[normalizedPattern] = false;
+					agentFilesPatterns[normalizedPattern.endsWith('/') ? normalizedPattern + '**' : normalizedPattern + '/**'] = false;
+				} else {
+					configuredAgentLocations.push(pattern);
 				}
 			}
 		}
 	}
 
-	const checks = new ResourceMap<{ patterns: { pattern: glob.ParsedPattern; isApproved: boolean }[]; ignoreCasing: boolean }>();
+	const checks = new ResourceMap<{ patterns: { pattern: glob.ParsedPattern; isApproved: boolean }[]; agentLocations: URI[]; ignoreCasing: boolean }>();
 	const getPatterns = (wf: URI) => {
 		let arr = checks.get(wf);
 		if (arr) {
@@ -878,11 +863,24 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		}
 
 		const ignoreCasing = extUriBiasedIgnorePathCase.ignorePathCasing(wf);
-		arr = { patterns: [], ignoreCasing };
-		for (const obj of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS, hookFilesPatterns]) {
+		const roots = new ResourceSet([wf, ...discoveryRoots]);
+		arr = {
+			patterns: [],
+			// Protect configured locations and descendants without inferring file type from extensions.
+			agentLocations: Array.from(roots).flatMap(root => configuredAgentLocations.map(location => {
+				const resource = !isAbsolute(location) ? joinPath(root, location)
+					: root.scheme === Schemas.file ? normalizePath(URI.file(location))
+						: resolvePath(root, location);
+				return removeTrailingPathSeparator(resource);
+			})),
+			ignoreCasing,
+		};
+		for (const obj of [patterns, ALWAYS_CHECKED_EDIT_PATTERNS, hookFilesPatterns, agentFilesPatterns]) {
 			if (obj) {
 				for (const [pattern, isApproved] of Object.entries(obj)) {
-					arr.patterns.push({ pattern: glob.parse({ base: wf.fsPath, pattern: ignoreCasing ? pattern.toLowerCase() : pattern }), isApproved });
+					const normalizedPattern = ignoreCasing ? pattern.toLowerCase() : pattern;
+					const parsedPattern = glob.parse(obj === agentFilesPatterns && pattern.startsWith('/') ? normalizedPattern : { base: wf.fsPath, pattern: normalizedPattern });
+					arr.patterns.push({ pattern: parsedPattern, isApproved });
 				}
 			}
 		}
@@ -921,7 +919,11 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 			return ConfirmationCheckResult.SystemFile;
 		}
 
-		const { patterns, ignoreCasing } = getPatterns(workspaceFolder || URI.file('/'));
+		const { patterns, agentLocations, ignoreCasing } = getPatterns(workspaceFolder || URI.file('/'));
+		if (agentLocations.some(location => extUriBiasedIgnorePathCase.isEqualOrParent(normalizedUri, location))) {
+			return ConfirmationCheckResult.Sensitive;
+		}
+
 		if (ignoreCasing) {
 			fsPath = fsPath.toLowerCase();
 		}
@@ -939,11 +941,11 @@ export function makeUriConfirmationChecker(configuration: IConfigurationService,
 		const toCheck = [normalizePath(uri)];
 		if (uri.scheme === Schemas.file) {
 			try {
-				const linked = await resolveRealPathForNonexistent(uri.fsPath);
-				assertPathIsSafe(linked);
+				const linked = await resolveRealPathForNonexistent(uri);
+				assertPathIsSafe(linked.fsPath);
 
-				if (linked !== uri.fsPath) {
-					toCheck.push(URI.file(linked));
+				if (!extUriBiasedIgnorePathCase.isEqual(linked, uri)) {
+					toCheck.push(linked);
 				}
 			} catch (e) {
 				if ((e as NodeJS.ErrnoException).code === 'EPERM') {
@@ -972,11 +974,15 @@ export async function createEditConfirmation(accessor: ServicesAccessor, uris: r
 	}
 
 	const workspaceService = accessor.get(IWorkspaceService);
-	if (!getWorkspaceFolder) {
-		const wd = new WorkingDirectory(workingDirectory, workspaceService);
-		getWorkspaceFolder = (resource: URI) => wd.getFolder(resource);
-	}
-	const checker = makeUriConfirmationChecker(accessor.get(IConfigurationService), getWorkspaceFolder, accessor.get(ICustomInstructionsService));
+	const configuration = accessor.get(IConfigurationService);
+	const wd = new WorkingDirectory(workingDirectory, workspaceService);
+	const resolveWorkspaceFolder = getWorkspaceFolder ?? ((resource: URI) => wd.getFolder(resource));
+	const workspaceFolders = new ResourceSet([
+		...wd.getFolders(),
+		...uris.map(uri => resolveWorkspaceFolder(normalizePath(uri))).filter(isDefined),
+	]);
+	const discoveryRoots = await accessor.get(IPromptsService).getWorkspaceFolderRoots([...workspaceFolders]);
+	const checker = makeUriConfirmationChecker(configuration, resolveWorkspaceFolder, discoveryRoots);
 	const needsConfirmation = (await Promise.all(uris
 		.map(async uri => ({ uri, reason: await checker(uri) }))
 	)).filter(r => r.reason !== ConfirmationCheckResult.NoConfirmation && !allowedUris?.has(r.uri));

@@ -8,7 +8,8 @@ import { Application, Logger } from '../../../../automation';
 import { installAllHandlers } from '../../utils';
 
 export function setup(logger: Logger) {
-	describe('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
+	// Skip the suite so its hooks do not launch VS Code while all tests are disabled.
+	describe.skip('Notebooks', () => { // https://github.com/microsoft/vscode/issues/140575
 
 		// Shared before/after handling
 		installAllHandlers(logger);

@@ -311,13 +311,4 @@ suite('HTML Path Completion', () => {
 		}, indexHtmlUri, [fixtureWorkspace]);
 	});
 
-	test('Unquoted Path', async () => {
-		/* Unquoted value is not supported in html language service yet
-		testCompletionFor(`<div><a href=about/|>`, {
-			items: [
-				{ label: 'about.html', resultText: `<div><a href=about/about.html>` }
-			]
-		}, testUri);
-		*/
-	});
 });

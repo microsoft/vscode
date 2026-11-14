@@ -7,16 +7,15 @@ import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+import { DEFAULT_CHAT_ID } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IsSessionsWindowContext } from '../../../../../workbench/common/contextkeys.js';
 import { exportAgentHostDebugLogs, IActiveAgentHostSessionForExport } from '../../../../../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { type ISession } from '../../../../services/sessions/common/session.js';
-import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
-import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
+import { isAgentHostProvider } from '../../../../../workbench/contrib/sessions/common/agentHostSessionsProvider.js';
+import { resolveSessionCommandTarget } from '../../../../../workbench/contrib/sessions/browser/sessionCommandTarget.js';
+import { ISessionsProvidersService } from '../../../../../workbench/contrib/sessions/browser/sessionsProvidersService.js';
 
 export class ExportAgentHostDebugLogsAction extends Action2 {
 
@@ -35,42 +34,31 @@ export class ExportAgentHostDebugLogsAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessionsService = accessor.get(ISessionsService);
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 
-		const activeSession = sessionsService.activeSession.get();
-		const activeAgentHostSession = isAgentHostSession(activeSession, sessionsProvidersService) ? activeSession : undefined;
-		const sessionForEvents = activeAgentHostSession ?? getMostRecentAgentHostSession(sessionsManagementService.getSessions(), sessionsProvidersService);
-
-		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = sessionForEvents
+		const target = resolveSessionCommandTarget(accessor, args);
+		// Arguments that name a session or chat that is gone: nothing to export or open.
+		if (!target) {
+			return;
+		}
+		const activeSession = target?.session;
+		const provider = activeSession ? sessionsProvidersService.getProvider(activeSession.providerId, activeSession.sessionId) : undefined;
+		const activeProvider = provider && isAgentHostProvider(provider) ? provider : undefined;
+		const activeChat = target?.chat;
+		const activeSessionContext: IActiveAgentHostSessionForExport | undefined = activeSession && activeProvider
 			? {
-				resource: sessionForEvents.resource,
-				title: activeAgentHostSession?.title.get(),
-				isLocal: sessionForEvents.resource.scheme.startsWith('agent-host-'),
+				resource: activeSession.resource,
+				sessionTitle: activeSession.title.get(),
+				chatTitle: activeChat?.title.get(),
+				isLocal: activeSession.resource.scheme.startsWith('agent-host-'),
+				chatId: activeChat?.resource.fragment || DEFAULT_CHAT_ID,
+				backendChatResource: activeChat ? activeProvider.getBackendChatResource(activeChat.resource) : undefined,
 			}
 			: undefined;
 
 		await exportAgentHostDebugLogs(accessor, activeSessionContext);
 	}
-}
-
-function isAgentHostSession(session: ISession | undefined, sessionsProvidersService: ISessionsProvidersService): session is ISession {
-	return !!session && sessionsProvidersService.getProvider(session.providerId) instanceof BaseAgentHostSessionsProvider;
-}
-
-function getMostRecentAgentHostSession(sessions: readonly ISession[], sessionsProvidersService: ISessionsProvidersService): ISession | undefined {
-	let mostRecent: ISession | undefined;
-	for (const session of sessions) {
-		if (!isAgentHostSession(session, sessionsProvidersService)) {
-			continue;
-		}
-		if (!mostRecent || session.updatedAt.get().getTime() > mostRecent.updatedAt.get().getTime()) {
-			mostRecent = session;
-		}
-	}
-	return mostRecent;
 }
 
 registerAction2(ExportAgentHostDebugLogsAction);

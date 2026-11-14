@@ -42,15 +42,17 @@
 		]
 	},
 	"scripts": {
-		"compile": "npx gulp compile-extension:notebook-renderers && npm run build-notebook",
-		"watch": "npx gulp compile-watch:notebook-renderers",
+		"compile": "pnpm exec gulp compile-extension:notebook-renderers && pnpm run build-notebook",
+		"watch": "pnpm exec gulp compile-watch:notebook-renderers",
 		"build-notebook": "node ./esbuild.notebook.mts"
 	},
 	"devDependencies": {
 		"@types/jsdom": "^21.1.0",
+		"@types/mocha": "^10.0.10",
 		"@types/node": "24.x",
 		"@types/vscode-notebook-renderer": "^1.60.0",
-		"jsdom": "^28.1.0"
+		"jsdom": "^28.1.0",
+		"mocha": "^10.8.2"
 	},
 	"repository": {
 		"type": "git",

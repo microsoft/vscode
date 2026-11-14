@@ -4,12 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Event } from '../../../../base/common/event.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { basename, joinPath } from '../../../../base/common/resources.js';
 import { SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IBuiltinPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsServiceImpl.js';
+import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING } from '../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { CHAT_AUTOMATIONS_ENABLED_SETTING } from '../../../../workbench/contrib/chat/common/automations/automationsEnabled.js';
+import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
+import { getChatNativeComponentsRenderer } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatNativeComponents.js';
+import { ChatAIDisabledSettingId } from '../../../../platform/chat/common/chatSettings.js';
 
 /** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
@@ -82,7 +88,20 @@ export class AgenticPromptsService extends PromptsService {
 
 	private async getBuiltinSkillPaths(): Promise<readonly IBuiltinPromptPath[]> {
 		const skills = await this.getBuiltinSkills();
-		return skills.map(s => ({
+		return skills.filter(s => {
+			if (s.name === 'html-preview') {
+				return this.configurationService.getValue<boolean>(ChatConfiguration.HtmlPreviewEnabled) === true
+					&& !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+			}
+			if (s.name === 'vscode-ui') {
+				return !!getChatNativeComponentsRenderer(this.configurationService);
+			}
+			if (s.name === 'automate') {
+				return this.configurationService.getValue<boolean>(CHAT_AUTOMATIONS_ENABLED_SETTING) === true
+					&& !this.configurationService.getValue<boolean>(ChatAIDisabledSettingId);
+			}
+			return s.name !== 'generate-chat-background' || this.configurationService.getValue<boolean>(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING) === true;
+		}).map(s => ({
 			uri: s.uri,
 			storage: PromptsStorage.builtIn,
 			type: PromptsType.skill,
@@ -104,6 +123,15 @@ export class AgenticPromptsService extends PromptsService {
 			return [];
 		}
 		return this.getBuiltinSkillPaths();
+	}
+
+	protected override get onDidChangeBuiltinPromptFiles(): Event<PromptsType> {
+		return Event.map(Event.filter(this.configurationService.onDidChangeConfiguration,
+			event => event.affectsConfiguration(AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING)
+				|| event.affectsConfiguration(ChatConfiguration.HtmlPreviewEnabled)
+				|| event.affectsConfiguration(ChatConfiguration.NativeComponentsEnabled)
+				|| event.affectsConfiguration(CHAT_AUTOMATIONS_ENABLED_SETTING)
+				|| event.affectsConfiguration(ChatAIDisabledSettingId)), () => PromptsType.skill);
 	}
 }
 

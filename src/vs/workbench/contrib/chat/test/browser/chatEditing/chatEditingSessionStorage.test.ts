@@ -10,12 +10,14 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { FileService } from '../../../../../../platform/files/common/fileService.js';
-import { InMemoryFileSystemProvider } from '../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
+import { createInMemoryFileService } from '../../../../../../platform/files/test/common/inMemoryFileService.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestEnvironmentService } from '../../../../../test/browser/workbenchTestServices.js';
 import { ChatEditingSessionStorage, IChatEditingSessionStop, StoredSessionState } from '../../../browser/chatEditing/chatEditingSessionStorage.js';
 import { ChatEditingSnapshotTextModelContentProvider } from '../../../browser/chatEditing/chatEditingTextModelContentProviders.js';
 import { ISnapshotEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
+import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 
 suite('ChatEditingSessionStorage', () => {
@@ -23,6 +25,7 @@ suite('ChatEditingSessionStorage', () => {
 	const sessionResource = URI.parse('chat://test-session');
 	let fs: FileService;
 	let storage: TestChatEditingSessionStorage;
+	let workspaceContextService: IWorkspaceContextService;
 
 	class TestChatEditingSessionStorage extends ChatEditingSessionStorage {
 		public get storageLocation() {
@@ -31,16 +34,16 @@ suite('ChatEditingSessionStorage', () => {
 	}
 
 	setup(() => {
-		fs = ds.add(new FileService(new NullLogService()));
-		ds.add(fs.registerProvider(TestEnvironmentService.workspaceStorageHome.scheme, ds.add(new InMemoryFileSystemProvider())));
+		fs = createInMemoryFileService(ds, TestEnvironmentService.workspaceStorageHome.scheme);
+		// eslint-disable-next-line local/code-no-any-casts
+		workspaceContextService = { getWorkspace: () => ({ id: 'workspaceId' }) } as any;
 
 		storage = new TestChatEditingSessionStorage(
 			sessionResource,
 			fs,
 			TestEnvironmentService,
 			new NullLogService(),
-			// eslint-disable-next-line local/code-no-any-casts
-			{ getWorkspace: () => ({ id: 'workspaceId' }) } as any,
+			workspaceContextService,
 		);
 	});
 
@@ -71,6 +74,18 @@ suite('ChatEditingSessionStorage', () => {
 		assert.strictEqual(s, undefined);
 	});
 
+	test('rejects session IDs that escape the storage root', () => {
+		const maliciousStorage = new TestChatEditingSessionStorage(
+			LocalChatSessionUri.forSession('../../../outside'),
+			fs,
+			TestEnvironmentService,
+			new NullLogService(),
+			workspaceContextService,
+		);
+
+		assert.throws(() => maliciousStorage.storageLocation, /Invalid chat session ID/);
+	});
+
 	test('round trips state', async () => {
 		const original = generateState();
 		await storage.storeState(original);
@@ -91,5 +106,28 @@ suite('ChatEditingSessionStorage', () => {
 		await storage.clearState();
 		const s = await storage.restoreState();
 		assert.strictEqual(s, undefined);
+	});
+
+	test('does not write a folder for an empty state', async () => {
+		const emptyState: StoredSessionState = {
+			initialFileContents: new ResourceMap<string>(),
+			recentSnapshot: { stopId: undefined, entries: new ResourceMap<ISnapshotEntry>() },
+			timeline: {
+				checkpoints: [{ checkpointId: generateUuid(), requestId: undefined, undoStopId: undefined, epoch: 0, label: 'Initial State' }],
+				currentEpoch: 1,
+				fileBaselines: [],
+				operations: [],
+				epochCounter: 1,
+			},
+		};
+
+		await storage.storeState(emptyState);
+		const writtenWhenEmpty = await fs.exists(storage.storageLocation);
+
+		await storage.storeState(generateState());
+		await storage.storeState(emptyState);
+		const keptAfterEmptied = await fs.exists(storage.storageLocation);
+
+		assert.deepStrictEqual({ writtenWhenEmpty, keptAfterEmptied }, { writtenWhenEmpty: false, keptAfterEmptied: false });
 	});
 });

@@ -46,20 +46,17 @@ export const enum TerminalContribSettingId {
 	SuggestEnabled = TerminalSuggestSettingId.Enabled,
 	AutoApprove = TerminalChatAgentToolsSettingId.AutoApprove,
 	EnableAutoApprove = TerminalChatAgentToolsSettingId.EnableAutoApprove,
+	AutoApproveWorkspaceNpmScripts = TerminalChatAgentToolsSettingId.AutoApproveWorkspaceNpmScripts,
+	IgnoreDefaultAutoApproveRules = TerminalChatAgentToolsSettingId.IgnoreDefaultAutoApproveRules,
+	BlockDetectedFileWrites = TerminalChatAgentToolsSettingId.BlockDetectedFileWrites,
 	ShellIntegrationTimeout = TerminalChatAgentToolsSettingId.ShellIntegrationTimeout,
 	OutputLocation = TerminalChatAgentToolsSettingId.OutputLocation,
 	AgentSandboxEnabled = AgentSandboxSettingId.AgentSandboxEnabled,
-	AgentSandboxWindowsEnabled = AgentSandboxSettingId.AgentSandboxWindowsEnabled,
 	AgentSandboxAllowNetwork = AgentSandboxSettingId.AgentSandboxAllowNetwork,
 	AgentSandboxAllowUnsandboxedCommands = AgentSandboxSettingId.AgentSandboxAllowUnsandboxedCommands,
 	AgentSandboxRetryWithAllowNetworkRequests = AgentSandboxSettingId.AgentSandboxRetryWithAllowNetworkRequests,
-	AgentSandboxAllowAutoApprove = AgentSandboxSettingId.AgentSandboxAllowAutoApprove,
-	DeprecatedAgentSandboxEnabled = AgentSandboxSettingId.DeprecatedAgentSandboxEnabled,
-	DeprecatedAgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem,
-	DeprecatedAgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem,
 	AgentSandboxLinuxFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem,
 	AgentSandboxMacFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem,
-	AgentSandboxWindowsFileSystem = TerminalChatAgentToolsSettingId.AgentSandboxWindowsFileSystem,
 }
 
 // HACK: Export some context key strings from `terminalContrib/` that are depended upon elsewhere.

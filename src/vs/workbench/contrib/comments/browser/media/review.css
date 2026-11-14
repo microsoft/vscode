@@ -505,17 +505,19 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	display: none !important;
 }
 
-.monaco-editor .comment-diff-added {
+.monaco-editor .comment-diff-added,
+.monaco-editor .comment-thread-bar {
 	border-left-width: 3px;
 	border-left-style: solid;
 }
 
 .monaco-editor .comment-diff-added,
+.monaco-editor .comment-thread-bar,
 .monaco-editor .comment-range-glyph.multiline-add {
 	border-left-color: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-diff-added:before,
+.monaco-editor .comment-diff-added-glyph:before,
 .monaco-editor .comment-range-glyph.line-hover:before {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
@@ -541,7 +543,7 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-left: 13px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added-glyph:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before,
 .monaco-editor .comment-range-glyph.comment-thread:before,
 .monaco-editor .comment-range-glyph.comment-thread-unresolved:before,
@@ -574,11 +576,10 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	margin-top: 2px;
 }
 
-.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added:before,
+.monaco-editor .margin-view-overlays > div:hover > .comment-range-glyph.comment-diff-added-glyph:before,
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover:before {
 	content: var(--vscode-icon-plus-content);
 	font-family: var(--vscode-icon-plus-font-family);
-	font-family: "codicon";
 	border-radius: 3px;
 	width: 18px !important;
 	margin-left: -5px;
@@ -626,4 +627,103 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 
 .monaco-editor.inline-comment .margin-view-overlays .dirty-diff-glyph {
 	margin-left: 25px;
+}
+
+/* Floating comment thread widget (`comments.thread.experimental.style: floating`) */
+
+.monaco-editor .comment-thread-floating-widget {
+	z-index: 10;
+	box-sizing: border-box;
+	border: var(--vscode-strokeThickness) solid var(--comment-thread-state-color);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-peekViewResult-background);
+	box-shadow: var(--vscode-shadow-lg);
+}
+
+.monaco-editor .comment-thread-floating-widget.front {
+	z-index: 11;
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow: hidden;
+	border-radius: calc(var(--vscode-cornerRadius-large) - var(--vscode-strokeThickness));
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .head {
+	flex-shrink: 0;
+	cursor: grab;
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .head .review-title {
+	cursor: inherit;
+}
+
+.monaco-editor .comment-thread-floating-widget.dragging,
+.monaco-editor .comment-thread-floating-widget.dragging > .review-widget > .head {
+	cursor: grabbing;
+}
+
+/* Scrollable comments (`ICommentThreadWidgetOptions.scrollableComments`) fill the height they are given. */
+.review-widget .body .comments-scroll-viewport {
+	height: 100%;
+}
+
+/* The body shrinks and scrolls when the widget is too short for the reply and additional actions, such as in a short editor. */
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable {
+	flex: 0 1 auto;
+	min-height: 0;
+	border-top: 1px solid var(--comment-thread-state-color);
+}
+
+.monaco-editor .comment-thread-floating-widget > .review-widget > .comment-thread-body-scrollable > .body {
+	position: relative;
+	height: 100%;
+}
+
+.monaco-editor .comment-thread-floating-connector {
+	z-index: 9;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+.monaco-editor .comment-thread-floating-connector > svg {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow: visible;
+}
+
+/* The outline and connector are subtle at rest and become prominent while focus is in the widget. */
+.monaco-editor .comment-thread-floating-connector .code-outline,
+.monaco-editor .comment-thread-floating-connector .connector-line {
+	fill: none;
+	stroke: var(--comment-thread-state-color);
+	stroke-width: var(--vscode-strokeThickness);
+	stroke-opacity: 0.5;
+}
+
+.monaco-editor .comment-thread-floating-connector .connector-anchor {
+	fill: var(--comment-thread-state-color);
+	fill-opacity: 0.5;
+}
+
+.monaco-editor .comment-thread-floating-connector.active .code-outline,
+.monaco-editor .comment-thread-floating-connector.active .connector-line,
+.monaco-editor.hc-black .comment-thread-floating-connector .code-outline,
+.monaco-editor.hc-black .comment-thread-floating-connector .connector-line,
+.monaco-editor.hc-light .comment-thread-floating-connector .code-outline,
+.monaco-editor.hc-light .comment-thread-floating-connector .connector-line {
+	stroke-opacity: 1;
+}
+
+.monaco-editor .comment-thread-floating-connector.active .connector-anchor,
+.monaco-editor.hc-black .comment-thread-floating-connector .connector-anchor,
+.monaco-editor.hc-light .comment-thread-floating-connector .connector-anchor {
+	fill-opacity: 1;
 }

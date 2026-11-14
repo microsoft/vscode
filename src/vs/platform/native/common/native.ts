@@ -8,15 +8,20 @@ import { Event } from '../../../base/common/event.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
+import { AgentHostEditorUpdate, IAgentHostEditorState, IAgentsWindowInvitation } from '../../chat/common/agentsWindowInvitation.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
-import { AgentsWindowOpenSource, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowFolderLocation, IWindowOpenable } from '../../window/common/window.js';
 
 export interface IToastOptions {
 	readonly id: string;
+	/**
+	 * Prevents another live toast with the same key from being shown.
+	 */
+	readonly dedupeKey?: string;
 
 	readonly title: string;
 	readonly body?: string;
@@ -28,9 +33,33 @@ export interface IToastOptions {
 
 export interface IToastResult {
 	readonly supported: boolean;
+	/**
+	 * True when a live toast with the requested dedupe key is already visible.
+	 */
+	readonly suppressed?: boolean;
 
 	readonly clicked: boolean;
 	readonly actionIndex?: number;
+}
+
+/**
+ * A count badge to render on the application icon in the dock (macOS), the
+ * launcher (Linux) or over the taskbar icon of a window (Windows).
+ */
+export interface IApplicationBadge {
+
+	/** The number to show. A count of `0` clears the badge. */
+	readonly count: number;
+
+	/** Accessible description of the badge, used for the Windows taskbar overlay. */
+	readonly description: string;
+
+	/**
+	 * PNG image data as a `data:` URL for the Windows taskbar overlay icon,
+	 * which has no built-in count rendering. Ignored on other platforms,
+	 * where the OS renders {@link count} itself.
+	 */
+	readonly iconDataURL?: string;
 }
 
 /**
@@ -38,12 +67,46 @@ export interface IToastResult {
  */
 export type INativeZipFile =
 	| { readonly path: string; readonly contents: string }
-	| { readonly path: string; readonly source: URI; readonly size: number };
+	| {
+		readonly path: string;
+		readonly source: URI;
+		readonly size: number;
+		readonly compress?: boolean;
+		/** Skip this entry when its source cannot be opened or inspected. */
+		readonly skipSourceErrors?: boolean;
+	}
+	| { readonly sourceArchive: URI };
+
+export interface INativeZipOptions {
+	readonly maxSize?: number;
+	readonly maxEntries: number;
+	readonly operationId?: string;
+}
+
+export interface INativeZipProgress {
+	readonly operationId: string;
+	readonly bytes: number;
+	readonly total: number;
+	readonly path: string;
+}
+
+export interface INativeZipResult {
+	readonly skippedFiles: readonly { readonly path: string; readonly error: string }[];
+}
 
 export interface IOpenAgentsWindowOptions {
 	readonly folderUri?: UriComponents;
-	readonly sessionResource?: UriComponents;
+	/** Use the invoking editor's folder only for a fresh composer, without replacing an existing session or user choice. */
+	readonly folderUriIsDefault?: boolean;
+	/** Reveal a session or the new-session composer; otherwise preserve the view of an already-open window. */
+	readonly reveal?: UriComponents | 'new';
+	/** The remote authority of the editor window whose own agent host, on that remote machine, owns the revealed session. */
+	readonly revealRemoteAuthority?: string;
+	/** Session to spotlight after a contextual invitation, even when it is not opened. */
+	readonly onboardingSessionResource?: UriComponents;
 	readonly source?: AgentsWindowOpenSource;
+	/** Copy a draft only when explicitly revealing the new-session composer. */
+	readonly draft?: IAgentsWindowDraft;
 }
 
 export interface ICPUProperties {
@@ -147,6 +210,44 @@ export const enum FocusMode {
 	Force,
 }
 
+/**
+ * A window of another application, which VS Code can capture.
+ */
+export interface INativeAppWindow {
+
+	/**
+	 * The id of the window as a desktop media source, which `getUserMedia` captures with the `desktop` media source.
+	 */
+	readonly sourceId: string;
+
+	/**
+	 * The title of the window, which can be empty.
+	 */
+	readonly title: string;
+
+	/**
+	 * The icon of the window's application as a PNG `data:` URL, where the platform provides it.
+	 */
+	readonly iconDataUrl?: string;
+
+	/**
+	 * Where the window is, in the coordinates of Electron's `screen`, even when the screen doesn't show it, where the
+	 * platform tells: macOS does.
+	 */
+	readonly bounds?: IRectangle;
+}
+
+/**
+ * The windows of other applications, see {@link ICommonNativeHostService.getAppWindows}.
+ */
+export type INativeAppWindows =
+	/** The windows, front to back. */
+	| { readonly kind: 'windows'; readonly windows: readonly INativeAppWindow[] }
+	/** macOS only lists the windows of other applications with the Screen Recording permission, which is missing. */
+	| { readonly kind: 'permissionRequired' }
+	/** Only the system can list the windows, in a picker that it shows when the user asks to capture a window. */
+	| { readonly kind: 'systemPicker' };
+
 export interface INativeSystemWideKeybinding {
 
 	/**
@@ -203,6 +304,8 @@ export interface ICommonNativeHostService {
 	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
+	readonly onDidChangeGPUCompositing: Event<boolean>;
+	readonly onDidChangeAgentHostEditorState: Event<IAgentHostEditorState>;
 
 	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
@@ -234,6 +337,18 @@ export interface ICommonNativeHostService {
 	openAgentsWindow(options?: IOpenAgentsWindowOptions): Promise<void>;
 
 	/**
+	 * Asks the Agents window to show the Agents Launcher, opening the Agents window first when none is open. An open Agents
+	 * window is not brought to the front: the Agents Launcher shows and focuses its own window.
+	 */
+	showAgentsLauncher(): Promise<void>;
+
+	getAgentHostEditorState(legacyEditorSessionCount: number): Promise<IAgentHostEditorState>;
+	updateAgentHostEditorState(update: AgentHostEditorUpdate): Promise<void>;
+	claimAgentsWindowInvitation(resource: UriComponents, developerMode: boolean): Promise<IAgentsWindowInvitation | undefined>;
+	markAgentsWindowInvitationShown(id: string): Promise<void>;
+	releaseAgentsWindowInvitation(id: string): Promise<void>;
+
+	/**
 	 * Registers this window's set of system-wide (OS global) keybindings with the main process,
 	 * replacing any previously registered by this window. The shortcuts fire even when the
 	 * application is not focused. Returns the set that could not be registered.
@@ -242,6 +357,12 @@ export interface ICommonNativeHostService {
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
+
+	/**
+	 * Does what a double-click on the title bar of the window does: on macOS as the system settings say, such as to zoom
+	 * or minimize the window, else maximizes or restores it. For a title area the window does not drag itself.
+	 */
+	handleTitleDoubleClick(options?: INativeHostOptions): Promise<void>;
 
 	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
@@ -252,11 +373,24 @@ export interface ICommonNativeHostService {
 	moveWindowTop(options?: INativeHostOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeHostOptions): Promise<void>;
 
+	/** Shows a window hidden with {@link hideWindow} and focuses it. */
+	showWindow(options?: INativeHostOptions): Promise<void>;
+	/** Hides a window without closing it, such as a floating window that shows again later. */
+	hideWindow(options?: INativeHostOptions): Promise<void>;
+	/** Sets the opacity of a window, from 0 (transparent) to 1 (opaque). Unsupported on Linux. */
+	setWindowOpacity(opacity: number, options?: INativeHostOptions): Promise<void>;
+
 	isWindowAlwaysOnTop(options?: INativeHostOptions): Promise<boolean>;
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; horizontalInset?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+
+	/**
+	 * Remembers the alternate location the folder of the window is at, so that
+	 * the window starts at it again after a reload or restart.
+	 */
+	setWindowFolderLocation(location: IWindowFolderLocation | undefined, options?: INativeHostOptions): Promise<void>;
 
 	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
@@ -285,12 +419,61 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
+	/**
+	 * Drags the file or folder at absolute `path` out of the window, as if the user dragged it from the file manager, so
+	 * other apps can take it. Call it from a `dragstart` handler that cancels the HTML drag, while the mouse button is
+	 * still down. Does nothing for a path that doesn't exist.
+	 */
+	startFileDrag(path: string, options?: INativeHostOptions): Promise<void>;
 	setRepresentedFilename(path: string, options?: INativeHostOptions): Promise<void>;
 	setDocumentEdited(edited: boolean, options?: INativeHostOptions): Promise<void>;
+	/**
+	 * Renders a count badge on the application icon. Passing `undefined` or a
+	 * badge with a count of `0` clears it again.
+	 */
+	setApplicationBadge(badge: IApplicationBadge | undefined, options?: INativeHostOptions): Promise<void>;
 	openExternal(url: string, defaultApplication?: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 
 	getMediaAccessStatus(mediaType: 'microphone' | 'camera' | 'screen'): Promise<'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'>;
+
+	/** Requests screen-capture permission without starting a recording. */
+	requestScreenCaptureAccess(): Promise<boolean>;
+
+	/**
+	 * Lists the windows of other applications, front to back, so that the first one is the window that the user is
+	 * looking at, or the one that they left for VS Code. On macOS, the windows that the screen doesn't show, on other
+	 * Spaces, minimized or of hidden applications, come after the windows on screen that a capture can take. The windows
+	 * of VS Code are left out, except from the window picker of Wayland sessions, which lists every window and
+	 * identifies none of them.
+	 *
+	 * Without `interactive`, this never shows system UI: it reports `permissionRequired` instead of asking for the Screen
+	 * Recording permission on macOS, and `systemPicker` instead of showing the window picker of Wayland sessions. Only set
+	 * `interactive` when the user asked to capture a window: then macOS asks for the permission the first time, and
+	 * Wayland sessions list the one window that the user picks, or none when the user cancels.
+	 */
+	getAppWindows(options?: { readonly interactive?: boolean }): Promise<INativeAppWindows>;
+
+	/**
+	 * Captures a window of another application in a single screenshot, where the platform can: macOS can. Returns the
+	 * screenshot as a PNG, or `undefined` when the platform can't, so that the caller captures a frame of the window as a
+	 * desktop media source instead.
+	 *
+	 * With `feedback`, where the platform tells where the window is (see {@link INativeAppWindow.bounds}), the window
+	 * flashes, then turns into its screenshot, which stays above it until {@link endAppWindowCaptureFeedback}, or for a
+	 * while at most. The feedback draws above every window, ignores the mouse, and never takes focus. This resolves once
+	 * the screenshot shows above the window, so that another window can then come to the front without covering it.
+	 */
+	captureAppWindow(window: INativeAppWindow, options?: { readonly feedback?: { readonly reduceMotion: boolean } }): Promise<VSBuffer | undefined>;
+
+	/**
+	 * Ends the feedback of {@link captureAppWindow}. Given a destination, a rectangle of the target window in
+	 * device-independent pixels from the top left of its content, the screenshot flies into it and takes its corner
+	 * radius, then fades as the destination shows. Without a screenshot from the capture, it needs the screenshot as a
+	 * `data:` URL. Without a destination on the same display, the screenshot shrinks where the window is; without either,
+	 * the flash fades. Resolves once the screenshot covers the destination, or once the feedback is gone.
+	 */
+	endAppWindowCaptureFeedback(screenshot?: { readonly image?: string; readonly destination?: IRectangle; readonly radius?: number }, options?: INativeHostOptions): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
 	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
@@ -298,14 +481,18 @@ export interface ICommonNativeHostService {
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
+	/** Returns the bytes available to the user on the filesystem containing the path or its nearest existing ancestor. */
+	getFreeDiskSpace(path: string): Promise<number>;
 	getOSVirtualMachineHint(): Promise<number>;
+
+	isGPUCompositingEnabled(): Promise<boolean>;
 
 	getOSColorScheme(): Promise<IColorScheme>;
 
 	hasWSLFeatureInstalled(): Promise<boolean>;
 
 	// Screenshots
-	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
+	getScreenshot(rect?: IRectangle, options?: INativeHostOptions): Promise<VSBuffer | undefined>;
 
 	// GitHub mobile upload API (runs in main process to avoid CORS)
 	uploadFileViaMobileApi(token: string, repoId: string, fileName: string, fileBytes: VSBuffer, contentType: string): Promise<{ fileName: string; assetUrl: string; contentType: string }>;
@@ -324,6 +511,7 @@ export interface ICommonNativeHostService {
 	readClipboardBuffer(format: string): Promise<VSBuffer>;
 	hasClipboard(format: string, type?: 'selection' | 'clipboard'): Promise<boolean>;
 	readImage(): Promise<Uint8Array>;
+	writeImage(data: VSBuffer): Promise<void>;
 
 	// macOS Touchbar
 	newWindowTab(): Promise<void>;
@@ -386,7 +574,9 @@ export interface ICommonNativeHostService {
 	 * file `source` URI together with the number of leading bytes (`size`) to
 	 * stream from it.
 	 */
-	createZipFile(zipPath: URI, files: INativeZipFile[]): Promise<void>;
+	createZipFile(zipPath: URI, files: INativeZipFile[], options?: INativeZipOptions): Promise<INativeZipResult>;
+	readonly onDidProgressZipFile: Event<INativeZipProgress>;
+	cancelZipFile(operationId: string): Promise<void>;
 
 	// Power
 	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;

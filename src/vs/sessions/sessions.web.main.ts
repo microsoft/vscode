@@ -78,6 +78,7 @@ import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js'
 import '../workbench/services/power/browser/powerService.js';
 import '../workbench/services/localTranscription/browser/localTranscriptionService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
+import '../platform/remoteTunnel/browser/remoteTunnelService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -114,6 +115,7 @@ import { IWSLRemoteAgentHostService } from '../platform/agentHost/common/wslRemo
 import { NullWSLRemoteAgentHostService } from '../platform/agentHost/browser/nullWslRemoteAgentHostService.js';
 import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
 import { EditorRemoteAgentHostServiceClient } from '../workbench/services/agentHost/browser/editorRemoteAgentHostServiceClient.js';
+import '../workbench/services/agentHost/browser/webAgentHostEnablementService.js';
 import { BrowserAgentHostDebugLogsExportService, IAgentHostDebugLogsExportService } from '../workbench/contrib/chat/browser/actions/exportAgentHostDebugLogsAction.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
@@ -161,17 +163,23 @@ import './contrib/providers/remoteAgentHost/browser/tunnelAgentHost.contribution
 // WSL agent host — reconciles cached WSL distros into session providers
 import './contrib/providers/remoteAgentHost/browser/wslAgentHost.contribution.js';
 
+// WebSocket agent host — reconciles configured WebSocket hosts into session providers
+import './contrib/providers/remoteAgentHost/browser/webSocketAgentHost.contribution.js';
+
 // Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/providers/remoteAgentHost/browser/remoteAgentHostActions.js';
+// Copilot cloud sandbox connections (copilot-developer-cli) over a Web PubSub AHP relay
+import './contrib/providers/remoteAgentHost/browser/cloudSandboxAgentHost.contribution.js';
 import './contrib/providers/agentHost/browser/agentSessionSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSettings.contribution.js';
 import './contrib/providers/agentHost/browser/agentHostSessionBranchActions.js';
-import './contrib/providers/agentHost/browser/agentHostSkillButtons.js';
-import './contrib/providers/agentHost/browser/openSubagentChat.js';
+import './contrib/providers/agentHost/browser/agentMergeActions.js';
+import './contrib/providers/agentHost/browser/agentHostSkillButtons.contribution.js';
+import './contrib/providers/agentHost/browser/openSubagentChat.contribution.js';
 
 // Host filter dropdown in the titlebar (scopes the sessions list to a host)
 import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
@@ -181,19 +189,13 @@ import './contrib/providers/remoteAgentHost/browser/hostFilter.contribution.js';
 // build. The desktop mode + model pickers are gated off on phone via
 // `when: IsPhoneLayoutContext.negate()`, so the two registrations are
 // mutually exclusive at the action-menu level.
-import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatInputConfigPicker.contribution.js';
 
 // Phone-only presenter for the workbench `ChatInputPart`'s Mode + Model
 // pickers. Replaces the desktop popups with the same bottom-sheet
 // experience used by the empty new-chat input, applied to the
 // already-opened chat input. Web-only for the same reason as above.
-import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.js';
-
-// Mobile-aware Copilot permission picker. Replaces the desktop
-// permission picker registration (which the shared contribution
-// skips when `isWeb`), so we get the bottom-sheet sheet on phone
-// without duplicate-registration conflicts.
-import './contrib/providers/copilotChatSessions/browser/mobilePermissionPicker.contribution.js';
+import './contrib/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.contribution.js';
 
 // TODO: support agent feedback in web
 import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';

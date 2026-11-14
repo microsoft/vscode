@@ -6,13 +6,13 @@
 import type { AgentTaskGetResponse, AgentTaskSessionEvent } from '@vscode/copilot-api';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../platform/log/common/logService';
-import { CLI_TOOL_EVENT_HANDLERS } from '../copilotcli/common/copilotCLITools';
+import { CLI_TOOL_EVENT_HANDLERS } from '../common/copilotCLIToolInvocations';
 import {
 	createResponseEventRenderContext,
 	flushPendingAssistantMessage,
 	ResponseEventRenderContext,
 } from '../common/sessionEventRenderer';
-import { TaskCloudAgentBackend } from '../vscode/cloudAgentBackend';
+import { CloudAgentBackend } from '../vscode/cloudAgentBackend';
 import { isActiveTaskState, isFailedTaskState } from '../vscode/copilotCodingAgentUtils';
 import { ChatSessionContentBuilder, extractTaskErrorDetail, formatTaskStoppedMessage } from './copilotCloudSessionContentBuilder';
 
@@ -87,7 +87,7 @@ export class TaskTurnStreamer {
 	public static readonly MAX_CONSECUTIVE_FETCH_FAILURES = 15;
 
 	constructor(
-		private readonly _backend: TaskCloudAgentBackend,
+		private readonly _backend: CloudAgentBackend,
 		private readonly _contentBuilder: ChatSessionContentBuilder,
 		private readonly _logService: ILogService,
 		private readonly _pollIntervalMs: number = TaskTurnStreamer.DEFAULT_POLL_INTERVAL_MS,

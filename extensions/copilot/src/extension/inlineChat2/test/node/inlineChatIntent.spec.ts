@@ -14,7 +14,7 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { IEditSurvivalTrackerService } from '../../../../platform/editSurvivalTracking/common/editSurvivalTrackerService';
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
-import { Conversation, Turn } from '../../../prompt/common/conversation';
+import { Conversation, Turn, TurnResponseGitHubCopilotRequestTe } from '../../../prompt/common/conversation';
 import { ChatLocation, ChatFetchResponseType } from '../../../../platform/chat/common/commonTypes';
 import { IDocumentContext } from '../../../prompt/node/documentContext';
 import { ChatTelemetryBuilder } from '../../../prompt/node/chatParticipantTelemetry';
@@ -22,7 +22,7 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { ChatRequestEditorData } from '../../../../vscodeTypes';
 import { CopilotInteractiveEditorResponse } from '../../../inlineChat/node/promptCraftingTypes';
 import { IToolCall } from '../../../prompt/common/intents';
-import { ToolCallRound } from '../../../prompt/common/toolCallRound';
+import { getGitHubCopilotRequestTeForRound, ToolCallRound } from '../../../prompt/common/toolCallRound';
 import { TextDocumentSnapshot } from '../../../../platform/editing/common/textDocumentSnapshot';
 import { createTextDocumentData } from '../../../../util/common/test/shims/textDocument';
 import { URI } from '../../../../util/vs/base/common/uri';
@@ -55,6 +55,7 @@ interface TestModelResponse {
 	};
 	readonly toolCalls?: readonly TestToolCall[];
 	readonly advanceTimeMs?: number;
+	readonly gitHubCopilotRequestTe?: string;
 }
 
 interface InlineChatHarnessOptions {
@@ -78,7 +79,7 @@ suite('InlineChatIntent', () => {
 				if (ctor.name === 'InlineChatToolCalling') {
 					return {
 						run: vi.fn().mockResolvedValue({
-							lastResponse: { type: ChatFetchResponseType.Success, value: 'mocked success!' },
+							lastResponse: { type: ChatFetchResponseType.Success, value: 'mocked success!', gitHubCopilotRequestTe: ' TRUE ' },
 							telemetry: { telemetryMessageId: 'test-msg-id' },
 							needsExitTool: false
 						})
@@ -152,9 +153,13 @@ suite('InlineChatIntent', () => {
 
 		await intent.handleRequest(conversation, request, stream, token, documentContext, 'agent', ChatLocation.Editor, chatTelemetry);
 
-		expect(mockTurn.setMetadata).toHaveBeenCalledTimes(1);
+		expect(mockTurn.setMetadata).toHaveBeenCalledTimes(2);
 		const metadata = mockTurn.setMetadata.mock.calls[0][0];
 		expect(metadata).toBeInstanceOf(CopilotInteractiveEditorResponse);
+		// The raw value of the call that produced the response, for inline accept/undo/survival telemetry.
+		const requestTe = mockTurn.setMetadata.mock.calls[1][0];
+		expect(requestTe).toBeInstanceOf(TurnResponseGitHubCopilotRequestTe);
+		expect(requestTe.value).toBe(' TRUE ');
 		expect(metadata.messageId).toBe('test-msg-id');
 		expect(metadata.promptQuery.query).toBe('test prompt');
 		expect(metadata.promptQuery.document).toBe(documentContext.document);
@@ -217,6 +222,33 @@ suite('InlineChatIntent', () => {
 			expect.anything()
 		);
 		expect(invokeToolCalledWhileSpanActive).toBe(true);
+	});
+
+	test('Inline tool loop associates each round and the turn with the X-GitHub-Copilot-Request-Te of the call that produced it', async () => {
+		const harness = createInlineChatHarness({
+			responses: [
+				{ value: 'first try', requestId: 'request-1', toolCalls: [{ id: 'tool-call-1', name: ToolName.ApplyPatch, arguments: '{}' }], gitHubCopilotRequestTe: 'false' },
+				{ value: 'second try', requestId: 'request-2', toolCalls: [{ id: 'tool-call-2', name: ToolName.ApplyPatch, arguments: '{}' }], gitHubCopilotRequestTe: ' TRUE ' },
+			],
+			toolResults: [{ hasError: true }, { hasError: false }],
+			markEditOnSuccessfulTool: true,
+		});
+
+		try {
+			await harness.run();
+		} finally {
+			harness.restore();
+		}
+
+		const recordedRounds = (harness.telemetry.sendToolCallingTelemetry as Mock).mock.calls[0][0] as ToolCallRound[];
+		const turnMetadata = harness.turn.setMetadata.mock.calls.map(call => call[0]).filter(metadata => metadata instanceof TurnResponseGitHubCopilotRequestTe);
+		expect({
+			rounds: recordedRounds.map(round => getGitHubCopilotRequestTeForRound(round)),
+			turn: turnMetadata.map(metadata => metadata.value),
+		}).toEqual({
+			rounds: ['false', ' TRUE '],
+			turn: [' TRUE '],
+		});
 	});
 
 	test('Inline tool loop aggregates tokens, tool rounds, and metrics across recovered tool failures', async () => {
@@ -452,6 +484,7 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 					modelCallId: response.modelCallId,
 					resolvedModel: response.resolvedModel ?? 'gpt-4o-2024-08-06',
 					usage: response.usage,
+					...(response.gitHubCopilotRequestTe === undefined ? {} : { gitHubCopilotRequestTe: response.gitHubCopilotRequestTe }),
 				};
 			})
 		};
@@ -522,6 +555,7 @@ function createInlineChatHarness(options: InlineChatHarnessOptions = {}) {
 		return {
 			otelService,
 			telemetry,
+			turn: mockTurn,
 			mockEndpoint,
 			mockToolsService,
 			run: () => intent.handleRequest(conversation, request, stream, CancellationToken.None, documentContext, 'agent', ChatLocation.Editor, chatTelemetry),

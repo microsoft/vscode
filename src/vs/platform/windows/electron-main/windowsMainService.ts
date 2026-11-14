@@ -37,10 +37,11 @@ import product from '../../product/common/product.js';
 import { IProtocolMainService } from '../../protocol/electron-main/protocol.js';
 import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
-import { AgentsWindowOpenSource, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
+import { AgentsWindowOpenSource, IAgentsWindowDraft, IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowFolderLocation, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
 import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
-import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
+import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnRequestedPath, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
+import { IFolderLocationsMainService, IValidatedFolderLocation } from './folderLocationsMainService.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
 import { hasWorkspaceFileExtension, IAnyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, toWorkspaceIdentifier } from '../../workspace/common/workspace.js';
@@ -59,6 +60,7 @@ import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryW
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
+import { resolveAgentsWindowFolder, sendAgentsWindowOpenIntent } from './agentsWindow.js';
 
 //#region Helper Interfaces
 
@@ -69,6 +71,9 @@ interface IOpenBrowserWindowOptions {
 	readonly cli?: NativeParsedArgs;
 
 	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	readonly folderLocation?: IWindowFolderLocation;
+	readonly folderLocationMissing?: { readonly label: string };
 
 	readonly remoteAuthority?: string;
 
@@ -206,6 +211,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidChangeFullScreen = this._register(new Emitter<{ window: ICodeWindow; fullscreen: boolean }>());
 	readonly onDidChangeFullScreen = this._onDidChangeFullScreen.event;
 
+	private readonly _onDidChangeAlwaysOnTop = this._register(new Emitter<{ window: ICodeWindow; alwaysOnTop: boolean }>());
+	readonly onDidChangeAlwaysOnTop = this._onDidChangeAlwaysOnTop.event;
+
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: ICodeWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
 
@@ -235,7 +243,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService,
-		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService
+		@ICSSDevelopmentService private readonly cssDevelopmentService: ICSSDevelopmentService,
+		@IFolderLocationsMainService private readonly folderLocationsMainService: IFolderLocationsMainService
 	) {
 		super();
 
@@ -292,19 +301,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, sessionResource?: URI, source?: AgentsWindowOpenSource): Promise<ICodeWindow[]> {
+	async openAgentsWindow(openConfig: IOpenConfiguration, folderUri?: URI, reveal?: URI | 'new', source?: AgentsWindowOpenSource, folderUriIsDefault = false, draft?: IAgentsWindowDraft, onboardingSessionResource?: URI, revealRemoteAuthority?: string): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#openAgentsWindow');
+
+		const existingWindows = this.getWindows();
+		folderUri = await resolveAgentsWindowFolder(openConfig, folderUri, reveal === 'new' ? undefined : reveal, source, cli => this.doExtractPathsFromCLI(cli));
 
 		// Open in a new browser window with the agent sessions workspace
 		const windows = await this.open(await this.ensureAgentsWindow(openConfig));
 
-		// Single IPC carrying the folder to pre-select and an optional existing-
-		// session resource to open. The handler in the agents window sequences
-		// them (folder → open session) so the session-open doesn't race the
-		// folder-resolve.
 		if (windows.length > 0) {
-			const openSource = source ?? (openConfig.cli.agents ? AgentsWindowOpenSource.CommandLine : AgentsWindowOpenSource.Unknown);
-			windows[0].sendWhenReady('vscode:selectAgentsFolder', CancellationToken.None, folderUri?.toJSON(), sessionResource?.toJSON(), openSource);
+			sendAgentsWindowOpenIntent(windows[0], existingWindows.includes(windows[0]), openConfig, { folderUri, reveal, revealRemoteAuthority, source, folderUriIsDefault, draft, onboardingSessionResource });
 		}
 
 		return windows;
@@ -358,7 +365,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		let maybeOpenEmptyWindow = false;
 
 		// Identify things to open from open config
-		const pathsToOpen = await this.getPathsToOpen(openConfig);
+		const { pathsToOpen, requestedPaths } = await this.getPathsToOpen(openConfig);
 		this.logService.trace('windowsManager#open pathsToOpen', pathsToOpen);
 		for (const path of pathsToOpen) {
 			if (isSingleFolderWorkspacePathToOpen(path)) {
@@ -471,6 +478,10 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		if (isMacintosh && openConfig.initialStartup && this.windowsStateHandler.exactRestore?.hideApplication) {
+			app.hide();
+		}
+
 		// Remember in recent document list (unless this opens for extension development)
 		// Also do not add paths when files are opened for diffing or merging, only if opened individually
 		const isDiff = filesToOpen && filesToOpen.filesToDiff.length > 0;
@@ -495,6 +506,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		// Handle `<app> chat`
 		this.handleChatRequest(openConfig, usedWindows);
+
+		// Handle a chat session to open in the window of the requested path
+		this.handleChatSessionToOpen(openConfig, requestedPaths, usedWindows, filesOpenedInWindow);
 
 		return usedWindows;
 	}
@@ -536,6 +550,27 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (windowHandlingChatRequest) {
 			windowHandlingChatRequest.sendWhenReady('vscode:handleChatRequest', CancellationToken.None, openConfig.cli.chat);
 			windowHandlingChatRequest.focus();
+		}
+	}
+
+	private handleChatSessionToOpen(openConfig: IOpenConfiguration, requestedPaths: readonly IPathToOpen[], usedWindows: ICodeWindow[], filesOpenedInWindow: ICodeWindow | undefined): void {
+		const chatSessionToOpen = openConfig.chatSessionToOpen;
+		if (!chatSessionToOpen) {
+			return;
+		}
+
+		// Windows from the previous session can open next to the requested
+		// path (`window.restoreWindows`), so only its own window qualifies
+		const window = findWindowOnRequestedPath(usedWindows, requestedPaths, filesOpenedInWindow);
+		if (!window) {
+			this.logService.trace('windowsManager#open: no window opened the requested path, not opening its chat session');
+			return;
+		}
+
+		if (chatSessionToOpen.kind === 'copilotCli') {
+			window.sendWhenReady('vscode:openCopilotCliSession', CancellationToken.None, chatSessionToOpen.sessionId);
+		} else {
+			window.sendWhenReady('vscode:openChatSession', CancellationToken.None, chatSessionToOpen.resource);
 		}
 	}
 
@@ -800,8 +835,37 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		});
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {
+	/**
+	 * The alternate location a fresh open of a local folder starts at: the one the folder was last at.
+	 * The window validates it on startup and falls back to the folder itself.
+	 */
+	private getRememberedFolderLocation(folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen): IWindowFolderLocation | undefined {
+		const workspace = folderOrWorkspace.workspace;
+		if (folderOrWorkspace.remoteAuthority || !workspace || !isSingleFolderWorkspaceIdentifier(workspace) || workspace.uri.scheme !== Schemas.file) {
+			return undefined;
+		}
+
+		return this.folderLocationsMainService.getFolderLocation(workspace.uri);
+	}
+
+	/**
+	 * Like a missing folder of the last session, a missing alternate location never blocks the opening:
+	 * the window opens at the workspace's own location and tells the user.
+	 */
+	private async validateFolderLocation(folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen): Promise<IValidatedFolderLocation> {
+		const candidate = this.getRememberedFolderLocation(folderOrWorkspace);
+		const workspace = folderOrWorkspace.workspace;
+		if (!candidate || !workspace || !isSingleFolderWorkspaceIdentifier(workspace) || folderOrWorkspace.remoteAuthority) {
+			return {};
+		}
+
+		return this.folderLocationsMainService.validateFolderLocation(workspace.uri, candidate);
+	}
+
+	private async doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IWorkspacePathToOpen | ISingleFolderWorkspacePathToOpen, forceNewWindow: boolean, filesToOpen: IFilesToOpen | undefined, windowToUse?: ICodeWindow): Promise<ICodeWindow> {
 		this.logService.trace('windowsManager#doOpenFolderOrWorkspace', { folderOrWorkspace, filesToOpen });
+
+		const folderLocation = await this.validateFolderLocation(folderOrWorkspace);
 
 		if (!windowToUse) {
 			const resolved = this.resolveContextWindow(openConfig, forceNewWindow);
@@ -811,6 +875,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 		return this.openInBrowserWindow({
 			workspace: folderOrWorkspace.workspace,
+			...folderLocation,
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
 			initialStartup: openConfig.initialStartup,
@@ -824,7 +889,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		});
 	}
 
-	private async getPathsToOpen(openConfig: IOpenConfiguration): Promise<IPathToOpen[]> {
+	private async getPathsToOpen(openConfig: IOpenConfiguration): Promise<{ readonly pathsToOpen: IPathToOpen[]; readonly requestedPaths: readonly IPathToOpen[] }> {
 		let pathsToOpen: IPathToOpen[];
 		let isCommandLineOrAPICall = false;
 		let isRestoringPaths = false;
@@ -885,6 +950,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 		}
 
+		// The paths that were asked for, without windows restored next to them
+		const requestedPaths = isCommandLineOrAPICall ? [...pathsToOpen] : [];
+
 		// Check for `window.restoreWindows` setting to include all windows
 		// from the previous session if this is the initial startup and we have
 		// not restored windows already otherwise.
@@ -895,7 +963,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			pathsToOpen.unshift(...lastSessionPaths.filter(path => isWorkspacePathToOpen(path) || isSingleFolderWorkspacePathToOpen(path) || path.backupPath));
 		}
 
-		return pathsToOpen;
+		return { pathsToOpen, requestedPaths };
 	}
 
 	private async doExtractPathsFromAPI(openConfig: IOpenConfiguration): Promise<IPathToOpen[]> {
@@ -932,7 +1000,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		return coalesce(pathsToOpen);
 	}
 
-	private async doExtractPathsFromCLI(cli: NativeParsedArgs): Promise<IPath[]> {
+	private async doExtractPathsFromCLI(cli: NativeParsedArgs): Promise<IPathToOpen[]> {
 		const pathsToOpen: IPathToOpen[] = [];
 		const pathResolveOptions: IPathResolveOptions = {
 			ignoreFileNotFound: true,
@@ -1567,6 +1635,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			remoteAuthority: options.remoteAuthority,
 			workspace: options.workspace,
+			folderLocation: options.folderLocation,
+			folderLocationMissing: options.folderLocationMissing,
 			userEnv: { ...this.initialUserEnv, ...options.userEnv },
 
 			nls: {
@@ -1603,6 +1673,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// New window
 		if (!window) {
 			const state = this.windowsStateHandler.getNewWindowState(configuration);
+			const minimized = !!options.initialStartup && !!this.windowsStateHandler.exactRestore && !!state.minimized;
 
 			// Create the window
 			mark('code/willCreateCodeWindow');
@@ -1610,7 +1681,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				state,
 				extensionDevelopmentPath: configuration.extensionDevelopmentPath,
 				isExtensionTestHost: !!configuration.extensionTestsPath,
-				isSessionsWindow: configuration.isSessionsWindow
+				isSessionsWindow: configuration.isSessionsWindow,
+				minimized
 			});
 			mark('code/didCreateCodeWindow');
 
@@ -1638,6 +1710,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			disposables.add(createdWindow.onDidUnmaximize(() => this._onDidUnmaximizeWindow.fire(createdWindow)));
 			disposables.add(createdWindow.onDidEnterFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: true })));
 			disposables.add(createdWindow.onDidLeaveFullScreen(() => this._onDidChangeFullScreen.fire({ window: createdWindow, fullscreen: false })));
+			disposables.add(createdWindow.onDidChangeAlwaysOnTop(alwaysOnTop => this._onDidChangeAlwaysOnTop.fire({ window: createdWindow, alwaysOnTop })));
 			disposables.add(createdWindow.onDidTriggerSystemContextMenu(({ x, y }) => this._onDidTriggerSystemContextMenu.fire({ window: createdWindow, x, y })));
 
 			const webContents = assertReturnsDefined(createdWindow.win?.webContents);
@@ -1840,5 +1913,11 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		const window = this.getWindowById(browserWindow.id);
 
 		return window?.matches(webContents) ? window : undefined;
+	}
+
+	restoreExactlyOnNextStartup(restore: boolean): void {
+		this.windowsStateHandler.setNextExactRestore(restore ? {
+			hideApplication: isMacintosh && app.isHidden()
+		} : undefined);
 	}
 }

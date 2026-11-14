@@ -6,7 +6,7 @@
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -19,19 +19,25 @@ import { IAgentHostToolSetEnablementService, IToolEnablementState } from '../../
 import { IAICustomizationItemsModel, ItemsModelSection } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemsModel.js';
 import { ICustomizationHarnessService, IHarnessDescriptor } from '../../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { getChatSessionType } from '../../../../../workbench/contrib/chat/common/model/chatUri.js';
-import { AICustomizationManagementSection } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAICustomizationListItem } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationItemSource.js';
-import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
-import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem, ICustomizationItemConfig } from '../../browser/customizationsToolbar.contribution.js';
+import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
+import { CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
+import { CUSTOMIZATION_ITEMS, ICustomizationItemConfig } from '../../../../../workbench/contrib/sessions/browser/customizationItems.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
-import { Menus } from '../../../../browser/menus.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { IAutomationService } from '../../../../../workbench/contrib/chat/common/automations/automationService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ContributionEnablementState } from '../../../../../workbench/contrib/chat/common/enablement.js';
+import { IAgentHostCustomizationService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostCustomizationService.js';
+import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountService } from '../../../../../workbench/contrib/sessions/browser/customizationMcpServerCount.js';
+import { getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { aiCustomizationManagementSectionRegistry } from '../../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 
 // Ensure color registrations are loaded
-import '../../../../common/theme.js';
+import '../../../../../workbench/contrib/sessions/common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
 
 
@@ -150,12 +156,16 @@ function createMockItemsModel(counts?: ICustomizationCounts): IAICustomizationIt
 }
 
 function createMockMcpService(serverCount: number = 0): IMcpService {
-	const MockServer = mock<IMcpServer>();
-	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, () => new MockServer()));
+	const servers = observableValue<readonly IMcpServer[]>('mockMcpServers', Array.from({ length: serverCount }, () => new class extends mock<IMcpServer>() {
+		override readonly enablement = constObservable(ContributionEnablementState.EnabledProfile);
+	}()));
 	return new class extends mock<IMcpService>() {
 		override readonly servers = servers;
 	}();
 }
+
+// The explorer mounts fixtures together, and they share the section registry, so the badge is registered once.
+aiCustomizationManagementSectionRegistry.registerBadge(AICustomizationManagementSection.Extensions, getExtensionSuggestionsSectionBadge);
 
 function createMockHarnessService(hiddenSections: readonly string[] = []): ICustomizationHarnessService {
 	const descriptor: IHarnessDescriptor = {
@@ -177,10 +187,10 @@ function createMockHarnessService(hiddenSections: readonly string[] = []): ICust
 // Render helper
 // ============================================================================
 
-function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number }): void {
+function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?: number; counts?: ICustomizationCounts; hiddenSections?: readonly string[]; height?: number; extensionSuggestions?: boolean; collapsed?: boolean; headerHovered?: boolean }): void {
 	ctx.container.style.width = '300px';
 	ctx.container.style.height = `${options?.height ?? 260}px`;
-	ctx.container.style.backgroundColor = 'var(--vscode-sideBar-background)';
+	ctx.container.style.backgroundColor = 'var(--vscode-agents-background)';
 
 	const actionViewItemService = new FixtureActionViewItemService();
 
@@ -197,11 +207,16 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidEditorsChange = Event.None;
 			}());
 			reg.defineInstance(ISessionsService, new class extends mock<ISessionsService>() {
-				override readonly activeSession = observableValue('mockActiveSession', undefined);
+				readonly activeSession = observableValue('mockActiveSession', undefined);
 			}());
 			reg.defineInstance(IAICustomizationItemsModel, createMockItemsModel(options?.counts));
 			reg.defineInstance(ICustomizationHarnessService, createMockHarnessService(options?.hiddenSections));
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
+			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
+				override readonly onDidChangeCustomizations = Event.None;
+				override getMcpServers() { return []; }
+			}());
+			reg.define(IAICustomizationMcpServerCountService, AICustomizationMcpServerCountService);
 			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
 				override readonly plugins = observableValue<readonly never[]>('mockPlugins', []);
 			}());
@@ -213,6 +228,12 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 			}());
 			reg.defineInstance(IAutomationService, new class extends mock<IAutomationService>() {
 				override readonly automations = observableValue<readonly never[]>('mockAutomations', []);
+			}());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly managementSections = SIDEBAR_ITEMS.flatMap(item => item.section ? [item.section] : []);
+			}());
+			reg.defineInstance(IAgentsWindowExtensionSuggestionsService, new class extends mock<IAgentsWindowExtensionSuggestionsService>() {
+				override readonly showBadge = constObservable(options?.extensionSuggestions ?? false);
 			}());
 		},
 	});
@@ -227,6 +248,21 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	ctx.disposableStore.add(
 		instantiationService.createInstance(AICustomizationShortcutsWidget, ctx.container, undefined)
 	);
+	if (options?.collapsed || options?.headerHovered) {
+		const header = ctx.container.querySelector<HTMLElement>('.ai-customization-header');
+		if (!header) {
+			throw new Error('Expected the customizations header.');
+		}
+		if (options.collapsed) {
+			header.click();
+		}
+		if (options.headerHovered) {
+			header.classList.add('hovered');
+		}
+	}
+	if (options?.headerHovered) {
+		ctx.container.querySelector<HTMLElement>('.ai-customization-header')?.classList.add('hovered');
+	}
 }
 
 // ============================================================================
@@ -238,6 +274,23 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 	Expanded: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: (ctx) => renderWidget(ctx),
+	}),
+
+	ExpandedHeaderHovered: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The expanded Customizations header is hovered. In high contrast themes, one solid active-contrast boundary surrounds the header without a nested inset outline.'],
+		render: (ctx) => renderWidget(ctx, { headerHovered: true }),
+	}),
+
+	CollapsedHeaderHovered: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		render: (ctx) => renderWidget(ctx, {
+			collapsed: true,
+			headerHovered: true,
+			counts: { skills: 30, instructions: 16 },
+		}),
 	}),
 
 	MinimumHeight: defineComponentFixture({
@@ -260,6 +313,30 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: (ctx) => renderWidget(ctx, {
 			mcpServerCount: 2,
 			counts: { agents: 2, skills: 30, instructions: 16, hooks: 4 },
+		}),
+	}),
+
+	WithExtensionSuggestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderWidget(ctx, { extensionSuggestions: true, height: 340 }),
+	}),
+
+	CollapsedWithExtensionSuggestions: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => renderWidget(ctx, {
+			extensionSuggestions: true,
+			collapsed: true,
+			counts: { skills: 30, instructions: 16 },
+		}),
+	}),
+	CollapsedHeaderHover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The collapsed Customizations header is hovered. In high contrast themes, a dashed active-contrast outline surrounds the header.'],
+		render: ctx => renderWidget(ctx, {
+			collapsed: true,
+			headerHovered: true,
+			counts: { skills: 30, instructions: 16 },
 		}),
 	}),
 

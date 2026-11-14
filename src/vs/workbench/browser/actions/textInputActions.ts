@@ -39,7 +39,16 @@ export function createTextInputActions(clipboardService: IClipboardService, logS
 			label: localize('paste', "Paste"),
 			run: async (element: unknown) => {
 				logService.trace('TextInputActionsProvider#paste');
-				const clipboardText = await clipboardService.readText();
+				let clipboardText: string;
+				try {
+					clipboardText = await clipboardService.readText();
+				} catch (error) {
+					logService.trace('TextInputActionsProvider#paste: reading the clipboard failed', error);
+					return;
+				}
+				if (!clipboardText) {
+					return; // nothing to paste, or the clipboard could not be read
+				}
 				if (isHTMLTextAreaElement(element) || isHTMLInputElement(element)) {
 					const selectionStart = element.selectionStart || 0;
 					const selectionEnd = element.selectionEnd || 0;
@@ -99,6 +108,10 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 			getAnchor: () => event,
 			getActions: () => this.textInputActions.value,
 			getActionsContext: () => target,
+			// Host the menu next to the input so that focus stays inside the input's
+			// owner (for example the quick input) while the menu is open
+			domForShadowRoot: target.parentElement ?? undefined,
+			hostAsPopover: true,
 		});
 	}
 }

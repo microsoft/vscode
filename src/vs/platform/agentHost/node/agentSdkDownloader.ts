@@ -5,11 +5,12 @@
 
 import * as fs from 'fs';
 import * as tar from 'tar';
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import * as path from '../../../base/common/path.js';
 import { format2 } from '../../../base/common/strings.js';
 import { URI } from '../../../base/common/uri.js';
@@ -21,7 +22,11 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IRequestService } from '../../request/common/request.js';
+import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IRequestContext } from '../../../base/parts/request/common/request.js';
+import { IAgentHostStorageService } from './agentHostStorageService.js';
+import { AGENT_SDK_CACHE_SENTINEL, removeUnusedAgentSdkVersions } from './agentSdkCache.js';
+import { reportAgentSdkDownload } from './agentSdkDownloadTelemetry.js';
 
 // #region Per-package strategy
 
@@ -53,7 +58,7 @@ export interface IAgentSdkPackage {
 	/**
 	 * Brand display name for user-facing progress, e.g. `'Claude'`, `'Codex'`.
 	 * The downloader puts this on {@link IAgentSdkDownloadProgress.displayName}
-	 * so clients can build a localized "Downloading {displayName} agent" label.
+	 * so clients can build a localized "Downloading {displayName} Agent" label.
 	 */
 	readonly displayName: string;
 	/** Env var that, when set, becomes the SDK root and short-circuits the download. */
@@ -144,6 +149,8 @@ export interface IAgentSdkDownloadProgress {
 	readonly receivedBytes: number;
 	/** Total bytes from `Content-Length`, or `undefined` when unknown (indeterminate). */
 	readonly totalBytes: number | undefined;
+	/** Whether a user-initiated flow explicitly requested that this download be surfaced. */
+	readonly explicitlyRequested: boolean;
 	/** Short, non-localized failure reason; present only when `phase: 'failed'`. */
 	readonly error?: string;
 }
@@ -159,6 +166,19 @@ export interface IAgentSdkDownloader {
 	 * progress to clients regardless of which session triggered the fetch.
 	 */
 	readonly onDidDownloadProgress: Event<IAgentSdkDownloadProgress>;
+
+	/** Whether the user has accepted future download-on-use for this package. */
+	hasDownloadConsent(pkg: IAgentSdkPackage): boolean;
+
+	/** Persist that the user accepted future download-on-use for this package. */
+	recordDownloadConsent(pkg: IAgentSdkPackage): Promise<void>;
+
+	/**
+	 * Keep download progress visible for a user-initiated flow that does not
+	 * have a session progress token, such as ChatGPT sign-in. Dispose the
+	 * returned handle when the flow finishes.
+	 */
+	acquireDownloadProgressInterest(pkg: IAgentSdkPackage): IDisposable;
 
 	/**
 	 * Returns the absolute path of the SDK root directory — the directory that
@@ -198,6 +218,9 @@ export interface IAgentSdkDownloader {
 	 * before the user has asked for anything.
 	 */
 	isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean>;
+
+	/** Returns an existing SDK root without downloading or repairing its cache. */
+	resolveInstalledSdkRoot(pkg: IAgentSdkPackage): Promise<string | undefined>;
 }
 
 // #endregion
@@ -206,6 +229,7 @@ export interface IAgentSdkDownloader {
 
 /** How long a `loadSdkRoot` failure latches before we try again. */
 const LOAD_FAILURE_NEGATIVE_CACHE_MS = 30_000;
+const AGENT_SDK_DOWNLOAD_CONSENT_STORAGE_KEY = 'agentSdkDownloadConsent';
 
 /**
  * Minimum gap between download-progress samples. A 70-95MB tarball over a fast
@@ -213,6 +237,12 @@ const LOAD_FAILURE_NEGATIVE_CACHE_MS = 30_000;
  * channel. ~250ms keeps the percentage visibly moving without spamming.
  */
 const PROGRESS_EMIT_THROTTLE_MS = 250;
+
+/** How long after startup the SDK cache cleanup runs, so it stays out of the way of startup work. */
+const SDK_CACHE_CLEANUP_DELAY_MS = 30_000;
+
+/** Minimum gap between refreshes of a cached SDK's last-used time while it keeps being used. */
+const LAST_USED_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
  * Parses a `Content-Length` header into a positive integer byte count, or
@@ -241,6 +271,8 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 	 * cacheDirs differ.
 	 */
 	private readonly _pendingDownloads = new Map<string, Promise<string>>();
+	/** Refcounted user-initiated progress interest, keyed by package id. */
+	private readonly _explicitProgressInterest = new Map<string, number>();
 
 	/**
 	 * Negative cache: most recent failure per package id, with an expiry.
@@ -262,8 +294,15 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		@IRequestService private readonly _requestService: IRequestService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IAgentHostStorageService private readonly _storageService: IAgentHostStorageService,
 	) {
 		super();
+		this._register(new RunOnceScheduler(() => {
+			removeUnusedAgentSdkVersions(URI.file(this._cacheRoot()), this._productService.agentSdks, this._fileService, this._logService).catch(err => {
+				this._logService.trace(`[AgentSdkDownloader] SDK cache cleanup failed: ${err}`);
+			});
+		}, SDK_CACHE_CLEANUP_DELAY_MS)).schedule();
 	}
 
 	isAvailable(pkg: IAgentSdkPackage): boolean {
@@ -273,20 +312,53 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		return !!this._productService.agentSdks?.[pkg.id] && resolveSdkTarget(pkg) !== undefined;
 	}
 
+	hasDownloadConsent(pkg: IAgentSdkPackage): boolean {
+		return this._readDownloadConsents().includes(pkg.id);
+	}
+
+	async recordDownloadConsent(pkg: IAgentSdkPackage): Promise<void> {
+		const consented = this._readDownloadConsents();
+		if (!consented.includes(pkg.id)) {
+			await this._storageService.setAndFlush(AGENT_SDK_DOWNLOAD_CONSENT_STORAGE_KEY, [...consented, pkg.id]);
+		}
+	}
+
+	private _readDownloadConsents(): readonly string[] {
+		const stored = this._storageService.get<unknown>(AGENT_SDK_DOWNLOAD_CONSENT_STORAGE_KEY);
+		return Array.isArray(stored) ? stored.filter(packageId => typeof packageId === 'string') : [];
+	}
+
+	acquireDownloadProgressInterest(pkg: IAgentSdkPackage): IDisposable {
+		this._explicitProgressInterest.set(pkg.id, (this._explicitProgressInterest.get(pkg.id) ?? 0) + 1);
+		return toDisposable(() => {
+			const count = this._explicitProgressInterest.get(pkg.id) ?? 0;
+			if (count <= 1) {
+				this._explicitProgressInterest.delete(pkg.id);
+			} else {
+				this._explicitProgressInterest.set(pkg.id, count - 1);
+			}
+		});
+	}
+
 	async isSdkResolvableWithoutDownload(pkg: IAgentSdkPackage): Promise<boolean> {
-		if (process.env[pkg.devOverrideEnvVar]) {
-			return true;
+		return (await this.resolveInstalledSdkRoot(pkg)) !== undefined;
+	}
+
+	async resolveInstalledSdkRoot(pkg: IAgentSdkPackage): Promise<string | undefined> {
+		const override = process.env[pkg.devOverrideEnvVar];
+		if (override) {
+			return override;
 		}
 		const config = this._productService.agentSdks?.[pkg.id];
 		if (!config) {
-			return false;
+			return undefined;
 		}
 		const sdkTarget = resolveSdkTarget(pkg);
 		if (!sdkTarget) {
-			return false;
+			return undefined;
 		}
-		const sentinel = URI.joinPath(URI.file(this._cacheDir(pkg.id, config.version, sdkTarget)), '.complete');
-		return this._fileService.exists(sentinel);
+		const root = this._cacheDir(pkg.id, config.version, sdkTarget);
+		return await this._fileService.exists(URI.joinPath(URI.file(root), AGENT_SDK_CACHE_SENTINEL)) ? root : undefined;
 	}
 
 	async loadSdkRoot(pkg: IAgentSdkPackage, token: CancellationToken): Promise<string> {
@@ -297,9 +369,11 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			return override;
 		}
 
-		// 2. Negative cache: a recent failure short-circuits without I/O.
+		// 2. Negative cache: a recent failure short-circuits without I/O. Not for a
+		// user who asked by hand, though — the latch exists to stop background retry
+		// storms, not to leave a Download button doing nothing for half a minute.
 		const latched = this._failureLatch.get(pkg.id);
-		if (latched && latched.expiresAt > Date.now()) {
+		if (latched && latched.expiresAt > Date.now() && !this._explicitProgressInterest.has(pkg.id)) {
 			throw latched.error;
 		}
 
@@ -351,14 +425,22 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		}
 
 		const cacheDir = this._cacheDir(pkg.id, config.version, sdkTarget);
-		const sentinel = URI.joinPath(URI.file(cacheDir), '.complete');
+		const sentinel = URI.joinPath(URI.file(cacheDir), AGENT_SDK_CACHE_SENTINEL);
 
 		// `.complete`'s mere presence is the integrity signal — extracts
 		// that crashed mid-way never write it. See `_download` for why
 		// the sentinel is written inside the tmp dir before the rename.
-		if (await this._fileService.exists(sentinel)) {
+		const cached = await this._fileService.stat(sentinel).catch(() => undefined);
+		if (cached) {
+			// Logged, not counted: a cache hit happens on every SDK method call
+			// and would drown the download funnel. It matters here because "was
+			// the SDK already there?" is the first question asked of a log where
+			// no download was ever attempted.
+			this._logService.trace(`[AgentSdkDownloader] ${pkg.id}: cache hit at ${cacheDir}`);
+			await this._recordUse(sentinel, cached.mtime);
 			return cacheDir;
 		}
+		this._logService.info(`[AgentSdkDownloader] ${pkg.id}: cache miss for version ${config.version} (${sdkTarget}); a download is required`);
 
 		// Download (deduped across concurrent callers in the same process).
 		// cacheDir is already unique per (pkg, version, sdkTarget) — within
@@ -374,18 +456,35 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		return pending;
 	}
 
+	private _cacheRoot(): string {
+		return path.join(this._environmentService.userDataPath, 'agent-host', 'sdk-cache');
+	}
+
 	private _cacheDir(packageId: string, sdkVersion: string, sdkTarget: string): string {
 		// `sdkTarget` is in the path so macOS Universal builds keep two
 		// independent caches — one per resolved target — instead of
 		// thrashing a single shared one as launches alternate.
-		return path.join(
-			this._environmentService.userDataPath,
-			'agent-host',
-			'sdk-cache',
-			packageId,
-			sdkVersion,
-			sdkTarget,
-		);
+		return path.join(this._cacheRoot(), packageId, sdkVersion, sdkTarget);
+	}
+
+	/**
+	 * Refreshes the modification time of a cached SDK's sentinel, at most once per
+	 * {@link LAST_USED_REFRESH_INTERVAL_MS}. {@link removeUnusedAgentSdkVersions} in
+	 * any process sharing the cache, such as a remote server of another version,
+	 * reads it as the SDK's last use.
+	 */
+	private async _recordUse(sentinel: URI, lastUsed: number): Promise<void> {
+		if (Date.now() - lastUsed < LAST_USED_REFRESH_INTERVAL_MS) {
+			return;
+		}
+		try {
+			// `utimes`, not a rewrite: it fails instead of recreating a sentinel
+			// for a version that another process has just removed.
+			const now = new Date();
+			await fs.promises.utimes(sentinel.fsPath, now, now);
+		} catch (err) {
+			this._logService.trace(`[AgentSdkDownloader] could not record use of ${sentinel.fsPath}: ${err}`);
+		}
 	}
 
 	private async _download(
@@ -416,14 +515,14 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 		const downloadId = generateUuid();
 		let lastReceived = 0;
 		let lastTotal: number | undefined;
-		this._fireProgress(pkg, downloadId, 'started', 0, undefined);
+		this._fireProgress(pkg, downloadId, start, 'started', 0, undefined);
 
 		try {
 			const tarballPath = path.join(tmpDir, 'sdk.tgz');
 			await this._fetch(url, tarballPath, token, (receivedBytes, totalBytes) => {
 				lastReceived = receivedBytes;
 				lastTotal = totalBytes;
-				this._fireProgress(pkg, downloadId, 'progress', receivedBytes, totalBytes);
+				this._fireProgress(pkg, downloadId, start, 'progress', receivedBytes, totalBytes);
 			});
 			await this._extractTarGz(tarballPath, tmpDir);
 			await this._fileService.del(URI.file(tarballPath));
@@ -436,7 +535,7 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			// matters, and the cache dir path already encodes
 			// `<pkg>/<version>/<sdkTarget>` for debugging.
 			await this._fileService.writeFile(
-				URI.joinPath(tmpDirUri, '.complete'),
+				URI.joinPath(tmpDirUri, AGENT_SDK_CACHE_SENTINEL),
 				VSBuffer.fromString(''),
 			);
 
@@ -446,24 +545,24 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 			} catch (err) {
 				if (await this._handleRenameLoser(err, sentinel, tmpDirUri)) {
 					this._logService.info(`[AgentSdkDownloader] ${pkg.id}: lost rename race, using existing cache`);
-					this._fireProgress(pkg, downloadId, 'completed', lastReceived, lastTotal);
+					this._fireProgress(pkg, downloadId, start, 'completed', lastReceived, lastTotal);
 					return cacheDir;
 				}
 				throw err;
 			}
 
 			const elapsed = Math.round((Date.now() - start) / 1000);
-			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded in ${elapsed}s`);
-			this._fireProgress(pkg, downloadId, 'completed', lastTotal ?? lastReceived, lastTotal);
+			this._logService.info(`[AgentSdkDownloader] ${pkg.id}: downloaded ${lastTotal ?? lastReceived} bytes in ${elapsed}s`);
+			this._fireProgress(pkg, downloadId, start, 'completed', lastTotal ?? lastReceived, lastTotal);
 			return cacheDir;
 		} catch (err) {
 			await this._delIgnoringMissing(tmpDirUri);
 			if (token.isCancellationRequested) {
-				this._fireProgress(pkg, downloadId, 'failed', lastReceived, lastTotal, 'cancelled');
+				this._fireProgress(pkg, downloadId, start, 'failed', lastReceived, lastTotal, 'cancelled');
 				throw new CancellationError();
 			}
 			const message = err instanceof Error ? err.message : String(err);
-			this._fireProgress(pkg, downloadId, 'failed', lastReceived, lastTotal, message);
+			this._fireProgress(pkg, downloadId, start, 'failed', lastReceived, lastTotal, message);
 			throw new Error(
 				`Failed to download ${pkg.id} SDK from ${url} ` +
 				`(cache target: ${cacheDir}). ` +
@@ -476,20 +575,27 @@ export class AgentSdkDownloader extends Disposable implements IAgentSdkDownloade
 	private _fireProgress(
 		pkg: IAgentSdkPackage,
 		downloadId: string,
+		startedAt: number,
 		phase: AgentSdkDownloadPhase,
 		receivedBytes: number,
 		totalBytes: number | undefined,
 		error?: string,
 	): void {
-		this._onDidDownloadProgress.fire({
+		const progress: IAgentSdkDownloadProgress = {
 			downloadId,
 			packageId: pkg.id,
 			displayName: pkg.displayName,
 			phase,
 			receivedBytes,
 			totalBytes,
+			explicitlyRequested: this._explicitProgressInterest.has(pkg.id),
 			...(error !== undefined ? { error } : {}),
-		});
+		};
+		this._onDidDownloadProgress.fire(progress);
+		// Endpoints only — the throttled `progress` frames would flood the funnel.
+		if (phase !== 'progress') {
+			reportAgentSdkDownload(this._telemetryService, this._logService, progress, Date.now() - startedAt);
+		}
 	}
 
 	private async _handleRenameLoser(

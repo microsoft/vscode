@@ -5,12 +5,13 @@
 
 import { localize, localize2 } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from '../../../common/contributions.js';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { hasWorkspaceFileExtension, IWorkspaceContextService, WorkbenchState, WORKSPACE_SUFFIX } from '../../../../platform/workspace/common/workspace.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INeverShowAgainOptions, INotificationService, NeverShowAgainScope, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { NotificationText } from '../../../../platform/notification/common/notificationMessage.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isEqual, joinPath } from '../../../../base/common/resources.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -23,6 +24,7 @@ import { ActiveEditorContext, IsSessionsWindowContext, ResourceContextKey, Tempo
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { TEXT_FILE_EDITOR_ID } from '../../files/common/files.js';
 import './recentRemoteFolderPruner.js';
+import { FolderLocationStatusBarContribution } from './folderLocationStatusBar.js';
 
 /**
  * A workbench contribution that will look for `.code-workspace` files in the root of the
@@ -60,19 +62,16 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 
 	private doHandleWorkspaceFiles(folder: URI, workspaces: string[]): void {
 		const neverShowAgain: INeverShowAgainOptions = { id: 'workspaces.dontPromptToOpen', scope: NeverShowAgainScope.WORKSPACE, isSecondary: true };
+		const learnMoreLink = NotificationText.link(localize('workspaceFilesLearnMore', "Learn more"), 'https://go.microsoft.com/fwlink/?linkid=2025315');
 
 		// Prompt to open one workspace
 		if (workspaces.length === 1) {
 			const workspaceFile = workspaces[0];
 
-			this.notificationService.prompt(Severity.Info, localize(
-				{
-					key: 'foundWorkspace',
-					comment: ['{Locked="]({1})"}']
-				},
-				"This folder contains a workspace file '{0}'. Do you want to open it? [Learn more]({1}) about workspace files.",
+			this.notificationService.prompt(Severity.Info, NotificationText.format(
+				localize('foundWorkspaceLinked', "This folder contains a workspace file '{0}'. Do you want to open it? {1} about workspace files."),
 				workspaceFile,
-				'https://go.microsoft.com/fwlink/?linkid=2025315'
+				learnMoreLink
 			), [{
 				label: localize('openWorkspace', "Open Workspace"),
 				run: () => this.hostService.openWindow([{ workspaceUri: joinPath(folder, workspaceFile) }])
@@ -84,10 +83,10 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 
 		// Prompt to select a workspace from many
 		else if (workspaces.length > 1) {
-			this.notificationService.prompt(Severity.Info, localize({
-				key: 'foundWorkspaces',
-				comment: ['{Locked="]({0})"}']
-			}, "This folder contains multiple workspace files. Do you want to open one? [Learn more]({0}) about workspace files.", 'https://go.microsoft.com/fwlink/?linkid=2025315'), [{
+			this.notificationService.prompt(Severity.Info, NotificationText.format(
+				localize('foundWorkspacesLinked', "This folder contains multiple workspace files. Do you want to open one? {0} about workspace files."),
+				learnMoreLink
+			), [{
 				label: localize('selectWorkspace', "Select Workspace"),
 				run: () => {
 					this.quickInputService.pick(
@@ -107,6 +106,7 @@ export class WorkspacesFinderContribution extends Disposable implements IWorkben
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspacesFinderContribution, LifecyclePhase.Eventually);
+registerWorkbenchContribution2(FolderLocationStatusBarContribution.ID, FolderLocationStatusBarContribution, WorkbenchPhase.AfterRestored);
 
 // Render "Open Workspace" button in *.code-workspace files
 

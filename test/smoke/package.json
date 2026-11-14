@@ -4,20 +4,37 @@
   "license": "MIT",
   "main": "./src/main.js",
   "scripts": {
-    "compile": "cd ../automation && npm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc6",
-    "watch-automation": "cd ../automation && npm run watch",
+    "compile": "cd ../automation && pnpm run compile && cd ../smoke && node ../../node_modules/typescript/bin/tsc6",
+    "watch-automation": "cd ../automation && pnpm run watch",
     "watch-smoke": "node ../../node_modules/typescript/bin/tsc6 --watch --preserveWatchOutput",
     "watch": "npm-run-all2 -lp watch-automation watch-smoke",
     "mocha": "node ../node_modules/mocha/bin/mocha"
   },
   "dependencies": {
-    "ncp": "^2.0.0",
-    "node-fetch": "^2.6.7"
+    "@microsoft/dev-tunnels-contracts": "^1.3.61",
+    "@microsoft/dev-tunnels-management": "^1.3.61",
+    "@vscode/sqlite3": "5.1.12-vscode",
+    "axios": "^1.20.0",
+    "graceful-fs": "^4.2.11",
+    "kerberos": "2.1.1",
+    "minimist": "^1.2.8",
+    "node-fetch": "^2.6.7",
+    "ssh2": "^1.16.0",
+    "tree-kill": "1.2.2",
+    "vscode-jsonrpc": "^8.2.1",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
-    "@types/ncp": "2.0.1",
+    "@playwright/test": "^1.61.1",
+    "@types/kerberos": "^1.1.2",
+    "@types/minimist": "^1.2.1",
+    "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
     "@types/node-fetch": "^2.5.10",
+    "@types/ssh2": "^1.15.4",
+    "@types/ws": "^8.18.1",
+    "@vscode/test-electron": "^2.4.0",
+    "mocha": "^10.8.2",
     "npm-run-all2": "^8.0.4"
   }
 }

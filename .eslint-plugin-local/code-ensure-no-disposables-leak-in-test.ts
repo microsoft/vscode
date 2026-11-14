@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as estree from 'estree';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 
-export default new class EnsureNoDisposablesAreLeakedInTestSuite implements eslint.Rule.RuleModule {
+export default new class EnsureNoDisposablesAreLeakedInTestSuite implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		type: 'problem',
 		messages: {
 			ensure: 'Suites should include a call to `ensureNoDisposablesAreLeakedInTestSuite()` to ensure no disposables are leaked in tests.'
@@ -17,17 +16,17 @@ export default new class EnsureNoDisposablesAreLeakedInTestSuite implements esli
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		const config = context.options[0] as { exclude: string[] };
 
-		const needle = context.getFilename().replace(/\\/g, '/');
+		const needle = context.filename.replace(/\\/g, '/');
 		if (config.exclude.some((e) => needle.endsWith(e))) {
 			return {};
 		}
 
 		return {
-			[`Program > ExpressionStatement > CallExpression[callee.name='suite']`]: (node: estree.Node) => {
-				const src = context.getSourceCode().getText(node);
+			[`Program > ExpressionStatement > CallExpression[callee.name='suite']`]: (node: ESTree.Node) => {
+				const src = context.sourceCode.getText(node);
 				if (!src.includes('ensureNoDisposablesAreLeakedInTestSuite(')) {
 					context.report({
 						node,

@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ChatInputRequestPurpose } from '../../../common/meta/agentChatInputRequestMeta.js';
 import { ChatInputAnswerState, ChatInputAnswerValueKind, ChatInputQuestionKind, ChatInputResponseKind, type ChatInputAnswer } from '../../../common/state/sessionState.js';
 import { answerStrings, buildUserInputRequest, emptyUserInputResponse, userInputResponseFromAnswers } from '../../../node/codex/codexUserInputMapper.js';
 import type { ToolRequestUserInputQuestion } from '../../../node/codex/protocol/generated/v2/ToolRequestUserInputQuestion.js';
@@ -24,6 +25,7 @@ suite('codexUserInputMapper', () => {
 	test('buildUserInputRequest maps select and text questions', () => {
 		assert.deepStrictEqual(buildUserInputRequest('req-1', [selectQuestion, textQuestion]), {
 			id: 'req-1',
+			_meta: { purpose: ChatInputRequestPurpose.AskUser },
 			questions: [
 				{
 					kind: ChatInputQuestionKind.SingleSelect,
@@ -44,6 +46,18 @@ suite('codexUserInputMapper', () => {
 		assert.deepStrictEqual(
 			userInputResponseFromAnswers([selectQuestion, textQuestion], ChatInputResponseKind.Accept, answers),
 			{ answers: { q1: { answers: ['Banana'] }, q2: { answers: ['Ada'] } } },
+		);
+	});
+
+	test('freeform-only selections do not add an empty Codex answer', () => {
+		assert.deepStrictEqual(
+			userInputResponseFromAnswers([selectQuestion], ChatInputResponseKind.Accept, {
+				q1: {
+					state: ChatInputAnswerState.Submitted,
+					value: { kind: ChatInputAnswerValueKind.Selected, value: '', freeformValues: ['Cherry'] },
+				},
+			}),
+			{ answers: { q1: { answers: ['Cherry'] } } },
 		);
 	});
 

@@ -6,7 +6,8 @@
 import type { IExperimentationFilterProvider } from 'tas-client';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
+import { mapsStrictEqualIgnoreOrder } from '../../../../base/common/map.js';
+import { getInternalOrg, isInternalAccount } from '../../../../platform/assignment/common/assignment.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -55,6 +56,11 @@ export enum ExtensionsFilter {
 	 * Whether the `fcv1` flag is set to `'1'` in the copilot token.
 	 */
 	CopilotIsFcv1 = 'X-GitHub-Copilot-IsFcv1',
+
+	/**
+	 * Whether the account belongs to a Proxima deployment.
+	 */
+	CopilotIsProxima = 'X-GitHub-Copilot-IsProxima',
 }
 
 enum StorageVersionKeys {
@@ -66,6 +72,7 @@ enum StorageVersionKeys {
 	CopilotTrackingId = 'extensionsAssignmentFilterProvider.copilotTrackingId',
 	CopilotIsSn = 'extensionsAssignmentFilterProvider.copilotIsSn',
 	CopilotIsFcv1 = 'extensionsAssignmentFilterProvider.copilotIsFcv1',
+	CopilotIsProxima = 'extensionsAssignmentFilterProvider.copilotIsProxima',
 }
 
 export class CopilotAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
@@ -79,6 +86,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	private copilotTrackingId: string | undefined;
 	private copilotIsSn: string | undefined;
 	private copilotIsFcv1: string | undefined;
+	private copilotIsProxima: string | undefined;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
@@ -100,6 +108,11 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this.copilotTrackingId = this._storageService.get(StorageVersionKeys.CopilotTrackingId, StorageScope.PROFILE);
 		this.copilotIsSn = this._storageService.get(StorageVersionKeys.CopilotIsSn, StorageScope.PROFILE);
 		this.copilotIsFcv1 = this._storageService.get(StorageVersionKeys.CopilotIsFcv1, StorageScope.PROFILE);
+		this.copilotIsProxima = this._storageService.get(StorageVersionKeys.CopilotIsProxima, StorageScope.PROFILE);
+
+		this.updateExtensionVersions();
+		this.updateCopilotEntitlementInfo();
+		this.updateCopilotTokenInfo();
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(extensionIdentifiers => {
 			if (extensionIdentifiers.some(identifier => ExtensionIdentifier.equals(identifier, 'github.copilot') || ExtensionIdentifier.equals(identifier, 'github.copilot-chat'))) {
@@ -114,10 +127,6 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this._register(this._defaultAccountService.onDidChangeCopilotTokenInfo(() => {
 			this.updateCopilotTokenInfo();
 		}));
-
-		this.updateExtensionVersions();
-		this.updateCopilotEntitlementInfo();
-		this.updateCopilotTokenInfo();
 	}
 
 	private async updateExtensionVersions() {
@@ -181,16 +190,19 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		const tokenInfo = this._defaultAccountService.copilotTokenInfo;
 		const newIsSn = tokenInfo?.sn === '1' ? '1' : '0';
 		const newIsFcv1 = tokenInfo?.fcv1 === '1' ? '1' : '0';
+		const newIsProxima = tokenInfo?.st && tokenInfo.st !== 'dotcom' ? '1' : '0';
 
-		if (this.copilotIsSn === newIsSn && this.copilotIsFcv1 === newIsFcv1) {
+		if (this.copilotIsSn === newIsSn && this.copilotIsFcv1 === newIsFcv1 && this.copilotIsProxima === newIsProxima) {
 			return;
 		}
 
 		this.copilotIsSn = newIsSn;
 		this.copilotIsFcv1 = newIsFcv1;
+		this.copilotIsProxima = newIsProxima;
 
 		this._storageService.store(StorageVersionKeys.CopilotIsSn, this.copilotIsSn, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._storageService.store(StorageVersionKeys.CopilotIsFcv1, this.copilotIsFcv1, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._storageService.store(StorageVersionKeys.CopilotIsProxima, this.copilotIsProxima, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		// Notify that the filters have changed.
 		this._onDidChangeFilters.fire();
@@ -228,6 +240,8 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 				return this.copilotIsSn ?? null;
 			case ExtensionsFilter.CopilotIsFcv1:
 				return this.copilotIsFcv1 ?? null;
+			case ExtensionsFilter.CopilotIsProxima:
+				return this.copilotIsProxima ?? null;
 			default:
 				return null;
 		}
@@ -237,6 +251,89 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		const filters = new Map<string, string | null>();
 		const filterValues = Object.values(ExtensionsFilter);
 		for (const value of filterValues) {
+			filters.set(value, this.getFilterValue(value));
+		}
+
+		return filters;
+	}
+
+	/** Maps the core-available Copilot filters to new TAS userParams without forwarding legacy headers. */
+	getAssignmentsFilters(): Map<string, string | null> {
+		return new Map([
+			['vscode_core_copilotchatextensionversion', this.getFilterValue(ExtensionsFilter.CopilotChatExtensionVersion)],
+		]);
+	}
+}
+
+/**
+ * userParam names for the new TAS assignments API (POST /api/v1/assignments) that carry
+ * the GitHub account signals available in core. Hex org/business ids are not yet parsed
+ * in core, so they are intentionally omitted here.
+ */
+export enum GitHubAssignmentsFilter {
+	CopilotTrackingId = 'copilottrackingid',
+	/** Whether the account is staff or belongs to a recognized internal organization. */
+	IsGhOrMsftStaff = 'github_core_isghormsftstaff',
+	GhMsftOrExternal = 'github_core_ghmsftorexternal',
+	CopilotSku = 'github_core_copilotsku',
+	CopilotIsSn = 'github_core_issn',
+	CopilotIsFcv1 = 'github_core_isfcv1',
+}
+
+/**
+ * Emits the core-available GitHub account filters for the new TAS assignments API using
+ * the new userParam key names.
+ */
+export class GitHubCoreAssignmentsFilterProvider extends Disposable implements IExperimentationFilterProvider {
+	private filters: Map<string, string | null>;
+
+	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
+	readonly onDidChangeFilters = this._onDidChangeFilters.event;
+
+	constructor(
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
+	) {
+		super();
+
+		this.filters = this.getFilters();
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(() => this.update()));
+		this._register(this._defaultAccountService.onDidChangeCopilotTokenInfo(() => this.update()));
+	}
+
+	private update(): void {
+		const filters = this.getFilters();
+		if (mapsStrictEqualIgnoreOrder(this.filters, filters)) {
+			return;
+		}
+		this.filters = filters;
+		this._onDidChangeFilters.fire();
+	}
+
+	getFilterValue(filter: string): string | null {
+		const account = this._defaultAccountService.currentDefaultAccount;
+		const entitlements = account?.entitlementsData;
+		const tokenInfo = account ? this._defaultAccountService.copilotTokenInfo : null;
+		switch (filter) {
+			case GitHubAssignmentsFilter.CopilotTrackingId:
+				return entitlements?.analytics_tracking_id ?? null;
+			case GitHubAssignmentsFilter.IsGhOrMsftStaff:
+				return isInternalAccount(entitlements?.is_staff, entitlements?.organization_login_list) ? '1' : '0';
+			case GitHubAssignmentsFilter.GhMsftOrExternal:
+				return getInternalOrg(entitlements?.organization_login_list) ?? 'external';
+			case GitHubAssignmentsFilter.CopilotSku:
+				return entitlements?.access_type_sku ?? null;
+			case GitHubAssignmentsFilter.CopilotIsSn:
+				return tokenInfo?.sn === '1' ? '1' : '0';
+			case GitHubAssignmentsFilter.CopilotIsFcv1:
+				return tokenInfo?.fcv1 === '1' ? '1' : '0';
+			default:
+				return null;
+		}
+	}
+
+	getFilters(): Map<string, string | null> {
+		const filters = new Map<string, string | null>();
+		for (const value of Object.values(GitHubAssignmentsFilter)) {
 			filters.set(value, this.getFilterValue(value));
 		}
 

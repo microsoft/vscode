@@ -9,15 +9,21 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { BrowserEditor } from './browserEditor.js';
-import { BrowserEditorInput, BrowserEditorSerializer } from '../common/browserEditorInput.js';
+import { BrowserEditorInput, BrowserEditorSerializer, reviveBrowserEditorViewState } from '../common/browserEditorInput.js';
 import { BrowserViewUri } from '../../../../platform/browserView/common/browserViewUri.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
+import { BROWSER_FILE_SCHEMES, BrowserRemoteProxyEnabledSettingId, IBrowserViewCDPService, IBrowserViewWorkbenchService } from '../common/browserView.js';
 import { BrowserViewWorkbenchService } from './browserViewWorkbenchService.js';
 import { BrowserViewCDPService } from './browserViewCDPService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logBrowserOpen } from '../../../../platform/browserView/common/browserViewTelemetry.js';
 
 // Register actions and browser features
 import './features/webContentsViewRendererFeature.js';
@@ -32,6 +38,7 @@ import './features/browserEditorChatFeatures.js';
 import './features/browserEditorErrorFeatures.js';
 import './features/browserEditorZoomFeature.js';
 import './features/browserEditorEmulationFeatures.js';
+import './features/browserAutoReloadFeatures.js';
 import './features/browserEditorFindFeature.js';
 import './features/browserSearchFeatures.js';
 import './features/browserTabManagementFeatures.js';
@@ -59,6 +66,9 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 	constructor(
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@IBrowserViewWorkbenchService browserViewWorkbenchService: IBrowserViewWorkbenchService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		editorResolverService.registerEditor(
 			`${Schemas.vscodeBrowser}:/**`,
@@ -78,7 +88,10 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 						throw new Error(`Invalid browser view resource: ${resource.toString()}`);
 					}
 
-					const browserInput = browserViewWorkbenchService.getOrCreateLazy(parsed.id, options?.viewState);
+					const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+						id: parsed.id,
+						...reviveBrowserEditorViewState(options?.viewState)
+					});
 
 					// Start resolving the input right away. This will create the browser view.
 					// This allows browser views to be loaded in the background.
@@ -94,6 +107,50 @@ class BrowserEditorResolverContribution implements IWorkbenchContribution {
 				}
 			}
 		);
+
+		// Only the Agents window has a network resolver for agent hosts.
+		const fileSchemes = BROWSER_FILE_SCHEMES.filter(scheme => scheme !== AGENT_HOST_SCHEME || environmentService.isSessionsWindow);
+		for (const scheme of fileSchemes) {
+			for (const extension of ['html', 'htm', 'mhtml', 'mht']) {
+				editorResolverService.registerEditor(
+					`${scheme}:/**/*.${extension}`,
+					{
+						id: BrowserEditorInput.EDITOR_ID,
+						label: localize('browser.htmlEditorLabel', "Integrated Browser"),
+						priority: RegisteredEditorPriority.option
+					},
+					{
+						canSupportResource: resource => resource.scheme === scheme && (
+							scheme === Schemas.file ||
+							!!configurationService.getValue<boolean>(BrowserRemoteProxyEnabledSettingId)
+						),
+						singlePerResource: true
+					},
+					{
+						createEditorInput: ({ resource, options }) => {
+							logBrowserOpen(telemetryService, 'fileResource');
+
+							const viewState = reviveBrowserEditorViewState(options?.viewState);
+							const browserInput = browserViewWorkbenchService.getOrCreateLazy({
+								id: generateUuid(),
+								associatedResource: resource,
+								...viewState,
+								url: viewState.url ?? resource.toString()
+							});
+							void browserInput.resolve();
+
+							return {
+								editor: browserInput,
+								options: {
+									pinned: true,
+									...options
+								}
+							};
+						}
+					}
+				);
+			}
+		}
 	}
 }
 

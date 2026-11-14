@@ -5,7 +5,9 @@
 import type tt from 'typescript/lib/tsserverlibrary';
 import { computeContext, nesRename, prepareNesRename } from '../common/api';
 import { CharacterBudget, ComputeContextSession, ContextResult, NullLogger, RequestContext, TokenBudgetExhaustedError, type Logger } from '../common/contextProvider';
-import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RenameGroup } from '../common/protocol';
+import { ErrorCode, RenameKind, type CachedContextRunnableResult, type ComputeContextRequest, type ComputeContextResponse, type ContextRunnableResultId, type CustomResponse, type NesRenameRequest, type NesRenameResponse, type PingResponse, type PrepareNesRenameRequest, type PrepareNesRenameResponse, type Range, type RegionContextRequest, type RegionContextResponse, type RenameGroup, type StructuralDiffRequest, type StructuralDiffResponse } from '../common/protocol';
+import { RegionContextProvider } from '../common/regionContextProvider';
+import { computeStructuralDiff } from '../common/structuralDiff';
 import { CancellationTokenWithTimer, Sessions } from '../common/typescripts';
 const ts = TS();
 
@@ -99,6 +101,14 @@ interface PrepareNesRenameHandlerResponse extends tt.server.HandlerResponse {
 
 interface NesRenameHandlerResponse extends tt.server.HandlerResponse {
 	response: NesRenameResponse.OK | NesRenameResponse.Failed;
+}
+
+interface RegionContextHandlerResponse extends tt.server.HandlerResponse {
+	response: RegionContextResponse.OK | RegionContextResponse.Failed;
+}
+
+interface StructuralDiffHandlerResponse extends tt.server.HandlerResponse {
+	response: StructuralDiffResponse.OK | StructuralDiffResponse.Failed;
 }
 
 let installAttempted: boolean = false;
@@ -202,6 +212,49 @@ const computeContextHandler = (request: ComputeContextRequest): ComputeContextHa
 	return { response: result.toJson(), responseRequired: true };
 };
 
+const regionContextHandler = (request: RegionContextRequest): RegionContextHandlerResponse => {
+	const input = resolveInput(request.arguments, 0);
+	if (FailedHandlerResponse.is(input)) {
+		return input;
+	}
+
+	try {
+		const sourceFile = input.program.getSourceFile(input.file);
+		const result = sourceFile === undefined ? undefined : new RegionContextProvider().getRegions(sourceFile, request.arguments!.ranges, request.arguments!.requested);
+		return { response: result ?? { regions: [], paths: { smallest: [] } }, responseRequired: true };
+	} catch (error) {
+		if (error instanceof Error) {
+			return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };
+		}
+		return { response: { error: ErrorCode.exception, message: 'Unknown error' }, responseRequired: true };
+	}
+};
+
+const structuralDiffHandler = (request: StructuralDiffRequest): StructuralDiffHandlerResponse => {
+	const args = request.arguments;
+	if (args === undefined) {
+		return { response: { error: ErrorCode.noArguments, message: 'No arguments provided' }, responseRequired: true };
+	}
+	if (typeof args.fileName !== 'string' || typeof args.originalText !== 'string' || typeof args.modifiedText !== 'string' || !Array.isArray(args.changes)) {
+		return { response: { error: ErrorCode.invalidArguments, message: 'Invalid structural diff arguments' }, responseRequired: true };
+	}
+
+	// The client cancels the request, so there is no time budget.
+	const cancellationToken = new CancellationTokenWithTimer(languageServiceHost?.getCancellationToken ? languageServiceHost.getCancellationToken() : undefined, Date.now(), Number.POSITIVE_INFINITY, languageServerSession?.host.isDebugging() ?? false);
+	try {
+		return { response: computeStructuralDiff(args, cancellationToken), responseRequired: true };
+	} catch (error) {
+		if (error instanceof ts.OperationCanceledException) {
+			// The session reports the request as cancelled.
+			throw error;
+		}
+		if (error instanceof Error) {
+			return { response: { error: ErrorCode.exception, message: error.message, stack: error.stack }, responseRequired: true };
+		}
+		return { response: { error: ErrorCode.exception, message: 'Unknown error' }, responseRequired: true };
+	}
+};
+
 const prepareNesRenameHandler = (request: PrepareNesRenameRequest): PrepareNesRenameHandlerResponse => {
 	const input = resolveInput(request.arguments, 50);
 	if (FailedHandlerResponse.is(input)) {
@@ -271,6 +324,8 @@ export function create(info: tt.server.PluginCreateInfo): tt.LanguageService {
 					languageServerSession = new LanguageServerSession(info.session, info.languageServiceHost, new NodeHost());
 					languageServiceHost = info.languageServiceHost;
 					info.session.addProtocolHandler('_.copilot.context', computeContextHandler);
+					info.session.addProtocolHandler('_.copilot.regionContext', regionContextHandler);
+					info.session.addProtocolHandler('_.copilot.structuralDiff', structuralDiffHandler);
 					info.session.addProtocolHandler('_.copilot.prepareNesRename', prepareNesRenameHandler);
 					info.session.addProtocolHandler('_.copilot.postNesRename', nesRenameHandler);
 				}

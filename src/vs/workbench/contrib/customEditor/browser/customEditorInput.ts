@@ -9,6 +9,10 @@ import { toAction } from '../../../../base/common/actions.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { IReference } from '../../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { Range } from '../../../../editor/common/core/range.js';
+import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
@@ -17,7 +21,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IResourceEditorInput } from '../../../../platform/editor/common/editor.js';
+import { IResourceEditorInput, ITextEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
@@ -34,6 +38,8 @@ import { IWorkbenchLayoutService } from '../../../services/layout/browser/layout
 import { IUntitledTextEditorService } from '../../../services/untitled/common/untitledTextEditorService.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { WebviewIconPath } from '../../webviewPanel/browser/webviewEditorInput.js';
+import { ICustomTextEditorNavigation } from '../common/customTextEditorNavigation.js';
+import { TextEditorPaneSelection } from '../../../browser/parts/editor/textEditor.js';
 
 interface CustomEditorInputInitInfo {
 	readonly resource: URI;
@@ -44,6 +50,34 @@ interface CustomEditorInputInitInfo {
 }
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
+
+	private readonly _onDidChangeNavigation = this._register(new Emitter<void>());
+	readonly onDidChangeNavigation = this._onDidChangeNavigation.event;
+	private _navigation: ICustomTextEditorNavigation | undefined;
+
+	get navigation(): ICustomTextEditorNavigation | undefined {
+		return this._navigation;
+	}
+
+	set navigation(value: ICustomTextEditorNavigation | undefined) {
+		if (this._navigation !== value) {
+			this._navigation = value;
+			this._onDidChangeNavigation.fire();
+		}
+	}
+
+	override getSelection(): TextEditorPaneSelection | undefined {
+		const selection = this.navigation?.selection;
+		return selection ? new TextEditorPaneSelection(Selection.liftSelection(selection)) : undefined;
+	}
+
+	public override async applyOptions(options: ITextEditorOptions, token: CancellationToken): Promise<void> {
+		const selection = options.selection;
+		if (this.navigation && selection && !token.isCancellationRequested) {
+			const range = new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber ?? selection.startLineNumber, selection.endColumn ?? selection.startColumn);
+			await this.navigation.revealRange(range, Selection.fromRange(range, SelectionDirection.LTR), !!options.preserveFocus, token);
+		}
+	}
 
 	static create(
 		instantiationService: IInstantiationService,
@@ -431,21 +465,31 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return super.canMove(sourceGroup, targetGroup);
 	}
 
-	private doCanMove(targetWindowId: number): true | string {
-		if (this.isModified() && this._modelRef?.object.canHotExit === false) {
-			const sourceWindowId = getWindow(this.webview.container).vscodeWindowId;
-			if (sourceWindowId !== targetWindowId) {
-
-				// The custom editor is modified, not backed by a file and without a backup.
-				// We have to assume that the modified state is enclosed into the webview
-				// managed by an extension. As such, we cannot just move the webview
-				// into another window because that means, we potentally loose the modified
-				// state and thus trigger data loss.
-
-				return localize('editorCannotMove', "Unable to move '{0}': The editor contains changes that can only be saved in its current window.", this.getName());
-			}
-		}
-
-		return true;
+	public override canMoveToNewWindow(_sourceGroup: GroupIdentifier): true | string {
+		// A new window is never the window the editor is in
+		return this.doCanMove(undefined);
 	}
+
+	/** Whether the editor can move into the window `targetWindowId`; `undefined` for a window not created yet. */
+	private doCanMove(targetWindowId: number | undefined): true | string {
+		return getCustomEditorWindowMoveVeto({
+			getName: () => this.getName(),
+			modified: this.isModified(),
+			canHotExit: this._modelRef?.object.canHotExit,
+			isSameWindow: () => getWindow(this.webview.container).vscodeWindowId === targetWindowId,
+		});
+	}
+}
+
+/**
+ * Whether a custom editor can move into another window. A modified one whose model cannot hot exit (not backed by a
+ * file and without a backup) cannot: its modified state is assumed to live in the webview the extension manages, which
+ * moving to another window would lose.
+ */
+export function getCustomEditorWindowMoveVeto(editor: { readonly modified: boolean; readonly canHotExit: boolean | undefined; isSameWindow(): boolean; getName(): string }): true | string {
+	if (editor.modified && editor.canHotExit === false && !editor.isSameWindow()) {
+		return localize('editorCannotMove', "Unable to move '{0}': The editor contains changes that can only be saved in its current window.", editor.getName());
+	}
+
+	return true;
 }

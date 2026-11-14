@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { Event } from '../../../base/common/event.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
@@ -13,6 +14,7 @@ import { IStateService } from '../../state/node/state.js';
 import { hasNativeTitlebar, TitlebarStyle } from '../../window/common/window.js';
 import { IBaseWindow, WindowMode } from '../../window/electron-main/window.js';
 import { BaseWindow } from '../../windows/electron-main/windowImpl.js';
+import { getClaimedAuxiliaryWindowMode, isHiddenWindowMode } from '../../windows/electron-main/windows.js';
 
 export interface IAuxiliaryWindow extends IBaseWindow {
 	readonly parentId: number;
@@ -36,6 +38,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	constructor(
 		private readonly webContents: WebContents,
 		private readonly windowOptions: BrowserWindowConstructorOptions | undefined,
+		private readonly windowMode: WindowMode | undefined,
+		private readonly disableMaximize: boolean,
 		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@ILogService logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -67,12 +71,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 				y: effectiveOptions.y,
 				width: effectiveOptions.width,
 				height: effectiveOptions.height,
-				// We currently do not support restoring fullscreen state for auxiliary
-				// windows because we do not get hold of the original `features` string
-				// that contains that info in `window-fullscreen`. However, we can
-				// probe the `options.show` value for whether the window should be maximized
-				// or not because we never show maximized windows initially to reduce flicker.
-				mode: effectiveOptions.show === false ? WindowMode.Maximized : WindowMode.Normal
+				mode: getClaimedAuxiliaryWindowMode(this.windowMode, effectiveOptions)
 			});
 		}
 	}
@@ -89,6 +88,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Remember
 			this.setWin(window, options);
 
+			// The popup WebContents predates this window and ignores its `backgroundThrottling` option
+			if (isHiddenWindowMode(this.environmentMainService)) {
+				window.webContents.setBackgroundThrottling(false);
+			}
+
 			// Disable Menu
 			window.setMenu(null);
 			if ((isWindows || isLinux) && hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */)) {
@@ -98,14 +102,23 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			// Lifecycle
 			this.lifecycleMainService.registerAuxWindow(this);
 
-			// Hide macOS traffic light buttons for frameless windows
-			if (isMacintosh && options?.frame === false) {
-				window.setWindowButtonVisibility(false);
+			// Allow frameless windows to size down to their content
+			if (options?.frame === false) {
+				window.setMinimumSize(1, 1);
+
+				// Hide macOS traffic light buttons
+				if (isMacintosh) {
+					window.setWindowButtonVisibility(false);
+				}
 			}
 
 			// Disable resizing for non-resizable windows
 			if (options?.resizable === false) {
 				window.setResizable(false);
+			}
+
+			if (this.disableMaximize) {
+				this._register(Event.fromNodeEventEmitter(window, 'maximize')(() => window.unmaximize()));
 			}
 		}
 	}

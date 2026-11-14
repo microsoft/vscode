@@ -36,6 +36,7 @@ export const CodeDataTransfers = {
 	MARKERS: 'application/vnd.code.diagnostics',
 	NOTEBOOK_CELL_OUTPUT: 'notebook-cell-output',
 	SCM_HISTORY_ITEM: 'scm-history-item',
+	CHAT_REFERENCE: 'application/vnd.code.chat-reference',
 };
 
 export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
@@ -200,7 +201,7 @@ async function extractFilesDropData(accessor: ServicesAccessor, event: DragEvent
 
 async function extractFileTransferData(accessor: ServicesAccessor, items: DataTransferItemList): Promise<IFileTransferData[]> {
 	const fileSystemProvider = accessor.get(IFileService).getProvider(Schemas.file);
-	// eslint-disable-next-line no-restricted-syntax
+	// eslint-disable-next-line eslint-js/no-restricted-syntax
 	if (!(fileSystemProvider instanceof HTMLFileSystemProvider)) {
 		return []; // only supported when running in web
 	}
@@ -499,6 +500,66 @@ export function fillInMarkersDragData(markerData: MarkerTransferData[], e: DragE
 
 export function extractNotebookCellOutputDropData(e: DragEvent): NotebookCellOutputTransferData | undefined {
 	return getDataAsJSON(e, CodeDataTransfers.NOTEBOOK_CELL_OUTPUT, undefined);
+}
+
+/**
+ * Payload for a dragged chat reference (a chat tab or a session from the Agents window). The
+ * producing (sessions) layer supplies both the opaque backend chat resource — the
+ * value the reference entry carries verbatim — and the client-side chat resource,
+ * plus the display title. The consuming (workbench chat input) drop handler needs
+ * no knowledge of sessions or agent-host types: it forwards {@link chatResource}
+ * into the reference entry and compares {@link clientResource} for identity only
+ * (self-reference / cross-agent-host detection). The payload is transient (never
+ * persisted), so carrying both resources is fine.
+ */
+export interface ChatReferenceTransferData {
+	/**
+	 * The referenced chat's **opaque backend chat URI** (the value carried on
+	 * `MessageChatAttachment.resource`). Becomes the reference entry's value
+	 * verbatim; never parsed by the consuming layer.
+	 */
+	readonly chatResource: string;
+	/**
+	 * The sessions-window client chat resource (`IChat.resource`). Used for
+	 * compare-by-equality identity only — e.g. to detect a chat dropped onto its
+	 * own input, or to reject a cross-agent-host drag (which needs the client
+	 * scheme + authority the backend URI does not carry) — never parsed for
+	 * meaning.
+	 */
+	readonly clientResource: string;
+	/** The reference's display title, used for the inline `#chat:<title>` token. */
+	readonly title: string;
+}
+
+/**
+ * The chat reference of the drag in progress in this window. Unlike the {@link ChatReferenceTransferData} `dataTransfer`
+ * payload, it is readable during `dragover`, so that a drop target can decide whether it takes the reference, such as
+ * suppress its overlay for a self-reference or a cross-agent-host drag, before the drop lands. It is kept apart from
+ * {@link LocalSelectionTransfer}, which holds one payload at a time, so that the drag can also carry what the chat stands
+ * for there, such as a dragged session to open.
+ */
+let draggedChatReference: ChatReferenceTransferData | undefined;
+
+/**
+ * The chat reference a drag carries: from its `dataTransfer` payload, where readable (on `drop`), else, such as during
+ * `dragover`, from the drag in progress in this window.
+ */
+export function extractChatReferenceDropData(e: DragEvent): ChatReferenceTransferData | undefined {
+	if (!containsDragType(e, CodeDataTransfers.CHAT_REFERENCE)) {
+		return undefined;
+	}
+	return getDataAsJSON<ChatReferenceTransferData | undefined>(e, CodeDataTransfers.CHAT_REFERENCE, undefined) ?? draggedChatReference;
+}
+
+/** Attaches a chat reference to a drag; pair it with {@link clearChatReferenceDragData} on `dragend`. */
+export function fillInChatReferenceDragData(data: ChatReferenceTransferData, e: DragEvent): void {
+	setDataAsJSON(e, CodeDataTransfers.CHAT_REFERENCE, data);
+	draggedChatReference = data;
+}
+
+/** Clears the chat reference of the drag in progress, so that it does not leak into a later, unrelated drag. */
+export function clearChatReferenceDragData(): void {
+	draggedChatReference = undefined;
 }
 
 interface IElectronWebUtils {
