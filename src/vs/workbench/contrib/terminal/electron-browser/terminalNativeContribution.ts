@@ -13,7 +13,7 @@ import { INativeHostService } from '../../../../platform/native/common/native.js
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ITerminalService } from '../browser/terminal.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { disposableWindowInterval, getActiveWindow } from '../../../../base/browser/dom.js';
+import { addDisposableListener, disposableWindowInterval, EventType, getActiveWindow } from '../../../../base/browser/dom.js';
 
 export class TerminalNativeContribution extends Disposable implements IWorkbenchContribution {
 	declare _serviceBrand: undefined;
@@ -29,6 +29,19 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 		ipcRenderer.on('vscode:openFiles', (_: unknown, ...args: unknown[]) => { this._onOpenFileRequest(args[0] as INativeOpenFileRequest); });
 		this._register(nativeHostService.onDidResumeOS(() => this._onOsResume()));
 
+		// Force a redraw of all terminal instances when the window regains
+		// visibility. On macOS, switching desktops/spaces or locking/unlocking
+		// the screen can leave the GPU-accelerated terminal canvas in a stale
+		// state where text content is present but not rendered correctly.
+		// The `onDidResumeOS` event does not always fire for these scenarios
+		// (e.g. desktop switching), so we also listen for the browser-level
+		// `visibilitychange` event. See #311614.
+		this._register(addDisposableListener(getActiveWindow().document, EventType.VISIBILITY_CHANGE, () => {
+			if (getActiveWindow().document.visibilityState === 'visible') {
+				this._forceRedrawAllTerminals();
+			}
+		}));
+
 		this._terminalService.setNativeDelegate({
 			getWindowCount: () => nativeHostService.getWindowCount()
 		});
@@ -40,6 +53,10 @@ export class TerminalNativeContribution extends Disposable implements IWorkbench
 	}
 
 	private _onOsResume(): void {
+		this._forceRedrawAllTerminals();
+	}
+
+	private _forceRedrawAllTerminals(): void {
 		for (const instance of this._terminalService.instances) {
 			instance.xterm?.forceRedraw();
 		}
