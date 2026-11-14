@@ -29,6 +29,7 @@ import { ISessionsProvider } from '../../../../../../workbench/contrib/sessions/
 import { ISessionChangesService } from '../../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
 import { IOnboardingScenarioService } from '../../../../../../workbench/contrib/onboarding/common/onboardingScenarioService.js';
 import { AgentHostSessionConfigPicker } from '../../../../../../workbench/contrib/sessions/providers/agentHost/browser/agentHostSessionConfigPicker.js';
+import { worktreeSuggestionInputPresentation } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionInputPresentation.js';
 import { IWorktreeSuggestionService, WorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
 import { WorktreeSuggestionVariant } from '../../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { NullWorktreeSuggestionService } from '../../../../../../workbench/contrib/sessions/test/browser/worktreeSuggestion/worktreeSuggestionTestUtils.js';
@@ -156,7 +157,10 @@ async function renderIsolationPicker({ container, disposableStore, theme }: Comp
 	instantiationService.set(IContextViewService, disposableStore.add(instantiationService.createInstance(ContextViewService)));
 	instantiationService.set(IActionWidgetService, disposableStore.add(instantiationService.createInstance(ActionWidgetService)));
 	const row = dom.append(container, dom.$('.new-chat-session-options'));
-	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(session), SessionConfigKey.Isolation));
+	const picker = disposableStore.add(instantiationService.createInstance(AgentHostSessionConfigPicker, testChatSourceOf(session), {
+		property: SessionConfigKey.Isolation,
+		isolationPresentation: worktreeSuggestionInputPresentation.createIsolationPicker?.(session, instantiationService),
+	}));
 	const trigger = picker.render(row);
 	picker.setFocusable(true);
 	trigger?.click();

@@ -155,6 +155,7 @@ import { errorCodeForLog, originsOnlyForLog } from '../../common/logRedaction.js
 import { withSessionInitiator } from '../../common/meta/agentSessionInitiatorMeta.js';
 import { CopilotAgentStartupConfig } from './copilotAgentStartupConfig.js';
 import { ShellManager } from './copilotShellTools.js';
+import { toRestrictedTelemetryEndpoint } from '../agentHostRestrictedTelemetry.js';
 import { isAgentHostTelemetryService } from '../agentHostTelemetryService.js';
 import { ICopilotApiService, type IRestrictedTelemetryContext } from '../shared/copilotApiService.js';
 import { captureCopilotTelemetryContext } from '../shared/copilotSkuTelemetry.js';
@@ -896,10 +897,6 @@ class CopilotSessionLifetime {
 			this._drained = undefined;
 		}
 	}
-}
-
-function toRestrictedTelemetryEndpoint(endpoint: string | undefined): string | undefined {
-	return endpoint ? `${endpoint.replace(/\/+$/, '')}/telemetry` : undefined;
 }
 
 export { COPILOT_AGENT_HOST_SYSTEM_MESSAGE } from './prompts/systemMessage.js';

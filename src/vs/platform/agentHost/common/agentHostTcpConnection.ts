@@ -10,23 +10,24 @@ import { vEnum, vObj, vOptionalProp, vString } from '../../../base/common/valida
 import { AgentHostChannelSubscription, type IAgentHostChannelPolicy } from './agentHostChannel.js';
 import { AgentHostChannelScheduler, validateChannelLimits } from './agentHostChannelDelivery.js';
 import { AgentHostChannelError, AgentHostChannelErrorCode } from './agentHostChannelTelemetry.js';
+import { withLegacyChannelReceiveLimits } from './agentHostProtocolTransition.js';
 import type { ChannelFlowControl, ChannelReceiveLimits } from './state/protocol/common/state.js';
 import type { JsonRpcNotification } from './state/sessionProtocol.js';
 import type { IProtocolTransport } from './state/sessionTransport.js';
 
 export const agentHostTcpMaxConnections = 256;
-export const agentHostTcpReceiveLimits: Readonly<ChannelReceiveLimits> = {
+export const agentHostTcpReceiveLimits: Readonly<ChannelReceiveLimits> = withLegacyChannelReceiveLimits({
 	windowBytes: 256 * 1024,
-	maximumFrameBytes: 16 * 1024,
-};
+	maxFrameBytes: 16 * 1024,
+});
 
 const agentHostTcpChannelPolicy: IAgentHostChannelPolicy = {
 	resetMethod: 'tcp/reset',
-	maximumBufferedBytes: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
+	maximumBufferedBytes: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maxFrameBytes + 64 * 1024,
 	// TCP data messages are small chunks, so a larger message is a protocol error.
 	maximumReceivedMessageBytes: {
-		host: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
-		client: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maximumFrameBytes + 64 * 1024,
+		host: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maxFrameBytes + 64 * 1024,
+		client: agentHostTcpReceiveLimits.windowBytes + agentHostTcpReceiveLimits.maxFrameBytes + 64 * 1024,
 	},
 	validateSnapshot(snapshot) {
 		if (Object.keys(snapshot.state).length) {
@@ -122,15 +123,15 @@ export class AgentHostTcpConnection extends Disposable implements IAgentHostTcpC
 
 	private _getSendLimits(limits: ChannelReceiveLimits): ChannelReceiveLimits {
 		validateChannelLimits(limits);
-		return {
+		return withLegacyChannelReceiveLimits({
 			windowBytes: Math.min(limits.windowBytes, agentHostTcpReceiveLimits.windowBytes),
-			maximumFrameBytes: Math.min(limits.maximumFrameBytes, agentHostTcpReceiveLimits.maximumFrameBytes),
-		};
+			maxFrameBytes: Math.min(limits.maxFrameBytes, agentHostTcpReceiveLimits.maxFrameBytes),
+		});
 	}
 
 	private _getChunkBytes(limits: ChannelReceiveLimits): number {
 		const envelope = JSON.stringify({ jsonrpc: '2.0', method: 'tcp/data', params: { channel: this.resource, data: '' } });
-		const bytes = Math.min(16 * 1024, Math.floor((limits.maximumFrameBytes / 2 - envelope.length) / 4) * 3);
+		const bytes = Math.min(16 * 1024, Math.floor((limits.maxFrameBytes / 2 - envelope.length) / 4) * 3);
 		if (bytes < 1) {
 			throw new AgentHostChannelError(AgentHostChannelErrorCode.ReceiveLimitExceeded, 'TCP receive limits cannot fit a data message');
 		}

@@ -79,6 +79,8 @@ The router adds `copilotSdkVersion`, the Copilot SDK package bundled with this A
 
 Restricted router rows and standard `copilotSdk/*` rows both carry `initiatorClientType`: the client type (`editor_window` or `agents_window`) of the turn active in the SDK session when the host received the notification. It is captured before any correlation wait, so a delayed model-call row keeps that turn's client. It is `unknown` when no turn was active, as for session startup and background work between turns, or when the active turn was not started by a known VS Code window. A row that a background subagent emits after its root turn ended reports `unknown`, or the client of whichever turn is active when it arrives. Attribute `unknown` rows to a client through other rows of the same SDK session.
 
+The forwarder publishes every standard runtime row as `copilotSdk/<kind>`, but undeclared kinds are not reliably collected: only kinds declared with a `__GDPR__` block in `node/copilot/copilotGitHubTelemetryForwarder.ts` consistently reach the VS Code telemetry tables; to collect a new runtime kind, declare it and its unrestricted fields there. The task-analytics online-eval rows (`task_classification`, `task_analytics_skipped`, `user_message_sentiment`, `task_completion_criteria`, `task_completion_criteria_span`) are declared so task outcome and frustration can be measured. To price a task, map its `task_classification` row's `interaction_ids` to host turns through `interaction_id` and `turnId` on `copilotSdk/response.success`, then use those turns' `billedNanoAiu` on `agentHost.turnCompleted`. Only about 10% of sessions are judged (`cohort`), and judge prose stays restricted.
+
 ---
 
 ## 2. Ownership and Layering

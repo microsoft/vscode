@@ -32,8 +32,9 @@ export const enum ChangesetOperationTargetKind {
  * The `kind` MUST match one of the operation's declared
  * {@link ChangesetOperation.scopes}.
  * Clients MAY echo {@link ChangesetFile.nonce} from the displayed file.
- * If both nonces are present, a mismatch MUST fail with {@link AhpErrorCodes.Conflict};
- * omission on either side adds no nonce precondition.
+ * If both nonces are present and differ, the host MAY reject the invocation
+ * with {@link AhpErrorCodes.Conflict}; omission on either side adds no nonce
+ * precondition.
  *
  * @category Commands
  */
