@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { isCancellationError } from '../../../../../../base/common/errors.js';
+import { Event } from '../../../../../../base/common/event.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -13,13 +17,30 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { IViewDescriptorService } from '../../../../../common/views.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
+import { ChatViewHostService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewHostService.js';
+import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
+import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ChangesMultiDiffSourceResolver } from '../../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { ChatViewContainerId, ChatViewId } from '../../../../chat/browser/chat.js';
+import { ChatViewContainerId, ChatViewId, IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
+import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
 import { IEditorWindowSessionsRuntime, IEditorWindowSessionsRuntimeOptions } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -104,5 +125,92 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		ChatContextKeys.enabled.bindTo(contextKeyService).set(false);
 		steps.push(enabled().get());
 		assert.deepStrictEqual({ steps, runtimeHeld: state().runtimeHeld }, { steps: [false, true, false], runtimeHeld: 0 });
+	});
+
+	suite('with the services of the chat part', () => {
+
+		const agentSession = URI.parse('agent-host-copilot:/session-1');
+
+		/** The contribution over the real chat part service and Chat view host service, recording where chats are opened. */
+		function setupServices(options: { agentEnabled: boolean }) {
+			const calls: string[] = [];
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsOpenInChatPart]: true, [ChatConfiguration.AgentEnabled]: options.agentEnabled });
+			const contextKeyService = store.add(new ContextKeyService(configurationService));
+			ChatContextKeys.enabled.bindTo(contextKeyService).set(true);
+			RemoteNameContext.bindTo(contextKeyService).set('');
+			const instantiationService = store.add(new TestInstantiationService());
+			const stub = <T extends object>(id: { toString(): string }, service: Partial<T>) => { instantiationService.stub(id as never, upcastPartial<T>(service)); };
+
+			const chatView = { loadSession: async (resource: URI) => { calls.push(`chat view loads ${resource.scheme}`); }, reportOpened: () => { }, focusInput: () => { }, widget: undefined };
+			stub(IViewsService, { openView: (async () => chatView) as unknown as IViewsService['openView'], isViewVisible: () => false, onDidChangeViewVisibility: Event.None, getViewWithId: (() => null) as IViewsService['getViewWithId'] });
+			stub(IViewDescriptorService, { getViewLocationById: () => null });
+			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
+			stub(IProgressService, {});
+			stub(IContextKeyService, contextKeyService);
+			stub(IConfigurationService, configurationService);
+			stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
+			stub(ILifecycleService, { when: () => new Promise<void>(() => { }) });
+			stub(IEditorWindowSessionsRuntime, { enable: () => toDisposable(() => { }) });
+			stub(IEditorWindowSessionsPresenterService, { registerPresenter: () => toDisposable(() => { }), registerComposerHolder: () => toDisposable(() => { }) });
+			stub(IAgentsChatPartFrame, { get part() { return undefined!; }, contentCreated: constObservable(false) });
+			stub(IChatViewSessionsListService, { sessionsOnly: constObservable(false) });
+			const owner = { session: { resource: agentSession }, chat: { resource: agentSession } };
+			stub(IAgentsChatPartService, { openChat: async () => { calls.push('chat part opens'); }, activeChat: constObservable(undefined), isShowing: () => false });
+			stub(ISessionsManagementService, { getSessionForChatResource: () => owner as never, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }) });
+			stub(IChatWidgetService, { getAllWidgets: () => [upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: agentSession }) })] });
+			stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }) as never });
+			stub(IAgentsViewProvidersService, { acquire: () => toDisposable(() => { }) });
+			stub(IEditorService, { activeEditor: undefined });
+			const loadingModel = new DeferredPromise<void>();
+			stub(IChatService, { acquireOrLoadSession: async () => { await loadingModel.p; return { dispose: () => { } } as never; } });
+			stub(INotificationService, { info: () => undefined! });
+
+			// Without the Changes editor's own services
+			const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
+			instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => ctor === ChangesMultiDiffSourceResolver ? Disposable.None : createInstance(ctor, ...args)) as typeof instantiationService.createInstance;
+
+			const hostService = store.add(instantiationService.createInstance(ChatViewHostService));
+			stub(IChatViewHostService, hostService);
+			const chatPartService = store.add(instantiationService.createInstance(EditorWindowChatPartService));
+			stub(IEditorWindowChatPartService, chatPartService);
+			store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
+			const setSetting = async (value: boolean) => {
+				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+			};
+			return { hostService, calls, loadingModel, setSetting };
+		}
+
+		test('with agents disabled, no chat part host takes the chats, so an agent session opens in the Chat view', async () => {
+			const { hostService, calls } = setupServices({ agentEnabled: false });
+
+			await hostService.openSession(agentSession);
+
+			assert.deepStrictEqual(calls, ['chat view loads agent-host-copilot']);
+		});
+
+		test('with agents enabled, the chat part host takes the chats', async () => {
+			const { hostService, calls } = setupServices({ agentEnabled: true });
+
+			await hostService.openSession(agentSession);
+
+			assert.deepStrictEqual(calls, ['chat part opens']);
+		});
+
+		test('a session that starts while the setting turns off does not reopen the chat part', async () => {
+			const { hostService, calls, loadingModel, setSetting } = setupServices({ agentEnabled: true });
+
+			const starting = hostService.startSession(agentSession, { local: false, importingConversation: false });
+			await setSetting(false);
+			loadingModel.complete();
+			let cancelled = false;
+			try {
+				await starting;
+			} catch (error) {
+				cancelled = isCancellationError(error);
+			}
+
+			assert.deepStrictEqual({ cancelled, calls }, { cancelled: true, calls: [] });
+		});
 	});
 });
