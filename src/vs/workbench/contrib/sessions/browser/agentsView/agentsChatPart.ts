@@ -135,6 +135,12 @@ export interface IAgentsChatPartService {
 	 * disposable is disposed. The provider set last applies.
 	 */
 	setComposerFolderOptions(provider: () => IAgentsChatPartComposerFolderOptions): IDisposable;
+
+	/**
+	 * Aims its composers that aim at `from`, the folder their host aimed them at, at `to`, such as the location the window's
+	 * folder moved to: not those aiming at a folder the user picked, nor those that send (see `ChatWindowComposerModel.retargetFolder`).
+	 */
+	retargetComposerFolders(to: URI, from: URI): void;
 }
 
 /** The folders the composers of the chat part create sessions in, besides the folder each aims at, and how they show them. */
@@ -200,6 +206,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _activeInput = observableValue<EditorInput | undefined>(this, undefined);
 	/** Why the active tab became active: as {@link restore} showed it, or else as the user opened or picked it. */
 	private readonly _activeReason = observableValue<IChatViewHostShownSession['reason']>(this, 'open');
+	/** Increases with each explicit open of the active tab: each is reported again, as where its session works may matter again. */
+	private readonly _explicitOpens = observableValue(this, 0);
 	/** The tabs that {@link restore} shows, while it does: a chat the user opens meanwhile is opened, not restored. */
 	private readonly _restoringTabs = new Set<EditorInput>();
 	/**
@@ -209,6 +217,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _composerTabs = observableValue<ReadonlySet<EditorInput>>(this, new Set());
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	private readonly _composerFolderProviders: (() => IAgentsChatPartComposerFolderOptions)[] = [];
+	/** The composer of each composer's tab, which the tab disposes. */
+	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
 
 	private _part: IContentPart | undefined;
@@ -251,6 +261,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			}
 			// A composer shows a session only from its first send on, which made it that session, also in a tab the chat part
 			// restored
+			this._explicitOpens.read(reader);
 			const reason = this._composerTabs.read(reader).has(input) ? 'commit' : this._activeReason.read(reader);
 			return { resource: active.chat.resource, reason };
 		});
@@ -296,6 +307,12 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	/** The folders of the window, the only ones its composers create sessions in by default, besides the folder each aims at. */
 	private readonly _windowFolders: IObservable<readonly URI[]>;
 
+	retargetComposerFolders(to: URI, from: URI): void {
+		for (const composer of this._composerModels.values()) {
+			composer.retargetFolder(to, from);
+		}
+	}
+
 	getComposerFolderOptions(): IAgentsChatPartComposerFolderOptions {
 		return this._composerFolderProviders.at(-1)?.() ?? { allowedFolders: this._windowFolders };
 	}
@@ -328,6 +345,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const active = this._activeInput.get();
 		const activeChat = active && this._chats.get(active);
 		if (activeChat?.isComposer && !options?.sideBySide && !options?.newComposer) {
+			// It aims at the new session's folder, such as where the window's folder is now, unless the user picked another
+			const composer = active && this._composerModels.get(active);
+			if (composer && target?.folderUri) {
+				composer.retargetFolder(target.folderUri);
+			}
 			return this._open(activeChat, options);
 		}
 		const resource = createChatWindowComposerResource();
@@ -488,6 +510,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			transaction(tx => {
 				this._activeReason.set(options?.restore ? 'restore' : 'open', tx);
 				this._settleComposerTab(chat.input, tx);
+				this._explicitOpens.set(this._explicitOpens.get() + 1, tx);
 			});
 		}
 	}
@@ -518,6 +541,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._chats.set(chat.input, chat);
 		if (composer) {
 			this._composerTabs.set(new Set([...this._composerTabs.get(), chat.input]), undefined);
+			this._composerModels.set(chat.input, composer);
 		}
 		// It stays in the chat part: its editor shows there
 		chat.input.setMoveRestriction({
@@ -527,6 +551,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		// Its chat goes with its editor, once the editor's dispose is done: disposing the chat disposes the editor, and what
 		// it shows, which would otherwise happen within the editor's own dispose, such as as its session is removed meanwhile
 		Event.once(chat.input.onWillDispose)(() => {
+			this._composerModels.delete(chat.input);
 			if (this._composerTabs.get().has(chat.input)) {
 				this._composerTabs.set(new Set([...this._composerTabs.get()].filter(tab => tab !== chat.input)), undefined);
 			}

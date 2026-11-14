@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,6 +15,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { parse } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -32,7 +33,7 @@ import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } 
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
-import { isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -253,6 +254,12 @@ suite('AgentsChatPartService', () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			},
+			/** The folders the chat part's composers aim at, as they store them. */
+			composerFolders: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly target?: { readonly folderUri?: URI } }[]).map(composer => composer.target?.folderUri?.path) : [];
+			},
 			setShowTabs: (value: string) => {
 				configurationService.setUserConfiguration('workbench.editor.showTabs', value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
@@ -329,6 +336,22 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ draft, committed, picked: shown() }, { draft: 'none', committed: '/a commit', picked: '/a open' });
 	});
 
+	test('each explicit open of the active chat reports it again, as where its session works may matter again', async () => {
+		const openedSession = buildTestSession({ id: 'reopened', title: 'Reopened' });
+		const main = openedSession.mainChat.chat.resource;
+		const { service } = createService({ sessions: () => [openedSession.session] });
+		const reports: string[] = [];
+		const listener = autorun(reader => { const value = service.shownSession.read(reader); if (value) { reports.push(value.reason); } });
+
+		await service.openChat(openedSession.session, main);
+		await timeout(0);
+		await service.openChat(openedSession.session, main);
+		await timeout(0);
+		listener.dispose();
+
+		assert.deepStrictEqual(reports.slice(-2), ['open', 'open']);
+	});
+
 	test('a chat opened as restored shows as restored, and as opened once the user opens it', async () => {
 		const restoredSession = buildTestSession({ id: 'restored', title: 'Restored' });
 		const main = restoredSession.mainChat.chat.resource;
@@ -340,6 +363,22 @@ suite('AgentsChatPartService', () => {
 		await service.openChat(restoredSession.session, main);
 
 		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'main restore', opened: 'main open' });
+	});
+
+	test('its composers that aim at the folder their host aimed them at follow it to another folder, also the active one a new session reuses', async () => {
+		const { service, composerFolders } = createService();
+
+		await service.openComposer({ folderUri: URI.file('/repo') });
+		await service.openComposer({ folderUri: URI.file('/other') }, { newComposer: true });
+		service.retargetComposerFolders(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+		const afterMove = composerFolders();
+		// A new session in the active composer, which has not sent its session, aims it at the new session's folder
+		await service.openComposer({ folderUri: URI.file('/repo.worktrees/b') });
+
+		assert.deepStrictEqual({ afterMove, afterReuse: composerFolders() }, {
+			afterMove: ['/repo.worktrees/a', '/other'],
+			afterReuse: ['/repo.worktrees/a', '/repo.worktrees/b'],
+		});
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {
