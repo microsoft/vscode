@@ -9,8 +9,8 @@ import path from 'path';
 import { suite, test } from 'node:test';
 import ts from 'typescript';
 import { getResourcePaths } from '../../next/resources.ts';
+import { collectSourceDependencies, repositoryRoot } from './sourceDependencies.ts';
 
-const repositoryRoot = path.resolve(import.meta.dirname, '../../..');
 const hostPickerRoot = 'src/vs/sessions/contrib/providers/remoteAgentHost/browser/';
 const sharedHostPickerRoot = 'src/vs/workbench/contrib/sessions/providers/remoteAgentHost/browser/';
 const originalPicker = [
@@ -28,7 +28,6 @@ const experimentalPicker = [
 	'media/hostPlaceChip.css',
 	'media/mobileHostPickerSheet.css',
 ].map(file => hostPickerRoot + file);
-const dependenciesByFile = new Map<string, readonly string[]>();
 const composerRoot = 'src/vs/sessions/contrib/providers/agentHost/browser/mobile/';
 const originalConfigurationPresenter = 'src/vs/workbench/contrib/sessions/providers/agentHost/browser/mobile/mobileChatPhoneInputPresenter.ts';
 const mobileConfigurationPresenter = composerRoot + 'mobileChatPhoneInputPresenter.ts';
@@ -149,7 +148,7 @@ suite('Sessions presentation entry isolation', () => {
 			}, {
 				canvas: ['IWindowCanvasService', 'WindowCanvasService'],
 				pinnedCanvas: mobile ? undefined : ['IPinnedCanvasService', 'PinnedCanvasService'],
-				chatWindow: ['IChatWindowService', mobile ? 'MobileNullChatWindowService' : 'ChatWindowService'],
+				chatWindow: ['IChatWindowService', mobile ? 'NullChatWindowService' : 'ChatWindowService'],
 				presentation: mobile ? [] : desktopPresentation,
 			});
 		});
@@ -328,37 +327,4 @@ function isMobileEntryFile(file: string): boolean {
 			hostPickerRoot + 'mobileAgentHostFilterService.ts',
 			hostPickerRoot + 'mobileTunnelConnection.ts',
 		].includes(file);
-}
-
-/** Includes type imports conservatively: neither source graph may depend on the other presentation. */
-function collectSourceDependencies(entry: string): Set<string> {
-	const visited = new Set<string>();
-	const pending = [entry];
-	while (pending.length > 0) {
-		const file = pending.pop()!;
-		if (visited.has(file)) {
-			continue;
-		}
-		visited.add(file);
-		if (!file.endsWith('.ts') && !file.endsWith('.js')) {
-			continue;
-		}
-		let dependencies = dependenciesByFile.get(file);
-		if (!dependencies) {
-			const source = fs.readFileSync(path.join(repositoryRoot, file), 'utf8');
-			dependencies = ts.preProcessFile(source, true).importedFiles
-				.map(reference => reference.fileName)
-				.filter(specifier => specifier.startsWith('.'))
-				.map(specifier => {
-					const resolved = path.resolve(repositoryRoot, path.dirname(file), specifier);
-					const candidates = [resolved.replace(/\.js$/, '.ts'), resolved.replace(/\.js$/, '.tsx'), resolved.replace(/\.js$/, '.d.ts'), resolved];
-					const dependency = candidates.find(candidate => fs.existsSync(candidate) && fs.statSync(candidate).isFile());
-					assert.ok(dependency, `Cannot resolve ${specifier} from ${file}`);
-					return path.relative(repositoryRoot, dependency).replaceAll('\\', '/');
-				});
-			dependenciesByFile.set(file, dependencies);
-		}
-		pending.push(...dependencies);
-	}
-	return visited;
 }
