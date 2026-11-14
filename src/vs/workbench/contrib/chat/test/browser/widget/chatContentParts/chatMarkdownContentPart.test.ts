@@ -918,6 +918,22 @@ suite('ChatMarkdownContentPart', () => {
 				math: !!domNode.querySelector('.katex-html [style]'),
 			}, { latex: '\\verb|$(check)|', math: true });
 		});
+
+		test('renders LaTeX inline and display math', () => {
+			const inlineDomNode = createMarkdownPart(new MarkdownString('Formula: \\( \\frac{1}{2} \\)')).domNode;
+			assert.deepStrictEqual({
+				latex: inlineDomNode.querySelector('.vscode-katex-container')?.getAttribute('data-latex'),
+				math: !!inlineDomNode.querySelector('.katex-html [style]'),
+				isDisplay: !!inlineDomNode.querySelector('.katex-display'),
+			}, { latex: '\\frac{1}{2}', math: true, isDisplay: false });
+
+			const displayDomNode = createMarkdownPart(new MarkdownString('\\[\n\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}\n\\]')).domNode;
+			assert.deepStrictEqual({
+				latex: displayDomNode.querySelector('.vscode-katex-container')?.getAttribute('data-latex'),
+				math: !!displayDomNode.querySelector('.katex-html [style]'),
+				isDisplay: !!displayDomNode.querySelector('.katex-display'),
+			}, { latex: '\\int_{-\\infty}^{\\infty} e^{-x^2} dx = \\sqrt{\\pi}', math: true, isDisplay: true });
+		});
 	});
 
 	test('re-measures every table scrollbar in one animation frame when the part is resized', async () => {
