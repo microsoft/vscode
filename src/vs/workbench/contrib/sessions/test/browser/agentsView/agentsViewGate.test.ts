@@ -196,15 +196,17 @@ suite('AgentsViewGate', () => {
 		}, { local: true, remote: false, off: false, agentsWindow: true });
 	});
 
-	test('creates the chat part docked beside the Sessions view in a local window, and no chat part in a remote one', () => {
+	test('creates the chat part docked beside the Sessions view in a local window until it is disposed, and no chat part in a remote one', () => {
 		const localGate = createGate(true);
-		const local = { createdChatParts, chatPartAnchors };
+		const local = { createdChatParts, chatPartAnchors: [...chatPartAnchors] };
+		const localAnchors = chatPartAnchors;
 		localGate.dispose();
 		createGate(true, 'ssh-remote+host');
 		const remote = { createdChatParts, chatPartAnchors };
 
-		assert.deepStrictEqual({ local, remote }, {
+		assert.deepStrictEqual({ local, disposed: localAnchors, remote }, {
 			local: { createdChatParts: 1, chatPartAnchors: [SessionsViewId] },
+			disposed: [SessionsViewId, undefined],
 			remote: { createdChatParts: 0, chatPartAnchors: [] },
 		});
 	});
