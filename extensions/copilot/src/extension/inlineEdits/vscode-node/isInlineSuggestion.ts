@@ -18,6 +18,10 @@ export interface InlineSuggestionEdit {
  * which is required for VS Code to render ghost text.
  */
 export function toInlineSuggestion(cursorPos: Position, doc: TextDocument, range: Range, newText: string, advanced: boolean = true): InlineSuggestionEdit | undefined {
+	// `doc` is live and may have lost lines since `cursorPos` was captured.
+	if (cursorPos.line >= doc.lineCount) {
+		return undefined;
+	}
 	const text: InlineSuggestionText = {
 		getValueOfRange: textRange => doc.getText(toExternalRange(textRange)),
 		getLineLength: lineNumber => doc.lineAt(lineNumber - 1).text.length,
