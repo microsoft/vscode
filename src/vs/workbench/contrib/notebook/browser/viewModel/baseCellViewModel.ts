@@ -150,7 +150,6 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	protected _textModelRef: IReference<IResolvedTextEditorModel> | undefined;
-	private _resolveTextModelPromise: Promise<model.ITextModel> | undefined;
 
 	private _inputCollapsed: boolean = false;
 	get isInputCollapsed(): boolean {
@@ -686,27 +685,25 @@ export abstract class BaseCellViewModel extends Disposable {
 			throw new CancellationError();
 		}
 
-		if (!this._textModelRef || !this.textModel) {
-			this._resolveTextModelPromise ??= this.doResolveTextModel().finally(() => {
-				this._resolveTextModelPromise = undefined;
-			});
-			return this._resolveTextModelPromise;
+		if (this._textModelRef && this.textModel) {
+			return this.textModel;
 		}
 
-		return this.textModel!;
-	}
-
-	private async doResolveTextModel(): Promise<model.ITextModel> {
 		const reference = await this._modelService.createModelReference(this.uri);
 		if (this._isDisposed) {
 			reference.dispose();
 			throw new CancellationError();
 		}
 
-		this._textModelRef = reference;
-		if (!this._textModelRef) {
-			throw new Error(`Cannot resolve text model for ${this.uri}`);
+		const textModel = this.textModel;
+		if (textModel && this._textModelRef?.object.textEditorModel === textModel) {
+			reference.dispose();
+			return textModel;
 		}
+
+		const previousReference = this._textModelRef;
+		this._textModelRef = reference;
+		previousReference?.dispose();
 		this._textModelRefChangeDisposable.value = this.textModel!.onDidChangeContent(() => this.onDidChangeTextModelContent());
 		return this.textModel!;
 	}
