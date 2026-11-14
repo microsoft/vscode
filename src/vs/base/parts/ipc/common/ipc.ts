@@ -105,6 +105,91 @@ export interface IMessagePassingProtocol {
 	drain?(): Promise<void>;
 }
 
+const CHUNK_SIZE_LIMIT = 1024 * 1024; // 1MB
+
+const enum ChunkType {
+	Start = 1,
+	Part = 2,
+	End = 3,
+	Unchunked = 4
+}
+
+export class ChunkingProtocolAdapter implements IMessagePassingProtocol, IDisposable {
+	
+	private readonly _onMessage = new Emitter<VSBuffer>();
+	readonly onMessage: Event<VSBuffer> = this._onMessage.event;
+
+	private readonly disposables = new DisposableStore();
+	private readonly incomingBuffers = new Map<number, VSBuffer[]>();
+	private nextMessageId = 1;
+
+	constructor(private readonly protocol: IMessagePassingProtocol) {
+		this.disposables.add(this._onMessage);
+		this.disposables.add(this.protocol.onMessage(msg => this.handleIncomingMessage(msg)));
+	}
+
+	public send(buffer: VSBuffer): void {
+		if (buffer.byteLength <= CHUNK_SIZE_LIMIT) {
+			const header = VSBuffer.alloc(1);
+			header.writeUInt8(ChunkType.Unchunked, 0);
+			this.protocol.send(VSBuffer.concat([header, buffer]));
+			return;
+		}
+
+		const messageId = this.nextMessageId++;
+		let offset = 0;
+		const totalLength = buffer.byteLength;
+
+		while (offset < totalLength) {
+			const isStart = offset === 0;
+			const isEnd = offset + CHUNK_SIZE_LIMIT >= totalLength;
+			const chunkLength = Math.min(CHUNK_SIZE_LIMIT, totalLength - offset);
+			const chunkData = buffer.slice(offset, offset + chunkLength);
+			const type = isStart ? ChunkType.Start : (isEnd ? ChunkType.End : ChunkType.Part);
+			
+			const header = VSBuffer.alloc(5);
+			header.writeUInt8(type, 0);
+			header.writeUInt32BE(messageId, 1);
+			
+			this.protocol.send(VSBuffer.concat([header, chunkData]));
+			offset += chunkLength;
+		}
+	}
+
+	private handleIncomingMessage(msg: VSBuffer): void {
+		const type = msg.readUInt8(0) as ChunkType;
+
+		if (type === ChunkType.Unchunked) {
+			this._onMessage.fire(msg.slice(1));
+			return;
+		}
+
+		const messageId = msg.readUInt32BE(1);
+		const payload = msg.slice(5);
+
+		if (type === ChunkType.Start) {
+			this.incomingBuffers.set(messageId, [payload]);
+		} else if (type === ChunkType.Part || type === ChunkType.End) {
+			const chunks = this.incomingBuffers.get(messageId);
+			if (chunks) {
+				chunks.push(payload);
+				if (type === ChunkType.End) {
+					const fullMessage = VSBuffer.concat(chunks);
+					this.incomingBuffers.delete(messageId);
+					
+					// Yield to event loop for massive messages to prevent I/O blocking
+					setTimeout(() => this._onMessage.fire(fullMessage), 0);
+				}
+			}
+		}
+	}
+
+	public dispose(): void {
+		this.disposables.dispose();
+		this.incomingBuffers.clear();
+	}
+}
+
 enum State {
 	Uninitialized,
 	Idle
@@ -339,7 +424,10 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 	// They will timeout after `timeoutDelay`.
 	private pendingRequests = new Map<string, PendingRequest[]>();
 
-	constructor(private protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay = 1000) {
+	private protocol: IMessagePassingProtocol;
+
+	constructor(protocol: IMessagePassingProtocol, private ctx: TContext, private logger: IIPCLogger | null = null, private timeoutDelay = 1000) {
+		this.protocol = new ChunkingProtocolAdapter(protocol);
 		this.protocolListener = this.protocol.onMessage(msg => this.onRawMessage(msg));
 		this.sendResponse({ type: ResponseType.Initialize });
 	}
@@ -552,7 +640,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
 	private readonly _onDidInitialize = new Emitter<void>();
 	readonly onDidInitialize = this._onDidInitialize.event;
 
-	constructor(private protocol: IMessagePassingProtocol, logger: IIPCLogger | null = null) {
+	private protocol: IMessagePassingProtocol;
+
+	constructor(protocol: IMessagePassingProtocol, logger: IIPCLogger | null = null) {
+		this.protocol = new ChunkingProtocolAdapter(protocol);
 		this.protocolListener = this.protocol.onMessage(msg => this.onBuffer(msg));
 		this.logger = logger;
 	}
