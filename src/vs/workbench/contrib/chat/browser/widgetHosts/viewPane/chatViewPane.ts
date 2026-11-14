@@ -1027,7 +1027,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				if (visible) {
 					sessionsControl.focus();
 				} else {
-					this._widget?.focusInput();
+					this.focusInput();
 				}
 			}
 		}));
