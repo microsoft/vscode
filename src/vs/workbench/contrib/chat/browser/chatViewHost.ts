@@ -152,6 +152,11 @@ export interface IChatViewHostService extends IChatViewHost {
 	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
 	readonly replaced: IObservable<boolean>;
 	/**
+	 * Whether the Chat view hosts the chat that was opened or started last: it does by default, and for a chat the host that
+	 * replaces it leaves to it. Then the Chat view shows that chat, not only its sessions.
+	 */
+	readonly chatViewHosts: IObservable<boolean>;
+	/**
 	 * The chat that the host that showed a chat last shows: the one that opened or started a chat last, the Chat view for the
 	 * chats the host in use leaves to it, or the one that restored its chat last. None while that host does not report one
 	 * ({@link IChatViewHost.shownSession}).

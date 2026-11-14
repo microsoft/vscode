@@ -158,6 +158,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	private readonly latest: ISettableObservable<{ readonly host: IChatViewHost; readonly newChat: boolean }>;
 
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
+	readonly chatViewHosts: IObservable<boolean>;
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -166,6 +167,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		this.chatViewHost = instantiationService.createInstance(ChatViewPaneHost);
 		this.hostInUse = observableValue<IChatViewHost>(this, this.chatViewHost);
 		this.latest = observableValue(this, { host: this.chatViewHost, newChat: false });
+		this.chatViewHosts = derived(this, reader => this.latest.read(reader).host === this.chatViewHost);
 		this.shownSession = derived(this, reader => {
 			const latest = this.latest.read(reader);
 			return latest.newChat ? undefined : latest.host.shownSession?.read(reader);
