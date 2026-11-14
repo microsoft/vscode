@@ -40,6 +40,7 @@ parts:
       - libibus-1.0-5
       - libnss3
       - libpango-1.0-0
+      - libpulse0
       - libsecret-1-0
       - libwayland-egl1
       - libxcomposite1
