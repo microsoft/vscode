@@ -700,6 +700,10 @@ export const AgentHostOverlapProviderPreparationConfigKey = 'overlapProviderPrep
  */
 export const AgentHostPrewarmSessionsConfigKey = 'prewarmSessions';
 
+/** Root config key controlling the soft limit on resident sessions. */
+export const AgentHostSessionResidencyLimitConfigKey = 'sessionResidencyLimit';
+export const AgentHostSessionResidencyLimitDefault = 10;
+
 export const AgentHostShowExternalSessionsConfigKey = 'showExternalSessions';
 
 export { ChatExternalSessionsMode as AgentHostExternalSessionsMode };
@@ -1113,6 +1117,12 @@ export const platformRootSchema = createSchema({
 		title: localize('agentHost.config.prewarmSessions.title', "Prewarm Sessions"),
 		description: localize('agentHost.config.prewarmSessions.description', "Whether new Copilot chats start their runtime and MCP servers before the first message."),
 		default: false,
+	}),
+	[AgentHostSessionResidencyLimitConfigKey]: schemaProperty<number>({
+		type: 'number',
+		title: localize('agentHost.config.sessionResidencyLimit.title', "Session Residency Limit"),
+		description: localize('agentHost.config.sessionResidencyLimit.description', "Soft limit on resident sessions. Zero releases eligible idle sessions without retaining a warm cache. Active or subscribed sessions remain protected."),
+		default: AgentHostSessionResidencyLimitDefault,
 	}),
 	[AgentHostShowExternalSessionsConfigKey]: schemaProperty<ChatExternalSessionsMode>({
 		type: 'string',

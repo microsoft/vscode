@@ -200,6 +200,9 @@ export const AgentHostOverlapProviderPreparationSettingId = 'chat.agentHost.expe
 /** Configuration key controlling whether new Copilot drafts start their runtime and MCP servers before the first message. */
 export const AgentHostPrewarmSessionsSettingId = 'chat.agentHost.experimental.prewarmSessions';
 
+/** Configuration key controlling the soft limit on resident Agent Host sessions. */
+export const AgentHostSessionResidencyLimitSettingId = 'chat.agentHost.sessionResidencyLimit';
+
 // The Copilot-CLI-specific setting IDs (`customTerminalTool`, `opus48Prompt`,
 // `modelCapabilityOverrides`) live with their root-config keys in
 // `copilotCliConfig.ts`.

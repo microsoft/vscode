@@ -66,6 +66,7 @@ import { ChatProvidersConfigKey, ChatProvidersSettingId } from './agentHostChatP
 import { artifactToolsConfigurationProperties } from './artifactToolsConfiguration.js';
 import { chatMoveConfigurationProperties } from './chatMoveConfiguration.js';
 import { titleGenerationConfigurationProperties } from './titleGenerationConfiguration.js';
+import { sessionResidencyConfigurationProperties } from './sessionResidencyConfiguration.js';
 import { isAhpJsonlLoggingEnabled } from './ahpJsonlLogger.js';
 import { ModelRouterEnabledConfigKey, ModelRouterEnabledSettingId } from './modelRouterConfig.js';
 
@@ -301,6 +302,7 @@ configurationRegistry.registerConfiguration({
 			experiment: { mode: 'auto' },
 			agentHost: { key: AgentHostPrewarmSessionsConfigKey },
 		},
+		...sessionResidencyConfigurationProperties,
 		[AgentHostMcpSkillsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.agentHost.mcpSkills.enabled', "When enabled, Copilot agent sessions discover and use skills served by MCP servers. Changes apply to new sessions."),
