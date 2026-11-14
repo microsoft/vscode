@@ -55,7 +55,9 @@ suite('AgentsWindowGraphic', () => {
 			},
 			state: () => ({
 				shown: graphic.shownDesign.get(),
+				laidOut: graphic.laidOutDesign.get(),
 				display: graphic.element.style.display,
+				visibility: graphic.element.style.visibility,
 				rendered: graphic.element.querySelector('.agents-window-graphic')?.classList[1],
 				captions: [...graphic.element.querySelectorAll('figcaption')].map(caption => caption.textContent),
 				windowRequests,
@@ -93,14 +95,14 @@ suite('AgentsWindowGraphic', () => {
 		await graphic.setVariant('unknown');
 		states.push(graphic.state());
 
-		const none = { shown: undefined, display: 'none', rendered: undefined, captions: [] };
+		const none = { shown: undefined, laidOut: undefined, display: 'none', visibility: 'hidden', rendered: undefined, captions: [] };
 		const windowComparison = {
-			shown: 'windowComparison', display: '', rendered: 'window-comparison', captions: [
+			shown: 'windowComparison', laidOut: 'windowComparison', display: '', visibility: '', rendered: 'window-comparison', captions: [
 				'Editor windowWork on one task at a time, with AI at your side.',
 				'Agents windowNewRun multiple tasks at the same time, isolated from each other.',
 			]
 		};
-		const manyWindowsToOne = { shown: 'manyWindowsToOne', display: '', rendered: 'many-windows-to-one', captions: ['All your projects and agents, in one window.'] };
+		const manyWindowsToOne = { shown: 'manyWindowsToOne', laidOut: 'manyWindowsToOne', display: '', visibility: '', rendered: 'many-windows-to-one', captions: ['All your projects and agents, in one window.'] };
 		assert.deepStrictEqual(states, [
 			{ ...none, windowRequests: 1, hasMultipleEditorWindows: undefined },
 			{ ...windowComparison, windowRequests: 2, hasMultipleEditorWindows: false },
@@ -121,6 +123,24 @@ suite('AgentsWindowGraphic', () => {
 		}
 
 		assert.deepStrictEqual(styles, ['outline', 'none', 'card', 'outline', 'tint', 'band', 'separator', 'outline']);
+	});
+
+	test('holds the place of the automatic graphic while the editor windows are counted', async () => {
+		const windows = new DeferredPromise<IOpenedMainWindow[]>();
+		const graphic = createGraphic(AgentsWindowGraphicVariant.Auto, () => windows.p);
+		const { shown, laidOut, display, visibility, rendered } = graphic.state();
+		const pending = { shown, laidOut, display, visibility, rendered };
+		await windows.complete([editorWindow(1), editorWindow(2)]);
+		await timeout(0);
+		const counted = graphic.state();
+
+		assert.deepStrictEqual({
+			pending,
+			counted: { shown: counted.shown, laidOut: counted.laidOut, display: counted.display, visibility: counted.visibility, rendered: counted.rendered },
+		}, {
+			pending: { shown: undefined, laidOut: 'windowComparison', display: '', visibility: 'hidden', rendered: 'window-comparison' },
+			counted: { shown: 'manyWindowsToOne', laidOut: 'manyWindowsToOne', display: '', visibility: '', rendered: 'many-windows-to-one' },
+		});
 	});
 
 	test('ignores a window count that arrives after the setting changed', async () => {
