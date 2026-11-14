@@ -228,6 +228,45 @@ export function hasAppFocus(): boolean {
 
 //#endregion
 
+//#region Fallback Active Window
+
+let fallbackActiveWindowId = mainWindow.vscodeWindowId;
+let fallbackActiveWindowEnabled = false;
+
+const onDidChangeFallbackActiveWindowEmitter = new event.Emitter<void>();
+
+/**
+ * Fires when the window set by `setFallbackActiveWindow` changes.
+ */
+export const onDidChangeFallbackActiveWindow = onDidChangeFallbackActiveWindowEmitter.event;
+
+/**
+ * Lets `setFallbackActiveWindow` take effect. For windows that never get
+ * focus because they are never shown (`--hidden-window`).
+ */
+export function enableFallbackActiveWindow(): IDisposable {
+	fallbackActiveWindowEnabled = true;
+
+	return toDisposable(() => {
+		setFallbackActiveWindow(mainWindow.vscodeWindowId);
+		fallbackActiveWindowEnabled = false;
+	});
+}
+
+/**
+ * Sets the window that `getActiveDocument` returns when no window has
+ * focus, instead of the main window, once `enableFallbackActiveWindow`
+ * was called.
+ */
+export function setFallbackActiveWindow(windowId: number): void {
+	if (fallbackActiveWindowEnabled && fallbackActiveWindowId !== windowId) {
+		fallbackActiveWindowId = windowId;
+		onDidChangeFallbackActiveWindowEmitter.fire();
+	}
+}
+
+//#endregion
+
 export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.firstChild.remove();
@@ -1190,7 +1229,7 @@ export function getActiveDocument(): Document {
 		return externalWindow.document;
 	}
 
-	return mainWindow.document;
+	return getWindowById(fallbackActiveWindowId, true).window.document;
 }
 
 /**
