@@ -28,6 +28,7 @@ suite('EditorWindowSessionsProvidersService', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: Event.None,
+			onDidChangeWorkbenchState: Event.None,
 			getWorkbenchState: () => WorkbenchState.FOLDER,
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.parse('vscode-remote://host/work/repo'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.parse('vscode-remote://host/work/repo') })] }),
 		}));

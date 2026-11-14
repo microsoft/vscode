@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -57,7 +58,8 @@ export class WorkspaceFolderRepositories extends Disposable implements ISessions
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this.folders = observableFromEvent(this, _workspaceContextService.onDidChangeWorkspaceFolders, () => this._getScopeFolders());
+		// Also as only the workbench state changes, such as the folder saved as a workspace, without a change of its folders
+		this.folders = observableFromEvent(this, Event.any<unknown>(_workspaceContextService.onDidChangeWorkspaceFolders, _workspaceContextService.onDidChangeWorkbenchState), () => this._getScopeFolders());
 		this._register(_workspaceContextService.onDidChangeWorkspaceFolders(() => void this._update()));
 		void this._update();
 	}
