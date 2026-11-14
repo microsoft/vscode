@@ -34,7 +34,6 @@
 	"forbiddenModules": [
 		"src/vs/sessions/contrib/chat/browser/chat.desktop.contribution.ts",
 		"src/vs/sessions/contrib/chat/browser/chatBackground.contribution.ts",
-		"src/vs/sessions/contrib/chat/browser/chatBackgroundTint.ts",
 		"src/vs/sessions/contrib/chat/browser/getThemeColorsTool.ts",
 		"src/vs/sessions/contrib/canvases/browser/pinnedCanvasService.ts",
 		"src/vs/sessions/contrib/providers/remoteAgentHost/browser/hostFilter.contribution.ts",
@@ -43,6 +42,8 @@
 		"src/vs/workbench/contrib/sessions/browser/defaultSessionsListPresentation.ts",
 		"src/vs/workbench/contrib/sessions/browser/chat/defaultChatViewFactory.ts",
 		"src/vs/workbench/contrib/sessions/browser/chatBackgroundRenderer.ts",
+		"src/vs/workbench/contrib/sessions/browser/chatBackgroundActions.ts",
+		"src/vs/workbench/contrib/sessions/browser/chatBackgroundTint.ts",
 		"src/vs/workbench/contrib/sessions/browser/chatBackgroundService.ts",
 		"src/vs/workbench/contrib/sessions/browser/sessionsChatSurface.ts",
 		"src/vs/workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionController.ts",
