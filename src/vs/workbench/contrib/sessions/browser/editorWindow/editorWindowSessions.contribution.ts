@@ -53,6 +53,8 @@ import { NullChatWindowService } from '../../../chatWindow/browser/nullChatWindo
 import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { DefaultChatViewFactory } from '../chat/defaultChatViewFactory.js';
+// The chat background's commands and settings, for the chat part's chats, which show over it
+import '../chatBackgroundActions.js';
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
 import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../chat/sessionChatInputToolbarDebug.js';
 import { ISessionArchiveNudgeService, SessionArchiveNudgeService } from '../chat/sessionArchiveNudge.js';
