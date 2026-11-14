@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -71,7 +71,7 @@ import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../.
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
 import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
-import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
+import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IChatViewHostShownSession } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
@@ -891,13 +891,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private providedComposer: IChatViewSessionsComposer | undefined;
 	private composerShown = false;
 
-	/** Shows the provided composer in place of the chat while the chat is a new chat: empty, without a title. */
+	/**
+	 * Shows the provided composer in place of the chat while the chat is a new chat (empty, without a title), unless the
+	 * Chat view shows only the sessions. As New Chat clears a chat with focus in the Chat view, focus moves to the composer.
+	 */
 	private updateComposerVisibility(): void {
-		const shown = !!this.providedComposer && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
+		const shown = !!this.providedComposer && !this.providedSessionsList?.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
 		if (shown !== this.composerShown) {
 			this.composerShown = shown;
 			this.viewPaneContainer?.classList.toggle('shows-composer', shown);
 			this.relayout();
+			if (shown && this.element && isAncestorOfActiveElement(this.element)) {
+				this.providedComposer?.focus();
+			}
 		}
 	}
 
@@ -913,8 +919,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.providedComposer.newChat();
 			return false;
 		}
-		// A chat still loading, which cleared the chat and so shows the composer, no longer replaces it
+		// A chat still loading or restoring, which cleared the chat and so shows the composer, no longer replaces it
 		this.loadSessionCts.value?.cancel();
+		this._applyModelCts.value?.cancel();
 		this.providedComposer.newChat();
 		this.providedComposer.focus();
 		return true;
@@ -995,6 +1002,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._register(autorun(reader => {
 				const sessionsOnly = provided.sessionsOnly.read(reader);
 				this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
+				this.updateComposerVisibility();
 				this.relayout();
 			}));
 		}
@@ -1311,11 +1319,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}));
 
 		// Track the active chat model and reveal it in the sessions control if side-by-side
-		this._register(chatWidget.onDidChangeViewModel(() => {
+		this._register(chatWidget.onDidChangeViewModel(e => {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
 			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
-			this.updateShownSession();
+			this.onDidChangeShownModel(e);
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
@@ -1570,7 +1578,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * one it restored, or one the user picks again in a sessions list, which is reported again.
 	 */
 	reportOpened(sessionResource: URI): void {
-		this._reportShown(sessionResource, 'open');
+		this.reportShown(sessionResource, 'open');
 	}
 
 	/**
@@ -1578,10 +1586,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * as the last chat of where the user moved the window's folder.
 	 */
 	reportRestored(sessionResource: URI): void {
-		this._reportShown(sessionResource, 'restore');
+		this.reportShown(sessionResource, 'restore');
 	}
 
-	private _reportShown(sessionResource: URI, reason: 'open' | 'restore'): void {
+	/** Reports the chat of `sessionResource`, where the view shows it, as shown for `reason` ({@link shownSession}). */
+	reportShown(sessionResource: URI, reason: IChatViewHostShownSession['reason']): void {
 		const shown = this._shownSession.get();
 		// Each time the user opens it, also where it is reported as opened already, as where it works may matter again
 		if (shown && (reason === 'open' || shown.reason !== reason) && isEqual(shown.resource, sessionResource)) {
@@ -1589,10 +1598,15 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	/** Reports the chat its widget shows now, such as the session that its first request made, which the user did not pick. */
+	private onDidChangeShownModel(e: IChatWidgetViewModelChangeEvent): void {
+		this.updateShownSession(e.committed ? 'commit' : undefined);
+	}
+
 	/** Reports the chat that the view shows now ({@link shownSession}), as its widget's chat changes. */
-	private updateShownSession(): void {
+	private updateShownSession(reason: IChatViewHostShownSession['reason'] = this._showReason): void {
 		const shownResource = this._widget.viewModel?.sessionResource;
-		this._shownSession.set(shownResource && { resource: shownResource, reason: this._showReason }, undefined);
+		this._shownSession.set(shownResource && { resource: shownResource, reason }, undefined);
 	}
 
 	/** @param showReason why it shows the chat ({@link shownSession}). */
@@ -1749,7 +1763,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	/** @param showReason why it shows the chat ({@link shownSession}). */
-	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason, showReason: 'open' | 'restore' = 'open'): Promise<IChatModel | undefined> {
+	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason, showReason: IChatViewHostShownSession['reason'] = 'open'): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 

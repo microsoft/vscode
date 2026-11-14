@@ -39,12 +39,11 @@ suite('ChatViewHostService', () => {
 			shownSession,
 			widget: options.widgetCreatedLater ? undefined : widget,
 			get whenWidget() { accesses++; return created.p; },
-			loadSession: async (resource: URI, reason?: string, showReason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}${showReason === 'restore' ? ' restore' : ''}`); return undefined; },
+			loadSession: async (resource: URI, reason?: string, showReason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}${showReason && showReason !== 'open' ? ` ${showReason}` : ''}`); return undefined; },
 			startNewLocalSession: async () => { calls.push('startNewLocalSession'); return undefined; },
 			focus: () => { calls.push('focus'); },
 			focusInput: () => { calls.push('focusInput'); },
-			reportOpened: (resource: URI) => { calls.push(`reportOpened ${resource.toString()}`); },
-			reportRestored: (resource: URI) => { calls.push(`reportRestored ${resource.toString()}`); },
+			reportShown: (resource: URI, reason: string) => { calls.push(`reportShown ${resource.toString()} ${reason}`); },
 			beginSessionsListSuppression: () => { calls.push('suppress'); return toDisposable(() => calls.push('unsuppress')); },
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -73,6 +72,8 @@ suite('ChatViewHostService', () => {
 		results.openSession = await service.openSession(resource, { sessionTypeSelectionReason: 'explicitOverride' }) === widget;
 		// One to restore is not reported as opened
 		await service.openSession(resource, { preserveFocus: true, restore: true });
+		// The session that the first request of the chat it shows made is reported as such
+		await service.openSession(resource, { preserveFocus: true, commit: true });
 		results.toggle = await service.toggle();
 		const start = await service.startSession(resource, { local: false, importingConversation: true, beforeOpen: () => calls.push('beforeOpen') });
 		await start.moved(URI.parse('test:/moved'));
@@ -87,8 +88,9 @@ suite('ChatViewHostService', () => {
 			calls: [
 				`openView ${ChatViewId} focus=true`,
 				`openView ${ChatViewId} focus=false`,
-				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'reportOpened test:/session', 'focusInput',
-				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined restore', 'reportRestored test:/session',
+				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'reportShown test:/session open', 'focusInput',
+				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined restore', 'reportShown test:/session restore',
+				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined commit', 'reportShown test:/session commit',
 				`setPartHidden false ${Parts.AUXILIARYBAR_PART}`,
 				`openView ${ChatViewId} focus=undefined`, 'beforeOpen', 'suppress', 'progress', 'loadSession test:/session reason=explicitOverride', 'focus',
 				`openView ${ChatViewId} focus=undefined`, 'loadSession test:/moved reason=undefined',
@@ -325,4 +327,23 @@ suite('ChatViewHostService', () => {
 
 		assert.deepStrictEqual(steps, ['/chat-view', '/chat-view', '/b', '/chat-view']);
 	});
+
+	test('a host that completes a reveal after it is removed does not become the host whose shown chat the service reports', async () => {
+		const { service, shownSession, showView } = createService();
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/chat-view'), reason: 'open' }, undefined);
+		showView();
+		const revealed = new DeferredPromise<undefined>();
+		const registration = service.registerHost({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: constObservable({ resource: URI.parse('agent-host-copilot:/removed'), reason: 'open' as const }),
+			reveal: () => revealed.p,
+		});
+		const revealing = service.reveal();
+		registration.dispose();
+		await revealed.complete(undefined);
+		await revealing;
+
+		assert.deepStrictEqual({ shown: service.shownSession.get()?.resource.path, replaced: service.replaced.get() }, { shown: '/chat-view', replaced: false });
+	});
 });
+

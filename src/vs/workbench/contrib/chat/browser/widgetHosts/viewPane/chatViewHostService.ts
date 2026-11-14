@@ -14,7 +14,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidget } from '../../chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession } from '../../chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession } from '../../chatViewHost.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 /** The Chat view, as the host of its chats. */
@@ -53,24 +53,17 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (view && !options?.preserveFocus) {
 			view.focus();
 		}
-		if (options?.restore) {
-			view?.reportRestored(sessionResource);
-		} else {
-			view?.reportOpened(sessionResource);
-		}
+		view?.reportShown(sessionResource, getChatViewHostOpenReason(options));
 		return view?.widget;
 	}
 
 	async openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 		if (chatView) {
-			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, options?.restore ? 'restore' : 'open');
+			const reason = getChatViewHostOpenReason(options);
+			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, reason);
 			// Also a chat it showed already, which loading does not set again
-			if (options?.restore) {
-				chatView.reportRestored(sessionResource);
-			} else {
-				chatView.reportOpened(sessionResource);
-			}
+			chatView.reportShown(sessionResource, reason);
 			if (!options?.preserveFocus) {
 				chatView.focusInput();
 			}
@@ -191,6 +184,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 
 	/** Makes `host` the host that showed something last: a new chat of New Chat while `newChat`. */
 	private claim(host: IChatViewHost, newChat = false): void {
+		// A host no longer registered, such as one that completes a reveal after it was removed, shows nothing of the Chat view's
+		if (host !== this.chatViewHost && !this.registrations.some(registration => registration.host === host)) {
+			return;
+		}
 		this.latest.set({ host, newChat }, undefined);
 		this.updateChatViewTracking();
 	}
