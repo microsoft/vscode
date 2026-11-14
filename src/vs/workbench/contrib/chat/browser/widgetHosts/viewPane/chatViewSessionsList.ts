@@ -11,7 +11,6 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { IListStyles } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionRefreshReason, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
-import { IChatViewNewChatTarget } from '../../chatViewHost.js';
 
 /** The sessions list that the Chat view shows in its sessions section: its own, or one that a provider gives it. */
 export interface IChatViewSessionsListControl extends IDisposable {
@@ -29,19 +28,6 @@ export interface IChatViewSessionsListControl extends IDisposable {
 	getFocus(): IAgentSession[];
 }
 
-/** A composer of new chats that the Chat view shows in place of its chat while it shows a new chat. */
-export interface IChatViewSessionsComposer extends IDisposable {
-	/** The height of its content, which the Chat view gives it at its bottom, below the sessions while they are stacked. */
-	readonly height: IObservable<number>;
-	layout(width: number, height: number): void;
-	focus(): void;
-	/**
-	 * Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had,
-	 * aimed at `target` when given, such as the folder and the session type of a new session that a sessions list starts.
-	 */
-	newChat(target?: IChatViewNewChatTarget): void;
-}
-
 /** A sessions list of the Chat view, with how the Chat view shows it. */
 export interface IChatViewSessionsList {
 	readonly control: IChatViewSessionsListControl;
@@ -49,8 +35,6 @@ export interface IChatViewSessionsList {
 	readonly hasHeader: boolean;
 	/** Whether the Chat view shows only the sessions, without its chat. */
 	readonly sessionsOnly: IObservable<boolean>;
-	/** Creates, in `container`, the composer of new chats that the Chat view shows in place of its new chat. */
-	createComposer?(container: HTMLElement): IChatViewSessionsComposer;
 }
 
 /** Gives the Chat view a sessions list in place of its own. */
