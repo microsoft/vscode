@@ -121,7 +121,8 @@ export class ChatViewPaneHost implements IChatViewHost {
 		return {
 			moved: async movedSessionResource => {
 				const movedView = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-				await movedView.loadSession(movedSessionResource);
+				// The session that the first request made: shown as committed, not as one the user opened
+				await movedView.loadSession(movedSessionResource, undefined, 'commit');
 			},
 			complete: async () => {
 				transition.dispose();
