@@ -15,6 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import type { IAgentServerToolHost } from './agentServerTools.js';
 import type { AgentHostClientType } from './agentHostClientInfo.js';
 import type { AgentMessageProvenance } from './agentMessageProvenance.js';
+import type { IOriginatingTriggerContext } from './originatingTrigger.js';
 import type { IAgentHostCredentialSource } from './agentHostCredentials.js';
 import type { IAgentHostProcessExitEvent } from './agentHostProcessExit.js';
 import type { AgentHostPrewarmSkipReason, CodexModelProvider, IAgentTurnTelemetryCorrelation, IAgentHostClientTelemetryContext, IAgentProviderSendStageRecorder, IAgentProviderTurnTelemetryContext } from './agentHostTelemetry.js';
@@ -1085,6 +1086,7 @@ export interface IAgentChatContext {
 	 * Providers pass it to their runtime instead of presenting every message as the user's.
 	 */
 	readonly messageProvenance?: AgentMessageProvenance;
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	/**
 	 * The VS Code chat surface the owning session was created for, from its surface
 	 * metadata. Supplied at each operation, so a runtime that replaces the chat's
@@ -1646,6 +1648,7 @@ export interface IAgentChatUsageSignal {
 
 /** Reports one completed upstream model response for host-owned turn telemetry. */
 export interface IAgentModelCallCompletedSignal {
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	readonly kind: 'model_call_completed';
 	/** Target chat channel URI. For inner subagent calls this is the parent chat channel. */
 	readonly resource: URI;

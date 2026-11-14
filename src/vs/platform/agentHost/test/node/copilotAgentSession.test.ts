@@ -148,6 +148,8 @@ import { AgentSandboxEnabledValue } from '../../../sandbox/common/settings.js';
 import { createNoopGitService, createSessionDataService, createZeroDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { OtelData } from '../../common/otlp/otlpLogEmitter.js';
 import { type IAgentServerToolDefinition, IAgentServerToolHost, type IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
+import type { IOriginatingTriggerContext } from '../../common/originatingTrigger.js';
+import { toAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { ArtifactServerToolName, SessionServerToolName } from '../../common/serverToolNames.js';
 import { readSessionArtifacts } from '../../common/sessionArtifacts.js';
 import { AgentServerToolHost } from '../../node/shared/agentServerToolHost.js';
@@ -548,8 +550,14 @@ class MockCopilotSession {
 
 	currentModel: Awaited<ReturnType<CopilotSession['rpc']['model']['getCurrent']>> = {};
 	currentModelGate: Promise<void> | undefined;
+	readonly capabilities: CopilotSession['capabilities'] = {};
+	readonly rpcSendRequests: Parameters<CopilotSession['rpc']['send']>[0][] = [];
 
 	readonly rpc = {
+		send: async (request: Parameters<CopilotSession['rpc']['send']>[0]) => {
+			this.rpcSendRequests.push(request);
+			return { messageId: `rpc-message-${this.rpcSendRequests.length}` };
+		},
 		managedSettings: {
 			get: async () => (await createUnmanagedCopilotSettings().resolve({})).resolved,
 		},
@@ -1239,14 +1247,16 @@ class CapturingTelemetryService extends PlatformCapturingTelemetryService {
  * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
  * handler implementation actually returns.
  */
-function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string, args: Record<string, unknown> = {}, availableTools?: CurrentToolMetadata[]): Promise<ToolResultObject> {
-	return Promise.resolve(tool.handler!(args, {
+function invokeClientToolHandler(tool: Pick<Tool, 'name' | 'handler'>, toolCallId: string, args: Record<string, unknown> = {}, availableTools?: CurrentToolMetadata[], originatingTrigger?: IOriginatingTriggerContext): Promise<ToolResultObject> {
+	const invocation = {
 		sessionId: 'test-session-1',
 		toolCallId,
 		toolName: tool.name,
 		arguments: args,
 		availableTools,
-	})) as Promise<ToolResultObject>;
+		originatingTrigger,
+	};
+	return Promise.resolve(tool.handler!(args, invocation)) as Promise<ToolResultObject>;
 }
 
 type ISessionInternalsForTest = {
@@ -1706,6 +1716,7 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 	services.set(IAgentHostOTelService, {
 		_serviceBrand: undefined,
 		getSessionTraceContext: () => undefined,
+		getCurrentTraceContext: () => undefined,
 		releaseSessionTraceContext: () => { },
 		withTraceContext: <T>(_context: undefined, fn: () => T): T => fn(),
 	} as unknown as IAgentHostOTelService);
@@ -18432,6 +18443,56 @@ Use the attached image as context.
 			return getActions(signals).flatMap(action => action.type === ActionType.ChatTurnStarted ? [{ text: action.message.text, queuedMessageId: action.queuedMessageId }] : []);
 		}
 
+		for (const supported of [false, true]) {
+			test(`gates a captured origin handoff on runtime support (supported=${supported})`, async () => {
+				const { session, mockSession } = await createAgentSession(disposables);
+				Object.assign(mockSession.capabilities, { originatingTrigger: supported });
+				const originatingTrigger: IOriginatingTriggerContext = {
+					triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'automation' }],
+					incomplete: false,
+					involvesSteering: false,
+				};
+				await session.sendSteering({
+					id: 'receiver-execution',
+					message: {
+						text: 'continue delegated work',
+						origin: { kind: MessageKind.Agent },
+						_meta: toAgentMessageDelegationMeta({ sourceSession: 'copilot:/coordinator', originatingTrigger }),
+					},
+				}, undefined, { kind: 'agent', id: 'copilot:/coordinator' });
+				const request = {
+					prompt: 'continue delegated work',
+					attachments: undefined,
+					mode: 'immediate',
+					source: 'agent-copilot:/coordinator',
+					clientTurnId: 'receiver-execution',
+				};
+				assert.deepStrictEqual({
+					legacySends: mockSession.sendRequests,
+					rpcSends: mockSession.rpcSendRequests,
+				}, {
+					legacySends: supported ? [] : [request],
+					rpcSends: supported ? [{ ...request, originatingTrigger, traceparent: undefined, tracestate: undefined }] : [],
+				});
+			});
+		}
+
+		test('unattributed agent steering cannot become an independent system trigger', async () => {
+			const { session, mockSession } = await createAgentSession(disposables);
+			Object.assign(mockSession.capabilities, { originatingTrigger: true });
+			await session.sendSteering({ id: 'unattributed', message: { text: 'continue', origin: { kind: MessageKind.Agent } } });
+			assert.deepStrictEqual(mockSession.rpcSendRequests, [{
+				prompt: 'continue',
+				attachments: undefined,
+				mode: 'immediate',
+				source: 'system',
+				clientTurnId: 'unattributed',
+				originatingTrigger: { triggers: [], incomplete: true, involvesSteering: false },
+				traceparent: undefined,
+				tracestate: undefined,
+			}]);
+		});
+
 		test('sends each message with the source of whoever authored it and marks the ones no person authored', async () => {
 			const { session, mockSession } = await createAgentSession(disposables);
 			await session.send('from a person', undefined, 'turn-person');
@@ -18925,6 +18986,70 @@ Use the attached image as context.
 				sendRequests: [{ prompt: '$error-ui-tool', attachments: undefined }],
 				sendMessagesRequests: [],
 			});
+		});
+
+		test('resumes a persisted originating trigger rather than a later request after session replacement', async () => {
+			const database = new TestSessionDatabase();
+			const first = await createAgentSession(disposables, { sessionDatabase: database });
+			const origin: IOriginatingTriggerContext = {
+				triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'automation' }],
+				incomplete: false,
+				involvesSteering: true,
+			};
+			const later: IOriginatingTriggerContext = {
+				triggers: [{ id: '00000000-0000-4000-8000-000000000002', kind: 'user' }],
+				incomplete: false,
+				involvesSteering: false,
+			};
+			await first.session.send('delegated work', undefined, 'delegated-turn', undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, undefined, undefined, 'agent-parent', origin);
+			first.mockSession.fire('session.error', { errorType: 'runtime', message: 'Recoverable failure' });
+			await first.session.send('later work', undefined, 'later-turn', undefined, undefined, AgentHostClientType.Unknown, undefined, undefined, false, undefined, undefined, undefined, later);
+			first.mockSession.fire('session.error', { errorType: 'runtime', message: 'Later failure' });
+			first.session.dispose();
+
+			const replacement = await createAgentSession(disposables, { sessionDatabase: database });
+			Object.assign(replacement.mockSession.capabilities, { originatingTrigger: true });
+			await replacement.session.resume('delegated-turn');
+
+			assert.deepStrictEqual(replacement.mockSession.sendMessagesRequests, [{
+				messages: [],
+				originatingTrigger: origin,
+			}]);
+		});
+
+		test('resumes a notification-started failure after replacement without adopting passive input', async () => {
+			const database = new TestSessionDatabase();
+			const first = await createAgentSession(disposables, { sessionDatabase: database });
+			const origin: IOriginatingTriggerContext = {
+				triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'automation' }],
+				incomplete: false,
+				involvesSteering: false,
+			};
+			const completion = {
+				content: 'Background work completed',
+				kind: { type: 'shell_completed' as const, shellId: 'shell-origin', exitCode: 0 },
+				originatingTrigger: origin,
+			};
+			first.mockSession.fire('system.notification', completion);
+			const started = getActions(first.signals).find(action => action.type === ActionType.ChatTurnStarted);
+			assert.ok(started);
+			const passive = {
+				...completion,
+				originatingTrigger: { ...origin, triggers: [{ id: '00000000-0000-4000-8000-000000000002', kind: 'user' as const }] },
+			};
+			first.mockSession.fire('system.notification', passive);
+			first.mockSession.fire('session.error', { errorType: 'runtime', message: 'First notification call failed' });
+			const eventId = await first.session.getTurnEventId(started.turnId);
+			assert.ok(eventId);
+			first.session.dispose();
+
+			const replacement = await createAgentSession(disposables, { sessionDatabase: database });
+			Object.assign(replacement.mockSession.capabilities, { originatingTrigger: true });
+			await replacement.session.resume(eventId);
+			assert.deepStrictEqual(replacement.mockSession.sendMessagesRequests, [{
+				messages: [],
+				originatingTrigger: origin,
+			}]);
 		});
 
 		test('resumes the same turn with zero SDK messages', async () => {
@@ -33292,6 +33417,7 @@ Use the attached image as context.
 			readonly toolNames: readonly string[];
 			readonly advertised: string[] = [];
 			readonly executions: Array<{ sessionUri: string; toolName: string; rawArgs: unknown }> = [];
+			readonly invocationContexts: Array<Parameters<IAgentServerToolHost['executeTool']>[4]> = [];
 			readonly confirmationToolNames = new Set<string>();
 			readonly sessionConfirmationToolNames = new Set<string>();
 			result = 'ok';
@@ -33313,8 +33439,9 @@ Use the attached image as context.
 			confirmationDisplay: IServerToolConfirmationDisplay | undefined;
 			getConfirmationDisplay(): IServerToolConfirmationDisplay | undefined { return this.confirmationDisplay; }
 
-			executeTool(sessionUri: string, toolName: string, rawArgs: unknown): string {
+			executeTool(sessionUri: string, toolName: string, rawArgs: unknown, _toolCallId?: string, context?: Parameters<IAgentServerToolHost['executeTool']>[4]): string {
 				this.executions.push({ sessionUri, toolName, rawArgs });
+				this.invocationContexts.push(context);
 				if (this.error) {
 					throw this.error;
 				}
@@ -33610,6 +33737,31 @@ Use the attached image as context.
 			assert.strictEqual(result.resultType, 'success');
 			assert.strictEqual(result.textResultForLlm, 'listed 2 comments');
 		});
+
+		for (const source of ['invocation', 'toolStart', 'unavailable'] as const) {
+			test(`server tool origin comes from its captured ${source} context`, async () => {
+				const serverToolHost = new FakeServerToolHost();
+				const { session, mockSession, runtime } = await createAgentSession(disposables, { serverToolHost });
+				session.resetTurnState('execution-turn');
+				const originatingTrigger: IOriginatingTriggerContext = {
+					triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'automation' }],
+					incomplete: false,
+					involvesSteering: true,
+				};
+				const start = {
+					toolCallId: 'delegate-tool',
+					toolName: 'serverToolA',
+					arguments: {},
+					...(source === 'toolStart' ? { originatingTrigger } : {}),
+				};
+				mockSession.fire('tool.execution_start', start);
+				await invokeClientToolHandler(runtime.createServerSdkTools()[0], 'delegate-tool', {}, undefined, source === 'invocation' ? originatingTrigger : undefined);
+				assert.deepStrictEqual(serverToolHost.invocationContexts, [{
+					turnId: 'execution-turn',
+					originatingTrigger: source === 'unavailable' ? undefined : originatingTrigger,
+				}]);
+			});
+		}
 
 		test('server tool handler surfaces host failures as a failure result', async () => {
 			const serverToolHost = new FakeServerToolHost();

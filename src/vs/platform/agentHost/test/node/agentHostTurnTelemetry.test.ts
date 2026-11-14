@@ -23,6 +23,7 @@ import { CapturingTelemetryService as PlatformCapturingTelemetryService } from '
 import { TelemetryTrustedValue } from '../../../telemetry/common/telemetryUtils.js';
 import { createAgentModelByokMeta } from '../../common/agentModelByokMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import type { IOriginatingTriggerContext } from '../../common/originatingTrigger.js';
 import { AgentPolicyError, AgentSession, COPILOT_CLI_AGENT_PROVIDER_ID, IAgent, type AgentModelCallFinishedOutcome, type IAgentTurnTokenUsage } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type IAgentHostClientTelemetryContext } from '../../common/agentHostTelemetry.js';
@@ -907,6 +908,41 @@ suite('AgentSideEffects — turn tracker telemetry', () => {
 
 		assert.strictEqual((completedEvents()[0].data as Record<string, unknown>).modelCallCount, 2);
 	});
+
+	for (const repaired of [false, true]) {
+		test(`keeps unknown completed-call origins visible and accepts later exact context (repaired=${repaired})`, () => {
+			setupSession();
+			startTurn('turn-attribution');
+			const originatingTrigger: IOriginatingTriggerContext = {
+				triggers: [{ id: '00000000-0000-4000-8000-000000000001', kind: 'user' }],
+				incomplete: false,
+				involvesSteering: false,
+			};
+			fireModelCallCompleted('turn-attribution', 'initially-unattributed');
+			agent.fireProgress({ kind: 'model_call_completed', resource: URI.parse(defaultChatUri), turnId: 'turn-attribution', modelCallId: 'known', originatingTrigger });
+			if (repaired) {
+				agent.fireProgress({ kind: 'model_call_completed', resource: URI.parse(defaultChatUri), turnId: 'turn-attribution', modelCallId: 'initially-unattributed', originatingTrigger });
+			}
+			turnTracker.markSteering(defaultChatUri, 'turn-attribution', 'received');
+			fire(chatTurnComplete('turn-attribution', 1000));
+			const data = completedEvents()[0].data as Record<string, unknown>;
+			assert.deepStrictEqual({
+				count: data.modelCallCount,
+				status: data.originatingTriggerAttribution,
+				id: data.originatingTriggerId,
+				causes: data.originatingTriggers,
+				involvesSteering: data.involvesSteering,
+				receivedSteering: data.receivedSteering,
+			}, {
+				count: 2,
+				status: repaired ? 'known' : 'partial',
+				id: repaired ? originatingTrigger.triggers[0].id : undefined,
+				causes: repaired ? undefined : JSON.stringify(originatingTrigger.triggers),
+				involvesSteering: false,
+				receivedSteering: true,
+			});
+		});
+	}
 
 	test('sums dispatched attempts through the first accepted edit request', () => {
 		setupSession();
