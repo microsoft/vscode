@@ -2902,18 +2902,17 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		if (sourceRepository.indexGroup.resourceStates.length === 0 &&
-			sourceRepository.workingTreeGroup.resourceStates.length === 0 &&
-			sourceRepository.untrackedGroup.resourceStates.length === 0) {
-			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
-			return;
-		}
-
 		const sourceFilePaths = [
 			...sourceRepository.indexGroup.resourceStates,
 			...sourceRepository.workingTreeGroup.resourceStates,
 			...sourceRepository.untrackedGroup.resourceStates
-		].map(resource => path.relative(sourceRepository.root, resource.resourceUri.fsPath));
+		].filter(resource => options?.untracked || (resource.type !== Status.UNTRACKED && resource.type !== Status.IGNORED))
+			.map(resource => path.relative(sourceRepository.root, resource.resourceUri.fsPath));
+
+		if (sourceFilePaths.length === 0) {
+			await window.showInformationMessage(l10n.t('There are no changes in the selected worktree to migrate.'));
+			return;
+		}
 
 		const targetFilePaths = [
 			...this.workingTreeGroup.resourceStates,
