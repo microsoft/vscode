@@ -78,6 +78,27 @@ describe('Copilot token unit tests', function () {
 		expect(fetcher.requests.size).toBe(2);
 	});
 
+	it('takes the billable owner from the Copilot user info', async function () {
+		const fetcher = new StaticFetcherService({
+			token: 'token',
+			expires_at: 1,
+			refresh_in: 1,
+		}, {
+			billable_owner: { universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' },
+		});
+		const testingServiceCollection = createPlatformServices();
+		testingServiceCollection.define(IFetcherService, fetcher);
+		accessor = disposables.add(testingServiceCollection.createTestingAccessor());
+
+		const tokenManager = disposables.add(accessor.get(IInstantiationService).createInstance(RefreshFakeCopilotTokenManager, 1));
+		const result = await tokenManager.authFromGitHubToken('fake-token', 'fake-user');
+
+		expect(result.kind).toBe('success');
+		if (result.kind === 'success') {
+			expect(new CopilotToken(result).billableOwnerUniversalKey).toBe('ea:dotcom:42');
+		}
+	});
+
 	it(`notifies about token on token retrieval`, async function () {
 		const tokenManager = disposables.add(accessor.get(IInstantiationService).createInstance(RefreshFakeCopilotTokenManager, 3));
 		const deferredTokenPromise = new DeferredPromise<CopilotToken>();
@@ -647,7 +668,7 @@ class StaticFetcherService implements IFetcherService {
 	readonly onDidCompleteFetch = Event.None;
 
 	public requests = new Map<string, FetchOptions>();
-	constructor(readonly tokenResponse: any) {
+	constructor(readonly tokenResponse: any, readonly userInfoResponse?: object) {
 	}
 
 	fetchWithPagination<T>(baseUrl: string, options: PaginationOptions<T>): Promise<T[]> {
@@ -668,6 +689,8 @@ class StaticFetcherService implements IFetcherService {
 			return createFakeResponse(200, this.tokenResponse);
 		} else if (url.endsWith('copilot_internal/notification')) {
 			return createFakeResponse(200, '');
+		} else if (url.endsWith('copilot_internal/user') && this.userInfoResponse) {
+			return createFakeResponse(200, this.userInfoResponse);
 		}
 		return createFakeResponse(404, '');
 	}

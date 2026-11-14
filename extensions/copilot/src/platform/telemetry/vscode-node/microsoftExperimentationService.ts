@@ -259,6 +259,7 @@ export class CopilotAssignmentsFilterProvider implements IExperimentationFilterP
 		filters.set('copilottrackingid', token?.getTokenValue('tid'));
 		filters.set('github_core_organizationid', token?.organizationList.join(','));
 		filters.set('github_core_businessid', token?.enterpriseList.join(','));
+		filters.set('github_core_copilotbillableentityid', token?.billableOwnerUniversalKey);
 		filters.set('github_core_isghormsftstaff', internalOrg ? '1' : '0');
 		filters.set('github_core_ghmsftorexternal', internalOrg ?? 'external');
 		filters.set('github_core_userkind', token?.userKind || undefined);

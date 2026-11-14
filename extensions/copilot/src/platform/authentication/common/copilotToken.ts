@@ -126,6 +126,17 @@ export class CopilotToken {
 		return this._info.enterprise_list || [];
 	}
 
+	/**
+	 * Who pays for the user's Copilot, as a universal key such as `ea:dotcom:42`, from `copilot_internal/user`.
+	 * Undefined unless the server sends both the key and the account type.
+	 */
+	get billableOwnerUniversalKey(): string | undefined {
+		// The user info response is not validated, so check the shape here.
+		const key: unknown = this._info.billable_owner?.universal_key;
+		const accountType: unknown = this._info.billable_owner?.account_type;
+		return typeof key === 'string' && key && typeof accountType === 'string' && accountType ? key : undefined;
+	}
+
 	get endpoints(): Endpoints | undefined {
 		return this._info.endpoints;
 	}
@@ -552,6 +563,8 @@ export interface CopilotUserInfo extends CopilotUserQuotaInfo {
 	}>;
 	codex_agent_enabled?: boolean;
 	token_based_billing?: boolean;
+	/** Who pays for the user's Copilot (enterprise, organization or the user), when the server sends it. */
+	billable_owner?: { universal_key: string; account_type: string } | null;
 }
 
 /**
@@ -562,7 +575,7 @@ export type ExtendedTokenInfo = TokenEnvelope & {
 	// Extended fields added by client
 	username: string;
 	isVscodeTeamMember: boolean;
-} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list' | 'token_based_billing'>;
+} & Pick<CopilotUserInfo, 'copilot_plan' | 'quota_snapshots' | 'quota_reset_date' | 'codex_agent_enabled' | 'organization_login_list' | 'token_based_billing' | 'billable_owner'>;
 
 /**
  * Creates a minimal ExtendedTokenInfo for testing purposes.
