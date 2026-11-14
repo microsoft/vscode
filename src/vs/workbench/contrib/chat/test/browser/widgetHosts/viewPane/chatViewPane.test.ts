@@ -286,6 +286,7 @@ suite('ChatViewPane session transitions', () => {
 			applyModel(): void;
 			restoringSession: Promise<void> | undefined;
 			readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
+			reportOpened(sessionResource: URI): void;
 		} = Object.assign(Object.create(ChatViewPane.prototype), {
 			_store: paneStore,
 			_showReason: 'open',
@@ -370,6 +371,11 @@ suite('ChatViewPane session transitions', () => {
 		restored.pane.applyModel();
 		await restored.pane.restoringSession;
 		const afterRestore = shown(restored);
+		// The user picks the restored chat that the view shows already, such as in a sessions list
+		restored.pane.reportOpened(previousResource);
+		const otherReported = shown(restored);
+		restored.pane.reportOpened(nextResource);
+		const reopened = shown(restored);
 		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
 		await restored.pane.loadSession(savedResource);
 		const afterLoad = shown(restored);
@@ -389,8 +395,10 @@ suite('ChatViewPane session transitions', () => {
 		await loading;
 		await restoration;
 
-		assert.deepStrictEqual({ afterRestore, afterLoad, superseded: shown(superseded) }, {
+		assert.deepStrictEqual({ afterRestore, otherReported, reopened, afterLoad, superseded: shown(superseded) }, {
 			afterRestore: '/untitled-next restore',
+			otherReported: '/untitled-next restore',
+			reopened: '/untitled-next open',
 			afterLoad: '/saved open',
 			superseded: '/saved open',
 		});
