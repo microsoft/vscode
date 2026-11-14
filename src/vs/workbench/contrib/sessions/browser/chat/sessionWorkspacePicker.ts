@@ -2347,7 +2347,7 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/** Puts the No Workspace choice before `items`, when the composer offers one. */
-	private _withNoWorkspaceItem(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
+	private _withNoWorkspaceItem(items: IActionListItem<IWorkspacePickerItem>[], separate = true): IActionListItem<IWorkspacePickerItem>[] {
 		const noWorkspaceOption = this._getNoWorkspaceOption();
 		const hideNoWorkspaceOption = this._activeTriggerElement
 			? this._triggerOptions.get(this._activeTriggerElement)?.hideNoWorkspaceOption === true
@@ -2378,9 +2378,9 @@ export class WorkspacePicker extends Disposable {
 				? { preserveVerticalPosition: true, alignToAnchorTop: true }
 				: undefined,
 		};
-		return items.length > 0
+		return items.length > 0 && separate
 			? [noWorkspace, { kind: ActionListItemKind.Separator, label: '' }, ...items]
-			: [noWorkspace];
+			: [noWorkspace, ...items];
 	}
 
 	protected _getNoWorkspaceOption(): IWorkspacePickerNoWorkspaceOption | undefined {
@@ -2886,7 +2886,7 @@ export class WorkspacePicker extends Disposable {
 
 	/**
 	 * The items of a picker restricted to its allowed folders ({@link IWorkspacePickerOptions.allowedFolders}): No Workspace,
-	 * the folders and New Worktree, with no recent workspace and no browse action. Undefined for a picker that is not.
+	 * the folders, New Worktree and the worktrees, with no recent workspace and no browse action. Undefined for a picker that is not.
 	 */
 	protected _buildRestrictedItems(): IActionListItem<IWorkspacePickerItem>[] | undefined {
 		const allowedFolders = this._getAllowedFolders();
@@ -2899,11 +2899,13 @@ export class WorkspacePicker extends Disposable {
 			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
 		}
 
-		// New Worktree first, then the sections that every picker of a window's folders and their worktrees shows
+		// No Workspace and the folder first; then, under Worktrees, New Worktree first and the worktrees
+		const sections = groupFolderLocations(folders.map(folder => ({ item: folder.item, kind: folder.kind ?? 'folder', current: folder.current })));
+		const items = this._withNoWorkspaceItem(sections.filter(section => section.kind !== 'worktree').flatMap(section => section.items), false);
 		const newWorktreeItem = this._getNewWorktreeItem();
-		const items = this._withNoWorkspaceItem(newWorktreeItem ? [newWorktreeItem] : []);
-		for (const section of groupFolderLocations(folders.map(folder => ({ item: folder.item, kind: folder.kind ?? 'folder', current: folder.current })))) {
-			items.push({ kind: ActionListItemKind.Separator, label: section.title }, ...section.items);
+		const worktrees = sections.find(section => section.kind === 'worktree');
+		if (newWorktreeItem || worktrees) {
+			items.push({ kind: ActionListItemKind.Separator, label: worktrees?.title ?? localize('workspacePicker.worktrees', "Worktrees") }, ...(newWorktreeItem ? [newWorktreeItem] : []), ...(worktrees?.items ?? []));
 		}
 		return this._withSelectionMarks(items);
 	}
