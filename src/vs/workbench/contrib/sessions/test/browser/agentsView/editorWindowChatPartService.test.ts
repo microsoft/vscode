@@ -11,6 +11,7 @@ import { constObservable, IObservable, observableValue } from '../../../../../..
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { ChatPartEnabledContext } from '../../../../../common/contextkeys.js';
 import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
@@ -48,6 +49,7 @@ suite('EditorWindowChatPartService', () => {
 	function createService(state: { visible: boolean }) {
 		const events: string[] = [];
 		const ownsNewChat: IObservable<boolean>[] = [];
+		const keys: Record<string, unknown> = {};
 		const layoutService = upcastPartial<IWorkbenchLayoutService>({
 			setChatPartAnchor: anchor => events.push(`anchor ${anchor?.viewId}`),
 			onDidChangePartVisibility: Event.None,
@@ -60,7 +62,7 @@ suite('EditorWindowChatPartService', () => {
 			},
 		});
 		const contextKeyService = upcastPartial<IContextKeyService>({
-			createKey: <T extends ContextKeyValue>() => upcastPartial<IContextKey<T>>({ set: () => { }, reset: () => { } }),
+			createKey: <T extends ContextKeyValue>(key: string) => upcastPartial<IContextKey<T>>({ set: value => { keys[key] = value; }, reset: () => { delete keys[key]; } }),
 			contextMatchesRules: () => true,
 		});
 		const chatPart = upcastPartial<IAgentsChatPartService>({ restore: async () => { events.push('restore'); } });
@@ -87,7 +89,7 @@ suite('EditorWindowChatPartService', () => {
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
 			upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
 		));
-		return { service, events, ownsNewChat };
+		return { service, events, ownsNewChat, keys };
 	}
 
 	test('does nothing until a feature enables it; features share the chat part, which docks beside the anchor of the highest priority', async () => {
@@ -139,6 +141,24 @@ suite('EditorWindowChatPartService', () => {
 			'unregister host', 'deactivate host', 'unregister presenter',
 			'anchor undefined', 'release providers', 'unregister composer holder',
 		]);
+	});
+
+	test('its enabled key follows whether a feature enables it now, also after it was on earlier', async () => {
+		const enabled = observableValue('enabled', false);
+		const { service, keys } = createService({ visible: false });
+		disposables.add(service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled }));
+		await timeout(0);
+		const states: boolean[] = [];
+		const record = () => states.push(keys[ChatPartEnabledContext.key] as boolean);
+		record();
+		enabled.set(true, undefined);
+		record();
+		enabled.set(false, undefined);
+		record();
+		enabled.set(true, undefined);
+		record();
+
+		assert.deepStrictEqual(states, [false, true, false, true]);
 	});
 
 	test('registers the setting that its header sets while chats open in it, alone or with the sessions list, which registers it too', () => {
