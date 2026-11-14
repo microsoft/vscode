@@ -32,15 +32,16 @@ suite('AgentHostWorktreeFolderChoices', () => {
 	const session = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-1' });
 
 	/** The choices in a window whose folder is at `at`, recording the folders and isolation it sets for the session. */
-	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
+	async function createChoices(options: { readonly enabled: boolean; readonly at: URI; readonly isolation?: string; readonly state?: WorkbenchState; readonly listed?: readonly URI[]; readonly sessionsList?: boolean; readonly resolveLocation?: (location: URI) => Promise<IResolvedFolderLocation | undefined> }) {
 		const config = { values: { isolation: options.isolation ?? 'folder' } as Record<string, unknown> };
 		const changes: string[] = [];
 		const listed = { locations: options.listed ?? [feature, other] };
 		const onDidChangeSessions = store.add(new Emitter<void>());
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
 		let configReset = false;
+		let noWorkspace = false;
 		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.enabled }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.enabled, 'chat.viewSessions.sessionsList.enabled': options.sessionsList ?? false }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: primary, folders: [upcastPartial<IWorkspaceFolder>({ uri: options.at })] }),
 			getWorkbenchState: () => options.state ?? WorkbenchState.FOLDER,
@@ -56,7 +57,9 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		}));
 		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({
 			getFolder: () => undefined,
-			setFolder: (_resource: URI, folder: URI) => { changes.push(`folder ${folder.path}`); configReset = true; },
+			setFolder: (_resource: URI, folder: URI) => { changes.push(`folder ${folder.path}`); configReset = true; noWorkspace = false; },
+			isNoWorkspace: () => noWorkspace,
+			setNoWorkspace: () => { changes.push('no workspace'); configReset = true; noWorkspace = true; },
 		}));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({
 			onDidChange: Event.None,
@@ -103,7 +106,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		// By its icon only, but New Worktree by its name; what it is, by name, for screen readers and on hover
 		// An existing chat, whose started session works in a folder that the chip does not list: a worktree once git proves it
 		// one; another repository, or the window's folder by another path, is a folder
-		// A worktree VS Code created for the folder is one at once, as after a reload; one elsewhere once git proves it
+		// A folder named like a worktree VS Code creates for the folder shows as one before it is read, as after a reload; one elsewhere once git proves it
 		const unlisted = { worktree: URI.file('/work/vscode.worktrees/small-random-change-addition'), elsewhere: URI.file('/work/checkouts/fix'), otherRepository: URI.file('/work/another-repo'), primaryAlias: URI.file('/private/work/vscode') };
 		const beforeRead = { worktree: chip(unlisted.worktree).icon, elsewhere: chip(unlisted.elsewhere).icon };
 		chip(unlisted.otherRepository);
@@ -119,6 +122,30 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			elsewhereChip: { icon: 'worktree', label: null, description: 'Worktree: fix' },
 			otherRepositoryChip: { icon: 'folder', label: null, description: 'Folder: another-repo' },
 			primaryAliasChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
+		});
+	});
+
+	test('offers No Workspace last while the Chat view lists sessions, which the chip then shows by name, and picking a folder again works in it', async () => {
+		const withoutSessionsList = await createChoices({ enabled: true, at: primary });
+		const { choices, actions, items, changes } = await createChoices({ enabled: true, at: primary, sessionsList: true });
+		const chip = () => { const { icon, label, description } = choices.getChip(primary); return { icon: icon.id, label: label ?? null, description }; };
+		await actions(primary).find(action => action.label === 'New Worktree')!.run();
+		await actions(primary).find(action => action.label === 'No Workspace')!.run();
+		const noWorkspace = { items: items(primary), chip: chip(), icon: actions(primary).at(-1)?.icon?.id, separate: actions(primary).at(-1)?.category?.label === '' };
+		await actions(primary).find(action => action.label === 'vscode')!.run();
+
+		assert.deepStrictEqual({ withoutSessionsList: withoutSessionsList.items(primary), noWorkspace, folderAgain: { items: items(primary), chip: chip() }, changes }, {
+			withoutSessionsList: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
+			noWorkspace: {
+				// Without a folder, it has no worktree isolation until a folder's configuration resolves
+				items: ['[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other', 'No Workspace *'],
+				chip: { icon: 'comment', label: 'No Workspace', description: 'No workspace: start the session in a temporary directory' },
+				icon: 'comment',
+				separate: true,
+			},
+			folderAgain: { items: ['[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other', 'No Workspace'], chip: { icon: 'folder', label: null, description: 'Folder: vscode' } },
+			// No longer in a new worktree of the folder it no longer has
+			changes: ['isolation worktree', 'isolation folder', 'no workspace', 'folder /work/vscode'],
 		});
 	});
 
@@ -146,6 +173,39 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		await settle();
 
 		assert.deepStrictEqual({ failed, afterFailure, pending, proven: icon(), reads }, { failed: 'folder', afterFailure: ['folder', 'folder'], pending: 'folder', proven: 'worktree', reads: 2 });
+	});
+
+	test('a folder named like a worktree VS Code creates for the folder shows as one until it is read, then as what git proves it', async () => {
+		const real = URI.file('/work/vscode.worktrees/real');
+		const notWorktree = URI.file('/work/vscode.worktrees/not-a-worktree');
+		// The window's folder by a link under the same layout: git does not prove it a worktree of the folder
+		const primaryLink = URI.file('/work/vscode.worktrees/primary-link');
+		const flaky = URI.file('/work/vscode.worktrees/flaky');
+		let flakyReadable = false;
+		const { choices } = await createChoices({
+			enabled: true, at: primary, resolveLocation: async location => {
+				const proven = location.path === real.path || (location.path === flaky.path && flakyReadable);
+				return proven ? upcastPartial<IResolvedFolderLocation>({ uri: location }) : undefined;
+			},
+		});
+		let changes = 0;
+		store.add(choices.onDidChange(() => changes++));
+		const settle = () => new Promise<void>(resolve => setTimeout(resolve, 0));
+		const icons = () => [real, notWorktree, primaryLink, flaky].map(folder => choices.getChip(folder).icon.id);
+		const pending = icons();
+		await settle();
+		const settled = { icons: icons(), changes, description: choices.getChip(notWorktree).description };
+		flakyReadable = true;
+		choices.refresh();
+		const pendingAgain = icons();
+		await settle();
+
+		assert.deepStrictEqual({ pending, settled, pendingAgain, reread: icons() }, {
+			pending: ['worktree', 'worktree', 'worktree', 'worktree'],
+			settled: { icons: ['worktree', 'folder', 'folder', 'folder'], changes: 3, description: 'Folder: not-a-worktree' },
+			pendingAgain: ['worktree', 'worktree', 'worktree', 'worktree'],
+			reread: ['worktree', 'folder', 'folder', 'worktree'],
+		});
 	});
 
 	test('is active only with the setting on in a window with a single local folder', async () => {

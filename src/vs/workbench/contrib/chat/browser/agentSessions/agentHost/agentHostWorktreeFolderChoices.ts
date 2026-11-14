@@ -32,6 +32,14 @@ import { IAgentHostUntitledProvisionalSessionService } from './agentHostUntitled
 /** What the folder chip shows for a folder, and which one it is. */
 /** The icon of a worktree in the folder chip: New Worktree, the window's folder's worktrees, and the chip at one. */
 const WORKTREE_ICON = Codicon.worktree;
+/** As the Agents window shows a session without a workspace. */
+const NO_WORKSPACE_ICON = Codicon.comment;
+/** The setting that shows the Agents window's sessions, with their workspace-less chats, in the Chat view. */
+const SESSIONS_LIST_ENABLED_SETTING = 'chat.viewSessions.sessionsList.enabled';
+
+function getNoWorkspaceLabel(): string {
+	return localize('agentHost.folderPicker.noWorkspace', "No Workspace");
+}
 
 interface IFolderChoice {
 	readonly uri: URI;
@@ -115,6 +123,22 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		}, onUnexpectedError);
 	}
 
+	/** Whether the chip offers No Workspace: while the Chat view lists sessions with their workspace-less chats. */
+	isNoWorkspaceAvailable(): boolean {
+		return this._configurationService.getValue<boolean>(SESSIONS_LIST_ENABLED_SETTING) === true;
+	}
+
+	/** Whether the session is to start without a working directory. */
+	isNoWorkspaceSelected(): boolean {
+		const sessionResource = this._sessionResource();
+		return !!sessionResource && this._newSessionFolderService.isNoWorkspace(sessionResource);
+	}
+
+	/** The chip while the session is to start without a working directory: by its icon and name. */
+	getNoWorkspaceChip(): { readonly icon: ThemeIcon; readonly label: string; readonly description: string } {
+		return { icon: NO_WORKSPACE_ICON, label: getNoWorkspaceLabel(), description: localize('agentHost.folderPicker.noWorkspaceChipDescription', "No workspace: start the session in a temporary directory") };
+	}
+
 	/** Whether the session is to work in a new worktree of its folder. */
 	isNewWorktreeSelected(): boolean {
 		const isolation = this._isolation();
@@ -129,6 +153,9 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		const choices = this._choices();
 		const choice = choices.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folder));
 		const primary = choices.find(candidate => candidate.kind === 'folder');
+		if (this.isNoWorkspaceSelected()) {
+			return this.getNoWorkspaceChip();
+		}
 		if (this.isNewWorktreeSelected()) {
 			return { icon: WORKTREE_ICON, label: getNewWorktreeLabel(), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
 		}
@@ -142,7 +169,8 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/** The chip's choices, `selected` checked, unless the session is to work in a new worktree. */
 	getActions(action: MenuItemAction, selected: URI | undefined, onDidPick: () => void): IActionWidgetDropdownAction[] {
-		const newWorktreeSelected = this.isNewWorktreeSelected();
+		const noWorkspaceSelected = this.isNoWorkspaceSelected();
+		const newWorktreeSelected = !noWorkspaceSelected && this.isNewWorktreeSelected();
 		const actions: IActionWidgetDropdownAction[] = [];
 		if (this._isolation()?.worktree) {
 			actions.push({
@@ -168,7 +196,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					id: `agentHostFolder.${choice.uri.toString()}`,
 					label: choice.label,
 					description: choice.current ? getCurrentFolderLocationDescription() : undefined,
-					checked: !newWorktreeSelected && !!selected && extUriBiasedIgnorePathCase.isEqual(selected, choice.uri),
+					checked: !noWorkspaceSelected && !newWorktreeSelected && !!selected && extUriBiasedIgnorePathCase.isEqual(selected, choice.uri),
 					icon: choice.kind === 'worktree' ? WORKTREE_ICON : Codicon.folder,
 					enabled: true,
 					tooltip: choice.uri.fsPath,
@@ -186,6 +214,28 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				});
 			}
 		});
+		if (this.isNoWorkspaceAvailable() || noWorkspaceSelected) {
+			actions.push({
+				...action,
+				id: 'agentHostFolder.noWorkspace',
+				label: getNoWorkspaceLabel(),
+				tooltip: localize('agentHost.folderPicker.noWorkspaceDescription', "Start without a backing workspace"),
+				checked: noWorkspaceSelected,
+				icon: NO_WORKSPACE_ICON,
+				enabled: true,
+				category: { label: '', order: sections.length + 1 },
+				run: async () => {
+					const sessionResource = this._sessionResource();
+					if (!sessionResource) {
+						return;
+					}
+					// Not in a new worktree of a folder it no longer has
+					await this._setIsolation(false);
+					this._newSessionFolderService.setNoWorkspace(sessionResource);
+					onDidPick();
+				},
+			});
+		}
 		return actions;
 	}
 
@@ -212,18 +262,16 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/**
 	 * Whether `folder` is a worktree of the window's folder, as its location providers resolve it, such as by git's links
-	 * between them: not yet known, it is not, and the chip shows it again once it is.
+	 * between them. Until they answer, a folder named like a worktree VS Code creates for the window's folder,
+	 * `<folder>.worktrees/<name>`, is assumed to be one and any other folder is not; the chip shows the answer once it settles.
 	 */
 	private _isProvenWorktree(folder: URI): boolean {
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!primary) {
 			return false;
 		}
-		// A worktree that VS Code created for the folder, `<folder>.worktrees/<name>`, is one at once, also before it is read
 		const repository = folder.scheme === Schemas.file ? getRepositoryRootFromWorktree(folder) : undefined;
-		if (repository && extUriBiasedIgnorePathCase.isEqual(repository, primary)) {
-			return true;
-		}
+		const assumed = !!repository && extUriBiasedIgnorePathCase.isEqual(repository, primary);
 		const key = `${primary.toString()}\n${folder.toString()}`;
 		const known = this._provenWorktrees.get(key);
 		if (known === undefined) {
@@ -234,7 +282,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					return;
 				}
 				this._provenWorktrees.set(key, worktree);
-				if (worktree) {
+				if (worktree !== assumed) {
 					this._onDidChange.fire();
 				}
 			};
@@ -243,7 +291,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				onUnexpectedError(error);
 			});
 		}
-		return known === true;
+		return known === undefined || known === 'resolving' ? assumed : known;
 	}
 
 	/** The session's isolation property and values, with whether it can work in a new worktree. */

@@ -645,6 +645,29 @@ suite('AgentHostUntitledProvisionalSessionService', () => {
 		});
 	});
 
+	test('No Workspace recreates the provisional without a working directory, and a folder picked again recreates it there', async () => {
+		const ui = untitledChatUri('no-workspace');
+		const folder = URI.file('/folder');
+		folderService.setFolder(ui, folder);
+		const initialBackend = await provisional.getOrCreate(ui, 'copilot', folder);
+		assert.ok(initialBackend);
+		folderService.setNoWorkspace(ui);
+		const workspaceless = await provisional.waitForPending(ui);
+		const noWorkspaceDirectories = workspaceless && provisional.getProvisionalWorkingDirectories(ui);
+		folderService.setFolder(ui, folder);
+		await provisional.waitForPending(ui);
+
+		assert.deepStrictEqual({
+			created: agentHost.createCalls.map(call => call.workingDirectories?.map(uri => uri.toString())),
+			noWorkspaceDirectories,
+			disposed: agentHost.disposed.length,
+		}, {
+			created: [[folder.toString()], undefined, [folder.toString()]],
+			noWorkspaceDirectories: undefined,
+			disposed: 2,
+		});
+	});
+
 	test('disposing either UI mapping preserves the graduated backend', async () => {
 		const ui = untitledChatUri('retained-backend-disposal');
 		const real = ui.with({ path: '/real-retained-backend-disposal' });

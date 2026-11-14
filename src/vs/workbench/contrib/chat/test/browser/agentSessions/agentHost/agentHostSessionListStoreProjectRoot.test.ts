@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
-import { withSessionMultiRootMetadata } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
+import { withSessionMultiRootMetadata, withSessionWorkspaceless } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -85,6 +85,32 @@ suite('AgentHostSessionListStore - project root', () => {
 			off: ['in-folder'],
 			on: ['in-folder', 'worktree'],
 			offAgain: ['in-folder'],
+		});
+	});
+
+	test('while matching by project root, also lists the sessions without a workspace, such as quick chats, but not of a multi-root workspace', async () => {
+		const workspaceless = (id: string, workspaceFile?: string): IAgentSessionMetadata => ({
+			session: URI.from({ scheme: 'copilot', path: `/${id}` }),
+			startTime: 0,
+			modifiedTime: 0,
+			// Its scratch folder, which the agent host creates for it
+			workingDirectories: [URI.file(`/home/.copilot/chats/${id}`)],
+			_meta: withSessionWorkspaceless(workspaceFile ? withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file(workspaceFile).toString() }) : undefined, true),
+		});
+		const { matchProjectRoot, shown, settle } = createList([
+			session('in-folder', '/work/vscode/src', '/work/vscode'),
+			workspaceless('quick-chat'),
+			workspaceless('multi-root-chat', '/work/other.code-workspace'),
+		]);
+
+		await settle();
+		const off = shown();
+		matchProjectRoot.set(true, undefined);
+		await settle();
+
+		assert.deepStrictEqual({ off, on: shown() }, {
+			off: ['in-folder'],
+			on: ['in-folder', 'quick-chat'],
 		});
 	});
 

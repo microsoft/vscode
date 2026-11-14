@@ -385,7 +385,8 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		this._register(this._newSessionFolderService.onDidChangeFolder(sessionResource => {
 			const folder = this._newSessionFolderService.getFolder(sessionResource);
 			const entry = this._entries.get(sessionResource);
-			if (folder && entry && !entry.disposed && entry.ownsBackend) {
+			// No Workspace recreates it without a working directory, as the agent host then gives it a scratch folder
+			if ((folder || this._newSessionFolderService.isNoWorkspace(sessionResource)) && entry && !entry.disposed && entry.ownsBackend) {
 				void this._changeWorkingDirectory(sessionResource, folder);
 			}
 		}));

@@ -239,7 +239,7 @@ async function render(context: ComponentFixtureContext, mode: string, permission
 			},
 		});
 		instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, { resolve: () => undefined });
-		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined });
+		instantiationService.stub(IAgentHostNewSessionFolderService, { getFolder: () => undefined, getDefaultFolder: () => undefined, isNoWorkspace: () => false });
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, { onDidChange: Event.None, get: () => undefined, getResolvedConfig: () => config, refreshResolvedConfig: async () => { } });
 		instantiationService.set(IChatSessionsService, new class extends mock<IChatSessionsService>() { }());
 		const widget = new class extends mock<IChatWidget>() {
