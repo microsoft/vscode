@@ -248,6 +248,24 @@ suite('BrowserViewInspector', () => {
 			assert.strictEqual(inspector.isElementSelectionActive, false);
 		});
 
+		test('reports active while attaching so a second click toggles it off', async () => {
+			const { inspector, main, ready } = await startPending();
+			const activeWhilePending = inspector.isElementSelectionActive;
+			await inspector.toggleElementSelection(false);
+			await settle(ready, main);
+			assert.deepStrictEqual([activeWhilePending, inspector.isElementSelectionActive], [true, false]);
+		});
+
+		test('prunes frames removed before the attach begins', async () => {
+			const { inspector, webContents } = createInspector();
+			const iframe = createFrame();
+			webContents.emit('ipc-message', { senderFrame: iframe }, 'vscode:browserView:preloadReady', 'gone-token');
+			iframe.detached = true;
+			void inspector.toggleElementSelection(true);
+			// eslint-disable-next-line local/code-no-bracket-notation-for-identifiers -- Inspect retained state without exposing test-only API.
+			assert.deepStrictEqual([...inspector['_registry']['_pendingFrames'].keys()], []);
+		});
+
 		test('starts when not cancelled', async () => {
 			const { inspector, main, ready } = await startPending();
 			await settle(ready, main);

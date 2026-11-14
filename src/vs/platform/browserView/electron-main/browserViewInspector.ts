@@ -186,6 +186,8 @@ export class BrowserViewInspector extends Disposable {
 	}
 
 	private async _attach(): Promise<void> {
+		// Detach events from before the attach can't be replayed, so drop frames that already went away.
+		this._registry.pruneRetiredFrames();
 		// Cross-origin (OOPIF) targets get their own session — watch it for contexts.
 		// Targets discovered before this point never fire again, so replay the known ones.
 		const attachedTargets = new Set<string>();
@@ -395,15 +397,20 @@ export class BrowserViewInspector extends Disposable {
 			}
 		};
 		this._activeSelection.value = selection;
+		// Report active before the (possibly slow) first attach so a second click toggles it off instead of re-enabling.
+		this._elementSelectionActive = true;
+		this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 		try {
-			if (await this._startInspection(selection, updatedOptions)) {
-				this._elementSelectionActive = true;
-				this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
-			}
+			await this._startInspection(selection, updatedOptions);
 		} catch {
 			if (this._activeSelection.value === selection && selection.options === updatedOptions) {
 				this._activeSelection.clear();
 			}
+		}
+		// Disposal clears the selection without running its dispose handler, so settle the early active report here.
+		if (!this._activeSelection.value && this._elementSelectionActive) {
+			this._elementSelectionActive = false;
+			this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 		}
 	}
 
