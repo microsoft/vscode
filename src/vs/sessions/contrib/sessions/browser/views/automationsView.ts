@@ -91,6 +91,7 @@ import { ARCHIVE_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_
 import { ENVIRONMENT_PICKER_MANAGE_REMOTES_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_ACTION_ID } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import { INewSessionInAgentsWindowOptions } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { INewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { IAutomationTemplate, readAutomationTemplates } from './automationTemplates.js';
 import { getAutomationOwnershipGroups, getAutomationRemoteStatusPresentation, getUnavailableAutomationsReasons } from './automationCataloguePresentation.js';
@@ -1107,7 +1108,7 @@ class AutomationCardsSection extends Disposable {
 			});
 		}));
 		disposables.add(markOnboardingTarget(createButton.element, CREATE_AUTOMATION_ONBOARDING_TARGET_ID, {
-			onDidActivate: Event.map(createButton.onDidClick, () => undefined),
+			onDidActivate: Event.map(Event.any(createButton.onDidClick, createButton.dropdownButton.onDidClick), () => undefined),
 		}));
 		return createButton;
 	}
@@ -3117,7 +3118,7 @@ class AutomationHeaderSplitButtonActionViewItem extends BaseActionViewItem {
 		}));
 		if (this.onboardingTargetId) {
 			this._register(markOnboardingTarget(button.element, this.onboardingTargetId, {
-				onDidActivate: Event.map(button.onDidClick, () => undefined),
+				onDidActivate: Event.map(Event.any(button.onDidClick, button.dropdownButton.onDidClick), () => undefined),
 			}));
 		}
 		this.updateEnabled();
@@ -3257,7 +3258,8 @@ registerAction2(class CreateAutomationWithAgentAction extends Action2 {
 		const sessionsService = accessor.get(ISessionsService);
 		const mountedDraftHasInput = accessor.get(INewSessionComposerService).hasDraftInput;
 		const savedDraft = mountedDraftHasInput === undefined ? readNewChatDraftState(accessor.get(IStorageService)) : undefined;
-		if (mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length)) {
+		const hasDraftInput = mountedDraftHasInput ?? (!!savedDraft?.inputText || !!savedDraft?.attachments.length);
+		if (hasDraftInput && !accessor.get(ISessionDraftsService).enabled.get()) {
 			const { result } = await dialogService.prompt<boolean>({
 				type: 'warning',
 				message: localize('replaceAutomationDraft', "Replace your existing draft?"),

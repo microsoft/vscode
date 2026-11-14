@@ -12,6 +12,7 @@ import { ChatAutomationsEnabledContext } from '../../../../../workbench/contrib/
 import { ISpotlightPayload, SPOTLIGHT_PRESENTATION_KIND } from '../../../../../workbench/contrib/onboarding/browser/spotlight/spotlightTypes.js';
 import { onboardingScenarioRegistry } from '../../../../../workbench/contrib/onboarding/common/onboardingRegistry.js';
 import { IOnboardingScenario } from '../../../../../workbench/contrib/onboarding/common/onboardingScenario.js';
+import { AUTOMATIONS_TOUR_SEEN_KEY } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { SessionsWelcomeVisibleContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { ChatEntitlementContextKeys } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { NewSessionOnboardingHandoffContext } from '../../../../common/agentsWindowContextKeys.js';
@@ -24,6 +25,7 @@ onboardingScenarioRegistry.registerDescriptor({ id: AUTOMATIONS_TOUR_ID });
 export function createAutomationsTour(signal: IObservable<boolean>): IOnboardingScenario<ISpotlightPayload> {
 	return {
 		id: AUTOMATIONS_TOUR_ID,
+		seenKey: AUTOMATIONS_TOUR_SEEN_KEY,
 		when: ContextKeyExpr.and(
 			ChatContextKeys.enabled,
 			ChatAutomationsEnabledContext,

@@ -84,6 +84,7 @@ import { IChatService } from '../../../../../workbench/contrib/chat/common/chatS
 import { IChatModel, IChatRequestModel, IChatResponseModel } from '../../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { toPasteVariableEntry } from '../../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { readNewChatDraftState, writeNewChatDraftState } from '../../../../../workbench/contrib/sessions/common/newChatDraftState.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IMenuService, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -853,6 +854,7 @@ suite('AutomationsCardsWidget', () => {
 		instantiationService.stub(IAutomationRunner, runner);
 		stubSessionsService(instantiationService, sessionsService);
 		instantiationService.stub(INewSessionComposerService, disposables.add(new NewSessionComposerService()));
+		instantiationService.stub(ISessionDraftsService, { enabled: constObservable(false) });
 		instantiationService.stub(ISessionsManagementService, sessionsManagementService);
 		instantiationService.stub(IRemoteAgentHostService, remoteAgentHostService);
 		instantiationService.stub(IMissionControlEnvironmentService, missionControlEnvironmentService);
@@ -1375,7 +1377,7 @@ suite('AutomationsCardsWidget', () => {
 				['Create with Agent', 'More Actions...'],
 				['Create Automation with Agent', 'More Actions...'],
 			],
-			activations: 1,
+			activations: 2,
 			label: 'Create with Agent',
 			dropdown: ['Create Manually'],
 			executed: [
@@ -1430,6 +1432,45 @@ suite('AutomationsCardsWidget', () => {
 				});
 			});
 		}
+	}
+
+	for (const source of ['saved', 'mounted'] as const) {
+		test(`Create with Agent skips the ${source} draft warning only while saved drafts are enabled`, async () => {
+			const storageService = disposables.add(new InMemoryStorageService());
+			const { commandService, dialogService, instantiationService, sessionsService } = setup('archive', NullHoverService, undefined, storageService);
+			writeNewChatDraftState(storageService, {
+				inputText: 'Keep my draft',
+				attachments: [toPasteVariableEntry('Notes', 'Attached notes', { id: 'notes' })],
+			});
+			const savedDraft = readNewChatDraftState(storageService);
+			if (source === 'mounted') {
+				instantiationService.stub(INewSessionComposerService, { hasDraftInput: true });
+			}
+			const enabled = observableValue('savedDraftsEnabled', true);
+			instantiationService.stub(ISessionDraftsService, { enabled });
+			const execute = stub(commandService, 'executeCommand').resolves();
+			disposables.add(toDisposable(() => execute.restore()));
+			const invoke = () => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand('sessions.automations.createWithAgent')!.handler(accessor));
+
+			await invoke();
+			const enabledPrompts = dialogService.prompts.length;
+			enabled.set(false, undefined);
+			await invoke();
+
+			assert.deepStrictEqual({
+				enabledPrompts,
+				disabledPrompts: dialogService.prompts.length,
+				commands: execute.args,
+				draftNavigations: sessionsService.openNewSessionCalls,
+				savedDraft: readNewChatDraftState(storageService),
+			}, {
+				enabledPrompts: 0,
+				disabledPrompts: 1,
+				commands: [['workbench.action.sessions.newChat', { prompt: '/automate ', prefillPrompt: true }]],
+				draftNavigations: 0,
+				savedDraft,
+			});
+		});
 	}
 
 	for (const chatEnabled of [true, false]) {
