@@ -50,3 +50,13 @@ export function getCurrentFolderLocationDescription(): string {
 export function getNewWorktreeLabel(): string {
 	return localize('folderLocations.newWorktree', "New Worktree");
 }
+
+/** What the window's folder does as a choice of a picker of {@link groupFolderLocations}, shown below its name. */
+export function getFolderLocationDetail(): string {
+	return localize('folderLocations.folderDetail', "Works in the folder already on this computer");
+}
+
+/** What New Worktree does, shown below its name, as the Agents window's isolation picker describes it. */
+export function getNewWorktreeDetail(): string {
+	return localize('folderLocations.newWorktreeDetail', "Creates a separate copy for this session");
+}
