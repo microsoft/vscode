@@ -205,7 +205,7 @@ suite('ActionListWidget', () => {
 
 	test('it opens on its checked item, scrolling only where that item is out of view, so the items above it in view still show', () => {
 		const checked: IActionListItem<ITestActionItem> = { kind: ActionListItemKind.Action, label: 'current', item: { id: 'current', checked: true } };
-		// More items than its height shows, as a picker of many worktrees has
+		// More items than its height shows, as a picker of many choices has
 		const widget = createActionListWidget(disposables, { items: [action('first'), separator(), checked, ...Array.from({ length: 30 }, (_, index) => action(`other-${index}`))] });
 		const row = (index: number) => widget.domNode.querySelector<HTMLElement>(`.monaco-list-row[data-index="${index}"]`);
 

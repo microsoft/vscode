@@ -16,6 +16,8 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/edi
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
+import { AgentsChatPartComposerFolders } from './agentsChatPartComposerFolders.js';
+import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
@@ -119,6 +121,8 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
 		// Its diffs, also of a Changes editor that the window restores
 		store.add(this._instantiationService.createInstance(ChangesMultiDiffSourceResolver));
+		// The picker of its changesets, in the header row it shows itself in an editor window
+		store.add(this._instantiationService.createInstance(AgentsChatPartChangesEditorHeader));
 
 		const visible = AgentsChatPartVisibleContext.bindTo(this._contextKeyService);
 		store.add(this._layoutService.onDidChangePartVisibility(({ partId }) => {
@@ -127,6 +131,19 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			}
 		}));
 		store.add(toDisposable(() => visible.reset()));
+
+		// Its composers also offer the other locations of the window's folder, such as its worktrees, once the chat part exists
+		store.add(autorun(reader => {
+			if (!this._frame.contentCreated.read(reader)) {
+				return;
+			}
+			const folders = reader.store.add(this._instantiationService.createInstance(AgentsChatPartComposerFolders));
+			reader.store.add(this._chatPart().setComposerFolderOptions(() => {
+				folders.refresh();
+				return { allowedFolders: folders.folders, getFolderPresentation: folderUri => folders.getPresentation(folderUri) };
+			}));
+			folders.refresh();
+		}));
 
 		// The sessions of its chats are known while it shows
 		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
