@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { constObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -21,6 +21,7 @@ import { AccountPolicyGateState } from '../../../../../../services/policies/comm
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatViewSessionsListService, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
@@ -234,11 +235,14 @@ suite('ChatViewPane session transitions', () => {
 	function createPane(resolving: Promise<void> = Promise.resolve(), preparing: Promise<void> = Promise.resolve()) {
 		const previousModel = upcastPartial<IChatModel>({ sessionResource: previousResource });
 		const nextModel = upcastPartial<IChatModel>({ sessionResource: nextResource });
+		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
 		let shown: IChatModel | undefined = previousModel;
 		let input = 'previous draft';
 		const bindings: (URI | undefined)[] = [];
 		const disposed: URI[] = [];
 		const locks: string[] = [];
+		/** Tells the pane its widget's chat changed, as the widget's onDidChangeViewModel does. */
+		let didChangeViewModel = () => { };
 		const paneStore = store.add(new DisposableStore());
 		const modelRef = paneStore.add(new MutableDisposable<IChatModelReference>());
 		const createReference = (model: IChatModel): IChatModelReference => Object.assign(toDisposable(() => {
@@ -256,6 +260,7 @@ suite('ChatViewPane session transitions', () => {
 				shown = model;
 				input = '';
 				bindings.push(model?.sessionResource);
+				didChangeViewModel();
 			},
 			lockToCodingAgent: (_name: string, _displayName: string, sessionType: string) => { locks.push(sessionType); },
 			unlockFromCodingAgent: () => { locks.push('local'); },
@@ -268,8 +273,12 @@ suite('ChatViewPane session transitions', () => {
 			loadSession(resource: URI): Promise<IChatModel | undefined>;
 			applyModel(): void;
 			restoringSession: Promise<void> | undefined;
+			readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 		} = Object.assign(Object.create(ChatViewPane.prototype), {
 			_store: paneStore,
+			_showReason: 'open',
+			_shownSession: shownSession,
+			shownSession,
 			modelRef,
 			widgetViewStates: new Map(),
 			viewState: {},
@@ -290,6 +299,7 @@ suite('ChatViewPane session transitions', () => {
 			agentSessionsService: { model: { getSession: () => undefined } },
 			updateActions: () => { },
 		});
+		didChangeViewModel = () => (Reflect.get(pane, 'updateShownSession') as () => void).call(pane);
 		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
 	}
 
@@ -337,6 +347,42 @@ suite('ChatViewPane session transitions', () => {
 			});
 		});
 	}
+
+	test('reports a restored chat as restored and a chat that the user loads as opened, also one that supersedes a restore under way', async () => {
+		const shown = (rig: ReturnType<typeof createPane>) => { const value = rig.pane.shownSession.get(); return value && `${value.resource.path} ${value.reason}`; };
+		const savedResource = nextResource.with({ path: '/saved' });
+		const savedReference = () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: savedResource }) });
+
+		const restored = createPane();
+		Object.assign(restored.pane, { acquireTransferredOrPersistedSession: async () => ({ modelRef: restored.nextRef }) });
+		restored.pane.applyModel();
+		await restored.pane.restoringSession;
+		const afterRestore = shown(restored);
+		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
+		await restored.pane.loadSession(savedResource);
+		const afterLoad = shown(restored);
+
+		// The user loads a chat while the restore still prepares its chat's configuration
+		const preparing = new DeferredPromise<void>();
+		const superseded = createPane(Promise.resolve(), preparing.p);
+		Object.assign(superseded.pane, {
+			acquireTransferredOrPersistedSession: async () => ({ modelRef: superseded.nextRef }),
+			chatService: { acquireOrLoadSession: async () => savedReference() },
+		});
+		superseded.pane.applyModel();
+		const restoration = superseded.pane.restoringSession;
+		await timeout(0);
+		const loading = superseded.pane.loadSession(savedResource);
+		await preparing.complete();
+		await loading;
+		await restoration;
+
+		assert.deepStrictEqual({ afterRestore, afterLoad, superseded: shown(superseded) }, {
+			afterRestore: '/untitled-next restore',
+			afterLoad: '/saved open',
+			superseded: '/saved open',
+		});
+	});
 
 	test('cancelling a replacement releases its pending reference before provider activation completes', async () => {
 		const resolving = new DeferredPromise<void>();

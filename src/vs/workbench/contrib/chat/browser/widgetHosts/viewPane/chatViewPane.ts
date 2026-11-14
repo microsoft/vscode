@@ -171,8 +171,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private readonly activityBadge = this._register(new MutableDisposable());
 	private readonly _currentSessionResource = observableValue<URI | undefined>(this, undefined);
-	/** Whether the view restores the chat it last showed, rather than showing one that the user brought up. */
-	private _restoringModel = false;
+	/** Why the view sets the chat it shows, while it sets it: it restores the chat it last showed, or the user brought one up. */
+	private _showReason: IChatViewHostShownSession['reason'] = 'open';
 	private readonly _shownSession = observableValue<IChatViewHostShownSession | undefined>(this, undefined);
 	/** The chat the view shows, and whether it shows it as the user brought it up or as it restored it. */
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined> = this._shownSession;
@@ -386,10 +386,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						try {
 							this._widget.setVisible(false);
 
-							this._restoringModel = true;
-							await this.showModel(cts.token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
+							await this.showModel(cts.token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason, 'restore');
 						} finally {
-							this._restoringModel = false;
 							this._widget.setVisible(wasVisible);
 						}
 					}).catch(error => {
@@ -1296,8 +1294,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const model = chatWidget.viewModel?.model;
 			this.titleControl?.update(model);
 			this._currentSessionResource.set(chatWidget.viewModel?.sessionResource, undefined);
-			const shownResource = chatWidget.viewModel?.sessionResource;
-			this._shownSession.set(shownResource && { resource: shownResource, reason: this._restoringModel ? 'restore' : 'open' }, undefined);
+			this.updateShownSession();
 
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
@@ -1437,12 +1434,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async _applyModel(token: CancellationToken): Promise<void> {
 		const session = await this.acquireTransferredOrPersistedSession(token, 'ChatViewPane#applyModel');
-		this._restoringModel = true;
-		try {
-			await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason);
-		} finally {
-			this._restoringModel = false;
-		}
+		await this.showModel(token, session.modelRef, true, !session.modelRef, undefined, session.localFallbackSelectionReason, 'restore');
 	}
 
 	/**
@@ -1552,7 +1544,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			&& sessionType === localChatSessionType;
 	}
 
-	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
+	/** Reports the chat that the view shows now ({@link shownSession}), as its widget's chat changes. */
+	private updateShownSession(): void {
+		const shownResource = this._widget.viewModel?.sessionResource;
+		this._shownSession.set(shownResource && { resource: shownResource, reason: this._showReason }, undefined);
+	}
+
+	/** @param showReason why it shows the chat ({@link shownSession}): only the view's own restore passes `restore`. */
+	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason, showReason: IChatViewHostShownSession['reason'] = 'open'): Promise<IChatModel | undefined> {
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			modelRef?.dispose();
 			return undefined;
@@ -1614,7 +1613,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 						this._widget.unlockFromCodingAgent();
 					}
 					this.viewState.sessionResource = model.sessionResource;
-					setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+					// The reason holds only while the model is set, so a chat shown meanwhile never takes another's reason
+					this._showReason = showReason;
+					try {
+						setModelPreservingInputTypedWhileLoading(this._widget, baselineInput, () => this._widget.setModel(model));
+					} finally {
+						this._showReason = 'open';
+					}
 					const widgetViewState = this.widgetViewStates.get(getComparisonKey(model.sessionResource));
 					if (widgetViewState) {
 						this._widget.restoreViewState(widgetViewState);
