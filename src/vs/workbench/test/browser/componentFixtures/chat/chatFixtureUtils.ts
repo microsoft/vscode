@@ -532,6 +532,7 @@ export function registerChatFixtureServices(reg: ServiceRegistration, options: I
 	reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
 		override readonly onDidChangeFolder = Event.None;
 		override getFolder() { return undefined; }
+		override isNoWorkspace() { return false; }
 		override getDefaultFolder() { return undefined; }
 		override resolveNewSessionPrimary() { return undefined; }
 	}());

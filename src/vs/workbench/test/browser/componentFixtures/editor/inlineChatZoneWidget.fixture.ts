@@ -321,6 +321,7 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme, focus }
 			reg.defineInstance(IAgentHostNewSessionFolderService, new class extends mock<IAgentHostNewSessionFolderService>() {
 				override readonly onDidChangeFolder = Event.None;
 				override getFolder() { return undefined; }
+				override isNoWorkspace() { return false; }
 			}());
 			reg.defineInstance(IAgentHostCustomizationService, new class extends mock<IAgentHostCustomizationService>() {
 				override readonly onDidChangeCustomizations = Event.None;
