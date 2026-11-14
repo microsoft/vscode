@@ -62,6 +62,16 @@ export interface IChatViewNewChatTarget {
 	readonly sessionType?: string;
 }
 
+/** How {@link IChatViewHost.newChat} starts a new chat. */
+export interface IChatViewHostNewChatOptions {
+	readonly preserveFocus?: boolean;
+	/**
+	 * Starts the new chat in the host's own view, also where New Chat would leave it to the chat widget it acts on, such as the
+	 * Chat view that shows a chat: a new session that a sessions list starts, rather than New Chat of a chat widget.
+	 */
+	readonly ownChat?: boolean;
+}
+
 /** How {@link IChatViewHost.startSession} starts a session that its caller may send a first request to. */
 export interface IChatViewHostSessionStartOptions {
 	/** Whether the session is a new local chat, rather than the session of the given resource. */
@@ -116,7 +126,7 @@ export interface IChatViewHost {
 	 * it takes it once its new chat shows, so that a request that follows goes to it. A host that does not implement it leaves
 	 * New Chat to the chat widget it acts on.
 	 */
-	newChat?(target?: IChatViewNewChatTarget): Promise<boolean>;
+	newChat?(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
 	/** The chat the host shows; a host that does not implement it reports none. */
 	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
@@ -130,7 +140,8 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 
-	newChat(target?: IChatViewNewChatTarget): Promise<boolean>;
+	/** A new chat of its own (`ownChat`) that the host in use leaves to the Chat view starts in the Chat view. */
+	newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
 
 	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
 	readonly replaced: IObservable<boolean>;
