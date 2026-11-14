@@ -35,21 +35,22 @@ suite('AgentHostWorktreeLocations', () => {
 	 * which `loading` holds, while another provider, `remote`, has resolved.
 	 */
 	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = [], links: Record<string, string> = {}, loading?: Promise<void>) {
+		// A path through a symbolic link, such as `links['/link/vscode'] = '/work/vscode'`, is the path it links to
+		const real = (path: string) => {
+			const link = Object.keys(links).find(candidate => path === candidate || path.startsWith(`${candidate}/`));
+			return link ? links[link] + path.slice(link.length) : path;
+		};
 		const fileService = upcastPartial<IFileService>({
 			stat: async (resource: URI) => {
-				const entry = entries[resource.path];
+				const entry = entries[real(resource.path)];
 				if (entry === undefined) {
 					throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
 				}
 				return upcastPartial<IFileStatWithMetadata>({ isDirectory: entry === true });
 			},
-			// A path through a symbolic link, such as `links['/link/vscode'] = '/work/vscode'`, is the path it links to
-			realpath: async (resource: URI) => {
-				const link = Object.keys(links).find(path => resource.path === path || resource.path.startsWith(`${path}/`));
-				return link ? URI.file(links[link] + resource.path.slice(link.length)) : resource;
-			},
+			realpath: async (resource: URI) => URI.file(real(resource.path)),
 			readFile: async (resource: URI) => {
-				const entry = entries[resource.path];
+				const entry = entries[real(resource.path)];
 				if (typeof entry !== 'string') {
 					throw new FileOperationError('not found', FileOperationResult.FILE_NOT_FOUND);
 				}
@@ -183,5 +184,19 @@ suite('AgentHostWorktreeLocations', () => {
 			primaryItself: await resolve('/link/vscode', '/work/vscode'),
 			offered: (await provider.provideLocations(URI.file('/link/vscode'), CancellationToken.None)).map(location => location.uri.path),
 		}, { throughLinkedPrimary: 'feature', linkedWorktree: 'feature', primaryItself: 'none', offered: ['/alias/feature'] });
+	});
+
+	test('follows symbolic links of the repository\'s worktrees folder and of a worktree\'s .git file, and still rejects one that git does not link back', async () => {
+		// The repository's `.git/worktrees` is a link to another folder, and the worktree's `.git` file a link to another file
+		const linked = {
+			'/work/vscode/.git': true,
+			'/store/worktrees/feature/gitdir': '/store/feature.git\n',
+			'/store/feature.git': 'gitdir: /work/vscode/.git/worktrees/feature\n',
+			'/work/impostor/.git': 'gitdir: /work/vscode/.git/worktrees/feature\n',
+		};
+		const provider = createProvider(linked, [], [], { '/work/vscode/.git/worktrees': '/store/worktrees', '/work/vscode.worktrees/feature/.git': '/store/feature.git' });
+		const resolve = async (path: string) => (await provider.resolveLocation(URI.file('/work/vscode'), URI.file(path), CancellationToken.None))?.uri.path ?? 'none';
+
+		assert.deepStrictEqual({ linked: await resolve('/work/vscode.worktrees/feature'), impostor: await resolve('/work/impostor') }, { linked: '/work/vscode.worktrees/feature', impostor: 'none' });
 	});
 });
