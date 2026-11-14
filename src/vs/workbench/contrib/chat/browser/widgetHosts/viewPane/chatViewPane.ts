@@ -1566,9 +1566,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * one it restored that the user picks in a sessions list.
 	 */
 	reportOpened(sessionResource: URI): void {
+		this._reportShown(sessionResource, 'open');
+	}
+
+	/**
+	 * Reports the chat of `sessionResource` as one that it restores, also where the view shows it already as opened, such
+	 * as the last chat of where the user moved the window's folder.
+	 */
+	reportRestored(sessionResource: URI): void {
+		this._reportShown(sessionResource, 'restore');
+	}
+
+	private _reportShown(sessionResource: URI, reason: 'open' | 'restore'): void {
 		const shown = this._shownSession.get();
-		if (shown?.reason === 'restore' && isEqual(shown.resource, sessionResource)) {
-			this._shownSession.set({ resource: sessionResource, reason: 'open' }, undefined);
+		if (shown && shown.reason !== reason && isEqual(shown.resource, sessionResource)) {
+			this._shownSession.set({ resource: sessionResource, reason }, undefined);
 		}
 	}
 
