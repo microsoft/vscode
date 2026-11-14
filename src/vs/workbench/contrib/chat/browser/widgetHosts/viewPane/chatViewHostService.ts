@@ -6,6 +6,7 @@
 import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
+import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
@@ -137,17 +138,28 @@ export class ChatViewHostService implements IChatViewHostService {
 		this.chatViewHost = instantiationService.createInstance(ChatViewPaneHost);
 	}
 
+	private readonly _replaced = observableValue(this, false);
+	readonly replaced: IObservable<boolean> = this._replaced;
+
 	private get host(): IChatViewHost {
 		return this.registrations.at(-1)?.host ?? this.chatViewHost;
+	}
+
+	/** The host of the chat of `sessionResource`: the Chat view, for a chat the host in use leaves to it. */
+	private hostOf(sessionResource: URI): IChatViewHost {
+		const host = this.host;
+		return host.canShow?.(sessionResource) === false ? this.chatViewHost : host;
 	}
 
 	registerHost(host: IChatViewHost): IDisposable {
 		const registration = { host };
 		this.registrations.push(registration);
+		this._replaced.set(true, undefined);
 		return toDisposable(() => {
 			const index = this.registrations.indexOf(registration);
 			if (index >= 0) {
 				this.registrations.splice(index, 1);
+				this._replaced.set(this.registrations.length > 0, undefined);
 			}
 		});
 	}
@@ -157,11 +169,11 @@ export class ChatViewHostService implements IChatViewHostService {
 	}
 
 	async revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
-		return this.host.revealIfShowing?.(sessionResource, options);
+		return this.hostOf(sessionResource).revealIfShowing?.(sessionResource, options);
 	}
 
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
-		return this.host.openSession(sessionResource, options);
+		return this.hostOf(sessionResource).openSession(sessionResource, options);
 	}
 
 	toggle(): Promise<boolean> {
@@ -169,6 +181,10 @@ export class ChatViewHostService implements IChatViewHostService {
 	}
 
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
-		return this.host.startSession(sessionResource, options);
+		return this.hostOf(sessionResource).startSession(sessionResource, options);
+	}
+
+	newChat(): boolean {
+		return this.host.newChat?.() ?? false;
 	}
 }
