@@ -58,7 +58,8 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getSessionFilterEnvironments, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';
@@ -496,6 +497,25 @@ suite('Sessions - View Menu', () => {
 		await configurationService.updateValue(SESSIONS_LIST_INBOX_ENABLED_SETTING, false);
 		assert.deepStrictEqual({ initial, enabled, hiddenAI, disabled: offered() }, {
 			initial: true, enabled: true, hiddenAI: false, disabled: true,
+		});
+	});
+
+	test('the Grouping menu offers the groupings of its view: Time, Environment and Worktree in the editor window', () => {
+		const { snapshot, contextKeyService } = createMenu();
+		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
+		const offered = (isSessionsWindow: boolean, groupings: readonly SessionsGrouping[]) => {
+			sessionsWindow.set(isSessionsWindow);
+			bindSessionsViewGroupings(contextKeyService, groupings);
+			return snapshot(Menus.SessionsViewGrouping).map(item => item.title);
+		};
+		assert.deepStrictEqual({
+			agentsWindow: offered(true, DEFAULT_SESSIONS_GROUPINGS),
+			editorWindow: offered(false, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+			sessionsWindowOffering: offered(true, EDITOR_WINDOW_SESSIONS_GROUPINGS.offered),
+		}, {
+			agentsWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'],
+			editorWindow: ['Time', 'Environment', 'Worktree'],
+			sessionsWindowOffering: ['Time', 'Environment'],
 		});
 	});
 
@@ -1060,16 +1080,31 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('application filter command opens the Sessions view before showing its filter menu', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		const calls: string[] = [];
-		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'openView', async (id: string) => {
-			calls.push(id);
-			return upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push('showApplicationFilters') });
-		});
-		await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+	test('application filter command opens the registered Sessions view, and uses an embedded one only without it', async () => {
+		const run = async (registered: boolean, embedded: boolean) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const calls: string[] = [];
+			const view = (name: string) => upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push(`${name}.showApplicationFilters`) });
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+				openView: async (id: string) => {
+					calls.push(`open ${id}`);
+					return registered ? view('registered') as never : null;
+				},
+			}));
+			instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => embedded ? view('embedded') : undefined }));
+			await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+			return calls;
+		};
 
-		assert.deepStrictEqual(calls, ['sessions.workbench.view.sessionsView', 'showApplicationFilters']);
+		assert.deepStrictEqual({
+			registeredAndEmbedded: await run(true, true),
+			embeddedOnly: await run(false, true),
+			neither: await run(false, false),
+		}, {
+			registeredAndEmbedded: ['open sessions.workbench.view.sessionsView', 'registered.showApplicationFilters'],
+			embeddedOnly: ['open sessions.workbench.view.sessionsView', 'embedded.showApplicationFilters'],
+			neither: ['open sessions.workbench.view.sessionsView'],
+		});
 	});
 
 	test('opens the filter menu with Created In focused and returns focus to the list', () => {
@@ -1219,31 +1254,6 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('offers Worktree grouping, and Show while grouping by worktree, only outside the Agents window', () => {
-		const { snapshot, contextKeyService, grouping } = createMenu();
-		const state = () => ({
-			grouping: snapshot(Menus.SessionsViewGrouping).map(item => item.title),
-			show: snapshot(Menus.SessionsViewFilter).some(item => item.title === 'Show'),
-			showEntries: snapshot(Menus.SessionsViewShow).map(item => item.title),
-		});
-		const sessionsWindow = IsSessionsWindowContext.bindTo(contextKeyService);
-		grouping.set(SessionsGrouping.Worktree);
-		// The Agents window offers no Worktree grouping, also if a grouping of worktree were set
-		sessionsWindow.set(true);
-		const agentsWindow = state();
-		sessionsWindow.set(false);
-		grouping.set(SessionsGrouping.Workspace);
-		const editorWindow = snapshot(Menus.SessionsViewGrouping).map(item => item.title);
-		grouping.set(SessionsGrouping.Worktree);
-		const byWorktree = state();
-
-		assert.deepStrictEqual({ agentsWindow, editorWindow, byWorktree }, {
-			agentsWindow: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Inbox Mode'], show: false, showEntries: [] },
-			editorWindow: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'],
-			byWorktree: { grouping: ['Time', 'Workspace', 'Repository', 'Environment', 'Worktree', 'Inbox Mode'], show: true, showEntries: ['Recent', 'All'] },
-		});
-	});
-
 	test('keeps submenu titles unchanged while checked items track the selected choices', () => {
 		const { snapshot, sorting, grouping, capped } = createMenu();
 		sorting.set(SessionsSorting.Updated);
@@ -1279,8 +1289,6 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: true },
-				// Outside the Agents window, which this menu is not marked as
-				{ title: 'Worktree', group: '1_group', checked: false, enabled: true },
 				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			environmentShow: [
@@ -1297,7 +1305,6 @@ suite('Sessions - View Menu', () => {
 				{ title: 'Workspace', group: '1_group', checked: false },
 				{ title: 'Repository', group: '1_group', checked: false },
 				{ title: 'Environment', group: '1_group', checked: false },
-				{ title: 'Worktree', group: '1_group', checked: false, enabled: true },
 				{ title: 'Inbox Mode', group: '1_group', checked: false, enabled: false },
 			],
 			show: [

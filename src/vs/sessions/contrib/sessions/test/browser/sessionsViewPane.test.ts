@@ -16,12 +16,13 @@ import { ISessionGridPane } from '../../../../../workbench/services/sessions/bro
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { Workbench } from '../../../../browser/workbench.js';
 import { ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ISessionComparison, SessionComparisonParticipantRole } from '../../../../../workbench/contrib/sessions/common/sessionComparison.js';
 import { AICustomizationShortcutsWidget } from '../../../../../workbench/contrib/sessions/browser/aiCustomizationShortcutsWidget.js';
-import { getCustomizationsPresentation, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { DEFAULT_SESSIONS_GROUPINGS, getCustomizationsPresentation, getStoredSessionsGrouping, SessionsView } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { SessionsGrouping, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { SESSIONS_LIST_INBOX_ENABLED_SETTING } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -100,57 +101,6 @@ suite('Sessions - SessionsViewPane', () => {
 		toolbar.setSession(undefined);
 		assert.deepStrictEqual({ calls, unbound, bound, unboundAgain: visibleButtons().length }, {
 			calls: ['test.globalCustomization', 'test.globalCustomization'], unbound: 1, bound: 1, unboundAgain: 1,
-		});
-	});
-
-	test('applies and restores Worktree grouping only outside the Agents window, which keeps its default and its stored grouping', () => {
-		const setWorktreeGrouping = (allowWorktreeGrouping: boolean) => {
-			const configurationService = new TestConfigurationService();
-			disposables.add(configurationService.onDidChangeConfigurationEmitter);
-			const storageService = disposables.add(new InMemoryStorageService());
-			storageService.store('sessionsViewPane.grouping', SessionsGrouping.Workspace, StorageScope.PROFILE, StorageTarget.USER);
-			const host = {
-				currentGrouping: SessionsGrouping.Workspace as SessionsGrouping | undefined,
-				allowWorktreeGrouping,
-				configurationService,
-				storageService,
-				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
-				updateHeaderLayout: () => { },
-			};
-			const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
-			setGrouping.call(host, SessionsGrouping.Worktree);
-			return { grouping: host.currentGrouping, stored: storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE) };
-		};
-
-		const restore = (stored: string | undefined, allowWorktreeGrouping: boolean) => {
-			const storageService = disposables.add(new InMemoryStorageService());
-			if (stored !== undefined) {
-				storageService.store('sessionsViewPane.grouping', stored, StorageScope.PROFILE, StorageTarget.USER);
-			}
-			const readStoredGrouping = Reflect.get(SessionsView.prototype, 'readStoredGrouping') as (this: object) => SessionsGrouping | undefined;
-			return readStoredGrouping.call({ storageService, allowWorktreeGrouping });
-		};
-
-		assert.deepStrictEqual({
-			editorWindow: setWorktreeGrouping(true),
-			agentsWindow: setWorktreeGrouping(false),
-			restored: {
-				editorWindow: restore(SessionsGrouping.Worktree, true),
-				agentsWindow: restore(SessionsGrouping.Worktree, false),
-				unknown: restore('unknown-grouping', true),
-				none: restore(undefined, false),
-				known: Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree).map(grouping => restore(grouping, false)),
-			},
-		}, {
-			editorWindow: { grouping: SessionsGrouping.Worktree, stored: SessionsGrouping.Worktree },
-			agentsWindow: { grouping: SessionsGrouping.Workspace, stored: SessionsGrouping.Workspace },
-			restored: {
-				editorWindow: SessionsGrouping.Worktree,
-				agentsWindow: undefined,
-				unknown: undefined,
-				none: undefined,
-				known: Object.values(SessionsGrouping).filter(grouping => grouping !== SessionsGrouping.Worktree),
-			},
 		});
 	});
 
@@ -244,6 +194,7 @@ suite('Sessions - SessionsViewPane', () => {
 			configurationService,
 			storageService,
 			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 			updateHeaderLayout: () => { },
 		};
 		const setGrouping = SessionsView.prototype.setGrouping as (this: typeof host, grouping: SessionsGrouping) => void;
@@ -271,6 +222,43 @@ suite('Sessions - SessionsViewPane', () => {
 		});
 	});
 
+	test('a view offers only its groupings: the editor window shows Time until one of its groupings is chosen, also for a stored grouping that only the Agents window offers, which it leaves stored', () => {
+		const configurationService = new TestConfigurationService();
+		disposables.add(configurationService.onDidChangeConfigurationEmitter);
+		const storageService = disposables.add(new InMemoryStorageService());
+		const createHost = (groupings: { readonly offered: readonly SessionsGrouping[]; readonly default: SessionsGrouping } | undefined) => ({
+			currentGrouping: getStoredSessionsGrouping(storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE), groupings?.offered ?? DEFAULT_SESSIONS_GROUPINGS),
+			groupings,
+			configurationService,
+			storageService,
+			get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+			get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
+			updateHeaderLayout: () => { },
+		});
+		const setGrouping = SessionsView.prototype.setGrouping as (this: ReturnType<typeof createHost>, grouping: SessionsGrouping) => void;
+		const saved = () => storageService.get('sessionsViewPane.grouping', StorageScope.PROFILE);
+
+		const editorWindowDefault = createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS).grouping;
+		const agentsWindow = createHost(undefined);
+		setGrouping.call(agentsWindow, SessionsGrouping.Repository);
+		const editorWindow = createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS);
+		const fallback = { shown: editorWindow.grouping, saved: saved() };
+		for (const grouping of [SessionsGrouping.Workspace, SessionsGrouping.Repository, SessionsGrouping.Inbox]) {
+			setGrouping.call(editorWindow, grouping);
+		}
+		const notOffered = { shown: editorWindow.grouping, saved: saved() };
+		setGrouping.call(editorWindow, SessionsGrouping.Worktree);
+		const worktree = { shown: editorWindow.grouping, saved: saved(), agentsWindow: createHost(undefined).grouping, editorWindow: createHost(EDITOR_WINDOW_SESSIONS_GROUPINGS).grouping };
+
+		assert.deepStrictEqual({ editorWindowDefault, fallback, notOffered, worktree, unknown: getStoredSessionsGrouping('unknown-grouping', DEFAULT_SESSIONS_GROUPINGS) }, {
+			editorWindowDefault: SessionsGrouping.Date,
+			fallback: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
+			notOffered: { shown: SessionsGrouping.Date, saved: SessionsGrouping.Repository },
+			worktree: { shown: SessionsGrouping.Worktree, saved: SessionsGrouping.Worktree, agentsWindow: SessionsGrouping.Workspace, editorWindow: SessionsGrouping.Worktree },
+			unknown: undefined,
+		});
+	});
+
 	for (const enabled of [false, true]) {
 		test(`persists an explicit selection of the default grouping (${enabled})`, async () => {
 			const configurationService = new TestConfigurationService({ [SESSIONS_LIST_INBOX_ENABLED_SETTING]: enabled });
@@ -281,6 +269,7 @@ suite('Sessions - SessionsViewPane', () => {
 				configurationService,
 				storageService,
 				get grouping(): SessionsGrouping { return Reflect.get(SessionsView.prototype, 'grouping', this); },
+				get offeredGroupings(): readonly SessionsGrouping[] { return Reflect.get(SessionsView.prototype, 'offeredGroupings', this); },
 				updateHeaderLayout: () => { },
 			};
 			const initial = host.grouping;
