@@ -41,7 +41,7 @@ import { getChatViewHostOpenReason, IChatViewHostShownSession } from '../../../c
 import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
-import { INewSessionTarget } from '../parts/chatView.js';
+import { INewSessionTarget, ISessionViewHostOptions } from '../parts/chatView.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
@@ -171,8 +171,15 @@ export async function restoreAgentsChatPart(layoutService: IWorkbenchLayoutServi
 class AgentsChatPartChat extends SessionChatEditorEntry {
 
 	readonly active: IObservable<boolean>;
-	/** As the editor window's chat, it shows its session's changes as the working set of its input. */
-	readonly hostOptions = SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS;
+	/**
+	 * As the editor window's chat, it shows its session's changes as the working set of its input; as a new-session composer,
+	 * the session header titled as new, as a chat shows it, rather than a tab.
+	 */
+	readonly hostOptions: ISessionViewHostOptions = { ...SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS, showComposerHeader: true };
+
+	protected override get composerRendersTitle(): boolean {
+		return !!this.hostOptions.showComposerHeader;
+	}
 
 	constructor(
 		chatResource: URI,
@@ -360,7 +367,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	async closeChat(chatResource: URI): Promise<void> {
-		const chat = this._findChat(chatResource);
+		// Also the tab of a composer, by the main chat of its session that it did not send yet, as its session header closes it
+		const chat = this._findChat(chatResource) ?? [...this._chats.values()].find(chat => chat.isComposer && isEqual(chat.session.get()?.mainChat.get().resource, chatResource));
 		if (chat) {
 			this._closeChat(chat);
 		}

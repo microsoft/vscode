@@ -706,6 +706,43 @@ suite('Session chat view editor', () => {
 		});
 	});
 
+	test('a host that shows the session header for a composer too, as the chat part of an editor window does, shows it for the composer\'s session, titled as new and without a status, with its session\'s actions; once created, the chat\'s', () => {
+		const { instantiationService } = createServices();
+		const draft = createTestActiveSession('draft', false);
+		const content = observableValue<ISessionPaneContent | undefined>('content', undefined);
+		const view = disposables.add(instantiationService.createInstance(ChatEditorView, {
+			content,
+			composer: constObservable({ draftHost: upcastPartial<INewSessionDraftHost>({}), session: constObservable(draft) }),
+			window: constObservable(undefined),
+			active: constObservable(true),
+			attach: () => Disposable.None,
+			view: constObservable(undefined),
+			hostOptions: { ...SESSION_CHAT_VIEW_HOST_OPTIONS, showComposerHeader: true },
+		}));
+		mainWindow.document.body.appendChild(view.element);
+		disposables.add(toDisposable(() => view.element.remove()));
+		view.layout(800, 600, 0, 0);
+		const read = () => {
+			const header = view.element.querySelector<HTMLElement>('.session-header-bar');
+			return {
+				shown: !!header && header.style.display !== 'none',
+				title: header?.querySelector('.chat-composite-bar-session-title-text')?.textContent,
+				status: header?.querySelector<HTMLElement>('.chat-composite-bar-session-icon')?.style.display !== 'none',
+				onSession: view.titleMenu.options.args?.[0] === draft,
+			};
+		};
+
+		const composing = read();
+		draft.isCreated.set(true, undefined);
+		content.set(testPaneContentOf(draft, () => { }), undefined);
+		const created = read();
+
+		assert.deepStrictEqual({ composing, created }, {
+			composing: { shown: true, title: 'New Session', status: false, onSession: true },
+			created: { shown: true, title: 'Main Chat', status: true, onSession: true },
+		});
+	});
+
 	test('a send that reports more preparation progress keeps the chat it shows, and its focus; focus outside the chat editor stays there', () => {
 		const run = (focusOutside: boolean) => {
 			const store = disposables.add(new DisposableStore());
