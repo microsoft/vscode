@@ -137,28 +137,37 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual(steps, ['A', 'B', 'C', 'A', 'chat view']);
 	});
 
-	test('a host replaces the Chat view while registered, and leaves to the Chat view the chats it does not show', async () => {
+	test('a host replaces the Chat view while registered, and leaves to the Chat view the chats it does not show, which the Chat view then hosts', async () => {
 		const { service, view, calls } = createService();
 		const shown = URI.parse('agent-host-copilot:/session');
 		const left = URI.parse('vscode-chat-session://local/session');
 		const opened: string[] = [];
 		const replacedBefore = service.replaced.get();
+		const chatViewHosts = [service.chatViewHosts.get()];
 		const registration = service.registerHost(upcastPartial<IChatViewHost>({
 			canShow: resource => resource.scheme !== left.scheme,
 			openSession: async resource => { opened.push(resource.toString()); return undefined; },
 		}));
 		const replacedWhile = service.replaced.get();
+		chatViewHosts.push(service.chatViewHosts.get());
 		await service.openSession(shown);
+		chatViewHosts.push(service.chatViewHosts.get());
 		calls.length = 0;
 		const chatViewWidget = await service.openSession(left);
+		chatViewHosts.push(service.chatViewHosts.get());
+		await service.openSession(shown);
+		chatViewHosts.push(service.chatViewHosts.get());
 		registration.dispose();
+		chatViewHosts.push(service.chatViewHosts.get());
 
-		assert.deepStrictEqual({ replacedBefore, replacedWhile, replacedAfter: service.replaced.get(), opened, leftToChatView: calls.some(call => call.startsWith('loadSession')) && chatViewWidget === view.widget }, {
+		assert.deepStrictEqual({ replacedBefore, replacedWhile, replacedAfter: service.replaced.get(), opened, leftToChatView: calls.some(call => call.startsWith('loadSession')) && chatViewWidget === view.widget, chatViewHosts }, {
 			replacedBefore: false,
 			replacedWhile: true,
 			replacedAfter: false,
-			opened: ['agent-host-copilot:/session'],
+			opened: ['agent-host-copilot:/session', 'agent-host-copilot:/session'],
 			leftToChatView: true,
+			// Before, the left chat, and after; not the host's
+			chatViewHosts: [true, false, false, true, false, true],
 		});
 	});
 
