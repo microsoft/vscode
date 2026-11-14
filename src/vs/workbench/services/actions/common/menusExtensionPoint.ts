@@ -588,6 +588,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.agentsTitleBar', "The title bar of the agents window."),
 		proposed: 'contribTitleBar'
 	},
+	{
+		key: 'agents/sessionActivityBar',
+		id: MenuId.AgentsSessionActivityBar,
+		description: localize('menus.agentsSessionActivityBar', "The Session Activity Bar at the right edge of the agents window. Its entries show as icons, after the built-in entries; commands without an icon are not shown."),
+		supportsSubmenus: false
+	},
 ];
 
 namespace schema {

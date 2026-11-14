@@ -350,6 +350,8 @@ export class MenuId {
 	static readonly AgentsTitleBarControlMenu = new MenuId('AgentsTitleBarControlMenu');
 	/** Buttons that extensions contribute to the title bar of the Agents window, left of its built-in buttons. */
 	static readonly AgentsTitleBar = new MenuId('AgentsTitleBar');
+	/** Entries that extensions contribute to the Session Activity Bar of the Agents window, after its built-in entries. */
+	static readonly AgentsSessionActivityBar = new MenuId('AgentsSessionActivityBar');
 	static readonly AgentsChangesToolbar = new MenuId('AgentsChangesToolbar');
 	static readonly AgentsChangesPrimaryActionSubMenu = new MenuId('AgentsChangesPrimaryActionSubMenu');
 	static readonly AgentsChangeInlineToolbar = new MenuId('AgentsChangeInlineToolbar');

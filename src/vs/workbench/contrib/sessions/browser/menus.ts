@@ -130,4 +130,6 @@ export const SessionActivityBarGroup = {
 	Panel: '2_panel',
 	/** Links to the active chat's pull requests and issues. */
 	GitHub: '3_github',
+	/** The entries extensions contribute to `agents/sessionActivityBar` ({@link MenuId.AgentsSessionActivityBar}). */
+	Extensions: '4_extensions',
 } as const;
