@@ -12,6 +12,7 @@ import { IChatViewHost, IChatViewHostService } from '../../../chat/browser/chatV
 import { ChatViewHostService } from '../../../chat/browser/widgetHosts/viewPane/chatViewHostService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { Event } from '../../../../../base/common/event.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { IProgressService } from '../../../../../platform/progress/common/progress.js';
@@ -27,6 +28,8 @@ suite('openPanelChatAndGetWidget', () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (() => null) as IViewsService['getViewWithId'],
 			openView: (async (id: string, focus?: boolean) => { calls.push(`openView ${id} focus=${focus}`); return upcastPartial<ChatViewPane>({ widget: chatViewWidget }); }) as IViewsService['openView'],
 		}));
 		instantiationService.stub(IViewDescriptorService, {});

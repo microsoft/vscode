@@ -218,9 +218,10 @@ suite('ChatWidgetService', () => {
 			const oldWidget = createWidget(session);
 			const emptyOldWidget = createWidget(undefined);
 			const hostWidget = upcastPartial<IChatWidget>({});
-			const view = { widget: oldWidget, focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); } };
+			const view = { widget: oldWidget, shownSession: constObservable(undefined), focus: () => calls.push('view.focus'), loadSession: async () => { calls.push('view.loadSession'); } };
 			instantiationService.stub(IEditorGroupsService, { groups: [] });
 			instantiationService.stub(IViewsService, {
+				onDidChangeViewVisibility: Event.None,
 				getViewWithId: (() => view) as unknown as IViewsService['getViewWithId'],
 				openView: (async (id: string) => { calls.push(`openView ${id}`); return view; }) as unknown as IViewsService['openView'],
 			});

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise, raceTimeout } from '../../../../../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { derived, IObservable, ISettableObservable, observableFromEvent, observableValue, runOnChange } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -151,8 +151,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		this.hostInUse = observableValue<IChatViewHost>(this, this.chatViewHost);
 		this.latestHost = observableValue<IChatViewHost>(this, this.chatViewHost);
 		this.shownSession = derived(this, reader => this.latestHost.read(reader).shownSession?.read(reader));
-		this._register(this.trackShownSession(this.chatViewHost));
 	}
+
+	/** Tracks the chats that the Chat view shows while a host replaces it; without one, the Chat view is always the latest host. */
+	private readonly chatViewTracking = this._register(new MutableDisposable());
 
 	/** Makes `host` the latest host whenever it shows another chat, such as one it restores or one opened in it directly. */
 	private trackShownSession(host: IChatViewHost): IDisposable {
@@ -196,6 +198,11 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		this.hostInUse.set(host, undefined);
 		this.latestHost.set(host, undefined);
 		this._replaced.set(this.registrations.length > 0, undefined);
+		if (this.registrations.length === 0) {
+			this.chatViewTracking.clear();
+		} else if (!this.chatViewTracking.value) {
+			this.chatViewTracking.value = this.trackShownSession(this.chatViewHost);
+		}
 	}
 
 	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
