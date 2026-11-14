@@ -15778,8 +15778,8 @@ suite('ChatListRenderer', () => {
 				afterSecond: { pending: context.carousel?.pendingCount ?? 0, state: second.state.get().type },
 				factoriesUsed,
 			}, {
-				before: { pending: 2, hasApprovalHeading: false, title: '\u2014 language agent', transcriptRendered: false },
-				afterFirst: { pending: 1, hasApprovalHeading: false, first: IChatToolInvocation.StateKind.Executing, second: IChatToolInvocation.StateKind.WaitingForConfirmation, title: '\u2014 host agent' },
+				before: { pending: 2, hasApprovalHeading: false, title: 'language agent', transcriptRendered: false },
+				afterFirst: { pending: 1, hasApprovalHeading: false, first: IChatToolInvocation.StateKind.Executing, second: IChatToolInvocation.StateKind.WaitingForConfirmation, title: 'host agent' },
 				afterSecond: { pending: 0, state: IChatToolInvocation.StateKind.Executing },
 				factoriesUsed: [['compiler-check', 'compiler-check'], ['helper-tests', 'helper-tests']],
 			});
