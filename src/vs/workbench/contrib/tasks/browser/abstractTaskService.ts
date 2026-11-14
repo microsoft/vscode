@@ -975,7 +975,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 			return task.matches(key, compareId);
 		});
-		matchedTasks.sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+		// Keep definition order so a direct launch resolves to the same task as the dependsOn/quickResolve path.
 		if (matchedTasks.length > 0) {
 			// Nice, we found a configured task!
 			const task = matchedTasks[0];
@@ -994,7 +994,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!values) {
 			return undefined;
 		}
-		values = values.filter(task => task.matches(key, compareId)).sort(task => task._source.kind === TaskSourceKind.Extension ? 1 : -1);
+		// Prefer configured tasks over contributed (extension) ones without reordering tasks within each group.
+		values = values.filter(task => task.matches(key, compareId)).sort((a, b) =>
+			(a._source.kind === TaskSourceKind.Extension ? 1 : 0) - (b._source.kind === TaskSourceKind.Extension ? 1 : 0));
 		return values.length > 0 ? values[0] : undefined;
 	}
 
