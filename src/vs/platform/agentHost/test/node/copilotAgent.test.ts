@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, ResumeSessionConfig, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotClient, CopilotClientOptions, CopilotSession, GitHubTelemetryNotification, PermissionMode, PermissionRequest, ResumeSessionConfig, SessionConfig, SessionEvent, SessionEventHandler, SessionEventPayload, SessionEventType, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import type { ResolvedProxyInfo } from '@vscode/proxy-agent';
 import { mock, upcastPartial } from '../../../../base/test/common/mock.js';
 import type Anthropic from '@anthropic-ai/sdk';
@@ -30,6 +30,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isEqual, isEqualOrParent, joinPath } from '../../../../base/common/resources.js';
 import { autorun, observableValue, waitForState } from '../../../../base/common/observable.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
@@ -79,6 +80,8 @@ import { AgentHostAutoApprovePolicyRestrictedConfigKey, AgentHostByokModelsEnabl
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
 import { toClientPluginMcpDefaultCwdsMeta, toClientPluginStandaloneMeta } from '../../common/meta/clientPluginCustomizationMeta.js';
 import { getTelemetryChatSessionId } from '../../common/agentTelemetryCorrelation.js';
+import type { IOriginatingTriggerContext } from '../../common/originatingTrigger.js';
+import { SessionServerToolName } from '../../common/serverToolNames.js';
 import { AgentSession, AgentExtensionConsentOption, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, GITHUB_COPILOT_PROTECTED_RESOURCE, type AgentSignal, type AuthenticateParams, type IAgentCanvasInfo, type IAgentChatAdoptionResult, type IAgentChatSessionSettings, type IAgentChatContext, type IAgentChatMetadata, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentDiscoveredChat, type IAgentMaterializeChatEvent, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentChatOwnerRef } from '../../common/agent.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { subagentChatUri } from '../../common/agentHostChatMinting.js';
@@ -1929,6 +1932,149 @@ suite('CopilotAgent', () => {
 	teardown(() => {
 		clearProxyEnvironment();
 		Object.assign(process.env, savedProxyEnvironment);
+	});
+
+	test('preserves the captured origin through composed host delegation after the parent advances', async () => {
+		const originatingTrigger: IOriginatingTriggerContext = {
+			triggers: [{ id: generateUuid(), kind: 'automation' }],
+			incomplete: false,
+			involvesSteering: true,
+		};
+		const nextOrigin: IOriginatingTriggerContext = {
+			triggers: [{ id: generateUuid(), kind: 'user' }],
+			incomplete: false,
+			involvesSteering: false,
+		};
+		type RecordedSend = {
+			sessionId: string;
+			method: 'send' | 'rpc.send';
+			prompt: string;
+			source?: string;
+			clientTurnId?: string;
+			originatingTrigger?: IOriginatingTriggerContext;
+		};
+		const listeners = disposables.add(new DisposableStore());
+		const sends = disposables.add(new Emitter<RecordedSend>());
+		const requests: RecordedSend[] = [];
+		const recordSend = (request: RecordedSend) => {
+			requests.push(request);
+			sends.fire(request);
+			return generateUuid();
+		};
+		const launches = new Map<string, { runtime: MockCopilotSession; config: SessionConfig }>();
+		const client = new TestCopilotClient([], [{ id: 'gpt-4o', name: 'GPT-4o' }]);
+		client.createSession = async config => {
+			assert.ok(config.sessionId);
+			const runtime = new class extends MockCopilotSession {
+				readonly capabilities = { originatingTrigger: true };
+				override async send(options?: Parameters<CopilotSession['send']>[0]): Promise<string> {
+					assert.ok(options);
+					return recordSend({ ...options, sessionId: this.sessionId, method: 'send' });
+				}
+			}(config.sessionId);
+			Object.assign(runtime.rpc, {
+				send: async (request: Parameters<CopilotSession['rpc']['send']>[0]) => ({
+					messageId: recordSend({ ...request, sessionId: runtime.sessionId, method: 'rpc.send' }),
+				}),
+			});
+			launches.set(runtime.sessionId, { runtime, config });
+			return runtime as unknown as CopilotSession;
+		};
+		const logService = new NullLogService();
+		const fileService = createInMemoryFileService(disposables, Schemas.file);
+		const directory = URI.file('/workspace');
+		await fileService.createFolder(directory);
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		disposables.add(fileService.registerProvider(sessionDataService.getSessionDataDirById('fixture').scheme, disposables.add(new InMemoryFileSystemProvider())));
+		const copilotApiService = new TestCopilotApiService();
+		const { agent } = createTestAgentContext(disposables, {
+			fileService, sessionDataService, copilotClient: client, copilotApiService, useRealResumePath: true,
+			rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+		});
+		const host = disposables.add(createTestAgentService(logService, fileService, sessionDataService, TEST_PRODUCT_SERVICE, new TestAgentHostGitService(), undefined, NullTelemetryService, undefined, copilotApiService));
+		registerTestAgentProvider(host, agent);
+		afterTest(async () => {
+			await host.shutdown();
+			host.dispose();
+			await sessionDataService.whenIdle();
+		});
+		await agent.authenticate(GITHUB_COPILOT_PROTECTED_RESOURCE.resource, 'token');
+		await waitForState(agent.models, models => models.length > 0);
+		const parent = await host.createSession({ provider: agent.id, workingDirectories: [directory], model: { id: 'gpt-4o' }, legacyChatUris: true });
+		const recipient = await host.createSession({ provider: agent.id, workingDirectories: [directory], model: { id: 'gpt-4o' }, legacyChatUris: true });
+		const stateManager = getTestAgentStateManager(host);
+		const parentChat = stateManager.getSessionState(parent.toString())?.defaultChat;
+		const recipientChat = stateManager.getSessionState(recipient.toString())?.defaultChat;
+		assert.ok(parentChat);
+		assert.ok(recipientChat);
+		const whenSent = (text: string) => Event.toPromise(Event.filter(sends.event, request => request.prompt.includes(text)), listeners);
+		const startTurn = (chat: string, turnId: string, text: string) => {
+			const sent = whenSent(text);
+			host.dispatchAction(chat, {
+				type: ActionType.ChatTurnStarted, turnId, startedAt: new Date().toISOString(),
+				message: { text, origin: { kind: MessageKind.User } },
+			}, 'origin-client', 1);
+			return sent;
+		};
+		const completeTurn = (chat: string, turnId: string, runtime: MockCopilotSession) => {
+			const completed = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, envelope =>
+				envelope.channel === chat && envelope.action.type === ActionType.ChatTurnComplete && envelope.action.turnId === turnId), listeners);
+			runtime.emit({ id: generateUuid(), timestamp: new Date().toISOString(), parentId: null, type: 'session.idle', ephemeral: true, data: {} });
+			return completed;
+		};
+		const parentSend = await startTurn(parentChat, 'parent-original', 'ORIGIN_PARENT_FIRST');
+		const recipientSend = await startTurn(recipientChat, 'recipient-busy', 'ORIGIN_RECIPIENT_BUSY');
+		const parentLaunch = launches.get(parentSend.sessionId)!;
+		const recipientRuntime = launches.get(recipientSend.sessionId)!.runtime;
+		const delegate = parentLaunch.config.tools?.find(tool => tool.name === SessionServerToolName.SendMessage);
+		assert.ok(delegate?.handler);
+		const args = { session: recipient.toString(), message: 'ORIGIN_DELEGATED_WORK' };
+		parentLaunch.runtime.emit({
+			id: generateUuid(), timestamp: new Date().toISOString(), parentId: null, type: 'tool.execution_start',
+			data: { toolCallId: 'delegate-call', toolName: delegate.name, arguments: args, ...{ originatingTrigger } },
+		});
+		const invocation = { sessionId: parentSend.sessionId, toolCallId: 'delegate-call', toolName: delegate.name, arguments: args, originatingTrigger };
+		const result = await delegate.handler(args, invocation);
+		assert.ok(typeof result === 'object' && result !== null
+			&& hasKey<object | ToolResultObject, { resultType: true; textResultForLlm: true }>(result, { resultType: true, textResultForLlm: true })
+			&& result.resultType === 'success' && typeof result.textResultForLlm === 'string');
+		parentLaunch.runtime.emit({
+			id: generateUuid(), timestamp: new Date().toISOString(), parentId: null, type: 'tool.execution_complete',
+			data: { toolCallId: 'delegate-call', success: true, result: { content: result.textResultForLlm } },
+		});
+		await completeTurn(parentChat, 'parent-original', parentLaunch.runtime);
+		await startTurn(parentChat, 'parent-unrelated', 'ORIGIN_PARENT_SECOND');
+		parentLaunch.runtime.emit({
+			id: generateUuid(), timestamp: new Date().toISOString(), parentId: null, type: 'user.message',
+			data: { content: 'ORIGIN_PARENT_SECOND', clientTurnId: 'parent-unrelated', ...{ originatingTrigger: nextOrigin } },
+		});
+		const beforeDispatch = {
+			parentTurn: stateManager.getChatState(parentChat)?.activeTurn?.id,
+			recipientTurn: stateManager.getChatState(recipientChat)?.activeTurn?.id,
+			queued: stateManager.getChatState(recipientChat)?.queuedMessages?.map(message => message.message.text),
+		};
+		const delegatedSend = whenSent('ORIGIN_DELEGATED_WORK');
+		await completeTurn(recipientChat, 'recipient-busy', recipientRuntime);
+		const delegated = await delegatedSend;
+		assert.ok(delegated.clientTurnId);
+		assert.deepStrictEqual({
+			beforeDispatch,
+			delegated: {
+				method: delegated.method, sessionId: delegated.sessionId, source: delegated.source,
+				originatingTrigger: delegated.originatingTrigger,
+			},
+			delegatedRequests: requests.filter(request => request.prompt.includes('ORIGIN_DELEGATED_WORK')).length,
+			recipientTurnMatches: delegated.clientTurnId === stateManager.getChatState(recipientChat)?.activeTurn?.id,
+		}, {
+			beforeDispatch: { parentTurn: 'parent-unrelated', recipientTurn: 'recipient-busy', queued: ['ORIGIN_DELEGATED_WORK'] },
+			delegated: { method: 'rpc.send', sessionId: recipientSend.sessionId, source: `agent-${parentChat}`, originatingTrigger },
+			delegatedRequests: 1,
+			recipientTurnMatches: true,
+		});
+		await Promise.all([
+			completeTurn(parentChat, 'parent-unrelated', parentLaunch.runtime),
+			completeTurn(recipientChat, delegated.clientTurnId, recipientRuntime),
+		]);
 	});
 
 	test('host sandbox certificate management starts the runtime without creating or resuming a chat', async () => {

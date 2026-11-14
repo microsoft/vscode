@@ -140,6 +140,8 @@ import { withPermissionDiff } from '../../common/meta/agentPermissionRequestMeta
 import { COPILOT_FUSION_PHASE_AGENT_NAME, CopilotFusionProgress, formatFusionReviewContent, getFusionPhaseToolCallId, isProvisionalFusionConversationEvent, type CopilotFusionEvent, type FusionPhasePresentation, type ICopilotFusionProgressUpdate } from './copilotFusionProgress.js';
 import { CopilotFusionRequestCorrelation, getFusionEventKey, getFusionEventSdkTurnId, isSyntheticUserMessage } from './copilotFusionEventIdentity.js';
 import { toCopilotMessageSource, toCopilotMessageSourceOptions } from './copilotMessageSource.js';
+import { parseOriginatingTrigger, readOriginatingTrigger, supportsOriginatingTrigger, type IOriginatingTriggerContext } from '../../common/originatingTrigger.js';
+import { readAgentMessageDelegationMeta } from '../../common/meta/agentMessageDelegationMeta.js';
 import { CopilotFusionMessageChunks, isLastAssistantMessageChunk } from './copilotFusionMessageChunks.js';
 import { addAttachmentDisplayKindToMimeType, addSimpleAttachmentDisplayKindToMimeType } from './copilotAttachmentUtils.js';
 import { appendGeneratedImagePaths, GENERATED_IMAGE_PRESENTATION_CONTEXT, getGeneratedImages, saveGeneratedImages } from './copilotGeneratedImages.js';
@@ -173,7 +175,17 @@ import { CompactionTurnCorrelation } from './compactionTurnCorrelation.js';
 import { CopilotSubagentTracking } from './copilotSubagentTracking.js';
 import { agentModelCallMetaKey, readAgentModelCallDiagnostics } from '../../common/meta/agentModelCallMeta.js';
 
-type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number];
+type CopilotSdkAttachment = Required<MessageOptions>['attachments'][number] & NonNullable<Parameters<CopilotSession['rpc']['send']>[0]['attachments']>[number];
+const COPILOT_TURN_ORIGINATING_TRIGGER = 'copilot.originatingTrigger';
+
+function toSdkOriginatingTrigger(context: IOriginatingTriggerContext) {
+	return {
+		triggers: context.triggers.map(trigger => ({ id: trigger.id, kind: trigger.kind })),
+		incomplete: context.incomplete,
+		involvesSteering: context.involvesSteering,
+	};
+}
+
 type GitHubCredentialsUpdateResult = Awaited<ReturnType<CopilotSession['rpc']['gitHubAuth']['setCredentials']>>;
 type McpAuthHandler = NonNullable<SessionConfig['onMcpAuthRequest']>;
 type McpAuthRequest = Parameters<McpAuthHandler>[0];
@@ -301,6 +313,7 @@ interface ILastMcpAuthRequirement {
 
 interface ICopilotActiveToolCall {
 	readonly turnId: string;
+	readonly originatingTrigger?: IOriginatingTriggerContext;
 	readonly copilotTrackingId?: string;
 	readonly startedAt?: string;
 	readonly toolName: string;
@@ -984,6 +997,7 @@ class DirectUsageAccumulator {
 }
 
 class CopilotTurn extends Disposable {
+	originatingTrigger: IOriginatingTriggerContext | undefined;
 	timingRecorder: IAgentProviderSendStageRecorder | undefined;
 	completionReferences: readonly ICopilotCompletionReference[] = [];
 	completionReferenceText = '';
@@ -2806,8 +2820,11 @@ export class CopilotAgentSession extends Disposable {
 
 	// #endregion
 
-	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string): void {
+	private _emitModelCallCompleted(turnId: string, modelCallId: string, parentToolCallId?: string, originatingTrigger?: IOriginatingTriggerContext): void {
 		const turn = this._currentTurn.value;
+		if (!parentToolCallId && turn?.id === turnId) {
+			this._recordTurnOrigin(turn, originatingTrigger);
+		}
 		const rootContext = turn?.id === turnId ? turn.telemetryContext : undefined;
 		const telemetryContext = parentToolCallId
 			? this._subagents.getAccountContext(parentToolCallId)
@@ -2815,6 +2832,7 @@ export class CopilotAgentSession extends Disposable {
 		this.modelCallTurnCorrelation.recordTelemetryContext(modelCallId, telemetryContext);
 		this._emitProgress({
 			kind: 'model_call_completed',
+			...(originatingTrigger ? { originatingTrigger } : {}),
 			resource: this._chatChannelUri,
 			turnId,
 			modelCallId,
@@ -4907,7 +4925,10 @@ export class CopilotAgentSession extends Disposable {
 					if (def.topLevelChatOnly && (!toolCall || toolCall.parentToolCallId || this._unroutableSubagentToolCallIds.has(invocation.toolCallId))) {
 						throw new Error('This tool can only be called from a top-level chat with a known root tool-call origin.');
 					}
-					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, invocation.toolCallId);
+					const text = host.executeTool(this._chatChannelUri.toString(), def.name, args, invocation.toolCallId, {
+						turnId: toolCall?.turnId,
+						originatingTrigger: readOriginatingTrigger(invocation) ?? toolCall?.originatingTrigger,
+					});
 					return { textResultForLlm: await text, resultType: 'success' };
 				} catch (error) {
 					const message = error instanceof Error ? error.message : String(error);
@@ -6704,7 +6725,7 @@ export class CopilotAgentSession extends Disposable {
 		}
 	}
 
-	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder, originalMessageText = prompt, messageSource?: MessageSource): Promise<void> {
+	async send(prompt: string, attachments?: readonly MessageAttachment[], turnId?: string, mode?: CopilotSdkMode, senderClientId?: string, clientType = AgentHostClientType.Unknown, hostInstructions?: readonly string[], clientContext = createUnknownAgentHostClientTelemetryContext(clientType), agentMergeTurn = false, stageRecorder?: IAgentProviderSendStageRecorder, originalMessageText = prompt, messageSource?: MessageSource, originatingTrigger?: IOriginatingTriggerContext): Promise<void> {
 		this._assertScopedGitHubCredential();
 		if (this._workingDirectoryMutationInProgress) {
 			throw new Error('Cannot start a turn while the working directory is changing');
@@ -6740,7 +6761,7 @@ export class CopilotAgentSession extends Disposable {
 					return;
 				}
 			}
-			await this._send(prompt, attachments, mode, stageRecorder, messageSource);
+			await this._send(prompt, attachments, mode, stageRecorder, messageSource, originatingTrigger);
 		} catch (err) {
 			// A rejected send never reaches the SDK's agentic loop, so no
 			// `session.idle` will ever arrive to close this turn. The host turns
@@ -6900,7 +6921,59 @@ export class CopilotAgentSession extends Disposable {
 		return execution ? { kind: 'executed', value: await execution.result } : { kind: 'skipped' };
 	}
 
-	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, stageRecorder?: IAgentProviderSendStageRecorder, messageSource?: MessageSource): Promise<void> {
+	private async _sendSdkMessage(options: Pick<MessageOptions, 'prompt' | 'mode' | 'displayPrompt' | 'source' | 'clientTurnId'> & { attachments?: CopilotSdkAttachment[] }, originatingTrigger?: IOriginatingTriggerContext): Promise<string> {
+		const session = this._wrapper.session;
+		// This adapter uses 'system' for agent messages whose sender is unavailable.
+		originatingTrigger ??= options.source === 'system' ? { triggers: [], incomplete: true, involvesSteering: false } : undefined;
+		if (!originatingTrigger) {
+			return session.send(options);
+		}
+		if (!supportsOriginatingTrigger(session.capabilities)) {
+			this._logService.debug(`[Copilot:${this.sessionId}] Runtime does not support originating-trigger handoff.`);
+			return session.send(options);
+		}
+		// The RPC preserves additive wire fields with SDK versions that do not yet expose the send option.
+		const trace = this._otelService.getCurrentTraceContext();
+		const request = { ...options, traceparent: trace?.traceparent, tracestate: trace?.tracestate, originatingTrigger: toSdkOriginatingTrigger(originatingTrigger) };
+		return (await session.rpc.send(request)).messageId;
+	}
+
+	private _recordTurnOrigin(turn: CopilotTurn, context: IOriginatingTriggerContext | undefined): void {
+		if (!context) {
+			return;
+		}
+		const serialized = JSON.stringify(context);
+		if (JSON.stringify(turn.originatingTrigger) === serialized) {
+			return;
+		}
+		turn.originatingTrigger = context;
+		void this._withDatabase(db => db.setMetadata(COPILOT_TURN_ORIGINATING_TRIGGER, serialized, turn.id))
+			.catch(error => this._logService.warn(`[Copilot:${this.sessionId}] Failed to persist originating trigger for turn ${turn.id}`, error));
+	}
+
+	private async _readTurnOrigin(turnId: string): Promise<IOriginatingTriggerContext | undefined> {
+		const stored = (await this._withDatabase(db => db.getTurnMetadata(COPILOT_TURN_ORIGINATING_TRIGGER))).get(turnId);
+		if (stored === undefined) {
+			return undefined;
+		}
+		try {
+			const context = parseOriginatingTrigger(JSON.parse(stored));
+			if (context) {
+				return context;
+			}
+		} catch (error) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Invalid persisted originating trigger for turn ${turnId}`, error);
+			return undefined;
+		}
+		this._logService.warn(`[Copilot:${this.sessionId}] Invalid persisted originating trigger for turn ${turnId}`);
+		return undefined;
+	}
+
+	private async _send(prompt: string, attachments: readonly MessageAttachment[] | undefined, mode: CopilotSdkMode | undefined, stageRecorder?: IAgentProviderSendStageRecorder, messageSource?: MessageSource, originatingTrigger?: IOriginatingTriggerContext): Promise<void> {
+		const originatingTurn = this._currentTurn.value;
+		if (originatingTurn) {
+			this._recordTurnOrigin(originatingTurn, originatingTrigger);
+		}
 		this._logService.info(`[Copilot:${this.sessionId}] sendMessage called: "${prompt.substring(0, 100)}${prompt.length > 100 ? '...' : ''}" (${attachments?.length ?? 0} attachments)`);
 
 		// An aborted idle resets the live token; retain the pre-await token to preserve cancellation.
@@ -7128,7 +7201,7 @@ export class CopilotAgentSession extends Disposable {
 						requestHeaders: { Authorization: '******' },
 					});
 				} else {
-					await this._wrapper.session.send({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) });
+					await this._sendSdkMessage({ prompt, attachments: sdkAttachments?.length ? sdkAttachments : undefined, ...(displayPrompt ? { displayPrompt } : {}), ...toCopilotMessageSourceOptions(messageSource, sendingTurn?.id) }, originatingTrigger);
 				}
 			});
 		}), sendingTurn, abortToken, sendingTurn);
@@ -7236,12 +7309,21 @@ export class CopilotAgentSession extends Disposable {
 		turn?.markProviderCallPending();
 		try {
 			await this._prepareSdkTurn(mode, stageRecorder);
+			const originatingTrigger = supportsOriginatingTrigger(this._wrapper.session.capabilities)
+				? await this._readTurnOrigin(turnId)
+				: undefined;
 			if (!this._canSendTurn(turn, abortToken)) {
 				return;
 			}
+			if (turn) {
+				turn.originatingTrigger = originatingTrigger;
+			}
 			const traceContext = this._otelService.getSessionTraceContext(this.sessionId, this.resourceUri.toString());
 			const execution = await this._executeSdkOperation(
-				() => this._otelService.withTraceContext(traceContext, () => this._measureSdkSend(turn, stageRecorder, () => this._wrapper.session.rpc.sendMessages({ messages: [] }))),
+				() => this._otelService.withTraceContext(traceContext, () => this._measureSdkSend(turn, stageRecorder, () => this._wrapper.session.rpc.sendMessages({
+					messages: [],
+					...(originatingTrigger ? { originatingTrigger: toSdkOriginatingTrigger(originatingTrigger) } : {}),
+				}))),
 				turn, abortToken,
 			);
 			if (execution.kind === 'skipped') {
@@ -7674,12 +7756,14 @@ export class CopilotAgentSession extends Disposable {
 						this._logService.info(`[Copilot:${this.sessionId}] Steering message was withdrawn or cleared before it was sent: id=${steeringMessage.id}`);
 						return undefined;
 					}
-					const messageId = this._otelService.withTraceContext(traceContext, () => this._wrapper.session.send({
+					const delegation = readAgentMessageDelegationMeta(steeringMessage.message);
+					const origin = delegation && hasKey(delegation, { sourceSession: true }) ? delegation.originatingTrigger : undefined;
+					const messageId = this._otelService.withTraceContext(traceContext, () => this._sendSdkMessage({
 						prompt: steeringPrompt,
 						attachments: sdkAttachments?.length ? sdkAttachments : undefined,
 						mode: 'immediate',
 						...toCopilotMessageSourceOptions(messageSource, steeringMessage.id),
-					}));
+					}, origin));
 					pending.sdkSend = { prompt: steeringPrompt, messageId };
 					// Keep dispatched entries in SDK send order, not attachment preparation order.
 					this._pendingSteeringFlips.delete(steeringMessage.id);
@@ -10740,6 +10824,10 @@ export class CopilotAgentSession extends Disposable {
 			if (turn) {
 				turn.sdkSendInvoked = true;
 				turn.markRunning();
+				this._recordTurnOrigin(turn, readOriginatingTrigger(e.data));
+				void this._withDatabase(db => db.setTurnEventId(turn.id, e.id))
+					.catch(error => this._logService.warn(`[Copilot:${sessionId}] Failed to persist notification turn event id`, error));
+				turn.completeEventId(e.id);
 			}
 			this._emitAction({
 				type: ActionType.ChatTurnStarted,
@@ -10782,6 +10870,10 @@ export class CopilotAgentSession extends Disposable {
 			// The message is admitted only after required plugins are prepared.
 			this._setManagedPluginActivity(undefined);
 			const steering = this._takeMatchingPendingSteering(e.data.content, e.data.messageId);
+			const priorOrigin = this._currentTurn.value?.originatingTrigger;
+			const originatingTrigger = e.data.delivery === 'steering'
+				? priorOrigin && { ...priorOrigin, involvesSteering: true }
+				: readOriginatingTrigger(e.data);
 			if (steering && !steering.promotedTurnId) {
 				this._beginSteeringTurn(steering);
 				if (e.data.interactionId) {
@@ -10792,6 +10884,7 @@ export class CopilotAgentSession extends Disposable {
 			}
 			const turn = this._currentTurn.value;
 			if (turn) {
+				this._recordTurnOrigin(turn, originatingTrigger);
 				this._hasFusionRootTurnBoundary = true;
 				const precedingResolution = this._fusionRequestCorrelation.getPrecedingResolution(e);
 				if (precedingResolution && !this._fusionEventTurnIds.has(`fusion:${precedingResolution.fusionId}`)) {
@@ -10928,7 +11021,7 @@ export class CopilotAgentSession extends Disposable {
 			const modelCallId = stableModelCallId ?? e.data.messageId;
 			const parentToolCallId = this._parentToolCallIdForSubagentEvent(e);
 			if (isCompleteModelCall && (!e.agentId || parentToolCallId)) {
-				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId);
+				this._emitModelCallCompleted(this._turnId, modelCallId, parentToolCallId, readOriginatingTrigger(e.data));
 			}
 			// Report the enhanced GH `request.options.tools` event for this model call — parity with
 			// the Copilot extension, which emits it per LLM request. `assistant.message` is the
@@ -11160,6 +11253,7 @@ export class CopilotAgentSession extends Disposable {
 				: this._currentTurn.value?.telemetryContext;
 			this._activeToolCalls.set(e.data.toolCallId, {
 				turnId: this._turnId,
+				originatingTrigger: readOriginatingTrigger(e.data),
 				copilotTrackingId: telemetryContext?.copilotTrackingId,
 				startedAt: e.timestamp,
 				toolName: e.data.toolName,
@@ -11363,9 +11457,9 @@ export class CopilotAgentSession extends Disposable {
 			const turn = this._currentTurn.value;
 			const turnId = tracked.turnId;
 			const chatUri = parentToolCallId ? this._subagentChatUri(parentToolCallId) : this._chatChannelUri.toString();
-			const modelId = tracked.fusionSourceModel ?? this._lastSeenModelId;
+			const modelId = tracked.fusionSourceModel ?? e.data.model ?? this._lastSeenModelId;
 			// Recording an SDK edit must finish even when its turn no longer accepts display updates.
-			const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, parentToolCallId !== undefined, turn?.clientContext, chatUri, tracked.autoTier, tracked.fusionModel, tracked.copilotTrackingId)
+			const fileEdits = filePaths.map(filePath => this._editTracker.takeCompletedEdit(turnId, e.data.toolCallId, filePath, tracked.toolName, tracked.parameters, modelId, parentToolCallId !== undefined, turn?.clientContext, chatUri, tracked.autoTier, tracked.fusionModel, tracked.copilotTrackingId, readOriginatingTrigger(e.data))
 				.catch(err => {
 					this._logService.warn(`[Copilot:${sessionId}] Failed to take completed edit`, err);
 					return undefined;
@@ -12190,7 +12284,7 @@ export class CopilotAgentSession extends Disposable {
 			const fusion = e.data.fusion;
 			if (turn && !e.agentId && !parentToolCallId && fusion?.phaseId && e.data.apiCallId && e.data.interactionType !== 'conversation-compaction'
 				&& this._fusionEventTurnIds.get(`fusion:${fusion.fusionId}`) === turn.id) {
-				this._emitModelCallCompleted(turn.id, e.data.apiCallId);
+				this._emitModelCallCompleted(turn.id, e.data.apiCallId, undefined, readOriginatingTrigger(e.data));
 			}
 			const directUsage = isUnmappedSubagent ? undefined : this._directUsageFor(parentToolCallId, true);
 			directUsage?.add(eventContext.model, eventContext, copilotUsage?.totalNanoAiu);

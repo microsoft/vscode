@@ -29,6 +29,7 @@ import { multiplexProperties, type IAgentHostRestrictedTelemetry, type IAgentHos
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { AgentHostClientConnectionKind, AgentHostLaunchKind, AgentHostTransportKind, type AgentHostPrewarmSkipReason, type CodexModelProvider, type AgentHostProviderSendStage, type AgentHostTurnFailureStage, type AgentHostTurnSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderTurnTelemetryContext, type ICodexAccountTelemetryContext } from '../common/agentHostTelemetry.js';
 import { isAgentHostTelemetryService } from './agentHostTelemetryService.js';
+import { originatingTriggerTelemetry, type IOriginatingTriggerContext, type IOriginatingTriggerTelemetry, type OriginatingTriggerClassification } from '../common/originatingTrigger.js';
 import { toCopilotTelemetryData } from './shared/copilotSkuTelemetry.js';
 import { getCodexAccountTelemetryData, type CodexAccountTelemetryClassification } from './codex/codexAccountTelemetry.js';
 import { groupAgentHostProviderTimings, sanitizeAgentHostProviderTiming, type AgentHostProviderTimingMeasurement, type AgentHostProviderTimingMeasurements, type IAgentHostProviderTiming } from '../common/agentHostProviderTiming.js';
@@ -406,7 +407,7 @@ interface IAgentHostTurnAttributedReport {
 	clientContext?: IAgentHostClientTelemetryContext;
 }
 
-export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry {
+export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, Partial<ICodexAccountTelemetryContext>, IAgentHostFusionTurnTelemetry, IOriginatingTriggerTelemetry {
 	codexModelProvider?: CodexModelProvider;
 	usedPrewarmedSession?: boolean;
 	prewarmedSessionDiscardReason?: string;
@@ -465,7 +466,7 @@ export interface IAgentHostTurnCompletedEvent extends IAgentHostEventTelemetry, 
 	modelCallCount: number;
 }
 
-export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & {
+export type IAgentHostTurnCompletedClassification = IAgentHostEventClassification & CodexAccountTelemetryClassification & IAgentHostSubagentKindClassification & IAgentHostFusionTurnClassification & OriginatingTriggerClassification & {
 	codexModelProvider?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Bounded model provider actually used by a Codex turn: openai, copilot, other, or unknown.' };
 	usedPrewarmedSession?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the turn claimed a provider session that was started before the first message; absent when it did not.' };
 	prewarmedSessionDiscardReason?: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Bounded reason the turn discarded a provider session started before the first message and launched one instead, such as modelChanged or clientToolsChanged; absent when it did not.' };
@@ -577,6 +578,7 @@ export interface IAgentHostTurnFailure {
 }
 
 export interface IAgentHostTurnCompletedReport extends IAgentHostTurnAttributedReport, IAgentHostFusionTurnTelemetry {
+	originatingTrigger?: IOriginatingTriggerContext;
 	providerTelemetryContext?: IAgentProviderTurnTelemetryContext;
 	codexModelProvider?: CodexModelProvider;
 	hostRootTurnOrdinal?: number;
@@ -1939,6 +1941,7 @@ export class AgentHostTelemetryReporter {
 			titleGenerationStrategy: report.titleGenerationStrategy,
 		});
 		this._telemetryService.publicLog2<IAgentHostTurnCompletedEvent, IAgentHostTurnCompletedClassification>('agentHost.turnCompleted', {
+			...originatingTriggerTelemetry(report.originatingTrigger),
 			...toInitiatorTelemetry(report.clientContext),
 			...toCopilotTelemetryData(report.telemetryContext),
 			...(report.provider === 'codex' ? getCodexAccountTelemetryData(report.providerTelemetryContext?.codex) : undefined),

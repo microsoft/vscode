@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../../base/common/objects.js';
-import type { IAgentServerToolDefinition, IAgentServerToolHost, IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
+import type { IAgentServerToolDefinition, IAgentServerToolHost, IAgentServerToolInvocationContext, IServerToolConfirmationDisplay } from '../../common/agentServerTools.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { isAhpChatChannel, isSubagentSession, type StringOrMarkdown, type ToolDefinition, type URI } from '../../common/state/sessionState.js';
 import { createDecorator } from '../../../instantiation/common/instantiation.js';
@@ -51,7 +51,7 @@ export interface IServerToolDisplay {
 	readonly hideConfirmationInput?: boolean;
 }
 
-export interface IServerToolExecutionContext {
+export interface IServerToolExecutionContext extends IAgentServerToolInvocationContext {
 	readonly sessionUri: URI;
 	readonly chatUri: URI;
 	readonly turnId?: string;
@@ -275,7 +275,7 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		};
 	}
 
-	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string): string | Promise<string> {
+	executeTool(chatUri: URI, toolName: string, rawArgs: unknown, toolCallId?: string, context?: IAgentServerToolInvocationContext): string | Promise<string> {
 		const group = this._groupByToolName.get(toolName);
 		if (!group) {
 			throw new Error(`Unknown server tool: ${toolName}`);
@@ -284,7 +284,8 @@ export class AgentServerToolHost implements IAgentHostServerToolService {
 		if (!this._isEnabledForSession(group, chatUri, name, toolName)) {
 			throw new Error(`Server tool "${toolName}" is disabled.`);
 		}
-		return group.execute(this._stateManager, this._executionContext(chatUri, toolCallId), name, rawArgs);
+		const execution = this._executionContext(chatUri, toolCallId);
+		return group.execute(this._stateManager, context ? { ...execution, ...context, turnId: context.turnId } : execution, name, rawArgs);
 	}
 
 	private _executionContext(chatUri: URI, toolCallId?: string): IServerToolExecutionContext {

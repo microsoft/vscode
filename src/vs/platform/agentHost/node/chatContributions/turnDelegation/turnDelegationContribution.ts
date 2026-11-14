@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../log/common/log.js';
-import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IOutgoingTurn } from '../../../common/agentHostChatContributionsService.js';
+import type { IAgentHostChatContribution, IAgentHostChatContributionContext, IHydrationContext, IOutgoingTurn, ISendContribution } from '../../../common/agentHostChatContributionsService.js';
 import { parseAgentMessageDelegationMeta, readAgentMessageDelegationMeta, toAgentMessageDelegationMeta } from '../../../common/meta/agentMessageDelegationMeta.js';
 import { ISessionDataService } from '../../../common/sessionDataService.js';
 import { MessageKind, type Turn } from '../../../common/state/sessionState.js';
@@ -27,7 +28,7 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		super();
 	}
 
-	async onOutgoingTurn(turn: IOutgoingTurn): Promise<undefined> {
+	async onOutgoingTurn(turn: IOutgoingTurn): Promise<ISendContribution | undefined> {
 		const delegation = readAgentMessageDelegationMeta(turn.message);
 		if (!delegation) {
 			return undefined;
@@ -39,7 +40,9 @@ export class TurnDelegationContribution extends Disposable implements IAgentHost
 		} finally {
 			ref.dispose();
 		}
-		return undefined;
+		return hasKey(delegation, { sourceSession: true }) && delegation.originatingTrigger
+			? { originatingTrigger: delegation.originatingTrigger }
+			: undefined;
 	}
 
 	async onHydrateTurns(context: IHydrationContext, turns: readonly Turn[]): Promise<readonly Turn[]> {
