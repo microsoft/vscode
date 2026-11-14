@@ -81,6 +81,8 @@ export interface IExtensionGalleryManifestService {
 	readonly onDidChangeExtensionGalleryManifest: Event<IExtensionGalleryManifest | null>;
 	getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null>;
 	getAccessToken(targetUrl: string): Promise<string | undefined>;
+	/** Return whether the request can use a newer token from the same account, renewing silently if needed. */
+	refreshAccessToken(targetUrl: string, rejectedAccessToken: string): Promise<boolean>;
 }
 
 export function getExtensionGalleryManifestResourceUri(manifest: IExtensionGalleryManifest, type: string): string | undefined {
