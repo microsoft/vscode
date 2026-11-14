@@ -130,8 +130,8 @@ export interface IOpenNewSessionResult {
 export interface ICloseChatOptions {
 	/**
 	 * Do not remember the chat as the most recently closed item. Used by batch
-	 * closes (e.g. "Close All Chats"), where remembering just the final chat of
-	 * the batch would make one arbitrary member of it reopenable.
+	 * closes (e.g. "Close All Chats" and "Close Others"), where remembering just
+	 * the final chat of the batch would make one arbitrary member of it reopenable.
 	 */
 	readonly skipHistory?: boolean;
 }

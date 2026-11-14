@@ -40,7 +40,7 @@ import { applySessionBarThemeColors } from './sessionBarStyles.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { isAgentHostProvider } from '../../common/agentHostSessionsProvider.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_OTHER_CHATS_COMMAND_ID, COPY_AGENT_HOST_CHAT_LINK_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { getSessionConversationStatusAriaLabel } from '../sessionConversationGroups.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
@@ -648,6 +648,16 @@ export class ChatCompositeBar extends Disposable {
 				await this._commandService.executeCommand(CLOSE_CHAT_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost));
 			}
 		}));
+		// The tabs of this strip other than the main chat's, which no tab closes, and this one.
+		const getOtherClosableChats = () => session && delegate
+			? delegate.chats.get().filter(other => !isEqual(other.resource, chat.resource) && !isEqual(other.resource, session.mainChat.get().resource))
+			: [];
+		const closeOthersAction = this._tabDisposables.add(new Action(CLOSE_OTHER_CHATS_COMMAND_ID, localize('chatTab.closeOthers', "Close Others"), undefined, true, async () => {
+			if (session) {
+				this._cancelTabEditing();
+				await this._commandService.executeCommand(CLOSE_OTHER_CHATS_COMMAND_ID, ...sessionMenuArgs(session, chat, this._sessionHost), getOtherClosableChats());
+			}
+		}));
 		const markReadAction = this._tabDisposables.add(new Action(MARK_SESSION_READ_COMMAND_ID, localize('chatTab.markRead', "Mark as Read"), undefined, true, async () => {
 			if (session) {
 				await this._commandService.executeCommand(MARK_SESSION_READ_COMMAND_ID, { session, chat });
@@ -705,7 +715,10 @@ export class ChatCompositeBar extends Disposable {
 					const canRename = isMainChat ? !!session?.capabilities.get().supportsRename : capabilities.canRename;
 					const canSetReadState = !!session && !chat.isArchived.get() && (isMainChat || session.capabilities.get().supportsIndependentChatReadState === true);
 					return Separator.join(
-						!isMainChat && session ? [closeAction] : [],
+						[
+							...(!isMainChat && session ? [closeAction] : []),
+							...(getOtherClosableChats().length > 0 ? [closeOthersAction] : []),
+						],
 						[
 							...(canSetReadState ? [chat.isRead.get() ? markUnreadAction : markReadAction] : []),
 							...(capabilities.canArchive ? [chat.isArchived.get() ? unarchiveAction : archiveAction] : []),

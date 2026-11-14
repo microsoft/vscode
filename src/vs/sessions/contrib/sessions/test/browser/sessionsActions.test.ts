@@ -49,7 +49,7 @@ import { SessionView } from '../../../../../workbench/contrib/sessions/browser/p
 import { createSessionsPartTestHarness, createTestActiveSession, renderTestPanes } from '../../../../test/browser/sessionViewTestUtils.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
-import { type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { type ICloseChatOptions, type IOpenNewSessionOptions, type IOpenNewSessionResult, type IOpenSessionOptions, type IOpenSessionsOptions, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ChatInteractivity, ChatOriginKind, IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { ICreateNewSessionOptions, ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { VisibleSessions } from '../../../../../workbench/services/sessions/browser/visibleSessions.js';
@@ -66,7 +66,7 @@ import { INewSessionComposerService, NewSessionComposerService } from '../../../
 import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
 import { ISessionSection, NEW_SESSION_FOR_WORKSPACE_ACTION_ID, NEW_SESSION_IN_ENVIRONMENT_ACTION_ID, SessionItemIsCloudContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { WorkspaceSelectionOrigin, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
-import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
+import { ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARRANGE_SESSIONS_COMMAND_ID, CLOSE_CHAT_COMMAND_ID, CLOSE_OTHER_CHATS_COMMAND_ID, CLOSE_SESSION_COMMAND_ID, DETACH_CHAT_COMMAND_ID, FOCUS_ACTIVE_SESSION_COMMAND_ID, FOCUS_NEXT_CHAT_GROUP_COMMAND_ID, FOCUS_PREVIOUS_CHAT_GROUP_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, MOVE_CHAT_TO_NEXT_GROUP_COMMAND_ID, MOVE_CHAT_TO_PREVIOUS_GROUP_COMMAND_ID, RENAME_CHAT_COMMAND_ID, RENAME_SESSION_COMMAND_ID, SESSION_GRID_FOCUS_COMMANDS, SPLIT_CHAT_GROUP_DOWN_COMMAND_ID, SPLIT_CHAT_GROUP_RIGHT_COMMAND_ID, TOGGLE_PIN_CHAT_COMMAND_ID, TOGGLE_PIN_SESSION_COMMAND_ID } from '../../../../../workbench/contrib/sessions/common/sessionCommands.js';
 import { SessionInChatEditorContext, IsPhoneLayoutContext, MultipleSessionsVisibleContext, SessionActiveChatHasSideChatsContext, SessionActiveChatIsClosableContext, SessionActiveChatResourceContext, SessionIdContext, SessionIsArchivedContext, SessionIsCreatedContext, SessionsFocusContext, SessionsListPromoteNewChatActionContext } from '../../../../../workbench/contrib/sessions/common/contextkeys.js';
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
@@ -1714,6 +1714,83 @@ suite('Sessions - Actions', () => {
 			`closeGroup:${mainChat.resource.toString()}`,
 		]);
 	});
+
+	test('Close Others closes the other chats of the strip but the main chat, in one batch Reopen Closed Chat does not offer', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const { session } = createTestSession('close-others');
+		const mainChat = session.mainChat.get();
+		const createChat = (name: string, status: SessionStatus): IChat => ({ ...mainChat, resource: URI.parse(`test-chat://${name}`), title: constObservable(name), status: constObservable(status) });
+		const keptChat = createChat('kept', SessionStatus.Completed);
+		const otherChat = createChat('other', SessionStatus.Completed);
+		const draftChat = createChat('draft', SessionStatus.Untitled);
+		const operations: string[] = [];
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			override async closeChat(_session: ISession, chat: IChat, options?: ICloseChatOptions): Promise<void> {
+				operations.push(`close:${chat.resource.toString()}:skipHistory=${options?.skipHistory}`);
+			}
+		});
+		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
+			override async deleteChat(_session: ISession, chatResource: URI, options?: { readonly skipConfirmation?: boolean }): Promise<boolean> {
+				operations.push(`delete:${chatResource.toString()}:skipConfirmation=${options?.skipConfirmation}`);
+				return true;
+			}
+		});
+		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+
+		const command = CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID);
+		assert.ok(command);
+		await command.handler(instantiationService, session, keptChat, undefined, [mainChat, otherChat, keptChat, draftChat]);
+		// Without the tabs of a strip there is nothing to close.
+		await command.handler(instantiationService, session, keptChat, undefined, undefined);
+
+		assert.deepStrictEqual(operations, [
+			`close:${otherChat.resource.toString()}:skipHistory=true`,
+			`delete:${draftChat.resource.toString()}:skipConfirmation=true`,
+		]);
+	});
+
+	// `beside` stands for a chat of another group of the pane: it is listed last, so closing the shown chat falls back to it.
+	for (const scenario of [
+		{ name: 'selects the kept chat before it closes the chat the pane shows, so the pane does not fall back to a chat of another group', shown: 'closing', expected: { shown: 'kept', operations: ['open:kept', 'close:closing'] } },
+		{ name: 'keeps the main chat selected', shown: 'main', expected: { shown: 'main', operations: ['close:closing'] } },
+		{ name: 'keeps the chat of the tab selected', shown: 'kept', expected: { shown: 'kept', operations: ['close:closing'] } },
+		{ name: 'keeps a chat of another group selected', shown: 'beside', expected: { shown: 'beside', operations: ['close:closing'] } },
+	] as const) {
+		test(`Close Others ${scenario.name}`, async () => {
+			const { session: model } = createTestSession('close-others-selection');
+			const mainChat: IChat = { ...model.mainChat.get(), resource: URI.parse('test-chat://main'), interactivity: constObservable(ChatInteractivity.Full), status: constObservable(SessionStatus.Completed) };
+			const createChat = (name: string): IChat => ({ ...mainChat, resource: URI.parse(`test-chat://${name}`), title: constObservable(name) });
+			const chats = { main: mainChat, kept: createChat('kept'), closing: createChat('closing'), beside: createChat('beside') };
+			const session: ISession = { ...model, mainChat: constObservable(mainChat), chats: constObservable(Object.values(chats)) };
+			const grid = disposables.add(new VisibleSessions(candidate => candidate.mainChat.get(), () => [], () => [], () => { }, upcastPartial<IUriIdentityService>({ extUri })));
+			grid.restoreGrid([{ session, sticky: false }], 0);
+			grid.setActiveChat(session, chats[scenario.shown]);
+			const pane = grid.slotPanes.get()[0];
+			const host = upcastPartial<ISessionHost>({ id: 'pane:close-others', kind: SessionHostKind.Pane, session: constObservable(session), chat: pane.chat, commandContext: { sessionHostId: 'pane:close-others' } });
+			const operations: string[] = [];
+			const instantiationService = disposables.add(new TestInstantiationService());
+			instantiationService.stub(ISessionHostService, upcastPartial<ISessionHostService>({ getHost: id => id === host.id ? host : undefined }));
+			// As the sessions service does, the grid keeps the selection the chat it opens makes and falls back when it closes the shown one.
+			instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+				override async openChat(target: ISession, chatResource: URI): Promise<void> {
+					operations.push(`open:${chatResource.authority}`);
+					const chat = target.chats.get().find(candidate => isEqual(candidate.resource, chatResource))!;
+					grid.openChat(target, chat);
+					grid.setActiveChat(target, chat);
+				}
+				override async closeChat(target: ISession, chat: IChat): Promise<void> {
+					operations.push(`close:${chat.resource.authority}`);
+					grid.closeChat(target, chat);
+				}
+			});
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(CLOSE_OTHER_CHATS_COMMAND_ID)!.handler(accessor, session, chats.kept, host.commandContext, [chats.main, chats.kept, chats.closing]));
+
+			assert.deepStrictEqual({ shown: pane.chat.get()?.resource.authority, operations }, scenario.expected);
+		});
+	}
 
 	for (const scenario of [
 		{ name: 'succeeds', deleteResult: true, expectedOperations: ['delete', 'closeGroup'] },

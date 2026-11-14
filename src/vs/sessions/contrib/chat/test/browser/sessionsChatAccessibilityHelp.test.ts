@@ -1127,10 +1127,12 @@ suite('SessionsChatAccessibilityHelp', () => {
 		);
 	});
 
-	for (const { configuredValue, expectedConversation, expectedListAction, expectedGroupCloseHelp } of [
-		{ configuredValue: undefined, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true },
-		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab', expectedGroupCloseHelp: false },
-		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true },
+	const closeOthersHelp = 'To close every other chat tab in the tab row at once, focus a chat tab, open its context menu<keybinding:editor.action.showContextMenu>, and choose Close Others. The main chat stays open. Chats closed this way are not offered by Reopen Closed Chat or Session; reopen them from the Chats menu. A new chat that was never sent is deleted.';
+
+	for (const { configuredValue, expectedConversation, expectedListAction, expectedGroupCloseHelp, expectedCloseOthersHelp } of [
+		{ configuredValue: undefined, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true, expectedCloseOthersHelp: undefined },
+		{ configuredValue: SessionsChatTabsMode.Multiple, expectedConversation: 'show a single chat', expectedListAction: 'open a chat as a tab', expectedGroupCloseHelp: false, expectedCloseOthersHelp: closeOthersHelp },
+		{ configuredValue: SessionsChatTabsMode.Single, expectedConversation: 'show multiple tabs', expectedListAction: 'show a chat as the session view', expectedGroupCloseHelp: true, expectedCloseOthersHelp: undefined },
 	]) {
 		test(`describes sessions list chat presentation when the setting is ${configuredValue ?? 'default'}`, () => {
 			const instantiationService = store.add(new TestInstantiationService());
@@ -1154,6 +1156,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				pinHelp: content.some(line => line.includes('Pin keeps that chat visible when another chat opens')),
 				groupCloseHelp: content.some(line => line.includes('Close removes that chat group')),
 				lastGroupCloseHelp: content.some(line => line.includes('Closing the last group closes the session from the grid. Non-main chats are hidden and can be reopened later.')),
+				closeOthersHelp: content.find(line => line.startsWith('To close every other chat tab')),
 			}, {
 				conversationDescription: true,
 				menuAvailability: true,
@@ -1162,6 +1165,7 @@ suite('SessionsChatAccessibilityHelp', () => {
 				pinHelp: expectedGroupCloseHelp,
 				groupCloseHelp: expectedGroupCloseHelp,
 				lastGroupCloseHelp: expectedGroupCloseHelp,
+				closeOthersHelp: expectedCloseOthersHelp,
 			});
 		});
 	}
