@@ -145,6 +145,9 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 			const shown = _chatViewHostService.shownSession.read(reader);
 			this._sessionsListener.clear();
 			this._shown = shown && !isUntitledChatSession(shown.resource) ? { resource: shown.resource, workingDirectory: undefined } : undefined;
+			if (shown) {
+				this._logTrigger(shown.resource);
+			}
 			if (this._shown && shown?.reason === 'open') {
 				this._foreground++;
 				this._follow(this._shown, false);
@@ -254,12 +257,21 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		if (!target || target.scheme !== Schemas.file || extUriBiasedIgnorePathCase.isEqualOrParent(target, folder.uri)) {
 			return;
 		}
-		// The folder would move here: the same moment with the setting on and off
-		logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.EditorWindowEnableWorktree);
 		if (!this._enabled || (automatic && this._switching > 0)) {
 			return;
 		}
 		void this._switch(shown.resource, primary, target, automatic ? this._foreground : undefined);
+	}
+
+	/**
+	 * Logs the setting's experiment trigger as a chat that it can follow shows in a window whose folder can move, before the
+	 * folder follows it or the chat's folder chip offers worktrees: the same moment with the setting on and off.
+	 */
+	private _logTrigger(resource: URI): void {
+		const folder = this._workspaceContextService.getWorkspace().folders[0];
+		if (folder && this._folderLocationService.canSetLocation(folder) && (LocalChatSessionUri.isLocalSession(resource) || isLocalAgentHostTarget(resource.scheme))) {
+			logSettingExperimentTrigger(this._telemetryService, ChatConfiguration.EditorWindowEnableWorktree);
+		}
 	}
 
 	/** @param foreground of an automatic switch, the {@link _foreground} it started at. */
