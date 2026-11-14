@@ -557,7 +557,10 @@ export class AgentHostSessionListStore extends Disposable {
 			return false;
 		}
 		const project = URI.parse(summary.project.uri);
-		return this._workspaceContextService.getWorkspace().folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri));
+		const workspace = this._workspaceContextService.getWorkspace();
+		// Also the folder's own location while it is at another, such as a worktree of it: the window's workspace
+		return workspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri))
+			|| (!workspace.configuration && !!workspace.uri && extUriBiasedIgnorePathCase.isEqual(project, workspace.uri));
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
