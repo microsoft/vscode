@@ -35,9 +35,8 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping } from '../views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
-import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
@@ -1005,7 +1004,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('inboxMode', "Inbox Mode"),
 				category: SessionsCategories.Sessions,
 				f1: true,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.has(`config.${ChatConfiguration.SessionsViewEnabled}`)), ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, EditorWindowSessionsContext), ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)),
 				toggled: InboxModeContext,
 				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ContextKeyExpr.and(ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)) }],
 			});

@@ -12,7 +12,7 @@ import { gzipSync } from 'node:zlib';
 import * as esbuild from 'esbuild';
 import ts from 'typescript';
 import {
-	checkMobileBudgets, checkMobileDependencies, checkMobilePath, mobileDirectory,
+	checkMobileBoundary, checkMobileBudgets, checkMobileDependencies, checkMobilePath, mobileDirectory,
 	mobileEntryPoint, mobileManifestName, mobilePlugin, mobileQuality,
 	packageMobileExtensions, prepareMobile, readMobileExtensions,
 	writeMobileManifest, type MobileAsset,
@@ -167,6 +167,25 @@ suite('isolated mobile package', () => {
 			absWorkingDir: root, entryPoints: ['src/entry.ts'], outfile: path.join(root, 'out/entry.js'),
 			metafile: true, plugins: [mobilePlugin(root)], logLevel: 'silent',
 		}), /Unreviewed contribution/);
+	});
+
+	test('the source boundary check rejects an unreviewed contribution and names the policy owner', async t => {
+		const { root, write } = await createFixture(t);
+		await write(`src/${mobileEntryPoint}.ts`, 'import \'./bridge.js\';');
+		await write(`src/${path.posix.dirname(mobileEntryPoint)}/bridge.ts`, 'import \'../workbench/contrib/accidental/browser/accidental.contribution.js\';');
+		await write('src/vs/workbench/contrib/accidental/browser/accidental.contribution.ts', 'console.log("unexpected registration");');
+		await assert.rejects(checkMobileBoundary(root),
+			/Unreviewed contribution: src\/vs\/workbench\/contrib\/accidental\/browser\/accidental\.contribution\.ts[\s\S]*build\/next\/mobilePolicy\.json[\s\S]*osortega/);
+		await assert.rejects(fs.access(path.join(root, mobileDirectory)), { code: 'ENOENT' });
+	});
+
+	test('the source boundary check passes reviewed contributions without writing output', async t => {
+		const { root, write } = await createFixture(t);
+		const [reviewed] = policy.contributions;
+		await write(`src/${mobileEntryPoint}.ts`, `import '${path.posix.relative(path.posix.dirname(`src/${mobileEntryPoint}`), reviewed).replace(/\.ts$/, '.js')}';`);
+		await write(reviewed, 'console.log("reviewed registration");');
+		assert.deepStrictEqual(await checkMobileBoundary(root), [reviewed]);
+		await assert.rejects(fs.access(path.join(root, mobileDirectory)), { code: 'ENOENT' });
 	});
 
 	test('the measured contribution baseline has no duplicates or forbidden modules', () => {

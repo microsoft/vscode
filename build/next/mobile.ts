@@ -9,8 +9,9 @@ import * as fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import * as path from 'node:path';
 import { gzipSync } from 'node:zlib';
-import type * as esbuild from 'esbuild';
+import * as esbuild from 'esbuild';
 import { parse as parseJsonc, type ParseError } from 'jsonc-parser';
+import { getBundleOptions } from './bundle.ts';
 import policy from './mobilePolicy.json' with { type: 'json' };
 
 export const mobileDirectory = 'out-mobile';
@@ -130,9 +131,38 @@ export function checkMobileDependencies(inputs: Iterable<string>): string[] {
 		throw new Error(`Mobile dependency boundary failed:\n${[
 			...blocked.map(file => `Forbidden module: ${file}`),
 			...unexpected.map(file => `Unreviewed contribution: ${file}`),
-		].join('\n')}`);
+		].join('\n')}\n${mobilePolicyHelp}`);
 	}
 	return [...new Set(contributions)];
+}
+
+const mobilePolicyHelp = 'The mobile web package only takes reviewed workbench contributions and no native, Node.js or test code. ' +
+	'Keep the module out of the import graph of the mobile entry point, or add a reviewed contribution to "contributions" in build/next/mobilePolicy.json. ' +
+	'The mobile policy owner (osortega) reviews changes to that file. See build/next/MOBILE.md.';
+
+/**
+ * Checks the mobile dependency boundary on the source import graph, without building or
+ * writing the package: the same entry point, bundle options and boundary plugin as
+ * `bundle-mobile`, but without minification, localization or output.
+ */
+export async function checkMobileBoundary(root: string, entryPoint = mobileEntryPoint): Promise<string[]> {
+	const result = await esbuild.build({
+		...getBundleOptions(false, 'neutral'),
+		absWorkingDir: root,
+		metafile: true,
+		sourcemap: false,
+		entryPoints: [{ in: path.join(root, 'src', `${entryPoint}.ts`), out: entryPoint }],
+		outdir: path.join(root, mobileDirectory, 'out'),
+		loader: { '.ttf': 'file', '.svg': 'file', '.png': 'file', '.sh': 'file' },
+		assetNames: 'media/[name]',
+		plugins: [mobilePlugin(root)],
+		logLevel: 'silent',
+	}).catch((error: unknown) => {
+		// esbuild wraps errors thrown by plugins; surface the boundary report itself.
+		const messages = (error as esbuild.BuildFailure).errors?.map(message => message.text);
+		throw messages?.length ? new Error(messages.join('\n')) : error;
+	});
+	return checkMobileDependencies(Object.keys(result.metafile.inputs));
 }
 
 /** Uses emitted inputs, not type-only source imports, to enforce the component boundary. */

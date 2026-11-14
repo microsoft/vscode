@@ -92,6 +92,9 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
+/** Whether the window shows the Sessions view of an editor window, wherever it shows: in the Agents view or in the Chat view. */
+export const EditorWindowSessionsContext = new RawContextKey<boolean>('editorWindowSessions', false);
+
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
 export const SessionsViewCompactContext = new RawContextKey<boolean>('sessionsViewPane.compact', false);
