@@ -17,7 +17,7 @@ import { SyncDescriptor } from '../../../../../../platform/instantiation/common/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { ViewPane } from '../../../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
@@ -46,9 +46,8 @@ import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionTool
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
-import { EditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
-import { createChatViewComposerHolder, createChatViewComposerModel, getChatViewComposerTarget } from '../../../browser/agentsView/chatViewSessionsList.js';
-import { ChatWindowComposerModel, IChatWindowComposerInit } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { ChatViewSessionsListProvider } from '../../../browser/agentsView/chatViewSessionsList.js';
+import { SessionsView } from '../../../browser/views/sessionsView.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
@@ -324,84 +323,19 @@ suite('ChatViewSessionsGate', () => {
 		});
 	});
 
-	test('the Chat view\'s composer offers the folders that the window\'s composers offer, such as worktrees, and follows the window\'s folder as it moves, until it goes', () => {
-		const composerFolders = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
-		const folder = URI.file('/repo');
-		const worktree = URI.file('/repo.worktrees/feature');
-		const offered = disposables.add(composerFolders.setComposerFolderOptions(() => ({ allowedFolders: constObservable([folder, worktree]) })));
-		const retargeted: string[] = [];
-		let init: IChatWindowComposerInit | undefined;
-		const { folders } = createChatViewComposerModel({
-			create: (_resource, composerInit) => {
-				init = composerInit;
-				return upcastPartial<ChatWindowComposerModel>({ retargetFolder: (to, from) => { retargeted.push(`${from?.path} -> ${to.path}`); return true; } });
-			},
-		}, composerFolders, URI.parse('vscode-agents-composer:/1'), { folderUri: folder }, async () => { });
-		composerFolders.retargetComposerFolders(worktree, folder);
-		folders.dispose();
-		composerFolders.retargetComposerFolders(folder, worktree);
-		const allowedFolders = init?.allowedFolders?.get().map(uri => uri.path);
-		offered.dispose();
-
-		assert.deepStrictEqual({ target: init?.target?.folderUri?.path, allowedFolders, afterOffer: init?.allowedFolders?.get().map(uri => uri.path), retargeted }, {
-			target: '/repo',
-			allowedFolders: ['/repo', '/repo.worktrees/feature'],
-			// The window's folders, of which this window has none
-			afterOffer: [],
-			retargeted: ['/repo -> /repo.worktrees/feature'],
+	test('the Chat view keeps its own chat input with the sessions list, for new chats and the chats it shows: the list provides no composer', () => {
+		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { } });
+		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
+		const accessor = upcastPartial<ServicesAccessor>({ get: (<T>() => workspaceContextService as T) as ServicesAccessor['get'] });
+		const instantiationService = upcastPartial<IInstantiationService>({
+			invokeFunction: ((fn: (accessor: ServicesAccessor) => unknown) => fn(accessor)) as IInstantiationService['invokeFunction'],
+			createInstance: (() => view) as IInstantiationService['createInstance'],
 		});
-	});
+		const sessionsOnly = constObservable(false);
+		const list = new ChatViewSessionsListProvider(sessionsOnly).create(document.createElement('div'), instantiationService, { overrideStyles: {} });
+		disposables.add(list.control);
 
-	test('the Chat view\'s composer holds the window\'s sessions providers while it has a draft, and goes as they are released only once nothing is typed', async () => {
-		const presenterService = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({})));
-		let pristine = false;
-		let model: { isPristine(): boolean } | undefined = { isPristine: () => pristine };
-		const holder = disposables.add(presenterService.registerComposerHolder(createChatViewComposerHolder(() => model, () => { model = undefined; })));
-		const steps: boolean[] = [];
-		// As the providers are released, such as a while after the Chat view hid: a draft with text stays
-		await presenterService.closeIdleComposers();
-		steps.push(presenterService.hasComposer());
-		pristine = true;
-		await presenterService.closeIdleComposers();
-		steps.push(presenterService.hasComposer());
-		holder.dispose();
-
-		assert.deepStrictEqual(steps, [true, false]);
-	});
-
-	test('New Chat aims the Chat view\'s composer at its target when it has one, and at the window\'s default otherwise', () => {
-		const folder = URI.file('/repo.worktrees/feature');
-		const fallback = { folderUri: URI.file('/repo') };
-		const aimed = getChatViewComposerTarget({ folder, providerId: 'provider', sessionType: 'claude', modelId: 'model', modeId: 'mode', requireDevContainer: true }, () => fallback);
-		assert.deepStrictEqual({
-			aimed: { folder: aimed?.folderUri?.path, providerId: aimed?.providerId, sessionTypeId: aimed?.sessionTypeId, modelId: aimed?.modelId, modeId: aimed?.modeId, requireDevContainer: aimed?.requireDevContainer },
-			default: getChatViewComposerTarget(undefined, () => fallback)?.folderUri?.path,
-		}, {
-			aimed: { folder: '/repo.worktrees/feature', providerId: 'provider', sessionTypeId: 'claude', modelId: 'model', modeId: 'mode', requireDevContainer: true },
-			default: '/repo',
-		});
-	});
-
-	test('the Chat view\'s composer created before a feature offers other folders, such as worktrees, offers them once it does, and the window\'s folders again once it no longer does', () => {
-		const folder = URI.file('/repo');
-		const worktree = URI.file('/repo.worktrees/feature');
-		const composerFolders = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }) }));
-		let init: IChatWindowComposerInit | undefined;
-		const { folders } = createChatViewComposerModel({
-			create: (_resource, composerInit) => {
-				init = composerInit;
-				return upcastPartial<ChatWindowComposerModel>({ retargetFolder: () => true });
-			},
-		}, composerFolders, URI.parse('vscode-agents-composer:/1'), { folderUri: folder }, async () => { });
-		const offered = () => init?.allowedFolders?.get().map(uri => uri.path);
-		const steps = [offered()];
-		const offering = composerFolders.setComposerFolderOptions(() => ({ allowedFolders: constObservable([folder, worktree]) }));
-		steps.push(offered());
-		offering.dispose();
-		steps.push(offered());
-		folders.dispose();
-
-		assert.deepStrictEqual(steps, [['/repo'], ['/repo', '/repo.worktrees/feature'], ['/repo']]);
+		assert.deepStrictEqual({ hasHeader: list.hasHeader, sessionsOnly: list.sessionsOnly === sessionsOnly, composer: list.createComposer }, { hasHeader: true, sessionsOnly: true, composer: undefined });
 	});
 });
 
