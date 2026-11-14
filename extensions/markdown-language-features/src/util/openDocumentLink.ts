@@ -13,17 +13,30 @@ enum OpenMarkdownLinks {
 	currentGroup = 'currentGroup',
 }
 
+type OpenDocumentLinkOptions = {
+	viewColumn?: vscode.ViewColumn;
+	preserveFocus?: boolean;
+	background?: boolean;
+};
+
+type OpenDocumentOptions = vscode.TextDocumentShowOptions & { background?: boolean };
+
+type OpenDocument = (uri: vscode.Uri, options: OpenDocumentOptions) => Thenable<unknown>;
+
 /**
  * Resolves Markdown links relative to a source resource and opens the resulting typed target.
  */
 export class MdLinkOpener {
 
 	readonly #client: Pick<MdLanguageClient, 'resolveLinkTarget'>;
+	readonly #openDocument: OpenDocument;
 
 	constructor(
 		client: Pick<MdLanguageClient, 'resolveLinkTarget'>,
+		openDocument: OpenDocument = (uri, options) => vscode.commands.executeCommand('vscode.open', uri, options),
 	) {
 		this.#client = client;
+		this.#openDocument = openDocument;
 	}
 
 	/**
@@ -41,9 +54,9 @@ export class MdLinkOpener {
 	/**
 	 * Resolves and opens a Markdown link, doing nothing when it cannot be resolved.
 	 */
-	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, viewColumn?: vscode.ViewColumn): Promise<void> {
+	public async openDocumentLink(linkText: string, fromResource: vscode.Uri, options: OpenDocumentLinkOptions = {}): Promise<void> {
 		const resolved = await this.resolveDocumentLink(linkText, fromResource);
-		await this.openResolvedDocumentLink(linkText, fromResource, resolved, viewColumn);
+		await this.openResolvedDocumentLink(linkText, fromResource, resolved, options);
 	}
 
 	/**
@@ -54,7 +67,7 @@ export class MdLinkOpener {
 		linkText: string,
 		fromResource: vscode.Uri,
 		resolved: proto.ResolvedDocumentLinkTarget | undefined,
-		viewColumn?: vscode.ViewColumn,
+		options: OpenDocumentLinkOptions = {},
 	): Promise<void> {
 		if (!resolved) {
 			return;
@@ -100,6 +113,7 @@ export class MdLinkOpener {
 
 			case 'file': {
 				// If no explicit viewColumn is given, check if the editor is already open in a tab
+				let viewColumn = options.viewColumn;
 				if (typeof viewColumn === 'undefined') {
 					for (const tab of vscode.window.tabGroups.all.flatMap(x => x.tabs)) {
 						if (tab.input instanceof vscode.TabInputText) {
@@ -111,10 +125,13 @@ export class MdLinkOpener {
 					}
 				}
 
-				return vscode.commands.executeCommand('vscode.open', uri, {
+				await this.#openDocument(uri, {
 					selection: rangeSelection,
 					viewColumn: viewColumn ?? getViewColumn(fromResource),
-				} satisfies vscode.TextDocumentShowOptions);
+					preserveFocus: options.preserveFocus,
+					background: options.background,
+				} satisfies OpenDocumentOptions);
+				return;
 			}
 		}
 	}
