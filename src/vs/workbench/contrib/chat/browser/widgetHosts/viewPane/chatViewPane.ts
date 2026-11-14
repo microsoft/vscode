@@ -985,6 +985,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.sessionsControlContainer = append(sessionsContainer, $('.agent-sessions-control-container'));
 		const provided = this.providedSessionsList = this.sessionsListService.provider?.create(this.sessionsControlContainer, this.instantiationService, { overrideStyles: this.getLocationBasedColors().listOverrideStyles });
 		if (provided) {
+			this._register(this.sessionsListService.setActiveList(provided));
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided.hasHeader, sessionsTitleContainer);
 			setVisibility(false, newSessionButtonContainer);

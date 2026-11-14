@@ -39,6 +39,7 @@ suite('AgentsChatViewHost', () => {
 		readonly providersAcquired?: () => void;
 		readonly contentCreated?: IObservable<boolean>;
 		readonly chatService?: Partial<IChatService>;
+		readonly ownsNewChat?: boolean;
 	}
 
 	function createHost(options: IHostOptions = {}) {
@@ -54,6 +55,7 @@ suite('AgentsChatViewHost', () => {
 			...options.chatPart,
 		});
 		const host = new AgentsChatViewHost(
+			constObservable(options.ownsNewChat ?? true),
 			chatPart,
 			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
 			upcastPartial<IChatWidgetService>({ getAllWidgets: () => options.widgets ?? [] }),
@@ -297,16 +299,19 @@ suite('AgentsChatViewHost', () => {
 		}, { agentHost: true, knownChat: true, knownSession: true, untitledOfOfferedType: true, local: false, extension: false });
 	});
 
-	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled', () => {
+	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled, or the Chat view keeps its New Chat', () => {
 		const available = createHost();
 		const unavailable = createHost({ chatAvailable: false });
+		const notOwned = createHost({ ownsNewChat: false });
 
 		assert.deepStrictEqual({
 			available: available.host.newChat(), availableCalls: available.calls,
 			unavailable: unavailable.host.newChat(), unavailableCalls: unavailable.calls,
+			notOwned: notOwned.host.newChat(), notOwnedCalls: notOwned.calls,
 		}, {
 			available: true, availableCalls: ['openComposer sessionType=undefined newComposer=true'],
 			unavailable: false, unavailableCalls: [],
+			notOwned: false, notOwnedCalls: [],
 		});
 	});
 

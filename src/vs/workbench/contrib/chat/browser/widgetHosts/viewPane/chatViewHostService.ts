@@ -153,8 +153,11 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	/** The registrations of the hosts that replace the Chat view, the one in use last: one each, also of the same host. */
 	private readonly registrations: { readonly host: IChatViewHost }[] = [];
 	private readonly hostInUse: ISettableObservable<IChatViewHost>;
-	/** The host that showed a chat last, whose shown chat the service reports. */
-	private readonly latestHost: ISettableObservable<IChatViewHost>;
+	/**
+	 * The host that showed something last, whose shown chat the service reports: none while it shows a new chat that New Chat
+	 * started, until it shows a chat.
+	 */
+	private readonly latest: ISettableObservable<{ readonly host: IChatViewHost; readonly newChat: boolean }>;
 
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
@@ -164,24 +167,42 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		super();
 		this.chatViewHost = instantiationService.createInstance(ChatViewPaneHost);
 		this.hostInUse = observableValue<IChatViewHost>(this, this.chatViewHost);
-		this.latestHost = observableValue<IChatViewHost>(this, this.chatViewHost);
-		this.shownSession = derived(this, reader => this.latestHost.read(reader).shownSession?.read(reader));
+		this.latest = observableValue(this, { host: this.chatViewHost, newChat: false });
+		this.shownSession = derived(this, reader => {
+			const latest = this.latest.read(reader);
+			return latest.newChat ? undefined : latest.host.shownSession?.read(reader);
+		});
 	}
 
-	/** Tracks the chats that the Chat view shows while a host replaces it; without one, the Chat view is always the latest host. */
+	/** Tracks the chats that the Chat view shows (see {@link updateChatViewTracking}); otherwise it is the latest host, as it shows them. */
 	private readonly chatViewTracking = this._register(new MutableDisposable());
 
 	/** Makes `host` the latest host whenever it shows another chat, such as one it restores or one opened in it directly. */
 	private trackShownSession(host: IChatViewHost): IDisposable {
 		return host.shownSession ? runOnChange(host.shownSession, shown => {
 			if (shown) {
-				this.latestHost.set(host, undefined);
+				this.claim(host);
 			}
 		}) : Disposable.None;
 	}
 
 	private readonly _replaced = observableValue(this, false);
 	readonly replaced: IObservable<boolean> = this._replaced;
+
+	/** Makes `host` the host that showed something last: a new chat of New Chat while `newChat`. */
+	private claim(host: IChatViewHost, newChat = false): void {
+		this.latest.set({ host, newChat }, undefined);
+		this.updateChatViewTracking();
+	}
+
+	/** Tracks the Chat view's shown chat while it may be other than the latest host's, or ends a new chat it shows. */
+	private updateChatViewTracking(): void {
+		if (this.registrations.length === 0 && !this.latest.get().newChat) {
+			this.chatViewTracking.clear();
+		} else if (!this.chatViewTracking.value) {
+			this.chatViewTracking.value = this.trackShownSession(this.chatViewHost);
+		}
+	}
 
 	private get host(): IChatViewHost {
 		return this.hostInUse.get();
@@ -197,6 +218,7 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		const registration = { host };
 		this.registrations.push(registration);
 		this.updateHostInUse();
+		this.claim(host);
 		const tracking = this.trackShownSession(host);
 		return toDisposable(() => {
 			tracking.dispose();
@@ -204,6 +226,10 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 			if (index >= 0) {
 				this.registrations.splice(index, 1);
 				this.updateHostInUse();
+				// The host that showed something last reports it until it is no longer registered: then the host in use does
+				if (this.latest.get().host === host && !this.registrations.some(other => other.host === host)) {
+					this.claim(this.host);
+				}
 			}
 		});
 	}
@@ -211,45 +237,53 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 	private updateHostInUse(): void {
 		const host = this.registrations.at(-1)?.host ?? this.chatViewHost;
 		this.hostInUse.set(host, undefined);
-		this.latestHost.set(host, undefined);
 		this._replaced.set(this.registrations.length > 0, undefined);
-		if (this.registrations.length === 0) {
-			this.chatViewTracking.clear();
-		} else if (!this.chatViewTracking.value) {
-			this.chatViewTracking.value = this.trackShownSession(this.chatViewHost);
-		}
+		this.updateChatViewTracking();
 	}
 
-	reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
-		return this.host.reveal(preserveFocus, options);
+	async reveal(preserveFocus?: boolean, options?: IChatViewHostRevealOptions): Promise<IChatWidget | undefined> {
+		const host = this.host;
+		const widget = await host.reveal(preserveFocus, options);
+		this.claim(host);
+		return widget;
 	}
 
 	async revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		const host = this.hostOf(sessionResource);
 		const widget = await host.revealIfShowing?.(sessionResource, options);
 		if (widget) {
-			this.latestHost.set(host, undefined);
+			this.claim(host);
 		}
 		return widget;
 	}
 
 	openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		const host = this.hostOf(sessionResource);
-		this.latestHost.set(host, undefined);
+		this.claim(host);
 		return host.openSession(sessionResource, options);
 	}
 
-	toggle(): Promise<boolean> {
-		return this.host.toggle();
+	async toggle(): Promise<boolean> {
+		const host = this.host;
+		const shows = await host.toggle();
+		if (shows) {
+			this.claim(host);
+		}
+		return shows;
 	}
 
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
 		const host = this.hostOf(sessionResource);
-		this.latestHost.set(host, undefined);
+		this.claim(host);
 		return host.startSession(sessionResource, options);
 	}
 
 	newChat(): boolean {
-		return this.host.newChat?.() ?? false;
+		const host = this.host;
+		const taken = host.newChat?.() ?? false;
+		if (taken) {
+			this.claim(host, true);
+		}
+		return taken;
 	}
 }
