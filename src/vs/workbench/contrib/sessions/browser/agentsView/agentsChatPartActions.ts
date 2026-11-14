@@ -19,7 +19,7 @@ import { InAgentsChatPartContext } from './agentsChatPartContext.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
+import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
@@ -28,6 +28,9 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { AICustomizationManagementCommands } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
+
+/** Closes the chat of a header of the chat part (see `registerAgentsChatPartActions`). */
+export const AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID = 'workbench.action.agentsView.closeChat';
 
 /** Whether the chat part of the editor window shows. */
 export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsChatPartVisible', false, localize('agentsChatPartVisible', "Whether the chat part beside the editor area shows."));
@@ -107,6 +110,27 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 		run(accessor: ServicesAccessor): void {
 			accessor.get(IAgentsChatPartService).focus();
+		}
+	}));
+
+	// Closes the chat of a header of the chat part, as the Agents window closes the chat of a chat header: the tab of that chat
+	store.add(registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID,
+				title: localize2('agentsView.closeChat', "Close"),
+				tooltip: localize('agentsView.closeChatTooltip', "Close Chat Group"),
+				icon: Codicon.closeSmall,
+				precondition: ChatContextKeys.enabled,
+				menu: [{ id: Menus.SessionBarToolbar, group: 'navigation', order: 30, when: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext) }],
+			});
+		}
+		async run(accessor: ServicesAccessor, session?: ISession, chat?: IChat): Promise<void> {
+			// The header's chat: a peer chat, else the session's main chat
+			const resource = chat?.resource ?? session?.mainChat.get().resource;
+			if (resource) {
+				await accessor.get(IAgentsChatPartService).closeChat(resource);
+			}
 		}
 	}));
 

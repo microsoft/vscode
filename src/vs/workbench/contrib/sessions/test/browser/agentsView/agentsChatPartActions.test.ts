@@ -22,7 +22,12 @@ import { MarkAgentSessionReadAction, MarkAgentSessionUnreadAction } from '../../
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID, AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { InAgentsChatPartContext } from '../../../browser/agentsView/agentsChatPartContext.js';
+import { Codicon } from '../../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../../base/common/themables.js';
+import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
@@ -178,6 +183,26 @@ suite('Agents chat part actions', () => {
 			outside: target(URI.file('/elsewhere/file.ts')),
 			none: target(undefined),
 		}, { inSecond: '/work/tools', outside: '/work/vscode', none: '/work/vscode' });
+	});
+
+	test('Close in the header of a chat of the chat part closes the tab of that chat only: a peer chat, else its session\'s main chat; it shows only in the chat part, not in the Agents window', async () => {
+		store.add(registerAgentsChatPartActions());
+		const session = buildTestSession({ id: 's', title: 's', chats: [{ id: 'peer', title: 'Peer' }] });
+		const closed: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({ closeChat: async (resource: URI) => { closed.push(resource.toString()); } }));
+		const main = session.mainChat.chat.resource;
+		const peer = session.chats.get('peer')!.chat;
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID)!.handler(accessor, session.session, undefined));
+		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID)!.handler(accessor, session.session, peer));
+		const item = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).filter(isIMenuItem).find(item => item.command.id === AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID);
+
+		assert.deepStrictEqual({ closed, group: item?.group, icon: ThemeIcon.isThemeIcon(item?.command.icon) ? item.command.icon.id : undefined, when: item?.when?.serialize() }, {
+			closed: [main.toString(), peer.resource.toString()],
+			group: 'navigation',
+			icon: Codicon.closeSmall.id,
+			when: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext)?.serialize(),
+		});
 	});
 
 	test('Mark as Read and Mark as Unread of a chat tab mark its chat through the sessions list\'s commands, while the chat part registers its actions', async () => {
