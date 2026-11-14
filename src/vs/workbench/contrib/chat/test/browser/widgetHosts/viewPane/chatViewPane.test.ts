@@ -105,106 +105,25 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual(visibility, [true, false]);
 	});
 
-	test('a provided composer shows in place of the chat while the chat is a new chat, and never without one or while the Chat view shows only the sessions', () => {
-		let empty = true;
-		let title = '';
-		const sessionsOnly = observableValue('sessionsOnly', false);
-		const host: { providedComposer: object | undefined; sessionsListService: { sessionsOnly: typeof sessionsOnly }; composerShown: boolean; viewPaneContainer: HTMLElement; element: HTMLElement; _widget: object; relayout(): void } = {
-			providedComposer: { focus: () => { } },
-			sessionsListService: { sessionsOnly },
-			composerShown: false,
-			viewPaneContainer: document.createElement('div'),
-			element: document.createElement('div'),
-			_widget: { get viewModel() { return { model: { title } }; }, isEmpty: () => empty },
-			relayout: () => { },
-		};
-		const update = Reflect.get(ChatViewPane.prototype, 'updateComposerVisibility') as (this: typeof host) => void;
-		const states: boolean[] = [];
-		const step = () => {
-			update.call(host);
-			states.push(host.composerShown && host.viewPaneContainer.classList.contains('shows-composer'));
-		};
-		step();
-		empty = false;
-		title = 'A chat';
-		step();
-		empty = true;
-		title = '';
-		step();
-		sessionsOnly.set(true, undefined);
-		step();
-		sessionsOnly.set(false, undefined);
-		const withoutComposer = { ...host, providedComposer: undefined, composerShown: false };
-		update.call(withoutComposer);
-		assert.deepStrictEqual({ states, withoutComposer: withoutComposer.composerShown }, { states: [true, false, true, false], withoutComposer: false });
-	});
-
-	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat, superseding a chat still loading or restoring', async () => {
+	test('New Chat that is not its own is left to the chat widget it acts on', async () => {
 		const calls: string[] = [];
-		const composer = { newChat: () => calls.push('newChat'), focus: () => calls.push('focus') };
 		const cancellable = (name: string) => ({ value: { cancel: () => calls.push(`cancel ${name}`) } });
-		type Host = { providedComposer: typeof composer | undefined; composerShown: boolean; loadSessionCts: ReturnType<typeof cancellable>; _applyModelCts: ReturnType<typeof cancellable> };
-		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: Host) => Promise<boolean>;
-		const host = (providedComposer: typeof composer | undefined, composerShown: boolean): Host => ({ providedComposer, composerShown, loadSessionCts: cancellable('load'), _applyModelCts: cancellable('restore') });
-		const results = {
-			shown: await newChat.call(host(composer, true)),
-			hidden: await newChat.call(host(composer, false)),
-			withoutComposer: await newChat.call(host(undefined, false)),
-		};
-		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['cancel load', 'cancel restore', 'newChat', 'focus', 'newChat'] });
+		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object) => Promise<boolean>;
+		const taken = await newChat.call({ loadSessionCts: cancellable('load'), _applyModelCts: cancellable('restore') });
+		assert.deepStrictEqual({ taken, calls }, { taken: false, calls: [] });
 	});
 
-	test('focusing the input of a Chat view that shows only the sessions focuses its sessions, else the composer that shows, else the chat', () => {
+	test('focusing the input of a Chat view that shows only the sessions focuses its sessions, else the chat', () => {
 		const focused: string[] = [];
 		const focusInput = Reflect.get(ChatViewPane.prototype, 'focusInput') as (this: object) => void;
-		const host = (sessionsOnly: boolean, composerShown: boolean) => ({
+		const host = (sessionsOnly: boolean) => ({
 			sessionsListService: { sessionsOnly: constObservable(sessionsOnly) },
 			sessionsControl: { focus: () => focused.push('sessions') },
-			providedComposer: { focus: () => focused.push('composer') },
-			composerShown,
 			_widget: { focusInput: () => focused.push('chat') },
 		});
-		focusInput.call(host(true, true));
-		focusInput.call(host(false, true));
-		focusInput.call(host(false, false));
-		assert.deepStrictEqual(focused, ['sessions', 'composer', 'chat']);
-	});
-
-	test('as the composer shows in place of a chat that had focus, such as New Chat clearing it, it takes focus, but not from the sessions or other controls of the Chat view', () => {
-		const focused: string[] = [];
-		const element = mainWindow.document.body.appendChild(document.createElement('div'));
-		const chat = element.appendChild(document.createElement('div'));
-		const chatInput = chat.appendChild(document.createElement('textarea'));
-		// Such as the filter of the sessions beside the chat
-		const sessionsFilter = element.appendChild(document.createElement('input'));
-		let empty = false;
-		const host = {
-			providedComposer: { focus: () => focused.push('composer') },
-			sessionsListService: { sessionsOnly: constObservable(false) },
-			composerShown: false,
-			viewPaneContainer: document.createElement('div'),
-			element,
-			_widget: { domNode: chat, get viewModel() { return { model: { title: '' } }; }, isEmpty: () => empty },
-			relayout: () => { },
-		};
-		const update = Reflect.get(ChatViewPane.prototype, 'updateComposerVisibility') as (this: typeof host) => void;
-		const steps: string[][] = [];
-		const clearWith = (focus: HTMLElement) => {
-			empty = false;
-			update.call(host);
-			focus.focus();
-			// The chat clears: New Chat, or a saved chat that loads while it is held, which clears the chat it replaces
-			empty = true;
-			update.call(host);
-			steps.push(focused.splice(0));
-		};
-		try {
-			clearWith(chatInput);
-			clearWith(sessionsFilter);
-		} finally {
-			element.remove();
-		}
-		assert.deepStrictEqual(steps, [['composer'], []]);
+		focusInput.call(host(true));
+		focusInput.call(host(false));
+		assert.deepStrictEqual(focused, ['sessions', 'chat']);
 	});
 
 	test('the Chat view takes the sessions list of the provider registered last, and its own once none is', () => {
@@ -306,7 +225,6 @@ suite('ChatViewPane sessions refresh', () => {
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
 			doUpdateConfiguredSessionsViewerOrientation: () => { },
-			updateComposerVisibility: () => { },
 			relayout: () => { },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
@@ -575,8 +493,6 @@ suite('ChatViewPane session transitions', () => {
 			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
 			acquireDefaultNewSession: () => newChatAcquired.p,
 			updateViewState: () => { },
-			providedComposer: { newChat: () => { }, focus: () => { } },
-			composerShown: false,
 		});
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
@@ -617,8 +533,6 @@ suite('ChatViewPane session transitions', () => {
 			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
 			acquireDefaultNewSession: () => pending.shift()!.p,
 			updateViewState: () => { },
-			providedComposer: { newChat: () => { }, focus: () => { } },
-			composerShown: false,
 		});
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
@@ -781,42 +695,18 @@ suite('ChatViewPane session transitions', () => {
 		});
 	});
 
-	test('New Chat of the composer that a slow load shows, as it cleared the chat, supersedes the load', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const rig = createPane();
-		const acquiring = new DeferredPromise<IChatModelReference>();
-		const composerCalls: string[] = [];
-		Object.assign(rig.pane, {
-			chatService: { acquireOrLoadSession: () => acquiring.p },
-			providedComposer: { newChat: () => composerCalls.push('newChat'), focus: () => composerCalls.push('focus') },
-		});
-		const loading = rig.pane.loadSession(nextResource.with({ path: '/saved' }));
-		await timeout(150);
-		// The cleared chat is a new chat: the composer shows in its place
-		Object.assign(rig.pane, { composerShown: true });
-		const taken = await (Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object) => Promise<boolean>).call(rig.pane);
-		await acquiring.complete(rig.nextRef);
-		await loading;
-		assert.deepStrictEqual({ taken, composerCalls, bindings: rig.bindings, disposed: rig.disposed }, {
-			taken: true,
-			composerCalls: ['newChat', 'focus'],
-			bindings: [undefined],
-			disposed: [previousResource, nextResource],
-		});
-	}));
-
-	test('a new chat of its own, as a sessions list starts one, replaces the chat it shows and its slow load, aimed at the target, without focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+	test('a new chat of its own, as a sessions list starts one, replaces the chat it shows and its slow load, without focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const rig = createPane();
 		const acquiring = new DeferredPromise<IChatModelReference>();
 		const freshResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-fresh' });
 		const freshRef = Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: freshResource }) });
-		const calls: string[] = [];
+		const focused: string[] = [];
 		Object.assign(rig.pane, {
 			chatService: { acquireOrLoadSession: () => acquiring.p },
 			acquireDefaultNewSession: async () => ({ modelRef: freshRef }),
 			updateViewState: () => { },
-			providedComposer: { newChat: (target?: IChatViewNewChatTarget) => calls.push(`composer newChat ${target?.folder?.path}`), focus: () => calls.push('composer focus') },
-			composerShown: false,
 		});
+		Object.assign(rig.widget, { focusInput: () => focused.push('chat') });
 		// A load still under way, while the chat it replaces still shows
 		const loading = rig.pane.loadSession(nextResource);
 		await timeout(150);
@@ -826,15 +716,15 @@ suite('ChatViewPane session transitions', () => {
 		await acquiring.complete(rig.nextRef);
 		await loading;
 
-		assert.deepStrictEqual({ taken, calls, bindings: rig.bindings, shown: rig.widget.viewModel?.sessionResource.path }, {
+		assert.deepStrictEqual({ taken, focused, bindings: rig.bindings, shown: rig.widget.viewModel?.sessionResource.path }, {
 			taken: true,
-			calls: ['composer newChat /repo'],
+			focused: [],
 			bindings: [freshResource],
 			shown: '/untitled-fresh',
 		});
 	}));
 
-	test('of two New Chats of its own under way, the later one shows its new chat and aims the composer, also as the earlier one completes last', async () => {
+	test('of two New Chats of its own under way, the later one shows its new chat, also as the earlier one completes last', async () => {
 		const rig = createPane();
 		const disposedNew: string[] = [];
 		const newChat = (name: string) => {
@@ -844,12 +734,9 @@ suite('ChatViewPane session transitions', () => {
 		const a = newChat('a');
 		const b = newChat('b');
 		const acquisitions = [a, b];
-		const composerCalls: string[] = [];
 		Object.assign(rig.pane, {
 			acquireDefaultNewSession: () => acquisitions.shift()!.acquired.p,
 			updateViewState: () => { },
-			providedComposer: { newChat: (target?: { folder?: URI }) => composerCalls.push(`newChat ${target?.folder?.path}`), focus: () => composerCalls.push('focus') },
-			composerShown: false,
 		});
 		const run = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object, target: { folder: URI }, options: { ownChat: boolean; preserveFocus: boolean }) => Promise<boolean>;
 		const first = run.call(rig.pane, { folder: URI.file('/a') }, { ownChat: true, preserveFocus: true });
@@ -861,11 +748,10 @@ suite('ChatViewPane session transitions', () => {
 		// The rig's next chat, which these New Chats do not use
 		rig.nextRef.dispose();
 
-		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), composerCalls, disposedNew, shown: rig.widget.viewModel?.sessionResource?.path }, {
+		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), disposedNew, shown: rig.widget.viewModel?.sessionResource?.path }, {
 			takenEarlier: true,
 			takenLater: true,
 			bindings: ['/untitled-b'],
-			composerCalls: ['newChat /b'],
 			disposedNew: ['a'],
 			shown: '/untitled-b',
 		});
