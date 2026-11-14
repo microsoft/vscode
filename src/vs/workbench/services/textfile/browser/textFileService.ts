@@ -507,15 +507,22 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		}
 
 		// Prefer an existing model if it is already resolved for the given target resource
-		let targetExists = false;
 		let targetModel = this.files.get(target);
-		if (targetModel?.isResolved()) {
-			targetExists = true;
+		const targetExists = targetModel?.isResolved() || await this.fileService.exists(target);
+
+		// Confirm to overwrite if we have an untitled file with associated file where
+		// the file actually exists on disk and we are instructed to save to that file
+		// path. This can happen if the file was created after the untitled file was opened.
+		// See https://github.com/microsoft/vscode/issues/67946
+		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme))) {
+			const confirmed = await this.confirmOverwrite(target);
+			if (!confirmed) {
+				return false;
+			}
 		}
 
 		// Otherwise create the target file empty if it does not exist already and resolve it from there
-		else {
-			targetExists = await this.fileService.exists(target);
+		if (!targetModel?.isResolved()) {
 
 			// create target file adhoc if it does not exist yet
 			if (!targetExists) {
@@ -542,21 +549,6 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 				throw error;
 			}
-		}
-
-		// Confirm to overwrite if we have an untitled file with associated file where
-		// the file actually exists on disk and we are instructed to save to that file
-		// path. This can happen if the file was created after the untitled file was opened.
-		// See https://github.com/microsoft/vscode/issues/67946
-		let write: boolean;
-		if (sourceModel instanceof UntitledTextEditorModel && sourceModel.hasAssociatedFilePath && targetExists && this.uriIdentityService.extUri.isEqual(target, toLocalResource(sourceModel.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme))) {
-			write = await this.confirmOverwrite(target);
-		} else {
-			write = true;
-		}
-
-		if (!write) {
-			return false;
 		}
 
 		let sourceTextModel: ITextModel | undefined = undefined;
