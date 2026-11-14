@@ -13,7 +13,7 @@ import { ServicesAccessor, IInstantiationService } from '../../../platform/insta
 import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from '../../../base/common/platform.js';
 import { KeybindingWeight } from '../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContext, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IViewDescriptorService, ViewContainerLocation, IViewDescriptor, ViewContainerLocationToString } from '../../common/views.js';
 import { IViewsService } from '../../services/views/common/viewsService.js';
 import { QuickPickItem, IQuickInputService, IQuickPickItem, IQuickPickSeparator, IQuickPick } from '../../../platform/quickinput/common/quickInput.js';
@@ -22,7 +22,7 @@ import { IPaneCompositePartService } from '../../services/panecomposite/browser/
 import { ToggleAuxiliaryBarAction } from '../parts/auxiliarybar/auxiliaryBarActions.js';
 import { TogglePanelAction } from '../parts/panel/panelActions.js';
 import { ICommandService } from '../../../platform/commands/common/commands.js';
-import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
+import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelVisibleContext, SideBarVisibleContext, FocusedViewContext, InEditorZenModeContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, ChatPartEnabledContext, ChatPartVisibleContext, EditorAreaHiddenByChatContext, IsMainWindowFullscreenContext, PanelPositionContext, IsAuxiliaryWindowFocusedContext, IsSessionsWindowContext, TitleBarStyleContext, IsAuxiliaryWindowContext, CustomMenuBarVisibleContext, LayoutModeContext } from '../../common/contextkeys.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
@@ -302,6 +302,48 @@ registerAction2(class extends Action2 {
 		accessor.get(IWorkbenchLayoutService).setEditorHiddenByChat(true);
 	}
 });
+
+class ToggleChatPartVisibilityAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleChatPartVisibility';
+
+	constructor() {
+		super({
+			id: ToggleChatPartVisibilityAction.ID,
+			title: localize2('toggleChatPartVisibility', "Toggle Chat Visibility"),
+			category: Categories.View,
+			f1: false,
+			precondition: ChatPartEnabledContext
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setPartHidden(layoutService.isVisible(Parts.CHAT_PART), Parts.CHAT_PART);
+	}
+}
+registerAction2(ToggleChatPartVisibilityAction);
+
+class ToggleEditorAreaForChatAction extends Action2 {
+
+	static readonly ID = 'workbench.action.toggleEditorAreaForChat';
+
+	constructor() {
+		super({
+			id: ToggleEditorAreaForChatAction.ID,
+			title: localize2('toggleEditorAreaForChat', "Toggle Editor Area Visibility"),
+			category: Categories.View,
+			f1: false,
+			precondition: ChatPartVisibleContext
+		});
+	}
+
+	run(accessor: ServicesAccessor): void {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.setEditorHiddenByChat(!layoutService.isEditorHiddenByChat());
+	}
+}
+registerAction2(ToggleEditorAreaForChatAction);
 
 registerAction2(class extends Action2 {
 
@@ -1382,6 +1424,8 @@ interface CustomizeLayoutItem {
 	label: string;
 	activeIcon: ThemeIcon;
 	visualIcon?: LayoutVisualIcon;
+	/** When set, the item is only offered where this holds. */
+	when?: ContextKeyExpression;
 	activeAriaLabel: string;
 	inactiveIcon?: ThemeIcon;
 	inactiveAriaLabel?: string;
@@ -1414,6 +1458,9 @@ const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label:
 	};
 };
 
+/** The chat part's own toggle, which also opens the composer when it has no chats; the Agents contribution registers it. */
+const CHAT_PART_TOGGLE_COMMAND_ID = 'workbench.action.agentsView.toggleChatPart';
+
 const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
 if (!isMacintosh || !isNative) {
 	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', CustomMenuBarVisibleContext, localize('menuBar', "Menu Bar"), menubarIcon));
@@ -1424,8 +1471,23 @@ ToggleVisibilityActions.push(...[
 	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
+	{
+		...CreateToggleLayoutItem(ToggleEditorAreaForChatAction.ID, MainEditorAreaVisibleContext, localize('editorArea', "Editor Area")),
+		when: ContextKeyExpr.and(ChatPartVisibleContext, IsSessionsWindowContext.negate()),
+	},
+	{
+		...CreateToggleLayoutItem(CHAT_PART_TOGGLE_COMMAND_ID, ChatPartVisibleContext, localize('chatPart', "Chat")),
+		when: ContextKeyExpr.and(ChatPartEnabledContext, IsSessionsWindowContext.negate()),
+	},
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),
 ]);
+
+/** The visibility items of the Customize Layout picker that apply in `context`, with whether each is on. */
+export function getCustomizeLayoutVisibilityItems(context: IContext): { readonly id: string; readonly label: string; readonly active: boolean }[] {
+	return ToggleVisibilityActions
+		.filter(item => !item.when || item.when.evaluate(context))
+		.map(({ id, label, active }) => ({ id, label, active: active.evaluate(context) }));
+}
 
 const MoveSideBarActions: CustomizeLayoutItem[] = [
 	CreateOptionLayoutItem(MoveSidebarLeftAction.ID, ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), localize('leftSideBar', "Left"), panelLeftIcon),
@@ -1458,6 +1520,11 @@ const MiscLayoutOptions: CustomizeLayoutItem[] = [
 ];
 
 const LayoutContextKeySet = new Set<string>();
+for (const { when } of ToggleVisibilityActions) {
+	for (const key of when?.keys() ?? []) {
+		LayoutContextKeySet.add(key);
+	}
+}
 for (const { active } of [...ToggleVisibilityActions, ...MoveSideBarActions, ...AlignPanelActions, ...QuickInputActions, ...LayoutDensityActions, ...MiscLayoutOptions]) {
 	for (const key of active.keys()) {
 		LayoutContextKeySet.add(key);
@@ -1569,7 +1636,7 @@ registerAction2(class CustomizeLayoutAction extends Action2 {
 				type: 'separator',
 				label: localize('toggleVisibility', "Visibility")
 			},
-			...ToggleVisibilityActions.map(toQuickPickItem),
+			...ToggleVisibilityActions.filter(item => !item.when || item.when.evaluate(contextKeyService.getContext(null))).map(toQuickPickItem),
 			{
 				type: 'separator',
 				label: localize('sideBarPosition', "Primary Side Bar Position")
