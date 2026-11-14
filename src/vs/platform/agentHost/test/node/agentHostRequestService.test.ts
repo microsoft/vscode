@@ -333,6 +333,17 @@ suite('AgentHostProxyResolver', () => {
 		assert.deepStrictEqual(certificates, ['system-ca']);
 	});
 
+	test('loads system CA certificates with Node.js\' loader only when requested', async () => {
+		const loadFromNode: boolean[] = [];
+		const loader: Parameters<typeof loadAgentHostCertificates>[2] = async params => {
+			loadFromNode.push(!!params.loadSystemCertificatesFromNode());
+			return [];
+		};
+		await loadAgentHostCertificates(new NullLogService(), [], loader, false);
+		await loadAgentHostCertificates(new NullLogService(), [], loader);
+		assert.deepStrictEqual(loadFromNode, [false, true]);
+	});
+
 	test('propagates certificate loading errors', async () => {
 		const error = new Error('Certificate loading failed');
 		await assert.rejects(loadAgentHostCertificates(new NullLogService(), ['extra-ca'], async () => { throw error; }), error);
@@ -376,6 +387,46 @@ suite('AgentHostProxyResolver', () => {
 		}, {
 			proxy: 'http://proxy.example:8080',
 			configurationChanges: 1,
+		});
+	});
+
+	test('honors http.proxySupport and the system certificate settings of the client', async () => {
+		resetCaches();
+		disposables.add(toDisposable(() => resetCaches()));
+		const configurationService = createAgentConfigurationService(disposables);
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.Proxy]: 'http://proxy.example:8080' });
+		const nativeLoads: boolean[] = [];
+		const resolver = disposables.add(new class extends ProxyEnvironmentIsolatedAgentHostProxyResolver {
+			protected override async _loadNativeCertificates(loadFromNode: boolean): Promise<string[]> {
+				nativeLoads.push(loadFromNode);
+				return [];
+			}
+			protected override _getFetch(): typeof globalThis.fetch {
+				return async (_input, init) => new Response((init as { dispatcher?: object } | undefined)?.dispatcher?.constructor.name ?? 'none');
+			}
+		}(configurationService, new NullLogService()));
+		let changes = 0;
+		disposables.add(resolver.onDidChangeConfiguration(() => changes++));
+		const request = async () => ({
+			proxy: await resolver.resolveProxy('https://example.com'),
+			dispatcher: await (await resolver.fetch('https://example.com')).text(),
+		});
+
+		const defaults = await request();
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.ProxySupport]: 'off' });
+		const off = await request();
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.SystemCertificates]: false });
+		const withoutCertificates = await request();
+		configurationService.updateRootConfig({ [AgentHostProxyConfigKey.SystemCertificates]: true, [AgentHostProxyConfigKey.SystemCertificatesNode]: false });
+		const withoutNodeCertificates = await request();
+
+		assert.deepStrictEqual({ defaults, off, withoutCertificates, withoutNodeCertificates, nativeLoads, changes }, {
+			defaults: { proxy: 'http://proxy.example:8080', dispatcher: 'ProxyAgent' },
+			off: { proxy: undefined, dispatcher: 'Agent' },
+			withoutCertificates: { proxy: undefined, dispatcher: 'none' },
+			withoutNodeCertificates: { proxy: undefined, dispatcher: 'Agent' },
+			nativeLoads: [true, false],
+			changes: 3,
 		});
 	});
 

@@ -10835,13 +10835,18 @@ export class CopilotAgent extends Disposable implements IAgent {
 	/**
 	 * The proxies for a request of the Copilot runtime as a PAC-style list, with the precedence the rest of VS Code uses:
 	 * `http.noProxy`, `http.proxy`, the proxy environment variables, then the system proxy a client resolves, including
-	 * its fallback entries. `undefined` lets the runtime resolve the proxy itself, as it does without the callback, when no
-	 * client was connected to resolve the system proxy with, the client resolved none, or system proxy discovery is
-	 * disabled. It does so too for a proxy environment variable with credentials, which a PAC-style list cannot carry:
-	 * the runtime reads that proxy, credentials included, from the environment it inherits. The credentials of the
-	 * `http.proxy` setting answer the runtime's Basic challenges instead (see {@link _lookupBasicCredentials}).
+	 * its fallback entries. `undefined` lets the runtime resolve the proxy itself, as it does without the callback, when
+	 * `http.proxySupport` is `off`, no client was connected to resolve the system proxy with, the client resolved none, or
+	 * system proxy discovery is disabled. It does so too for a proxy environment variable with credentials, which a
+	 * PAC-style list cannot carry: the runtime reads that proxy, credentials included, from the environment it inherits.
+	 * The credentials of the `http.proxy` setting answer the runtime's Basic challenges instead (see
+	 * {@link _lookupBasicCredentials}).
 	 */
 	private async _resolveRuntimeProxy(url: string): Promise<string | undefined> {
+		if (this._configurationService.getRootValue(agentHostProxyConfigSchema, AgentHostProxyConfigKey.ProxySupport) === 'off') {
+			this._logService.debug(`[Copilot] Not resolving the Copilot runtime's proxy for ${originsOnlyForLog(url)}: http.proxySupport is off`);
+			return undefined;
+		}
 		const { url: proxyUrl, result, source } = await this._proxyResolver.resolveProxyByURL(url);
 		const fromClient = source === 'system' || source === 'system_cached' || source === 'fallback';
 		const fromEnvironmentWithCredentials = source === 'env' && hasProxyCredentials(proxyUrl);
