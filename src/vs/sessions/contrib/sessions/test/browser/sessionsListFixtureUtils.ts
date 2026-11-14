@@ -95,7 +95,7 @@ import { ISessionAttentionService, IInboxSessionAttention } from '../../../../..
 import { SessionInboxAction } from '../../../../../workbench/contrib/sessions/common/sessionInbox.js';
 import { NEW_SESSION_BUTTON_STYLE_SETTING, NEW_SESSION_BUTTON_STYLE_TREATMENT, NewSessionActionViewItemContribution, type NewSessionButtonStyle } from '../../browser/sessionsActions.js';
 import { SessionChatItem, SessionsGrouping, SessionsList, SessionsListItemReference, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
-import { ISessionsHeaderElements, ISessionsViewOptions, renderSessionsHeader, SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { ISessionsHeaderElements, ISessionsViewLocator, ISessionsViewOptions, renderSessionsHeader, SessionsView, SessionsViewGroupingContext, SessionsViewId, SessionsViewLocator } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { SessionsArchiveActionsContribution, getSessionsArchiveActionConstructors } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 import '../../browser/views/sessionsViewActions.js';
 import { TestSessionsList } from '../../../../../workbench/contrib/sessions/test/browser/views/testSessionsList.js';
@@ -1277,6 +1277,7 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 		override readonly items = constObservable([]);
 		override readonly claimedDraftIds = constObservable(new Set<string>());
 	}());
+	instantiationService.stub(ISessionsViewLocator, new SessionsViewLocator());
 
 	// The Primary Side Bar of an editor window, whose single view shows the actions of its header in its title
 	container.classList.add('monaco-workbench');

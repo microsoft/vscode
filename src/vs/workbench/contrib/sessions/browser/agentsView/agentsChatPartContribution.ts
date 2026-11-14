@@ -22,6 +22,7 @@ import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../..
 import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
+import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
@@ -154,7 +155,8 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			if (!this.enabled.read(reader)) {
 				return;
 			}
-			// Its actions, such as to close it, only while chats open in it
+			// Its actions, such as to close it, and the setting that its header sets, only while chats open in it
+			reader.store.add(registerSessionsListConfiguration());
 			reader.store.add(registerAgentsChatPartActions());
 			const host = this._instantiationService.createInstance(AgentsChatViewHost, this._ownsNewChat);
 			reader.store.add(this._chatViewHostService.registerHost(host));
