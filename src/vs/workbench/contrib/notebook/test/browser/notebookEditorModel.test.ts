@@ -32,7 +32,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 	const telemetryService = new class extends mock<ITelemetryService>() {
 		override publicLogError2() { }
 	};
-	const logservice = new class extends mock<ILogService>() { };
+	const logservice = new class extends mock<ILogService>() {
+		override info() { }
+	};
 
 	teardown(() => disposables.dispose());
 
@@ -220,6 +222,56 @@ suite('NotebookFileWorkingCopyModel', function () {
 			assert.strictEqual(callCount, 1);
 		}
 	});
+
+	for (const outputCount of [1, 2]) {
+		test(`update preserves changed output metadata when saving (${outputCount} outputs)`, async function () {
+			const outputs: IOutputDto[] = Array.from({ length: outputCount }, (_, index) => ({
+				outputId: `output-${index}`,
+				outputs: [{ mime: Mimes.text, data: VSBuffer.fromString(`output ${index}`) }],
+				metadata: { outputType: 'display_data', metadata: { needs_background: 'light' } }
+			}));
+			const cell = { cellKind: CellKind.Code, language: 'python', mime: undefined, source: 'print(1)', outputs };
+			const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel,
+				'notebook',
+				URI.file('test'),
+				[cell],
+				{},
+				{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }
+			));
+			const updatedOutputs = outputs.map(output => ({
+				...output,
+				metadata: { outputType: 'execute_result', executionCount: 42, metadata: { needs_background: 'dark' } }
+			}));
+			let savedOutputs: IOutputDto[] | undefined;
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
+				notebook,
+				mockNotebookService(notebook,
+					new class extends mock<INotebookSerializer>() {
+						override options = notebook.transientOptions;
+						override async dataToNotebook(): Promise<NotebookData> {
+							return { cells: [{ ...cell, outputs: updatedOutputs }], metadata: {} };
+						}
+						override async notebookToData(data: NotebookData) {
+							savedOutputs = data.cells[0].outputs.map(output => ({
+								outputId: output.outputId,
+								outputs: output.outputs,
+								metadata: output.metadata
+							}));
+							return VSBuffer.fromString('');
+						}
+					}
+				),
+				configurationService,
+				telemetryService,
+				logservice
+			));
+
+			await model.update(bufferToStream(VSBuffer.fromString('')), CancellationToken.None);
+			await model.snapshot(SnapshotContext.Save, CancellationToken.None);
+
+			assert.deepStrictEqual(savedOutputs, updatedOutputs);
+		});
+	}
 
 	test('Notebooks with outputs beyond the size threshold will throw for backup snapshots', async function () {
 		const outputLimit = 100;
