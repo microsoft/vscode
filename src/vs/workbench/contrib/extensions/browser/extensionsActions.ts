@@ -60,7 +60,7 @@ import { isIOS, isWeb, language } from '../../../../base/common/platform.js';
 import { IExtensionManifestPropertiesService } from '../../../services/extensions/common/extensionManifestPropertiesService.js';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { isVirtualWorkspace } from '../../../../platform/workspace/common/virtualWorkspace.js';
-import { createCommandUri, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeMarkdownLinkText, escapeMarkdownSyntaxTokens, escapeUntrustedMarkdown, IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { getLocale } from '../../../../platform/languagePacks/common/languagePacks.js';
@@ -587,19 +587,22 @@ export class InstallAction extends ExtensionAction {
 						return DeprecationChoice.ConfigureSettings;
 					}
 				});
-			} else if (this.extension.deprecationInfo.additionalInfo) {
+			} else if (this.extension.deprecationInfo.additionalInfo && this.extension.deprecationInfo.source !== 'marketplace') {
 				detail = new MarkdownString(`${detail} ${this.extension.deprecationInfo.additionalInfo}`);
 			}
+
+			const publisherMessage = this.extension.deprecationInfo.source === 'marketplace' && this.extension.deprecationInfo.additionalInfo
+				? new MarkdownString(this.extension.deprecationInfo.additionalInfo)
+				: undefined;
+			const markdownDetails = publisherMessage
+				? [{ markdown: new MarkdownString().appendText(isString(detail) ? detail : detail.value) }, { markdown: publisherMessage }]
+				: isString(detail) ? undefined : [{ markdown: detail }];
 
 			const { result } = await this.dialogService.prompt({
 				type: Severity.Warning,
 				message: localize('install confirmation', "Are you sure you want to install '{0}'?", this.extension.displayName),
-				detail: isString(detail) ? detail : undefined,
-				custom: isString(detail) ? undefined : {
-					markdownDetails: [{
-						markdown: detail
-					}]
-				},
+				detail: isString(detail) && !markdownDetails ? detail : undefined,
+				custom: markdownDetails ? { markdownDetails } : undefined,
 				buttons,
 				cancelButton: {
 					run: () => DeprecationChoice.Cancel
@@ -2797,7 +2800,7 @@ export class ToggleSyncExtensionAction extends DropDownExtensionAction {
 	}
 }
 
-export type ExtensionStatus = { readonly message: IMarkdownString; readonly icon?: ThemeIcon };
+export type ExtensionStatus = { readonly message: IMarkdownString; readonly additionalMessage?: IMarkdownString; readonly icon?: ThemeIcon };
 
 function getExtensionBlockedStatusMessage(extension: IExtension): IMarkdownString | undefined {
 	if (extension.blockingInfo && extension.state === ExtensionState.Uninstalled) {
@@ -2898,18 +2901,24 @@ export class ExtensionStatusAction extends ExtensionAction {
 		}
 
 		if (this.extension.deprecationInfo) {
+			const additionalMessage = this.extension.deprecationInfo.source === 'marketplace' && this.extension.deprecationInfo.additionalInfo
+				? new MarkdownString(this.extension.deprecationInfo.additionalInfo)
+				: undefined;
 			if (this.extension.deprecationInfo.extension) {
-				const link = `[${this.extension.deprecationInfo.extension.displayName}](${createCommandUri('extension.open', this.extension.deprecationInfo.extension.id)})`;
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)) }, true);
+				const displayName = this.extension.deprecationInfo.source === 'marketplace'
+					? escapeMarkdownLinkText(this.extension.deprecationInfo.extension.displayName)
+					: this.extension.deprecationInfo.extension.displayName;
+				const link = `[${displayName}](${createCommandUri('extension.open', this.extension.deprecationInfo.extension.id)})`;
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate extension tooltip', "This extension is deprecated. Use the {0} extension instead.", link)), additionalMessage }, true);
 			} else if (this.extension.deprecationInfo.settings) {
 				const link = `[${localize('settings', "settings")}](${createCommandUri('workbench.action.openSettings', this.extension.deprecationInfo.settings.map(setting => `@id:${setting}`).join(' '))}})`;
 				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('deprecated with alternate settings tooltip', "This extension is deprecated as this functionality is now built-in to VS Code. Configure these {0} to use this functionality.", link)) }, true);
 			} else {
 				const message = new MarkdownString(localize('deprecated tooltip', "This extension is deprecated as it is no longer being maintained."));
-				if (this.extension.deprecationInfo.additionalInfo) {
+				if (this.extension.deprecationInfo.additionalInfo && !additionalMessage) {
 					message.appendMarkdown(` ${this.extension.deprecationInfo.additionalInfo}`);
 				}
-				this.updateStatus({ icon: warningIcon, message }, true);
+				this.updateStatus({ icon: warningIcon, message, additionalMessage }, true);
 			}
 			return;
 		}
@@ -3162,7 +3171,7 @@ export class ExtensionStatusAction extends ExtensionAction {
 
 	private updateStatus(status: ExtensionStatus | undefined, updateClass: boolean): void {
 		if (status) {
-			if (this._status.some(s => s.message.value === status.message.value && s.icon?.id === status.icon?.id)) {
+			if (this._status.some(s => s.message.value === status.message.value && s.additionalMessage?.value === status.additionalMessage?.value && s.icon?.id === status.icon?.id)) {
 				return;
 			}
 		} else {

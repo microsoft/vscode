@@ -28,7 +28,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ViewPane, IViewPaneOptions, ViewPaneShowActions } from '../../../browser/parts/views/viewPane.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { coalesce, distinct, range } from '../../../../base/common/arrays.js';
+import { coalesce, distinct, equals, range } from '../../../../base/common/arrays.js';
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { ActionRunner } from '../../../../base/common/actions.js';
@@ -340,18 +340,22 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		let { extensions, canIncludeInstalledExtensions, description } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 		const disposables = new DisposableStore();
 		const onDidChangeModel = disposables.add(new Emitter<IPagedModel<IExtension>>());
+		const isDeprecatedQuery = /@deprecated/i.test(query.value);
 
 		if (canIncludeInstalledExtensions) {
 			let isDisposed: boolean = false;
 			disposables.add(toDisposable(() => isDisposed = true));
 			disposables.add(Event.debounce(Event.any(
-				Event.filter(this.extensionsWorkbenchService.onChange, e => e?.state === ExtensionState.Installed),
+				Event.filter(this.extensionsWorkbenchService.onChange, e => e?.state === ExtensionState.Installed || (isDeprecatedQuery && !e)),
 				this.extensionService.onDidChangeExtensions
 			), () => undefined)(async () => {
 				const local = this.options.server ? this.extensionsWorkbenchService.installed.filter(e => e.server === this.options.server) : this.extensionsWorkbenchService.local;
 				const { extensions: newExtensions } = await this.filterLocal(local, this.extensionService.extensions, query, options);
 				if (!isDisposed) {
-					const mergedExtensions = this.mergeAddedExtensions(extensions, newExtensions);
+					if (isDeprecatedQuery && equals(extensions, newExtensions)) {
+						return;
+					}
+					const mergedExtensions = isDeprecatedQuery ? newExtensions : this.mergeAddedExtensions(extensions, newExtensions);
 					if (mergedExtensions) {
 						extensions = mergedExtensions;
 						onDidChangeModel.fire(new PagedModel(extensions));
@@ -396,7 +400,7 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		}
 
 		else if (/@deprecated/i.test(query.value)) {
-			extensions = await this.filterDeprecatedExtensions(local, query, options);
+			extensions = this.filterDeprecatedExtensions(local, query, options);
 		}
 
 		else if (/@recentlyUpdated/i.test(query.value)) {
@@ -644,11 +648,9 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 		return this.sortExtensions(local, options);
 	}
 
-	private async filterDeprecatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): Promise<IExtension[]> {
+	private filterDeprecatedExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
 		const value = query.value.replace(/@deprecated/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
-		const extensionsControlManifest = await this.extensionManagementService.getExtensionsControlManifest();
-		const deprecatedExtensionIds = Object.keys(extensionsControlManifest.deprecated);
-		local = local.filter(e => deprecatedExtensionIds.includes(e.identifier.id) && (!value || e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+		local = local.filter(e => e.deprecationInfo && (!value || e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 		return this.sortExtensions(local, options);
 	}
 

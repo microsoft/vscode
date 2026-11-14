@@ -26,7 +26,7 @@ import { activationTimeIcon, errorIcon, infoIcon, installCountIcon, preReleaseIc
 import { registerColor, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
-import { createCommandUri, escapeUntrustedMarkdown, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { createCommandUri, escapeUntrustedMarkdown, isMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -804,6 +804,7 @@ export type ExtensionHoverOptions = {
 export class ExtensionHoverWidget extends ExtensionWidget {
 
 	private readonly hover = this._register(new MutableDisposable<IDisposable>());
+	private readonly hoverRenderDisposables = this._register(new DisposableStore());
 
 	constructor(
 		private readonly options: ExtensionHoverOptions,
@@ -815,18 +816,33 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 		@IExtensionRecommendationsService private readonly extensionRecommendationsService: IExtensionRecommendationsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 	) {
 		super();
 	}
 
 	render(): void {
 		this.hover.value = undefined;
+		this.hoverRenderDisposables.clear();
 		if (this.extension) {
 			this.hover.value = this.hoverService.setupManagedHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options, focus) => {
+					this.hoverRenderDisposables.clear();
+					let content = options.content;
+					if (isMarkdownString(content) && this.extensionStatusAction.status.some(status => status.additionalMessage)) {
+						const container = $('.rendered-markdown');
+						append(container, this.hoverRenderDisposables.add(this.markdownRendererService.render(content)).element);
+						for (const status of this.extensionStatusAction.status) {
+							if (status.additionalMessage) {
+								append(container, this.hoverRenderDisposables.add(this.markdownRendererService.render(status.additionalMessage)).element);
+							}
+						}
+						content = container;
+					}
 					return this.hoverService.showInstantHover({
 						...options,
+						content,
 						additionalClasses: ['extension-hover'],
 						position: {
 							hoverPosition: this.options.position(),
@@ -1083,6 +1099,11 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 			}
 			const rendered = disposables.add(this.markdownRendererService.render(markdown));
 			append(this.container, rendered.element);
+			for (const status of extensionStatus) {
+				if (status.additionalMessage) {
+					append(this.container, disposables.add(this.markdownRendererService.render(status.additionalMessage)).element);
+				}
+			}
 		}
 		this._onDidRender.fire();
 	}

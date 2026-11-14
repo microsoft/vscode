@@ -13,7 +13,7 @@ import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsW
 import '../../browser/extensions.contribution.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IExtensionInfo, IExtensionQueryOptions, ExtensionManagementError, ExtensionManagementErrorCode
+	DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IExtensionInfo, IExtensionQueryOptions, ExtensionManagementError, ExtensionManagementErrorCode, IDeprecationInfo, MarketplaceDeprecationConfigKey
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -64,6 +64,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { IMeteredConnectionService } from '../../../../../platform/meteredConnection/common/meteredConnection.js';
 import { ExtensionGalleryManifestStatus, ExtensionGalleryServiceUrlConfigKey, IExtensionGalleryManifestService } from '../../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 suite('ExtensionsWorkbenchServiceTest', () => {
 
@@ -89,6 +90,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stub(IFileService, disposableStore.add(new FileService(new NullLogService())));
 		instantiationService.stub(IProgressService, ProgressService);
 		instantiationService.stub(IProductService, TestProductService);
+		instantiationService.stub(IEditorService, { editors: [] });
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(IExtensionGalleryManifestService, {
@@ -413,6 +415,277 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		blockingOrigins.push(unblocked.firstPage[0].blockingInfo?.origin);
 
 		assert.deepStrictEqual(blockingOrigins, [ExtensionBlockingOrigin.Policy, ExtensionBlockingOrigin.Service, undefined]);
+	});
+
+	test('Marketplace deprecation selects whole records and preserves operational migrations', () => {
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher message' };
+		const legacy: IDeprecationInfo = { disallowInstall: true, extension: { id: 'pub.legacy', displayName: 'Legacy' }, settings: ['legacy.setting'] };
+		const migration: IDeprecationInfo = { ...legacy, extension: { id: 'pub.migration', displayName: 'Migration', autoMigrate: { storage: true }, preRelease: true } };
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { deprecationInfo: marketplace }), undefined);
+		const states: (IDeprecationInfo | undefined)[] = [];
+		for (const record of [legacy, migration, undefined]) {
+			extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: record ? { 'pub.deprecated': record } : {} });
+			states.push(extension.deprecationInfo);
+		}
+		extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { 'pub.deprecated': legacy } });
+		const changed = extension.setMarketplaceDeprecationInfo(undefined);
+		assert.deepStrictEqual({ states, changed, fallback: extension.deprecationInfo }, { states: [marketplace, migration, marketplace], changed: true, fallback: legacy });
+	});
+
+	test('Marketplace deprecation refreshes same-version returned models without replacing their gallery', async () => {
+		const local = aLocalExtension('deprecated');
+		let gallery = aGalleryExtension(local.manifest.name);
+		const initialGallery = gallery;
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		testObject = await aWorkbenchService();
+		const initialSync = Event.toPromise(Event.filter(testObject.onChange, extension => extension?.gallery === initialGallery));
+		await testObject.queryGallery(CancellationToken.None);
+		await initialSync;
+
+		const records: (IDeprecationInfo | undefined)[] = [
+			{ source: 'marketplace', additionalInfo: 'First' },
+			{ source: 'marketplace', extension: { id: 'pub.replacement', displayName: 'Replacement' }, additionalInfo: 'Updated' },
+			undefined
+		];
+		const observed: (IDeprecationInfo | undefined)[] = [];
+		for (const deprecationInfo of records) {
+			gallery = aGalleryExtension(local.manifest.name, { deprecationInfo });
+			gallery.identifier = initialGallery.identifier;
+			const result = await testObject.queryGallery(CancellationToken.None);
+			observed.push(result.firstPage[0].deprecationInfo);
+		}
+		assert.deepStrictEqual({ observed, sameGallery: testObject.local[0].gallery === initialGallery }, { observed: records, sameGallery: true });
+	});
+
+	test('Marketplace deprecation from a different version is available before compatibility resolution', async () => {
+		const local = aLocalExtension('deprecated');
+		const deprecationInfo: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+		const gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', false);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getCompatibleExtension', null);
+		testObject = await aWorkbenchService();
+		const [extension] = await testObject.getExtensions([{ id: local.identifier.id }], CancellationToken.None);
+		assert.deepStrictEqual({ deprecation: extension.deprecationInfo, version: extension.version }, { deprecation: deprecationInfo, version: '1.0.0' });
+	});
+
+	test('Marketplace deprecation switch updates existing gallery models and broadcasts invalidation', async () => {
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher message' };
+		const legacy: IDeprecationInfo = { additionalInfo: 'Legacy message' };
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('deprecated', { deprecationInfo: marketplace })));
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', { malicious: [], search: [], deprecated: { 'pub.deprecated': legacy } });
+		testObject = await aWorkbenchService();
+		const [extension] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
+		const states = [extension.deprecationInfo];
+		let invalidations = 0;
+		disposableStore.add(testObject.onChange(e => { if (!e) { invalidations++; } }));
+		for (const enabled of [false, true]) {
+			await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, enabled);
+			states.push(extension.deprecationInfo);
+		}
+		assert.deepStrictEqual({ states, invalidations }, { states: [marketplace, legacy, marketplace], invalidations: 2 });
+	});
+
+	test('installed deprecation retains observations while disabled and across fallback refreshes', async () => {
+		const local = aLocalExtension('Deprecated', {}, { identifier: { id: 'PUB.Deprecated' } });
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher advice' };
+		const legacy: IDeprecationInfo = { additionalInfo: 'Legacy advice', disallowInstall: true };
+		const updatedLegacy: IDeprecationInfo = { additionalInfo: 'Updated legacy advice' };
+		let report: IExtensionsControlManifest = { malicious: [], search: [], deprecated: { 'pub.deprecated': legacy } };
+		const gallery = aGalleryExtension(local.manifest.name, { deprecationInfo: marketplace });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stub(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', async () => report);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, false);
+		testObject = await aWorkbenchService();
+		const extension = testObject.local[0];
+		const states = [extension.deprecationInfo];
+		await testObject.checkForUpdates();
+		states.push(extension.deprecationInfo);
+
+		report = { ...report, deprecated: { 'pub.deprecated': updatedLegacy } };
+		await testObject.queryLocal();
+		states.push(extension.deprecationInfo);
+		await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, true);
+		states.push(extension.deprecationInfo);
+		report = { ...report, deprecated: {} };
+		await testObject.queryLocal();
+		states.push(extension.deprecationInfo);
+		await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, false);
+		states.push(extension.deprecationInfo);
+		await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, true);
+		states.push(extension.deprecationInfo);
+
+		assert.deepStrictEqual({ states, retainedModel: testObject.local[0] === extension }, {
+			states: [legacy, legacy, updatedLegacy, marketplace, marketplace, undefined, marketplace],
+			retainedModel: true
+		});
+	});
+
+	test('failed and omitted gallery lookups preserve deprecation without duplicate equivalent notifications', async () => {
+		const local = aLocalExtension('deprecated');
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Publisher advice' };
+		const gallery = aGalleryExtension(local.manifest.name, { deprecationInfo: marketplace });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		testObject = await aWorkbenchService();
+		await testObject.checkForUpdates();
+		const extension = testObject.local[0];
+		let changes = 0;
+		disposableStore.add(testObject.onChange(e => { if (e === extension) { changes++; } }));
+		const equivalent = aGalleryExtension(local.manifest.name, { deprecationInfo: { ...marketplace } });
+		equivalent.identifier = gallery.identifier;
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [equivalent]);
+		await testObject.checkForUpdates();
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', []);
+		await testObject.getExtensions([{ id: local.identifier.id }], CancellationToken.None);
+		const afterOmitted = extension.deprecationInfo;
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async () => { throw new Error('Gallery unavailable'); });
+		await assert.rejects(testObject.getExtensions([{ id: local.identifier.id }], CancellationToken.None), /Gallery unavailable/);
+		assert.deepStrictEqual({ afterOmitted, afterFailure: extension.deprecationInfo, changes }, { afterOmitted: marketplace, afterFailure: marketplace, changes: 0 });
+	});
+
+	for (const hasCompatibleVersion of [false, true]) {
+		test(`background incompatible response updates deprecation with compatible version ${hasCompatibleVersion}`, async () => {
+			const identifier = { id: 'pub.deprecated', uuid: 'deprecated-uuid' };
+			const local = aLocalExtension('deprecated', {}, { identifier });
+			const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+			const latest = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo: marketplace });
+			latest.identifier = identifier;
+			const compatible = aGalleryExtension(local.manifest.name);
+			compatible.identifier = identifier;
+			instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+			instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', false);
+			instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_infos: IExtensionInfo[], options: IExtensionQueryOptions) =>
+				options.queryAllVersions ? hasCompatibleVersion ? [compatible] : [] : [latest]);
+			testObject = await aWorkbenchService();
+			(testObject.local[0] as Extension).gallery = compatible;
+			const changes: (IDeprecationInfo | undefined)[] = [];
+			disposableStore.add(testObject.onChange(e => { if (e === testObject.local[0]) { changes.push(e.deprecationInfo); } }));
+			await testObject.checkForUpdates();
+
+			assert.deepStrictEqual({
+				deprecation: testObject.local[0].deprecationInfo,
+				galleryVersion: testObject.local[0].gallery?.version,
+				changes
+			}, {
+				deprecation: marketplace,
+				galleryVersion: '1.0.0',
+				changes: [marketplace]
+			});
+		});
+	}
+
+	test('deprecation refresh survives compatible-version lookup failure without duplicate retry notifications', async () => {
+		const identifier = { id: 'pub.deprecated', uuid: 'deprecated-uuid' };
+		const local = aLocalExtension('deprecated', {}, { identifier });
+		let latest = aGalleryExtension(local.manifest.name, { version: '2.0.0' });
+		latest.identifier = identifier;
+		const compatible = aGalleryExtension(local.manifest.name);
+		compatible.identifier = identifier;
+		let failCompatibleLookup = false;
+		let failedLookups = 0;
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', false);
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_infos: IExtensionInfo[], options: IExtensionQueryOptions) => {
+			if (options.queryAllVersions) {
+				if (failCompatibleLookup) {
+					failedLookups++;
+					throw new Error('Compatible-version lookup unavailable');
+				}
+				return [compatible];
+			}
+			return [latest];
+		});
+		testObject = await aWorkbenchService();
+		const query = async () => {
+			await testObject.getExtensions([{ id: identifier.id }], CancellationToken.None);
+			// Let the fire-and-forget synchronization finish before inspecting notifications.
+			await timeout(0);
+		};
+		await query();
+		const extension = testObject.local[0];
+		const initiallyCompatible = extension.gallery === compatible;
+		const notifications: (IDeprecationInfo | undefined)[] = [];
+		disposableStore.add(testObject.onChange(e => { if (e === extension) { notifications.push(e.deprecationInfo); } }));
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+		latest = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo: marketplace });
+		latest.identifier = identifier;
+		failCompatibleLookup = true;
+		await query();
+		const afterFailure = { deprecation: extension.deprecationInfo, notifications: [...notifications] };
+		failCompatibleLookup = false;
+		await query();
+
+		assert.deepStrictEqual({
+			initiallyCompatible,
+			failedLookups,
+			afterFailure,
+			notifications,
+			retainedGallery: extension.gallery === compatible
+		}, {
+			initiallyCompatible: true,
+			failedLookups: 1,
+			afterFailure: { deprecation: marketplace, notifications: [marketplace] },
+			notifications: [marketplace],
+			retainedGallery: true
+		});
+	});
+
+	test('operational migrations survive Marketplace changes and rollout toggles on installed models', async () => {
+		const local = aLocalExtension('deprecated');
+		const migration: IDeprecationInfo = { disallowInstall: true, extension: { id: 'pub.migrated', displayName: 'Migrated', preRelease: true, autoMigrate: { storage: true } } };
+		const gallery = aGalleryExtension(local.manifest.name, { deprecationInfo: { source: 'marketplace', extension: { id: 'pub.publisher', displayName: 'Publisher replacement' } } });
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', { malicious: [], search: [], deprecated: { 'pub.deprecated': migration } });
+		instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [gallery]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		testObject = await aWorkbenchService();
+		await testObject.checkForUpdates();
+		const states = [testObject.local[0].deprecationInfo];
+		for (const enabled of [false, true]) {
+			await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, enabled);
+			const response = aGalleryExtension(local.manifest.name, { deprecationInfo: enabled ? undefined : { source: 'marketplace', additionalInfo: 'Changed' } });
+			response.identifier = gallery.identifier;
+			instantiationService.stubPromise(IExtensionGalleryService, 'getExtensions', [response]);
+			await testObject.checkForUpdates();
+			states.push(testObject.local[0].deprecationInfo);
+		}
+		assert.deepStrictEqual(states, [migration, migration, migration]);
+	});
+
+	test('deprecation and installed-version blocking changes emit one combined refresh', async () => {
+		const identifier = { id: 'pub.deprecated', uuid: 'deprecated-uuid' };
+		const local = aLocalExtension('deprecated', {}, { identifier });
+		let gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', identifier });
+		let installedGallery = aGalleryExtension(local.manifest.name, { identifier });
+		await instantiationService.get(IConfigurationService).updateValue(ExtensionGalleryServiceUrlConfigKey, 'https://marketplace.example.com');
+		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
+		instantiationService.stubPromise(IExtensionGalleryService, 'isExtensionCompatible', true);
+		instantiationService.stub(IExtensionGalleryService, 'getExtensions', async (_infos: IExtensionInfo[], options: IExtensionQueryOptions) =>
+			options.includeBlockedVersions ? [installedGallery] : [gallery]);
+		testObject = await aWorkbenchService();
+		await testObject.checkForUpdates();
+		const marketplace: IDeprecationInfo = { source: 'marketplace', additionalInfo: 'Retired' };
+		const installedBlockingInfo = { origin: ExtensionBlockingOrigin.Policy, scope: ExtensionBlockingScope.Version };
+		const galleryIdentifier = gallery.identifier;
+		gallery = aGalleryExtension(local.manifest.name, { version: '2.0.0', deprecationInfo: marketplace });
+		gallery.identifier = galleryIdentifier;
+		installedGallery = aGalleryExtension(local.manifest.name, { blockingInfo: installedBlockingInfo });
+		installedGallery.identifier = galleryIdentifier;
+		let changes = 0;
+		disposableStore.add(testObject.onChange(e => { if (e === testObject.local[0]) { changes++; } }));
+		await testObject.checkForUpdates();
+		assert.deepStrictEqual({
+			deprecation: testObject.local[0].deprecationInfo,
+			installedBlockingInfo: testObject.local[0].installedBlockingInfo,
+			changes
+		}, { deprecation: marketplace, installedBlockingInfo, changes: 1 });
 	});
 
 	test('test same-version blocking metadata refresh preserves the server gallery and fires a change', async () => {
@@ -862,6 +1135,33 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		const result = await testObject.canInstall(extension);
 
 		assert.strictEqual(result === true ? undefined : result.value, 'This extension is not allowed by your organization.');
+	});
+
+	test('Marketplace advice allows installation and auto updates while legacy restrictions remain effective on fallback', async () => {
+		let gallery = aGalleryExtension('deprecated', { deprecationInfo: { source: 'marketplace', additionalInfo: 'Publisher advice' } });
+		instantiationService.stub(IExtensionGalleryService, 'query', async () => aPage(gallery));
+		instantiationService.stubPromise(IWorkbenchExtensionManagementService, 'getExtensionsControlManifest', {
+			malicious: [], search: [], deprecated: { 'pub.deprecated': { disallowInstall: true, additionalInfo: 'Legacy restriction' } }
+		});
+		testObject = await aWorkbenchService();
+		const [extension] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
+		const states: { installable: boolean; autoUpdate: boolean }[] = [];
+		for (const enabled of [true, false, true]) {
+			await instantiationService.get(IConfigurationService).updateValue(MarketplaceDeprecationConfigKey, enabled);
+			states.push({ installable: await testObject.canInstall(extension) === true, autoUpdate: testObject.isAutoUpdateEnabledFor(extension) });
+		}
+		gallery = aGalleryExtension('deprecated');
+		const [refreshed] = (await testObject.queryGallery(CancellationToken.None)).firstPage;
+		states.push({ installable: await testObject.canInstall(refreshed) === true, autoUpdate: testObject.isAutoUpdateEnabledFor(refreshed) });
+		assert.deepStrictEqual({ states, fallback: refreshed.deprecationInfo }, {
+			states: [
+				{ installable: true, autoUpdate: true },
+				{ installable: false, autoUpdate: false },
+				{ installable: true, autoUpdate: true },
+				{ installable: false, autoUpdate: false }
+			],
+			fallback: { disallowInstall: true, additionalInfo: 'Legacy restriction' }
+		});
 	});
 
 	suite('installExtension waits for installed inventory', () => {
@@ -2178,6 +2478,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 
 	function stubConfiguration(autoUpdateValue?: any, autoCheckUpdatesValue?: any): void {
 		const values: any = {
+			[MarketplaceDeprecationConfigKey]: true,
 			[AutoUpdateConfigurationKey]: autoUpdateValue ?? true,
 			[AutoUpdateDelayConfigurationKey]: 2,
 			[AutoCheckUpdatesConfigurationKey]: autoCheckUpdatesValue ?? true
@@ -2195,7 +2496,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 					source: ConfigurationTarget.USER,
 					change: { keys: [], overrides: [] },
 					affectsConfiguration(configuration, overrides) {
-						return true;
+						return configuration === key;
 					},
 				});
 			},

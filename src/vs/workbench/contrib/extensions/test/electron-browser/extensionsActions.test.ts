@@ -10,7 +10,7 @@ import * as ExtensionsActions from '../../browser/extensionsActions.js';
 import { Extension, ExtensionsWorkbenchService } from '../../browser/extensionsWorkbenchService.js';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension,
-	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IAllowedExtensionsService
+	DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, InstallOperation, IExtensionTipsService, InstallExtensionResult, getTargetPlatform, IExtensionsControlManifest, UninstallExtensionEvent, Metadata, ExtensionBlockingOrigin, ExtensionBlockingScope, IAllowedExtensionsService, MarketplaceDeprecationConfigKey, IDeprecationInfo
 } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, ExtensionInstallLocation, IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService } from '../../../../services/extensionManagement/common/extensionManagement.js';
 import { IExtensionRecommendationsService } from '../../../../services/extensionRecommendations/common/extensionRecommendations.js';
@@ -28,7 +28,7 @@ import { IExtensionService, toExtensionDescription } from '../../../../services/
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { TestContextService, TestWorkspaceTrustManagementService } from '../../../../test/common/workbenchTestServices.js';
 import { TestExtensionTipsService, TestSharedProcessService } from '../../../../test/electron-browser/workbenchTestServices.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { NativeURLService } from '../../../../../platform/url/common/urlService.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -68,8 +68,20 @@ import { UserDataProfileService } from '../../../../services/userDataProfile/com
 import { toUserDataProfile } from '../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IExtensionFeaturesManagementService } from '../../../../services/extensionManagement/common/extensionFeatures.js';
+import { IDialogService, IPrompt } from '../../../../../platform/dialogs/common/dialogs.js';
+import { renderMarkdown } from '../../../../../base/browser/markdownRenderer.js';
+import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { ExtensionHoverWidget, ExtensionStatusWidget } from '../../browser/extensionsWidgets.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IHoverOptions } from '../../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ExtensionsInput } from '../../common/extensionsInput.js';
 
 let instantiationService: TestInstantiationService;
+let editors: ExtensionsInput[];
 let installEvent: Emitter<InstallExtensionEvent>,
 	didInstallEvent: Emitter<readonly InstallExtensionResult[]>,
 	uninstallEvent: Emitter<UninstallExtensionEvent>,
@@ -94,6 +106,8 @@ function setupTest(disposables: Pick<DisposableStore, 'add'>) {
 	instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	instantiationService.stub(IProgressService, ProgressService);
 	instantiationService.stub(IProductService, {});
+	editors = [];
+	instantiationService.stub(IEditorService, { editors });
 	instantiationService.stub(IContextKeyService, new MockContextKeyService());
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IWorkspaceTrustEnablementService, { isWorkspaceTrustEnabled: () => true });
@@ -186,6 +200,208 @@ suite('ExtensionsActions', () => {
 		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
 
 		assert.ok(!testObject.enabled);
+	});
+
+	test('Marketplace deprecation status keeps publisher markdown separate from replacement commands', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		instantiationService.stub(IMarkdownRendererService, { render: renderMarkdown });
+		const status = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionStatusAction));
+		const container = document.createElement('div');
+		disposables.add(instantiationService.createInstance(ExtensionStatusWidget, container, status));
+		const publisherMessage = '**Publisher advice** [unsafe](command:extension.open?%5B%22other.extension%22%5D) <b>HTML</b>';
+		const replacement = { id: 'pub.replacement', displayName: 'Replacement [safe] <https://example.test>' };
+		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', {
+			deprecationInfo: { source: 'marketplace', extension: replacement, additionalInfo: publisherMessage }
+		}), undefined);
+		status.extension = extension;
+		await status.recomputeStatus();
+
+		let showHover: IHoverDelegate['showHover'] | undefined;
+		let hoverContent: HTMLElement | undefined;
+		instantiationService.stub(IHoverService, {
+			setupManagedHover: (delegate: IHoverDelegate) => {
+				showHover = delegate.showHover;
+				return { show: () => { }, hide: () => { }, update: () => { }, dispose: () => { } };
+			},
+			showInstantHover: (options: IHoverOptions) => {
+				if (options.content instanceof HTMLElement) {
+					hoverContent = options.content;
+				}
+				return undefined;
+			}
+		});
+		const hover = disposables.add(instantiationService.createInstance(ExtensionHoverWidget, { target: container, position: () => HoverPosition.RIGHT }, status));
+		hover.extension = extension;
+		showHover!({ content: new MarkdownString(status.status[0].message.value, { isTrusted: true }), target: container });
+
+		assert.deepStrictEqual({
+			text: Array.from(container.children, element => element.textContent?.replace(/\u00a0/g, ' ').trim()),
+			links: Array.from(container.querySelectorAll('a'), link => URI.parse(link.dataset.href!).path),
+			bold: container.querySelector('strong')?.textContent,
+			htmlElements: container.querySelectorAll('b').length,
+			publisherTrusted: status.status[0].additionalMessage?.isTrusted,
+			publisherHtml: status.status[0].additionalMessage?.supportHtml,
+			hoverLinks: Array.from(hoverContent!.querySelectorAll('a'), link => URI.parse(link.dataset.href!).path),
+			hoverBold: hoverContent?.querySelector('strong')?.textContent,
+			hoverHtmlElements: hoverContent?.querySelectorAll('b').length
+		}, {
+			text: [`This extension is deprecated. Use the ${replacement.displayName} extension instead.`, 'Publisher advice unsafe HTML'],
+			links: ['extension.open'],
+			bold: 'Publisher advice',
+			htmlElements: 0,
+			publisherTrusted: false,
+			publisherHtml: false,
+			hoverLinks: ['extension.open'],
+			hoverBold: 'Publisher advice',
+			hoverHtmlElements: 0
+		});
+	});
+
+	for (const installPreReleaseVersion of [false, true]) {
+		test(`Marketplace deprecation allows ${installPreReleaseVersion ? 'pre-release' : 'release'} installation after confirmation`, async () => {
+			const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+			await configurationService.setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+			let prompts = 0;
+			let installs = 0;
+			let accept = false;
+			instantiationService.stub(IDialogService, {
+				prompt: async <T>(prompt: IPrompt<T>) => {
+					prompts++;
+					return { result: accept ? await prompt.buttons![0].run({}) : undefined };
+				}
+			});
+			instantiationService.stub(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'install', async () => { installs++; });
+			instantiationService.stubPromise(IExtensionsWorkbenchService, 'open', undefined);
+			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion }));
+			disposables.add(instantiationService.createInstance(ExtensionContainers, [action]));
+			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', { hasPreReleaseVersion: true }), undefined);
+			const initiallyEnabled = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
+			action.extension = extension;
+			await initiallyEnabled;
+
+			extension.setMarketplaceDeprecationInfo({ source: 'marketplace', additionalInfo: 'Retired' });
+			const updated = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
+			action.update();
+			await updated;
+			await action.run();
+			const installsAfterCancel = installs;
+			accept = true;
+			await action.run();
+			const states = [{ hidden: action.hidden, enabled: action.enabled }];
+
+			for (const enabled of [false, true]) {
+				const changed = Event.toPromise(Event.filter(action.onDidChange, e => e.enabled === true));
+				await configurationService.setUserConfiguration(MarketplaceDeprecationConfigKey, enabled);
+				configurationService.onDidChangeConfigurationEmitter.fire({
+					source: ConfigurationTarget.USER,
+					affectedKeys: new Set([MarketplaceDeprecationConfigKey]),
+					change: { keys: [MarketplaceDeprecationConfigKey], overrides: [] },
+					affectsConfiguration: key => key === MarketplaceDeprecationConfigKey
+				});
+				await changed;
+				states.push({ hidden: action.hidden, enabled: action.enabled });
+				await action.run();
+			}
+			assert.deepStrictEqual({ states, prompts, installsAfterCancel, installs }, {
+				states: [{ hidden: false, enabled: true }, { hidden: false, enabled: true }, { hidden: false, enabled: true }],
+				prompts: 3,
+				installsAfterCancel: 0,
+				installs: 3
+			});
+		});
+	}
+
+	test('open uninstalled extension guidance refreshes without changing its selected version', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		instantiationService.stub(IMarkdownRendererService, { render: renderMarkdown });
+		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
+		const initialGallery = aGalleryExtension('deprecated');
+		let gallery = initialGallery;
+		instantiationService.stub(IExtensionGalleryService, instantiationService.get(IExtensionGalleryService), 'query', async () => aPage(gallery));
+		const [extension] = (await workbenchService.queryGallery(CancellationToken.None)).firstPage;
+		const input = disposables.add(new ExtensionsInput(extension));
+		editors.push(input);
+		const install = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+		const status = disposables.add(instantiationService.createInstance(ExtensionsActions.ExtensionStatusAction));
+		const container = document.createElement('div');
+		disposables.add(instantiationService.createInstance(ExtensionStatusWidget, container, status));
+		const containers = disposables.add(instantiationService.createInstance(ExtensionContainers, [install, status]));
+		containers.extension = extension;
+		await status.recomputeStatus();
+		const states: { hidden: boolean; message: string | null; retainedGallery: boolean }[] = [];
+		const records: (IDeprecationInfo | undefined)[] = [
+			{ source: 'marketplace', additionalInfo: 'First advice' },
+			{ source: 'marketplace', additionalInfo: 'Updated advice' },
+			undefined
+		];
+		for (const deprecationInfo of records) {
+			gallery = aGalleryExtension('deprecated', { version: '2.0.0', deprecationInfo });
+			gallery.identifier = initialGallery.identifier;
+			await workbenchService.queryGallery(CancellationToken.None);
+			await status.recomputeStatus();
+			states.push({ hidden: install.hidden, message: container.textContent?.trim() ?? '', retainedGallery: input.extension.gallery === initialGallery && install.extension?.gallery === initialGallery });
+		}
+		assert.deepStrictEqual(states, [
+			{ hidden: false, message: 'This extension is deprecated as it is no longer being maintained.First advice', retainedGallery: true },
+			{ hidden: false, message: 'This extension is deprecated as it is no longer being maintained.Updated advice', retainedGallery: true },
+			{ hidden: false, message: '', retainedGallery: true }
+		]);
+	});
+
+	test('deprecation confirmation preserves Install Anyway and safely composes Marketplace guidance', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const confirmations: { detail?: string; markdown?: string[]; buttons?: string[] }[] = [];
+		const publisherMarkdown: IMarkdownString[] = [];
+		const publisherMessage = '**Advice** [unsafe](command:extension.open) <b>HTML</b>';
+		let installs = 0;
+		instantiationService.stub(IExtensionsWorkbenchService, instantiationService.get(IExtensionsWorkbenchService), 'install', async () => { installs++; });
+		instantiationService.stubPromise(IExtensionsWorkbenchService, 'open', undefined);
+		instantiationService.stub(IDialogService, {
+			prompt: async <T>(prompt: IPrompt<T>) => {
+				if (prompt.custom && typeof prompt.custom !== 'boolean') {
+					publisherMarkdown.push(...prompt.custom.markdownDetails?.slice(1).map(detail => detail.markdown) ?? []);
+				}
+				confirmations.push({
+					detail: typeof prompt.detail === 'string' ? prompt.detail : prompt.detail?.value,
+					markdown: prompt.custom && typeof prompt.custom !== 'boolean' ? prompt.custom.markdownDetails?.map(detail => detail.markdown.value.replace(/&nbsp;/g, ' ')) : undefined,
+					buttons: prompt.buttons?.map(button => button.label)
+				});
+				return { result: await prompt.buttons![0].run({}) };
+			}
+		});
+		const cases: IDeprecationInfo[] = [
+			{},
+			{ additionalInfo: '**Advice**' },
+			{ extension: { id: 'pub.replacement', displayName: 'Replacement' }, additionalInfo: 'Legacy message' },
+			{ source: 'marketplace' },
+			{ source: 'marketplace', additionalInfo: publisherMessage },
+			{ source: 'marketplace', extension: { id: 'pub.replacement', displayName: 'Replacement' } },
+			{ source: 'marketplace', extension: { id: 'pub.replacement', displayName: 'Replacement' }, additionalInfo: publisherMessage }
+		];
+		for (const deprecation of cases) {
+			const action = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallAction, { installPreReleaseVersion: false }));
+			const extension = instantiationService.createInstance(Extension, () => ExtensionState.Uninstalled, () => undefined, undefined, undefined, aGalleryExtension('deprecated', {
+				deprecationInfo: deprecation.source === 'marketplace' ? deprecation : undefined
+			}), undefined);
+			if (deprecation.source !== 'marketplace') {
+				extension.setExtensionsControlManifest({ malicious: [], search: [], deprecated: { [extension.identifier.id]: deprecation } });
+			}
+			action.extension = extension;
+			await action.run();
+		}
+		assert.deepStrictEqual({ installs, confirmations, publisherTrust: publisherMarkdown.map(markdown => ({ trusted: markdown.isTrusted, html: markdown.supportHtml })) }, {
+			installs: 7,
+			confirmations: [
+				{ detail: 'This extension is deprecated as it is no longer being maintained.', markdown: undefined, buttons: ['Install Anyway'] },
+				{ detail: undefined, markdown: ['This extension is deprecated as it is no longer being maintained. **Advice**'], buttons: ['Install Anyway'] },
+				{ detail: 'This extension is deprecated. Use the Replacement extension instead.', markdown: undefined, buttons: ['Install Anyway', '&&Open Replacement'] },
+				{ detail: 'This extension is deprecated as it is no longer being maintained.', markdown: undefined, buttons: ['Install Anyway'] },
+				{ detail: undefined, markdown: ['This extension is deprecated as it is no longer being maintained.', publisherMessage], buttons: ['Install Anyway'] },
+				{ detail: 'This extension is deprecated. Use the Replacement extension instead.', markdown: undefined, buttons: ['Install Anyway', '&&Open Replacement'] },
+				{ detail: undefined, markdown: ['This extension is deprecated. Use the Replacement extension instead.', publisherMessage], buttons: ['Install Anyway', '&&Open Replacement'] }
+			],
+			publisherTrust: [{ trusted: false, html: false }, { trusted: false, html: false }]
+		});
 	});
 
 	test('Auto update action is disabled for blocked extensions', () => {
@@ -1804,6 +2020,29 @@ suite('RemoteInstallAction', () => {
 		testObject.extension = extensions[0];
 
 		assert.strictEqual(testObject.enabled, false);
+	});
+
+	test('Test remote install action is enabled for Marketplace deprecated extensions', async () => {
+		await (instantiationService.get(IConfigurationService) as TestConfigurationService).setUserConfiguration(MarketplaceDeprecationConfigKey, true);
+		const localWorkspaceExtension = aLocalExtension('a', { extensionKind: ['workspace'] }, { location: URI.file(`pub.a`) });
+		const extensionManagementServerService = aMultiExtensionManagementServerService(instantiationService, createExtensionManagementService([localWorkspaceExtension]));
+		instantiationService.stub(IExtensionManagementServerService, extensionManagementServerService);
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposables.add(new TestExtensionEnablementService(instantiationService)));
+		const workbenchService: IExtensionsWorkbenchService = disposables.add(instantiationService.createInstance(ExtensionsWorkbenchService));
+		instantiationService.set(IExtensionsWorkbenchService, workbenchService);
+
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(aGalleryExtension('a', {
+			identifier: localWorkspaceExtension.identifier,
+			deprecationInfo: { source: 'marketplace' }
+		})));
+		const testObject = disposables.add(instantiationService.createInstance(ExtensionsActions.RemoteInstallAction, false));
+		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
+
+		const extensions = await workbenchService.queryLocal(extensionManagementServerService.localExtensionManagementServer!);
+		await workbenchService.queryGallery(CancellationToken.None);
+		testObject.extension = extensions[0];
+
+		assert.strictEqual(testObject.enabled, true);
 	});
 
 	test('Test remote install action is enabled for local workspace extension', async () => {
