@@ -232,17 +232,20 @@ suite('Sessions chat window provider', () => {
 				return toDisposable(() => events.push(`show ${session.sessionId} ${chat.path}`));
 			}
 			override async openChat(session: ISession, chat: URI) { events.push(`open ${session.sessionId} ${chat.path}`); }
+			override focusActiveSession() { events.push('focus active session'); }
 			override async openChatToSide(session: ISession, chat: URI, options?: { preserveFocus?: boolean; referenceChatResource?: URI }) {
 				events.push(`open ${session.sessionId} ${chat.path} beside ${options?.referenceChatResource?.path}${options?.preserveFocus ? ' preserving focus' : ''}`);
 			}
 		}());
+		instantiationService.stub(IHostService, upcastPartial<IHostService>({
+			focus: async (target: Window) => { events.push(target === mainWindow ? 'focus main window' : 'focus other window'); },
+		}));
 		/** What opening a chat in a window does besides recording it, such as resolving it in the window's content. */
 		const opening: { onOpen?: (chat: URI) => Promise<void> } = {};
 		let chatWindowService: ChatWindowService | undefined;
 		if (options?.realChatWindowService) {
 			instantiationService.stub(IContextKeyService, store.add(new ContextKeyService(configuration)));
 			instantiationService.stub(IAuxiliaryWindowService, upcastPartial<IAuxiliaryWindowService>({ getWindow: () => undefined }));
-			instantiationService.stub(IHostService, upcastPartial<IHostService>({}));
 			instantiationService.stub(IDialogService, upcastPartial<IDialogService>({}));
 			instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({}));
 			chatWindowService = store.add(instantiationService.createInstance(ChatWindowService));
@@ -686,7 +689,12 @@ suite('Sessions chat window provider', () => {
 
 		assert.deepStrictEqual(events.filter(event => !event.startsWith('hide')), [
 			'open moved other /elsewhere (claimed by a window)',
+			'focus main window',
+			'focus active session',
 			'open moved other /elsewhere, session /main, session /subagent',
+			'open other /elsewhere',
+			'focus main window',
+			'focus active session',
 		]);
 	});
 
@@ -698,7 +706,18 @@ suite('Sessions chat window provider', () => {
 
 		await provider.moveToMainWindow([URI.parse('test:/elsewhere'), URI.parse('test:/main'), URI.parse('test:/subagent')], { editors: [{ name: 'file.ts' } as unknown as EditorInput] });
 
-		assert.deepStrictEqual(events, ['open moved other /elsewhere, session /main, session /subagent', 'open editors file.ts (active)']);
+		assert.deepStrictEqual(events, ['open moved other /elsewhere, session /main, session /subagent', 'open editors file.ts (active)', 'open other /elsewhere', 'focus main window', 'focus active session']);
+	});
+
+	test('Move to Main Window focuses the main window and its active chat once the chat opened there, and moves no focus where no chat moved', async () => {
+		const store = disposables.add(new DisposableStore());
+		const session = createSession('session', [createChat('main')]);
+		const { provider, events } = createProvider(store, [session]);
+
+		await provider.moveToMainWindow([URI.parse('test:/gone')], {});
+		await provider.moveToMainWindow([URI.parse('test:/main')], {});
+
+		assert.deepStrictEqual(events, ['open moved session /main', 'focus main window', 'focus active session']);
 	});
 
 	test('a chat follows the chats of its session, which change without the sessions changing: it leaves its window once deleted, and shows the chat that replaces it', async () => {

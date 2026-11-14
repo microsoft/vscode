@@ -133,7 +133,7 @@ export class ChatEditorContent extends Disposable {
 		this.element.appendChild(content);
 		// Before the group: the group lets go of the chat before it goes.
 		this._register(toDisposable(() => this._group.setContext(undefined)));
-		this._group = this._register(scopedInstantiationService.createInstance(ChatGroupView, _hostOptions));
+		this._group = this._register(scopedInstantiationService.createInstance(ChatGroupView, _hostOptions, undefined));
 		content.appendChild(this._group.element);
 		this._group.setGroupPosition(0, 1);
 		this._group.setGroupActive(true);

@@ -1097,18 +1097,18 @@ suite('SessionsManagementService', () => {
 			const a = created('a');
 			const child: IChat = { ...a.mainChat.get(), resource: URI.parse('test:///a/child') };
 			const parent = { ...a, chats: constObservable([a.mainChat.get(), child]) };
-			const { content, view, container } = harness([parent]);
+			const { view, container } = harness([parent]);
 			await view.openSession(parent.resource);
 			await view.openChat(parent, child.resource);
 			await view.detachChat(view.activePane.get()!, child.resource);
-			const pane = content.getFocusedSessionView();
+			const elements = [...container.querySelectorAll('.session-view')];
 			view.closeSession(parent);
 			await view.detachChat(view.activePane.get()!, child.resource);
 			assert.deepStrictEqual({
 				roots: slotSessionsOf(view).length,
 				panes: container.querySelectorAll('.session-view').length,
 				active: detachedChatOf(view.activePane.get())?.toString(),
-				retained: content.getFocusedSessionView() === pane,
+				retained: elements.length === 2 && elements.filter(element => element.isConnected).length === 1 && elements.includes(container.querySelector('.session-view')!),
 			}, { roots: 0, panes: 1, active: child.resource.toString(), retained: true });
 		});
 

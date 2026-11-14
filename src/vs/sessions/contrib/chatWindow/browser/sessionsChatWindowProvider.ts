@@ -11,6 +11,7 @@ import { autorun, constObservable, derived, IObservable, observableFromEvent, ob
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -24,6 +25,7 @@ import { IChatEntitlementService } from '../../../../workbench/services/chat/com
 import { IEditorGroup, IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IWorkbenchLayoutService, LayoutSettings, ModernUIDensity, ModernUIEditorTabStyle, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { ITitleService } from '../../../../workbench/services/title/browser/titleService.js';
 import { Menus } from '../../../../workbench/contrib/sessions/browser/menus.js';
 import { AgentsWindowMenus } from '../../../browser/agentsWindowMenus.js';
@@ -474,6 +476,7 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 		@IChatWindowService private readonly _chatWindowService: IChatWindowService,
 		@IChatHostOpenerService chatHostOpenerService: IChatHostOpenerService,
 		@ISessionHostService private readonly _sessionHostService: ISessionHostService,
+		@IHostService private readonly _hostService: IHostService,
 		@IStorageService storageService: IStorageService,
 		@ISizeService sizeService: ISizeService,
 		@IThemeService themeService: IThemeService,
@@ -561,13 +564,22 @@ export class SessionsChatWindowProvider extends Disposable implements IChatWindo
 			return;
 		}
 		await this._sessionsService.openMovedChats(moved);
+		await this._openMovedEditors(first.session, editors);
+		if (moved.length > 1) {
+			await this._sessionsService.openChat(first.session, first.chatResource, { preserveFocus: true });
+		}
+		await this._hostService.focus(mainWindow);
+		this._sessionsService.focusActiveSession();
+	}
+
+	private async _openMovedEditors(firstSession: ISession, editors: IChatWindowEditors): Promise<void> {
 		const inputs = editors.editors ?? [];
 		if (!inputs.length) {
 			return;
 		}
 		// Once the main window is laid out for the session of its active chat, if it is: laying it out restores the
 		// session's last editors, which would replace these.
-		if (getMainWindowHost(this._sessionHostService).session.get()?.sessionId === first.session.sessionId) {
+		if (getMainWindowHost(this._sessionHostService).session.get()?.sessionId === firstSession.sessionId) {
 			await timeout(0);
 			await waitForState(this._editorWorkingSetService.restoreState, restoreState => !restoreState.restoring);
 		}
