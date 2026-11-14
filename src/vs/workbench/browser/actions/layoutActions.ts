@@ -1458,6 +1458,9 @@ const CreateOptionLayoutItem = (id: string, active: ContextKeyExpression, label:
 	};
 };
 
+/** The chat part's own toggle, which also opens the composer when it has no chats; the Agents contribution registers it. */
+const CHAT_PART_TOGGLE_COMMAND_ID = 'workbench.action.agentsView.toggleChatPart';
+
 const ToggleVisibilityActions: CustomizeLayoutItem[] = [];
 if (!isMacintosh || !isNative) {
 	ToggleVisibilityActions.push(CreateToggleLayoutItem('workbench.action.toggleMenuBar', CustomMenuBarVisibleContext, localize('menuBar', "Menu Bar"), menubarIcon));
@@ -1473,7 +1476,7 @@ ToggleVisibilityActions.push(...[
 		when: ContextKeyExpr.and(ChatPartVisibleContext, IsSessionsWindowContext.negate()),
 	},
 	{
-		...CreateToggleLayoutItem(ToggleChatPartVisibilityAction.ID, ChatPartVisibleContext, localize('chatPart', "Chat")),
+		...CreateToggleLayoutItem(CHAT_PART_TOGGLE_COMMAND_ID, ChatPartVisibleContext, localize('chatPart', "Chat")),
 		when: ContextKeyExpr.and(ChatPartEnabledContext, IsSessionsWindowContext.negate()),
 	},
 	CreateToggleLayoutItem(ToggleStatusbarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.statusBar.visible', true), localize('statusBar', "Status Bar"), statusBarIcon),

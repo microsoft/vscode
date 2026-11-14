@@ -74,7 +74,7 @@ suite('Workbench Context Keys - Editor Area Hidden For Chat', () => {
 		const visibilityItems = (context: Record<string, boolean>) => getCustomizeLayoutVisibilityItems({ getValue: <T>(key: string) => context[key] as T | undefined })
 			.filter(item => item.label === 'Editor Area' || item.label === 'Chat');
 		const editorArea = (active: boolean) => ({ id: 'workbench.action.toggleEditorAreaForChat', label: 'Editor Area', active });
-		const chat = (active: boolean) => ({ id: 'workbench.action.toggleChatPartVisibility', label: 'Chat', active });
+		const chat = (active: boolean) => ({ id: 'workbench.action.agentsView.toggleChatPart', label: 'Chat', active });
 
 		assert.deepStrictEqual({
 			noChatPart: visibilityItems({ mainEditorAreaVisible: true }),
