@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { DeferredPromise } from '../../../../../../../base/common/async.js';
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../../base/common/event.js';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
@@ -15,7 +17,7 @@ import { ILogService, NullLogService } from '../../../../../../../platform/log/c
 import { AgentHostWorktreeLocationProvider, getAgentHostSessionWorkingDirectories } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeLocations.js';
 import { IAgentSession } from '../../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../../browser/agentSessions/agentSessionsService.js';
-import { SessionType } from '../../../../common/chatSessionsService.js';
+import { IChatSessionsService, SessionType } from '../../../../common/chatSessionsService.js';
 
 suite('AgentHostWorktreeLocations', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -28,7 +30,11 @@ suite('AgentHostWorktreeLocations', () => {
 	 * A provider over git entries: `true` is a `.git` directory, and a string the content of a file, such as a worktree's
 	 * `.git` file or its entry's `gitdir` file in the repository.
 	 */
-	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = [], links: Record<string, string> = {}) {
+	/**
+	 * @param uncached the sessions of the local agent host provider that the sessions list has only once that provider resolves,
+	 * which `loading` holds, while another provider, `remote`, has resolved.
+	 */
+	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = [], links: Record<string, string> = {}, loading?: Promise<void>) {
 		const fileService = upcastPartial<IFileService>({
 			stat: async (resource: URI) => {
 				const entry = entries[resource.path];
@@ -53,10 +59,28 @@ suite('AgentHostWorktreeLocations', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
-		// The sessions it cached, and those the list has only once it resolved
-		const model = { sessions: [...sessions], resolved: !uncached.length, resolve: async () => { model.sessions.push(...uncached); model.resolved = true; } };
+		// The sessions it cached, and those the list has only once the local agent host provider resolved
+		const onDidResolve = store.add(new Emitter<string>());
+		const resolving: string[] = [];
+		const model = {
+			sessions: [...sessions],
+			resolved: false,
+			onDidResolve: onDidResolve.event,
+			resolve: async (providers: string[]) => {
+				resolving.push(...providers);
+				await loading;
+				model.sessions.push(...uncached);
+				model.resolved = true;
+				providers.forEach(provider => onDidResolve.fire(provider));
+			},
+		};
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>(model) }));
-		return instantiationService.createInstance(AgentHostWorktreeLocationProvider);
+		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ getRegisteredChatSessionItemProviders: () => ['remote', SessionType.AgentHostCopilot] }));
+		const provider = store.add(instantiationService.createInstance(AgentHostWorktreeLocationProvider));
+		// Another provider resolved first
+		model.resolved = true;
+		onDidResolve.fire('remote');
+		return Object.assign(provider, { resolving });
 	}
 
 	const repository = {
@@ -123,10 +147,25 @@ suite('AgentHostWorktreeLocations', () => {
 		});
 	});
 
-	test('waits for the sessions list to resolve before reading the working directories of sessions it did not cache', async () => {
-		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/feature')], [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/relative')]);
-		const locations = await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None);
-		assert.deepStrictEqual(locations.map(location => location.label), ['feature', 'relative']);
+	test('waits for the local agent host sessions to resolve, also once another provider resolved, before reading the working directories of sessions it did not cache', async () => {
+		const loading = new DeferredPromise<void>();
+		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/feature')], [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/relative')], {}, loading.p);
+		let locations: string[] | undefined;
+		const providing = provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None).then(result => locations = result.map(location => location.label));
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+		const whileLoading = locations;
+		await loading.complete();
+		await providing;
+		const resolvingBefore = [...provider.resolving];
+		// Once resolved, it reads the sessions as the list has them
+		await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None);
+
+		assert.deepStrictEqual({ whileLoading, locations, resolving: resolvingBefore, again: provider.resolving }, {
+			whileLoading: undefined,
+			locations: ['feature', 'relative'],
+			resolving: [SessionType.AgentHostCopilot],
+			again: [SessionType.AgentHostCopilot],
+		});
 	});
 
 	test('a worktree is described by its branch, the short commit of a detached HEAD, or nothing without HEAD', async () => {
