@@ -493,6 +493,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 	readonly secondIsRead = observableValue<boolean>(this, false);
 	readonly isArchived = observableValue<boolean>(this, false);
 	readonly isAutomation = observableValue<boolean>(this, false);
+	readonly isQuickChat = observableValue<boolean>(this, false);
 	readonly sessionStatus = observableValue<SessionStatus>(this, SessionStatus.Completed);
 	readonly capabilities = observableValue(this, { supportsMultipleChats: false, supportsDelete: true, supportsRename: true });
 	readonly application = observableValue('application', getSessionApplication('vscode'));
@@ -512,7 +513,7 @@ class FakeSessionsManagementService extends mock<ISessionsManagementService>() i
 			requiresWorkspaceTrust: false,
 			isVirtualWorkspace: false,
 		}),
-		isQuickChat: constObservable(false),
+		isQuickChat: this.isQuickChat,
 		isAutomation: this.isAutomation,
 		title: constObservable('Daily review'),
 		updatedAt: constObservable(new Date()),
@@ -6256,6 +6257,29 @@ suite('AutomationsCardsWidget', () => {
 		const card = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
 		assert.ok(card);
 		assert.strictEqual(card.classList.contains('needs-input'), false);
+	});
+
+	test('history run waiting for input displays workspace badge, status description, and relative time', () => {
+		const { automationService, sessionsManagementService, widget } = setup();
+		sessionsManagementService.sessionStatus.set(SessionStatus.NeedsInput, undefined);
+		sessionsManagementService.isQuickChat.set(true, undefined);
+		automationService.setAutomations([automation()]);
+		automationService.setRuns([run({ status: 'running' })]);
+
+		const card = widget.element.querySelector<HTMLElement>('.automations-run-session-list .session-item');
+		assert.ok(card);
+		assert.strictEqual(card.classList.contains('needs-input'), true);
+
+		const details = card.querySelector('.session-details-row')!;
+		assert.ok(details.querySelector('.session-details-icon .codicon-comment-discussion'));
+		assert.strictEqual(details.querySelector('.session-badge')?.textContent, 'No workspace');
+		assert.strictEqual(details.querySelector('.session-description')?.textContent, 'Attention needed');
+		assert.ok(details.querySelector('.session-time')?.textContent);
+
+		sessionsManagementService.isQuickChat.set(false, undefined);
+		assert.ok(details.querySelector('.session-details-icon .codicon-worktree-compact'));
+		assert.strictEqual(details.querySelector('.session-badge')?.textContent, 'workspace');
+		assert.strictEqual(details.querySelector('.session-description')?.textContent, 'Attention needed');
 	});
 });
 

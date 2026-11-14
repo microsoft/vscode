@@ -1986,7 +1986,7 @@ class AutomationHistorySection extends Disposable {
 			onSessionOpen: resource => void this.openRunSession(resource),
 			onToolbarAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
 			onContextMenuAction: (action, session) => this.handleSessionAction(action, session, runsBySession),
-			showMetadataWhileActive: session => runsBySession.get(session.resource.toString())?.externalResource !== undefined,
+			showMetadataWhileActive: () => true,
 			getCompletedStatusMessage: (session, reader) => session instanceof AutomationRunSession ? session.completedStatusMessage.read(reader) : undefined,
 			getAdditionalContextKeys: (session, reader) => {
 				const run = this.currentRuns.read(reader).find(run => isEqual(run.sessionResource, session.resource));
