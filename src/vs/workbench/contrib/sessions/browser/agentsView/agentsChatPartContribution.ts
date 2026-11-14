@@ -38,6 +38,12 @@ export interface IEditorWindowChatPartOptions {
 	 * its chats, and the chat part does not restore and hides, as the window gets ready and as this turns false.
 	 */
 	readonly enabled: IObservable<boolean>;
+	/**
+	 * Whether New Chat of the Chat view opens a new-session composer in the chat part while chats open in it; otherwise the
+	 * Chat view keeps its own New Chat. True by default. While several features enable the chat part, it does while one of
+	 * those that have it enabled says so.
+	 */
+	readonly ownsNewChat?: boolean;
 }
 
 export const IEditorWindowChatPartService = createDecorator<IEditorWindowChatPartService>('editorWindowChatPartService');
@@ -64,8 +70,10 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _owners = observableValue<readonly IEditorWindowChatPartOptions[]>(this, []);
-	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.enabled.read(reader)));
+	/** One per call of {@link enable}, also of the same options: each is removed by its own disposal only. */
+	private readonly _owners = observableValue<readonly { readonly options: IEditorWindowChatPartOptions }[]>(this, []);
+	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.options.enabled.read(reader)));
+	private readonly _ownsNewChat: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.options.enabled.read(reader) && owner.options.ownsNewChat !== false));
 
 	/** What the chat part does while a feature enabled it. */
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
@@ -84,11 +92,12 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 	}
 
 	enable(options: IEditorWindowChatPartOptions): IDisposable {
-		this._owners.set([...this._owners.get(), options], undefined);
+		const owner = { options };
+		this._owners.set([...this._owners.get(), owner], undefined);
 		this._active.value ??= this._activate();
 		this._updateAnchor();
 		return toDisposable(() => {
-			this._owners.set(this._owners.get().filter(candidate => candidate !== options), undefined);
+			this._owners.set(this._owners.get().filter(candidate => candidate !== owner), undefined);
 			if (!this._owners.get().length) {
 				this._active.clear();
 			} else {
@@ -98,7 +107,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 	}
 
 	private _updateAnchor(): void {
-		const anchor = [...this._owners.get()].sort((a, b) => b.anchorPriority - a.anchorPriority).at(0);
+		const anchor = this._owners.get().map(owner => owner.options).sort((a, b) => b.anchorPriority - a.anchorPriority).at(0);
 		this._layoutService.setChatPartAnchor(anchor && { viewId: anchor.anchorViewId });
 	}
 
@@ -108,8 +117,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		void this._frame.part;
-
-		store.add(registerAgentsChatPartActions());
 
 		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
 		store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -128,8 +135,14 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		}));
 		store.add(toDisposable(() => visible.reset()));
 
-		// The sessions of its chats are known while it shows
+		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
+		// open in it
 		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
+		const existing = () => this._frame.contentCreated.get() ? this._chatPart() : undefined;
+		store.add(this._presenterService.registerComposerHolder({
+			hasComposer: () => !!existing()?.hasComposer(),
+			closeIdleComposers: async () => existing()?.closeIdleComposers(),
+		}));
 
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.
@@ -137,7 +150,9 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			if (!this.enabled.read(reader)) {
 				return;
 			}
-			const host = this._instantiationService.createInstance(AgentsChatViewHost);
+			// Its actions, such as to close it, only while chats open in it
+			reader.store.add(registerAgentsChatPartActions());
+			const host = this._instantiationService.createInstance(AgentsChatViewHost, this._ownsNewChat);
 			reader.store.add(this._chatViewHostService.registerHost(host));
 			// Unregistered, what the host is still doing does not open the chat part
 			reader.store.add(toDisposable(() => host.deactivate()));
@@ -182,8 +197,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			openComposer: (target, options) => this._chatPart().openComposer(target, options),
 			closeChat: async chatResource => existing()?.closeChat(chatResource),
 			isShowing: chatResource => !!existing()?.isShowing(chatResource),
-			hasComposer: () => !!existing()?.hasComposer(),
-			closeIdleComposers: async () => existing()?.closeIdleComposers(),
 			focus: () => this._chatPart().focus(),
 		};
 	}

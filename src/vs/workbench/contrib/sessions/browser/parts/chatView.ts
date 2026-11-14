@@ -116,6 +116,11 @@ export interface INewSessionDraftHost {
 	 * offers no other. Unset, it offers any workspace.
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
+	/**
+	 * Fires as the host aims the composer at another folder, such as the location the window's folder moved to: the composer
+	 * creates its draft for it, unless it sent its session already.
+	 */
+	readonly onDidRetarget?: Event<INewSessionTarget>;
 	/** How its workspace picker shows one of its {@link allowedFolders}, such as a linked checkout of a window's folder. */
 	getFolderPresentation?(folderUri: URI): IFolderLocation | undefined;
 	/** Opens a session the composer started in the background, in the composer's own window. */

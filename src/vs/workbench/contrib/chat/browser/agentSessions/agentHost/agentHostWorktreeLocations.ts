@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
-import { basename, extUriBiasedIgnorePathCase, joinPath } from '../../../../../../base/common/resources.js';
+import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { readFolderGitCheckout } from '../../../../../services/workspaces/common/gitFolderCheckout.js';
-import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 
@@ -48,81 +50,139 @@ export function getAgentHostSessionWorkingDirectories(sessions: readonly IAgentS
  * window's repository (see `WorkspaceFolderRepositories`), and when that repository's entry for it names its `.git` back.
  * That keeps a folder that only points into the repository from inheriting the primary's trust.
  */
-export class AgentHostWorktreeLocationProvider implements IWorkspaceFolderLocationProvider {
+export class AgentHostWorktreeLocationProvider extends Disposable implements IWorkspaceFolderLocationProvider {
 
 	readonly id = AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID;
 
+	/** The local agent host providers whose sessions the sessions list has resolved. */
+	private readonly _resolvedProviders = new Set<string>();
+
 	constructor(
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+		this._register(_agentSessionsService.model.onDidResolve(provider => {
+			if (isLocalAgentHostTarget(provider)) {
+				this._resolvedProviders.add(provider);
+			}
+		}));
+	}
 
 	async provideLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
-		const repository = await this._readRepository(primary);
-		if (!repository || token.isCancellationRequested) {
+		const worktreesDir = await this._worktreesDir(primary);
+		if (!worktreesDir || token.isCancellationRequested) {
 			return [];
 		}
-		const candidates = getAgentHostSessionWorkingDirectories(this._agentSessionsService.model.sessions)
+		// Before the sessions list first resolves a local agent host provider, it has only the sessions it cached of it:
+		// wait for that provider, also while others have resolved, and leave the others alone
+		const model = this._agentSessionsService.model;
+		const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => isLocalAgentHostTarget(provider) && !this._resolvedProviders.has(provider));
+		if (unresolved.length) {
+			await raceCancellation(model.resolve(unresolved, undefined, 'automatic'), token);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+		}
+		const candidates = getAgentHostSessionWorkingDirectories(model.sessions)
 			.filter(directory => !extUriBiasedIgnorePathCase.isEqual(directory, primary));
-		const locations = await Promise.all(candidates.map(candidate => this._resolve(repository, candidate)));
+		const locations = await Promise.all(candidates.map(async candidate => {
+			try {
+				return await this._resolve(worktreesDir, primary, candidate);
+			} catch (error) {
+				// One working directory that fails to read, such as a pruned worktree, does not hide the others
+				this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git checkout of ${candidate.toString()}`, error);
+				return undefined;
+			}
+		}));
 		return token.isCancellationRequested ? [] : locations.filter(isDefined);
 	}
 
 	async resolveLocation(primary: URI, location: URI, token: CancellationToken): Promise<IFolderLocation | undefined> {
 		// Any linked checkout of the repository resolves, also before the sessions load, such as to restore the location
 		// that the window's folder was at
-		if (extUriBiasedIgnorePathCase.isEqual(location, primary)) {
-			return undefined;
-		}
-		const repository = await this._readRepository(primary);
-		if (!repository || token.isCancellationRequested) {
-			return undefined;
-		}
-		return this._resolve(repository, location);
+		const worktreesDir = await this._worktreesDir(primary);
+		return worktreesDir && !token.isCancellationRequested ? this._resolve(worktreesDir, primary, location) : undefined;
 	}
 
-	/** The git repository of the local folder `folder` is a checkout of, if any. */
-	private async _readRepository(folder: URI): Promise<URI | undefined> {
-		if (folder.scheme !== Schemas.file) {
+	/** Where the worktrees of the repository of the local folder `primary` are kept: `.git/worktrees` of its real path. */
+	private async _worktreesDir(primary: URI): Promise<URI | undefined> {
+		if (primary.scheme !== Schemas.file) {
 			return undefined;
 		}
 		try {
-			return (await readFolderGitCheckout(this._fileService, folder))?.repository;
+			const checkout = await readFolderGitCheckout(this._fileService, await this._real(primary));
+			return checkout && joinPath(await this._real(checkout.repository), '.git', 'worktrees');
 		} catch (error) {
-			this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git repository of ${folder.toString()}`, error);
+			this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git repository of ${primary.toString()}`, error);
 			return undefined;
 		}
 	}
 
-	/** `candidate` as a location of `repository`'s folder, when it is a linked checkout of that repository. */
-	private async _resolve(repository: URI, candidate: URI): Promise<IFolderLocation | undefined> {
-		if (candidate.scheme !== Schemas.file) {
+	/**
+	 * `location` as a location of the folder at `primary`, when git links it both ways with an entry of `worktreesDir`: its
+	 * `.git` file names the entry, and the entry's `gitdir` file names its `.git` back, by their real paths, such as of a
+	 * folder reached through a symbolic link.
+	 */
+	private async _resolve(worktreesDir: URI, primary: URI, location: URI): Promise<IFolderLocation | undefined> {
+		if (location.scheme !== Schemas.file) {
 			return undefined;
 		}
+		const realLocation = await this._real(location);
+		if (extUriBiasedIgnorePathCase.isEqual(await this._real(primary), realLocation)) {
+			return undefined;
+		}
+		const locationGitFile = joinPath(realLocation, '.git');
+		const entry = await this._readLink(locationGitFile, dirname(locationGitFile), /^gitdir:\s*(?<path>.+?)\s*$/m);
+		if (!entry || !extUriBiasedIgnorePathCase.isEqual(dirname(await this._real(entry)), worktreesDir)) {
+			return undefined;
+		}
+		const backlink = await this._readLink(joinPath(entry, 'gitdir'), entry);
+		if (!backlink || !extUriBiasedIgnorePathCase.isEqual(await this._real(backlink), locationGitFile)) {
+			return undefined;
+		}
+		// Its branch, from the entry's HEAD: read again each time the location is resolved
+		const head = await this._readOrUndefined(async () => (await this._fileService.readFile(joinPath(entry, 'HEAD'))).value.toString());
+		return { uri: location, label: basename(location), description: head !== undefined ? parseGitHead(head) : undefined, icon: Codicon.gitBranchCheckout };
+	}
+
+	/** The path a link file names, absolute and normalized: its content, or the `pattern`'s `path` group of it, relative to `base`. */
+	private async _readLink(file: URI, base: URI, pattern?: RegExp): Promise<URI | undefined> {
+		const content = await this._readOrUndefined(async () => (await this._fileService.readFile(file)).value.toString());
+		const path = content && (pattern ? pattern.exec(content)?.groups?.path : content.trim());
+		if (!path) {
+			return undefined;
+		}
+		return normalizePath(isAbsolute(path) ? URI.file(path) : joinPath(base, path));
+	}
+
+	/** `resource` with its symbolic links resolved, or itself where it is not there. */
+	private async _real(resource: URI): Promise<URI> {
+		return normalizePath(await this._readOrUndefined(() => this._fileService.realpath(resource)) ?? resource);
+	}
+
+	/** The result of `read`, or `undefined` where what it reads is not there or is a folder, such as an ordinary checkout's `.git`; any other failure throws. */
+	private async _readOrUndefined<T>(read: () => Promise<T>): Promise<T | undefined> {
 		try {
-			const checkout = await readFolderGitCheckout(this._fileService, candidate);
-			if (!checkout?.worktreeGitDir || !extUriBiasedIgnorePathCase.isEqual(checkout.repository, repository) || !await this._namesBack(checkout.worktreeGitDir, candidate)) {
+			return await read();
+		} catch (error) {
+			const result = error instanceof Error ? toFileOperationResult(error) : undefined;
+			if (result === FileOperationResult.FILE_NOT_FOUND || result === FileOperationResult.FILE_IS_DIRECTORY) {
 				return undefined;
-			}
-		} catch (error) {
-			this._logService.warn(`[AgentHostWorktreeLocations] Could not read the git checkout of ${candidate.toString()}`, error);
-			return undefined;
-		}
-		return { uri: candidate, label: basename(candidate), icon: Codicon.gitBranchCheckout };
-	}
-
-	/** Whether the repository's entry for a worktree, `worktreeGitDir`, names the `.git` of `folder` back. */
-	private async _namesBack(worktreeGitDir: URI, folder: URI): Promise<boolean> {
-		let content: string;
-		try {
-			content = (await this._fileService.readFile(joinPath(worktreeGitDir, 'gitdir'))).value.toString().trim();
-		} catch (error) {
-			if (error instanceof Error && toFileOperationResult(error) === FileOperationResult.FILE_NOT_FOUND) {
-				return false;
 			}
 			throw error;
 		}
-		return !!content && extUriBiasedIgnorePathCase.isEqual(isAbsolute(content) ? URI.file(content) : joinPath(worktreeGitDir, content), joinPath(folder, '.git'));
 	}
+}
+
+/** The branch a git HEAD names (`ref: refs/heads/<branch>`), the short commit of a detached one, or `undefined`. */
+export function parseGitHead(head: string): string | undefined {
+	const content = head.trim();
+	const branch = /^ref:\s*refs\/heads\/(?<branch>.+)$/.exec(content)?.groups?.branch;
+	if (branch) {
+		return branch;
+	}
+	return /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i.test(content) ? content.slice(0, 7) : undefined;
 }

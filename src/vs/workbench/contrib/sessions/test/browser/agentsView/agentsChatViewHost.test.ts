@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../../platform/notification/co
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, ISessionType } from '../../../../../services/sessions/common/session.js';
 import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatModelReference, IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
@@ -38,6 +38,8 @@ suite('AgentsChatViewHost', () => {
 		readonly widgets?: IChatWidget[];
 		readonly providersAcquired?: () => void;
 		readonly contentCreated?: IObservable<boolean>;
+		readonly chatService?: Partial<IChatService>;
+		readonly ownsNewChat?: boolean;
 	}
 
 	function createHost(options: IHostOptions = {}) {
@@ -53,8 +55,9 @@ suite('AgentsChatViewHost', () => {
 			...options.chatPart,
 		});
 		const host = new AgentsChatViewHost(
+			constObservable(options.ownsNewChat ?? true),
 			chatPart,
-			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
+			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
 			upcastPartial<IChatWidgetService>({ getAllWidgets: () => options.widgets ?? [] }),
 			upcastPartial<IWorkbenchLayoutService>({ isVisible: () => false }),
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }),
@@ -72,6 +75,7 @@ suite('AgentsChatViewHost', () => {
 					calls.push(`hold ${resource.toString()}`);
 					return upcastPartial<IChatModelReference>({ dispose: () => calls.push(`release ${resource.toString()}`) });
 				},
+				...options.chatService,
 			}),
 			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; } }),
 			upcastPartial<IAgentsChatPartFrame>({ contentCreated: options.contentCreated ?? constObservable(true) }),
@@ -199,6 +203,62 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
+	test('opens a session as restored when asked to, so that it does not report it as opened', async () => {
+		const chatResource = URI.parse('agent-host-copilot:/session-1');
+		const { owner, widget } = sessionOf(chatResource);
+		const opened: (boolean | undefined)[] = [];
+		const { host } = createHost({
+			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(openOptions?.restore); } },
+			sessionsManagementService: { getSessionForChatResource: () => owner },
+			widgets: [widget],
+		});
+
+		await host.openSession(chatResource, { restore: true });
+		await host.openSession(chatResource);
+
+		assert.deepStrictEqual(opened, [true, undefined]);
+	});
+
+	test('deactivated while it loads the session it starts, it releases the session and starts nothing', async () => {
+		const load = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const { host, calls: hostCalls } = createHost({ chatService: { acquireOrLoadSession: async () => { await load.p; return upcastPartial<IChatModelReference>({ dispose: () => calls.push('release model') }); } } });
+
+		const starting = host.startSession(URI.parse('agent-host-copilot:/untitled-1'), { local: false, importingConversation: false });
+		host.deactivate();
+		load.complete();
+		let cancelled = false;
+		try {
+			await starting;
+		} catch (error) {
+			cancelled = isCancellationError(error);
+		}
+
+		assert.deepStrictEqual({ cancelled, calls: [...hostCalls, ...calls] }, { cancelled: true, calls: ['release model'] });
+	});
+
+	test('deactivated while it looks up the session it started, it shows neither the session nor a composer', async () => {
+		const lookup = new DeferredPromise<void>();
+		const chatResource = URI.parse('agent-host-copilot:/session-1');
+		const { owner } = sessionOf(chatResource);
+		const { host, calls } = createHost({
+			sessionsManagementService: {
+				getSessionForChatResource: () => lookup.isSettled ? owner : undefined,
+				onDidChangeSession: listener => { void lookup.p.then(() => listener([])); return toDisposable(() => { }); },
+			},
+		});
+
+		const start = await host.startSession(URI.parse('agent-host-copilot:/untitled-1'), { local: false, importingConversation: false });
+		const completing = start.complete(chatResource, true);
+		host.deactivate();
+		lookup.complete();
+		const shown = await completing;
+		const composer = await start.createComposer();
+		start.dispose();
+
+		assert.deepStrictEqual({ shown, composer, calls }, { shown: false, composer: undefined, calls: ['hold agent-host-copilot:/untitled-1', 'acquire', 'release', 'release agent-host-copilot:/untitled-1'] });
+	});
+
 	test('deactivated while it looks a session up, it does not open the chat part', async () => {
 		const chatResource = URI.parse('agent-host-copilot:/session-1');
 		const { owner, widget } = sessionOf(chatResource);
@@ -218,28 +278,40 @@ suite('AgentsChatViewHost', () => {
 		assert.deepStrictEqual({ opened: await opening, calls }, { opened: undefined, calls: ['acquire', 'release'] });
 	});
 
-	test('shows the chats of agent host sessions and of the window\'s sessions, and leaves other chats, such as local chat, to the Chat view', () => {
-		const known = URI.parse('copilot-cloud-agent:/known');
-		const { host } = createHost({ sessionsManagementService: { getSessionForChatResource: resource => resource.toString() === known.toString() ? sessionOf(known).owner : undefined } });
+	test('shows the chats of the window\'s sessions and of the types its providers offer, and leaves other chats, such as local chat, to the Chat view', () => {
+		const knownChat = URI.parse('known-chat:/chat-1');
+		const knownSession = URI.parse('known-session:/session-1');
+		const { host } = createHost({
+			sessionsManagementService: {
+				getSessionForChatResource: resource => resource.toString() === knownChat.toString() ? sessionOf(knownChat).owner : undefined,
+				getSession: resource => resource.toString() === knownSession.toString() ? sessionOf(knownSession).owner.session : undefined,
+				getAllSessionTypes: () => [upcastPartial<ISessionType>({ id: 'copilot-cloud', chatSessionType: 'copilot-cloud-agent' }), upcastPartial<ISessionType>({ id: 'local' })],
+			},
+		});
 
 		assert.deepStrictEqual({
 			agentHost: host.canShow(URI.parse('agent-host-copilot:/session-1')),
-			known: host.canShow(known),
+			knownChat: host.canShow(knownChat),
+			knownSession: host.canShow(knownSession),
+			untitledOfOfferedType: host.canShow(URI.parse('copilot-cloud-agent:/untitled-1')),
 			local: host.canShow(LocalChatSessionUri.forSession('local-1')),
 			extension: host.canShow(URI.parse('some-extension-chat:/session-1')),
-		}, { agentHost: true, known: true, local: false, extension: false });
+		}, { agentHost: true, knownChat: true, knownSession: true, untitledOfOfferedType: true, local: false, extension: false });
 	});
 
-	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled', () => {
+	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled, or the Chat view keeps its New Chat', () => {
 		const available = createHost();
 		const unavailable = createHost({ chatAvailable: false });
+		const notOwned = createHost({ ownsNewChat: false });
 
 		assert.deepStrictEqual({
 			available: available.host.newChat(), availableCalls: available.calls,
 			unavailable: unavailable.host.newChat(), unavailableCalls: unavailable.calls,
+			notOwned: notOwned.host.newChat(), notOwnedCalls: notOwned.calls,
 		}, {
 			available: true, availableCalls: ['openComposer sessionType=undefined newComposer=true'],
 			unavailable: false, unavailableCalls: [],
+			notOwned: false, notOwnedCalls: [],
 		});
 	});
 

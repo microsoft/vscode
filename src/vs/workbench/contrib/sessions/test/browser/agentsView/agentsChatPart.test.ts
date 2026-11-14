@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -15,6 +15,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../../../platform/editor/common/editor.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { parse } from '../../../../../../base/common/marshalling.js';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from '../../../../../../platform/storage/common/storage.js';
 import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
@@ -32,7 +33,7 @@ import { AgentsChatPartService, IAgentsChatPartService, restoreAgentsChatPart } 
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatEditorInput } from '../../../browser/chatEditor/chatEditor.js';
-import { isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
+import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -253,6 +254,12 @@ suite('AgentsChatPartService', () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			},
+			/** The folders the chat part's composers aim at, as they store them. */
+			composerFolders: () => {
+				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
+				return raw ? (parse(raw) as { readonly target?: { readonly folderUri?: URI } }[]).map(composer => composer.target?.folderUri?.path) : [];
+			},
 			setShowTabs: (value: string) => {
 				configurationService.setUserConfiguration('workbench.editor.showTabs', value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
@@ -306,6 +313,72 @@ suite('AgentsChatPartService', () => {
 		status.set(SessionStatus.InProgress, undefined);
 
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
+	});
+
+	test('the session a composer\'s first send made shows as committed, until the user picks its tab again', async () => {
+		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
+		const mainChat = upcastPartial<IChat>({ resource: chatA });
+		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat) });
+		const newSession = observableValue<ISession | undefined>('newSession', undefined);
+		const { service, part } = createService({ newSession });
+		const shown = () => { const value = service.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
+
+		await service.openComposer(undefined);
+		const composerTab = part.activeGroup.activeEditor!;
+		const draft = shown();
+		newSession.set(created, undefined);
+		status.set(SessionStatus.InProgress, undefined);
+		const committed = shown();
+		// The user moves to another tab, and back to the composer's
+		await service.openComposer(undefined, { newComposer: true });
+		part.activeGroup.open(composerTab);
+
+		assert.deepStrictEqual({ draft, committed, picked: shown() }, { draft: 'none', committed: '/a commit', picked: '/a open' });
+	});
+
+	test('each explicit open of the active chat reports it again, as where its session works may matter again', async () => {
+		const openedSession = buildTestSession({ id: 'reopened', title: 'Reopened' });
+		const main = openedSession.mainChat.chat.resource;
+		const { service } = createService({ sessions: () => [openedSession.session] });
+		const reports: string[] = [];
+		const listener = autorun(reader => { const value = service.shownSession.read(reader); if (value) { reports.push(value.reason); } });
+
+		await service.openChat(openedSession.session, main);
+		await timeout(0);
+		await service.openChat(openedSession.session, main);
+		await timeout(0);
+		listener.dispose();
+
+		assert.deepStrictEqual(reports.slice(-2), ['open', 'open']);
+	});
+
+	test('a chat opened as restored shows as restored, and as opened once the user opens it', async () => {
+		const restoredSession = buildTestSession({ id: 'restored', title: 'Restored' });
+		const main = restoredSession.mainChat.chat.resource;
+		const { service } = createService({ sessions: () => [restoredSession.session] });
+		const shown = async () => { await timeout(0); const value = service.shownSession.get(); return value && `${isEqual(value.resource, main) ? 'main' : value.resource.toString()} ${value.reason}`; };
+
+		await service.openChat(restoredSession.session, main, { restore: true });
+		const restored = await shown();
+		await service.openChat(restoredSession.session, main);
+
+		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'main restore', opened: 'main open' });
+	});
+
+	test('its composers that aim at the folder their host aimed them at follow it to another folder, also the active one a new session reuses', async () => {
+		const { service, composerFolders } = createService();
+
+		await service.openComposer({ folderUri: URI.file('/repo') });
+		await service.openComposer({ folderUri: URI.file('/other') }, { newComposer: true });
+		service.retargetComposerFolders(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+		const afterMove = composerFolders();
+		// A new session in the active composer, which has not sent its session, aims it at the new session's folder
+		await service.openComposer({ folderUri: URI.file('/repo.worktrees/b') });
+
+		assert.deepStrictEqual({ afterMove, afterReuse: composerFolders() }, {
+			afterMove: ['/repo.worktrees/a', '/other'],
+			afterReuse: ['/repo.worktrees/a', '/repo.worktrees/b'],
+		});
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {
@@ -548,7 +621,7 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('the chat of the active tab shows as restored while the chat part restored it, and as opened once the user opens a chat', async () => {
+	test('the chat of the active tab shows as restored while the chat part restored it, and as opened once the user opens a chat, also the restored one', async () => {
 		const shownSession = buildTestSession({ id: 'shown', title: 'Shown', chats: [{ id: 'peer', title: 'Peer' }] });
 		const main = shownSession.mainChat.chat.resource;
 		const peer = shownSession.chats.get('peer')!.chat.resource;
@@ -561,9 +634,30 @@ suite('AgentsChatPartService', () => {
 
 		await service.restore();
 		const restored = await shown();
+		await service.openChat(shownSession.session, peer);
+		const reopened = await shown();
 		await service.openChat(shownSession.session, main);
 
-		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'peer restore', opened: 'main open' });
+		assert.deepStrictEqual({ restored, reopened, opened: await shown() }, { restored: 'peer restore', reopened: 'peer open', opened: 'main open' });
+	});
+
+	test('a chat the user opens while the chat part restores is opened, and the tab the restore activates is restored', async () => {
+		const shownSession = buildTestSession({ id: 'overlap', title: 'Overlap', chats: [{ id: 'peer', title: 'Peer' }] });
+		const main = shownSession.mainChat.chat.resource;
+		const peer = shownSession.chats.get('peer')!.chat.resource;
+		const { service } = createService({ stored: JSON.stringify({ chats: [main.toString(), peer.toString()], active: 1 }), visible: true, sessions: () => [shownSession.session] });
+		const shown = () => { const value = service.shownSession.get(); return value && `${isEqual(value.resource, main) ? 'main' : isEqual(value.resource, peer) ? 'peer' : value.resource.toString()} ${value.reason}`; };
+
+		const restoring = service.restore();
+		// The user opens the restored tab that the restore activates, while it is under way
+		await service.openChat(shownSession.session, peer);
+		await restoring;
+		await timeout(0);
+		const afterRestore = shown();
+		await service.openChat(shownSession.session, main);
+		await timeout(0);
+
+		assert.deepStrictEqual({ afterRestore, afterOpen: shown() }, { afterRestore: 'peer open', afterOpen: 'main open' });
 	});
 
 	test('its composers offer the window\'s folders, or those a feature provides while it does', () => {

@@ -18,9 +18,9 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
-import { isAgentHostSessionResource } from '../../../chat/common/chatSessionsService.js';
+import { isAgentHostSessionResource, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
-import { isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
+import { getChatSessionType, isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
@@ -41,6 +41,8 @@ const WAIT_TIMEOUT = 5_000;
 export class AgentsChatViewHost implements IChatViewHost {
 
 	constructor(
+		/** Whether New Chat of the Chat view opens a composer here; otherwise the Chat view keeps it (see {@link newChat}). */
+		private readonly _ownsNewChat: IObservable<boolean>,
 		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -71,14 +73,24 @@ export class AgentsChatViewHost implements IChatViewHost {
 		this._generation++;
 	}
 
-	/** The chats of sessions of the agent host, and those of the window's sessions; not local chat, nor chats of other kinds. */
+	/**
+	 * The chats of the window's sessions: a chat that a sessions provider resolves, or of a type a provider offers, such as an
+	 * untitled new session's, and the chats of the agent host also while its providers are not registered. Not local chat,
+	 * nor chats of other kinds, which the Chat view shows.
+	 */
 	canShow(sessionResource: URI): boolean {
-		return isAgentHostSessionResource(sessionResource) || !!this._sessionsManagementService.getSessionForChatResource(sessionResource);
+		if (isAgentHostSessionResource(sessionResource)
+			|| this._sessionsManagementService.getSessionForChatResource(sessionResource)
+			|| this._sessionsManagementService.getSession(sessionResource)) {
+			return true;
+		}
+		const type = getChatSessionType(sessionResource);
+		return type !== localChatSessionType && this._sessionsManagementService.getAllSessionTypes().some(sessionType => (sessionType.chatSessionType ?? sessionType.id) === type);
 	}
 
-	/** New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part. */
+	/** New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part, unless the Chat view keeps it. */
 	newChat(): boolean {
-		if (!this._available) {
+		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
 		this._chatPart.openComposer(this._composerTarget(), { newComposer: true }).catch(onUnexpectedError);
@@ -115,7 +127,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
-			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus });
+			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus, restore: options?.restore });
 			return await this._waitForWidget(owner.chat.resource);
 		} finally {
 			hold.dispose();
@@ -140,6 +152,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 	 * shows instead, where a request that did not run can be put back.
 	 */
 	async startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
+		// Deactivated from here on, such as while its model loads, it shows nothing it started
+		const generation = this._generation;
 		if (options.local) {
 			// It shows sessions, not local chat
 			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while chats open in the chat part."));
@@ -149,8 +163,12 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (!model) {
 			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
 		}
+		if (generation !== this._generation) {
+			// Deactivated while the model loaded: it holds it no longer, and starts nothing
+			model.dispose();
+			throw new CancellationError();
+		}
 		const sessionType = sessionResource.scheme;
-		const generation = this._generation;
 		let composer: Promise<IChatWidget | undefined> | undefined;
 		return {
 			moved: async () => { },
@@ -161,6 +179,10 @@ export class AgentsChatViewHost implements IChatViewHost {
 				}
 				const given = !isUntitledChatSession(sessionResource);
 				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource);
+				if (!shown && generation !== this._generation) {
+					// Deactivated while it looked the session up: no composer either
+					return false;
+				}
 				if (!shown) {
 					// Shown before the start completes, and given back by createComposer
 					composer = this._openComposer(sessionType);
