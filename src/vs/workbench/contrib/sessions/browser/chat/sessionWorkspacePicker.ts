@@ -568,6 +568,7 @@ export class WorkspacePicker extends Disposable {
 				if (allowed && this._selectedFolderUri && !this._isAllowedFolder(this._selectedFolderUri)) {
 					this.setSelectedWorkspace(allowed[0], { persist: false });
 				}
+				this._resolveSelectedAllowedFolder();
 				this._updateTriggerLabel();
 			}));
 		}
@@ -2427,6 +2428,7 @@ export class WorkspacePicker extends Disposable {
 		}
 		if (options) {
 			const reflectsWorkspace = options.reflectsWorkspace === true;
+			this._resolveSelectedAllowedFolder();
 			const noWorkspaceSelected = reflectsWorkspace && this._getNoWorkspaceOption()?.isSelected === true;
 			const workspace = noWorkspaceSelected ? undefined : this._selectedResolved?.workspace;
 			// Restricted to its allowed folders, it has no No Workspace to clear to
@@ -2878,6 +2880,7 @@ export class WorkspacePicker extends Disposable {
 		if (!allowedFolders) {
 			return undefined;
 		}
+		this._resolveSelectedAllowedFolder();
 		const folders = this._buildAllowedFolderItems(allowedFolders);
 		if (!folders.some(folder => folder.kind)) {
 			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
@@ -2977,6 +2980,33 @@ export class WorkspacePicker extends Disposable {
 	getSelectedLocationDescription(): string | undefined {
 		const selected = this._getNoWorkspaceOption()?.isSelected ? undefined : this._selectedResolved;
 		return selected && this._getLocationChip(selected.workspace, selected.providerId)?.description;
+	}
+
+	/**
+	 * Resolves the selected folder of a picker restricted to its allowed folders, where no provider resolved it as it was
+	 * selected, such as the location a window's folder moved to: the picker shows it, checked, once a provider does.
+	 */
+	private _resolveSelectedAllowedFolder(): void {
+		if (!this._selectedFolderUri || this._selectedResolved || this._noWorkspaceSelected || !this._getAllowedFolders()) {
+			return;
+		}
+		let resolved = this._resolveFolder(this._selectedFolderUri);
+		if (!resolved && this.options.getAllowedFolderPresentation?.(this._selectedFolderUri)?.current) {
+			// Where the window's folder is now, by another form of its path, such as /private/tmp of /tmp: the allowed folder
+			// that the window's folder is at, and that resolves
+			for (const folderUri of this._getAllowedFolders() ?? []) {
+				const candidate = this.options.getAllowedFolderPresentation?.(folderUri)?.current ? this._resolveFolder(folderUri) : undefined;
+				if (candidate) {
+					this._selectedFolderUri = folderUri;
+					resolved = candidate;
+					break;
+				}
+			}
+		}
+		if (resolved) {
+			this._selectedResolved = resolved;
+			this._watchSelectedGitHubInfo();
+		}
 	}
 
 	/** Whether the selected folder's session works in a new worktree of it. */
