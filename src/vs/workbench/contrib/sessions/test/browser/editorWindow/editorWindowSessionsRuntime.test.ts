@@ -26,6 +26,9 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
 import { constObservable } from '../../../../../../base/common/observable.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
+import { ISessionOpenTelemetryService } from '../../../browser/sessionOpenTelemetryService.js';
 
 suite('EditorWindowSessionsRuntime', () => {
 
@@ -239,5 +242,41 @@ suite('EditorWindowSessionsService', () => {
 			canOpen: false,
 			asked: ['request trust'],
 		});
+	});
+
+	test('a later open supersedes an earlier one that still resolves its session, so the user\'s latest pick shows', async () => {
+		const opened: string[] = [];
+		const resolvingA = new DeferredPromise<URI>();
+		const a: ISession = { ...buildTestSession({ id: 'a', title: 'A' }).session, loading: constObservable(false) };
+		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
+		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
+		const registration = presenterService.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({
+			openChat: async session => { opened.push(session.sessionId); },
+			isShowing: () => false,
+		}));
+		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			resolveSessionResource: async resource => isEqual(resource, a.resource) ? resolvingA.p : resource,
+			getSession: resource => [a, b].find(session => isEqual(session.resource, resource)),
+		}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ acquire: () => toDisposable(() => { }) }));
+		instantiationService.stub(ISessionOpenTelemetryService, upcastPartial<ISessionOpenTelemetryService>({
+			withOpenRequest: (async (_source: string, _token: unknown, open: (attempt: unknown) => Promise<void>) => open({})) as ISessionOpenTelemetryService['withOpenRequest'],
+			sessionResolved: () => { }, sessionActivated: () => { }, sessionLoaded: () => { },
+		}));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({}));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({}));
+		const service = disposables.add(instantiationService.createInstance(EditorWindowSessionsService));
+
+		const openingA = service.openSession(a.resource);
+		await service.openSession(b.resource);
+		resolvingA.complete(a.resource);
+		await openingA;
+		registration.dispose();
+
+		assert.deepStrictEqual(opened, ['b']);
 	});
 });
