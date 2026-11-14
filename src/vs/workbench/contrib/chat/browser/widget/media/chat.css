@@ -4425,7 +4425,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value .rendered-markdown .chat-request-text,
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6):first-child {
 		/* Clamp request text to 2 lines — only in sticky scroll */
 		display: -webkit-box;
 		line-clamp: 2;
@@ -4434,15 +4434,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		overflow: hidden;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child ~ * {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6):first-child ~ * {
 		display: none;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > p:first-child {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6):first-child {
 		margin-block-end: 0;
 	}
 
-	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > p:first-child::after {
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6):first-child :is(p, ul, ol, li, blockquote) {
+		margin-block: 0;
+	}
+
+	.monaco-tree-sticky-row .interactive-item-container.interactive-request .value > .chat-markdown-part.rendered-markdown.chat-request-has-more > :is(p, ul, ol, blockquote, h1, h2, h3, h4, h5, h6):first-child::after {
 		content: '\2026';
 	}
 
