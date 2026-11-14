@@ -209,7 +209,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 
 	test('emits the core GitHub assignment filters map', () => {
 		const account = new TestDefaultAccountService();
-		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'], access_type_sku: 'pro' });
+		account.setEntitlements({ analytics_tracking_id: 'tid-1', organization_login_list: ['github'], access_type_sku: 'pro', billable_owner: { universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' } });
 		account.copilotTokenInfo = { sn: '1', fcv1: '0' };
 		const provider = createProvider(account);
 
@@ -221,12 +221,13 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 			[GitHubAssignmentsFilter.CopilotSku, 'pro'],
 			[GitHubAssignmentsFilter.CopilotIsSn, '1'],
 			[GitHubAssignmentsFilter.CopilotIsFcv1, '0'],
+			[GitHubAssignmentsFilter.CopilotBillableEntityId, 'ea:dotcom:42'],
 		]);
 	});
 
 	test('clears account filters on sign-out even before token info is cleared', () => {
 		const account = new TestDefaultAccountService();
-		account.setEntitlements({ analytics_tracking_id: 'old-user', access_type_sku: 'enterprise', organization_login_list: ['github'] });
+		account.setEntitlements({ analytics_tracking_id: 'old-user', access_type_sku: 'enterprise', organization_login_list: ['github'], billable_owner: { universal_key: 'ea:dotcom:42', account_type: 'Enterprise Account' } });
 		account.copilotTokenInfo = { sn: '1', fcv1: '1' };
 		const provider = createProvider(account);
 		let changes = 0;
@@ -240,6 +241,7 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 				github_core_copilotsku: null,
 				github_core_issn: '0',
 				github_core_isfcv1: '0',
+				github_core_copilotbillableentityid: null,
 			},
 			changes: 1,
 		});
@@ -310,6 +312,41 @@ suite('GitHubCoreAssignmentsFilterProvider', () => {
 			['1', 'external', 2],
 			['0', 'external', 3],
 		]);
+	});
+
+	test('sends the billable owner only while known and notifies when only it changes', () => {
+		const account = new TestDefaultAccountService();
+		const provider = createProvider(account);
+		let changes = 0;
+		disposables.add(provider.onDidChangeFilters(() => changes++));
+
+		assert.deepStrictEqual(['ea:dotcom:42', 'ea:dotcom:42', 'user:dotcom:7', undefined].map(universalKey => {
+			account.setEntitlements({ billable_owner: universalKey ? { universal_key: universalKey, account_type: 'Enterprise Account' } : null });
+			return [provider.getFilters().get(GitHubAssignmentsFilter.CopilotBillableEntityId), changes];
+		}), [
+			['ea:dotcom:42', 1],
+			['ea:dotcom:42', 1],
+			['user:dotcom:7', 2],
+			[null, 3],
+		]);
+	});
+
+	test('omits a billable owner without a non-empty key and account type', () => {
+		const account = new TestDefaultAccountService();
+		const provider = createProvider(account);
+		const billableOwners = [
+			{ universal_key: 'ea:dotcom:42', account_type: '' },
+			{ universal_key: 'ea:dotcom:42' },
+			{ universal_key: '', account_type: 'User' },
+			{ universal_key: 42, account_type: 'User' },
+			'ea:dotcom:42',
+		];
+
+		assert.deepStrictEqual(billableOwners.map(billableOwner => {
+			// Malformed values are what an unvalidated server response can contain.
+			account.setEntitlements({ billable_owner: billableOwner as IEntitlementsData['billable_owner'] });
+			return provider.getFilterValue(GitHubAssignmentsFilter.CopilotBillableEntityId);
+		}), [null, null, null, null, null]);
 	});
 
 	test('fires onDidChangeFilters only when relevant inputs change', () => {
