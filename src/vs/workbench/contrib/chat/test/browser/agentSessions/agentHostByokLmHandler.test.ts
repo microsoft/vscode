@@ -585,6 +585,77 @@ suite('AgentHostByokLmHandler', () => {
 		});
 	});
 
+	test('adds compatibility reasoning for DeepSeek tool calls without reasoning', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-deepseek', byokModel('customendpoint', 'deepseek-v4-pro')]]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'customendpoint',
+			modelId: 'deepseek-v4-pro',
+			input: [
+				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{"city":"NYC"}' },
+			],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(service.captured?.messages, [{
+			role: ChatMessageRole.Assistant,
+			content: [
+				{ type: 'thinking', value: ['Reasoning is unavailable for this historical tool call.'], id: 'rs_byok_compat_t1' },
+				{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: { city: 'NYC' } },
+			],
+		}]);
+	});
+
+	test('reuses the latest reasoning for DeepSeek tool calls in later turns', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-deepseek', byokModel('customendpoint', 'deepseek-v4-pro')]]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'customendpoint',
+			modelId: 'deepseek-v4-pro',
+			input: [
+				{ type: 'reasoning', id: 'rs_1', summary: ['earlier reasoning'] },
+				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{}' },
+				{ type: 'function_call_output', callId: 't1', output: 'sunny' },
+				{ type: 'function_call', callId: 't2', name: 'getWeather', argumentsJson: '{}' },
+			],
+		}, CancellationToken.None);
+
+		const messages = service.captured?.messages;
+		assert.strictEqual(messages?.length, 3);
+		assert.deepStrictEqual(messages?.[2].content, [
+			{ type: 'thinking', value: ['earlier reasoning'], id: 'rs_byok_reused_t2' },
+			{ type: 'tool_use', name: 'getWeather', toolCallId: 't2', parameters: {} },
+		]);
+	});
+
+	test('does not add compatibility reasoning for non-DeepSeek models', async () => {
+		const service = new TestLanguageModelsService(
+			new Map([['id-acme', byokModel('acme', 'claude')]]),
+			() => responseOf([]),
+		);
+		const handler = createHandler(service);
+
+		await handler.chat({
+			vendor: 'acme',
+			modelId: 'claude',
+			input: [
+				{ type: 'function_call', callId: 't1', name: 'getWeather', argumentsJson: '{}' },
+			],
+		}, CancellationToken.None);
+
+		assert.deepStrictEqual(service.captured?.messages, [{
+			role: ChatMessageRole.Assistant,
+			content: [{ type: 'tool_use', name: 'getWeather', toolCallId: 't1', parameters: {} }],
+		}]);
+	});
+
 	test('forwards tool-result images as ordered data parts of the tool result', async () => {
 		const service = new TestLanguageModelsService(
 			new Map([['id', byokModel('acme', 'claude')]]),

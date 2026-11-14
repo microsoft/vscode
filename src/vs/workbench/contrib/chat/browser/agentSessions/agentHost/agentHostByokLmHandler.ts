@@ -247,7 +247,14 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 				content: [{ type: 'text', value: request.instructions }],
 			});
 		}
+		let lastReasoningText: string | undefined;
 		for (const item of request.input) {
+			if (item.type === 'reasoning') {
+				const reasoningText = item.summary.join('\n').trim();
+				if (reasoningText) {
+					lastReasoningText = reasoningText;
+				}
+			}
 			const message = this._toChatMessage(item);
 			const previous = messages.at(-1);
 			if (message.role === ChatMessageRole.Assistant && previous?.role === ChatMessageRole.Assistant) {
@@ -258,8 +265,24 @@ export class AgentHostByokLmHandler extends Disposable implements IAgentHostByok
 			} else {
 				messages.push(message);
 			}
+			if (this._requiresDeepSeekReasoning(request) && (item.type === 'function_call' || item.type === 'custom_tool_call')) {
+				this._ensureReasoningForToolCall(messages[messages.length - 1], item.callId, lastReasoningText);
+			}
 		}
 		return messages;
+	}
+
+	private _requiresDeepSeekReasoning(request: IByokLmChatRequest): boolean {
+		return request.modelId.toLowerCase().includes('deepseek') || request.vendor.toLowerCase().includes('deepseek');
+	}
+
+	private _ensureReasoningForToolCall(message: IChatMessage, callId: string, lastReasoningText: string | undefined): void {
+		if (message.role !== ChatMessageRole.Assistant || message.content.some(part => part.type === 'thinking')) {
+			return;
+		}
+		const text = lastReasoningText ?? 'Reasoning is unavailable for this historical tool call.';
+		const id = lastReasoningText ? `rs_byok_reused_${callId}` : `rs_byok_compat_${callId}`;
+		message.content.unshift({ type: 'thinking', value: [text], id });
 	}
 
 	private _toChatMessage(item: IByokLmInputItem): IChatMessage {
