@@ -18,7 +18,7 @@ import { mainWindow } from '../../../../../../base/browser/window.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
-import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
+import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownListOptionsProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -45,6 +45,18 @@ import './media/agentHostChatInputPicker.css';
  * directory is fixed, so the chip stays visible (showing the chosen folder)
  * but is disabled via the action's precondition.
  */
+/** The class of the folder picker's list, whose rows with a detail are laid out in agentHostChatInputPicker.css. */
+export const FOLDER_PICKER_LIST_CLASS = 'agent-host-folder-picker-list';
+
+function withFolderPickerListClass(provider: IActionWidgetDropdownListOptionsProvider): IActionWidgetDropdownListOptionsProvider {
+	return {
+		getListOptions: () => {
+			const options = provider.getListOptions();
+			return { ...options, className: [options?.className, FOLDER_PICKER_LIST_CLASS].filter(Boolean).join(' ') };
+		},
+	};
+}
+
 /** As `.agent-host-folder-chip .chat-input-picker-label` bounds the name in agentHostChatInputPicker.css. */
 const FOLDER_CHIP_LABEL_MAX_WIDTH = 160;
 
@@ -124,7 +136,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 			actionBarActionProvider,
 			showItemKeybindings: false,
 			reporter: { id: 'AgentHostFolderPicker', name: 'AgentHostFolderPicker', includeOptions: false },
-			listOptionsProvider: createFolderPickerTip(storageService),
+			listOptionsProvider: withFolderPickerListClass(createFolderPickerTip(storageService)),
 		};
 
 		super(action, folderPickerOptions, pickerOptions, actionWidgetService, keybindingService, contextKeyService, telemetryService);

@@ -5,6 +5,15 @@
 
 import assert from 'assert';
 import { IContextMenuProvider } from '../../../../../../../base/browser/contextmenu.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { ActionListItemKind, ActionListWidget, IActionListItem } from '../../../../../../../platform/actionWidget/browser/actionList.js';
+import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
+import { NullHoverService } from '../../../../../../../platform/hover/test/browser/nullHoverService.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { MockKeybindingService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
+import { NullOpenerService } from '../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ToolBar } from '../../../../../../../base/browser/ui/toolbar/toolbar.js';
 import { Action } from '../../../../../../../base/common/actions.js';
@@ -22,7 +31,7 @@ import { workbenchInstantiationService } from '../../../../../../test/browser/wo
 import { ISCMService } from '../../../../../scm/common/scm.js';
 import type { IChatWidget } from '../../../../browser/chat.js';
 import { IAgentHostCustomizationService } from '../../../../browser/agentSessions/agentHost/agentHostCustomizationService.js';
-import { AgentHostFolderPickerActionItem } from '../../../../browser/agentSessions/agentHost/agentHostFolderPickerActionItem.js';
+import { AgentHostFolderPickerActionItem, FOLDER_PICKER_LIST_CLASS } from '../../../../browser/agentSessions/agentHost/agentHostFolderPickerActionItem.js';
 import { IAgentHostNewSessionFolderService } from '../../../../browser/agentSessions/agentHost/agentHostNewSessionFolderService.js';
 import { IAgentHostUntitledProvisionalSessionService } from '../../../../browser/agentSessions/agentHost/agentHostUntitledProvisionalSessionService.js';
 import { AgentHostWorktreeSessionSources, IAgentHostWorktreeSessionSources } from '../../../../browser/agentSessions/agentHost/agentHostWorktreeSessionSources.js';
@@ -274,5 +283,29 @@ suite('AgentHostFolderPickerActionItem', () => {
 			workspaceless: { label: 'No Workspace', ariaLabel: 'No workspace: start the session in a temporary directory', noWorkspaceIcon: true },
 			inFolder: { label: 'fix', ariaLabel: 'Folder: fix', noWorkspaceIcon: false },
 		});
+	});
+	test('its list keeps the detail of a row with a description, such as the folder with Current, inside the row, as it does a row without one', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.set(IKeybindingService, new MockKeybindingService());
+		instantiationService.set(IHoverService, NullHoverService);
+		instantiationService.set(IOpenerService, NullOpenerService);
+		// As the dropdown shows the picker's choices: each by its icon, with what it does below its name
+		const items: IActionListItem<unknown>[] = [
+			{ kind: ActionListItemKind.Action, label: 'No Workspace', detail: 'Start without a backing workspace', group: { title: '', icon: Codicon.comment }, item: {} },
+			{ kind: ActionListItemKind.Action, label: 'vscode', description: 'Current', detail: 'Works in the folder already on this computer', group: { title: '', icon: Codicon.folder }, item: {} },
+			{ kind: ActionListItemKind.Action, label: 'New Worktree', detail: 'Creates a separate copy for this session', group: { title: '', icon: Codicon.worktree }, item: {} },
+		];
+		const widget = store.add(instantiationService.createInstance(ActionListWidget<unknown>, 'folders', false, items, { onHide: () => { }, onSelect: () => { } }, undefined, { className: FOLDER_PICKER_LIST_CLASS }));
+		root.classList.add('action-widget');
+		root.appendChild(widget.domNode);
+		widget.layout(400, 400);
+		const rows = [...widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')];
+		const offsets = (row: HTMLElement) => {
+			const bounds = row.getBoundingClientRect();
+			const detail = row.querySelector<HTMLElement>('.detail')!.getBoundingClientRect();
+			return { title: row.querySelector<HTMLElement>('.title')!.getBoundingClientRect().top - bounds.top, detail: detail.top - bounds.top, inside: detail.bottom <= bounds.bottom };
+		};
+
+		assert.deepStrictEqual(offsets(rows[1]), offsets(rows[0]));
 	});
 });
