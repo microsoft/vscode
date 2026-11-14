@@ -21,6 +21,7 @@ import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
@@ -197,6 +198,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		instantiationService.stub(IEditorWindowComposerFoldersService, instantiationService.createInstance(EditorWindowComposerFoldersService));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		// The changes of the listed sessions, and of each session, also of those the providers' listing scope hides
