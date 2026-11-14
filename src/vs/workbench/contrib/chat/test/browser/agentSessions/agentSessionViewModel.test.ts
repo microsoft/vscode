@@ -20,7 +20,8 @@ import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessio
 import { HoverPosition } from '../../../../../../base/browser/ui/hover/hoverWidget.js';
 import { IVoicePlaybackService } from '../../../common/voicePlaybackService.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
-import { AgentSessionsFilter } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { AgentSessionsFilter, AgentSessionsSorting } from '../../../browser/agentSessions/agentSessionsFilter.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 import { ChatSessionRefreshReason, ChatSessionStatus, IChatSessionItemController, IChatSessionItem, IChatSessionItemsDelta, IChatSessionsService, localChatSessionType } from '../../../common/chatSessionsService.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -34,6 +35,8 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IWorkspaceContextService, IWorkspaceFoldersChangeEvent } from '../../../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../platform/workspace/common/workspaceTrust.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { AgentSessionProviders, getAgentCanContinueIn, getAgentSessionProvider, getAgentSessionProviderDescription, getAgentSessionProviderIcon, getAgentSessionProviderName } from '../../../browser/agentSessions/agentSessions.js';
 import { COPILOT_CLI_EH_SCHEME, COPILOT_CLI_LOCAL_AH_SCHEME } from '../../../browser/copilotCliEventsUri.js';
 import { SESSION_META_EHCLI_ADOPTABLE_KEY } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -1514,6 +1517,140 @@ suite('AgentSessions', () => {
 
 			// Should now be excluded
 			assert.strictEqual(filter.exclude(session), true);
+		});
+
+		test('should sort by the configured sorting', () => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Updated }));
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Updated);
+			assert.strictEqual(filter.isDefault(), true, 'the configured sorting is not a filter');
+
+			filter.dispose();
+		});
+
+		test('should remember a selected sorting over the configured one', () => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Updated }));
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			let changeCount = 0;
+			disposables.add(filter.onDidChange(() => changeCount++));
+
+			filter.setSorting(AgentSessionsSorting.Created);
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created);
+			assert.strictEqual(filter.isDefault(), false, 'a selected sorting is a filter');
+			assert.strictEqual(instantiationService.get(IStorageService).get('agentSessions.sorting', StorageScope.PROFILE), AgentSessionsSorting.Created);
+			assert.strictEqual(changeCount, 1);
+
+			filter.dispose();
+		});
+
+		test('should emit onDidChange when the selected sorting matches the configured sorting', () => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Created }));
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			let changeCount = 0;
+			disposables.add(filter.onDidChange(() => changeCount++));
+
+			filter.setSorting(AgentSessionsSorting.Created);
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created);
+			assert.strictEqual(filter.isDefault(), false);
+			assert.strictEqual(changeCount, 1);
+
+			filter.reset();
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created);
+			assert.strictEqual(filter.isDefault(), true);
+			assert.strictEqual(changeCount, 2);
+
+			filter.dispose();
+		});
+
+		test('should re-sort when the configured sorting changes', async () => {
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Updated });
+			instantiationService.stub(IConfigurationService, configurationService);
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			let changeCount = 0;
+			disposables.add(filter.onDidChange(() => changeCount++));
+
+			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsDefaultSortOrder, AgentSessionsSorting.Created);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([ChatConfiguration.ChatViewSessionsDefaultSortOrder]),
+				change: { keys: [ChatConfiguration.ChatViewSessionsDefaultSortOrder], overrides: [] },
+				affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsDefaultSortOrder,
+			});
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created);
+			assert.strictEqual(changeCount, 1);
+
+			filter.dispose();
+		});
+
+		test('should keep a selected sorting when the configured sorting changes', async () => {
+			const configurationService = new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Updated });
+			instantiationService.stub(IConfigurationService, configurationService);
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			filter.setSorting(AgentSessionsSorting.Created);
+
+			let changeCount = 0;
+			disposables.add(filter.onDidChange(() => changeCount++));
+
+			await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsDefaultSortOrder, AgentSessionsSorting.Updated);
+			configurationService.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([ChatConfiguration.ChatViewSessionsDefaultSortOrder]),
+				change: { keys: [ChatConfiguration.ChatViewSessionsDefaultSortOrder], overrides: [] },
+				affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsDefaultSortOrder,
+			});
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Created, 'the selection wins over the setting');
+			assert.strictEqual(changeCount, 0);
+
+			filter.reset();
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Updated, 'resetting filters lets the setting apply again');
+			assert.strictEqual(changeCount, 1);
+
+			filter.dispose();
+		});
+
+		test('should keep the sorting selected in a previous window', () => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsDefaultSortOrder]: AgentSessionsSorting.Created }));
+			instantiationService.get(IStorageService).store('agentSessions.sorting', AgentSessionsSorting.Updated, StorageScope.PROFILE, StorageTarget.USER);
+
+			const filter = disposables.add(instantiationService.createInstance(
+				AgentSessionsFilter,
+				{ filterMenuId: MenuId.ViewTitle }
+			));
+
+			assert.strictEqual(filter.sortResults(), AgentSessionsSorting.Updated);
+
+			filter.dispose();
 		});
 
 		test('should register provider filter actions', () => {
