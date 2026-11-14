@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -20,12 +19,11 @@ import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } fro
 import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
-import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
+import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
-import { IChat, ISession, ISessionWorkspace, SessionStatus } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
@@ -52,8 +50,6 @@ class FakeGroup {
 	activeEditor: EditorInput | null = null;
 	readonly onDidActiveEditorChangeEmitter = new Emitter<void>();
 	readonly onDidActiveEditorChange = this.onDidActiveEditorChangeEmitter.event;
-	readonly onWillCloseEditorEmitter = new Emitter<void>();
-	readonly onWillCloseEditor = this.onWillCloseEditorEmitter.event;
 	readonly onDidCloseEditorEmitter = new Emitter<void>();
 	readonly onDidCloseEditor = this.onDidCloseEditorEmitter.event;
 	get isEmpty() { return this.editors.length === 0; }
@@ -69,7 +65,6 @@ class FakeGroup {
 		}
 	}
 	async closeEditor(editor: EditorInput): Promise<boolean> {
-		this.onWillCloseEditorEmitter.fire();
 		this.editors = this.editors.filter(candidate => candidate !== editor);
 		if (this.activeEditor === editor) {
 			this.activeEditor = this.editors.at(-1) ?? null;
@@ -82,7 +77,6 @@ class FakeGroup {
 	focus(): void { }
 	dispose(): void {
 		this.onDidActiveEditorChangeEmitter.dispose();
-		this.onWillCloseEditorEmitter.dispose();
 		this.onDidCloseEditorEmitter.dispose();
 	}
 }
@@ -149,13 +143,6 @@ const chatA = URI.parse('test:/a');
 const chatB = URI.parse('test:/b');
 const chatC = URI.parse('test:/c');
 
-/** The workspace of a session of the repository `/work/vscode` that works in `workingDirectory`, such as one of its worktrees. */
-function workspaceIn(workingDirectory: string): ISessionWorkspace {
-	return upcastPartial<ISessionWorkspace>({
-		folders: [upcastPartial<ISessionWorkspace['folders'][number]>({ root: URI.file('/work/vscode'), workingDirectory: URI.file(workingDirectory) })],
-	});
-}
-
 suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -190,7 +177,7 @@ suite('AgentsChatPartService', () => {
 			},
 			hasFocus: () => false,
 		}));
-		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }) }));
+		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), didCreateContent: () => { } }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: () => part as unknown as IContentPart, mainPart: undefined }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
@@ -208,8 +195,7 @@ suite('AgentsChatPartService', () => {
 		}));
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
-		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }), getWorkbenchState: () => WorkbenchState.EMPTY }));
-		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({ onDidChangeProviders: Event.None, onDidChangeLocation: Event.None, onDidChangeCanSetLocation: Event.None, canSetLocation: () => false, getLocations: async () => [] }));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		// The changes of the listed sessions, and of each session, also of those the providers' listing scope hides
@@ -261,16 +247,15 @@ suite('AgentsChatPartService', () => {
 		const name = (input: EditorInput | null) => input instanceof ChatEditorInput ? (isChatWindowComposerResource(input.chatResource) ? 'composer' : input.chatResource.path) : null;
 		return {
 			service,
-			host,
 			part,
 			hide: () => instantiationService.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART),
 			save: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
 				return storageService.get(CHAT_PART_EDITORS_STORAGE_KEY, StorageScope.WORKSPACE);
 			},
-			setConfiguration: (key: string, value: string) => {
-				configurationService.setUserConfiguration(key, value);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (affected: string) => affected === key }));
+			setShowTabs: (value: string) => {
+				configurationService.setUserConfiguration('workbench.editor.showTabs', value);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
 			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
@@ -309,7 +294,7 @@ suite('AgentsChatPartService', () => {
 	test('the active chat is the session a composer created from its first send on, before that first turn ends; a draft has none', async () => {
 		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
 		const mainChat = upcastPartial<IChat>({ resource: chatA });
-		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat), workspace: constObservable(undefined) });
+		const created = upcastPartial<ISession>({ status, mainChat: constObservable(mainChat) });
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
 		const { service } = createService({ newSession });
 		const active = () => { const chat = service.activeChat.get(); return chat ? { session: chat.session === created, chat: chat.chat === mainChat } : 'none'; };
@@ -321,80 +306,6 @@ suite('AgentsChatPartService', () => {
 		status.set(SessionStatus.InProgress, undefined);
 
 		assert.deepStrictEqual({ draft, untitled, firstTurn: active() }, { draft: 'none', untitled: 'none', firstTurn: { session: true, chat: true } });
-	});
-
-	test('the window\'s session, as its agent knows it, is the draft of the composer its active tab shows; the chat part\'s active chat is none until the draft is sent', async () => {
-		const draft = upcastPartial<ISession>({ sessionId: 'draft', status: constObservable(SessionStatus.Untitled), mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace: constObservable(undefined) });
-		const newSession = observableValue<ISession | undefined>('newSession', undefined);
-		const { service, host } = createService({ newSession });
-
-		await service.openComposer(undefined);
-		newSession.set(draft, undefined);
-
-		// As a host's chat follows its session, the host's chat is the draft's
-		assert.deepStrictEqual({ session: host.session.get() === draft, chat: host.chat.get()?.resource.path, activeChat: service.activeChat.get() }, { session: true, chat: '/a', activeChat: undefined });
-	});
-
-	test('opening a session or picking its tab shows its chat as opened; closing a tab shows the chat it activates as restored', async () => {
-		const first = buildTestSession({ id: 'first', title: 'First' });
-		const second = buildTestSession({ id: 'second', title: 'Second' });
-		const { service, part } = createService({ sessions: () => [first.session, second.session] });
-		const shown = () => {
-			const value = service.shownSession.get();
-			return value && { chat: value.resource.path, reason: value.reason };
-		};
-
-		await service.openChat(first.session, undefined);
-		await service.openChat(second.session, undefined);
-		const opened = shown();
-		// Picking the first tab, as a click does
-		part.activeGroup.open(part.activeGroup.editors[0]);
-		const picked = shown();
-		// Closing it activates the other tab, which the user did not pick
-		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
-		await timeout(0);
-
-		assert.deepStrictEqual({ opened, picked, closed: shown() }, {
-			opened: { chat: second.session.mainChat.get().resource.path, reason: 'open' },
-			picked: { chat: first.session.mainChat.get().resource.path, reason: 'open' },
-			closed: { chat: second.session.mainChat.get().resource.path, reason: 'restore' },
-		});
-	});
-
-	test('a session opened to keep the folder shows its chat as restored', async () => {
-		const kept: ISession = { ...buildTestSession({ id: 'kept', title: 'Kept' }).session, workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode')) };
-		const { service } = createService({ sessions: () => [kept] });
-
-		await service.openChat(kept, undefined, { keepFolder: true });
-
-		assert.deepStrictEqual({ shown: service.isShowing(kept.mainChat.get().resource), reason: service.shownSession.get()?.reason }, { shown: true, reason: 'restore' });
-	});
-
-	test('a composer\'s send shows the session it created as opened; the composer shows none', async () => {
-		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
-		const created = upcastPartial<ISession>({ sessionId: 'created', status, mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace: constObservable(workspaceIn('/work/vscode.worktrees/a')) });
-		const newSession = observableValue<ISession | undefined>('newSession', undefined);
-		const { service } = createService({ newSession });
-
-		await service.openComposer(undefined);
-		newSession.set(created, undefined);
-		const draft = service.shownSession.get();
-		// The send: from now on, the composer's tab shows the session it created
-		status.set(SessionStatus.InProgress, undefined);
-
-		assert.deepStrictEqual({ draft, sent: service.shownSession.get() && { chat: service.shownSession.get()!.resource.path, reason: service.shownSession.get()!.reason } }, { draft: undefined, sent: { chat: chatA.path, reason: 'open' } });
-	});
-
-	test('a restored tab shows its chat as restored; one the user opens shows it as opened', async () => {
-		const restored: ISession = { ...buildTestSession({ id: 'restored', title: 'Restored' }).session, workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode')) };
-		const chat = restored.mainChat.get().resource;
-		const { service } = createService({ stored: JSON.stringify({ chats: [chat.toString()], active: 0 }), visible: true, sessions: () => [restored] });
-
-		await service.restore();
-		const afterRestore = service.shownSession.get()?.reason;
-		await service.openChat(restored, chat);
-
-		assert.deepStrictEqual({ afterRestore, opened: service.shownSession.get()?.reason }, { afterRestore: 'restore', opened: 'open' });
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {
@@ -637,6 +548,36 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
+	test('the chat of the active tab shows as restored while the chat part restored it, and as opened once the user opens a chat', async () => {
+		const shownSession = buildTestSession({ id: 'shown', title: 'Shown', chats: [{ id: 'peer', title: 'Peer' }] });
+		const main = shownSession.mainChat.chat.resource;
+		const peer = shownSession.chats.get('peer')!.chat.resource;
+		const { service } = createService({ stored: JSON.stringify({ chats: [main.toString(), peer.toString()], active: 1 }), visible: true, sessions: () => [shownSession.session] });
+		const shown = async () => {
+			await timeout(0);
+			const value = service.shownSession.get();
+			return value && `${isEqual(value.resource, main) ? 'main' : isEqual(value.resource, peer) ? 'peer' : value.resource.toString()} ${value.reason}`;
+		};
+
+		await service.restore();
+		const restored = await shown();
+		await service.openChat(shownSession.session, main);
+
+		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'peer restore', opened: 'main open' });
+	});
+
+	test('its composers offer the window\'s folders, or those a feature provides while it does', () => {
+		const { service } = createService();
+		const folders = () => service.getComposerFolderOptions().allowedFolders?.get().map(folder => folder.toString());
+
+		const windowFolders = folders();
+		const provided = service.setComposerFolderOptions(() => ({ allowedFolders: constObservable([URI.file('/worktree')]) }));
+		const whileProvided = folders();
+		provided.dispose();
+
+		assert.deepStrictEqual({ whileProvided, afterwards: folders() }, { whileProvided: ['file:///worktree'], afterwards: windowFolders });
+	});
+
 	test('with no chats, the chat part removes what it stored, and restoring nothing closes it', async () => {
 		const first = createService({ stored: JSON.stringify({ chats: ['test:/a'], active: 0 }) });
 		await first.service.openChat(session, chatA);
@@ -682,18 +623,16 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: false });
 	});
 
-	test('its tabs show its chats as the Agents window shows the chats of a session: the active one by default, each in a tab with Multiple, as the setting changes', async () => {
-		const { service, part, setConfiguration } = createService();
+	test('its tabs show as a chat window\'s do, following workbench.editor.showTabs as it changes', async () => {
+		const { service, part, setShowTabs } = createService();
 		await service.openChat(session, chatA);
-		const single = part.options;
+		const shown = part.options;
 
-		setConfiguration(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
-		const multiple = part.options;
-		// The tabs of the editor area do not change those of the chat part
-		setConfiguration('workbench.editor.showTabs', 'none');
-		const withEditorTabsNone = part.options;
+		setShowTabs('none');
 
-		const options = (showTabs: string) => ({ doubleClickTabToToggleEditorGroupSizes: 'off', showTabs, tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 });
-		assert.deepStrictEqual({ single, multiple, withEditorTabsNone }, { single: options('single'), multiple: options('multiple'), withEditorTabsNone: options('multiple') });
+		assert.deepStrictEqual({ shown, none: part.options }, {
+			shown: { doubleClickTabToToggleEditorGroupSizes: 'off', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			none: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+		});
 	});
 });

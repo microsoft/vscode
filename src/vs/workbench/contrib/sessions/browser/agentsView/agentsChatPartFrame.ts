@@ -4,18 +4,26 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatHostPart } from '../../../../browser/parts/chat/chatHostPart.js';
 
 export const IAgentsChatPartFrame = createDecorator<IAgentsChatPartFrame>('agentsChatPartFrame');
 
 /**
- * The chat part of an editor window with the Sessions view, as a part of the workbench grid: created as the window starts,
- * before the grid is, so that the grid has a place for it. What it shows is created once a chat opens in it.
+ * The chat part of an editor window, as a part of the workbench grid: created as a feature enables the chat part as the
+ * window starts, before the grid is, so that the grid has a place for it. What it shows is created once a chat opens in it.
  */
 export interface IAgentsChatPartFrame {
 	readonly _serviceBrand: undefined;
 	readonly part: ChatHostPart;
+	/**
+	 * Whether what the chat part shows, `IAgentsChatPartService`, was created: what reads it without needing it, such as
+	 * what the window's chat is, reads it only then, rather than creating it.
+	 */
+	readonly contentCreated: IObservable<boolean>;
+	/** Called as `IAgentsChatPartService` is created. */
+	didCreateContent(): void;
 }
 
 export class AgentsChatPartFrame extends Disposable implements IAgentsChatPartFrame {
@@ -23,9 +31,15 @@ export class AgentsChatPartFrame extends Disposable implements IAgentsChatPartFr
 	declare readonly _serviceBrand: undefined;
 
 	readonly part: ChatHostPart;
+	private readonly _contentCreated = observableValue(this, false);
+	readonly contentCreated: IObservable<boolean> = this._contentCreated;
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.part = this._register(instantiationService.createInstance(ChatHostPart));
+	}
+
+	didCreateContent(): void {
+		this._contentCreated.set(true, undefined);
 	}
 }

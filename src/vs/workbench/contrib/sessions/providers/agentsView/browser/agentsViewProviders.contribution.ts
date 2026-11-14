@@ -6,17 +6,10 @@
 import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../base/common/platform.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
-import { ILifecycleService, LifecyclePhase } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { IDevContainerAgentHostService } from '../../../common/devContainerAgentHostService.js';
-import { SessionsViewId } from '../../../browser/views/sessionsView.js';
-import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { registerLocalAgentHostSessionsProvider } from '../../agentHost/browser/localAgentHostSessionsProviderRegistration.js';
 import { registerCopilotChatSessionsProviders } from '../../copilotChatSessions/browser/copilotChatSessionsProvidersRegistration.js';
@@ -24,7 +17,7 @@ import { registerAgentsViewComposerControls } from './agentsViewComposerControls
 import { DevContainerAgentHostService } from '../../remoteAgentHost/browser/devContainerAgentHostService.js';
 
 /**
- * Registers the sessions providers whose sessions the Sessions view of an editor window lists: those of the local agent
+ * Registers the sessions providers whose sessions an editor window shows, such as in a sessions list or the chat part: those of the local agent
  * host, on desktop, and those of Copilot Cloud. As every provider of the window, they list only the sessions of its
  * folders (see `EditorWindowSessionsProvidersService`). The pickers of the chat part's composers and session chats,
  * which act on the sessions of these providers, come and go with them.
@@ -40,13 +33,13 @@ function registerAgentsViewProviders(accessor: ServicesAccessor): IDisposable {
 	return disposables;
 }
 
-/** How long the providers stay registered once nothing holds them, such as after neither the Sessions view nor the chat part shows. */
+/** How long the providers stay registered once nothing holds them, such as after neither a sessions list nor the chat part shows. */
 export const AGENTS_VIEW_PROVIDERS_RELEASE_DELAY = 60_000;
 
 /**
- * Registers the sessions providers of the Sessions view of an editor window while something holds them, and releases them
- * {@link AGENTS_VIEW_PROVIDERS_RELEASE_DELAY} after nothing does, so the window stops following the sessions of the agent
- * host. The chats of the chat part's tabs find their sessions again once the providers return, as a provider going away
+ * Registers the sessions providers of an editor window while something holds them (see `IEditorWindowSessionsRuntime`),
+ * and releases them {@link AGENTS_VIEW_PROVIDERS_RELEASE_DELAY} after nothing does, so the window stops following the
+ * sessions of the agent host. The chats of the chat part's tabs find their sessions again once the providers return, as a provider going away
  * hides its sessions without removing them.
  *
  * A new-session composer of the chat part holds them too, as its draft session is its provider's: one with nothing typed or
@@ -62,7 +55,7 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+		@IEditorWindowSessionsPresenterService private readonly _presenterService: IEditorWindowSessionsPresenterService,
 	) {
 		super();
 	}
@@ -94,11 +87,11 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 			return;
 		}
 		// A composer the user left without typing anything goes, so the providers can go too
-		await this._chatPart.closeIdleComposers();
+		await this._presenterService.presenter.get().closeIdleComposers();
 		if (this._store.isDisposed || this._holds > 0 || this._release.value) {
 			return;
 		}
-		if (this._chatPart.hasComposer()) {
+		if (this._presenterService.presenter.get().hasComposer()) {
 			this._releaseLater();
 		} else {
 			this._registration.clear();
@@ -106,58 +99,5 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 	}
 }
 
-/**
- * Holds the sessions providers of the Sessions view of an editor window while that view or the chat part, which shows
- * sessions too, shows, while {@link ChatConfiguration.SessionsViewEnabled} is on. The setting is read once, as the window
- * starts: with it off, this does nothing else.
- */
-export class AgentsViewProvidersContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.agentsViewProviders';
-
-	constructor(
-		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super();
-
-		if (configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) !== true) {
-			return;
-		}
-
-		const { viewsService, layoutService, lifecycleService, providersService } = instantiationService.invokeFunction(accessor => ({
-			viewsService: accessor.get(IViewsService),
-			layoutService: accessor.get(IWorkbenchLayoutService),
-			lifecycleService: accessor.get(ILifecycleService),
-			providersService: accessor.get(IAgentsViewProvidersService),
-		}));
-		const shown = this._register(new MutableDisposable());
-		const update = () => {
-			if (viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
-				shown.value ??= providersService.acquire();
-			} else {
-				shown.clear();
-			}
-		};
-		this._register(viewsService.onDidChangeViewVisibility(e => {
-			if (e.id === SessionsViewId) {
-				update();
-			}
-		}));
-		this._register(layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.CHAT_PART) {
-				update();
-			}
-		}));
-		// The chat part restores shown with the window, without a change of its visibility
-		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			if (!this._store.isDisposed) {
-				update();
-			}
-		});
-	}
-}
-
 registerSingleton(IDevContainerAgentHostService, DevContainerAgentHostService, InstantiationType.Delayed);
 registerSingleton(IAgentsViewProvidersService, AgentsViewProvidersService, InstantiationType.Delayed);
-registerWorkbenchContribution2(AgentsViewProvidersContribution.ID, AgentsViewProvidersContribution, WorkbenchPhase.BlockStartup);
