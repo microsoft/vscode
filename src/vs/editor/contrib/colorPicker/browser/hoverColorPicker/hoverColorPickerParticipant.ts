@@ -55,6 +55,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	public readonly hoverOrdinal: number = 2;
 
 	private _colorPicker: ColorPickerWidget | undefined;
+	private _colorPickerRange: Range | undefined;
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -120,6 +121,7 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 		const editorModel = editor.getModel();
 		const model = colorHover.model;
 		this._colorPicker = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), this._themeService, ColorPickerWidgetType.Hover));
+		this._colorPickerRange = colorHover.range;
 
 		let editorUpdatedByColorPicker = false;
 		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
@@ -163,9 +165,14 @@ export class HoverColorPickerParticipant implements IEditorHoverParticipant<Colo
 	public handleHide(): void {
 		this._colorPicker?.dispose();
 		this._colorPicker = undefined;
+		this._colorPickerRange = undefined;
 	}
 
 	public isColorPickerVisible(): boolean {
 		return !!this._colorPicker;
+	}
+
+	public getColorPickerRange(): Range | undefined {
+		return this._colorPickerRange;
 	}
 }
