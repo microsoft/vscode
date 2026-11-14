@@ -16,8 +16,6 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/edi
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
-import { AgentsChatPartComposerFolders } from './agentsChatPartComposerFolders.js';
-import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
@@ -27,6 +25,7 @@ import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
+import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
 
 /** How a feature shows chats in the chat part of an editor window (see {@link IEditorWindowChatPartService.enable}). */
 export interface IEditorWindowChatPartOptions {
@@ -128,8 +127,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
 		// Its diffs, also of a Changes editor that the window restores
 		store.add(this._instantiationService.createInstance(ChangesMultiDiffSourceResolver));
-		// The picker of its changesets, in the header row it shows itself in an editor window
-		store.add(this._instantiationService.createInstance(AgentsChatPartChangesEditorHeader));
 
 		const visible = AgentsChatPartVisibleContext.bindTo(this._contextKeyService);
 		store.add(this._layoutService.onDidChangePartVisibility(({ partId }) => {
@@ -139,19 +136,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		}));
 		store.add(toDisposable(() => visible.reset()));
 
-		// Its composers also offer the other locations of the window's folder, such as its worktrees, once the chat part exists
-		store.add(autorun(reader => {
-			if (!this._frame.contentCreated.read(reader)) {
-				return;
-			}
-			const folders = reader.store.add(this._instantiationService.createInstance(AgentsChatPartComposerFolders));
-			reader.store.add(this._chatPart().setComposerFolderOptions(() => {
-				folders.refresh();
-				return { allowedFolders: folders.folders, getFolderPresentation: folderUri => folders.getPresentation(folderUri) };
-			}));
-			folders.refresh();
-		}));
-
 		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
 		// open in it
 		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
@@ -160,6 +144,9 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			hasComposer: () => !!existing()?.hasComposer(),
 			closeIdleComposers: async () => existing()?.closeIdleComposers(),
 		}));
+
+		// The picker of its changesets, in the header row it shows itself in an editor window
+		store.add(this._instantiationService.createInstance(AgentsChatPartChangesEditorHeader));
 
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.
