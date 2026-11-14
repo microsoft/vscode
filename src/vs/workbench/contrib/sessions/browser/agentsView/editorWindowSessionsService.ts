@@ -156,7 +156,10 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 				this._sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._presenter.isShowing(chatResource), session.loading.get());
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 				this._sessionOpenTelemetryService.sessionActivated(attempt, chatResource);
-				await waitForState(session.loading, loading => !loading, undefined, cts.token);
+				// Only while it loads: waitForState keeps its cancellation listener when the state holds already
+				if (session.loading.get()) {
+					await waitForState(session.loading, loading => !loading, undefined, cts.token);
+				}
 				this._sessionOpenTelemetryService.sessionLoaded(attempt);
 			});
 		} catch (error) {

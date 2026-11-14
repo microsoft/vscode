@@ -28,6 +28,8 @@ import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ISessionOpenTelemetryService } from '../../../browser/sessionOpenTelemetryService.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
 
 suite('EditorWindowSessionsRuntime', () => {
 
@@ -206,8 +208,8 @@ suite('EditorWindowSessionsService', () => {
 	test('a later open supersedes an earlier one that still resolves its session, so the user\'s latest pick shows', async () => {
 		const opened: string[] = [];
 		const resolvingA = new DeferredPromise<URI>();
-		const a = buildTestSession({ id: 'a', title: 'A' }).session;
-		const b = buildTestSession({ id: 'b', title: 'B' }).session;
+		const a: ISession = { ...buildTestSession({ id: 'a', title: 'A' }).session, loading: constObservable(false) };
+		const b: ISession = { ...buildTestSession({ id: 'b', title: 'B' }).session, loading: constObservable(false) };
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({}));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({}));
