@@ -178,18 +178,18 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		addButton.label = localize('addButton', "Add Folder");
 
 		this._register(addButton.onDidClick(async () => {
-			const uri = await this.fileDialogService.showOpenDialog({
+			const uris = await this.fileDialogService.showOpenDialog({
 				canSelectFiles: false,
 				canSelectFolders: true,
-				canSelectMany: false,
+				canSelectMany: true,
 				defaultUri: this.currentWorkspaceUri,
-				openLabel: localize('trustUri', "Trust Folder"),
-				title: localize('selectTrustedUri', "Select Folder To Trust")
+				openLabel: localize('trustUris', "Trust Folders"),
+				title: localize('selectTrustedUris', "Select Folders to Trust")
 			});
 
-			if (uri?.length) {
+			if (uris?.length) {
 				try {
-					await this.addTrustedUri(uri[0]);
+					await this.addTrustedUris(uris);
 				} catch (error) {
 					onUnexpectedError(error);
 				}
@@ -201,21 +201,35 @@ export class WorkspaceTrustedUrisTable extends Disposable {
 		}));
 	}
 
-	private async addTrustedUri(uri: URI): Promise<void> {
-		await this.workspaceTrustManagementService.setUrisTrust([uri], true);
+	private async addTrustedUris(uris: URI[]): Promise<void> {
+		// A single call trusts either all of the folders or, when one of them cannot be trusted, none of them.
+		await this.workspaceTrustManagementService.setUrisTrust(uris, true);
 		if (this._store.isDisposed) {
 			return;
 		}
 
-		// Resolve the folder's own stored (canonical) entry: after adding it, the longest trusted match is that
+		// Resolve each folder's own stored (canonical) entry: after adding it, the longest trusted match is that
 		// exact entry, even when canonicalization changed its path. Implicitly trusted (virtual or remote)
 		// folders resolve to themselves and have no row, so unrelated or parent rows are never selected.
-		const trustInfo = await this.workspaceTrustManagementService.getUriTrustInfo(uri);
-		if (this._store.isDisposed || !trustInfo.trusted) {
+		const trustInfos = await Promise.all(uris.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri)));
+		if (this._store.isDisposed) {
 			return;
 		}
 
-		this.selectTrustedUriEntry({ uri: trustInfo.uri, parentOfWorkspaceItem: false });
+		// The table is single-select: select the topmost of the folders' rows.
+		let topmostIndex = -1;
+		for (const trustInfo of trustInfos) {
+			if (trustInfo.trusted) {
+				const index = this.getIndexOfTrustedUriEntry({ uri: trustInfo.uri, parentOfWorkspaceItem: false });
+				if (index !== -1 && (topmostIndex === -1 || index < topmostIndex)) {
+					topmostIndex = index;
+				}
+			}
+		}
+
+		if (topmostIndex !== -1) {
+			this.selectTrustedUriEntry(this.table.row(topmostIndex));
+		}
 	}
 
 	private getIndexOfTrustedUriEntry(item: ITrustedUriItem): number {
