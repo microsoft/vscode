@@ -293,10 +293,10 @@ export function getAutomationEndDateError(endDate: string | undefined, initial: 
 		return undefined;
 	}
 	if (!isAutomationAfterDate(endDate)) {
-		return localize('automation.form.invalidEndDate', "Enter a valid end date and time.");
+		return localize('automation.form.invalidEndDate', "The saved end date is invalid. In Advanced Settings, change Disables after or select Never.");
 	}
 	return endDate !== initial && Date.parse(endDate) <= Date.now()
-		? localize('automation.form.futureEndDate', "The end date must be in the future.")
+		? localize('automation.form.futureEndDate', "The end date has passed. In Advanced Settings, change Disables after or select Never.")
 		: undefined;
 }
 
@@ -2004,7 +2004,7 @@ export function renderForm(
 	disposables.add(resizeObserver.observe(promptHost));
 
 	const durationRow = DOM.append(durationContent, $('.automation-form-row.automation-form-duration-row'));
-	const endDateError = DOM.append(formContent, $('span.automation-form-hint', {
+	const endDateError = DOM.append(formContent, $('span.automation-form-error', {
 		id: 'automation-end-date-error', role: 'status', 'aria-live': 'polite',
 	}));
 	const units: { value: 'never' | AutomationDurationUnit; label: string }[] = [
@@ -2037,11 +2037,18 @@ export function renderForm(
 	const decrease = disposables.add(new Action('automation.duration.decrease', localize('automation.form.duration.decrease', "Decrease Duration"), ThemeIcon.asClassName(Codicon.chevronDownCompact), amountInput.inputElement.valueAsNumber > 1, () => stepAmount(-1)));
 	const stepper = disposables.add(new ActionBar(amountInput.element, {
 		orientation: ActionsOrientation.VERTICAL,
+		focusOnlyEnabledItems: true,
 		ariaLabel: localize('automation.form.duration.controls', "Duration controls"),
 		// The dialog captures keyup, so activate these actions on keydown.
 		triggerKeys: { keyDown: true },
 	}));
 	stepper.push([increase, decrease], { icon: true, label: false });
+	disposables.add(decrease.onDidChange(event => {
+		if (event.enabled !== undefined) {
+			stepper.setFocusable(false);
+			stepper.setFocusable(true);
+		}
+	}));
 	DOM.setVisibility(unit !== 'never', amountInput.element);
 	const unitContainer = DOM.append(durationRow, $('.automation-form-duration-unit'));
 	const unitSelect = disposables.add(new SelectBox(

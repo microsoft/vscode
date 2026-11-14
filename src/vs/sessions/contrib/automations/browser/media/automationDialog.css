@@ -654,7 +654,8 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.automation-target-error {
+.automation-target-error,
+.automation-form-error {
 	color: var(--vscode-errorForeground);
 	font-size: var(--vscode-fontSize-body2);
 }
@@ -1008,7 +1009,8 @@
 	grid-column: span 2;
 }
 
-.automation-form-schedule-description {
+.automation-form-schedule-description,
+.automation-form-hint {
 	font-size: var(--vscode-fontSize-body2, 11px);
 	color: var(--vscode-descriptionForeground);
 	line-height: 1.4;

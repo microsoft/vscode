@@ -6129,7 +6129,7 @@ suite('AutomationsCardsWidget', () => {
 			eventControls: content.includes('Issue uses one Event. For Pull Request, activate the Event button to open a searchable checklist'),
 			preservation: content.includes('editing other fields keeps the saved triggers'),
 			eventColumn: content.includes('Event appears to the right of Trigger'),
-			advancedFilters: content.includes('Expand Advanced below them to configure optional filters'),
+			advancedFilters: content.includes('Expand Advanced Settings below them to configure optional filters'),
 			requiredFields: content.includes('Required event fields appear directly below the Trigger and Event row'),
 			requiredHover: content.includes('Create remains unavailable until they are completed, and its hover explains what is missing'),
 			sharedFilters: content.includes('it appears once and applies to each of those events'),

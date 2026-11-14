@@ -3481,7 +3481,7 @@ suite('Automation dialog layout', () => {
 				'automation-trigger-required-fields',
 				'automation-target-error automation-visually-hidden',
 				'automation-advanced',
-				'automation-form-hint',
+				'automation-form-error',
 				'automation-form-hint',
 			],
 			enabledCheckbox: null,
@@ -5300,6 +5300,74 @@ suite('Automation dialog end date', () => {
 		});
 	});
 
+	test('keeps enabled duration actions reachable after arrow navigation and enablement changes', async () => {
+		const { form, summary, amountInput, unitSelect, handle } = renderEndDateForm({ state: createFormState() });
+		disposables.add(registerAutomationDialogKeyboardNavigation(DOM.getWindow(form), handle.getFocusableElements, () => false));
+		summary.click();
+		unitSelect.selectedIndex = 1;
+		unitSelect.dispatchEvent(new (DOM.getWindow(form).Event)('change'));
+		const press = async (key: string, keyCode: number) => {
+			for (const type of ['keydown', 'keyup']) {
+				DOM.getWindow(form).document.activeElement?.dispatchEvent(new KeyboardEvent(type, { key, keyCode, bubbles: true, cancelable: true }));
+			}
+			await timeout(0);
+		};
+		const focus = () => DOM.getWindow(form).document.activeElement?.getAttribute('aria-label');
+		amountInput.focus();
+		await press('Tab', 9);
+		await press('ArrowDown', 40);
+		const skipsDisabled = focus();
+		await press('Tab', 9);
+		const nextField = focus();
+		const repeated = [];
+		for (let i = 0; i < 2; i++) {
+			amountInput.focus();
+			await press('Tab', 9);
+			await press('Enter', 13);
+			await press('Tab', 9);
+			await press('ArrowDown', 40);
+			const decreaseFocus = focus();
+			await press('Enter', 13);
+			const inputFocus = focus();
+			await press('Tab', 9);
+			repeated.push({
+				decreaseFocus, inputFocus, nextFocus: focus(), amount: amountInput.value,
+				tabStops: Array.from(form.querySelectorAll<HTMLElement>('.automation-form-duration-input .action-label'), element => element.tabIndex),
+			});
+		}
+		assert.deepStrictEqual({ skipsDisabled, nextField, repeated }, {
+			skipsDisabled: 'Increase Duration', nextField: 'Disables after: unit',
+			repeated: [0, 1].map(() => ({
+				decreaseFocus: 'Decrease Duration', inputFocus: 'Disables after: duration',
+				nextFocus: 'Increase Duration', amount: '1', tabStops: [0, -1],
+			})),
+		});
+	});
+
+	test('uses error styling for blocking validation and secondary styling for end-date hints', () => {
+		const date = '2000-01-21T17:00:00Z';
+		const { form, summary, amountInput } = renderEndDateForm({
+			state: createFormState({ enabled: true, endDate: date }), disableConditions: buildAutomationDisableConditions(date),
+		});
+		form.style.setProperty('--vscode-errorForeground', '#ff8080');
+		form.style.setProperty('--vscode-descriptionForeground', '#aaaaaa');
+		form.style.setProperty('--vscode-fontSize-body2', '11px');
+		summary.click();
+		const appearance = (selector: string) => {
+			const style = DOM.getWindow(form).getComputedStyle(form.querySelector<HTMLElement>(selector)!);
+			return { color: style.color, fontSize: style.fontSize };
+		};
+		const estimate = appearance('#automation-duration-hint');
+		const warning = appearance('#automation-conditions-warning');
+		amountInput.value = '0';
+		amountInput.dispatchEvent(new (DOM.getWindow(form).Event)('input'));
+		assert.deepStrictEqual({ estimate, warning, error: appearance('#automation-end-date-error') }, {
+			estimate: { color: 'rgb(170, 170, 170)', fontSize: '11px' },
+			warning: { color: 'rgb(170, 170, 170)', fontSize: '11px' },
+			error: { color: 'rgb(255, 128, 128)', fontSize: '11px' },
+		});
+	});
+
 	test('shows the estimated end date without seconds, preserving the stored timestamp', () => {
 		const date = '2099-01-21T17:24:37.123Z';
 		const { form, summary, amountInput, unitSelect, state } = renderEndDateForm({
@@ -5431,14 +5499,23 @@ suite('Automation dialog end date', () => {
 			getAutomationEndDateError(past, past),
 			getAutomationEndDateError(past, undefined),
 			getAutomationEndDateError('', undefined),
-		], [undefined, undefined, undefined, 'The end date must be in the future.', 'Enter a valid end date and time.']);
+		], [undefined, undefined, undefined,
+			'The end date has passed. In Advanced Settings, change Disables after or select Never.',
+			'The saved end date is invalid. In Advanced Settings, change Disables after or select Never.']);
 	});
 
-	test('rejects an expired creation default rather than treating it as a saved date', () => {
-		const { validation } = renderEndDateForm({
+	test('guides recovery from an expired creation default while Advanced Settings is collapsed', () => {
+		const { form, summary, unitSelect, validation } = renderEndDateForm({
 			state: createFormState({ endDate: '2000-01-01T00:00:00Z' }),
 		});
-		assert.strictEqual(validation.endDateError, 'The end date must be in the future.');
+		const blocked = { message: validation.endDateError, expanded: summary.getAttribute('aria-expanded') };
+		summary.click();
+		unitSelect.selectedIndex = 0;
+		unitSelect.dispatchEvent(new (DOM.getWindow(form).Event)('change'));
+		assert.deepStrictEqual({ blocked, cleared: validation.endDateError, errorText: form.querySelector('#automation-end-date-error')?.textContent }, {
+			blocked: { message: 'The end date has passed. In Advanced Settings, change Disables after or select Never.', expanded: 'false' },
+			cleared: undefined, errorText: '',
+		});
 	});
 
 	for (const enabled of [false, true]) {
