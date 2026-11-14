@@ -259,7 +259,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.layoutService.onDidChangePanelAlignment(alignment => this.panelAlignmentContext.set(alignment)));
 
-		this.layoutService.whenRestored.then(() => this.chatPartEnabledContext.set(this.layoutService.hasChatPart()));
+		// The layout reads whether the chat part shows from its stored state while it is created, which fires no visibility event
+		this.layoutService.whenRestored.then(() => {
+			this.chatPartEnabledContext.set(this.layoutService.hasChatPart());
+			this.chatPartVisibleContext.set(this.layoutService.isVisible(Parts.CHAT_PART));
+			this.editorAreaHiddenByChatContext.set(this.layoutService.isEditorHiddenByChat());
+		});
 
 		this._register(this.layoutService.onDidChangePartVisibility(() => {
 			this.chatPartEnabledContext.set(this.layoutService.hasChatPart());
