@@ -193,6 +193,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		source,
 		telemetryProperties,
 		modelCapabilities,
+		modelConfiguration,
 		conversationId,
 	}: IMakeChatRequestOptions, token: CancellationToken): Promise<ChatResponse> {
 		const vscodeMessages = convertToApiChatMessage(messages, {
@@ -211,6 +212,7 @@ export class ExtensionContributedChatEndpoint implements IChatEndpoint {
 		const telemetryTurn = getTelemetryTurnFromProperties(telemetryProperties);
 
 		const vscodeOptions: vscode.LanguageModelChatRequestOptions = {
+			configuration: modelConfiguration,
 			includeEncryptedThinking: true,
 			tools: ((requestOptions?.tools ?? []) as OpenAiFunctionTool[]).map(tool => ({
 				name: tool.function.name,

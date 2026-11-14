@@ -233,6 +233,30 @@ suite('ChatAgentRequest', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('model configuration is an immutable snapshot for each conversation request', function () {
+		const request: IChatAgentRequest = {
+			sessionResource: URI.parse('chat-session:/first'),
+			requestId: 'first-request',
+			agentId: 'agentId',
+			message: '',
+			variables: { variables: [] },
+			location: ChatAgentLocation.Chat,
+		};
+		const configuration = { reasoningEffort: 'high', contextSize: 500_000, nested: { enabled: true } };
+		const first = ChatAgentRequest.to(request, undefined, {} as vscode.LanguageModelChat, configuration, [], new Map(), nullExtensionDescription, new NullLogService());
+		configuration.reasoningEffort = 'medium';
+		configuration.contextSize = 1_033_616;
+		configuration.nested.enabled = false;
+		const second = ChatAgentRequest.to({ ...request, sessionResource: URI.parse('chat-session:/second'), requestId: 'second-request' }, undefined, {} as vscode.LanguageModelChat, configuration, [], new Map(), nullExtensionDescription, new NullLogService());
+
+		assert.deepStrictEqual(first.modelConfiguration, { reasoningEffort: 'high', contextSize: 500_000, nested: { enabled: true } });
+		assert.deepStrictEqual(second.modelConfiguration, { reasoningEffort: 'medium', contextSize: 1_033_616, nested: { enabled: false } });
+		assert.ok(Object.isFrozen(first.modelConfiguration));
+		assert.ok(Object.isFrozen(first.modelConfiguration?.nested));
+		assert.ok(Object.isFrozen(second.modelConfiguration));
+		assert.strictEqual(Object.isFrozen(configuration), false);
+	});
+
 	test('tool invocation token identifies the request it was issued for', function () {
 		const request: IChatAgentRequest = {
 			sessionResource: URI.parse('chat-session:/test'),
