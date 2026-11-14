@@ -901,9 +901,8 @@ export async function synthesizeByokSessionConfig(
 	startProxy: () => Promise<IByokLmProxyHandle>,
 	logService: ILogService,
 ): Promise<ICopilotByokSessionConfig> {
-	// Surface the serving window's BYOK models. The registry does not union
-	// windows' model sets — all serving windows expose the same set, so it picks
-	// one (see `IByokLmBridgeRegistry`) and the proxy routes inference there.
+	// The shared catalogue comes from one serving window; inference is routed
+	// separately to the client that initiated the active turn when known.
 	let byokModels: IByokLmModelInfo[];
 	try {
 		byokModels = [...bridgeRegistry.getModels()];

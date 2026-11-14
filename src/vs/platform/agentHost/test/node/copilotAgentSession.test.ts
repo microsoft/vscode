@@ -3687,6 +3687,35 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	test('exposes the active turn sender and clears it on completion', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('turn-1', 'client-a');
+		const first = session.currentTurnClientId;
+		session.resetTurnState('turn-2', 'client-b');
+		const second = session.currentTurnClientId;
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		assert.deepStrictEqual([first, second, session.currentTurnClientId], ['client-a', 'client-b', undefined]);
+	});
+
+	test('keeps the initiating client for an active background subagent after the root turn completes', async () => {
+		const { session, mockSession } = await createAgentSession(disposables);
+		session.resetTurnState('turn-1', 'client-a');
+		mockSession.fire('subagent.started', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+			agentDescription: 'Explore tests',
+		} as SessionEventPayload<'subagent.started'>['data'], { agentId: 'agent-1' });
+		mockSession.fire('session.idle', {} as SessionEventPayload<'session.idle'>['data']);
+		const whileChildActive = session.currentTurnClientId;
+		mockSession.fire('subagent.completed', {
+			toolCallId: 'tc-subagent',
+			agentName: 'explore',
+			agentDisplayName: 'Explore',
+		} as SessionEventPayload<'subagent.completed'>['data'], { agentId: 'agent-1' });
+		assert.deepStrictEqual([whileChildActive, session.currentTurnClientId], ['client-a', undefined]);
+	});
+
 	test('settles idle waiters on turn completion and disposal, including already-idle or disposed sessions', async () => {
 		const { session, mockSession } = await createAgentSession(disposables);
 		const idle = session.waitForIdle();

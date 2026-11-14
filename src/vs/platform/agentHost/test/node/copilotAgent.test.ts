@@ -166,7 +166,7 @@ import { createNullSessionDataService, createSessionDataService, TestSessionData
 import { IMPORTED_TOOL_CALLS_DB_KEY, IMPORTED_TURN_DURATIONS_DB_KEY } from '../../node/copilot/buildSessionEvents.js';
 import { ActiveClientToolSet } from '../../node/activeClientState.js';
 import { ByokLmBridgeRegistry, IByokLmBridgeRegistry } from '../../node/byokLmBridgeRegistry.js';
-import { IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
+import { ByokLmProxyService, IByokLmProxyService, NullByokLmProxyService, type IByokLmToolsCappedEvent } from '../../node/copilot/byokLmProxyService.js';
 import { ILocalModelSetupService, NullLocalModelSetupService } from '../../node/copilot/localModelBridge/localModelSetupService.js';
 import { COMPUTER_USE_PLUGIN_RELEASE, ComputerUsePluginInstallError, type CopilotComputerUsePlugin } from '../../node/copilot/copilotComputerUsePlugin.js';
 import type { ILocalModelProvider, LocalModelProviderSelection } from '../../node/copilot/localModelBridge/localModelProvider.js';
@@ -18181,11 +18181,58 @@ suite('CopilotAgent', () => {
 		}
 	});
 
+	test('resolves the initiating client from the matching live SDK session', async () => {
+		let resolveClient: ((sessionId: string) => string | undefined) | undefined;
+		class TestProxyService extends NullByokLmProxyService {
+			override registerClientResolver(resolver: (sessionId: string) => string | undefined): IDisposable {
+				resolveClient = resolver;
+				return toDisposable(() => { resolveClient = undefined; });
+			}
+		}
+		const { agent } = createTestAgentContext(disposables, { byokProxyService: new TestProxyService() });
+		setLiveChatStub(agent, 'sdk-a', { currentTurnClientId: 'client-a' });
+		setLiveChatStub(agent, 'sdk-b', { currentTurnClientId: 'client-b' });
+		assert.deepStrictEqual([resolveClient?.('sdk-a'), resolveClient?.('sdk-b'), resolveClient?.('missing')], ['client-a', 'client-b', undefined]);
+		await disposeAgent(agent);
+		assert.strictEqual(resolveClient, undefined);
+	});
+
+	test('routes model requests using the live turn sender across windows', async () => {
+		const registry = new ByokLmBridgeRegistry();
+		const calls: string[] = [];
+		for (const client of ['client-a', 'client-b']) {
+			const models = disposables.add(new Emitter<IByokLmModelInfo[]>({ onDidAddFirstListener: () => models.fire([]) }));
+			disposables.add(registry.register(client, {
+				onDidChangeModels: models.event,
+				chat: async () => { calls.push(client); return { output: [] }; },
+			}));
+		}
+		const proxy = disposables.add(new ByokLmProxyService(new NullLogService(), registry));
+		const sessionDataService = disposables.add(new TestSessionDataService());
+		const { agent, instantiationService } = createTestAgentContext(disposables, { byokBridgeRegistry: registry, byokProxyService: proxy, sessionDataService });
+		const session = disposables.add(createAgentSessionThroughAgent(agent, instantiationService).session);
+		setLiveChatStub(agent, session.sessionId, session);
+		afterTest(() => disposeAgent(agent));
+		const handle = disposables.add(await proxy.start());
+		for (const client of ['client-b', 'client-a']) {
+			session.resetTurnState(`turn-${client}`, client);
+			const response = await fetch(`${handle.providerBaseUrl('acme')}/responses`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${handle.nonce}.${session.sessionId}` },
+				body: JSON.stringify({ model: 'm', input: [] }),
+			});
+			assert.strictEqual(response.status, 200);
+			await response.text();
+		}
+		assert.deepStrictEqual(calls, ['client-b', 'client-a']);
+	});
+
 	test('routes BYOK tool-cap warnings to the session that sent the request', async () => {
 		const onDidCapTools = disposables.add(new Emitter<IByokLmToolsCappedEvent>());
 		const byokLmProxyService: IByokLmProxyService = {
 			_serviceBrand: undefined,
 			onDidCapTools: onDidCapTools.event,
+			registerClientResolver: () => Disposable.None,
 			start: () => Promise.reject(new Error('unused')),
 			dispose: () => { },
 		};
@@ -18270,8 +18317,10 @@ suite('CopilotAgent', () => {
 		const byokProxyService: IByokLmProxyService = {
 			_serviceBrand: undefined,
 			onDidCapTools: Event.None,
+			registerClientResolver: () => Disposable.None,
 			start: async () => ({ baseUrl: 'http://127.0.0.1:1', nonce: 'NONCE', providerBaseUrl: vendor => `http://127.0.0.1:1/v/${vendor}`, dispose: () => { } }),
-		} as IByokLmProxyService;
+			dispose: () => { },
+		};
 		const agent = createTestAgent(disposables, { copilotClient: client, useRealResumePath: true, sessionDataService, byokBridgeRegistry, byokProxyService });
 		chatBackings(agent).set(chat.toString(), { sdkSessionId: sessionId, model: { id: byokModelId } });
 		chatScopes(agent).set(chat.toString(), session);

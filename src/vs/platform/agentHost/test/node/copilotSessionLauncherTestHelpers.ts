@@ -80,7 +80,7 @@ export function createTestLauncher(managedSettingsPermissions?: IAgentHostManage
 		upcastPartial<IAgentHostTerminalManager>({}),
 		logService,
 		fileService,
-		{ _serviceBrand: undefined, onDidCapTools: Event.None, start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
+		{ _serviceBrand: undefined, onDidCapTools: Event.None, registerClientResolver: () => ({ dispose: () => { } }), start: async () => { throw new Error('Unexpected proxy start'); }, dispose: () => { } },
 		new ByokLmBridgeRegistry(),
 		upcastPartial<IAgentHostOTelService>({
 			_serviceBrand: undefined,
