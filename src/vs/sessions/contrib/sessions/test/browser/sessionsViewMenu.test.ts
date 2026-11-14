@@ -1086,10 +1086,9 @@ suite('Sessions - View Menu', () => {
 			const calls: string[] = [];
 			const view = (name: string) => upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push(`${name}.showApplicationFilters`) });
 			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
-				getViewWithId: () => registered ? view('registered') as never : null,
 				openView: async (id: string) => {
 					calls.push(`open ${id}`);
-					return view('registered') as never;
+					return registered ? view('registered') as never : null;
 				},
 			}));
 			instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => embedded ? view('embedded') : undefined }));
@@ -1103,8 +1102,8 @@ suite('Sessions - View Menu', () => {
 			neither: await run(false, false),
 		}, {
 			registeredAndEmbedded: ['open sessions.workbench.view.sessionsView', 'registered.showApplicationFilters'],
-			embeddedOnly: ['embedded.showApplicationFilters'],
-			neither: ['open sessions.workbench.view.sessionsView', 'registered.showApplicationFilters'],
+			embeddedOnly: ['open sessions.workbench.view.sessionsView', 'embedded.showApplicationFilters'],
+			neither: ['open sessions.workbench.view.sessionsView'],
 		});
 	});
 

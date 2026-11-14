@@ -139,6 +139,14 @@ export function getSessionsViewResolver(accessor: ServicesAccessor): () => Sessi
 	return () => viewsService.getViewWithId<SessionsView>(SessionsViewId) ?? locator?.getEmbeddedView();
 }
 
+/**
+ * The Sessions view to act on: the view registered with its id, opened as a view is so that it shows, else the view that a host
+ * embeds. A registered view whose container is not created yet is not instantiated, so only opening it tells it from none.
+ */
+export async function openSessionsView(viewsService: IViewsService, locator: ISessionsViewLocator | undefined): Promise<SessionsView | undefined> {
+	return await viewsService.openView<SessionsView>(SessionsViewId) ?? locator?.getEmbeddedView();
+}
+
 export function getActiveSessionsView(accessor: ServicesAccessor): SessionsView | undefined {
 	return getSessionsViewResolver(accessor)();
 }
