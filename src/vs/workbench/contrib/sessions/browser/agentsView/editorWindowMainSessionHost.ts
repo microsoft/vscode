@@ -26,11 +26,13 @@ export class EditorWindowMainSessionHost extends SessionHost {
 
 	private readonly _shown: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
 	private readonly _draft: ISettableObservable<IObservable<ISession | undefined> | undefined>;
+	private readonly _override: ISettableObservable<IObservable<IEditorWindowShownChat | undefined> | undefined>;
 
 	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
 		const source = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChat', undefined);
 		const draftSource = observableValue<IObservable<ISession | undefined> | undefined>('editorWindowDraft', undefined);
-		const shown = derived(reader => source.read(reader)?.read(reader));
+		const override = observableValue<IObservable<IEditorWindowShownChat | undefined> | undefined>('editorWindowShownChatOverride', undefined);
+		const shown = derived(reader => (override.read(reader) ?? source.read(reader))?.read(reader));
 		super({
 			kind: SessionHostKind.MainWindow,
 			parent: undefined,
@@ -42,6 +44,20 @@ export class EditorWindowMainSessionHost extends SessionHost {
 		});
 		this._shown = source;
 		this._draft = draftSource;
+		this._override = override;
+	}
+
+	/**
+	 * Shows the chat `shown` names in place of the one bound with {@link bindShownChat}, until the returned disposable is
+	 * disposed: such as the chat of the Chat view while the chats open there, and not in the chat part.
+	 */
+	overrideShownChat(shown: IObservable<IEditorWindowShownChat | undefined>): IDisposable {
+		this._override.set(shown, undefined);
+		return toDisposable(() => {
+			if (this._override.get() === shown) {
+				this._override.set(undefined, undefined);
+			}
+		});
 	}
 
 	/**

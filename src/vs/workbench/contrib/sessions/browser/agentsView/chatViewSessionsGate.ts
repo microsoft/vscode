@@ -13,12 +13,18 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { Menus } from '../menus.js';
-import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ISessionsManagementService } from '../../common/sessionsManagement.js';
+import { ShownChatReadMarker } from '../shownChatReadMarker.js';
+import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -64,16 +70,17 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			return;
 		}
 
-		// No local chats by default, which the list does not show
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
-		this._register(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
-
 		instantiationService.invokeFunction(accessor => {
 			// Not in remote windows, whose Chat view stays as it is
 			if (accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				return;
 			}
+
+			// No local chats by default, which the list does not show
+			const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+			configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
+			this._register(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
+
 			// The settings and the actions of the shared sessions list, once the Chat view, which shows it, or the chat part first shows
 			this._register(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
 
@@ -101,7 +108,48 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			this.registerChatPartHost(instantiationService, chatViewHostService, openInChatPart);
 			this._register(registerSessionsSidebarToggle());
 			this.hideMaximizeWhileInChatPart(accessor.get(IContextKeyService), openInChatPart);
+			this.showChatViewChat(accessor, openInChatPart);
 		});
+	}
+
+	/**
+	 * While the chats open in the Chat view, the chat it shows is the chat of the window, as the active tab's chat of the chat
+	 * part is otherwise: what the editors of the window show of a session, such as the Changes editor, and the active session
+	 * of the sessions list, are of it. It is marked read while the Chat view shows it.
+	 */
+	private showChatViewChat(accessor: ServicesAccessor, openInChatPart: IObservable<boolean>): void {
+		const sessionHost = accessor.get(ISessionHost);
+		if (!(sessionHost instanceof EditorWindowMainSessionHost)) {
+			return;
+		}
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const chatViewHostService = accessor.get(IChatViewHostService);
+		const viewsService = accessor.get(IViewsService);
+		const sessionsChanged = observableSignalFromEvent(this, sessionsManagementService.onDidChangeSessions);
+		const shown = derived(this, reader => {
+			const shownSession = chatViewHostService.shownSession.read(reader);
+			if (!shownSession) {
+				return undefined;
+			}
+			sessionsChanged.read(reader);
+			return sessionsManagementService.getSessionForChatResource(shownSession.resource);
+		});
+		this._register(autorun(reader => {
+			if (!openInChatPart.read(reader)) {
+				reader.store.add(sessionHost.overrideShownChat(shown));
+			}
+		}));
+
+		const chatViewVisible = observableFromEvent(this, Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === ChatViewId), () => viewsService.isViewVisible(ChatViewId));
+		const readMarker = new ShownChatReadMarker(sessionsManagementService, accessor.get(IUriIdentityService).extUri);
+		this._register(autorun(reader => {
+			const visible = !openInChatPart.read(reader) && chatViewVisible.read(reader) ? shown.read(reader) : undefined;
+			if (visible) {
+				readMarker.update(visible.session, visible.chat, reader);
+			} else {
+				readMarker.reset();
+			}
+		}));
 	}
 
 	/**
