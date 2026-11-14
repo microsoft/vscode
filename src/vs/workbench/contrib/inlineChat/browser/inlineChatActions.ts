@@ -124,10 +124,11 @@ MenuRegistry.appendMenuItem(MenuId.InlineChatEditorAffordance, {
 	order: 1,
 	when: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasNonEmptySelection, ContextKeyExpr.or(CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT.negate(), CTX_ASK_IN_CHAT_ENABLED.negate()), ChatEntitlementContextKeys.Setup.hidden.negate()),
 	command: {
-		id: ACTION_START,
-		title: localize('editCode', "Ask for Edits"),
-		shortTitle: localize('editCodeShort', "Ask for Edits"),
-		icon: Codicon.sparkle,
+		// Prototype: reuse the real selection lightbulb affordance with share-focused copy.
+		id: 'workbench.action.showShareCodeTip',
+		title: localize('editCode', "Show me how to share this code"),
+		shortTitle: localize('editCodeShort', "Show me how to share this code"),
+		icon: Codicon.lightbulb,
 	}
 });
 
