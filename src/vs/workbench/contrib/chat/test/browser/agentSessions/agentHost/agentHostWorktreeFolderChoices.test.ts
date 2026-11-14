@@ -40,6 +40,8 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		/** Changing the session's folder resets its configuration until it applies a change, as the provisional service does. */
 		let configReset = false;
 		let noWorkspace = false;
+		/** The working directory of each configuration change, `none` without one. */
+		const configDirectories: string[] = [];
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: options.enabled, 'chat.viewSessions.sessionsList.enabled': options.sessionsList ?? false }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
@@ -65,8 +67,9 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			onDidChange: Event.None,
 			getResolvedConfig: () => configReset ? undefined : ({ schema: { type: 'object', properties: { isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] } } }, values: config.values }),
 			getPreparedSessionConfig: () => undefined,
-			applyConfigChange: async (_resource: URI, _provider: string, _workingDirectory: URI | undefined, partial: Record<string, unknown>) => {
+			applyConfigChange: async (_resource: URI, _provider: string, workingDirectory: URI | undefined, partial: Record<string, unknown>) => {
 				changes.push(`isolation ${partial.isolation}`);
+				configDirectories.push(workingDirectory?.path ?? 'none');
 				config.values = { ...config.values, ...partial };
 				configReset = false;
 				return session;
@@ -78,7 +81,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		const actions = (selected: URI) => choices.getActions(upcastPartial<MenuItemAction>({}), selected, () => { });
 		const items = (selected: URI) => actions(selected).map(action => `${action.category?.label ? `[${action.category.label}] ` : ''}${action.label}${action.description ? ` (${action.description})` : ''}${action.checked ? ' *' : ''}`);
-		return { choices, actions, items, changes, listed, onDidChangeSessions };
+		return { choices, actions, items, changes, configDirectories, listed, onDidChangeSessions };
 	}
 
 	test('offers New Worktree first, then the folder and its worktrees, each section with where the folder is now first', async () => {
@@ -137,7 +140,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		assert.deepStrictEqual({ withoutSessionsList: withoutSessionsList.items(primary), noWorkspace, folderAgain: { items: items(primary), chip: chip() }, changes }, {
 			withoutSessionsList: ['New Worktree', '[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other'],
 			noWorkspace: {
-				// Without a folder, it has no worktree isolation until a folder's configuration resolves
+				// Without a folder, no new worktree of it
 				items: ['[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other', 'No Workspace *'],
 				chip: { icon: 'comment', label: 'No Workspace', description: 'No workspace: start the session in a temporary directory' },
 				icon: 'comment',
@@ -145,7 +148,23 @@ suite('AgentHostWorktreeFolderChoices', () => {
 			},
 			folderAgain: { items: ['[Folder] vscode (Current) *', '[Worktrees] feature', '[Worktrees] other', 'No Workspace'], chip: { icon: 'folder', label: 'vscode', description: 'Folder: vscode' } },
 			// No longer in a new worktree of the folder it no longer has
-			changes: ['isolation worktree', 'isolation folder', 'no workspace', 'folder /work/vscode'],
+			changes: ['isolation worktree', 'no workspace', 'isolation folder', 'folder /work/vscode'],
+		});
+	});
+
+	test('No Workspace from New Worktree applies at once, without a folder, so a send right after it starts the session without one', async () => {
+		const { choices, actions, changes, configDirectories } = await createChoices({ enabled: true, at: primary, sessionsList: true });
+		await actions(primary).find(action => action.label === 'New Worktree')!.run();
+		// Not awaited, as the picker does not: a send can follow before anything it starts settles
+		const picked = actions(primary).find(action => action.label === 'No Workspace')!.run();
+		const atOnce = { noWorkspace: choices.isNoWorkspaceSelected(), changes: [...changes], configDirectories: [...configDirectories] };
+		await picked;
+		await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+		assert.deepStrictEqual({ atOnce, settled: { changes, configDirectories } }, {
+			atOnce: { noWorkspace: true, changes: ['isolation worktree', 'no workspace', 'isolation folder'], configDirectories: ['/work/vscode', 'none'] },
+			// Nothing more once it settles, such as on a draft closed meanwhile
+			settled: { changes: ['isolation worktree', 'no workspace', 'isolation folder'], configDirectories: ['/work/vscode', 'none'] },
 		});
 	});
 
