@@ -77,6 +77,9 @@ await Promise.all([
 		outdir: path.join(rootDir, 'notebook-out'),
 		additionalOptions: {
 			...mermaidMarkdownBuildOptions,
+			// Notebook webviews can have a global AMD `define` (Jupyter loads RequireJS), and bundled
+			// UMD modules must not register with it: an anonymous `define` breaks the next `require`.
+			define: { define: 'undefined' },
 		},
 	}, process.argv),
 	// Markdown editor code blocks
