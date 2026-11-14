@@ -8872,7 +8872,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
-	test('offers No Workspace as Chat before the window\'s folders, also beside its one folder, and names the current choice', () => {
+	test('offers No Workspace by that name before the window\'s folders, also beside its one folder, and names the current choice by what it is', () => {
 		const noWorkspace = { selected: false };
 		const { picker, allowedFolders, snapshot } = createPicker(['/local/vscode'], noWorkspace);
 		picker.setSelectedWorkspace(URI.file('/local/vscode'), { fireEvent: false });
@@ -8882,14 +8882,18 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const trigger = slot.querySelector<HTMLElement>('[role="button"]')!;
 		const triggerState = () => ({ hidden: slot.hidden, readOnly: trigger.getAttribute('aria-disabled'), popup: trigger.getAttribute('aria-haspopup'), ariaLabel: trigger.getAttribute('aria-label') });
 		const oneFolder = { items: snapshot().items, trigger: triggerState() };
-		picker.getItems().find(item => item.label === 'Chat')!.item!.run!();
-		const oneFolderChat = triggerState();
+		picker.getItems().find(item => item.label === 'No Workspace')!.item!.run!();
+		const oneFolderNoWorkspace = { trigger: triggerState(), label: trigger.querySelector('.sessions-chat-dropdown-label')?.textContent, hover: picker.getSelectedLocationDescription() };
 		allowedFolders.set([URI.file('/local/vscode'), URI.file('/local/tools')], undefined);
 
-		assert.deepStrictEqual({ oneFolder, oneFolderChat, multiRoot: snapshot().items }, {
-			oneFolder: { items: ['Chat', '', '/local/vscode'], trigger: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
-			oneFolderChat: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'Workspace: Chat' },
-			multiRoot: ['Chat', '', '/local/vscode', '/local/tools'],
+		assert.deepStrictEqual({ oneFolder, oneFolderNoWorkspace, multiRoot: snapshot().items }, {
+			oneFolder: { items: ['No Workspace', '', '/local/vscode'], trigger: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'Workspace: local/vscode' } },
+			oneFolderNoWorkspace: {
+				trigger: { hidden: false, readOnly: null, popup: 'listbox', ariaLabel: 'No workspace: start the session in a temporary directory' },
+				label: 'No Workspace',
+				hover: 'No workspace: start the session in a temporary directory',
+			},
+			multiRoot: ['No Workspace', '', '/local/vscode', '/local/tools'],
 		});
 	});
 
@@ -8942,10 +8946,10 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const atFolder = items();
 
 		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder }, {
-			atWorktree: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
+			atWorktree: ['No Workspace', '---', 'New Worktree', '--- Folder', 'local/vscode', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
 			// Screen readers hear where the window's folder is now, apart from the checked choice
 			ariaLabels: [null, 'b, Current', null],
-			atFolder: ['Chat', '---', 'New Worktree', '--- Folder', 'local/vscode (Current) *', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
+			atFolder: ['No Workspace', '---', 'New Worktree', '--- Folder', 'local/vscode (Current) *', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
 		});
 	});
 
