@@ -11,7 +11,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
@@ -80,6 +80,13 @@ suite('AgentsViewGate', () => {
 	let hiddenParts: Parts[];
 	let chatPartAnchors: (string | undefined)[];
 	let contextKeyService: MockContextKeyService;
+	let configurationService: TestConfigurationService;
+
+	/** Turns the setting on or off, as the user does, without a reload. */
+	function setEnabled(enabled: boolean): void {
+		configurationService.setUserConfiguration(ChatConfiguration.SessionsViewEnabled, enabled);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.SessionsViewEnabled]), affectsConfiguration: (key: string) => key === ChatConfiguration.SessionsViewEnabled }));
+	}
 
 	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }): AgentsViewGate {
 		createdChatParts = 0;
@@ -87,7 +94,8 @@ suite('AgentsViewGate', () => {
 		hiddenParts = [];
 		chatPartAnchors = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.SessionsViewEnabled]: enabled }));
+		configurationService = new TestConfigurationService({ [ChatConfiguration.SessionsViewEnabled]: enabled });
+		instantiationService.stub(IConfigurationService, configurationService);
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
@@ -192,6 +200,36 @@ suite('AgentsViewGate', () => {
 		gate.dispose();
 
 		assert.deepStrictEqual({ afterShown, afterDispose: sessionItemMenuItems() - before }, { afterShown: true, afterDispose: 0 });
+	});
+
+	test('applies the setting as it changes, without a reload: turned on, it shows the Sessions view and the chat part in place of the Chat view; turned off, all of it goes and the Chat view shows again', () => {
+		const before = sessionItemMenuItems();
+		const state = () => ({
+			...Object.fromEntries(Object.entries(registered()).map(([key, value]) => [key, !!value])),
+			agentsViewActive: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key) ?? false,
+			hosts,
+			chatPartAnchor: chatPartAnchors.at(-1),
+			listActions: sessionItemMenuItems() > before,
+		});
+		createGate(false);
+		const off = state();
+		setEnabled(true);
+		showSessionsView();
+		const on = state();
+		setEnabled(false);
+		const turnedOff = state();
+		setEnabled(true);
+		const onAgain = state();
+
+		const shown = { container: true, view: true, agentsViewActive: true, hosts: 1, chatPartAnchor: SessionsViewId };
+		const gone = { container: false, view: false, agentsViewActive: false, hosts: 0, listActions: false };
+		assert.deepStrictEqual({ off, on, turnedOff, onAgain }, {
+			off: { ...gone, chatPartAnchor: undefined },
+			on: { ...shown, listActions: true },
+			turnedOff: { ...gone, chatPartAnchor: undefined },
+			// Its actions again only once the Sessions view or the chat part shows again
+			onAgain: { ...shown, listActions: false },
+		});
 	});
 
 	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {
