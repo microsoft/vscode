@@ -861,15 +861,20 @@ suite('TabbedModelPicker', () => {
 			anchor.style.width = '38px';
 			picker.show(anchor, context);
 			const reopened = bounds();
+			// The view lines up with the anchor at the device pixels its edges are painted at, so compare painted edges
+			const dpr = dom.getWindow(popup).devicePixelRatio;
+			const painted = (value: number) => Math.round(value * dpr);
+			const isBesideAnchor = (rect: DOMRect) => painted(rect.bottom) <= painted(anchor.getBoundingClientRect().top) || painted(rect.top) >= painted(anchor.getBoundingClientRect().bottom);
+			const isAligned = (rect: DOMRect) => painted(rect.left) === painted(anchor.getBoundingClientRect().left);
 			assert.deepStrictEqual({
-				initiallyBesideAnchor: first.bottom <= anchor.getBoundingClientRect().top || first.top >= anchor.getBoundingClientRect().bottom,
-				initiallyAligned: first.left === anchor.getBoundingClientRect().left,
+				initiallyBesideAnchor: isBesideAnchor(first),
+				initiallyAligned: isAligned(first),
 				sameListViewport: firstRows === initialRows,
 				withinViewportCap: firstRows <= Math.floor(dom.getWindow(popup).innerHeight * 0.6),
 				stableHeight: reopened.height === first.height,
 				stableRows: listHeight() === firstRows,
-				aligned: reopened.left === anchor.getBoundingClientRect().left,
-				besideAnchor: reopened.bottom <= anchor.getBoundingClientRect().top || reopened.top >= anchor.getBoundingClientRect().bottom,
+				aligned: isAligned(reopened),
+				besideAnchor: isBesideAnchor(reopened),
 				fitsWindow: reopened.top >= 0 && reopened.bottom <= dom.getWindow(popup).innerHeight,
 			}, { initiallyBesideAnchor: true, initiallyAligned: true, sameListViewport: true, withinViewportCap: true, stableHeight: true, stableRows: true, aligned: true, besideAnchor: true, fitsWindow: true });
 		});
@@ -905,9 +910,12 @@ suite('TabbedModelPicker', () => {
 		const bounds = element(popup, '.chat-model-picker-widget').getBoundingClientRect();
 		const trigger = anchor.getBoundingClientRect();
 		assert.ok(bounds.height > 300, `Expected a constrained list, got ${bounds.height}`);
+		// The view lines up with the trigger at the device pixels its edges are painted at
+		const dpr = dom.getWindow(popup).devicePixelRatio;
+		const painted = (value: number) => Math.round(value * dpr);
 		assert.deepStrictEqual({
-			aligned: bounds.left === trigger.left,
-			above: bounds.bottom <= trigger.top,
+			aligned: painted(bounds.left) === painted(trigger.left),
+			above: painted(bounds.bottom) <= painted(trigger.top),
 			fits: bounds.top >= 0,
 		}, { aligned: true, above: true, fits: true });
 	});

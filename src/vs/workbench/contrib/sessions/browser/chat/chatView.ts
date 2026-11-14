@@ -1718,6 +1718,10 @@ export class ChatViewFactory implements IChatViewFactory {
 		return this.viewOptions.inputEditorOptions;
 	}
 
+	get newSessionInput(): IChatViewOptions['newSessionInput'] {
+		return this.viewOptions.newSessionInput;
+	}
+
 	createNewChatView(isNewChatInSession: boolean, options: IChatViewOptions, instantiationService: IInstantiationService): AbstractChatView {
 		return instantiationService.createInstance(NewChatView, isNewChatInSession, { ...this.viewOptions, ...options });
 	}

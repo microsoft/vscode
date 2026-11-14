@@ -25,7 +25,6 @@ import { IChatExternalEdit } from '../../../../../workbench/contrib/chat/common/
 import { ScreenshotContextValuePick } from '../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
 import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatWindowProvider } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
-import { ScreenshotToolSurface } from '../../../../../workbench/contrib/screenshotTool/browser/screenshotTool.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AbstractChatView, IChatViewOptions } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IMobileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from '../../../../browser/parts/mobile/contributions/mobileDiffView.js';
@@ -35,16 +34,12 @@ import { createListHarness, createTestSession } from '../../../sessions/test/bro
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { DefaultChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chat/defaultChatViewFactory.js';
 import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
-import { IWorktreeSuggestion } from '../../../../../workbench/contrib/sessions/browser/worktreeSuggestion/worktreeSuggestionService.js';
-import { WorktreeSuggestionVariant } from '../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import { ISessionsChatBackgroundService } from '../../../../../workbench/contrib/sessions/browser/chatBackgroundService.js';
 import { SessionsGridContent } from '../../../../../workbench/contrib/sessions/browser/parts/sessionsGridContent.js';
 import { ISessionsPartContentHost } from '../../../../../workbench/browser/parts/sessions/sessionsPartContent.js';
 import { MobileChatEditPresenter } from '../../browser/mobileChatEditPresenter.js';
 import { MobileChatViewFactory } from '../../browser/mobileChatViewFactory.js';
 import { NullChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
-import { MobileNullScreenshotToolService } from '../../browser/mobileNullScreenshotToolService.js';
-import { MobileNullWorktreeSuggestionService } from '../../browser/mobileNullWorktreeSuggestionService.js';
 import { MobileSessionsListPresentation } from '../../browser/mobileSessionsListPresentation.js';
 
 suite('Mobile presentation composition', () => {
@@ -57,15 +52,6 @@ suite('Mobile presentation composition', () => {
 		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
 	});
 
-	test('desktop screenshot capture and markup cannot be activated by mobile consumers', async () => {
-		const screenshots = new MobileNullScreenshotToolService();
-		await assert.rejects(screenshots.capture(dom.getWindow(document.body)), /screenshot tool is not available/);
-		await assert.rejects(screenshots.edit({
-			original: { dataUrl: 'data:image/png;base64,', width: 1, height: 1 },
-			annotationState: undefined,
-		}, ScreenshotToolSurface.Chat), /screenshot tool is not available/);
-	});
-
 	test('chat screenshot attachments retain the existing browser capture path on mobile', async () => {
 		let captures = 0;
 		const host = new class extends mock<IHostService>() {
@@ -74,21 +60,9 @@ suite('Mobile presentation composition', () => {
 				return VSBuffer.fromString('screenshot');
 			}
 		}();
-		const picker = new ScreenshotContextValuePick(host, new MobileNullScreenshotToolService());
+		const picker = new ScreenshotContextValuePick(host);
 		const attachment = await picker.asAttachment(upcastPartial<IChatWidget>({}));
 		assert.deepStrictEqual({ captures, kind: attachment?.kind }, { captures: 1, kind: 'image' });
-	});
-
-	test('unsupported worktree suggestions report failure instead of claiming to switch isolation', async () => {
-		const errors: string[] = [];
-		const suggestions = new MobileNullWorktreeSuggestionService(upcastPartial<ConstructorParameters<typeof MobileNullWorktreeSuggestionService>[0]>({
-			error: message => errors.push(String(message)),
-		}));
-		const switched = await suggestions.useWorktree(WorktreeSuggestionVariant.SpotlightOnSend, upcastPartial<IWorktreeSuggestion>({}));
-		assert.deepStrictEqual({ switched, errors }, {
-			switched: false,
-			errors: ['Worktree suggestions are not available on this device.'],
-		});
 	});
 
 	test('new-session headers retain the instantiation scope of their own view', () => {
@@ -135,10 +109,14 @@ suite('Mobile presentation composition', () => {
 			assert.deepStrictEqual(passedOptions.map(value => ({
 				input: value.inputEditorOptions, icon: value.showEmptyStateIcon, header: typeof value.renderNewSessionHeader, pet: value.renderChatPet,
 				background: value.background?.hasBackground() ?? false,
+				composerPresentation: typeof value.newSessionInput?.createComposer,
+				isolationPresentation: typeof factory.newSessionInput?.createIsolationPicker,
 			})), Array.from({ length: 3 }, (_, index) => ({
 				input: mobile ? { fontSize: 16, lineHeight: 24 } : undefined,
 				icon: mobile ? false : undefined, header: mobile && index < 2 ? 'function' : 'undefined', pet: false,
 				background: !mobile,
+				composerPresentation: mobile ? 'undefined' : 'function',
+				isolationPresentation: mobile ? 'undefined' : 'function',
 			})));
 		});
 	}
