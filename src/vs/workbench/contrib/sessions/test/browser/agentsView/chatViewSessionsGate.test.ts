@@ -34,14 +34,14 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { ChatViewContainerId, ChatViewId, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
-import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ChatViewSessionsGate } from '../../../browser/agentsView/chatViewSessionsGate.js';
-import { ChatViewSessionsPane } from '../../../browser/agentsView/chatViewSessionsPane.js';
+import { IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
@@ -84,6 +84,8 @@ suite('ChatViewSessionsGate', () => {
 
 	let createdChatParts: number;
 	let hosts: number;
+	/** The sessions lists given to the Chat view. */
+	let providers: number;
 	let chatPartAnchor: string | undefined;
 	let contextKeyService: MockContextKeyService;
 	/** Whether the chat part shows, as the window restored it. */
@@ -94,6 +96,7 @@ suite('ChatViewSessionsGate', () => {
 	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>): ChatViewSessionsGate {
 		createdChatParts = 0;
 		hosts = 0;
+		providers = 0;
 		chatPartAnchor = undefined;
 		chatPartVisible ??= false;
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
@@ -120,6 +123,7 @@ suite('ChatViewSessionsGate', () => {
 		// Where the chat part can show, such as with chat set up
 		contextKeyService = new class extends MockContextKeyService { override contextMatchesRules(): boolean { return true; } }();
 		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IChatViewSessionsListService, upcastPartial<IChatViewSessionsListService>({ registerProvider: () => { providers++; return toDisposable(() => providers--); } }));
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ registerHost: () => { hosts++; return toDisposable(() => hosts--); } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
 		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
@@ -136,15 +140,14 @@ suite('ChatViewSessionsGate', () => {
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
 
-	/** The pane of the Chat view, the view containers of its own, which it registers none of, and the Sessions views. */
+	/** The views of the Chat view container, which it keeps, the view containers of its own, which it registers none of, and whether local chats are on by default. */
 	function registered() {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const chatViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(ChatViewContainerId)!;
-		const chatViews = viewsRegistry.getViews(chatViewContainer);
 		return {
-			chatViewPane: chatViews.find(view => view.id === ChatViewId)?.ctorDescriptor.ctor === ChatViewSessionsPane ? 'sessions' : 'chat',
-			chatContainerViews: chatViews.length,
+			chatContainerViews: viewsRegistry.getViews(chatViewContainer).map(view => view.id),
 			agentsContainers: Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).all.filter(container => container.id === 'workbench.view.agents').length,
+			localChatDefault: Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationDefaultsOverrides().get(ChatConfiguration.EditorLocalAgentEnabled)?.value,
 		};
 	}
 
@@ -160,21 +163,30 @@ suite('ChatViewSessionsGate', () => {
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
 		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({})));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { ...before, chatViewPane: 'chat', reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { ...before, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
-	test('shows the sessions in the Chat view itself, with a chat host and the chat part docked beside it, and the actions of the list only once it shows, while the setting is on', () => {
+	test('gives the Chat view its sessions list, without local chats by default and with the chat part docked beside it, and the actions of the list only once it shows, while the setting is on', () => {
 		const before = registered();
 		const listActionsBefore = sessionItemMenuItems();
 		const gate = createGate(true);
-		const listActive = () => contextKeyService.getContextKeyValue(ChatContextKeys.chatViewSessionsListActive.key);
-		const whileOn = { ...registered(), hosts, chatPartAnchor, listActive: listActive(), createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
+		const whileOn = { ...registered(), providers, hosts, chatPartAnchor, createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
 		gate.dispose();
 
-		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), hosts, chatPartAnchor, listActive: listActive() } }, {
-			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, chatPartAnchor: ChatViewId, listActive: true, createdChatParts: 1, listActionsBeforeShown: 0 },
-			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0, chatPartAnchor: undefined, listActive: false },
+		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), providers, hosts, chatPartAnchor } }, {
+			// The Chat view shows the chats itself: no host replaces it
+			whileOn: { ...before, localChatDefault: false, providers: 1, hosts: 0, chatPartAnchor: ChatViewId, createdChatParts: 1, listActionsBeforeShown: 0 },
+			afterDispose: { ...before, providers: 0, hosts: 0, chatPartAnchor: undefined },
 		});
+	});
+
+	test('the chats open in the chat part, through a host that replaces the Chat view, only while chat.viewSessions.openInChatPart is on', () => {
+		createGate(true, undefined, { [ChatConfiguration.ChatViewSessionsOpenInChatPart]: true });
+		const inChatPart = hosts;
+		configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+
+		assert.deepStrictEqual({ inChatPart, inView: hosts }, { inChatPart: 1, inView: 0 });
 	});
 
 	test('hides the chat part, also as the window restores it shown, while the chats open in the Chat view, and as they stop opening in the chat part', async () => {
@@ -199,7 +211,7 @@ suite('ChatViewSessionsGate', () => {
 	test('registers nothing while the Agents view of #347688 is on too, which takes precedence', () => {
 		createGate(true, undefined, { 'chat.sessionsView.enabled': true });
 
-		assert.deepStrictEqual({ ...registered(), hosts, createdChatParts }, { ...registered(), chatViewPane: 'chat', hosts: 0, createdChatParts: 0 });
+		assert.deepStrictEqual({ providers, hosts, createdChatParts }, { providers: 0, hosts: 0, createdChatParts: 0 });
 	});
 
 	test('registers the actions of the list once the Chat view first shows', () => {
@@ -228,7 +240,7 @@ suite('ChatViewSessionsGate', () => {
 	test('leaves the Chat view as it is in a remote window', () => {
 		createGate(true, 'ssh-remote+host');
 
-		assert.deepStrictEqual({ chatViewPane: registered().chatViewPane, hosts, createdChatParts }, { chatViewPane: 'chat', hosts: 0, createdChatParts: 0 });
+		assert.deepStrictEqual({ providers, hosts, createdChatParts }, { providers: 0, hosts: 0, createdChatParts: 0 });
 	});
 
 	test('offers no action of the sessions that opens the Agents window', () => {

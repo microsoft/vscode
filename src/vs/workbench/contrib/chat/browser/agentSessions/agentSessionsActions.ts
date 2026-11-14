@@ -9,7 +9,7 @@ import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAg
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl, IChatViewSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -18,7 +18,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chat
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IView, IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -29,8 +29,7 @@ import { ChatConfiguration } from '../../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from '../actions/chatActions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { hasKey } from '../../../../../base/common/types.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -42,7 +41,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { IPaneCompositePartService } from '../../../../services/panecomposite/browser/panecomposite.js';
 import { ChatSessionArchiveActionWording, getChatSessionArchiveActionPresentation } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
-import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID, SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
+import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../common/chatSessionCommands.js';
 import { AICustomizationManagementCommands } from '../../common/aiCustomizationWorkspaceService.js';
 
 const AGENT_SESSIONS_CATEGORY = localize2('chatSessions', "Chat Agent Sessions");
@@ -483,28 +482,6 @@ abstract class BaseAgentSessionAction extends Action2 {
 	abstract runWithSessions(sessions: IAgentSession[], accessor: ServicesAccessor): Promise<void> | void;
 }
 
-/** Whether `target` is what the sessions list of the sessions service shows: a session, or a chat of a session (`{ session, chat }`). */
-function isSessionsListTarget(target: unknown): boolean {
-	if (!target || typeof target !== 'object') {
-		return false;
-	}
-	const candidate = target as { session?: unknown; chat?: unknown; sessionId?: unknown; mainChat?: unknown };
-	return hasKey(candidate, { session: true, chat: true }) || hasKey(candidate, { sessionId: true, mainChat: true });
-}
-
-/**
- * Runs the sessions list's command that marks `context` read or unread, when the window registers it and `context` is what
- * the sessions list shows, such as a session of the Sessions view or a chat of a chat tab; `undefined` otherwise.
- */
-function runSessionsListReadState(accessor: ServicesAccessor, context: unknown, isRead: boolean): Promise<unknown> | undefined {
-	const commandId = isRead ? SESSIONS_LIST_MARK_READ_COMMAND_ID : SESSIONS_LIST_MARK_UNREAD_COMMAND_ID;
-	const isTarget = Array.isArray(context) ? context.length > 0 && context.every(isSessionsListTarget) : isSessionsListTarget(context);
-	if (!isTarget || !CommandsRegistry.getCommand(commandId)) {
-		return undefined;
-	}
-	return accessor.get(ICommandService).executeCommand(commandId, context);
-}
-
 export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 
 	protected override readonly supportsChildSessions = true;
@@ -529,15 +506,6 @@ export class MarkAgentSessionUnreadAction extends BaseAgentSessionAction {
 				),
 			}
 		});
-	}
-
-	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
-		const listed = runSessionsListReadState(accessor, context, false);
-		if (listed) {
-			await listed;
-		} else {
-			await super.run(accessor, context);
-		}
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
@@ -571,15 +539,6 @@ export class MarkAgentSessionReadAction extends BaseAgentSessionAction {
 				),
 			}
 		});
-	}
-
-	override async run(accessor: ServicesAccessor, context?: IAgentSession | IMarshalledAgentSessionContext): Promise<void> {
-		const listed = runSessionsListReadState(accessor, context, true);
-		if (listed) {
-			await listed;
-		} else {
-			await super.run(accessor, context);
-		}
 	}
 
 	runWithSessions(sessions: IAgentSession[]): void {
@@ -1183,7 +1142,7 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId)?.agentSessionsControl;
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			control.refresh();
 		} else {
@@ -1208,7 +1167,7 @@ export class FindAgentSessionInViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId)?.agentSessionsControl;
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			return control.openFind();
 		} else {
@@ -1242,9 +1201,9 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
 		}
 
-		let chatView = viewsService.getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId);
+		let chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		if (!chatView) {
-			chatView = await viewsService.openView<IView & IChatViewSessionsControl>(ChatViewId, false);
+			chatView = await viewsService.openView<ChatViewPane>(ChatViewId, false);
 		}
 		if (!chatView) {
 			return; // we need the chat view
@@ -1384,7 +1343,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const viewsService = accessor.get(IViewsService);
 
-		const chatView = viewsService.getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId);
+		const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		const currentOrientation = chatView?.getSessionsViewerOrientation();
 
 		if (currentOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -1418,7 +1377,7 @@ export class FocusAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
 
-		const chatView = await viewsService.openView<IView & IChatViewSessionsControl>(ChatViewId, true);
+		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
 		const focused = chatView?.focusSessions();
 		if (focused) {
 			return;
