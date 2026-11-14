@@ -16,10 +16,12 @@ import { ViewPaneContainer } from '../../../../browser/parts/views/viewPaneConta
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { Extensions as ViewExtensions, IViewContainersRegistry, ViewContainerLocation, WindowEnablement } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
 import { AGENTS_VIEW_CONTAINER_ID } from './agentsView.js';
+import { SessionsViewId } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, registerEditorWindowChatViewReplacement, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from './editorWindowSessionsList.js';
 
 const AGENTS_VIEW_TITLE = localize2('agentsView.title', "Sessions");
