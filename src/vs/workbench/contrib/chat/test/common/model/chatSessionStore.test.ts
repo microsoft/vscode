@@ -22,6 +22,8 @@ import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/t
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
+import { ChatPermissionLevel } from '../../../common/constants.js';
+import { ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
@@ -272,6 +274,47 @@ suite('ChatSessionStore', () => {
 
 		const index = await store.getIndex();
 		assert.strictEqual(index['session-1'].title, 'New Title');
+	});
+
+	for (const useLog of [false, true]) {
+		test(`setSessionTitle persists data without losing fields (${useLog ? 'log' : 'flat'})`, async () => {
+			instantiationService.stub(IConfigurationService, new TestConfigurationService({ chat: { useLogSessionStorage: useLog } }));
+			const store = createChatSessionStore();
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+			await store.storeSessions([model]);
+			const before = await store.readSession('session-1');
+			assert.ok(before);
+			await store.setSessionTitle('session-1', 'Renamed');
+			const reopened = createChatSessionStore();
+			const after = await reopened.readSession('session-1');
+			assert.deepStrictEqual(after?.value, { ...before.value, customTitle: 'Renamed' });
+			assert.strictEqual((await reopened.getIndex())['session-1'].title, 'Renamed');
+		});
+	}
+
+	for (const clearAll of [false, true]) {
+		test(`queued rename does not recreate a session after ${clearAll ? 'clear all' : 'delete'}`, async () => {
+			const store = createChatSessionStore();
+			const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+			await store.storeSessions([model]);
+			const rename = store.setSessionTitle('session-1', 'Renamed');
+			const deletion = clearAll ? store.clearAllSessions() : store.deleteSession('session-1');
+			await Promise.all([rename, deletion]);
+			await store.setSessionTitle('session-1', 'Too late');
+			assert.strictEqual(await store.readSession('session-1'), undefined);
+			assert.strictEqual((await store.getIndex())['session-1'], undefined);
+		});
+	}
+
+	test('rename preserves rich index metadata across reload', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+		await store.storeSessions([model]);
+		const index = await store.getIndex();
+		const entry = { ...index['session-1'], hasPendingEdits: true, workingDirectory: 'file:///workspace', permissionLevel: ChatPermissionLevel.Assisted, stats: { fileCount: 2, added: 7, removed: 3 }, lastResponseState: ResponseModelState.Cancelled };
+		Object.assign(index['session-1'], entry);
+		await store.setSessionTitle('session-1', 'Renamed');
+		assert.deepStrictEqual((await createChatSessionStore().getIndex())['session-1'], JSON.parse(JSON.stringify({ ...entry, title: 'Renamed' })));
 	});
 
 	test('setSessionTitle does nothing for non-existent session', async () => {

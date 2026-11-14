@@ -292,6 +292,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidReceiveQuestionCarouselAnswer = this._register(new Emitter<{ requestId: string; resolveId: string; answers: IChatQuestionAnswers | undefined }>());
 	public readonly onDidReceiveQuestionCarouselAnswer = this._onDidReceiveQuestionCarouselAnswer.event;
 
+	private readonly _onDidChangeSessionTitle = this._register(new Emitter<URI>());
+	public readonly onDidChangeSessionTitle = this._onDidChangeSessionTitle.event;
+
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ readonly sessionResources: URI[]; reason: 'cleared' | 'disposed' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
@@ -528,10 +531,17 @@ export class ChatService extends Disposable implements IChatService {
 			model.setCustomTitle(title);
 		}
 
-		// Update the title in the file storage
 		const localSessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
+
+		// Update the title in the file storage
 		if (localSessionId) {
 			await this._chatSessionStore.setSessionTitle(localSessionId, title);
+			const restoredModel = this._sessionModels.get(sessionResource);
+			if (!model && restoredModel) {
+				restoredModel.setCustomTitle(title);
+			} else if (!model) {
+				this._onDidChangeSessionTitle.fire(sessionResource);
+			}
 			// Trigger immediate save to ensure consistency
 			this.saveState();
 		}

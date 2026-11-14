@@ -7423,6 +7423,44 @@ suite('ChatService', () => {
 		ref.dispose();
 	});
 
+	test('renaming an unloaded local session persists the custom title across reloads', async () => {
+		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
+		instantiationService.stub(IFileService, fileService);
+		const testService = createChatService();
+		const storageService = instantiationService.get(IStorageService) as TestStorageService;
+
+		const ref = testService.startNewLocalSession(ChatAgentLocation.Chat);
+		const resource = ref.object.sessionResource;
+		(ref.object as ChatModel).addRequest({ parts: [], text: 'hello world' }, { variables: [] }, 0);
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		ref.dispose();
+		await testService.waitForModelDisposals();
+		assert.strictEqual(testService.getSession(resource), undefined);
+
+		const disposed: URI[] = [];
+		testDisposables.add(testService.onDidDisposeSession(e => disposed.push(...e.sessionResources)));
+		const renamed: URI[] = [];
+		testDisposables.add(testService.onDidChangeSessionTitle(resource => renamed.push(resource)));
+		await testService.setChatSessionTitle(resource, 'My custom title');
+		await testService.waitForModelDisposals();
+
+		assert.strictEqual(testService.getSession(resource), undefined);
+
+		assert.deepStrictEqual(disposed, []);
+		assert.deepStrictEqual(renamed, [resource]);
+
+		const restartedService = createChatService();
+		const history = await restartedService.getHistorySessionItems();
+		const restoredModel = await getOrRestoreModel(restartedService, resource);
+		assert.deepStrictEqual({
+			loadedTitle: restoredModel?.title,
+			historyTitles: history.map(item => item.title),
+		}, {
+			loadedTitle: 'My custom title',
+			historyTitles: ['My custom title'],
+		});
+	});
+
 	test('session storage does not wait for editing diff stats', async () => {
 		const fileService = createInMemoryFileService(testDisposables, Schemas.file);
 		instantiationService.stub(IFileService, fileService);

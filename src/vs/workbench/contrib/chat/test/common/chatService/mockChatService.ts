@@ -31,6 +31,7 @@ export class MockChatService implements IChatService {
 	private liveSessionItems: IChatDetail[] = [];
 	private historySessionItems: IChatDetail[] = [];
 
+	readonly onDidChangeSessionTitle = Event.None;
 	private readonly _onDidDisposeSession = new Emitter<{ sessionResources: URI[]; reason: 'cleared' | 'disposed' }>();
 	readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
