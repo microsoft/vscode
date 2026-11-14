@@ -22,7 +22,7 @@ import { toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
-import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { AgentHostWorktreeComposerFolders, AgentHostWorktreeComposerFoldersContribution } from '../../../browser/agentsView/agentHostWorktreeComposerFolders.js';
 
 suite('AgentHostWorktreeComposerFolders', () => {
@@ -232,5 +232,40 @@ suite('AgentHostWorktreeComposerFolders', () => {
 			offered: ['/work/vscode', '/work/vscode.worktrees/a'],
 			calls: ['options', 'retarget /work/vscode -> /work/vscode.worktrees/a', 'options cleared'],
 		});
+	});
+
+	test('as the folder moves, every composer of the window registered with the service follows it, the chat part\'s and the Chat view\'s alike, without the chat part', async () => {
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		let at = '/work/vscode';
+		const contextKeyService = store.add(new MockContextKeyService());
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file(at) })] }),
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeProviders: Event.None,
+			onDidChangeLocation: Event.None,
+			onDidChangeCanSetLocation: onDidChangeWorkspaceFolders.event as Event<unknown> as Event<void>,
+			canSetLocation: () => true,
+			isAtAlternateLocation: folder => folder.uri.path !== '/work/vscode',
+			getLocation: () => undefined,
+			getLocations: async () => [],
+		}));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true }));
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		const service = instantiationService.createInstance(EditorWindowComposerFoldersService);
+		instantiationService.stub(IEditorWindowComposerFoldersService, service);
+		const retargeted: string[] = [];
+		const composer = (name: string) => ({ retargetFolder: (folder: URI, from?: URI) => { retargeted.push(`${name}: ${from?.path} -> ${folder.path}`); return true; } });
+		store.add(service.registerComposer(composer('chat part')));
+		store.add(service.registerComposer(composer('Chat view')));
+		store.add(instantiationService.createInstance(AgentHostWorktreeComposerFoldersContribution));
+		at = '/work/vscode.worktrees/a';
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+
+		assert.deepStrictEqual(retargeted, ['chat part: /work/vscode -> /work/vscode.worktrees/a', 'Chat view: /work/vscode -> /work/vscode.worktrees/a']);
 	});
 });
