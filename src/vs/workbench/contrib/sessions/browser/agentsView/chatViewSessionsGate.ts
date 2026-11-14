@@ -27,7 +27,10 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
-import { IAgentsChatPartService } from './agentsChatPart.js';
+import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
@@ -91,8 +94,9 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			const active = ChatContextKeys.chatViewSessionsListActive.bindTo(contextKeyService);
 			active.set(true);
 			this._register(toDisposable(() => active.reset()));
-			const surface = this._register(instantiationService.createInstance(ChatViewSessionsSurface));
-			const router = new ChatViewSessionsRouter(surface, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)), openInChatPart);
+			const chatPart = () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService));
+			const surface = this._register(instantiationService.createInstance(ChatViewSessionsSurface, chatPart));
+			const router = new ChatViewSessionsRouter(surface, chatPart, openInChatPart);
 			this.hideMaximizeWhileInChatPart(contextKeyService, router);
 			this.replaceChatViewPane(surface, router);
 			this.registerChatViewHost(instantiationService, accessor.get(IChatViewHostService), accessor.get(IViewsService), router);
@@ -167,6 +171,12 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 				return true;
 			},
 			startSession: (sessionResource, options) => host.startSession(sessionResource, options),
+			// New Chat, such as Back in the title of a session's chat, opens a new-session composer: not a local chat
+			newChat: () => {
+				const target = instantiationService.invokeFunction(accessor => getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+				router.openComposer(target, { newComposer: true }).catch(onUnexpectedError);
+				return true;
+			},
 		}));
 		this._register(toDisposable(() => host.deactivate()));
 	}

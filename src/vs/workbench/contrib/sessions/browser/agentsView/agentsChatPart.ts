@@ -37,7 +37,7 @@ import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowSe
 import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatEditorWindow, registerSessionChatViewEditor } from '../chatEditor/chatEditor.js';
-import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, IChatWindowComposerInit, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { INewSessionTarget } from '../parts/chatView.js';
@@ -118,6 +118,9 @@ export interface IAgentsChatPartService {
 
 	/** Shows again the chats the chat part showed as the window last closed, when the layout restores it shown. */
 	restore(): Promise<void>;
+
+	/** The folders its composers create sessions in, and how their workspace pickers show them. */
+	getComposerFolderOptions?(): Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'> | undefined;
 }
 
 /**

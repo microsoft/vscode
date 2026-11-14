@@ -20,16 +20,24 @@
 		min-height: 0;
 	}
 
-	.chat-view-sessions-back {
-		display: flex;
-		align-items: center;
-		height: 30px;
-		padding: 0 8px;
-		flex-shrink: 0;
+	/* A new-session composer docks at the bottom, as wide as the sessions, as the Chat view's input does */
+	.chat-view-sessions-chat .new-chat-widget-container {
+		justify-content: flex-end;
+		align-items: stretch;
+		padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	}
 
-		.monaco-button {
-			width: auto;
-		}
+	.chat-view-sessions-chat .new-chat-widget-content {
+		width: 100%;
+		max-width: none;
+	}
+
+	.chat-view-sessions-chat .new-session-workspace-picker-container {
+		max-width: none;
+	}
+
+	.chat-view-sessions-chat .new-session-welcome-message {
+		display: none;
 	}
 
 	.chat-view-sessions-chat {
