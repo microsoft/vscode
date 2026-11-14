@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, EventHelper, EventType, getWindow, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -72,7 +72,7 @@ import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../
 import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewModelChangeEvent, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
-import { IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
+import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
 import { DeferredPromise, disposableTimeout, raceCancellation, RunOnceScheduler } from '../../../../../../base/common/async.js';
 import { AgentSessionsFilter, AgentSessionsGrouping } from '../../agentSessions/agentSessionsFilter.js';
@@ -891,33 +891,50 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private providedComposer: IChatViewSessionsComposer | undefined;
 	private composerShown = false;
 
-	/** Shows the provided composer in place of the chat while the chat is a new chat: empty, without a title. */
+	/**
+	 * Shows the provided composer in place of the chat while the chat is a new chat (empty, without a title), unless the
+	 * Chat view shows only the sessions. As New Chat clears a chat with focus in the Chat view, focus moves to the composer.
+	 */
 	private updateComposerVisibility(): void {
-		const shown = !!this.providedComposer && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
+		const shown = !!this.providedComposer && !this.providedSessionsList?.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
 		if (shown !== this.composerShown) {
 			this.composerShown = shown;
 			this.viewPaneContainer?.classList.toggle('shows-composer', shown);
 			this.relayout();
+			if (shown && this.element && isAncestorOfActiveElement(this.element)) {
+				this.providedComposer?.focus();
+			}
 		}
 	}
 
 	/**
 	 * New Chat of the Chat view: the provided composer starts over, aimed at `target` when given, and takes New Chat while it
 	 * shows in place of the chat. Returns whether it took it; otherwise New Chat clears the chat, in whose place the composer
-	 * then shows.
+	 * then shows. With `ownChat`, it always takes it: it starts a new chat in place of the one it shows, also one still loading.
 	 */
-	newChat(target?: IChatViewNewChatTarget): boolean {
-		if (!this.providedComposer) {
+	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
+		if (options?.ownChat) {
+			if (!this.composerShown) {
+				// Its own new chat, rather than the chat widget that New Chat acts on, such as one that has focus elsewhere
+				await this.clear();
+			}
+		} else if (!this.providedComposer) {
 			return false;
-		}
-		if (!this.composerShown) {
+		} else if (!this.composerShown) {
 			this.providedComposer.newChat(target);
 			return false;
 		}
-		// A chat still loading, which cleared the chat and so shows the composer, no longer replaces it
+		// A chat still loading or restoring, which cleared the chat and so shows the composer, no longer replaces it
 		this.loadSessionCts.value?.cancel();
-		this.providedComposer.newChat(target);
-		this.providedComposer.focus();
+		this._applyModelCts.value?.cancel();
+		this.providedComposer?.newChat(target);
+		if (!options?.preserveFocus) {
+			if (this.providedComposer) {
+				this.providedComposer.focus();
+			} else {
+				this._widget?.focusInput();
+			}
+		}
 		return true;
 	}
 
@@ -996,6 +1013,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this._register(autorun(reader => {
 				const sessionsOnly = provided.sessionsOnly.read(reader);
 				this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
+				this.updateComposerVisibility();
 				this.relayout();
 			}));
 		}
@@ -1865,6 +1883,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	focusInput(): void {
+		// Showing only the sessions, the Chat view has no input of its own: its sessions take focus
+		if (this.providedSessionsList?.sessionsOnly.get()) {
+			this.sessionsControl?.focus();
+			return;
+		}
 		if (this.composerShown && this.providedComposer) {
 			this.providedComposer.focus();
 			return;

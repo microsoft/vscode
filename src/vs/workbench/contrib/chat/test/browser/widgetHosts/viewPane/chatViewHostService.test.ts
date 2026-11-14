@@ -18,7 +18,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layou
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../../../../browser/chat.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
-import { IChatViewHost, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 
@@ -176,6 +176,17 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual({ results, started }, { results: [false, true, false], started: 1 });
 	});
 
+	test('a new chat of its own that the host in use leaves to the Chat view starts in the Chat view, which it shows', async () => {
+		const { service, view, calls } = createService();
+		Object.assign(view, { newChat: async (target: IChatViewNewChatTarget | undefined, options: IChatViewHostNewChatOptions | undefined) => { calls.push(`view.newChat ${target?.folder?.path} ownChat=${options?.ownChat}`); return true; } });
+		const registration = service.registerHost(upcastPartial<IChatViewHost>({ newChat: async () => { calls.push('host.newChat'); return false; } }));
+
+		const taken = await service.newChat({ folder: URI.file('/repo') }, { ownChat: true, preserveFocus: true });
+		registration.dispose();
+
+		assert.deepStrictEqual({ taken, calls }, { taken: true, calls: ['host.newChat', `openView ${ChatViewId} focus=false`, 'view.newChat /repo ownChat=true'] });
+	});
+
 	test('reveal waits for the Chat view\'s widget, which its body creates as it first renders, only when asked to', async () => {
 		const { service, view, created, accesses } = createService({ widgetCreatedLater: true });
 		const unchanged = await service.reveal(false);
@@ -327,4 +338,23 @@ suite('ChatViewHostService', () => {
 
 		assert.deepStrictEqual(steps, ['/chat-view', '/chat-view', '/b', '/chat-view']);
 	});
+
+	test('a host that completes a reveal after it is removed does not become the host whose shown chat the service reports', async () => {
+		const { service, shownSession, showView } = createService();
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/chat-view'), reason: 'open' }, undefined);
+		showView();
+		const revealed = new DeferredPromise<undefined>();
+		const registration = service.registerHost({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: constObservable({ resource: URI.parse('agent-host-copilot:/removed'), reason: 'open' as const }),
+			reveal: () => revealed.p,
+		});
+		const revealing = service.reveal();
+		registration.dispose();
+		await revealed.complete(undefined);
+		await revealing;
+
+		assert.deepStrictEqual({ shown: service.shownSession.get()?.resource.path, replaced: service.replaced.get() }, { shown: '/chat-view', replaced: false });
+	});
 });
+
