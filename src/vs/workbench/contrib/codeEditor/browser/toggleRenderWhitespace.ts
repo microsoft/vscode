@@ -18,11 +18,8 @@ class RenderWhitespaceNoneAction extends Action2 {
 		super({
 			id: RenderWhitespaceNoneAction.ID,
 			title: localize2('renderWhitespace.setNone', "Set Render Whitespace to None"),
-			shortTitle: localize2('renderWhitespace.none', "None"),
 			category: Categories.View,
 			f1: false,
-			toggled: ContextKeyExpr.equals(`config.${renderWhitespaceSetting}`, 'none'),
-			menu: { id: MenuId.EditorRenderWhitespaceSubmenu, group: '1_config', order: 1 },
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -36,11 +33,8 @@ class RenderWhitespaceBoundaryAction extends Action2 {
 		super({
 			id: RenderWhitespaceBoundaryAction.ID,
 			title: localize2('renderWhitespace.setBoundary', "Set Render Whitespace to Boundary"),
-			shortTitle: localize2('renderWhitespace.boundary', "Boundary"),
 			category: Categories.View,
 			f1: false,
-			toggled: ContextKeyExpr.equals(`config.${renderWhitespaceSetting}`, 'boundary'),
-			menu: { id: MenuId.EditorRenderWhitespaceSubmenu, group: '1_config', order: 2 },
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -54,11 +48,8 @@ class RenderWhitespaceSelectionAction extends Action2 {
 		super({
 			id: RenderWhitespaceSelectionAction.ID,
 			title: localize2('renderWhitespace.setSelection', "Set Render Whitespace to Selection"),
-			shortTitle: localize2('renderWhitespace.selection', "Selection"),
 			category: Categories.View,
 			f1: false,
-			toggled: ContextKeyExpr.equals(`config.${renderWhitespaceSetting}`, 'selection'),
-			menu: { id: MenuId.EditorRenderWhitespaceSubmenu, group: '1_config', order: 3 },
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -72,11 +63,8 @@ class RenderWhitespaceTrailingAction extends Action2 {
 		super({
 			id: RenderWhitespaceTrailingAction.ID,
 			title: localize2('renderWhitespace.setTrailing', "Set Render Whitespace to Trailing"),
-			shortTitle: localize2('renderWhitespace.trailing', "Trailing"),
 			category: Categories.View,
 			f1: false,
-			toggled: ContextKeyExpr.equals(`config.${renderWhitespaceSetting}`, 'trailing'),
-			menu: { id: MenuId.EditorRenderWhitespaceSubmenu, group: '1_config', order: 4 },
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -90,11 +78,8 @@ class RenderWhitespaceAllAction extends Action2 {
 		super({
 			id: RenderWhitespaceAllAction.ID,
 			title: localize2('renderWhitespace.setAll', "Set Render Whitespace to All"),
-			shortTitle: localize2('renderWhitespace.all', "All"),
 			category: Categories.View,
 			f1: false,
-			toggled: ContextKeyExpr.equals(`config.${renderWhitespaceSetting}`, 'all'),
-			menu: { id: MenuId.EditorRenderWhitespaceSubmenu, group: '1_config', order: 5 },
 		});
 	}
 	override run(accessor: ServicesAccessor): Promise<void> {
@@ -143,4 +128,24 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	title: localize('renderWhitespace', "Render Whitespace"),
 	group: '4_editor',
 	order: 4
+});
+
+const renderWhitespaceMenuItems = [
+	{ id: RenderWhitespaceNoneAction.ID, title: localize('renderWhitespace.none', "None"), value: 'none' },
+	{ id: RenderWhitespaceBoundaryAction.ID, title: localize('renderWhitespace.boundary', "Boundary"), value: 'boundary' },
+	{ id: RenderWhitespaceSelectionAction.ID, title: localize('renderWhitespace.selection', "Selection"), value: 'selection' },
+	{ id: RenderWhitespaceTrailingAction.ID, title: localize('renderWhitespace.trailing', "Trailing"), value: 'trailing' },
+	{ id: RenderWhitespaceAllAction.ID, title: localize('renderWhitespace.all', "All"), value: 'all' },
+];
+
+renderWhitespaceMenuItems.forEach(({ id, title, value }, index) => {
+	MenuRegistry.appendMenuItem(MenuId.EditorRenderWhitespaceSubmenu, {
+		command: {
+			id,
+			title,
+			toggled: ContextKeyExpr.equals(`config.${renderWhitespaceSetting}`, value),
+		},
+		group: '1_config',
+		order: index + 1,
+	});
 });
