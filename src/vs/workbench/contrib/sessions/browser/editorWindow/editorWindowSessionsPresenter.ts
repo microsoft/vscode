@@ -6,11 +6,13 @@
 import { Disposable, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { ACTION_ID_NEW_CHAT } from '../../../chat/browser/actions/chatActions.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 
@@ -48,14 +50,20 @@ export interface IEditorWindowSessionsPresenter {
 	/** Whether it shows `chatResource`. */
 	isShowing(chatResource: URI): boolean;
 
-	/** Whether it shows a new-session composer that has not sent its session yet, whose draft is a provider's. */
-	hasComposer(): boolean;
-
-	/** Closes the new-session composers with nothing typed or attached, and no send under way. */
-	closeIdleComposers(): Promise<void>;
-
 	/** Moves focus into what shows the active chat. */
 	focus(): void;
+}
+
+/**
+ * What holds new-session composers, whose drafts are sessions of the window's providers, such as the chat part: also while
+ * it no longer presents the window's sessions, as long as its composers live.
+ */
+export interface IEditorWindowComposerHolder {
+	/** Whether it has a new-session composer that has not sent its session yet. */
+	hasComposer(): boolean;
+
+	/** Closes its new-session composers with nothing typed or attached, and no send under way. */
+	closeIdleComposers(): Promise<void>;
 }
 
 export const IEditorWindowSessionsPresenterService = createDecorator<IEditorWindowSessionsPresenterService>('editorWindowSessionsPresenterService');
@@ -68,6 +76,15 @@ export interface IEditorWindowSessionsPresenterService {
 
 	/** Shows the chats of sessions with `presenter` until the returned disposable is disposed; the one before shows them then. */
 	registerPresenter(presenter: IEditorWindowSessionsPresenter): IDisposable;
+
+	/** Counts the composers of `holder` until the returned disposable is disposed (see {@link hasComposer}). */
+	registerComposerHolder(holder: IEditorWindowComposerHolder): IDisposable;
+
+	/** Whether a registered holder has a new-session composer that has not sent its session yet. */
+	hasComposer(): boolean;
+
+	/** Closes the idle new-session composers of every registered holder. */
+	closeIdleComposers(): Promise<void>;
 }
 
 /** The Chat view, whose host shows one chat at a time, as presenter of the sessions of an editor window. */
@@ -75,14 +92,19 @@ class ChatViewSessionsPresenter implements IEditorWindowSessionsPresenter {
 
 	readonly activeChat: IObservable<IEditorWindowPresentedChat | undefined> = constObservable(undefined);
 
-	constructor(private readonly _chatViewHostService: IChatViewHostService) { }
+	constructor(
+		private readonly _chatViewHostService: IChatViewHostService,
+		private readonly _commandService: ICommandService,
+	) { }
 
 	async openChat(session: ISession, chatResource: URI | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
 		await this._chatViewHostService.openSession(chatResource ?? session.mainChat.get().resource, { preserveFocus: options?.preserveFocus });
 	}
 
+	/** A new chat in the Chat view, as its New Chat starts one: the next request does not go to the chat it showed. */
 	async openComposer(_target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
 		await this._chatViewHostService.reveal(options?.preserveFocus);
+		await this._commandService.executeCommand(ACTION_ID_NEW_CHAT);
 	}
 
 	async closeChat(): Promise<void> { }
@@ -90,12 +112,6 @@ class ChatViewSessionsPresenter implements IEditorWindowSessionsPresenter {
 	isShowing(): boolean {
 		return false;
 	}
-
-	hasComposer(): boolean {
-		return false;
-	}
-
-	async closeIdleComposers(): Promise<void> { }
 
 	focus(): void {
 		void this._chatViewHostService.reveal(false);
@@ -108,16 +124,33 @@ export class EditorWindowSessionsPresenterService extends Disposable implements 
 
 	private readonly _registered = observableValue<readonly IEditorWindowSessionsPresenter[]>(this, []);
 	readonly presenter: IObservable<IEditorWindowSessionsPresenter>;
+	private readonly _composerHolders = new Set<IEditorWindowComposerHolder>();
 
-	constructor(@IChatViewHostService chatViewHostService: IChatViewHostService) {
+	constructor(
+		@IChatViewHostService chatViewHostService: IChatViewHostService,
+		@ICommandService commandService: ICommandService,
+	) {
 		super();
-		const chatView = new ChatViewSessionsPresenter(chatViewHostService);
+		const chatView = new ChatViewSessionsPresenter(chatViewHostService, commandService);
 		this.presenter = derived(this, reader => this._registered.read(reader).at(-1) ?? chatView);
 	}
 
 	registerPresenter(presenter: IEditorWindowSessionsPresenter): IDisposable {
 		this._registered.set([...this._registered.get(), presenter], undefined);
 		return toDisposable(() => this._registered.set(this._registered.get().filter(candidate => candidate !== presenter), undefined));
+	}
+
+	registerComposerHolder(holder: IEditorWindowComposerHolder): IDisposable {
+		this._composerHolders.add(holder);
+		return toDisposable(() => this._composerHolders.delete(holder));
+	}
+
+	hasComposer(): boolean {
+		return [...this._composerHolders].some(holder => holder.hasComposer());
+	}
+
+	async closeIdleComposers(): Promise<void> {
+		await Promise.all([...this._composerHolders].map(holder => holder.closeIdleComposers()));
 	}
 }
 

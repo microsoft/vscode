@@ -13,6 +13,10 @@ import { ILifecycleService } from '../../../../../services/lifecycle/common/life
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { EditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
+import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { ACTION_ID_NEW_CHAT } from '../../../../chat/browser/actions/chatActions.js';
 
 suite('EditorWindowSessionsRuntime', () => {
 
@@ -84,5 +88,36 @@ suite('EditorWindowSessionsRuntime', () => {
 			'-- the last feature disables it', 'unlisten views', 'unlisten parts', 'release',
 			'-- the list shows',
 		]);
+	});
+});
+
+suite('EditorWindowSessionsPresenterService', () => {
+
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('without a presenter, a new session starts a new chat in the Chat view, rather than the next request going to the chat it showed', async () => {
+		const calls: string[] = [];
+		const service = disposables.add(new EditorWindowSessionsPresenterService(
+			upcastPartial<IChatViewHostService>({ reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; } }),
+			upcastPartial<ICommandService>({ executeCommand: async (id: string) => { calls.push(id); return undefined; } }),
+		));
+
+		await service.presenter.get().openComposer(undefined, { preserveFocus: true });
+
+		assert.deepStrictEqual(calls, ['reveal preserveFocus=true', ACTION_ID_NEW_CHAT]);
+	});
+
+	test('counts the composers of what holds them, also once it no longer presents the sessions, until it no longer holds them', async () => {
+		const service = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({})));
+		const closed: string[] = [];
+		const presenter = service.registerPresenter(upcastPartial<IEditorWindowSessionsPresenter>({}));
+		const holder = service.registerComposerHolder({ hasComposer: () => true, closeIdleComposers: async () => { closed.push('chat part'); } });
+
+		presenter.dispose();
+		const afterPresenter = service.hasComposer();
+		await service.closeIdleComposers();
+		holder.dispose();
+
+		assert.deepStrictEqual({ afterPresenter, closed, afterHolder: service.hasComposer() }, { afterPresenter: true, closed: ['chat part'], afterHolder: false });
 	});
 });
