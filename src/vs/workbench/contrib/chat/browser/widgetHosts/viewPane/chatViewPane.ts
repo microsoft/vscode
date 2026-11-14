@@ -345,7 +345,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 
 			const modelRef = await this.chatService.acquireOrLoadSession(e.committed, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidCommitSession');
-			await this.showModel(CancellationToken.None, modelRef);
+			// The chat the first request made: a session the user did not pick
+			await this.showModel(CancellationToken.None, modelRef, undefined, undefined, undefined, undefined, 'commit');
 		}));
 
 		// Layout changes
@@ -1519,7 +1520,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this._shownSession.set(shownResource && { resource: shownResource, reason: this._showReason }, undefined);
 	}
 
-	/** @param showReason why it shows the chat ({@link shownSession}): only the view's own restore passes `restore`. */
+	/** @param showReason why it shows the chat ({@link shownSession}). */
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true, ignoreTransferredSession = false, inputBeforeLoad?: string, localFallbackSelectionReason?: SessionTypeSelectionReason, showReason: IChatViewHostShownSession['reason'] = 'open'): Promise<IChatModel | undefined> {
 		if (token.isCancellationRequested || this._store.isDisposed) {
 			modelRef?.dispose();
@@ -1672,7 +1673,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.updateActions();
 	}
 
-	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason): Promise<IChatModel | undefined> {
+	/** @param showReason why it shows the chat ({@link shownSession}). */
+	async loadSession(sessionResource: URI, sessionTypeSelectionReason?: SessionTypeSelectionReason, showReason: 'open' | 'restore' = 'open'): Promise<IChatModel | undefined> {
 		const t0 = Date.now();
 		this.logService.trace(`[ChatViewPane] loadSession start uri=${sessionResource.toString()}`);
 
@@ -1730,7 +1732,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					}
 
 					const localFallbackSelectionReason = getLocalFallbackSessionTypeSelectionReason(getChatSessionType(sessionResource), !!newModelRef);
-					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason);
+					const result = await this.showModel(token, newModelRef, true, false, inputBeforeLoad, localFallbackSelectionReason, showReason);
 					this.logService.trace(`[ChatViewPane] loadSession done total=${Date.now() - t0}ms uri=${sessionResource.toString()}`);
 					return result;
 				} catch (err) {

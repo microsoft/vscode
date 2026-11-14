@@ -39,7 +39,7 @@ suite('ChatViewHostService', () => {
 			shownSession,
 			widget: options.widgetCreatedLater ? undefined : widget,
 			get whenWidget() { accesses++; return created.p; },
-			loadSession: async (resource: URI, reason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}`); return undefined; },
+			loadSession: async (resource: URI, reason?: string, showReason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}${showReason === 'restore' ? ' restore' : ''}`); return undefined; },
 			startNewLocalSession: async () => { calls.push('startNewLocalSession'); return undefined; },
 			focus: () => { calls.push('focus'); },
 			focusInput: () => { calls.push('focusInput'); },
@@ -70,6 +70,8 @@ suite('ChatViewHostService', () => {
 		results.reveal = await service.reveal(false) === widget;
 		results.revealPreservingFocus = await service.reveal(true) === widget;
 		results.openSession = await service.openSession(resource, { sessionTypeSelectionReason: 'explicitOverride' }) === widget;
+		// One to restore is not reported as opened
+		await service.openSession(resource, { preserveFocus: true, restore: true });
 		results.toggle = await service.toggle();
 		const start = await service.startSession(resource, { local: false, importingConversation: true, beforeOpen: () => calls.push('beforeOpen') });
 		await start.moved(URI.parse('test:/moved'));
@@ -85,6 +87,7 @@ suite('ChatViewHostService', () => {
 				`openView ${ChatViewId} focus=true`,
 				`openView ${ChatViewId} focus=false`,
 				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'reportOpened test:/session', 'focusInput',
+				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined restore',
 				`setPartHidden false ${Parts.AUXILIARYBAR_PART}`,
 				`openView ${ChatViewId} focus=undefined`, 'beforeOpen', 'suppress', 'progress', 'loadSession test:/session reason=explicitOverride', 'focus',
 				`openView ${ChatViewId} focus=undefined`, 'loadSession test:/moved reason=undefined',
