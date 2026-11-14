@@ -1018,10 +1018,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
 			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
-			const { visible } = this.updateSessionsControlVisibility();
+			this.updateSessionsControlVisibility();
 			this.relayout();
+			// Whether the list shows once the layout settled, which can show it, such as switching to side by side
 			if (hadFocus) {
-				if (visible) {
+				if (this.sessionsViewerVisible) {
 					sessionsControl.focus();
 				} else {
 					this.focusInput();
