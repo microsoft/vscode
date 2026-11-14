@@ -113,6 +113,8 @@ import { ILanguageModelToolsService } from '../../../../../workbench/contrib/cha
 import { IAgentHostToolSetEnablementService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostToolSetEnablementService.js';
 import { IAgentsWindowExtensionSuggestionsService } from '../../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { ISessionWorktreeCleanupService } from '../../../../../workbench/contrib/sessions/browser/sessionInputBanners/sessionWorktreeCleanupService.js';
+import { ISessionDraftsService } from '../../../../../workbench/contrib/sessions/browser/sessionDraftsService.js';
+import { IScheduledChatsService } from '../../../../../workbench/contrib/sessions/browser/scheduledChatsService.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { localize2 } from '../../../../../nls.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../../../workbench/services/lifecycle/common/lifecycle.js';
@@ -1264,6 +1266,16 @@ export async function renderSessionsViewFixture(context: ComponentFixtureContext
 	instantiationService.stub(ISessionWorktreeCleanupService, new class extends mock<ISessionWorktreeCleanupService>() {
 		override readonly suggestion = constObservable(undefined);
 		override async activate() { }
+	}());
+	// No drafts and nothing scheduled: the list shows its sessions only
+	instantiationService.stub(ISessionDraftsService, new class extends mock<ISessionDraftsService>() {
+		override readonly sections = constObservable([]);
+		override readonly onDidOpenDraft = Event.None;
+	}());
+	instantiationService.stub(IScheduledChatsService, new class extends mock<IScheduledChatsService>() {
+		override readonly enabled = constObservable(false);
+		override readonly items = constObservable([]);
+		override readonly claimedDraftIds = constObservable(new Set<string>());
 	}());
 
 	// The Primary Side Bar of an editor window, whose single view shows the actions of its header in its title
