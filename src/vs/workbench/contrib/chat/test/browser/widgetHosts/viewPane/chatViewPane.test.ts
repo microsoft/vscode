@@ -169,10 +169,13 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual(focused, ['sessions', 'composer', 'chat']);
 	});
 
-	test('as New Chat clears a chat with focus in the Chat view, the composer that shows in its place takes focus', () => {
+	test('as the composer shows in place of a chat that had focus, such as New Chat clearing it, it takes focus, but not from the sessions or other controls of the Chat view', () => {
 		const focused: string[] = [];
 		const element = mainWindow.document.body.appendChild(document.createElement('div'));
-		const input = element.appendChild(document.createElement('textarea'));
+		const chat = element.appendChild(document.createElement('div'));
+		const chatInput = chat.appendChild(document.createElement('textarea'));
+		// Such as the filter of the sessions beside the chat
+		const sessionsFilter = element.appendChild(document.createElement('input'));
 		let empty = false;
 		const host = {
 			providedComposer: { focus: () => focused.push('composer') },
@@ -180,26 +183,27 @@ suite('ChatViewPane sessions refresh', () => {
 			composerShown: false,
 			viewPaneContainer: document.createElement('div'),
 			element,
-			_widget: { get viewModel() { return { model: { title: '' } }; }, isEmpty: () => empty },
+			_widget: { domNode: chat, get viewModel() { return { model: { title: '' } }; }, isEmpty: () => empty },
 			relayout: () => { },
 		};
 		const update = Reflect.get(ChatViewPane.prototype, 'updateComposerVisibility') as (this: typeof host) => void;
-		try {
-			update.call(host);
-			input.focus();
-			// New Chat clears the chat
-			empty = true;
-			update.call(host);
-			// Shown again, without focus in the Chat view
+		const steps: string[][] = [];
+		const clearWith = (focus: HTMLElement) => {
 			empty = false;
 			update.call(host);
-			input.blur();
+			focus.focus();
+			// The chat clears: New Chat, or a saved chat that loads while it is held, which clears the chat it replaces
 			empty = true;
 			update.call(host);
+			steps.push(focused.splice(0));
+		};
+		try {
+			clearWith(chatInput);
+			clearWith(sessionsFilter);
 		} finally {
 			element.remove();
 		}
-		assert.deepStrictEqual(focused, ['composer']);
+		assert.deepStrictEqual(steps, [['composer'], []]);
 	});
 
 	test('the Chat view takes the sessions list of the provider registered last, and its own once none is', () => {
