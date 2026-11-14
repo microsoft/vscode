@@ -5133,18 +5133,23 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			disposable: new MutableDisposable()
 		};
 		store.add(toDisposable(() => this._releaseOutputTerminal(outputTerminalAttachment, part$.get().toolCall, opts.sessionResource)));
-		store.add(this._config.connection.onDidAction(envelope => {
-			const action = envelope.action;
-			if (envelope.rejectionReason || envelope.channel !== opts.chatURI || action.type !== ActionType.ChatToolCallDelta
-				|| action.turnId !== opts.turnId || action.toolCallId !== toolCallId || IChatToolInvocation.isComplete(invocation)) {
+		store.add(autorun(reader => {
+			if (IChatToolInvocation.isComplete(invocation, reader)) {
 				return;
 			}
-			const call = part$.get().toolCall;
-			const chunk = readAgentToolOutputDelta(action, initial, call);
-			if (!chunk) {
-				return;
-			}
-			appendToolOutput(invocation, call, chunk);
+			reader.store.add(this._config.connection.onDidAction(envelope => {
+				const action = envelope.action;
+				if (envelope.rejectionReason || envelope.channel !== opts.chatURI || action.type !== ActionType.ChatToolCallDelta
+					|| action.turnId !== opts.turnId || action.toolCallId !== toolCallId || IChatToolInvocation.isComplete(invocation)) {
+					return;
+				}
+				const call = part$.read(undefined).toolCall;
+				const chunk = readAgentToolOutputDelta(action, initial, call);
+				if (!chunk) {
+					return;
+				}
+				appendToolOutput(invocation, call, chunk);
+			}));
 		}));
 
 		// Reuse the invocation whenever a tool enters confirmation to avoid duplicate cards.

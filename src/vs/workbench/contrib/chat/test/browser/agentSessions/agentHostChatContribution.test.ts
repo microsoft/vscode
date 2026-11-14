@@ -282,7 +282,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override resourceUris = identityAgentHostResourceUriMapper;
 	override clientConnectionKind: AgentHostClientConnectionKind | undefined;
 
-	private readonly _onDidAction = new Emitter<ActionEnvelope>();
+	actionListenerCount = 0;
+	private readonly _onDidAction = new Emitter<ActionEnvelope>({
+		onDidAddListener: () => this.actionListenerCount++,
+		onWillRemoveListener: () => this.actionListenerCount--,
+	});
 	override readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
@@ -10862,6 +10866,52 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(collected.length, 1);
 			assert.strictEqual(collected[0][0].kind, 'toolInvocation');
+		}));
+
+		test('completed server tools release output listeners while the turn stays active', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const baseline = agentHostService.actionListenerCount;
+			const counts: { running: number; completed: number }[] = [];
+
+			for (let i = 0; i < 20; i++) {
+				const toolCallId = `query-${i}`;
+				fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId, toolName: 'query', displayName: 'Query' });
+				fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId, invocationMessage: 'Running query', confirmed: ToolCallConfirmationReason.NotNeeded });
+				fire({ type: ActionType.ChatToolCallDelta, turnId, toolCallId, _meta: { 'copilot.toolOutputDelta': 'output' } });
+				const running = agentHostService.actionListenerCount - baseline;
+				fire({ type: ActionType.ChatToolCallComplete, turnId, toolCallId, result: { success: true, pastTenseMessage: 'Ran query', content: [] } });
+				counts.push({ running, completed: agentHostService.actionListenerCount - baseline });
+			}
+
+			const outputs = collected.flat()
+				.filter((part): part is IChatToolInvocation => part.kind === 'toolInvocation')
+				.map(part => part.toolSpecificData?.kind === 'simpleToolInvocation' ? part.toolSpecificData.output : undefined);
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			await turnPromise;
+
+			assert.deepStrictEqual({ counts, outputs }, {
+				counts: Array.from({ length: 20 }, () => ({ running: 1, completed: 0 })),
+				outputs: Array.from({ length: 20 }, () => 'output'),
+			});
+		}));
+
+		test('denied server tools release output listeners before the turn ends', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+			const baseline = agentHostService.actionListenerCount;
+			fire({ type: ActionType.ChatToolCallStart, turnId, toolCallId: 'query', toolName: 'query', displayName: 'Query' });
+			fire({ type: ActionType.ChatToolCallReady, turnId, toolCallId: 'query', invocationMessage: 'Run query' });
+			const invocation = collected.flat().find((part): part is IChatToolInvocation => part.kind === 'toolInvocation');
+			assert.ok(invocation);
+			const pending = agentHostService.actionListenerCount - baseline;
+			IChatToolInvocation.confirmWith(invocation, { type: ToolConfirmKind.Denied });
+			await timeout(0);
+			const denied = agentHostService.actionListenerCount - baseline;
+			fire({ type: ActionType.ChatTurnComplete, turnId, duration: 1 });
+			await turnPromise;
+
+			assert.deepStrictEqual({ pending, denied }, { pending: 1, denied: 0 });
 		}));
 
 		test('tool deltas update one streaming invocation and transition it in place', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
