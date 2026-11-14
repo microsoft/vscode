@@ -203,20 +203,21 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('opens a session as restored when asked to, so that it does not report it as opened', async () => {
+	test('opens a session as restored or committed when asked to, so that it does not report it as opened', async () => {
 		const chatResource = URI.parse('agent-host-copilot:/session-1');
 		const { owner, widget } = sessionOf(chatResource);
-		const opened: (boolean | undefined)[] = [];
+		const opened: string[] = [];
 		const { host } = createHost({
-			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(openOptions?.restore); } },
+			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(`restore=${openOptions?.restore} commit=${openOptions?.commit}`); } },
 			sessionsManagementService: { getSessionForChatResource: () => owner },
 			widgets: [widget],
 		});
 
 		await host.openSession(chatResource, { restore: true });
+		await host.openSession(chatResource, { commit: true });
 		await host.openSession(chatResource);
 
-		assert.deepStrictEqual(opened, [true, undefined]);
+		assert.deepStrictEqual(opened, ['restore=true commit=undefined', 'restore=undefined commit=true', 'restore=undefined commit=undefined']);
 	});
 
 	test('deactivated while it loads the session it starts, it releases the session and starts nothing', async () => {

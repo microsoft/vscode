@@ -9,12 +9,15 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
+import { MarkAgentSessionReadAction, MarkAgentSessionUnreadAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
@@ -116,5 +119,37 @@ suite('Agents chat part actions', () => {
 			outside: target(URI.file('/elsewhere/file.ts')),
 			none: target(undefined),
 		}, { inSecond: '/work/tools', outside: '/work/vscode', none: '/work/vscode' });
+	});
+
+	test('Mark as Read and Mark as Unread of a chat tab mark its chat through the sessions list\'s commands, while the chat part registers its actions', async () => {
+		const built = buildTestSession({ id: 's1', title: 'Session' });
+		const session = built.session;
+		const main = built.mainChat.chat;
+		const side = { ...main, resource: session.resource.with({ fragment: 'side' }) };
+		const marked: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			markRead: async target => { marked.push(`read ${target.sessionId}`); },
+			markUnread: async target => { marked.push(`unread ${target.sessionId}`); },
+			markChatRead: async (_target, chat) => { marked.push(`read chat ${chat.resource.fragment}`); },
+			markChatUnread: async (_target, chat) => { marked.push(`unread chat ${chat.resource.fragment}`); },
+		}));
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async <R>(id: string, ...args: unknown[]) => instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor, ...args)) as R,
+		}));
+		const read = new MarkAgentSessionReadAction();
+		const unread = new MarkAgentSessionUnreadAction();
+
+		const registration = registerAgentsChatPartActions();
+		// A chat tab of a side chat and of a session's main chat run the agent sessions' commands
+		for (const [action, context] of [[read, { session, chat: side }], [unread, { session, chat: main }]] as const) {
+			await instantiationService.invokeFunction(accessor => action.run(accessor, context as never));
+		}
+		registration.dispose();
+
+		assert.deepStrictEqual({ marked, registeredAfterDispose: !!CommandsRegistry.getCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID) }, {
+			marked: ['read chat side', 'unread s1'],
+			registeredAfterDispose: false,
+		});
 	});
 });

@@ -127,7 +127,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
-			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus, restore: options?.restore });
+			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus, restore: options?.restore, commit: options?.commit });
 			return await this._waitForWidget(owner.chat.resource);
 		} finally {
 			hold.dispose();
