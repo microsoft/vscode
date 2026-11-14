@@ -119,6 +119,9 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 
 	/** While the Chat view shows only the sessions, whose chats open in the chat part, the secondary side bar does not offer to maximize it. */
 	private hideMaximizeWhileInChatPart(contextKeyService: IContextKeyService, router: ChatViewSessionsRouter): void {
+		const inChatPart = ChatContextKeys.chatViewSessionsInChatPart.bindTo(contextKeyService);
+		this._register(autorun(reader => inChatPart.set(router.openInChatPart.read(reader))));
+		this._register(toDisposable(() => inChatPart.reset()));
 		const hidden = AuxiliaryBarMaximizeHiddenContext.bindTo(contextKeyService);
 		const activeAuxiliary = observableFromEvent(this, Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([ActiveAuxiliaryContext.key]))), () => contextKeyService.getContextKeyValue<string>(ActiveAuxiliaryContext.key));
 		this._register(autorun(reader => hidden.set(router.openInChatPart.read(reader) && activeAuxiliary.read(reader) === ChatViewContainerId)));

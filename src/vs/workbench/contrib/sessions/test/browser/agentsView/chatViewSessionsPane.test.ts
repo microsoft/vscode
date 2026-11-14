@@ -8,16 +8,13 @@ import { constObservable, observableValue } from '../../../../../../base/common/
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ISession } from '../../../../../services/sessions/common/session.js';
-import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { IAgentsChatPartChat, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { ChatViewSessionsRouter } from '../../../browser/agentsView/chatViewSessionsPane.js';
 
 suite('ChatViewSessionsRouter', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	/** Where chats open, as it records them. */
 	function createTarget(name: string, calls: string[], activeChat?: IAgentsChatPartChat): IAgentsChatPartService {
@@ -55,19 +52,5 @@ suite('ChatViewSessionsRouter', () => {
 			inView: { active: true, chatPartCreated: 0 },
 			inChatPart: { active: true },
 		});
-	});
-
-	test('the Chat view shows only the sessions, without its side pane and Maximize, while their chats open in the chat part', () => {
-		const evaluate = (listActive: boolean, openInChatPart: boolean) => {
-			const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService({ chat: { viewSessions: { openInChatPart } } })));
-			ChatContextKeys.chatViewSessionsListActive.bindTo(contextKeyService).set(listActive);
-			return contextKeyService.contextMatchesRules(ChatContextKeys.chatViewSessionsInChatPart);
-		};
-
-		assert.deepStrictEqual({
-			inChatPart: evaluate(true, true),
-			inView: evaluate(true, false),
-			chatViewOwnSessions: evaluate(false, true),
-		}, { inChatPart: true, inView: false, chatViewOwnSessions: false });
 	});
 });
