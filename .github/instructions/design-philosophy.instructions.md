@@ -22,4 +22,6 @@ Work in three layers - name the **feeling**, find the **principle** it breaks, t
 
 Reach for a **move** only *after* naming the feeling and the principle - never instead. Describe a bug by its role/tier/ramp (*"this overlay is rounded at the control tier"*), not its number (*"border-radius should be 6"*).
 
+**Native controls follow the theme already.** Scrollbars, form controls, and iframes inside `.monaco-workbench` get the right `color-scheme` from `src/vs/workbench/browser/media/style.css`. Do not set `color-scheme` on a component, including in CSS built in TypeScript, and color any native scrollbar only with `--vscode-scrollbar*` variables. See [Native Scrollbars and Color Scheme](./css-best-practices.instructions.md#native-scrollbars-and-color-scheme).
+
 **Full reference** (values, principles, moves, worked examples, phrasebook, and feedback guidance): the [`design-philosophy` skill](../skills/design-philosophy/SKILL.md). **Token mechanics:** [design-tokens.instructions.md](./design-tokens.instructions.md).

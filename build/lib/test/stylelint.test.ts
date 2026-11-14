@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import es from 'event-stream';
+import { readFile } from 'fs/promises';
 import { suite, test } from 'node:test';
 import { stylelintFilter } from '../../filters.ts';
 import gulpstylelint, { resolveStylelintMatches, resolveStylelintSources } from '../../stylelint.ts';
@@ -81,9 +82,125 @@ suite('stylelint', () => {
 			'does-not-exist/**/*.css',
 		]), /No CSS files matched the requested path/);
 	});
+
+	test('requires native control color schemes on the workbench', async () => {
+		const globalStyles = await readFile(new URL('../../../src/vs/workbench/browser/media/style.css', import.meta.url), 'utf8');
+		const [themed, missing, commentedOut, missingIframeReset] = await Promise.all([
+			hasNativeScrollbarThemingError(globalStyles),
+			hasNativeScrollbarThemingError(`
+				.monaco-workbench {
+					color: var(--vscode-foreground);
+				}
+			`),
+			hasNativeScrollbarThemingError(globalStyles.replace(
+				'color-scheme: dark;',
+				'/* color-scheme: dark; */'
+			)),
+			hasNativeScrollbarThemingError(globalStyles.replace(
+				'color-scheme: normal;',
+				'/* color-scheme: normal; */'
+			)),
+		]);
+
+		assert.deepStrictEqual({
+			themed,
+			missing,
+			commentedOut,
+			missingIframeReset,
+		}, {
+			themed: false,
+			missing: true,
+			commentedOut: true,
+			missingIframeReset: true,
+		});
+	});
+
+	test('rejects color-scheme declarations outside the workbench global styles', async () => {
+		const globalStyles = await readFile(new URL('../../../src/vs/workbench/browser/media/style.css', import.meta.url), 'utf8');
+		const [component, nestedComponent, globalStyle, extension, testCss] = await Promise.all([
+			hasColorSchemeDeclarationError('src/vs/workbench/browser/example.css', '.example { color-scheme: light dark; }'),
+			hasColorSchemeDeclarationError('src/vs/editor/browser/example.css', '.example { & .child { color-scheme: dark; } }'),
+			hasColorSchemeDeclarationError('src/vs/workbench/browser/media/style.css', globalStyles),
+			hasColorSchemeDeclarationError('extensions/example/media/example.css', 'body { color-scheme: dark; }'),
+			hasColorSchemeDeclarationError('src/vs/workbench/test/browser/example.css', '.example { color-scheme: dark; }'),
+		]);
+
+		assert.deepStrictEqual({
+			component,
+			nestedComponent,
+			globalStyle,
+			extension,
+			testCss,
+		}, {
+			component: true,
+			nestedComponent: true,
+			globalStyle: false,
+			extension: false,
+			testCss: false,
+		});
+	});
+
+	test('rejects hardcoded native scrollbar colors in production CSS', async () => {
+		const [themedPseudo, hardcodedPseudo, hardcodedPseudoBackgroundColor, nestedHardcodedPseudo, nestedAtRuleHardcodedPseudo, themedStandard, hardcodedStandard, hardcodedStandardAfterNestedBlock, colorFreeReset, testCss] = await Promise.all([
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background) }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background-color: white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { background: var(--vscode-scrollbarSlider-background); &:hover { background: white; } }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-thumb { @media (forced-colors: none) { background: white; } }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { scrollbar-color: var(--vscode-scrollbarSlider-background) transparent; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { scrollbar-color: var(--vscode-scrollbarSlider-background) white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable { & > span { color: red; } scrollbar-color: white white; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: none; }'),
+			hasHardcodedNativeScrollbarColorError('src/vs/workbench/test/browser/example.css', '.scrollable::-webkit-scrollbar-track { background: white; }'),
+		]);
+
+		assert.deepStrictEqual({
+			themedPseudo,
+			hardcodedPseudo,
+			hardcodedPseudoBackgroundColor,
+			nestedHardcodedPseudo,
+			nestedAtRuleHardcodedPseudo,
+			themedStandard,
+			hardcodedStandard,
+			hardcodedStandardAfterNestedBlock,
+			colorFreeReset,
+			testCss,
+		}, {
+			themedPseudo: false,
+			hardcodedPseudo: true,
+			hardcodedPseudoBackgroundColor: true,
+			nestedHardcodedPseudo: true,
+			nestedAtRuleHardcodedPseudo: true,
+			themedStandard: false,
+			hardcodedStandard: true,
+			hardcodedStandardAfterNestedBlock: true,
+			colorFreeReset: false,
+			testCss: false,
+		});
+	});
 });
 
 function hasClassAttributeSubstringError(relative: string): Promise<boolean> {
+	return getStylelintErrors(relative, '.a[class*=x] {}')
+		.then(errors => errors.some(message => message.includes('Class attribute substring selectors')));
+}
+
+function hasNativeScrollbarThemingError(contents: string): Promise<boolean> {
+	return getStylelintErrors('src/vs/workbench/browser/media/style.css', contents)
+		.then(errors => errors.some(message => message.includes('Workbench theme classes')));
+}
+
+function hasColorSchemeDeclarationError(relative: string, contents: string): Promise<boolean> {
+	return getStylelintErrors(relative, contents)
+		.then(errors => errors.some(message => message.includes('Do not declare color-scheme')));
+}
+
+function hasHardcodedNativeScrollbarColorError(relative: string, contents: string): Promise<boolean> {
+	return getStylelintErrors(relative, contents)
+		.then(errors => errors.some(message => message.includes('Native scrollbar colors')));
+}
+
+function getStylelintErrors(relative: string, contents: string): Promise<string[]> {
 	return new Promise((resolve, reject) => {
 		const errors: string[] = [];
 		const stream = gulpstylelint((message, isError) => {
@@ -93,10 +210,10 @@ function hasClassAttributeSubstringError(relative: string): Promise<boolean> {
 		}, false, false);
 		stream.on('data', () => undefined);
 		stream.once('error', reject);
-		stream.once('end', () => resolve(errors.some(message => message.includes('Class attribute substring selectors'))));
+		stream.once('end', () => resolve(errors));
 		es.readArray([{
 			relative,
-			contents: Buffer.from('.a[class*=x] {}'),
+			contents: Buffer.from(contents),
 		}]).pipe(stream);
 	});
 }
