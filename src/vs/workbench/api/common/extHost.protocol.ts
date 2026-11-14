@@ -1128,7 +1128,7 @@ export interface WebviewMessageArrayBufferReference {
 export interface MainThreadWebviewsShape extends IDisposable {
 	$setHtml(handle: WebviewHandle, value: string): void;
 	$setOptions(handle: WebviewHandle, options: IWebviewContentOptions): void;
-	$postMessage(handle: WebviewHandle, value: string, ...buffers: VSBuffer[]): Promise<boolean>;
+	$postMessage(handle: WebviewHandle, value: string, buffers: SerializableObjectWithBuffers<VSBuffer[]>): Promise<boolean>;
 }
 
 export type IWebviewIconPath = ThemeIcon | {
