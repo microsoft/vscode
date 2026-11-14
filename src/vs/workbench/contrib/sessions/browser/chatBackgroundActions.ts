@@ -17,14 +17,13 @@ import { ContextKeyExpr, IContextKeyService } from '../../../../platform/context
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { CHAT_CATEGORY } from '../../chat/browser/actions/chatActions.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { INewSessionInAgentsWindowOptions } from '../../chat/common/chatSessionsService.js';
 import { AgentsChatPartVisibleContext } from './agentsView/agentsChatPartActions.js';
 import { AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_DARK_CHAT_BACKGROUND_IMAGE_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_LAYOUT_SETTING, AGENT_SESSIONS_PREFERRED_LIGHT_CHAT_BACKGROUND_IMAGE_SETTING, chatBackgroundImageExtensions, chatBackgroundImageLayoutValues, ChatBackgroundImageLayout, chatBackgroundPresets, getChatBackgroundPresetLabel, ISessionsChatBackgroundService, SessionsChatBackgroundPreset } from './chatBackgroundService.js';
-import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, SessionsChatBackgroundTint, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
+import { AGENT_SESSIONS_CHAT_BACKGROUND_IMAGE_TINT_SETTING, ToggleChatBackgroundTintAction } from './chatBackgroundTint.js';
 import { Menus } from './menus.js';
 import { AGENT_SESSIONS_APPEARANCE_TOOLS_ENABLED_SETTING, NEW_SESSION_ACTION_ID } from '../common/chatConstants.js';
 import { SessionsChatBackgroundAvailableContext, SessionsChatBackgroundImageConfiguredContext } from '../common/contextkeys.js';
@@ -301,7 +300,6 @@ class ChangeChatBackgroundLayoutAction extends Action2 {
 registerAction2(SetChatBackgroundAction);
 registerAction2(ChangeChatBackgroundLayoutAction);
 registerAction2(ToggleChatBackgroundTintAction);
-registerWorkbenchContribution2(SessionsChatBackgroundTint.ID, SessionsChatBackgroundTint, WorkbenchPhase.AfterRestored);
 
 const chatBackgroundConfiguration: IConfigurationNode = {
 	properties: {
