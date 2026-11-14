@@ -62,7 +62,7 @@ export class SearchParams {
 			canUseSimpleSearch = this.matchCase;
 		}
 
-		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators, []) : null, canUseSimpleSearch ? this.searchString : null);
+		return new SearchData(regex, this.wordSeparators ? getMapForWordSeparators(this.wordSeparators, []) : null, canUseSimpleSearch ? this.searchString : null, !this.isRegex);
 	}
 }
 
@@ -167,7 +167,7 @@ export class TextModelSearch {
 		}
 
 		if (searchData.regex.multiline) {
-			return this._doFindMatchesMultiline(model, searchRange, new Searcher(searchData.wordSeparators, searchData.regex), captureMatches, limitResultCount);
+			return this._doFindMatchesMultiline(model, searchRange, new Searcher(searchData.wordSeparators, searchData.regex, searchData.isLiteralSearch), captureMatches, limitResultCount);
 		}
 		return this._doFindMatchesLineByLine(model, searchRange, searchData, captureMatches, limitResultCount);
 	}
@@ -259,19 +259,24 @@ export class TextModelSearch {
 			const searchStringLen = searchString.length;
 			const textLength = text.length;
 
-			let lastMatchIndex = -searchStringLen;
-			while ((lastMatchIndex = text.indexOf(searchString, lastMatchIndex + searchStringLen)) !== -1) {
+			let searchStartIndex = 0;
+			let lastMatchIndex: number;
+			while ((lastMatchIndex = text.indexOf(searchString, searchStartIndex)) !== -1) {
 				if (!wordSeparators || isValidMatch(wordSeparators, text, textLength, lastMatchIndex, searchStringLen)) {
 					result[resultLen++] = new FindMatch(new Range(lineNumber, lastMatchIndex + 1 + deltaOffset, lineNumber, lastMatchIndex + 1 + searchStringLen + deltaOffset), null);
 					if (resultLen >= limitResultCount) {
 						return resultLen;
 					}
+					searchStartIndex = lastMatchIndex + searchStringLen;
+				} else {
+					// A rejected candidate can overlap a valid whole-word match.
+					searchStartIndex = findNextWordStart(wordSeparators, text, textLength, lastMatchIndex);
 				}
 			}
 			return resultLen;
 		}
 
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const searcher = new Searcher(searchData.wordSeparators, searchData.regex, searchData.isLiteralSearch);
 		let m: RegExpExecArray | null;
 		// Reset regex to search from the beginning
 		searcher.reset(0);
@@ -293,7 +298,7 @@ export class TextModelSearch {
 			return null;
 		}
 
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const searcher = new Searcher(searchData.wordSeparators, searchData.regex, searchData.isLiteralSearch);
 
 		if (searchData.regex.multiline) {
 			return this._doFindNextMatchMultiline(model, searchStart, searcher, captureMatches);
@@ -371,7 +376,7 @@ export class TextModelSearch {
 			return null;
 		}
 
-		const searcher = new Searcher(searchData.wordSeparators, searchData.regex);
+		const searcher = new Searcher(searchData.wordSeparators, searchData.regex, searchData.isLiteralSearch);
 
 		if (searchData.regex.multiline) {
 			return this._doFindPreviousMatchMultiline(model, searchStart, searcher, captureMatches);
@@ -491,15 +496,28 @@ export function isValidMatch(wordSeparators: WordCharacterClassifier, text: stri
 	);
 }
 
+/**
+ * Returns the next possible whole-word match start after a rejected candidate.
+ */
+export function findNextWordStart(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number): number {
+	let index = matchStartIndex;
+	do {
+		index += strings.getNextCodePoint(text, textLength, index) > 0xFFFF ? 2 : 1;
+	} while (index < textLength && !leftIsWordBounday(wordSeparators, text, textLength, index, 1));
+	return index;
+}
+
 export class Searcher {
 	public readonly _wordSeparators: WordCharacterClassifier | null;
 	private readonly _searchRegex: RegExp;
+	private readonly _isLiteralSearch: boolean;
 	private _prevMatchStartIndex: number;
 	private _prevMatchLength: number;
 
-	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp,) {
+	constructor(wordSeparators: WordCharacterClassifier | null, searchRegex: RegExp, isLiteralSearch: boolean = false) {
 		this._wordSeparators = wordSeparators;
 		this._searchRegex = searchRegex;
+		this._isLiteralSearch = isLiteralSearch;
 		this._prevMatchStartIndex = -1;
 		this._prevMatchLength = 0;
 	}
@@ -513,13 +531,20 @@ export class Searcher {
 	public next(text: string): RegExpExecArray | null {
 		const textLength = text.length;
 
+		if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
+			// The previous accepted match reached the end of the text.
+			return null;
+		}
+
 		let m: RegExpExecArray | null;
 		do {
-			if (this._prevMatchStartIndex + this._prevMatchLength === textLength) {
-				// Reached the end of the line
+			if (this._prevMatchStartIndex !== -1 && !this._searchRegex.global && !this._searchRegex.sticky) {
+				// Non-global, non-sticky regexes ignore lastIndex, including for empty matches.
 				return null;
 			}
-
+			if (!this._isLiteralSearch && this._prevMatchStartIndex + this._prevMatchLength === textLength) {
+				return null;
+			}
 			m = this._searchRegex.exec(text);
 			if (!m) {
 				return null;
@@ -546,6 +571,13 @@ export class Searcher {
 
 			if (!this._wordSeparators || isValidMatch(this._wordSeparators, text, textLength, matchStartIndex, matchLength)) {
 				return m;
+			}
+
+			if (this._isLiteralSearch) {
+				// Literal candidates have a fixed length, so retrying can recover valid overlaps.
+				// Keep user regexes advancing past rejected matches: rewinding arbitrary patterns
+				// can repeatedly scan long suffixes, causing quadratic work.
+				this._searchRegex.lastIndex = findNextWordStart(this._wordSeparators, text, textLength, matchStartIndex);
 			}
 
 		} while (m);
