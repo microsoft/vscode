@@ -26,6 +26,7 @@ import { IWorkbenchLayoutService } from '../../../../../workbench/services/layou
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
 import { WorkspaceHistoryLoadState } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { ICustomViewService } from '../../../../../workbench/contrib/sessions/browser/customView.js';
+import { AUTOMATIONS_TOUR_SEEN_KEY } from '../../../../../workbench/contrib/sessions/browser/automationsConstants.js';
 import { IRecentWorkspace, ISessionsRecentWorkspacesService } from '../../../../../workbench/contrib/sessions/browser/sessionsRecentWorkspacesService.js';
 import { IOpenNewSessionResult, ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISession, ISessionChangesSummary, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -72,7 +73,7 @@ suite('GetStartedTourRunner', () => {
 	}
 
 	/** Runs an item's tour, resolving its steps like the spotlight presentation does when the tour starts. */
-	async function runTour(item: GetStartedItemId, scenario: IRunnerScenario) {
+	async function runTour(item: GetStartedItemId, scenario: IRunnerScenario, onScenario?: (scenario: IOnboardingScenario<ISpotlightPayload>) => void) {
 		const events: string[] = [];
 		let steps: readonly ISpotlightStep[] = [];
 		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', scenario.active && toActiveSession(scenario.active));
@@ -91,6 +92,9 @@ suite('GetStartedTourRunner', () => {
 		instantiationService.stub(IOnboardingScenarioService, new class extends mock<IOnboardingScenarioService>() {
 			override async runScenario(id: string): Promise<OnboardingOutcome> {
 				const registered = onboardingScenarioRegistry.getScenario(id) as IOnboardingScenario<ISpotlightPayload> | undefined;
+				if (registered) {
+					onScenario?.(registered);
+				}
 				steps = await registered?.presentation.payload.resolveSteps?.() ?? [];
 				for (const step of steps) {
 					await step.onBeforeShow?.();
@@ -253,10 +257,17 @@ suite('GetStartedTourRunner', () => {
 		});
 	});
 
-	test('the automation tour opens Automations for its templates and create steps', async () => {
-		assert.deepStrictEqual((await runTour(GetStartedItemId.Automation, { sessions: [] })).events, [
-			'show sessions.customView.automations',
-			'show sessions.customView.automations',
-		]);
+	test('the automation tour introduces creation without preventing manual replay', async () => {
+		let seenKey: string | undefined;
+		let repeatable: boolean | undefined;
+		const result = await runTour(GetStartedItemId.Automation, { sessions: [] }, scenario => {
+			seenKey = scenario.seenKey;
+			repeatable = scenario.repeatable;
+		});
+		assert.deepStrictEqual({ events: result.events, seenKey, repeatable }, {
+			events: ['show sessions.customView.automations', 'show sessions.customView.automations'],
+			seenKey: AUTOMATIONS_TOUR_SEEN_KEY,
+			repeatable: true,
+		});
 	});
 });
