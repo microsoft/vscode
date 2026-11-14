@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-VY65u6y1DZWK8Cb4MlVpSVlMYcM338BRDVhygiwXLLg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-UKU7spdILQ1hpvpISnMiBY3D5ALMqQJGeQBNfHugl/Q=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -251,6 +251,9 @@
 								},
 								getState: function() {
 									return state;
+								},
+								prepareKeybinding: function(event, localCommands) {
+									return originalPostMessage('prepare-keybinding', { event, localCommands });
 								}
 							});
 						};
@@ -607,6 +610,16 @@
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeydown = (e) => {
+			if (dispatchedKeyEvents.has(e)) {
+				return;
+			}
+			if (suppressNativeKeydown(e)) {
+				forwardKeyEvent('did-keydown', e);
+			}
+		};
+
+		/** @param {KeyboardEvent} e */
+		function suppressNativeKeydown(e) {
 			// If the keypress would trigger a browser event, such as copy or paste,
 			// make sure we block the browser from dispatching it. Instead VS Code
 			// handles these events and will dispatch a copy/paste back to the webview
@@ -617,7 +630,7 @@
 				if (onElectron) {
 					e.preventDefault();
 				} else {
-					return; // let the browser handle this
+					return false; // let the browser handle this
 				}
 			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
 				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
@@ -625,13 +638,15 @@
 				e.preventDefault();
 			}
 
-			forwardKeyEvent('did-keydown', e);
-		};
+			return true;
+		}
 		/**
 		 * @param {KeyboardEvent} e
 		 */
 		const handleInnerKeyup = (e) => {
-			forwardKeyEvent('did-keyup', e);
+			if (!dispatchedKeyEvents.has(e)) {
+				forwardKeyEvent('did-keyup', e);
+			}
 		};
 
 		/**
@@ -639,8 +654,13 @@
 		 * @param {KeyboardEvent} e
 		 */
 		function forwardKeyEvent(channel, e) {
-			/** @type {import('../webviewMessages').KeyEvent} */
-			const data = {
+			dispatchedKeyEvents.add(e);
+			hostMessaging.postMessage(channel, serializeKeyEvent(e));
+		}
+
+		/** @param {KeyboardEvent} e @returns {import('../webviewMessages').KeyEvent} */
+		function serializeKeyEvent(e) {
+			return {
 				key: e.key,
 				keyCode: e.keyCode,
 				code: e.code,
@@ -649,11 +669,70 @@
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
 				repeat: e.repeat,
+				timestamp: (e.view?.performance.timeOrigin ?? performance.timeOrigin) + e.timeStamp,
+				isComposing: e.isComposing,
+				altGraphKey: e.getModifierState('AltGraph'),
 				isTrusted: e.isTrusted,
 				keyEventToken
 			};
-			hostMessaging.postMessage(channel, data);
 		}
+
+		/** @type {WeakMap<KeyboardEvent, { type: 'keydown' | 'keyup'; event: import('../webviewMessages').KeyEvent; document: Document | undefined }>} */
+		const capturedKeyEvents = new WeakMap();
+		/** @type {WeakSet<KeyboardEvent>} */
+		const dispatchedKeyEvents = new WeakSet();
+		/** @type {Map<number, { resolve: (result: import('../webviewMessages').KeybindingDispatchResult) => void; reject: (error: Error) => void }>} */
+		const pendingKeyEvents = new Map();
+		let nextKeyEventId = 0;
+
+		/** @param {KeyboardEvent} event */
+		function captureKeyEvent(event) {
+			capturedKeyEvents.set(event, { type: event.type === 'keyup' ? 'keyup' : 'keydown', event: serializeKeyEvent(event), document: event.view?.document });
+		}
+
+		/** @param {KeyboardEvent} event @param {readonly string[]} localCommands */
+		function prepareKeybinding(event, localCommands) {
+			const data = capturedKeyEvents.get(event);
+			if (!data || event.eventPhase === 0 || dispatchedKeyEvents.has(event) || data.document !== getActiveFrame()?.contentDocument) {
+				throw new Error('Keyboard dispatch requires the current, undispatched key event from the active document');
+			}
+			dispatchedKeyEvents.add(event);
+			const forward = data.type === 'keyup' || suppressNativeKeydown(event);
+			const commands = [...localCommands];
+			let dispatched = false;
+			return () => {
+				if (dispatched || data.document !== getActiveFrame()?.contentDocument) {
+					return Promise.reject(new Error('The prepared keybinding is no longer available'));
+				}
+				dispatched = true;
+				if (!forward) {
+					return Promise.resolve({ handled: false });
+				}
+				const id = ++nextKeyEventId;
+				return new Promise((resolve, reject) => {
+					pendingKeyEvents.set(id, { resolve, reject });
+					try {
+						hostMessaging.postMessage('dispatch-key-event', { id, type: data.type, event: data.event, localCommands: commands });
+					} catch (error) {
+						pendingKeyEvents.delete(id);
+						reject(error);
+					}
+				});
+			};
+		}
+
+		hostMessaging.onMessage('did-dispatch-key-event', (_event, data) => {
+			const pending = pendingKeyEvents.get(data.id);
+			if (!pending) {
+				return;
+			}
+			pendingKeyEvents.delete(data.id);
+			if ('error' in data) {
+				pending.reject(new Error(data.error));
+			} else {
+				pending.resolve(data.result);
+			}
+		});
 
 		/**
 		 * @param {KeyboardEvent} e
@@ -1108,6 +1187,8 @@
 				document.body.appendChild(newFrame);
 
 				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keydown', captureKeyEvent, true);
+				newFrame.contentWindow.addEventListener('keyup', captureKeyEvent, true);
 				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
 
 				/**
@@ -1241,6 +1322,8 @@
 					contentWindow.addEventListener('click', handleInnerClick);
 					contentWindow.addEventListener('auxclick', handleAuxClick);
 					contentWindow.addEventListener('keydown', handleInnerKeydown);
+					contentWindow.addEventListener('keydown', captureKeyEvent, true);
+					contentWindow.addEventListener('keyup', captureKeyEvent, true);
 					contentWindow.addEventListener('keyup', handleInnerKeyup);
 					contentWindow.addEventListener('mousemove', handleMouseMove, true);
 					contentWindow.addEventListener('contextmenu', e => {
@@ -1396,6 +1479,8 @@
 
 			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {
 				switch (command) {
+					case 'prepare-keybinding':
+						return prepareKeybinding(data.event, data.localCommands);
 					case 'onmessage':
 					case 'do-update-state':
 						hostMessaging.postMessage(command, data);

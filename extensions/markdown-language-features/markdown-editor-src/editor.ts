@@ -25,11 +25,13 @@ import { ImagePasteController } from './imagePasteController';
 import { createTaskProgressProvider, isTaskProgressLabels } from './taskProgress/taskProgressProvider';
 import { codeBlockEditorTheme } from './codeBlockEditorTheme';
 import type { MarkdownEditorInitialState } from '../src/preview/webviewInitialState';
+import { OrderedInput, type KeybindingDispatchResult } from './orderedInput';
 
 interface VsCodeApi {
 	postMessage(message: unknown): void;
 	getState(): unknown;
 	setState(state: unknown): void;
+	prepareKeybinding(event: KeyboardEvent, localCommands: readonly string[]): () => Promise<KeybindingDispatchResult>;
 }
 
 declare function acquireVsCodeApi(): VsCodeApi;
@@ -119,6 +121,8 @@ class Editor extends Disposable {
 	#nextCodeBlockEditorRuntimeId = 1;
 	readonly #codeBlockEditorHostTransports = new Map<string, CodeBlockEditorHostTransport>();
 	#controller: EditorController | undefined;
+	#input: OrderedInput | undefined;
+	#editorFocusReady: Promise<void> = Promise.resolve();
 	#rename: RenameController | undefined;
 	#completion: CompletionController | undefined;
 	#diagnostics: DiagnosticsController | undefined;
@@ -234,6 +238,7 @@ class Editor extends Disposable {
 				this.#revealRange(start, endExclusive, { anchor: selectionStart, active: selectionStart }, false);
 			},
 			captureNavigationState: async (_message, _context, { signal }) => {
+				await this.#input?.drain();
 				await this.#drainEdits();
 				signal.throwIfAborted();
 				const selection = this.model.selection.get();
@@ -243,12 +248,14 @@ class Editor extends Disposable {
 					scrollTop: this.#scrollHost.scrollTop,
 				};
 			},
-			revealRange: (message, _context, { signal }) => {
+			revealRange: async (message, _context, { signal }) => {
+				await this.#input?.drain();
 				signal.throwIfAborted();
 				this.#checkNavigationState(message);
 				this.#revealRange(message.start, message.endExclusive, message.selection, message.preserveFocus);
 			},
-			restoreNavigationState: (state, _context, { signal }) => {
+			restoreNavigationState: async (state, _context, { signal }) => {
+				await this.#input?.drain();
 				signal.throwIfAborted();
 				this.#checkNavigationState(state);
 				if (state.selection) {
@@ -259,6 +266,7 @@ class Editor extends Disposable {
 				this.#scrollHost.scrollTop = state.scrollTop;
 			},
 			command: async ({ command: commandId }) => {
+				await this.#input?.drain();
 				if (commandId === 'markdown.editor.triggerSuggest') {
 					await this.#completion?.start();
 					return;
@@ -365,6 +373,10 @@ class Editor extends Disposable {
 
 	#createView(host: HTMLElement, content: string, highlightActiveBlock: boolean): void {
 		const model = this.model;
+		const input = this.#input = this._register(new OrderedInput(content, error => {
+			console.error('Markdown editor input processing failed. Reopen the editor to resume editing.', error);
+			model.readonlyMode.set(true, undefined);
+		}));
 		const scriptNonce = document.querySelector<HTMLMetaElement>('meta[name="vscode-markdown-editor-script-nonce"]')?.content;
 		const iframeBootstrapUrl = new URL(location.href);
 		// Nested frames must use the empty webview bootstrap, not the restricted index.html entrypoint.
@@ -394,6 +406,7 @@ class Editor extends Disposable {
 		const savedViewState = this.#getViewState();
 
 		const view = this._register(new EditorView(model, {
+			textInput: input,
 			classNames: ['md-theme-vscode-default'],
 			highlightActiveBlock,
 			presentation: model.readonlyMode.get() ? 'reading' : 'editing',
@@ -428,15 +441,52 @@ class Editor extends Disposable {
 		// backing TextDocument's own undo stack. `record` is deliberately omitted:
 		// the TextDocument owns the history, and a second local stack would drift
 		// from the Edit menu, dirty state and hot exit.
-		this.#controller = this._register(new EditorController(model, view, {
+		const controllerOptions = {
 			clipboardStrategy: this.#imagePaste = this._register(new ImagePasteController(model, view, this.#host, () => this.#editEpoch)),
 			keyboardProfile: vscodeLocalKeyboardProfile,
 			forwardedKeyboardProfile: vscodeHostKeyboardProfile,
+			scheduleInput: (operation: () => void) => input.enqueue(operation),
 			historyStrategy: {
 				undo: () => this.#send('history undo', this.#host.history({ command: 'undo' })),
 				redo: () => this.#send('history redo', this.#host.history({ command: 'redo' })),
 			},
-		}));
+		};
+		this.#controller = this._register(new EditorController(model, view, controllerOptions));
+		const localCommands = commands.map(command => command.id);
+		const dispatchKeybinding = (event: KeyboardEvent): void => {
+			if (input.isFailed || !event.isTrusted || event.target !== view.element || event.isComposing || event.cancelBubble) {
+				return;
+			}
+			const dispatch = this.#vscode.prepareKeybinding(event, localCommands);
+			const focusReady = this.#editorFocusReady;
+			input.dispatchKey(async () => {
+				await focusReady;
+				return dispatch();
+			}, async ({ id }) => {
+				const command = commands.find(command => command.id === id);
+				if (!command) {
+					throw new Error(`Unknown Markdown keyboard command: ${id}`);
+				}
+				if (command.action.kind === 'history') {
+					await this.#drainEdits();
+					await this.#host.history({ command: command.action.command });
+				} else {
+					this.#controller?.executeCommand(command);
+				}
+			});
+		};
+		const onKeyUp = (event: KeyboardEvent): void => {
+			dispatchKeybinding(event);
+			input.endKey();
+		};
+		view.element.addEventListener('keydown', dispatchKeybinding);
+		view.element.addEventListener('keyup', onKeyUp);
+		this._register({
+			dispose: () => {
+				view.element.removeEventListener('keydown', dispatchKeybinding);
+				view.element.removeEventListener('keyup', onKeyUp);
+			}
+		});
 		let lastEditorFocus: boolean | undefined;
 		const postEditorFocus = (): void => {
 			const focused = document.hasFocus() && document.activeElement === view.element;
@@ -444,7 +494,8 @@ class Editor extends Disposable {
 				return;
 			}
 			lastEditorFocus = focused;
-			this.#send('editorFocusChanged', this.#host.editorFocusChanged({ focused }));
+			this.#editorFocusReady = this.#host.editorFocusChanged({ focused });
+			this.#send('editorFocusChanged', this.#editorFocusReady);
 		};
 		const onFocusOut = (): void => queueMicrotask(postEditorFocus);
 		document.addEventListener('focusin', postEditorFocus);

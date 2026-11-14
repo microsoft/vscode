@@ -89,6 +89,18 @@ Build outputs are written to `out/` (desktop), `dist/` (web), and `notebook-out/
 
    Markdown editor commands and their default keybindings are defined in `vscode-packages/vscode-team-tools/packages/markdown-editor/src/editorCommands.ts`. Do not manually edit entries marked with `"$generated": true` in this extension's `package.json` or their titles in `package.nls.json`: `pnpm run build-markdown-editor` and `pnpm run watch-markdown-editor` regenerate them while preserving manual entries. Run `pnpm run check-markdown-editor-package-json` to verify that the checked-in manifests are current without modifying them.
 
+### Keyboard input ordering
+
+The Markdown editor must resolve host-owned shortcuts through VS Code's keybinding service rather than hardcoding their default actions. The webview's `prepareKeybinding(event, localCommands)` bridge captures a keyboard event while it is being dispatched and returns a one-use function that can be invoked later. Both keydown and keyup belong to the ordered stream, since single-modifier chords resolve on keyup. Capture timestamps travel with the events, so the single-modifier interval is measured between releases rather than their potentially delayed delivery. It preserves user overrides, removals, keyboard-layout resolution, and chord state. Resolved Markdown commands return to the editor; other commands continue through the workbench command service.
+
+`OrderedInput` requests keybinding decisions as events arrive, then applies their results and native text updates in input order. Ordinary typing does not wait for extension-host edit acknowledgements; host-owned Undo/Redo still drain preceding edits. Its native EditContext is a speculative input buffer, not the document model: queued replacements are relative to the selection, and composition maintains its own mapped selection, including interior or ranged carets. Model-to-native synchronization waits for the queue and composition to finish. Do not replay saved absolute EditContext offsets after an asynchronous editing command.
+
+Locally handled editing keys, Escape, and logical pointer selections use the Markdown package's `scheduleInput` hook to join the same queue. Native focus and pointer capture stay synchronous. An authenticated keybinding whose target has lost focus is explicitly cancelled rather than executed against another control; cancellation does not discard accepted text or disable later input. The bridge and native window dispatch share workbench hold-mode handling.
+
+This prototype requires the upstream scheduling hook; the currently pinned package does not yet include it. Do not merge or ship the integration without updating to a package release that does. Development verification must use the patched package source and a source-built workbench with the bridge.
+
+Run the input transport regression test from this extension directory with `node --test ./scripts/orderedInput.browser.test.mts`. It uses the real local keyboard profile and scheduler, and deliberately fails against a package missing the scheduling hook. Set `VSCODE_MARKDOWN_EDITOR_PATH` to a built patched package for prerequisite development. The keybinding service, webview element, and webview shell have separate unit tests for command dispatch, hold mode, focus cancellation, authentication, and one-use event capture.
+
 ### Embedded code-block editor presentation
 
 `markdown.codeBlockEditorProviders` contributions and export-API resolve results

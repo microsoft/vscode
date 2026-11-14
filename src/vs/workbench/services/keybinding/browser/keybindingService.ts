@@ -28,13 +28,13 @@ import { dirname } from '../../../../base/common/resources.js';
 import { ILocalizedString, isLocalizedString } from '../../../../platform/action/common/action.js';
 import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, IContextKeyServiceTarget } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { FileOperation, IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { Extensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { AbstractKeybindingService } from '../../../../platform/keybinding/common/abstractKeybindingService.js';
-import { IKeybindingService, IKeyboardEvent, KeybindingsSchemaContribution } from '../../../../platform/keybinding/common/keybinding.js';
+import { IKeybindingService, IKeyboardEvent, KeybindingCommandHandler, KeybindingsSchemaContribution } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingResolver } from '../../../../platform/keybinding/common/keybindingResolver.js';
 import { IExtensionKeybindingRule, IKeybindingItem, KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ResolvedKeybindingItem } from '../../../../platform/keybinding/common/resolvedKeybindingItem.js';
@@ -276,14 +276,11 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for standard keybindings
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
-			if (this._keybindingHoldMode) {
-				return;
-			}
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
 			this._log(`/ Received  keydown event - ${printKeyboardEvent(e)}`);
 			this._log(`| Converted keydown event - ${printStandardKeyboardEvent(keyEvent)}`);
-			const shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
+			const shouldPreventDefault = this.dispatchEvent(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -292,10 +289,9 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 		// for single modifier chord keybindings (e.g. shift shift)
 		disposables.add(dom.addDisposableListener(window, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			this._resetKeybindingHoldMode();
 			this.isComposingGlobalContextKey.set(e.isComposing);
 			const keyEvent = new StandardKeyboardEvent(e);
-			const shouldPreventDefault = this._singleModifierDispatch(keyEvent, keyEvent.target);
+			const shouldPreventDefault = this.dispatchEvent(keyEvent, keyEvent.target, undefined, 'keyup');
 			if (shouldPreventDefault) {
 				keyEvent.preventDefault();
 			}
@@ -303,6 +299,15 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		}));
 
 		return disposables;
+	}
+
+	public override dispatchEvent(e: IKeyboardEvent, target: IContextKeyServiceTarget, commandHandler?: KeybindingCommandHandler, type: 'keydown' | 'keyup' = 'keydown'): boolean {
+		if (type === 'keyup') {
+			this._resetKeybindingHoldMode();
+		} else if (this._keybindingHoldMode) {
+			return false;
+		}
+		return super.dispatchEvent(e, target, commandHandler, type);
 	}
 
 	public registerSchemaContribution(contribution: KeybindingsSchemaContribution): IDisposable {

@@ -16,8 +16,17 @@ type KeyEvent = {
 	readonly ctrlKey: boolean;
 	readonly metaKey: boolean;
 	readonly repeat: boolean;
+	readonly timestamp?: number;
+	readonly isComposing?: boolean;
+	readonly altGraphKey?: boolean;
 	readonly isTrusted: boolean;
 	readonly keyEventToken: string;
+}
+
+export interface KeybindingDispatchResult {
+	readonly handled: boolean;
+	readonly cancelled?: boolean;
+	readonly command?: { readonly id: string; readonly args: unknown };
 }
 
 type WebViewDragEvent = {
@@ -42,6 +51,7 @@ export type FromWebviewMessage = {
 	'no-csp-found': void;
 	'did-keydown': KeyEvent;
 	'did-keyup': KeyEvent;
+	'dispatch-key-event': { id: number; type: 'keydown' | 'keyup'; event: KeyEvent; localCommands: readonly string[] };
 	'did-context-menu': { clientX: number; clientY: number; context: { [key: string]: unknown } };
 	'drag-start': void;
 	'drag': WebViewDragEvent;
@@ -63,6 +73,7 @@ interface UpdateContentEvent {
 }
 
 export type ToWebviewMessage = {
+	'did-dispatch-key-event': { id: number } & ({ result: KeybindingDispatchResult } | { error: string });
 	'focus': void;
 	'message': { message: any; transfer?: ArrayBuffer[] };
 	'execCommand': string;
