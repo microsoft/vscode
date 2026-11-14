@@ -190,6 +190,11 @@ export interface IChatWindowComposerInit {
 	readonly allowedFolders?: IObservable<readonly URI[]>;
 	/** How it shows one of its {@link allowedFolders}, such as a linked checkout of the window's folder. */
 	readonly getFolderPresentation?: (folderUri: URI) => IAllowedFolderPresentation | undefined;
+	/**
+	 * The folder its host aimed it at, which it follows to another folder (see `ChatWindowComposerModel.retargetFolder`), or
+	 * `null` when the user picked its folder. The folder of its {@link target} when undefined, as for a new composer.
+	 */
+	readonly hostFolder?: URI | null;
 }
 
 /**
@@ -262,7 +267,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 			return folders.length && targetFolder && !folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, targetFolder)) ? [...folders, targetFolder] : folders;
 		});
 		this._requestedTarget.set(init.target, undefined);
-		this._hostFolder = init.target?.folderUri;
+		this._hostFolder = init.hostFolder === undefined ? init.target?.folderUri : init.hostFolder ?? undefined;
 		this.input = new ComposerInputSnapshot(init.input);
 		this.slot = this._register(_sessionsManagementService.createNewSessionSlot({ readoptOnFailure: session => this._isRequested(session) }));
 		this._register(sessionGroupsService.setDraftSlotGroup(this.slot.id, init.groupId));
@@ -291,10 +296,15 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		super.dispose();
 	}
 
-	/** What it stores to be restored, such as after a reload: what it aims for, its group and its input. */
+	/**
+	 * What it stores to be restored, such as after a reload: what it aims for, whether its host or the user picked that, its
+	 * group and its input.
+	 */
 	toStored(): IStoredChatWindowComposer {
 		const target = this._requestedTarget.get();
-		return { resource: this.resource, ...(target ? { target } : {}), ...(this.groupId ? { groupId: this.groupId } : {}), ...this.input.get() };
+		const current = target?.folderUri;
+		const hostFolder = current && this._hostFolder && extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder) ? this._hostFolder : null;
+		return { resource: this.resource, ...(target ? { target } : {}), hostFolder, ...(this.groupId ? { groupId: this.groupId } : {}), ...this.input.get() };
 	}
 
 	setRequestedTarget(target: INewSessionTarget, reason: 'user' | 'background' = 'user'): void {
@@ -312,7 +322,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	retargetFolder(folderUri: URI, from?: URI): boolean {
 		const target = this._requestedTarget.get();
 		const current = target?.folderUri;
-		if (this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
+		if (this.input.isSubmitting || this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
 			|| (from && !extUriBiasedIgnorePathCase.isEqual(current, from)) || extUriBiasedIgnorePathCase.isEqual(current, folderUri)) {
 			return false;
 		}
@@ -415,6 +425,8 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 export interface IStoredChatWindowComposer extends IComposerInputState {
 	readonly resource: URI;
 	readonly target?: INewSessionTarget;
+	/** The folder its host aimed it at, or `null` when the user picked its folder; absent from composers stored before it was. */
+	readonly hostFolder?: URI | null;
 	readonly groupId?: string;
 }
 
@@ -430,10 +442,11 @@ function isOptionalString(value: unknown): value is string | undefined {
 
 /** The stored composer that `value` is, unmarshalled; throws when it is none. */
 function fromStoredComposer(value: unknown): IStoredChatWindowComposer {
-	const entry = value as { resource?: unknown; target?: Partial<Record<keyof INewSessionTarget, unknown>>; groupId?: unknown; input?: unknown; attempt?: { id?: unknown; input?: unknown; session?: unknown } } | undefined;
+	const entry = value as { resource?: unknown; target?: Partial<Record<keyof INewSessionTarget, unknown>>; hostFolder?: unknown; groupId?: unknown; input?: unknown; attempt?: { id?: unknown; input?: unknown; session?: unknown } } | undefined;
 	const target = entry?.target;
 	const attempt = entry?.attempt;
 	if (!entry || !URI.isUri(entry.resource) || !isChatWindowComposerResource(entry.resource) || !isOptionalString(entry.groupId)
+		|| (entry.hostFolder !== undefined && entry.hostFolder !== null && !URI.isUri(entry.hostFolder))
 		|| (target !== undefined && (typeof target !== 'object' || target === null || (target.folderUri !== undefined && !URI.isUri(target.folderUri))
 			|| !isOptionalString(target.providerId) || !isOptionalString(target.sessionTypeId) || !isOptionalString(target.modelId) || !isOptionalString(target.modeId)
 			|| (target.requireDevContainer !== undefined && typeof target.requireDevContainer !== 'boolean')))
@@ -443,6 +456,7 @@ function fromStoredComposer(value: unknown): IStoredChatWindowComposer {
 	return {
 		resource: entry.resource,
 		...(target ? { target: target as INewSessionTarget } : {}),
+		...(entry.hostFolder !== undefined ? { hostFolder: entry.hostFolder as URI | null } : {}),
 		...(entry.groupId ? { groupId: entry.groupId } : {}),
 		input: fromStoredChatDraft(entry.input),
 		...(attempt ? { attempt: { id: attempt.id as string, input: fromStoredChatDraft(attempt.input), ...(attempt.session ? { session: attempt.session as URI } : {}) } } : {}),
@@ -453,6 +467,7 @@ function toStoredComposer(composer: IStoredChatWindowComposer): unknown {
 	return {
 		resource: composer.resource,
 		target: composer.target,
+		hostFolder: composer.hostFolder,
 		groupId: composer.groupId,
 		input: toStoredChatDraft(composer.input),
 		attempt: composer.attempt && { id: composer.attempt.id, session: composer.attempt.session, input: toStoredChatDraft(composer.attempt.input) },
@@ -542,7 +557,9 @@ export class ChatWindowComposers extends Disposable {
 		}
 		const input = stored.attempt?.input ?? stored.input;
 		this._restoredAs.set(key, key);
-		return { kind: 'composer', composer: this.create(resource, { target: stored.target, groupId: stored.groupId, input: { input }, ...folders }, openStartedSession) };
+		// A composer stored before its host's folder was does not tell whether the user picked its folder: it keeps it, as one the user picked
+		const hostFolder = stored.hostFolder === undefined ? null : stored.hostFolder;
+		return { kind: 'composer', composer: this.create(resource, { target: stored.target, hostFolder, groupId: stored.groupId, input: { input }, ...folders }, openStartedSession) };
 	}
 
 	/** The session that a foreground send of the stored composer of `resource` went out with, if any. */
