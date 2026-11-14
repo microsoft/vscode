@@ -676,9 +676,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		// Its tabs follow the chat tabs of sessions, as a session's chats do, not the editor area's: by default one tab, of the
 		// active chat, or one of each chat
+		// With one tab, the session header of the chat it shows is its title, as alone in its group
 		this._partStore.add(enforceChatPartOptions(part, derived(reader => ({
 			...getChatWindowMainPartOptions(undefined),
 			showTabs: this._chatTabsMode.read(reader) === SessionsChatTabsMode.Multiple ? 'multiple' : 'single',
+			singleTabTitleProvidedByEditor: true,
 		}))));
 		// The part goes with the window; its chats are not dirty, so nothing moves back to the editor area
 		this._partStore.add(toDisposable(() => {
