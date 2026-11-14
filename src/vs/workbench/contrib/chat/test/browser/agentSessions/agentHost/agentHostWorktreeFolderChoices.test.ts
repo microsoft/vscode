@@ -99,11 +99,13 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		await actions(primary).find(action => action.label === 'feature')!.run();
 
 		// By its icon only, but New Worktree by its name; what it is, by name, for screen readers and on hover
-		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature) }, {
+		// An existing chat, whose started session works in a worktree that the chip no longer lists, also shows it as a worktree
+		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature), unlistedWorktreeChip: chip(URI.file('/work/vscode.worktrees/small-random-change-addition')) }, {
 			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'Worktree', description: 'New worktree of vscode' } },
 			changes: ['isolation worktree', 'folder /work/vscode.worktrees/feature', 'isolation folder'],
 			folderChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
 			worktreeChip: { icon: 'worktree', label: null, description: 'Worktree: feature' },
+			unlistedWorktreeChip: { icon: 'worktree', label: null, description: 'Worktree: small-random-change-addition' },
 		});
 	});
 
