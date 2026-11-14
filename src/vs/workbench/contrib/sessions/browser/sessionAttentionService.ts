@@ -525,5 +525,5 @@ function parseTimestamp(value: string | undefined): number | undefined {
 	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-// Registered here, once, for both the Agents window and the Sessions view of editor windows, which load this module
+// Registered here, once, for every window that loads this module
 registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);

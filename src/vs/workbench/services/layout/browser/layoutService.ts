@@ -211,27 +211,20 @@ export function getFloatingOuterEdgeOwners(layoutService: IWorkbenchLayoutServic
 	// this order inward to the first *visible* card, so a hidden editor (e.g. a maximized side
 	// bar that spans the full content width) is skipped and the spanning card is detected on
 	// both edges.
-	// A chat part, where a window has one, sits immediately beside the editor on the primary side bar's side, inside a
+	// A chat part, where a window has one, sits immediately beside the editor on `getChatPartPosition()`, inside a
 	// vertical panel on that side.
+	const chatPartLeft = layoutService.getChatPartPosition() === Position.LEFT;
 	const sideBarGroup: Parts[] = [Parts.ACTIVITYBAR_PART, Parts.SIDEBAR_PART];
 	const panelGroup: Parts[] = [Parts.PANEL_PART];
-	const fullOrder: Parts[] = sideBarLeft
-		? [
-			...sideBarGroup,
-			...(panelInLeftSequence ? panelGroup : []),
-			Parts.CHAT_PART,
-			Parts.EDITOR_PART,
-			...(panelInRightSequence ? panelGroup : []),
-			Parts.AUXILIARYBAR_PART
-		]
-		: [
-			Parts.AUXILIARYBAR_PART,
-			...(panelInLeftSequence ? panelGroup : []),
-			Parts.EDITOR_PART,
-			Parts.CHAT_PART,
-			...(panelInRightSequence ? panelGroup : []),
-			...[...sideBarGroup].reverse() // activity bar is outermost on the right edge
-		];
+	const fullOrder: Parts[] = [
+		...(sideBarLeft ? sideBarGroup : [Parts.AUXILIARYBAR_PART]),
+		...(panelInLeftSequence ? panelGroup : []),
+		...(chatPartLeft ? [Parts.CHAT_PART] : []),
+		Parts.EDITOR_PART,
+		...(chatPartLeft ? [] : [Parts.CHAT_PART]),
+		...(panelInRightSequence ? panelGroup : []),
+		...(sideBarLeft ? [Parts.AUXILIARYBAR_PART] : [...sideBarGroup].reverse()) // activity bar is outermost on the right edge
+	];
 
 	return {
 		left: resolveFloatingOuterOwner(layoutService, fullOrder),
@@ -661,6 +654,19 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the current side bar position. Note that the sidebar can be hidden too.
 	 */
 	getSideBarPosition(): Position;
+
+	/**
+	 * Docks the chat part beside the view with the given id: it sits immediately beside the editor, on the side of the
+	 * editor where that view's container is, and follows as the view or its container moves or the side bar or panel
+	 * position changes. A view in a panel at the top or bottom, an unknown view, or no anchor keep the chat part on the
+	 * primary side bar's side.
+	 */
+	setChatPartAnchor(anchor: { readonly viewId: string } | undefined): void;
+
+	/**
+	 * Gets the side of the editor the chat part is on, whether the window has a chat part or not.
+	 */
+	getChatPartPosition(): Position.LEFT | Position.RIGHT;
 
 	/**
 	 * Toggles the menu bar visibility.

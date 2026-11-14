@@ -711,6 +711,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getMenubarVisibility(): MenuBarVisibility { throw new Error('not implemented'); }
 	toggleMenuBar(): void { }
 	getSideBarPosition() { return 0; }
+	setChatPartAnchor(): void { }
+	getChatPartPosition(): PartPosition.LEFT | PartPosition.RIGHT { return this.getSideBarPosition() === PartPosition.RIGHT ? PartPosition.RIGHT : PartPosition.LEFT; }
 	getPanelPosition() { return 0; }
 	getPanelAlignment(): PanelAlignment { return 'center'; }
 	async setPanelPosition(_position: PartPosition): Promise<void> { }
