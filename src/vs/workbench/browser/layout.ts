@@ -27,7 +27,7 @@ import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
 import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
-import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
+import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing, GridBranchNode, GridNode, isGridBranchNode } from '../../base/browser/ui/grid/grid.js';
 import { Part, relayoutWorkbenchParts, updateSashEndpoints } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
 import { IFileService } from '../../platform/files/common/files.js';
@@ -2589,7 +2589,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (!this.chatPartView || this.chatPartHidden || !grid) {
 			return;
 		}
-		const columnWidth = () => grid.getViewSize(this.editorPartView).width + grid.getViewSize(this.chatPartView).width;
+		const columnWidth = () => this.getChatPartColumnWidth();
 		const target = Math.max(this.chatPartView.minimumWidth, width ?? grid.getViewSize(this.chatPartView).width);
 		let missing = this.editorPartView.minimumWidth + target - columnWidth();
 		for (const neighbour of this.getChatPartSideNeighbours()) {
@@ -2607,6 +2607,35 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (chatWidth !== grid.getViewSize(this.chatPartView).width) {
 			grid.resizeView(this.chatPartView, { width: chatWidth, height: grid.getViewSize(this.chatPartView).height });
 		}
+	}
+
+	/**
+	 * The width the grid gives the editor and the chat part together: of the branch that holds both, which their own widths
+	 * exceed where they are at their minimum in too narrow a branch, or theirs where they are parts of the window's row.
+	 */
+	private getChatPartColumnWidth(): number {
+		const holdsBoth = (node: GridBranchNode<ISerializableView>) => node.children.some(child => !isGridBranchNode(child) && child.view === this.editorPartView)
+			&& node.children.some(child => !isGridBranchNode(child) && child.view === this.chatPartView);
+		const find = (node: GridNode<ISerializableView>): GridBranchNode<ISerializableView> | undefined => {
+			if (!isGridBranchNode(node)) {
+				return undefined;
+			}
+			if (holdsBoth(node)) {
+				return node;
+			}
+			for (const child of node.children) {
+				const found = find(child);
+				if (found) {
+					return found;
+				}
+			}
+			return undefined;
+		};
+		const branch = find(this.workbenchGrid.getViews());
+		if (branch && branch !== this.workbenchGrid.getViews() && branch.children.length === 2) {
+			return branch.box.width;
+		}
+		return this.workbenchGrid.getViewSize(this.editorPartView).width + this.workbenchGrid.getViewSize(this.chatPartView!).width;
 	}
 
 	/** The visible parts beyond the editor's column on the chat part's side, closest first. */

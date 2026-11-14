@@ -636,4 +636,17 @@ suite('Workbench layout chat part', () => {
 
 		assert.deepStrictEqual(widthsAcross(layout, grid, views, 1200), { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true });
 	});
+
+	test('the chat part shown at its minimum width beside a wide secondary side bar, whose column is narrower than the editor\'s and its minimum together, takes room from the bar', () => {
+		const shown = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: false, size: 280 }, anchor: ViewContainerLocation.AuxiliaryBar, widths: { window: 1200, auxiliaryBar: 590 } });
+		shown.layout.setPartHidden(false, Parts.CHAT_PART);
+		const moved = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 280 }, anchor: ViewContainerLocation.Sidebar, widths: { window: 1200, auxiliaryBar: 590 } });
+		moved.anchor.location = ViewContainerLocation.AuxiliaryBar;
+		(Reflect.get(moved.layout, 'updateChatPartPosition') as () => void).call(moved.layout);
+
+		assert.deepStrictEqual({ shown: widthsAcross(shown.layout, shown.grid, shown.views, 1200), moved: widthsAcross(moved.layout, moved.grid, moved.views, 1200) }, {
+			shown: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
+			moved: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
+		});
+	});
 });
