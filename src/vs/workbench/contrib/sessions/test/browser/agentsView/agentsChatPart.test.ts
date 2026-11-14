@@ -38,6 +38,7 @@ import { CHAT_WINDOW_COMPOSERS_STORAGE_KEY, isChatWindowComposerResource } from 
 import { IChatViewFactory } from '../../../browser/chatViewFactory.js';
 import { ISessionGroupsService } from '../../../browser/sessionGroupsService.js';
 import { INewSessionDraftSlot, ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
@@ -280,9 +281,9 @@ suite('AgentsChatPartService', () => {
 				const raw = storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE);
 				return raw ? (parse(raw) as { readonly target?: { readonly folderUri?: URI } }[]).map(composer => composer.target?.folderUri?.path) : [];
 			},
-			setShowTabs: (value: string) => {
-				configurationService.setUserConfiguration('workbench.editor.showTabs', value);
-				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === 'workbench.editor.showTabs' }));
+			setSetting: (key: string, value: string) => {
+				configurationService.setUserConfiguration(key, value);
+				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (candidate: string) => candidate === key }));
 			},
 			setChatEnabled: (enabled: boolean) => contextKeyService.setValue(ChatContextKeys.enabled.key, enabled),
 			fireSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => {
@@ -798,16 +799,24 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(layout(), { groups: [{ tabs: ['/a'], active: '/a' }], activeGroup: 0, visible: false });
 	});
 
-	test('its tabs show as a chat window\'s do, following workbench.editor.showTabs as it changes', async () => {
-		const { service, part, setShowTabs } = createService();
+	test('its tabs follow sessions.showChatTabs as it changes, by default one tab of the active chat, not workbench.editor.showTabs', async () => {
+		const { service, part, setSetting } = createService();
 		await service.openChat(session, chatA);
-		const shown = part.options;
+		const showTabs = () => (part.options as { readonly showTabs?: string }).showTabs;
+		const shown: Record<string, string | undefined> = { default: showTabs() };
 
-		setShowTabs('none');
+		setSetting(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
+		shown.multiple = showTabs();
+		setSetting('workbench.editor.showTabs', 'none');
+		shown.multipleWithEditorTabsNone = showTabs();
+		setSetting(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
+		shown.single = showTabs();
+		setSetting('workbench.editor.showTabs', 'multiple');
+		shown.singleWithEditorTabsMultiple = showTabs();
 
-		assert.deepStrictEqual({ shown, none: part.options }, {
-			shown: { doubleClickTabToToggleEditorGroupSizes: 'off', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
-			none: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+		assert.deepStrictEqual({ shown, options: part.options }, {
+			shown: { default: 'single', multiple: 'multiple', multipleWithEditorTabsNone: 'multiple', single: 'single', singleWithEditorTabsMultiple: 'single' },
+			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
 		});
 	});
 });
