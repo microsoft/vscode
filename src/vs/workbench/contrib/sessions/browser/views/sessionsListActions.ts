@@ -37,6 +37,7 @@ import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
@@ -660,6 +661,18 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
 	for (const session of sessions) {
 		await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
 	}
+}
+
+/**
+ * Registers {@link SESSIONS_LIST_MARK_READ_COMMAND_ID} and {@link SESSIONS_LIST_MARK_UNREAD_COMMAND_ID}, which mark what the
+ * sessions list and the chat tabs target read or unread, until the returned disposable is disposed. In an editor window, the
+ * agent sessions' Mark as Read and Mark as Unread run them for such a target, such as a chat tab of the chat part.
+ */
+export function registerSessionsListReadStateCommands(): IDisposable {
+	const store = new DisposableStore();
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, true)));
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, false)));
+	return store;
 }
 
 abstract class BaseUnarchiveActiveSessionAction extends Action2 {

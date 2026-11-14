@@ -21,6 +21,7 @@ import { EditorInputWithOptions } from '../../../../../common/editor.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IContentPart, IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IWorkspace, IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
 import { IEditorService, PreferredGroup } from '../../../../../services/editor/common/editorService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
@@ -41,7 +42,7 @@ import { isEqual } from '../../../../../../base/common/resources.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 
 /** An editor group that keeps its editors in memory, as the chat part's groups do, without rendering them. */
 class FakeGroup {
@@ -148,7 +149,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined> }) {
+	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void> }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -186,6 +187,8 @@ suite('AgentsChatPartService', () => {
 				if (!editorOptions?.inactive) {
 					part.activate(group);
 				}
+				// An open may complete only after its editor activates, as the editor part resolves it
+				await options?.holdOpen?.();
 				return undefined;
 			}) as IEditorService['openEditor'],
 			openEditors: async (editors: EditorInputWithOptions[], group?: PreferredGroup) => {
@@ -197,6 +200,7 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(IChatService, upcastPartial<IChatService>({ acquireExistingSession: () => undefined }));
 		instantiationService.stub(IChatViewFactory, upcastPartial<IChatViewFactory>({}));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		instantiationService.stub(IEditorWindowComposerFoldersService, instantiationService.createInstance(EditorWindowComposerFoldersService));
 
 		// The sessions, of which each composer holds a slot for the session it creates; the listeners on their events count
 		// The changes of the listed sessions, and of each session, also of those the providers' listing scope hides
@@ -352,7 +356,7 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(reports.slice(-2), ['open', 'open']);
 	});
 
-	test('a chat opened as restored shows as restored, and as opened once the user opens it', async () => {
+	test('a chat opened as restored or committed shows as such, and as opened once the user opens it', async () => {
 		const restoredSession = buildTestSession({ id: 'restored', title: 'Restored' });
 		const main = restoredSession.mainChat.chat.resource;
 		const { service } = createService({ sessions: () => [restoredSession.session] });
@@ -360,9 +364,36 @@ suite('AgentsChatPartService', () => {
 
 		await service.openChat(restoredSession.session, main, { restore: true });
 		const restored = await shown();
+		await service.openChat(restoredSession.session, main, { commit: true });
+		const committed = await shown();
 		await service.openChat(restoredSession.session, main);
 
-		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'main restore', opened: 'main open' });
+		assert.deepStrictEqual({ restored, committed, opened: await shown() }, { restored: 'main restore', committed: 'main commit', opened: 'main open' });
+	});
+
+	test('a tab recalled as restored that activates before its open completes shows as restored, never as opened in between', async () => {
+		const recalled = buildTestSession({ id: 'recalled', title: 'Recalled' });
+		const other = buildTestSession({ id: 'other', title: 'Other' });
+		const recalledChat = recalled.mainChat.chat.resource;
+		const otherChat = other.mainChat.chat.resource;
+		let held: DeferredPromise<void> | undefined = undefined;
+		const { service } = createService({ sessions: () => [recalled.session, other.session], holdOpen: () => held?.p ?? Promise.resolve() });
+		await service.openChat(recalled.session, recalledChat);
+		await service.openChat(other.session, otherChat);
+		await timeout(0);
+		const reports: string[] = [];
+		const listener = autorun(reader => { const value = service.shownSession.read(reader); if (value) { reports.push(`${isEqual(value.resource, recalledChat) ? 'recalled' : 'other'} ${value.reason}`); } });
+
+		held = new DeferredPromise<void>();
+		const recall = service.openChat(recalled.session, recalledChat, { restore: true });
+		await timeout(0);
+		const whileHeld = [...reports];
+		held.complete();
+		await recall;
+		await timeout(0);
+		listener.dispose();
+
+		assert.deepStrictEqual({ whileHeld, reports }, { whileHeld: ['other open', 'recalled restore'], reports: ['other open', 'recalled restore'] });
 	});
 
 	test('its composers that aim at the folder their host aimed them at follow it to another folder, also the active one a new session reuses', async () => {

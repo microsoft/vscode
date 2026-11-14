@@ -480,6 +480,8 @@ export interface IChatAcceptInputOptions {
 export interface IChatWidgetViewModelChangeEvent {
 	readonly previousSessionResource: URI | undefined;
 	readonly currentSessionResource: URI | undefined;
+	/** Whether the widget shows the session that its first request made of the one it showed, such as a new chat's. */
+	readonly committed?: boolean;
 }
 
 /**

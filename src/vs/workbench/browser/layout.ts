@@ -1806,14 +1806,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 			this._register(this.storageService.onWillSaveState(() => this.saveChatPartLayout()));
 
-			// The chat part follows its anchor view as the view, its container or its location changes
-			this._register(Event.any<unknown>(
-				this.viewDescriptorService.onDidChangeContainerLocation,
-				this.viewDescriptorService.onDidChangeContainer,
-				this.viewDescriptorService.onDidChangeLocation,
-				this.viewDescriptorService.onDidChangeViewContainers,
-				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered
-			)(() => this.updateChatPartPosition()));
+			// The chat part follows its anchor view as the view, its container or its location changes, and as it comes or goes
+			this._register(this.onDidChangeChatPartAnchorLocation()(() => this.updateChatPartPosition()));
 		}
 
 		// The floating cards abut the top window edge only while neither of the two grid rows
@@ -2544,6 +2538,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			default:
 				return sideBarPosition;
 		}
+	}
+
+	/** Fires as the location of the chat part's anchor view may change: as views or their containers move, register or deregister. */
+	private onDidChangeChatPartAnchorLocation(): Event<unknown> {
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		return Event.any<unknown>(
+			this.viewDescriptorService.onDidChangeContainerLocation,
+			this.viewDescriptorService.onDidChangeContainer,
+			this.viewDescriptorService.onDidChangeLocation,
+			this.viewDescriptorService.onDidChangeViewContainers,
+			viewsRegistry.onViewsRegistered,
+			viewsRegistry.onViewsDeregistered
+		);
 	}
 
 	/** Moves the chat part to the side of the editor it belongs on, if it is not there already. */

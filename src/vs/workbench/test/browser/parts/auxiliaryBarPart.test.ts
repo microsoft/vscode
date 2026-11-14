@@ -9,6 +9,10 @@ import { ToggleMenuAction } from '../../../../base/browser/ui/toolbar/toolbar.js
 import { Separator } from '../../../../base/common/actions.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { createTestAuxiliaryBarPart } from './auxiliaryBarTestUtils.js';
+import { isIMenuItem, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { Context } from '../../../../platform/contextkey/browser/contextKeyService.js';
+import { AuxiliaryBarMaximizedContext, AuxiliaryBarMaximizeHiddenContext } from '../../../common/contextkeys.js';
+import '../../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 
 import '../../../browser/media/part.css';
 import '../../../contrib/modernUI/browser/media/padding.css';
@@ -64,4 +68,25 @@ suite('Auxiliary Bar - Responsive title actions', () => {
 			]);
 		});
 	}
+});
+
+suite('Auxiliary Bar - Maximize action', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('the title offers Maximize unless its view container hides it, and Restore while maximized, also where Maximize is hidden', () => {
+		const when = MenuRegistry.getMenuItems(MenuId.AuxiliaryBarTitle).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.toggleMaximizedAuxiliaryBar')?.when;
+		const shows = (maximizeHidden: boolean, maximized: boolean) => {
+			const context = new Context(1, null);
+			context.setValue(AuxiliaryBarMaximizeHiddenContext.key, maximizeHidden);
+			context.setValue(AuxiliaryBarMaximizedContext.key, maximized);
+			return !!when?.evaluate(context);
+		};
+
+		assert.deepStrictEqual({
+			maximize: shows(false, false),
+			restore: shows(false, true),
+			maximizeHidden: shows(true, false),
+			restoreWhileMaximizeHidden: shows(true, true),
+		}, { maximize: true, restore: true, maximizeHidden: false, restoreWhileMaximizeHidden: true });
+	});
 });

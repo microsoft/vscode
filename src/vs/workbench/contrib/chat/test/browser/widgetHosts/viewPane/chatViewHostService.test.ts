@@ -18,7 +18,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layou
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../../../../browser/chat.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
-import { IChatViewHost, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 
@@ -39,12 +39,11 @@ suite('ChatViewHostService', () => {
 			shownSession,
 			widget: options.widgetCreatedLater ? undefined : widget,
 			get whenWidget() { accesses++; return created.p; },
-			loadSession: async (resource: URI, reason?: string, showReason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}${showReason === 'restore' ? ' restore' : ''}`); return undefined; },
+			loadSession: async (resource: URI, reason?: string, showReason?: string) => { calls.push(`loadSession ${resource.toString()} reason=${reason}${showReason && showReason !== 'open' ? ` ${showReason}` : ''}`); return undefined; },
 			startNewLocalSession: async () => { calls.push('startNewLocalSession'); return undefined; },
 			focus: () => { calls.push('focus'); },
 			focusInput: () => { calls.push('focusInput'); },
-			reportOpened: (resource: URI) => { calls.push(`reportOpened ${resource.toString()}`); },
-			reportRestored: (resource: URI) => { calls.push(`reportRestored ${resource.toString()}`); },
+			reportShown: (resource: URI, reason: string) => { calls.push(`reportShown ${resource.toString()} ${reason}`); },
 			beginSessionsListSuppression: () => { calls.push('suppress'); return toDisposable(() => calls.push('unsuppress')); },
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -73,6 +72,8 @@ suite('ChatViewHostService', () => {
 		results.openSession = await service.openSession(resource, { sessionTypeSelectionReason: 'explicitOverride' }) === widget;
 		// One to restore is not reported as opened
 		await service.openSession(resource, { preserveFocus: true, restore: true });
+		// The session that the first request of the chat it shows made is reported as such
+		await service.openSession(resource, { preserveFocus: true, commit: true });
 		results.toggle = await service.toggle();
 		const start = await service.startSession(resource, { local: false, importingConversation: true, beforeOpen: () => calls.push('beforeOpen') });
 		await start.moved(URI.parse('test:/moved'));
@@ -87,8 +88,9 @@ suite('ChatViewHostService', () => {
 			calls: [
 				`openView ${ChatViewId} focus=true`,
 				`openView ${ChatViewId} focus=false`,
-				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'reportOpened test:/session', 'focusInput',
-				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined restore', 'reportRestored test:/session',
+				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'reportShown test:/session open', 'focusInput',
+				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined restore', 'reportShown test:/session restore',
+				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined commit', 'reportShown test:/session commit',
 				`setPartHidden false ${Parts.AUXILIARYBAR_PART}`,
 				`openView ${ChatViewId} focus=undefined`, 'beforeOpen', 'suppress', 'progress', 'loadSession test:/session reason=explicitOverride', 'focus',
 				`openView ${ChatViewId} focus=undefined`, 'loadSession test:/moved reason=undefined',
@@ -160,18 +162,29 @@ suite('ChatViewHostService', () => {
 		});
 	});
 
-	test('New Chat is left to the chat widget, unless the host that replaces the Chat view starts it', () => {
+	test('New Chat is left to the chat widget, unless the host that replaces the Chat view starts it', async () => {
 		const { service } = createService();
 		let started = 0;
 		const withoutNewChat = service.registerHost(upcastPartial<IChatViewHost>({}));
-		const results = [service.newChat()];
-		const withNewChat = service.registerHost(upcastPartial<IChatViewHost>({ newChat: () => { started++; return true; } }));
-		results.push(service.newChat());
+		const results = [await service.newChat()];
+		const withNewChat = service.registerHost(upcastPartial<IChatViewHost>({ newChat: async () => { started++; return true; } }));
+		results.push(await service.newChat());
 		withNewChat.dispose();
 		withoutNewChat.dispose();
-		results.push(service.newChat());
+		results.push(await service.newChat());
 
 		assert.deepStrictEqual({ results, started }, { results: [false, true, false], started: 1 });
+	});
+
+	test('a new chat of its own that the host in use leaves to the Chat view starts in the Chat view, which it shows', async () => {
+		const { service, view, calls } = createService();
+		Object.assign(view, { newChat: async (target: IChatViewNewChatTarget | undefined, options: IChatViewHostNewChatOptions | undefined) => { calls.push(`view.newChat ${target?.folder?.path} ownChat=${options?.ownChat}`); return true; } });
+		const registration = service.registerHost(upcastPartial<IChatViewHost>({ newChat: async () => { calls.push('host.newChat'); return false; } }));
+
+		const taken = await service.newChat({ folder: URI.file('/repo') }, { ownChat: true, preserveFocus: true });
+		registration.dispose();
+
+		assert.deepStrictEqual({ taken, calls }, { taken: true, calls: ['host.newChat', `openView ${ChatViewId} focus=false`, 'view.newChat /repo ownChat=true'] });
 	});
 
 	test('reveal waits for the Chat view\'s widget, which its body creates as it first renders, only when asked to', async () => {
@@ -275,7 +288,7 @@ suite('ChatViewHostService', () => {
 			canShow: resource => resource.scheme !== localChat.scheme,
 			openSession: async () => undefined,
 			reveal: async () => undefined,
-			newChat: () => takesNewChat,
+			newChat: async () => takesNewChat,
 		});
 		const steps: string[] = [];
 		await service.openSession(localChat);
@@ -285,10 +298,10 @@ suite('ChatViewHostService', () => {
 		steps.push(shown());
 		await service.openSession(localChat);
 		// New Chat that the host does not take changes nothing
-		service.newChat();
+		await service.newChat();
 		steps.push(shown());
 		takesNewChat = true;
-		service.newChat();
+		await service.newChat();
 		steps.push(shown());
 		// The new chat starts a session
 		hostShown.set({ resource: agentHostChat.with({ path: '/started' }), reason: 'open' }, undefined);
@@ -325,4 +338,23 @@ suite('ChatViewHostService', () => {
 
 		assert.deepStrictEqual(steps, ['/chat-view', '/chat-view', '/b', '/chat-view']);
 	});
+
+	test('a host that completes a reveal after it is removed does not become the host whose shown chat the service reports', async () => {
+		const { service, shownSession, showView } = createService();
+		shownSession.set({ resource: URI.parse('vscode-chat-session://local/chat-view'), reason: 'open' }, undefined);
+		showView();
+		const revealed = new DeferredPromise<undefined>();
+		const registration = service.registerHost({
+			...upcastPartial<IChatViewHost>({}),
+			shownSession: constObservable({ resource: URI.parse('agent-host-copilot:/removed'), reason: 'open' as const }),
+			reveal: () => revealed.p,
+		});
+		const revealing = service.reveal();
+		registration.dispose();
+		await revealed.complete(undefined);
+		await revealing;
+
+		assert.deepStrictEqual({ shown: service.shownSession.get()?.resource.path, replaced: service.replaced.get() }, { shown: '/chat-view', replaced: false });
+	});
 });
+
