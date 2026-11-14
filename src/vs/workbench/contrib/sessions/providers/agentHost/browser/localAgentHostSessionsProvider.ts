@@ -51,6 +51,7 @@ import { IGitHubService } from '../../../browser/github/githubService.js';
 import { CopilotCLISessionType } from './baseAgentHostSessionsProvider.js';
 import { DevContainerAgentHostSessionsProvider } from './devContainerAgentHostSessionsProvider.js';
 import { ReconnectableAgentHostAutomationStore } from './reconnectableAgentHostAutomationStore.js';
+import { surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
@@ -83,8 +84,8 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	readonly supportsLocalWorkspaces = true;
 	readonly supportsQuickChats = true;
 
-	/** `true` when running in the dedicated Agents window vs. a regular editor window. */
-	private readonly _isSessionsWindow: boolean;
+	/** Whether it surfaces every agent, as the Agents window does, rather than only the agents editor windows show. */
+	private readonly _surfacesAllAgents: boolean;
 	override get order(): number {
 		return -1;
 	}
@@ -223,7 +224,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 		}));
 		this.automations = automations;
 
-		this._isSessionsWindow = environmentService.isSessionsWindow;
+		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
 
 		this.label = localize('localAgentHostLabel', "Local Agent Host");
 
@@ -322,7 +323,7 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 			if (e.affectsConfiguration('git.branchProtection')) {
 				this._refreshSessionWorkspaces();
 			}
-			if (affectsAgentHostProviderPreference(e, this._isSessionsWindow)) {
+			if (affectsAgentHostProviderPreference(e, this._surfacesAllAgents)) {
 				this._onSessionPolicyChanged();
 				this._syncRootState(this._agentHostService.rootState.value);
 				// Saved history and pending-session visibility may also change.
@@ -363,11 +364,11 @@ export class LocalAgentHostSessionsProvider extends DevContainerAgentHostSession
 	protected get authenticationPending(): IObservable<boolean> { return this._agentHostService.authenticationPending; }
 
 	protected override _shouldAdvertiseAgent(provider: string): boolean {
-		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._isSessionsWindow);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._surfacesAllAgents);
 	}
 
 	protected override _shouldShowSavedSession(provider: string): boolean {
-		return this._shouldAdvertiseAgent(provider) || getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._isSessionsWindow).includes(provider);
+		return this._shouldAdvertiseAgent(provider) || getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._surfacesAllAgents).includes(provider);
 	}
 
 	protected override _isAgentDisabledByPolicy(provider: string): boolean {

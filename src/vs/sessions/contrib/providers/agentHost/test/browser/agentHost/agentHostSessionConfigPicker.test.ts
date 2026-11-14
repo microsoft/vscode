@@ -933,7 +933,7 @@ suite('Agent Host Session Config Picker', () => {
 		});
 	});
 
-	test('places running session controls from the scoped composer layout', () => {
+	test('places running session controls from the scoped composer layout, and none with AI features disabled', () => {
 		const runningSessionIds = [
 			'sessions.agentHost.runningSessionModePicker',
 			'sessions.agentHost.runningSessionConfigPicker',
@@ -941,6 +941,7 @@ suite('Agent Host Session Config Picker', () => {
 			'sessions.agentHost.runningSessionCodexApprovalsPicker',
 		];
 		const context = new Context(1, null);
+		context.setValue(ChatContextKeys.enabled.key, true);
 		context.setValue(ChatContextKeys.chatIsAgentHostSession.key, true);
 		// The chat input of a session host's scope.
 		context.setValue(InSessionHostScopeContext.key, true);
@@ -960,10 +961,15 @@ suite('Agent Host Session Config Picker', () => {
 			primary: visible(MenuId.ChatInput),
 			secondary: visible(MenuId.ChatInputSecondary),
 		};
+		context.setValue(ChatContextKeys.enabled.key, false);
+		const aiDisabledExperimental = [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)];
+		context.setValue(SessionUsesExperimentalComposerLayoutContext.key, false);
+		const aiDisabled = { experimental: aiDisabledExperimental, legacy: [...visible(MenuId.ChatInput), ...visible(MenuId.ChatInputSecondary)] };
 
-		assert.deepStrictEqual({ legacy, experimental }, {
+		assert.deepStrictEqual({ legacy, experimental, aiDisabled }, {
 			legacy: { primary: [], secondary: runningSessionIds },
 			experimental: { primary: runningSessionIds, secondary: [] },
+			aiDisabled: { experimental: [], legacy: [] },
 		});
 	});
 

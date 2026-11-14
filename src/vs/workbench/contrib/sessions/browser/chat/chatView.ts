@@ -68,6 +68,7 @@ import { NewChatWidget } from './newChatWidget.js';
 import { NewChatInSessionWidget } from './newChatInSessionWidget.js';
 import { SessionInputBanners } from '../sessionInputBanners/sessionInputBanners.js';
 import { SESSION_CHAT_INPUT_TOOLBAR_HEIGHT, SessionChatInputToolbar } from './sessionChatInputToolbar.js';
+import { AgentHostSessionWorkingSet } from '../../../chat/browser/agentSessions/agentHost/agentHostSessionInputPills.js';
 import { ResponseSelectionSideChatController } from '../../../chat/browser/responseSelectionSideChatController.js';
 import { logResponseSelectionWidgetAction } from '../../common/sessionsTelemetry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -535,6 +536,7 @@ export class ChatView extends AbstractChatView {
 				inputPlaceholder: options.input?.placeholder,
 				inputEditorOptions: options.inputEditorOptions,
 				isSessionsWindow: true,
+				sessionWorkingSet: options.input?.workingSet === true,
 				validateInput: query => {
 					if (this.scheduledChatsService.enabled.get() && query !== this._widget.getInput()) {
 						throw new Error(localize('chat.inputChangedBeforeSend', "The input changed while preparing this request. Review it before sending again."));
@@ -702,6 +704,11 @@ export class ChatView extends AbstractChatView {
 
 		// Floating status pills above the input.
 		this._chatPills = this._register(instantiationService.createInstance(SessionChatInputToolbar, false, () => this._widget.focusInput(), options.session));
+		if (options.input?.workingSet) {
+			const workingSet = this._register(scopedInstantiationService.createInstance(AgentHostSessionWorkingSet, this._widget, 'auto'));
+			this._chatPills.setChangesHidden(workingSet.changesPillHidden);
+			this._chatPills.setChangesContextMenuActions(workingSet.getChangesPillContextMenuActions);
+		}
 		this._register(this._widget.registerBackgroundActivityPillSections(this._chatPills.backgroundActivityPillSections));
 		this._register(this._widget.inputEditor.onKeyDown(event => {
 			if (isFocusChatPillsKeyDown(event) && this._chatPills.focusFirst()) {

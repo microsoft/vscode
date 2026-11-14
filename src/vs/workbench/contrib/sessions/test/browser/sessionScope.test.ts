@@ -212,4 +212,77 @@ suite('SessionsListingScopeFilter', () => {
 			emptyWindow: ['branch', 'local', 'main', 'other'],
 		});
 	});
+
+	/** A session of one folder: `root`, working in `workingDirectory` (by default `root`), of the git repository `repository`. */
+	function createFolderSession(id: string, folder: { readonly root: string; readonly workingDirectory?: string; readonly repository?: string; readonly worktree?: string }): ISession {
+		const root = URI.parse(folder.root);
+		const workspace: ISessionWorkspace = {
+			...buildTestWorkspace(id),
+			uri: root,
+			folders: [{
+				root,
+				workingDirectory: folder.workingDirectory ? URI.parse(folder.workingDirectory) : root,
+				name: id,
+				description: undefined,
+				gitRepository: folder.repository ? { uri: URI.parse(folder.repository), workTreeUri: folder.worktree ? URI.parse(folder.worktree) : undefined, baseBranchName: undefined, gitHubInfo: constObservable(undefined) } : undefined,
+			}],
+		};
+		return { ...buildTestSession({ id, title: id }).session, workspace: constObservable<ISessionWorkspace | undefined>(workspace), isQuickChat: constObservable(false) };
+	}
+
+	/** The IDs of the sessions that a scope of `folders`, of the git repositories `repositories`, lists. */
+	function listedIn(sessions: readonly ISession[], folders: readonly string[], repositories: readonly string[] = []): string[] {
+		const filter = disposables.add(new SessionsListingScopeFilter({ folders: constObservable(folders.map(folder => URI.parse(folder))), repositories: constObservable(repositories.map(repository => URI.parse(repository))) }, () => [...sessions], Event.None));
+		const listed = new Set(filter.getSessions());
+		return sessions.filter(session => listed.has(session)).map(session => session.sessionId);
+	}
+
+	test('lists the sessions of the folders, of their contents and of the worktrees of their repositories', () => {
+		const sessions = [
+			createFolderSession('checkout', { root: 'file:///repo', repository: 'file:///repo' }),
+			createFolderSession('nested', { root: 'file:///repo/sub' }),
+			// An Agent Host worktree reports the checkout as its root and repository.
+			createFolderSession('worktree', { root: 'file:///repo', workingDirectory: 'file:///repo.worktrees/x', repository: 'file:///repo', worktree: 'file:///repo.worktrees/x' }),
+			// A session that reports its worktree as its repository still joins its repository by the worktree's path.
+			createFolderSession('ownWorktree', { root: 'file:///repo.worktrees/y', repository: 'file:///repo.worktrees/y', worktree: 'file:///repo.worktrees/y' }),
+			createFolderSession('other', { root: 'file:///other', repository: 'file:///other' }),
+			createFolderSession('remote', { root: 'vscode-agent-host://host/repo', repository: 'vscode-agent-host://host/repo' }),
+			// A workspace-less quick chat is in every scope.
+			{ ...buildTestSession({ id: 'quickChat', title: 'quickChat' }).session, workspace: constObservable<ISessionWorkspace | undefined>(undefined), isQuickChat: constObservable(true) },
+		];
+
+		assert.deepStrictEqual({
+			checkout: listedIn(sessions, ['file:///repo']),
+			worktree: listedIn(sessions, ['file:///repo.worktrees/x']),
+			ownWorktree: listedIn(sessions, ['file:///repo.worktrees/y']),
+			multiRoot: listedIn(sessions, ['file:///repo', 'file:///other']),
+		}, {
+			checkout: ['checkout', 'nested', 'worktree', 'ownWorktree', 'quickChat'],
+			worktree: ['checkout', 'worktree', 'ownWorktree', 'quickChat'],
+			ownWorktree: ['checkout', 'worktree', 'ownWorktree', 'quickChat'],
+			multiRoot: ['checkout', 'nested', 'worktree', 'ownWorktree', 'other', 'quickChat'],
+		});
+	});
+
+	test('lists a worktree that VS Code created by its path, before its provider reports the repository', () => {
+		const sessions = [
+			// A session listed before its project is known: its folder is only the worktree.
+			createFolderSession('projectless', { root: 'file:///work/vscode.worktrees/x' }),
+			createFolderSession('checkout', { root: 'file:///work/vscode' }),
+			createFolderSession('elsewhere', { root: 'file:///work/other.worktrees/y' }),
+		];
+
+		assert.deepStrictEqual({
+			checkoutWindow: listedIn(sessions, ['file:///work/vscode']),
+			worktreeWindow: listedIn(sessions, ['file:///work/vscode.worktrees/z']),
+			// A worktree outside that layout names its repository through its `.git`, which the host reads.
+			ownWorktreeWindow: listedIn(sessions, ['file:///work/owners/scope'], ['file:///work/vscode']),
+			withoutRepository: listedIn(sessions, ['file:///work/owners/scope']),
+		}, {
+			checkoutWindow: ['projectless', 'checkout'],
+			worktreeWindow: ['projectless', 'checkout'],
+			ownWorktreeWindow: ['projectless', 'checkout'],
+			withoutRepository: [],
+		});
+	});
 });

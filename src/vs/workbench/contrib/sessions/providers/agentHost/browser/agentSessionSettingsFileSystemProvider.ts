@@ -154,7 +154,7 @@ export class AgentSessionSettingsFileSystemProvider extends AbstractSessionsAgen
 	}
 
 	protected _ensureSchemaRegistered(provider: IAgentHostSessionsProvider, ctx: ISessionSettingsContext): void {
-		const session = provider.getSessions().find(s => s.sessionId === ctx.sessionId);
+		const session = (provider.getAllSessions?.() ?? provider.getSessions()).find(s => s.sessionId === ctx.sessionId);
 		if (session) {
 			this._schemaRegistrar.ensureRegistered(session);
 		}
@@ -206,7 +206,8 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	}
 
 	protected _targetsForProvider(provider: IAgentHostSessionsProvider): readonly ISession[] {
-		return provider.getSessions();
+		// Also the sessions outside its listing scope, whose schemas are registered as they are read
+		return provider.getAllSessions?.() ?? provider.getSessions();
 	}
 
 	protected _observeProvider(
@@ -216,7 +217,7 @@ export class AgentSessionSettingsSchemaRegistrar extends AbstractMultiProviderAg
 	): IDisposable {
 		const store = new DisposableStore();
 		store.add(provider.onDidChangeSessionConfig(sessionId => {
-			const session = provider.getSessions().find(s => s.sessionId === sessionId);
+			const session = (provider.getAllSessions?.() ?? provider.getSessions()).find(s => s.sessionId === sessionId);
 			if (session) {
 				onChanged(session);
 			}

@@ -426,6 +426,20 @@ suite('SharedChatInputComposer', () => {
 		});
 	}
 
+	for (const confirmed of [true, false]) {
+		test(`a submit is submitting from before the host confirms it until it is ${confirmed ? 'sent' : 'refused'}, so its host doesn't retarget it meanwhile`, async () => {
+			const confirmation = new DeferredPromise<boolean>();
+			const snapshot = new ComposerInputSnapshot();
+			const { composer } = createComposer({ confirmSend: confirmation, focused: true, inputSnapshot: snapshot });
+			const sending = composer.submit(false);
+			const whileConfirming = { submitting: snapshot.isSubmitting, attempt: !!snapshot.get().attempt };
+			confirmation.complete(confirmed);
+			await sending;
+
+			assert.deepStrictEqual({ whileConfirming, after: snapshot.isSubmitting }, { whileConfirming: { submitting: true, attempt: false }, after: false });
+		});
+	}
+
 	test('focused as it opens, such as by New Session in a chat window, its input is the chat widget that has focus last, so Enter sends it, not the chat focused before', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IEditorGroupsService, {});
