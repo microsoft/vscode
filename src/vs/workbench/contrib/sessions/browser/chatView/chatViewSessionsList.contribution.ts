@@ -27,7 +27,7 @@ import { ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration, isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
+import { ChatConfiguration, observeChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
@@ -47,7 +47,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('chat.viewSessions.sessionsList.enabled', "Controls whether the Chat view of editor windows shows the sessions of the Agents window, with their chats, in place of its own chats. Local chats are not available while it is on. Requires a reload to take effect."),
+			markdownDescription: localize('chat.viewSessions.sessionsList.enabled', "Controls whether the Chat view of editor windows shows the sessions of the Agents window, with their chats, in place of its own chats. Local chats are not available while it is on."),
 		},
 	},
 });
@@ -61,10 +61,10 @@ const noLocalChatDefaults: IConfigurationDefaults = {
 };
 
 /**
- * Shows the sessions of the Agents window in the Chat view of an editor window while {@link isChatViewSessionsListEnabled}: its
- * sessions section lists them, and they open where the window presents its sessions: in the Chat view's chat, or in the
- * chat part while a feature enabled it, when the Chat view shows only the sessions.
- * The setting is read once, as the window starts: with it off, this registers nothing and creates no service.
+ * Shows the sessions of the Agents window in the Chat view of an editor window while {@link observeChatViewSessionsListEnabled}:
+ * its sessions section lists them, and they open where the window presents its sessions: in the Chat view's chat, or in the
+ * chat part while a feature enabled it, when the Chat view shows only the sessions. It follows the setting live: as it turns
+ * off, everything it registered goes, and the Chat view shows its own sessions again. With it off, this creates no service.
  */
 export class ChatViewSessionsGate extends Disposable implements IWorkbenchContribution {
 
@@ -73,42 +73,48 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 	constructor(
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		if (!isChatViewSessionsListEnabled(configurationService)) {
+		// Not in remote windows, whose Chat view stays as it is
+		if (environmentService.remoteAuthority) {
 			return;
 		}
 
-		instantiationService.invokeFunction(accessor => {
-			// Not in remote windows, whose Chat view stays as it is
-			if (accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
-				return;
+		const enabled = observeChatViewSessionsListEnabled(configurationService);
+		this._register(autorun(reader => {
+			if (enabled.read(reader)) {
+				instantiationService.invokeFunction(accessor => this.enable(accessor, reader.store));
 			}
+		}));
+	}
 
-			// No local chats by default, which the list does not show
-			const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-			configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
-			this._register(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
+	private enable(accessor: ServicesAccessor, store: DisposableStore): void {
+		const instantiationService = accessor.get(IInstantiationService);
 
-			// The sessions providers, held while the Chat view, which lists their sessions, shows
-			this._register(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [ChatViewId] }));
-			// The settings and the actions of the shared sessions list, once the Chat view first shows it
-			this._register(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
+		// No local chats by default, which the list does not show
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
+		store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
 
-			// While a host replaces the Chat view, such as the chat part, its chats show there: the Chat view shows only the sessions,
-			// unless it hosts the chat opened last, one that the host leaves to it, such as a local chat
-			const chatViewHostService = accessor.get(IChatViewHostService);
-			const sessionsOnly = derived(this, reader => chatViewHostService.replaced.read(reader) && !chatViewHostService.chatViewHosts.read(reader));
-			const sessionsOnlyContext = ChatViewSessionsOnlyContext.bindTo(accessor.get(IContextKeyService));
-			this._register(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));
-			this._register(toDisposable(() => sessionsOnlyContext.reset()));
+		// The sessions providers, held while the Chat view, which lists their sessions, shows
+		store.add(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [ChatViewId] }));
+		// The settings and the actions of the shared sessions list, once the Chat view first shows it
+		store.add(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
 
-			// The sessions list of the Chat view, whose sessions open where the window presents them
-			this._register(accessor.get(IChatViewSessionsListService).registerProvider(new ChatViewSessionsListProvider(sessionsOnly)));
-			this._register(registerSessionsSidebarToggle());
-			this.showChatViewChat(accessor, sessionsOnly);
-		});
+		// While a host replaces the Chat view, such as the chat part, its chats show there: the Chat view shows only the sessions,
+		// unless it hosts the chat opened last, one that the host leaves to it, such as a local chat
+		const chatViewHostService = accessor.get(IChatViewHostService);
+		const sessionsOnly = derived(this, reader => chatViewHostService.replaced.read(reader) && !chatViewHostService.chatViewHosts.read(reader));
+		const sessionsOnlyContext = ChatViewSessionsOnlyContext.bindTo(accessor.get(IContextKeyService));
+		store.add(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));
+		store.add(toDisposable(() => sessionsOnlyContext.reset()));
+
+		// The sessions list of the Chat view, whose sessions open where the window presents them
+		store.add(accessor.get(IChatViewSessionsListService).registerProvider(new ChatViewSessionsListProvider(sessionsOnly)));
+		store.add(registerSessionsSidebarToggle());
+		this.showChatViewChat(accessor, sessionsOnly, store);
 	}
 
 	/**
@@ -116,7 +122,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 	 * part is otherwise: what the editors of the window show of a session, such as the Changes editor, and the active session
 	 * of the sessions list, are of it. It is marked read while the Chat view shows it.
 	 */
-	private showChatViewChat(accessor: ServicesAccessor, sessionsOnly: IObservable<boolean>): void {
+	private showChatViewChat(accessor: ServicesAccessor, sessionsOnly: IObservable<boolean>, store: DisposableStore): void {
 		const sessionHost = accessor.get(ISessionHost);
 		if (!(sessionHost instanceof EditorWindowMainSessionHost)) {
 			return;
@@ -134,7 +140,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			sessionsChanged.read(reader);
 			return sessionsManagementService.getSessionForChatResource(shownSession.resource);
 		});
-		this._register(autorun(reader => {
+		store.add(autorun(reader => {
 			if (!sessionsOnly.read(reader)) {
 				reader.store.add(sessionHost.overrideShownChat(shown));
 			}
@@ -142,7 +148,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 
 		const chatViewVisible = observableFromEvent(this, Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === ChatViewId), () => viewsService.isViewVisible(ChatViewId));
 		const readMarker = new ShownChatReadMarker(sessionsManagementService, accessor.get(IUriIdentityService).extUri);
-		this._register(autorun(reader => {
+		store.add(autorun(reader => {
 			const visible = !sessionsOnly.read(reader) && chatViewVisible.read(reader) ? shown.read(reader) : undefined;
 			if (visible) {
 				readMarker.update(visible.session, visible.chat, reader);

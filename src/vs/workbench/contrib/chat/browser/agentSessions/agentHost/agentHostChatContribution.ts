@@ -8,7 +8,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError, isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableFromEvent, runOnChange } from '../../../../../../base/common/observable.js';
 import { mark } from '../../../../../../base/common/performance.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
@@ -33,7 +33,7 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { AuthenticationSession, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, surfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
+import { ChatAgentLocation, observeSurfacesAllLocalAgentHostAgents, surfacesAllLocalAgentHostAgents } from '../../../common/constants.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
 import { languageModelSourcePresentationRegistry } from '../../../common/languageModelSourcePresentation.js';
@@ -139,7 +139,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	private readonly _isSessionsWindow: boolean;
 	/** Whether it registers every agent, as the Agents window does, rather than only the agents editor windows show. */
-	private readonly _surfacesAllAgents: boolean;
+	private readonly _surfacesAllAgents: IObservable<boolean>;
 	private readonly _isLocalAgentHost: boolean;
 	/** A remote window's canvases load through the remote, so they require remote browser proxying. */
 	private readonly _canvasPresentationAvailable: IObservable<boolean>;
@@ -172,7 +172,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		super();
 		this._authRecovery = this._instantiationService.createInstance(AgentHostAuthenticationRecovery);
 		this._isSessionsWindow = environmentService.isSessionsWindow;
-		this._surfacesAllAgents = surfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
+		this._surfacesAllAgents = observeSurfacesAllLocalAgentHostAgents(environmentService, this._configurationService);
 		this._isLocalAgentHost = !environmentService.remoteAuthority;
 		this._canvasPresentationAvailable = this._isLocalAgentHost ? constObservable(true) : observableConfigValue(BrowserRemoteProxyEnabledSettingId, false, this._configurationService);
 		this._connectionAuthority = environmentService.remoteAuthority ? agentHostAuthority(`vscode-remote://${environmentService.remoteAuthority}`) : LOCAL_AGENT_HOST_AUTHORITY;
@@ -224,12 +224,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._handleRootStateChange(initialRootState);
 
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (!affectsAgentHostProviderPreference(e, this._surfacesAllAgents)) {
+			if (!affectsAgentHostProviderPreference(e, this._surfacesAllAgents.get())) {
 				return;
 			}
 			const current = this._agentHostService.rootState.value;
 			this._handleRootStateChange(current);
 		}));
+		// The agents a window surfaces change too as it starts or stops showing the sessions of the Agents window
+		this._register(runOnChange(this._surfacesAllAgents, () => this._handleRootStateChange(this._agentHostService.rootState.value)));
 	}
 
 	private _enable(): void {
@@ -276,7 +278,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private _shouldRegisterAgent(provider: AgentProvider): boolean {
-		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._surfacesAllAgents);
+		return shouldSurfaceLocalAgentHostProvider(provider, this._configurationService, this._surfacesAllAgents.get());
 	}
 
 	private _handleRootStateChange(rootState: RootState | Error | undefined): void {
@@ -293,7 +295,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
-		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._surfacesAllAgents));
+		const unavailable = new Set(getPolicyUnavailableLocalAgentHostProviders(this._configurationService, this._surfacesAllAgents.get()));
 		for (const [provider] of this._historyRegistrations) {
 			if (!unavailable.has(provider)) {
 				this._historyRegistrations.deleteAndDispose(provider);

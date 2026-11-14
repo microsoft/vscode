@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { constObservable, derived, IObservable } from '../../../../base/common/observable.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService, isAgentHostTarget, isRemoteAgentHostTarget, localChatSessionType, SessionType } from './chatSessionsService.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -238,22 +240,31 @@ export const enum OpenInAgentsTitleBarHoverVariant {
 }
 
 /**
- * Whether a window shows the sessions of the Agents window in its Chat view ({@link ChatConfiguration.ChatViewSessionsListEnabled}).
- * Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in a view of its own and
- * takes precedence. Read it once, as the window starts: the settings need a reload.
+ * Whether a window shows the sessions of the Agents window in its Chat view ({@link ChatConfiguration.ChatViewSessionsListEnabled}),
+ * as the setting changes. Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in
+ * a view of its own and takes precedence: that setting is read once, as the window starts, as the Agents view reads it.
  */
-export function isChatViewSessionsListEnabled(configurationService: IConfigurationService): boolean {
-	return configurationService.getValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled) === true
-		&& configurationService.getValue<boolean>('chat.sessionsView.enabled') !== true;
+export function observeChatViewSessionsListEnabled(configurationService: IConfigurationService): IObservable<boolean> {
+	const sessionsViewEnabled = configurationService.getValue<boolean>('chat.sessionsView.enabled') === true;
+	const setting = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
+	return derived(reader => setting.read(reader) === true && !sessionsViewEnabled);
 }
 
 /**
  * Whether a window surfaces every local agent host agent, as the Agents window does: also a local editor window that shows
- * the sessions in its Chat view ({@link isChatViewSessionsListEnabled}), so that its list and chats are those of the Agents
- * window. A remote window never shows them. Read it once, as the window starts: the setting needs a reload.
+ * the sessions in its Chat view ({@link observeChatViewSessionsListEnabled}), so that its list and chats are those of the
+ * Agents window, as long as it does. A remote window never shows them.
  */
+export function observeSurfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): IObservable<boolean> {
+	if (environment.isSessionsWindow) {
+		return constObservable(true);
+	}
+	return environment.remoteAuthority ? constObservable(false) : observeChatViewSessionsListEnabled(configurationService);
+}
+
+/** {@link observeSurfacesAllLocalAgentHostAgents} as it is now. */
 export function surfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): boolean {
-	return environment.isSessionsWindow || (!environment.remoteAuthority && isChatViewSessionsListEnabled(configurationService));
+	return observeSurfacesAllLocalAgentHostAgents(environment, configurationService).get();
 }
 
 /**
