@@ -1389,16 +1389,18 @@ export namespace CoreNavigationCommands {
 					desiredTopModelLineNumber = Math.min(viewModel.model.getLineCount(), visibleModelRange.startLineNumber + args.value);
 				}
 
+				if (desiredTopModelLineNumber <= 1) {
+					return 0;
+				}
 				const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(desiredTopModelLineNumber, 1));
 				return viewModel.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
 			}
 
 			if (args.unit === EditorScroll_.Unit.Editor) {
-				let desiredTopModelLineNumber = 0;
-				if (args.direction === EditorScroll_.Direction.Down) {
-					desiredTopModelLineNumber = viewModel.model.getLineCount() - viewModel.cursorConfig.pageSize;
+				if (args.direction === EditorScroll_.Direction.Up) {
+					return 0;
 				}
-				return viewModel.viewLayout.getVerticalOffsetForLineNumber(desiredTopModelLineNumber);
+				return viewModel.viewLayout.getScrollHeight();
 			}
 
 			let noOfLines: number;

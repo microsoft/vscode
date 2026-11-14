@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { CoreNavigationCommands } from '../../../browser/coreCommands.js';
+import { CoreNavigationCommands, EditorScroll_ } from '../../../browser/coreCommands.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -610,6 +610,46 @@ suite('Cursor move command - foldedLine unit', () => {
 			// 2k should land on line 1 and clamp there.
 			moveUpByFoldedLine(viewModel, 2);
 			cursorEqual(viewModel, 1, 1);
+		});
+	});
+});
+
+suite('Editor Padding Scroll (#118893)', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('scrollEditorTop and scrollEditorBottom incorporate editor paddingTop and paddingBottom', () => {
+		const lines: string[] = [];
+		for (let i = 1; i <= 100; i++) {
+			lines.push(`line ${i}`);
+		}
+		withTestCodeEditor(lines, { padding: { top: 120, bottom: 120 }, smoothScrolling: false }, (editor, viewModel) => {
+			editor.setScrollTop(500);
+			assert.strictEqual(editor.getScrollTop(), 500);
+
+			CoreNavigationCommands.ScrollEditorTop.runCoreEditorCommand(viewModel, {});
+			assert.strictEqual(editor.getScrollTop(), 0);
+
+			CoreNavigationCommands.ScrollEditorBottom.runCoreEditorCommand(viewModel, {});
+			const maxScrollTop = editor.getScrollHeight() - editor.getLayoutInfo().height;
+			assert.strictEqual(editor.getScrollTop(), maxScrollTop);
+		});
+	});
+
+	test('scroll line up to top incorporates editor paddingTop', () => {
+		const lines: string[] = [];
+		for (let i = 1; i <= 100; i++) {
+			lines.push(`line ${i}`);
+		}
+		withTestCodeEditor(lines, { padding: { top: 120, bottom: 120 }, smoothScrolling: false }, (editor, viewModel) => {
+			editor.setScrollTop(500);
+			assert.strictEqual(editor.getScrollTop(), 500);
+
+			CoreNavigationCommands.EditorScroll.runCoreEditorCommand(viewModel, {
+				to: EditorScroll_.RawDirection.Up,
+				by: EditorScroll_.RawUnit.Line,
+				value: 100,
+			});
+			assert.strictEqual(editor.getScrollTop(), 0);
 		});
 	});
 });
