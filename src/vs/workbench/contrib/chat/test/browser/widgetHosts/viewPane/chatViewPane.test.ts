@@ -590,6 +590,51 @@ suite('ChatViewPane session transitions', () => {
 		});
 	});
 
+	test('through the Chat view host, of two New Chats of its own under way, the later one is the shown none, also as the earlier one completes first, until its first send commits', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		const acquisitions = [new DeferredPromise<{ modelRef: IChatModelReference }>(), new DeferredPromise<{ modelRef: IChatModelReference }>()];
+		const [acquiredA, acquiredB] = acquisitions;
+		const pending = [...acquisitions];
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
+			acquireDefaultNewSession: () => pending.shift()!.p,
+			updateViewState: () => { },
+			providedComposer: { newChat: () => { }, focus: () => { } },
+			composerShown: false,
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+			isViewVisible: () => true,
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
+
+		const newChatA = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		const newChatB = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await acquiredA.complete({ modelRef: reference(nextResource.with({ path: '/untitled-a' })) });
+		await newChatA;
+		await acquiredB.complete({ modelRef: reference(nextResource.with({ path: '/untitled-b' })) });
+		await newChatB;
+		const afterNewChats = shown();
+		const widget = rig.widget.viewModel?.sessionResource.path;
+		// Its first send commits the session it starts
+		await host.openSession(nextResource.with({ path: '/committed' }), { preserveFocus: true, commit: true });
+
+		assert.deepStrictEqual({ afterNewChats, widget, afterCommit: shown() }, {
+			afterNewChats: 'none',
+			widget: '/untitled-b',
+			afterCommit: '/committed commit',
+		});
+	});
+
 	test('through the Chat view host, an open of the chat it shows already that supersedes a restore of it under way reports the open, not the restore', async () => {
 		const rig = createPane();
 		rig.nextRef.dispose();
