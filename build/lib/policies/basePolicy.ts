@@ -22,6 +22,36 @@ export abstract class BasePolicy implements Policy {
 		description: NlsString,
 		moduleName: string,
 	) {
+		// 1. PolicyType kontrolü
+		if (!type || typeof type !== 'string') {
+			throw new Error("BasePolicy: 'type' is required and must be a valid PolicyType.");
+		}
+
+		// 2. Name kontrolü
+		if (!name || typeof name !== 'string' || name.trim() === '') {
+			throw new Error("BasePolicy: A valid non-empty 'name' is required.");
+		}
+
+		// 3. Category yapı kontrolü (category.name ve nlsKey varlığı)
+		if (!category || typeof category !== 'object' || !category.name || typeof category.name.nlsKey !== 'string' || category.name.nlsKey.trim() === '') {
+			throw new Error("BasePolicy: A valid 'category' with a proper 'nlsKey' structure is required.");
+		}
+
+		// 4. İki bileşenli Major.Minor sürüm formatı kontrolü (örn. "1.0")
+		if (!minimumVersion || typeof minimumVersion !== 'string' || !/^\d+\.\d+$/.test(minimumVersion)) {
+			throw new Error(`BasePolicy: Invalid 'minimumVersion' format (${minimumVersion}). It must follow the major.minor convention (e.g., '1.0').`);
+		}
+
+		// 5. Description kontrolü
+		if (!description || typeof description !== 'object' || typeof description.nlsKey !== 'string' || description.nlsKey.trim() === '') {
+			throw new Error("BasePolicy: A valid 'description' object with a 'nlsKey' is required.");
+		}
+
+		// 6. moduleName kontrolü (Fabrikaların boş string kullanımına izin veriyoruz, sadece tip kontrolü yapılıyor)
+		if (moduleName === undefined || moduleName === null || typeof moduleName !== 'string') {
+			throw new Error("BasePolicy: 'moduleName' must be a string.");
+		}
+
 		this.type = type;
 		this.name = name;
 		this.category = category;
