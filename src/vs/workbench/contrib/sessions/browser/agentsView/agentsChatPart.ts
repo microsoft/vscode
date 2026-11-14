@@ -623,7 +623,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		}
 		// It stays in the chat part: its editor shows there
 		chat.input.setMoveRestriction({
-			reason: localize('agentsChatPart.cannotMove', "A chat stays in the chat part."),
+			reason: localize('agentsChatPart.cannotMove', "A chat stays in the chat area."),
 			canMoveTo: group => !!this._part?.groups.some(candidate => candidate.id === group),
 		});
 		// Its chat goes with its editor, once the editor's dispose is done: disposing the chat disposes the editor, and what
