@@ -25,7 +25,6 @@ import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
-import { AgentsChatPartComposerFolders } from './agentsChatPartComposerFolders.js';
 import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
 
 /** How a feature shows chats in the chat part of an editor window (see {@link IEditorWindowChatPartService.enable}). */
@@ -148,19 +147,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 		// The picker of its changesets, in the header row it shows itself in an editor window
 		store.add(this._instantiationService.createInstance(AgentsChatPartChangesEditorHeader));
-
-		// Its composers also offer the other locations of the window's folder, such as its worktrees, once the chat part exists
-		store.add(autorun(reader => {
-			if (!this._frame.contentCreated.read(reader)) {
-				return;
-			}
-			const folders = reader.store.add(this._instantiationService.createInstance(AgentsChatPartComposerFolders));
-			reader.store.add(this._chatPart().setComposerFolderOptions(() => {
-				folders.refresh();
-				return { allowedFolders: folders.folders, getFolderPresentation: folderUri => folders.getPresentation(folderUri) };
-			}));
-			folders.refresh();
-		}));
 
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.

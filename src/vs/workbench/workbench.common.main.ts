@@ -244,6 +244,7 @@ import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/sessions/browser/editorWindow/editorWindowSessions.contribution.js';
 import './contrib/sessions/browser/agentsView/agentsView.contribution.js';
 import './contrib/sessions/providers/agentsView/browser/agentsViewProviders.contribution.js';
+import './contrib/sessions/browser/agentsView/agentHostWorktreeComposerFolders.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 

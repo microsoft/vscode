@@ -14,9 +14,20 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentsChatPartComposerFolders } from '../../../browser/agentsView/agentsChatPartComposerFolders.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../../chat/common/constants.js';
+import { IAgentsChatPartComposerFolderOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { AgentHostWorktreeComposerFolders, AgentHostWorktreeComposerFoldersContribution } from '../../../browser/agentsView/agentHostWorktreeComposerFolders.js';
 
-suite('AgentsChatPartComposerFolders', () => {
+suite('AgentHostWorktreeComposerFolders', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -47,10 +58,10 @@ suite('AgentsChatPartComposerFolders', () => {
 			onDidChangeCanSetLocation: Event.any<unknown>(onDidChangeWorkbenchState.event, onDidChangeWorkspaceFolders.event) as Event<void>,
 			canSetLocation: () => folders.length === 1 && !options.remote,
 			isAtAlternateLocation: atAlternate,
-			getLocation: folder => atAlternate(folder) && options.currentLocation ? { ...options.currentLocation, providerId: 'agentsView.linkedCheckouts', builtIn: true } : undefined,
+			getLocation: folder => atAlternate(folder) && options.currentLocation ? { ...options.currentLocation, providerId: 'agentHost.sessionWorktrees', builtIn: true } : undefined,
 			getLocations: async primary => { asked.push(primary.path); return locations; },
 		}));
-		const composerFolders = store.add(instantiationService.createInstance(AgentsChatPartComposerFolders));
+		const composerFolders = store.add(instantiationService.createInstance(AgentHostWorktreeComposerFolders));
 		composerFolders.refresh();
 		return {
 			composerFolders,
@@ -162,7 +173,7 @@ suite('AgentsChatPartComposerFolders', () => {
 			isAtAlternateLocation: () => false,
 			getLocations: (_primary, cancellation) => { token = cancellation; return read.p; },
 		}));
-		const composerFolders = instantiationService.createInstance(AgentsChatPartComposerFolders);
+		const composerFolders = instantiationService.createInstance(AgentHostWorktreeComposerFolders);
 		composerFolders.refresh();
 		composerFolders.dispose();
 		const cancelled = token?.isCancellationRequested;
@@ -179,5 +190,53 @@ suite('AgentsChatPartComposerFolders', () => {
 		await timeout(0);
 
 		assert.deepStrictEqual(asked, ['/work/vscode', '/work/vscode']);
+	});
+
+	test('with worktree support and AI features on, once the chat part exists, its composers offer the folder\'s locations and follow the folder as it moves', async () => {
+		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		let at = '/work/vscode';
+		const configurationService = new TestConfigurationService({ [ChatConfiguration.EditorWindowEnableWorktree]: true });
+		const contextKeyService = store.add(new MockContextKeyService());
+		contextKeyService.createKey(ChatContextKeys.enabled.key, true);
+		const contentCreated = observableValue('contentCreated', false);
+		const calls: string[] = [];
+		let options: (() => IAgentsChatPartComposerFolderOptions) | undefined;
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
+			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			getWorkspace: () => upcastPartial<IWorkspace>({ uri: URI.file('/work/vscode'), folders: [upcastPartial<IWorkspaceFolder>({ uri: URI.file(at) })] }),
+		}));
+		instantiationService.stub(IWorkspaceFolderLocationService, upcastPartial<IWorkspaceFolderLocationService>({
+			onDidChangeProviders: Event.None,
+			onDidChangeLocation: Event.None,
+			onDidChangeCanSetLocation: onDidChangeWorkspaceFolders.event as Event<unknown> as Event<void>,
+			canSetLocation: () => true,
+			isAtAlternateLocation: folder => folder.uri.path !== '/work/vscode',
+			getLocation: () => undefined,
+			getLocations: async () => [worktree('/work/vscode.worktrees/a', 'feature-a')],
+		}));
+		instantiationService.stub(IConfigurationService, configurationService);
+		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ isSessionsWindow: false }));
+		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ contentCreated }));
+		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({
+			setComposerFolderOptions: provider => { calls.push('options'); options = provider; return toDisposable(() => { calls.push('options cleared'); options = undefined; }); },
+			retargetComposerFolders: (to: URI, from: URI) => { calls.push(`retarget ${from.path} -> ${to.path}`); },
+		}));
+		store.add(instantiationService.createInstance(AgentHostWorktreeComposerFoldersContribution));
+		const beforeCreated = [...calls];
+		contentCreated.set(true, undefined);
+		await timeout(0);
+		const offered = options?.().allowedFolders?.get().map(uri => uri.path);
+		at = '/work/vscode.worktrees/a';
+		onDidChangeWorkspaceFolders.fire({ added: [], removed: [], changed: [] });
+		configurationService.setUserConfiguration(ChatConfiguration.EditorWindowEnableWorktree, false);
+		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === ChatConfiguration.EditorWindowEnableWorktree } as never);
+
+		assert.deepStrictEqual({ beforeCreated, offered, calls }, {
+			beforeCreated: [],
+			offered: ['/work/vscode', '/work/vscode.worktrees/a'],
+			calls: ['options', 'retarget /work/vscode -> /work/vscode.worktrees/a', 'options cleared'],
+		});
 	});
 });

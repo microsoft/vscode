@@ -7,19 +7,28 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { observableConfigValue, observableContextKey } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { ChatConfiguration } from '../../../chat/common/constants.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
+import { IAgentsChatPartService } from './agentsChatPart.js';
+import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 
 /**
  * The folders the chat part's new-session composers create their sessions in: the window's folders and, for the one local
- * folder of a window, the other locations of that folder, such as its primary checkout and its linked checkouts
- * (worktrees).
+ * folder of a window that can move, its other locations, such as its own location and the worktrees sessions work in.
  */
-export class AgentsChatPartComposerFolders extends Disposable {
+export class AgentHostWorktreeComposerFolders extends Disposable {
 
 	private readonly _locations = observableValue<readonly IFolderLocation[]>(this, []);
 	private readonly _folders = observableValue<readonly URI[]>(this, []);
@@ -31,7 +40,7 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	private readonly _onDidMoveFolder = this._register(new Emitter<{ readonly from: URI; readonly to: URI }>());
 	/** Fires as the window's folder moves from one of its locations to another, such as into a worktree. */
 	readonly onDidMoveFolder = this._onDidMoveFolder.event;
-	/** Where the window's movable folder was, and its primary location. */
+	/** Where the window's movable folder was, and its own location. */
 	private _at: { readonly location: URI; readonly primary: URI } | undefined;
 
 	constructor(
@@ -40,9 +49,9 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	) {
 		super();
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
-		// The location the folder is at, as the workspace resolved it, shows as one also before or without its provider's list
+		// The location the folder is at shows as one also before or without its provider's list
 		this._register(_folderLocationService.onDidChangeLocation(() => this._update(this._locations.get())));
-		// Also as the window's folders change: a folder that comes to move, or no longer can, such as as folders are added, offers its locations or not
+		// Also as the window's folders change, such as as the folder moves: the service tells whether it can move again then
 		this._register(_folderLocationService.onDidChangeCanSetLocation(() => this._onDidChangeFolders()));
 		this._at = this._location();
 		this._update([]);
@@ -52,7 +61,7 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		const from = this._at;
 		const to = this._at = this._location();
 		const samePrimary = !!from && !!to && extUriBiasedIgnorePathCase.isEqual(from.primary, to.primary);
-		// The folder it moved to is offered at once, with its known locations, as they are read again
+		// The location it moved to is offered at once, with the known locations, as they are read again
 		this._update(samePrimary ? this._locations.get() : []);
 		this.refresh();
 		if (from && to && samePrimary && !extUriBiasedIgnorePathCase.isEqual(from.location, to.location)) {
@@ -63,12 +72,12 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	private _location(): { readonly location: URI; readonly primary: URI } | undefined {
 		const folder = this._movableFolder();
 		const primary = this._workspaceContextService.getWorkspace().uri;
-		return folder && primary && { location: folder.uri, primary };
+		return folder && primary ? { location: folder.uri, primary } : undefined;
 	}
 
 	/**
-	 * How a composer shows `folderUri`: another location of the window's folder by its name and branch, and, for a window
-	 * whose folder can move, whether it is the primary folder or a worktree of it and whether the window's folder is there now.
+	 * How a composer shows `folderUri`: a location of the window's folder by its name and branch, and, for a window whose
+	 * folder can move, whether it is the folder's own location or a worktree of it, and whether the folder is there now.
 	 */
 	getPresentation(folderUri: URI): IAllowedFolderPresentation | undefined {
 		const location = this._locations.get().find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folderUri));
@@ -77,8 +86,7 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		if (!folder || !workspace.uri) {
 			return location;
 		}
-		// The primary folder, and any other folder of a window with several, show as folders; the other locations as worktrees.
-		// The movable folder is the window's first.
+		// The folder's own location, and any other folder of the window, show as folders; its other locations as worktrees
 		const isFolder = extUriBiasedIgnorePathCase.isEqual(folderUri, workspace.uri)
 			|| workspace.folders.slice(1).some(windowFolder => extUriBiasedIgnorePathCase.isEqual(windowFolder.uri, folderUri));
 		return {
@@ -91,12 +99,7 @@ export class AgentsChatPartComposerFolders extends Disposable {
 	/** Reads the locations of the window's folder again, such as a worktree an agent created since. */
 	refresh(): void {
 		this._refresh.clear();
-		const folder = this._movableFolder();
-		if (!folder) {
-			this._update([]);
-			return;
-		}
-		const primary = this._workspaceContextService.getWorkspace().uri;
+		const primary = this._movableFolder() && this._workspaceContextService.getWorkspace().uri;
 		if (!primary) {
 			this._update([]);
 			return;
@@ -112,20 +115,19 @@ export class AgentsChatPartComposerFolders extends Disposable {
 
 	private _update(provided: readonly IFolderLocation[]): void {
 		const workspace = this._workspaceContextService.getWorkspace();
-		const windowFolders = workspace.folders;
 		const folder = this._movableFolder();
 		const atAlternate = !!folder && this._folderLocationService.isAtAlternateLocation(folder);
 		const current = folder && atAlternate ? this._folderLocationService.getLocation(folder) : undefined;
 		const locations = current && !provided.some(location => extUriBiasedIgnorePathCase.isEqual(location.uri, current.uri))
 			? [current, ...provided]
 			: provided;
-		const folders: URI[] = windowFolders.map(windowFolder => windowFolder.uri);
+		const folders: URI[] = workspace.folders.map(windowFolder => windowFolder.uri);
 		const add = (uri: URI) => {
 			if (!folders.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, uri))) {
 				folders.push(uri);
 			}
 		};
-		// The primary location while the folder is at another, then its other locations
+		// The folder's own location while it is at another, then its other locations
 		if (atAlternate && workspace.uri) {
 			add(workspace.uri);
 		}
@@ -142,3 +144,45 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		return folder && this._folderLocationService.canSetLocation(folder) ? folder : undefined;
 	}
 }
+
+/**
+ * While worktree support (`chat.editorWindow.enableWorktree`) and AI features are on, the chat part's new-session composers
+ * also offer the locations of the window's folder, and follow the folder as it moves, once the chat part exists.
+ */
+export class AgentHostWorktreeComposerFoldersContribution extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.agentHostWorktreeComposerFolders';
+
+	constructor(
+		@IAgentsChatPartFrame frame: IAgentsChatPartFrame,
+		@IAgentsChatPartService chatPart: IAgentsChatPartService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+	) {
+		super();
+		if (environmentService.isSessionsWindow) {
+			return;
+		}
+		const settingEnabled = observableConfigValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree, false, configurationService);
+		const aiEnabled = observableContextKey<boolean>(ChatContextKeys.enabled.key, contextKeyService);
+		// Reads the chat part only once it exists, rather than creating it
+		const active = derived(reader => !!settingEnabled.read(reader) && !!aiEnabled.read(reader) && frame.contentCreated.read(reader));
+		this._register(autorun(reader => {
+			if (!active.read(reader)) {
+				return;
+			}
+			const folders = reader.store.add(instantiationService.createInstance(AgentHostWorktreeComposerFolders));
+			reader.store.add(chatPart.setComposerFolderOptions(() => {
+				folders.refresh();
+				return { allowedFolders: folders.folders, getFolderPresentation: folderUri => folders.getPresentation(folderUri) };
+			}));
+			// Its composers aimed at where the folder was aim at where it is now
+			reader.store.add(folders.onDidMoveFolder(({ from, to }) => chatPart.retargetComposerFolders(to, from)));
+			folders.refresh();
+		}));
+	}
+}
+
+registerWorkbenchContribution2(AgentHostWorktreeComposerFoldersContribution.ID, AgentHostWorktreeComposerFoldersContribution, WorkbenchPhase.AfterRestored);
