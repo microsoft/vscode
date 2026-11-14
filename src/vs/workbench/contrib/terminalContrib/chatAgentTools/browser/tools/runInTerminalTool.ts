@@ -3029,9 +3029,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// assess the command output or continue the agentic tool loop, which
 		// left the agent silent after a backgrounded command finished.
 		const lastRequest = sessionRef.object.lastRequest;
-		const sendOptions: Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'modeInfo' | 'userSelectedTools' | 'agentIdSilent' | 'instructionContext'> = {};
+		const sendOptions: Pick<IChatSendRequestOptions, 'userSelectedModelId' | 'userSelectedModelConfiguration' | 'modeInfo' | 'userSelectedTools' | 'agentIdSilent' | 'instructionContext'> = {};
 		if (lastRequest) {
 			sendOptions.userSelectedModelId = lastRequest.modelId;
+			sendOptions.userSelectedModelConfiguration = lastRequest.modelConfiguration ?? sessionRef.object.inputModel?.state.get()?.modelConfiguration;
 			sendOptions.modeInfo = lastRequest.modeInfo;
 			const previousAgentId = lastRequest.response?.agent?.id;
 			sendOptions.agentIdSilent = previousAgentId;
@@ -3045,6 +3046,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 			if (lastRequest.userSelectedTools) {
 				sendOptions.userSelectedTools = constObservable(lastRequest.userSelectedTools);
+			}
+		} else {
+			const inputState = sessionRef.object.inputModel?.state.get();
+			if (inputState?.selectedModel) {
+				sendOptions.userSelectedModelId = inputState.selectedModel.identifier;
+				sendOptions.userSelectedModelConfiguration = inputState.modelConfiguration;
 			}
 		}
 

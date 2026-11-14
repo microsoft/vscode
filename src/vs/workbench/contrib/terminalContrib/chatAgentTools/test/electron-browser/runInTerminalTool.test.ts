@@ -2767,7 +2767,11 @@ suite('RunInTerminalTool', () => {
 		});
 	});
 
-	async function sendBackgroundCompletionNotification(previousAgentId: string): Promise<IChatSendRequestOptions | undefined> {
+	async function sendBackgroundCompletionNotification(
+		previousAgentId: string,
+		previousModelConfiguration?: Record<string, unknown>,
+		inputModelConfiguration?: Record<string, unknown>
+	): Promise<IChatSendRequestOptions | undefined> {
 		const termId = `test-completion-model-term-${previousAgentId}`;
 		const sessionResource = LocalChatSessionUri.forSession(`test-completion-model-session-${previousAgentId}`);
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
@@ -2792,7 +2796,19 @@ suite('RunInTerminalTool', () => {
 			telemetryModeId: 'agent',
 			applyCodeBlockSuggestionId: undefined,
 		};
-		const previousRequest = { modelId: previousModelId, modeInfo: previousModeInfo, userSelectedTools: previousTools, response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None } };
+		const previousRequest = {
+			modelId: previousModelId,
+			modelConfiguration: previousModelConfiguration,
+			modeInfo: previousModeInfo,
+			userSelectedTools: previousTools,
+			response: { agent: { id: previousAgentId }, isCanceled: false, onDidChange: Event.None }
+		};
+		const inputModel = inputModelConfiguration !== undefined ? {
+			state: constObservable({
+				selectedModel: { identifier: previousModelId },
+				modelConfiguration: inputModelConfiguration,
+			})
+		} : undefined;
 		const chatService = instantiationService.get(IChatService) as unknown as {
 			acquireExistingSession: () => NonNullable<ReturnType<IChatService['acquireExistingSession']>>;
 		};
@@ -2800,6 +2816,7 @@ suite('RunInTerminalTool', () => {
 			object: {
 				lastRequest: previousRequest,
 				lastRequestObs: constObservable(previousRequest),
+				inputModel,
 				onDidChange: Event.None,
 			},
 			dispose: () => { },
@@ -2824,12 +2841,22 @@ suite('RunInTerminalTool', () => {
 	}
 
 	test('should preserve conversation context for background completion notifications', async () => {
-		const options = await sendBackgroundCompletionNotification('local-agent');
+		const modelConfiguration = { contextWindow: 1000000, thinkingEffort: 'high' };
+		const options = await sendBackgroundCompletionNotification('local-agent', modelConfiguration);
 
 		strictEqual(options?.userSelectedModelId, 'claude-opus-4-8', 'Completion notification should use the conversation model');
+		deepStrictEqual(options?.userSelectedModelConfiguration, modelConfiguration, 'Completion notification should use the conversation model configuration');
 		strictEqual(options?.agentIdSilent, 'local-agent', 'Completion notification should continue with the previous request agent');
 		strictEqual(options?.instructionContext?.modeKind, ChatModeKind.Agent, 'Completion notification should collect instructions for the previous mode');
 		strictEqual(options?.instructionContext?.enabledTools?.tool1, true, 'Completion notification should collect instructions for the previous tools');
+	});
+
+	test('should fall back to inputModel configuration for background completion notifications when lastRequest has no modelConfiguration', async () => {
+		const inputModelConfiguration = { contextWindow: 500000 };
+		const options = await sendBackgroundCompletionNotification('local-agent', undefined, inputModelConfiguration);
+
+		strictEqual(options?.userSelectedModelId, 'claude-opus-4-8', 'Completion notification should use the conversation model');
+		deepStrictEqual(options?.userSelectedModelConfiguration, inputModelConfiguration, 'Completion notification should fall back to inputModel modelConfiguration');
 	});
 
 	test('should preserve contributed session auto-attach opt-out for background completion notifications', async () => {
