@@ -20,6 +20,7 @@ import { ContextKeyExpr, IContextKey, RawContextKey } from '../../../../../../pl
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { applyCodexAgentHostPreference, ChatSessionsService } from '../../../browser/chatSessions/chatSessions.contribution.js';
 import { ChatSessionOptionsMap, ChatSessionRefreshReason, ChatSessionStatus, ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSession, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionsExtensionPoint, ReadonlyChatSessionOptionsMap, SessionType } from '../../../common/chatSessionsService.js';
@@ -1713,6 +1714,47 @@ suite('ChatSessionsService - requiresCopilotSignInForSessionType', () => {
 			{ afterRegister, afterChange, afterDispose, afterChangePostDispose },
 			{ afterRegister: 1, afterChange: 2, afterDispose: 3, afterChangePostDispose: 3 },
 		);
+	});
+});
+
+suite('ChatSessionsService - programmatic contribution commands', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let service: ChatSessionsService;
+
+	setup(() => {
+		const instantiationService = store.add(workbenchInstantiationService(undefined, store));
+		service = store.add(instantiationService.createInstance(ChatSessionsService));
+	});
+
+	test('registers open commands for programmatic canDelegate contributions', () => {
+		const dynamicType = 'dynamic-agent-host-test';
+		const sidebarCommandId = `workbench.action.chat.openNewSessionSidebar.${dynamicType}`;
+		const editorCommandId = `workbench.action.chat.openNewSessionEditor.${dynamicType}`;
+		const promptCommandId = `workbench.action.chat.openSessionWithPrompt.${dynamicType}`;
+
+		assert.strictEqual(CommandsRegistry.getCommand(sidebarCommandId), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand(editorCommandId), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand(promptCommandId), undefined);
+
+		const registration = store.add(service.registerChatSessionContribution({
+			type: dynamicType,
+			name: dynamicType,
+			displayName: 'Dynamic Agent Host',
+			description: '',
+			canDelegate: true,
+		}));
+
+		assert.ok(CommandsRegistry.getCommand(sidebarCommandId));
+		assert.ok(CommandsRegistry.getCommand(editorCommandId));
+		assert.ok(CommandsRegistry.getCommand(promptCommandId));
+
+		registration.dispose();
+
+		assert.strictEqual(CommandsRegistry.getCommand(sidebarCommandId), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand(editorCommandId), undefined);
+		assert.strictEqual(CommandsRegistry.getCommand(promptCommandId), undefined);
 	});
 });
 

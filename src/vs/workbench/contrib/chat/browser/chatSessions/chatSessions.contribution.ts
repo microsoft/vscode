@@ -8,7 +8,7 @@ import { AsyncIterableProducer, raceCancellation, raceCancellationError } from '
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import * as resources from '../../../../../base/common/resources.js';
@@ -48,7 +48,7 @@ import { BugIndicatingError, CancellationError, isCancellationError } from '../.
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
@@ -715,12 +715,14 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private _registerCommands(contribution: IChatSessionsExtensionPoint): IDisposable {
 		const isAvailableInSessionTypePicker = isAgentSessionProviderType(contribution.type);
+		const disposables = new DisposableStore();
 
-		return combinedDisposable(
-			registerAction2(class OpenChatSessionAction extends Action2 {
+		const promptCommandId = `workbench.action.chat.openSessionWithPrompt.${contribution.type}`;
+		if (!CommandsRegistry.getCommand(promptCommandId)) {
+			disposables.add(registerAction2(class OpenChatSessionAction extends Action2 {
 				constructor() {
 					super({
-						id: `workbench.action.chat.openSessionWithPrompt.${contribution.type}`,
+						id: promptCommandId,
 						title: localize2('interactiveSession.openSessionWithPrompt', "New {0} with Prompt", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
@@ -757,12 +759,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						}
 					}
 				}
-			}),
-			// Creates a chat editor
-			registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
+			}));
+		}
+
+		// Creates a chat editor
+		const editorCommandId = `workbench.action.chat.openNewSessionEditor.${contribution.type}`;
+		if (!CommandsRegistry.getCommand(editorCommandId)) {
+			disposables.add(registerAction2(class OpenNewChatSessionEditorAction extends Action2 {
 				constructor() {
 					super({
-						id: `workbench.action.chat.openNewSessionEditor.${contribution.type}`,
+						id: editorCommandId,
 						title: localize2('interactiveSession.openNewSessionEditor', "New {0} Session", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
@@ -775,12 +781,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					const { type, displayName } = contribution;
 					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Editor }, chatOptions);
 				}
-			}),
-			// New chat in sidebar chat (+ button)
-			registerAction2(class OpenNewChatSessionSidebarAction extends Action2 {
+			}));
+		}
+
+		// New chat in sidebar chat (+ button)
+		const sidebarCommandId = `workbench.action.chat.openNewSessionSidebar.${contribution.type}`;
+		if (!CommandsRegistry.getCommand(sidebarCommandId)) {
+			disposables.add(registerAction2(class OpenNewChatSessionSidebarAction extends Action2 {
 				constructor() {
 					super({
-						id: `workbench.action.chat.openNewSessionSidebar.${contribution.type}`,
+						id: sidebarCommandId,
 						title: localize2('interactiveSession.openNewSessionSidebar', "New {0} Session", contribution.displayName),
 						category: CHAT_CATEGORY,
 						icon: Codicon.plus,
@@ -797,8 +807,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					const { type, displayName } = contribution;
 					return openChatSession(accessor, { type, displayName, position: ChatSessionPosition.Sidebar }, chatOptions);
 				}
-			})
-		);
+			}));
+		}
+
+		return disposables;
 	}
 
 	private _evaluateAvailability(): void {
@@ -996,6 +1008,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		// agent host) have no `openNewChatSessionInPlace.<type>` command.
 		const disposables = new DisposableStore();
 		this._contributionDisposables.set(contribution.type, disposables);
+		if (contribution.canDelegate) {
+			disposables.add(this._registerCommands(contribution));
+		}
 		// A programmatic contribution can derive its availability (e.g. a functional
 		// `requiresCopilotSignIn`) and signal when it changes; re-fire the aggregate
 		// availability event so consumers re-evaluate. Generic — no per-provider
