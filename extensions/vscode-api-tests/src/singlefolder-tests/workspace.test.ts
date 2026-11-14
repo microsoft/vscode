@@ -100,6 +100,28 @@ suite('vscode API - workspace', () => {
 		});
 	});
 
+	test('openTextDocument, untitled with path is not dirty when dirtyWhenEmpty is disabled', async function () {
+		const config = vscode.workspace.getConfiguration('workbench.editor.untitled');
+		await config.update('dirtyWhenEmpty', false, vscode.ConfigurationTarget.Global);
+		try {
+			const doc = await vscode.workspace.openTextDocument(root.with({ scheme: 'untitled', path: posix.join(root.path, 'newfile-dirtyWhenEmpty.txt') }));
+			assert.strictEqual(doc.uri.scheme, 'untitled');
+			assert.strictEqual(doc.isDirty, false);
+
+			const insert = new vscode.WorkspaceEdit();
+			insert.insert(doc.uri, new vscode.Position(0, 0), 'content');
+			assert.ok(await vscode.workspace.applyEdit(insert));
+			assert.strictEqual(doc.isDirty, true);
+
+			const clear = new vscode.WorkspaceEdit();
+			clear.delete(doc.uri, new vscode.Range(0, 0, 0, 'content'.length));
+			assert.ok(await vscode.workspace.applyEdit(clear));
+			assert.strictEqual(doc.isDirty, false);
+		} finally {
+			await config.update('dirtyWhenEmpty', undefined, vscode.ConfigurationTarget.Global);
+		}
+	});
+
 	test('openTextDocument, untitled with host', function () {
 		const uri = vscode.Uri.parse('untitled://localhost/c%24/Users/jrieken/code/samples/foobar.txt');
 		return vscode.workspace.openTextDocument(uri).then(doc => {
