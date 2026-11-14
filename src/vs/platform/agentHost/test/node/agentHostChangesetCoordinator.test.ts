@@ -2325,8 +2325,8 @@ class TestChangesetService implements IAgentHostChangesetService {
 	onToolCallEditsApplied(_session: string, _turnId: string): void { }
 	onTurnComplete(_session: string, _turnId: string | undefined): void { }
 	onSessionTruncated(_session: string): void { }
-	openTrackedTurnDatabase(): undefined { return undefined; }
-	openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
+	async openTrackedTurnDatabase(): Promise<undefined> { return undefined; }
+	async openTrackedSessionDatabases() { return { sources: [], otherChatDatabases: [], workingDirectories: undefined, folderScope: undefined, dispose: () => { } }; }
 	onFileEditsDiscarded(): void { }
 	onFileEditsAccepted(): void { }
 	ensureChatChangesSummary(_chat: string): void { }

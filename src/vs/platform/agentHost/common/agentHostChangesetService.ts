@@ -279,17 +279,17 @@ export interface IAgentHostChangesetService {
 	 * folder scope. Returns `undefined` when the turn id is shared by more than
 	 * one chat, because its edits can't be attributed to one database.
 	 */
-	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): ITrackedTurnDatabase | undefined;
+	openTrackedTurnDatabase(owner: ProtocolURI, turnId: string): Promise<ITrackedTurnDatabase | undefined>;
 
 	/**
 	 * Opens the databases holding the tracked edits that the Session Changes
 	 * changeset of `owner` is computed from, together with that changeset's
 	 * working directories and folder scope: a chat's own database, or for a
-	 * session its database and every peer chat's. For a chat, also opens the
-	 * session's other databases, whose edits the session's Session Changes
-	 * combine with the chat's.
+	 * session its database and every existing peer chat database. For a chat, also
+	 * opens the session's other databases, whose edits the session's Session
+	 * Changes combine with the chat's.
 	 */
-	openTrackedSessionDatabases(owner: ProtocolURI): ITrackedSessionDatabases;
+	openTrackedSessionDatabases(owner: ProtocolURI): Promise<ITrackedSessionDatabases>;
 
 	/**
 	 * Hook called after edits of `turnIds` on `owner` were discarded. Recomputes

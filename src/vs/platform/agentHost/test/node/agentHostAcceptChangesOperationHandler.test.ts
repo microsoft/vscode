@@ -89,7 +89,7 @@ function setup(disposables: Pick<DisposableStore, 'add'>) {
 	};
 	const accepted: string[] = [];
 	const changesets = createNoopChangesetService();
-	changesets.openTrackedSessionDatabases = () => ({ ...tracked, workingDirectories: [URI.file('/repo').toString()], dispose: () => { } });
+	changesets.openTrackedSessionDatabases = async () => ({ ...tracked, workingDirectories: [URI.file('/repo').toString()], dispose: () => { } });
 	changesets.onFileEditsAccepted = owner => { accepted.push(owner); };
 	const diffService = new InProcessDiffComputeService();
 	const handler = new AgentHostAcceptChangesOperationHandler(new NullLogService(), stateManager, changesets, diffService);
