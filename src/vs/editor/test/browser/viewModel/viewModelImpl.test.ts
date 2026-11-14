@@ -13,7 +13,7 @@ import { ViewEvent } from '../../../common/viewEvents.js';
 import { testViewModel } from './testViewModel.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { createTextModel } from '../../common/testTextModel.js';
-import { createCodeEditorServices, instantiateTestCodeEditor } from '../testCodeEditor.js';
+import { createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from '../testCodeEditor.js';
 
 suite('ViewModel', () => {
 
@@ -114,6 +114,19 @@ suite('ViewModel', () => {
 		model.applyEdits([{ range: new Range(2, 6, 2, 6), text: '!' }]);
 
 		disposables.dispose();
+	});
+
+	test('reapplying hidden areas reveals a line inserted at the hidden boundary', () => {
+		const visibleLines: string[] = [];
+		withTestCodeEditor(['a', '  b', 'c'], {}, (editor, viewModel) => {
+			editor.setHiddenAreas([new Range(2, 1, 2, 1)]);
+			editor.executeEdits('test', [{ range: new Range(2, 4, 2, 4), text: '\n' }]);
+			editor.setHiddenAreas([new Range(2, 1, 2, 1)]);
+			for (let line = 1; line <= viewModel.getLineCount(); line++) {
+				visibleLines.push(viewModel.getLineContent(line));
+			}
+		});
+		assert.deepStrictEqual(visibleLines, ['a', '', 'c']);
 	});
 
 	test('issue #44805: No visible lines via API call', () => {

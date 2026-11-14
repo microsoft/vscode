@@ -412,6 +412,10 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			}
 
+			if (hadOtherModelChange) {
+				this.previousHiddenAreas = [];
+			}
+
 			if (versionId !== null) {
 				this._lines.acceptVersionId(versionId);
 			}

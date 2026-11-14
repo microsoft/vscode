@@ -83,6 +83,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 	private projectedModelLineLineCounts!: ConstantTimePrefixSumComputer;
 
 	private hiddenAreasDecorationIds!: string[];
+	private hiddenAreasChanged = false;
 
 	constructor(
 		editorId: number,
@@ -125,6 +126,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 	private _constructLines(resetHiddenAreas: boolean, previousLineBreaks: ((ModelLineProjectionData | null)[]) | null): void {
 		this.modelLineProjections = [];
+		this.hiddenAreasChanged = false;
 
 		if (resetHiddenAreas) {
 			this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, []);
@@ -183,7 +185,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		// This checks if there really was a change
 		const oldRanges = this.hiddenAreasDecorationIds.map((areaId) => this.model.getDecorationRange(areaId)!).sort(Range.compareRangesUsingStarts);
-		if (newRanges.length === oldRanges.length) {
+		if (!this.hiddenAreasChanged && newRanges.length === oldRanges.length) {
 			let hasDifference = false;
 			for (let i = 0; i < newRanges.length; i++) {
 				if (!newRanges[i].equalsRange(oldRanges[i])) {
@@ -205,6 +207,7 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 		);
 
 		this.hiddenAreasDecorationIds = this.model.deltaDecorations(this.hiddenAreasDecorationIds, newDecorations);
+		this.hiddenAreasChanged = false;
 
 		const hiddenAreas = newRanges;
 		let hiddenAreaStart = 1, hiddenAreaEnd = 0;
@@ -357,6 +360,8 @@ export class ViewModelLinesFromProjectedModel implements IViewModelLines {
 
 		// cannot use this.getHiddenAreas() because those decorations have already seen the effect of this model change
 		const isInHiddenArea = (fromLineNumber > 2 && !this.modelLineProjections[fromLineNumber - 2].isVisible());
+		// Inserted lines can be hidden without extending the tracked ranges.
+		this.hiddenAreasChanged ||= isInHiddenArea;
 
 		const outputFromLineNumber = (fromLineNumber === 1 ? 1 : this.projectedModelLineLineCounts.getPrefixSum(fromLineNumber - 1) + 1);
 
