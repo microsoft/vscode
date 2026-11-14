@@ -6,13 +6,12 @@
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { isCancellationError, onUnexpectedError } from '../../../base/common/errors.js';
-import { hash } from '../../../base/common/hash.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { IRange } from '../../../editor/common/core/range.js';
 import { ISelection } from '../../../editor/common/core/selection.js';
-import { Schemas } from '../../../base/common/network.js';
 import { joinPath } from '../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { IExtensionStoragePaths } from './extHostStoragePaths.js';
@@ -36,8 +35,6 @@ interface CustomTextEditorNavigationEntry {
 
 
 class CustomDocumentStoreEntry {
-
-	private _backupCounter = 1;
 
 	constructor(
 		public readonly document: vscode.CustomDocument,
@@ -76,8 +73,7 @@ class CustomDocumentStoreEntry {
 		if (!this._storagePath) {
 			throw new Error('Backup requires a valid storage path');
 		}
-		const fileName = hashPath(this.document.uri) + (this._backupCounter++);
-		return joinPath(this._storagePath, fileName);
+		return joinPath(this._storagePath, generateUuid());
 	}
 
 	updateBackup(backup: vscode.CustomDocumentBackup): void {
@@ -547,7 +543,11 @@ export class ExtHostCustomEditors implements extHostProtocol.ExtHostCustomEditor
 		const backup = await provider.backupCustomDocument(entry.document, {
 			destination: entry.getNewBackupUri(),
 		}, cancellation);
-		entry.updateBackup(backup);
+		if (cancellation.isCancellationRequested) {
+			backup.delete();
+		} else {
+			entry.updateBackup(backup);
+		}
 		return backup.id;
 	}
 
@@ -596,9 +596,4 @@ function isCustomEditorProviderWithSideBySideDiffCapability(provider: vscode.Cus
 function isEditEvent(e: vscode.CustomDocumentContentChangeEvent | vscode.CustomDocumentEditEvent): e is vscode.CustomDocumentEditEvent {
 	return typeof (e as vscode.CustomDocumentEditEvent).undo === 'function'
 		&& typeof (e as vscode.CustomDocumentEditEvent).redo === 'function';
-}
-
-function hashPath(resource: URI): string {
-	const str = resource.scheme === Schemas.file || resource.scheme === Schemas.untitled ? resource.fsPath : resource.toString();
-	return hash(str) + '';
 }
