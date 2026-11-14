@@ -97,6 +97,9 @@ export interface IAgentsChatPartService {
 	/** Opens a new-session composer in a tab of the chat part, aimed at `target`. */
 	openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void>;
 
+	/** The folders a composer of this surface offers, and how it presents them, so that other surfaces share one code path. */
+	getComposerFolderOptions?(): Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'> | undefined;
+
 	/** Closes the tab of `chatResource`, where the chat part shows it. */
 	closeChat(chatResource: URI): Promise<void>;
 
@@ -320,6 +323,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			// Opening a session moves the window's folder to where it works, when that is one of the folder's locations
 			this._moveToSession(chat.input, session);
 		}
+	}
+
+	getComposerFolderOptions(): Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'> {
+		return this.composerFolderOptions;
 	}
 
 	async openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> {
