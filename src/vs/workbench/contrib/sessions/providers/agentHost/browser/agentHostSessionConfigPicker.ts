@@ -2144,7 +2144,7 @@ export class NewSessionApprovePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2164,7 +2164,7 @@ export class NewSessionPermissionModePickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2190,7 +2190,7 @@ export class NewSessionCodexApprovalsPickerAction extends Action2 {
 				id: Menus.NewSessionControl,
 				group: 'navigation',
 				order: 3,
-				when: ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost)),
 			}],
 		});
 	}
@@ -2216,6 +2216,7 @@ export class NewSessionModePickerAction extends Action2 {
 				// this picker with a unified mode + model bottom sheet, so
 				// gate this desktop-only Action out of phone layouts.
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ContextKeyExpr.or(IsActiveSessionLocalAgentHost, IsActiveSessionRemoteAgentHost),
 					IsPhoneLayoutContext.negate(),
 				),
@@ -2241,12 +2242,12 @@ export class RunningSessionConfigPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.2,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2266,12 +2267,12 @@ export class RunningSessionPermissionModePickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.3,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 11,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2296,12 +2297,12 @@ export class RunningSessionCodexApprovalsPickerAction extends Action2 {
 				id: MenuId.ChatInput,
 				group: 'navigation',
 				order: 0.4,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, ExperimentalSessionComposerLayout),
 			}, {
 				id: MenuId.ChatInputSecondary,
 				group: 'navigation',
 				order: 12,
-				when: ContextKeyExpr.and(ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeyExprs.isAgentHostSession, InSessionHostScopeContext, LegacySessionComposerLayout),
 			}],
 		});
 	}
@@ -2325,6 +2326,7 @@ export class RunningSessionModePickerAction extends Action2 {
 				group: 'navigation',
 				order: 0.1,
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),
@@ -2336,6 +2338,7 @@ export class RunningSessionModePickerAction extends Action2 {
 				order: 9,
 				// Hide the agent mode picker while a delegation (continue in) target is pending.
 				when: ContextKeyExpr.and(
+					ChatContextKeys.enabled,
 					ChatContextKeyExprs.isAgentHostSession,
 					InSessionHostScopeContext,
 					ChatContextKeys.hasPendingDelegationTarget.negate(),

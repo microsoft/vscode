@@ -1,0 +1,29 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* The session composer as the Chat view's composer of new chats: docked at its bottom, as wide as the sessions, as the Chat view's input */
+.chat-view-sessions-composer {
+	position: relative;
+	overflow: hidden;
+
+	.new-chat-widget-container {
+		justify-content: flex-end;
+		align-items: stretch;
+		padding: 0 var(--vscode-spacing-size80) var(--vscode-spacing-size80);
+	}
+
+	.new-chat-widget-content {
+		width: 100%;
+		max-width: none;
+	}
+
+	.new-session-workspace-picker-container {
+		max-width: none;
+	}
+
+	.new-session-welcome-message {
+		display: none;
+	}
+}
