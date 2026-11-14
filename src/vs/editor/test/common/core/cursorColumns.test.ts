@@ -67,6 +67,13 @@ suite('CursorColumns', () => {
 		testVisibleColumnFromColumn('📚az', 4, 3, 2);
 		testVisibleColumnFromColumn('📚az', 4, 4, 3);
 		testVisibleColumnFromColumn('📚az', 4, 5, 4);
+
+		// An Indic conjunct is one visible column
+		testVisibleColumnFromColumn('क्षत्रिय\tx', 4, 1, 0);
+		testVisibleColumnFromColumn('क्षत्रिय\tx', 4, 4, 1);
+		testVisibleColumnFromColumn('क्षत्रिय\tx', 4, 8, 2);
+		testVisibleColumnFromColumn('क्षत्रिय\tx', 4, 9, 3);
+		testVisibleColumnFromColumn('क्षत्रिय\tx', 4, 10, 4);
 	});
 
 	test('toStatusbarColumn', () => {
