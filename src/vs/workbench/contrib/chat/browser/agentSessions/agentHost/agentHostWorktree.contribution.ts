@@ -106,6 +106,8 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	private readonly _cts = new CancellationTokenSource();
 	/** Where it last moved the folder: that move is its own, not the user's. */
 	private _ownMove: URI | undefined;
+	/** Where it asked the workspace to keep the folder, to supersede a move under way: that is no move of someone else either. */
+	private _keepInPlace: URI | undefined;
 
 	private _shown: IShownChat | undefined;
 	/** Waits for the shown session's working directory to become known or to change. */
@@ -200,8 +202,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}));
 		this._register(_folderLocationService.onDidChangeLocation(e => {
 			this._foreground++;
-			const own = this._ownMove && extUriBiasedIgnorePathCase.isEqual(this._ownMove, e.folder.uri);
-			this._ownMove = undefined;
+			// Keeping the folder in place supersedes only the earlier move, not a later switch still under way
+			const keptInPlace = !!this._keepInPlace && extUriBiasedIgnorePathCase.isEqual(this._keepInPlace, e.folder.uri);
+			const own = keptInPlace || (!!this._ownMove && extUriBiasedIgnorePathCase.isEqual(this._ownMove, e.folder.uri));
+			if (keptInPlace) {
+				this._keepInPlace = undefined;
+			} else {
+				this._ownMove = undefined;
+			}
 			if (!own) {
 				// Moved by someone else, such as the user in the window's title: no switch asked for before applies
 				this._request++;
@@ -445,7 +453,14 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		if (this._pendingMoves === 0 || !folder || !this._folderLocationService.canSetLocation(folder)) {
 			return;
 		}
-		this._workspaceEditingService.setFolderLocation(folder.uri).catch(error => this._logService.error('[worktree] could not keep the folder where it is', error));
+		const keepInPlace = this._keepInPlace = folder.uri;
+		this._workspaceEditingService.setFolderLocation(folder.uri)
+			.catch(error => this._logService.error('[worktree] could not keep the folder where it is', error))
+			.finally(() => {
+				if (this._keepInPlace === keepInPlace) {
+					this._keepInPlace = undefined;
+				}
+			});
 	}
 
 	private _isAt(location: URI): boolean {
