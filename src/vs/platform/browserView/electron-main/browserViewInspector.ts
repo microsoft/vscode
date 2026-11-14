@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
+import { disposableTimeout } from '../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { BrowserElementSelectionMode, IBrowserElementCommentsUpdate, IBrowserElementSelectionOptions, IBrowserElementSelectionState, IElementData, IBrowserViewTheme, IBrowserViewRect, IBrowserViewPreloadLocalizedStrings } from '../common/browserView.js';
-import { ICDPConnection } from '../common/cdp/types.js';
+import { CDPTargetInfo, ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 import { BrowserViewFrameInspector } from './browserViewFrameInspector.js';
 import { localize } from '../../../nls.js';
@@ -69,11 +70,10 @@ export class BrowserViewInspector extends Disposable {
 	private readonly _onDidChangeElementSelectionState = this._register(new Emitter<IBrowserElementSelectionState>());
 	readonly onDidChangeElementSelectionState: Event<IBrowserElementSelectionState> = this._onDidChangeElementSelectionState.event;
 
-	private _elementSelectionActive = false;
-	get isElementSelectionActive(): boolean { return this._elementSelectionActive; }
+	get isElementSelectionActive(): boolean { return !!this._activeSelection.value; }
 	get elementSelectionState(): IBrowserElementSelectionState {
 		return {
-			active: this._elementSelectionActive,
+			active: this.isElementSelectionActive,
 			options: this._activeSelection.value?.options ?? {}
 		};
 	}
@@ -101,6 +101,7 @@ export class BrowserViewInspector extends Disposable {
 	private readonly _activeAreaSelection = this._register(new MutableDisposable<IActiveAreaSelection>());
 
 	private readonly _registry = this._register(new FrameInspectorRegistry());
+	private _attachPromise: Promise<void> | undefined;
 	private readonly _sessionListeners = this._register(new DisposableMap<ICDPConnection, DisposableStore>());
 
 	constructor(private readonly browser: BrowserView) {
@@ -115,6 +116,7 @@ export class BrowserViewInspector extends Disposable {
 		const onNavigated = () => {
 			this._activeSelection.clear();
 			this._activeAreaSelection.clear();
+			this._registry.pruneRetiredFrames();
 		};
 		webContents.on('did-navigate', onNavigated);
 		this._register({ dispose: () => webContents.removeListener('did-navigate', onNavigated) });
@@ -168,20 +170,70 @@ export class BrowserViewInspector extends Disposable {
 		webContents.on('ipc-message', onIpcMessage);
 		this._register({ dispose: () => webContents.removeListener('ipc-message', onIpcMessage) });
 
-		// Cross-origin (OOPIF) targets get their own session — watch it for contexts
-		this._register(this.browser.debugger.onTargetDiscovered(async ({ targetId, type }) => {
-			if (type === 'iframe') {
-				try {
-					const session = await this.browser.debugger.attachToTarget(targetId);
-					this._watchSession(session);
-				} catch {
-					return;
-				}
-			}
-		}));
+	}
 
-		// Attach the main debugger session and watch it for contexts
-		this.browser.debugger.attach().then(conn => this._watchSession(conn)).catch(() => { });
+	/**
+	 * Attaches the debugger on first use. Runtime.enable makes the page detectable by bot protection,
+	 * so this is deferred until a feature needs frame inspectors, and stays attached afterwards.
+	 */
+	private _ensureAttached(): Promise<void> {
+		if (this._store.isDisposed) {
+			return Promise.resolve();
+		}
+		this._attachPromise ??= this._attach();
+		return this._attachPromise;
+	}
+
+	private async _attach(): Promise<void> {
+		// Detach events from before the attach can't be replayed, so drop frames that already went away.
+		this._registry.pruneRetiredFrames();
+		// Cross-origin (OOPIF) targets get their own session — watch it for contexts.
+		// Targets discovered before this point never fire again, so replay the known ones.
+		const attachedTargets = new Set<string>();
+		const watchTarget = async ({ targetId, type }: CDPTargetInfo) => {
+			if (type !== 'iframe' || attachedTargets.has(targetId) || this._store.isDisposed) {
+				return;
+			}
+			attachedTargets.add(targetId);
+			try {
+				this._watchSession(await this.browser.debugger.attachToTarget(targetId));
+			} catch {
+				return;
+			}
+		};
+		this._register(this.browser.debugger.onTargetDiscovered(watchTarget));
+		for (const targetInfo of this.browser.debugger.knownTargets.values()) {
+			void watchTarget(targetInfo);
+		}
+
+		try {
+			this._watchSession(await this.browser.debugger.attach());
+		} catch {
+			// Best effort.
+		}
+	}
+
+	/** Resolves the inspector for a frame, waiting briefly if its preload is ready but not yet matched to a CDP context (e.g. right after the first attach). */
+	private async _getFrameInspector(frame: Electron.WebFrameMain): Promise<BrowserViewFrameInspector | undefined> {
+		await this._ensureAttached();
+		const existing = this._registry.getByFrame(frame);
+		if (existing || this._store.isDisposed || !this._registry.isPendingFrame(frame)) {
+			return existing;
+		}
+		const store = new DisposableStore();
+		try {
+			await new Promise<void>(resolve => {
+				store.add(this._registry.onDidAdopt(adopted => {
+					if (adopted.frame === frame) {
+						resolve();
+					}
+				}));
+				store.add(disposableTimeout(resolve, 1000));
+			});
+		} finally {
+			store.dispose();
+		}
+		return this._registry.getByFrame(frame);
 	}
 
 	/**
@@ -256,7 +308,9 @@ export class BrowserViewInspector extends Disposable {
 	 * Wires its events to this orchestrator.
 	 */
 	private _onInspectorAdopted(inspector: BrowserViewFrameInspector): void {
-		inspector.onDidInspectElement(async nodeData => {
+		const listeners = new DisposableStore();
+		listeners.add(Event.once(inspector.onWillDispose)(() => listeners.dispose()));
+		listeners.add(inspector.onDidInspectElement(async nodeData => {
 			if (!this._activeSelection.value?.options?.continuous) {
 				this._activeSelection.clear();
 			}
@@ -267,13 +321,13 @@ export class BrowserViewInspector extends Disposable {
 				// Best effort.
 			}
 			this._onDidSelectElement.fire(nodeData);
-		});
-		inspector.onDidRemoveElementComment(elementId => this._onDidRemoveElementComment.fire(elementId));
+		}));
+		listeners.add(inspector.onDidRemoveElementComment(elementId => this._onDidRemoveElementComment.fire(elementId)));
 
 		// When a frame's preload stops picking, stop all other frames too
-		inspector.onDidStopPicking(() => {
+		listeners.add(inspector.onDidStopPicking(() => {
 			this._activeSelection.clear();
-		});
+		}));
 
 		// If element selection is currently active, start it on the new frame
 		if (this._activeSelection.value) {
@@ -300,7 +354,7 @@ export class BrowserViewInspector extends Disposable {
 	 * Toggle element selection mode across all frames.
 	 */
 	async toggleElementSelection(enabled?: boolean, options: IBrowserElementSelectionOptions = {}): Promise<void> {
-		const newEnabled = enabled ?? !this._elementSelectionActive;
+		const newEnabled = enabled ?? !this.isElementSelectionActive;
 		if (!newEnabled) {
 			this._activeSelection.clear();
 			return;
@@ -316,7 +370,6 @@ export class BrowserViewInspector extends Disposable {
 			activeSelection.options = updatedOptions;
 			try {
 				if (await this._startInspection(activeSelection, updatedOptions)) {
-					this._elementSelectionActive = true;
 					this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 				}
 			} catch {
@@ -331,9 +384,8 @@ export class BrowserViewInspector extends Disposable {
 			options: updatedOptions,
 			dispose: () => {
 				if (this._activeSelection.value === selection) {
-					this._elementSelectionActive = false;
-					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					this._activeSelection.clearAndLeak();
+					this._onDidChangeElementSelectionState.fire({ active: false, options: selection.options });
 					void this._queueInspectionOperation(async () => {
 						await this.browser.emulator.setElementSelectionActive(false);
 						await Promise.all([...this._registry.inspectors].map(i => i.stopInspection()));
@@ -342,11 +394,10 @@ export class BrowserViewInspector extends Disposable {
 			}
 		};
 		this._activeSelection.value = selection;
+		// Report active before the (possibly slow) first attach so a second click toggles it off instead of re-enabling.
+		this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
 		try {
-			if (await this._startInspection(selection, updatedOptions)) {
-				this._elementSelectionActive = true;
-				this._onDidChangeElementSelectionState.fire({ active: true, options: updatedOptions });
-			}
+			await this._startInspection(selection, updatedOptions);
 		} catch {
 			if (this._activeSelection.value === selection && selection.options === updatedOptions) {
 				this._activeSelection.clear();
@@ -355,6 +406,8 @@ export class BrowserViewInspector extends Disposable {
 	}
 
 	private async _startInspection(selection: IActiveSelection, options: IBrowserElementSelectionOptions): Promise<boolean> {
+		// The selection is already registered, so cancellation during attach is caught by the identity check below.
+		await this._ensureAttached();
 		await this._queueInspectionOperation(async () => {
 			if (this._activeSelection.value !== selection || selection.options !== options) {
 				return;
@@ -447,8 +500,8 @@ export class BrowserViewInspector extends Disposable {
 	/**
 	 * Resolve a handle to an element. Routes to the correct frame inspector.
 	 */
-	getElementHandle(id: string, frame: Electron.WebFrameMain): IElementHandle | undefined {
-		const handle = this._registry.getByFrame(frame)?.getElementHandle(id);
+	async getElementHandle(id: string, frame: Electron.WebFrameMain): Promise<IElementHandle | undefined> {
+		const handle = (await this._getFrameInspector(frame))?.getElementHandle(id);
 		if (!handle) {
 			return undefined;
 		}
@@ -482,7 +535,7 @@ export class BrowserViewInspector extends Disposable {
 	}
 
 	async getVisualViewportScale(frame: Electron.WebFrameMain = this.browser.webContents.mainFrame): Promise<number> {
-		return this._registry.getByFrame(frame)?.getVisualViewportScale() ?? 1;
+		return await (await this._getFrameInspector(frame))?.getVisualViewportScale() ?? 1;
 	}
 
 	/**
@@ -588,11 +641,28 @@ class FrameInspectorRegistry extends Disposable {
 		return this._byFrame.get(frame);
 	}
 
+	/** Whether the frame's preload is ready and waiting for its CDP context. */
+	isPendingFrame(frame: Electron.WebFrameMain): boolean {
+		for (const pendingFrame of this._pendingFrames.values()) {
+			if (pendingFrame === frame) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	/**
 	 * Called when a preload script signals readiness with a token.
 	 * If a matching CDP context was already discovered, adopts immediately.
 	 */
 	notifyFrameReady(frame: Electron.WebFrameMain, token: string): void {
+		this.pruneRetiredFrames();
+		// A frame only has one live preload; a newer token supersedes its older ones.
+		for (const [oldToken, oldFrame] of this._pendingFrames) {
+			if (oldFrame === frame && oldToken !== token) {
+				this._pendingFrames.delete(oldToken);
+			}
+		}
 		const pending = this._pendingSessions.get(token);
 		if (pending) {
 			this._pendingSessions.delete(token);
@@ -616,6 +686,15 @@ class FrameInspectorRegistry extends Disposable {
 		}
 	}
 
+	/** Drops pending preload entries for frames that were removed or destroyed, which nothing else consumes while CDP is unattached. */
+	pruneRetiredFrames(): void {
+		for (const [token, frame] of this._pendingFrames) {
+			if (frame.detached || frame.isDestroyed()) {
+				this._pendingFrames.delete(token);
+			}
+		}
+	}
+
 	/** Dispose the inspector owning the given CDP frameId, if any. Also cleans pending entries. */
 	disposeByFrameId(frameId: string): void {
 		this._byFrameId.get(frameId)?.dispose();
@@ -625,12 +704,7 @@ class FrameInspectorRegistry extends Disposable {
 				this._pendingSessions.delete(token);
 			}
 		}
-		// Remove any pending frame entries whose frame is now detached/destroyed
-		for (const [token, frame] of this._pendingFrames) {
-			if (frame.detached || frame.isDestroyed()) {
-				this._pendingFrames.delete(token);
-			}
-		}
+		this.pruneRetiredFrames();
 	}
 
 	/** Dispose all inspectors whose connection is the given session and clear related pending state. */
@@ -672,7 +746,7 @@ class FrameInspectorRegistry extends Disposable {
 		}
 		sessionSet.add(inspector);
 
-		inspector.onWillDispose(() => {
+		Event.once(inspector.onWillDispose)(() => {
 			this._all.delete(inspector);
 			this._byFrame.delete(frame);
 			this._byFrameId.delete(frameId);
