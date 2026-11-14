@@ -21,6 +21,7 @@ import { AgentHostPermissionUiContribution } from './agentHost/agentHostPermissi
 import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu.js';
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostModeSynchronizer.js';
+import './agentHost/agentHostWorktree.contribution.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 
