@@ -41,6 +41,8 @@ const WAIT_TIMEOUT = 5_000;
 export class AgentsChatViewHost implements IChatViewHost {
 
 	constructor(
+		/** Whether New Chat of the Chat view opens a composer here; otherwise the Chat view keeps it (see {@link newChat}). */
+		private readonly _ownsNewChat: IObservable<boolean>,
 		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
@@ -86,9 +88,9 @@ export class AgentsChatViewHost implements IChatViewHost {
 		return type !== localChatSessionType && this._sessionsManagementService.getAllSessionTypes().some(sessionType => (sessionType.chatSessionType ?? sessionType.id) === type);
 	}
 
-	/** New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part. */
+	/** New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part, unless the Chat view keeps it. */
 	newChat(): boolean {
-		if (!this._available) {
+		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
 		this._chatPart.openComposer(this._composerTarget(), { newComposer: true }).catch(onUnexpectedError);
