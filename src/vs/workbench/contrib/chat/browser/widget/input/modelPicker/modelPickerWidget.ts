@@ -8,7 +8,9 @@ import './media/modelPicker.css';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { EventType as TouchEventType, Gesture } from '../../../../../../../base/browser/touch.js';
+import { asCSSUrl } from '../../../../../../../base/browser/cssValue.js';
 import { renderIcon } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ThemeIcon } from '../../../../../../../base/common/themables.js';
 import { getBaseLayerHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegate2.js';
 import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
@@ -31,7 +33,7 @@ import { IProductService } from '../../../../../../../platform/product/common/pr
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { COPILOT_HYDRA_FUSION_MAX_MODEL_ID, COPILOT_HYDRA_FUSION_MODEL_ID, isCopilotHydraFusionModelId } from '../../../../../../../platform/agentHost/common/copilotCliConfig.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../../platform/storage/common/storage.js';
-import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel } from '../../../../common/languageModels.js';
+import { COPILOT_VENDOR_ID, getLanguageModelProviderDisplayName, IModelControlEntry, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, isUserProvidedModel, LanguageModelProviderIcon } from '../../../../common/languageModels.js';
 import { getAddModelsUnavailableReason, SessionType } from '../../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { getLanguageModelDisplayNameWithSubscriptionSource } from '../../../../common/languageModelSourcePresentation.js';
@@ -50,7 +52,7 @@ import { renderChatInputPickerSplit } from '../chatInputPickerActionItem.js';
 import { createManageModelsAction, getModelPickerControlModels, shouldShowManageModelsAction } from './modelPickerItems.js';
 import { requiresNewerVSCode } from './modelPickerItemPrimitives.js';
 import { renderModelConfigurationButton } from './modelPickerConfiguration.js';
-import { getCompactModelPickerIcon } from './modelProviderIcons.js';
+import { getModelIdentityIcon } from './modelProviderIcons.js';
 import { ITabbedModelPickerContext, TabbedModelPicker } from './modelPickerTabbedWidget.js';
 import { IModelPickerOpenTrigger, ModelPickerTelemetrySession } from './modelPickerTelemetry.js';
 import { getModelConfigProperty, MODEL_CONFIG_GROUP_EFFORT, whenModelConfigValuesSaved } from './modelPickerModelConfig.js';
@@ -923,13 +925,19 @@ export class ModelPickerWidget extends Disposable {
 		const nameChildren: (HTMLElement | string)[] = [];
 		const compact = this._compact?.get() ?? false;
 		const minimal = this._minimal?.get() ?? false;
-		const modelIcon = comparisonBusy ? Codicon.loadingCompact : comparisonSummary ? Codicon.compare : shownModel
-			? (this._delegate.getPresentationOptions().showModelIcon
-				? getCompactModelPickerIcon(shownModel)
-				: shownModel.metadata.statusIcon ? getCompactCodicon(shownModel.metadata.statusIcon) : undefined)
-			: undefined;
-		if (modelIcon && !noModelsAvailable) {
-			nameChildren.push(renderIcon(modelIcon));
+		if (!noModelsAvailable) {
+			if (comparisonBusy) {
+				nameChildren.push(renderIcon(Codicon.loadingCompact));
+			} else if (comparisonSummary) {
+				nameChildren.push(renderIcon(Codicon.compare));
+			} else if (shownModel) {
+				if (this._delegate.getPresentationOptions().showModelIcon) {
+					const identityIcon = getModelIdentityIcon(shownModel, this._languageModelsService);
+					nameChildren.push(renderLanguageModelPickerIcon(identityIcon));
+				} else if (shownModel.metadata.statusIcon) {
+					nameChildren.push(renderIcon(getCompactCodicon(shownModel.metadata.statusIcon)));
+				}
+			}
 		}
 		// A "Models" placeholder (no badge) beats a dead-end label while unavailable — the hover and
 		// dropdown carry the Restricted Mode explanation and the Trust Workspace / Sign In action.
@@ -1014,3 +1022,18 @@ export class ModelPickerWidget extends Disposable {
 	}
 
 }
+
+/**
+ * Renders a ThemeIcon via codicon classes, or a contributed provider image icon
+ * as a CSS background (same approach as provider tab chips in #341578).
+ */
+function renderLanguageModelPickerIcon(icon: LanguageModelProviderIcon): HTMLElement {
+	if (ThemeIcon.isThemeIcon(icon)) {
+		return renderIcon(getCompactCodicon(icon));
+	}
+	const element = dom.$('span.model-picker-provider-image-icon');
+	element.style.setProperty('--model-picker-provider-icon-light', asCSSUrl(icon.light));
+	element.style.setProperty('--model-picker-provider-icon-dark', asCSSUrl(icon.dark));
+	return element;
+}
+

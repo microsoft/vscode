@@ -79,6 +79,27 @@
 	line-height: var(--vscode-codiconFontSize-compact);
 }
 
+/* Contributed provider image icons (#339167 / #341578) in the chat input model button. */
+.chat-input-picker-item .action-label.model-picker-split .model-picker-name > .model-picker-provider-image-icon {
+	flex: 0 0 auto;
+	width: var(--vscode-codiconFontSize-compact);
+	height: var(--vscode-codiconFontSize-compact);
+	margin-right: var(--vscode-spacing-size60);
+	background-image: var(--model-picker-provider-icon-light);
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: contain;
+}
+
+.vs-dark .chat-input-picker-item .action-label.model-picker-split .model-picker-name > .model-picker-provider-image-icon,
+.hc-black .chat-input-picker-item .action-label.model-picker-split .model-picker-name > .model-picker-provider-image-icon {
+	background-image: var(--model-picker-provider-icon-dark);
+}
+
+.chat-input-picker-item .action-label.model-picker-split.disabled .model-picker-provider-image-icon {
+	opacity: 0.4;
+}
+
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.model-picker-split.icon-only.minimal .model-picker-name {
 	width: 22px;
 	height: 22px;
