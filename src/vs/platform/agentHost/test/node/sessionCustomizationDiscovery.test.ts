@@ -439,6 +439,72 @@ suite('SessionCustomizationDiscovery', () => {
 		});
 	});
 
+	test('workspace hook fallback recovers from standalone server lacking hooks_explicit_plugins effect by reading workspace hooks from disk', async () => {
+		await seed('/workspace/.github/hooks/lint.json', JSON.stringify({
+			version: 1,
+			hooks: {
+				sessionStart: [{ type: 'command', bash: 'npm run lint' }]
+			}
+		}));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async request => {
+			if (request.hookDirectories) {
+				return {
+					hooks: [],
+					warnings: [],
+					errors: ['Explicit hook plugins could not be loaded: Standalone server does not support server effect \'hooks_explicit_plugins\'']
+				};
+			}
+			return { hooks: [], warnings: [], errors: [] };
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		const hooks = result.find(item => item.contents === CustomizationType.Hook && item.children?.length);
+		assert.deepStrictEqual({
+			hooks: hooks?.children?.map(hook => ({
+				name: hook.name,
+				source: readCustomizationDiscoveryMeta(hook)?.source,
+				readable: hasReadableCustomizationContent(URI.parse(hook.uri)),
+			})),
+			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+		}, {
+			hooks: [
+				{ name: 'sessionStart', source: 'repository', readable: true }
+			],
+			load: { kind: CustomizationLoadStatus.Loaded },
+		});
+	});
+
+	test('workspace hook fallback recovers when standalone server throws hooks_explicit_plugins error', async () => {
+		await seed('/workspace/.github/hooks/build.json', JSON.stringify({
+			version: 1,
+			hooks: {
+				preToolUse: [{ type: 'command', bash: 'npm run build' }]
+			}
+		}));
+		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));
+		const client = hookDiscoveryClient(async request => {
+			if (request.hookDirectories) {
+				throw new Error('Explicit hook plugins could not be loaded: Standalone server does not support server effect \'hooks_explicit_plugins\'');
+			}
+			return { hooks: [], warnings: [], errors: [] };
+		});
+		const result = await discovery.discover(client, CancellationToken.None);
+		const hooks = result.find(item => item.contents === CustomizationType.Hook && item.children?.length);
+		assert.deepStrictEqual({
+			hooks: hooks?.children?.map(hook => ({
+				name: hook.name,
+				source: readCustomizationDiscoveryMeta(hook)?.source,
+				readable: hasReadableCustomizationContent(URI.parse(hook.uri)),
+			})),
+			load: hooks?.type === CustomizationType.Directory ? hooks.load : undefined,
+		}, {
+			hooks: [
+				{ name: 'preToolUse', source: 'repository', readable: true }
+			],
+			load: { kind: CustomizationLoadStatus.Loaded },
+		});
+	});
+
 	test('workspace hook fallback propagates cancellation', async () => {
 		await seed('/workspace/.github/hooks/test.json');
 		const discovery = disposables.add(instantiationService.createInstance(SessionCustomizationDiscovery, [workspace], userHome, inMemoryPathToUri));

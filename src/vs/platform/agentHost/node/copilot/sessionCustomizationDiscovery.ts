@@ -874,29 +874,140 @@ export class SessionCustomizationDiscovery extends Disposable {
 			if (hookDirectories.length === 0) {
 				return discovered;
 			}
-			const fallback = await raceCancellationError(client.rpc.hooks.discover({
-				projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
-				hookDirectories,
-			}), token);
+			let fallback: HooksDiscoveryResult | undefined;
+			let isUnsupportedServerError = false;
+			try {
+				fallback = await raceCancellationError(client.rpc.hooks.discover({
+					projectPaths: this._hookWorkingDirectories.map(directory => directory.fsPath),
+					hookDirectories,
+				}), token);
+			} catch (rpcError) {
+				if (rpcError instanceof CancellationError) {
+					throw rpcError;
+				}
+				const rpcMessage = rpcError instanceof Error ? rpcError.message : String(rpcError);
+				if (rpcMessage.includes('hooks_explicit_plugins')) {
+					isUnsupportedServerError = true;
+				} else {
+					throw rpcError;
+				}
+			}
+
+			const allDiscoveredErrors = discovered.errors.filter(e => {
+				if (e.includes('hooks_explicit_plugins')) {
+					isUnsupportedServerError = true;
+					return false;
+				}
+				return true;
+			});
+
+			const fallbackErrors = (fallback?.errors ?? []).filter(e => {
+				if (e.includes('hooks_explicit_plugins')) {
+					isUnsupportedServerError = true;
+					return false;
+				}
+				return true;
+			});
+
 			const seen = new Set(discovered.hooks.map(hook => hook.id));
-			return {
-				hooks: [...discovered.hooks, ...fallback.hooks.filter(hook => {
-					if (hook.origin !== 'user' || seen.has(hook.id)) {
-						return false;
-					}
+			const hooks: HooksDiscoveryResult['hooks'] = [...discovered.hooks];
+			for (const hook of fallback?.hooks ?? []) {
+				if (hook.origin === 'user' && !seen.has(hook.id)) {
 					seen.add(hook.id);
-					return true;
-				}).map(hook => ({ ...hook, origin: 'repository' as const }))],
-				warnings: [...new Set([...discovered.warnings, ...fallback.warnings])],
-				errors: [...new Set([...discovered.errors, ...fallback.errors])],
+					hooks.push({ ...hook, origin: 'repository' as const });
+				}
+			}
+
+			if (isUnsupportedServerError) {
+				this._logService.debug('[SessionCustomizationDiscovery] Standalone server does not support explicit hook plugins; falling back to workspace disk discovery.');
+				const diskHooks = await this._discoverWorkspaceHooksFromDisk(token);
+				for (const hook of diskHooks) {
+					if (!seen.has(hook.id)) {
+						seen.add(hook.id);
+						hooks.push(hook);
+					}
+				}
+			}
+
+			return {
+				hooks,
+				warnings: [...new Set([...discovered.warnings, ...(fallback?.warnings ?? [])])],
+				errors: [...new Set([...allDiscoveredErrors, ...fallbackErrors])],
 			};
 		} catch (error) {
 			if (error instanceof CancellationError) {
 				throw error;
 			}
 			const message = error instanceof Error ? error.message : String(error);
+			if (message.includes('hooks_explicit_plugins')) {
+				const diskHooks = await this._discoverWorkspaceHooksFromDisk(token);
+				const seen = new Set(discovered.hooks.map(hook => hook.id));
+				const hooks: HooksDiscoveryResult['hooks'] = [...discovered.hooks];
+				for (const hook of diskHooks) {
+					if (!seen.has(hook.id)) {
+						seen.add(hook.id);
+						hooks.push(hook);
+					}
+				}
+				return {
+					hooks,
+					warnings: discovered.warnings,
+					errors: discovered.errors.filter(e => !e.includes('hooks_explicit_plugins')),
+				};
+			}
 			return { ...discovered, errors: [...discovered.errors, localize('copilot.workspaceHooksFallbackFailed', "Workspace hook discovery failed: {0}", message)] };
 		}
+	}
+
+	private async _discoverWorkspaceHooksFromDisk(token: CancellationToken): Promise<HooksDiscoveryResult['hooks']> {
+		const hooks: HooksDiscoveryResult['hooks'] = [];
+		for (const directory of this._hookWorkingDirectories) {
+			for (const root of searchRoots.workspace.filter(root => root.type === DiscoveredType.Hook)) {
+				throwIfCancelled(token);
+				const dirUri = joinPath(directory, ...root.path);
+				let stat;
+				try {
+					stat = await raceCancellationError(this._fileService.resolve(dirUri, { resolveMetadata: true }), token);
+				} catch {
+					continue;
+				}
+				if (!stat.children) {
+					continue;
+				}
+				for (const child of stat.children) {
+					throwIfCancelled(token);
+					if (!child.isFile || !child.name.toLowerCase().endsWith('.json')) {
+						continue;
+					}
+					try {
+						const fileContent = await raceCancellationError(this._fileService.readFile(child.resource), token);
+						const json = JSON.parse(fileContent.value.toString());
+						const hooksObj = json && typeof json === 'object' && json.hooks && typeof json.hooks === 'object' && !Array.isArray(json.hooks)
+							? json.hooks
+							: (json && typeof json === 'object' && !Array.isArray(json) ? json : undefined);
+						if (!hooksObj) {
+							continue;
+						}
+						for (const [hookType, actions] of Object.entries(hooksObj)) {
+							if (hookType === 'version' || !Array.isArray(actions) || actions.length === 0) {
+								continue;
+							}
+							hooks.push({
+								id: `workspace-hook:${child.resource.toString()}#${hookType}`,
+								hookType,
+								origin: 'repository',
+								source: child.name,
+								enabled: true,
+								definitionFileUri: child.resource.toString(),
+							});
+						}
+					} catch {
+						// Ignore unparseable hook files
+					}
+				}
+			}
+		}
+		return hooks;
 	}
 
 	private async discoverMcpServers(client: CopilotClient, token: CancellationToken): Promise<{ servers: McpServerCustomization[]; error?: DirectoryCustomization }> {
