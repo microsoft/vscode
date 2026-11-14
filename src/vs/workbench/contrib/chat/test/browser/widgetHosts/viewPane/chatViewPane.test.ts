@@ -21,6 +21,7 @@ import { AccountPolicyGateState } from '../../../../../../services/policies/comm
 import { TestContextService, TestStorageService } from '../../../../../../test/common/workbenchTestServices.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatViewSessionsListService, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
+import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
 import { IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
@@ -254,7 +255,7 @@ suite('ChatViewPane session transitions', () => {
 		const disposed: URI[] = [];
 		const locks: string[] = [];
 		/** Tells the pane its widget's chat changed, as the widget's onDidChangeViewModel does. */
-		let didChangeViewModel = () => { };
+		let didChangeViewModel = (_committed?: boolean) => { };
 		const paneStore = store.add(new DisposableStore());
 		const modelRef = paneStore.add(new MutableDisposable<IChatModelReference>());
 		const createReference = (model: IChatModel): IChatModelReference => Object.assign(toDisposable(() => {
@@ -273,6 +274,11 @@ suite('ChatViewPane session transitions', () => {
 				input = '';
 				bindings.push(model?.sessionResource);
 				didChangeViewModel();
+			},
+			/** As its first request makes the session it sends in, which the widget then shows */
+			showCommitted: (model: IChatModel) => {
+				shown = model;
+				didChangeViewModel(true);
 			},
 			lockToCodingAgent: (_name: string, _displayName: string, sessionType: string) => { locks.push(sessionType); },
 			unlockFromCodingAgent: () => { locks.push('local'); },
@@ -313,7 +319,7 @@ suite('ChatViewPane session transitions', () => {
 			agentSessionsService: { model: { getSession: () => undefined } },
 			updateActions: () => { },
 		});
-		didChangeViewModel = () => (Reflect.get(pane, 'updateShownSession') as () => void).call(pane);
+		didChangeViewModel = committed => (Reflect.get(pane, 'onDidChangeShownModel') as (e: IChatWidgetViewModelChangeEvent) => void).call(pane, { previousSessionResource: undefined, currentSessionResource: shown?.sessionResource, committed });
 		return { pane, paneStore, widget, modelRef, nextModel, nextRef, bindings, disposed, locks };
 	}
 
@@ -381,6 +387,12 @@ suite('ChatViewPane session transitions', () => {
 		const reportedBefore = restored.pane.shownSession.get();
 		restored.pane.reportOpened(nextResource);
 		const reportedAgain = restored.pane.shownSession.get() !== reportedBefore;
+		// Its first request makes a session of the new chat, which the widget then shows: not one the user picked
+		restored.widget.showCommitted(upcastPartial<IChatModel>({ sessionResource: nextResource.with({ path: '/committed' }) }));
+		const committed = shown(restored);
+		// The user opens it, also as the chat it shows
+		restored.pane.reportOpened(nextResource.with({ path: '/committed' }));
+		const committedOpened = shown(restored);
 		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
 		await restored.pane.loadSession(savedResource);
 		const afterLoad = shown(restored);
@@ -409,11 +421,13 @@ suite('ChatViewPane session transitions', () => {
 		await loading;
 		await restoration;
 
-		assert.deepStrictEqual({ afterRestore, otherReported, reopened, reportedAgain, afterLoad, loadedToRestore, reopenedToRestore, superseded: shown(superseded) }, {
+		assert.deepStrictEqual({ afterRestore, otherReported, reopened, reportedAgain, committed, committedOpened, afterLoad, loadedToRestore, reopenedToRestore, superseded: shown(superseded) }, {
 			afterRestore: '/untitled-next restore',
 			otherReported: '/untitled-next restore',
 			reopened: '/untitled-next open',
 			reportedAgain: true,
+			committed: '/committed commit',
+			committedOpened: '/committed open',
 			afterLoad: '/saved open',
 			loadedToRestore: '/recalled restore',
 			reopenedToRestore: '/recalled restore',
