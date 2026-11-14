@@ -2478,8 +2478,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Focus inside the chat part that hides moves to the panel or the editor, not to the body of the window
 		const hadFocus = hidden && this.hasFocus(Parts.CHAT_PART);
+		const shownWidth = hidden ? undefined : this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
 		this.chatPartHidden = hidden;
 		this.workbenchGrid.setViewVisible(this.chatPartView, !hidden);
+		if (!hidden) {
+			this.ensureChatPartFits(shownWidth);
+		}
 		// The sashes beside it move: where they meet the others changes too
 		this.updateSashEndpoints();
 		if (hadFocus) {
@@ -2506,7 +2510,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (this.chatPartView && this.chatPartHiddenByLayout) {
 			this.chatPartHiddenByLayout = false;
 			this.chatPartHidden = false;
+			const shownWidth = this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView);
 			this.workbenchGrid.setViewVisible(this.chatPartView, true);
+			this.ensureChatPartFits(shownWidth);
 			this.updateSashEndpoints();
 		}
 	}
@@ -2572,6 +2578,56 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.chatPartView && direction === this.getChatPartDirection() ? this.chatPartView : this.editorPartView;
 	}
 
+	/**
+	 * Makes room for a visible chat part where the editor's column is too narrow for the editor and the chat part at
+	 * `width` (its own width by default), so that neither overflows the column: the parts beyond the column on the chat
+	 * part's side, closest first, such as the secondary side bar that holds its anchor, give up width down to their
+	 * minimum. The chat part then takes its width, leaving the editor its minimum.
+	 */
+	private ensureChatPartFits(width?: number): void {
+		const grid = this.workbenchGrid;
+		if (!this.chatPartView || this.chatPartHidden || !grid) {
+			return;
+		}
+		const columnWidth = () => grid.getViewSize(this.editorPartView).width + grid.getViewSize(this.chatPartView).width;
+		const target = Math.max(this.chatPartView.minimumWidth, width ?? grid.getViewSize(this.chatPartView).width);
+		let missing = this.editorPartView.minimumWidth + target - columnWidth();
+		for (const neighbour of this.getChatPartSideNeighbours()) {
+			if (missing <= 0) {
+				break;
+			}
+			const size = grid.getViewSize(neighbour);
+			const given = Math.min(missing, size.width - neighbour.minimumWidth);
+			if (given > 0) {
+				grid.resizeView(neighbour, { width: size.width - given, height: size.height });
+				missing = this.editorPartView.minimumWidth + target - columnWidth();
+			}
+		}
+		const chatWidth = Math.min(target, columnWidth() - this.editorPartView.minimumWidth);
+		if (chatWidth !== grid.getViewSize(this.chatPartView).width) {
+			grid.resizeView(this.chatPartView, { width: chatWidth, height: grid.getViewSize(this.chatPartView).height });
+		}
+	}
+
+	/** The visible parts beyond the editor's column on the chat part's side, closest first. */
+	private getChatPartSideNeighbours(): ISerializableView[] {
+		const side = this.getChatPartPosition();
+		const sideBarSide = this.getSideBarPosition();
+		const panelPosition = this.getPanelPosition();
+		const neighbours: ISerializableView[] = [];
+		if (panelPosition === side && this.isVisible(Parts.PANEL_PART)) {
+			neighbours.push(this.panelPartView);
+		}
+		const auxiliaryBarSide = sideBarSide === Position.LEFT ? Position.RIGHT : Position.LEFT;
+		if (auxiliaryBarSide === side && this.isVisible(Parts.AUXILIARYBAR_PART)) {
+			neighbours.push(this.auxiliaryBarPartView);
+		}
+		if (sideBarSide === side && this.isVisible(Parts.SIDEBAR_PART)) {
+			neighbours.push(this.sideBarPartView);
+		}
+		return neighbours;
+	}
+
 	/** Moves the chat part immediately beside the editor, on the side it belongs on, at the size it has. */
 	private moveChatPartBesideEditor(): void {
 		if (!this.chatPartView) {
@@ -2590,6 +2646,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.workbenchGrid.moveView(this.chatPartView, sizing, this.editorPartView, this.getChatPartDirection());
 		if (width !== undefined) {
 			this.workbenchGrid.resizeView(this.chatPartView, { width, height: this.workbenchGrid.getViewSize(this.chatPartView).height });
+			this.ensureChatPartFits(width);
 		}
 		if (hadFocus) {
 			if (isHTMLElement(focused) && focused.isConnected && this.chatPartView.element.contains(focused)) {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -28,7 +28,10 @@ export const IEditorWindowComposerFoldersService = createDecorator<IEditorWindow
 export interface IEditorWindowComposerFoldersService {
 	readonly _serviceBrand: undefined;
 
-	/** The folders its composers create sessions in, and how their workspace pickers show them. */
+	/**
+	 * The folders its composers create sessions in, and how their workspace pickers show them. Live: a composer that took
+	 * them follows the provider set later and the window's folders again once no provider is set.
+	 */
 	getComposerFolderOptions(): IEditorWindowComposerFolderOptions;
 
 	/** Has the composers offer the folders `provider` gives until the returned disposable is disposed; the one set last applies. */
@@ -52,15 +55,26 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 	private readonly _composers = new Set<{ readonly composer: IEditorWindowRetargetableComposer }>();
 
 	/** One per call of {@link setComposerFolderOptions}, also of the same provider. */
-	private readonly _providers: { readonly provider: () => IEditorWindowComposerFolderOptions }[] = [];
-	private readonly _windowFolders: IObservable<readonly URI[]>;
+	private readonly _providers = observableValue<readonly { readonly provider: () => IEditorWindowComposerFolderOptions }[]>(this, []);
+	/** The options of the provider set last, if any. */
+	private readonly _providedOptions: IObservable<IEditorWindowComposerFolderOptions | undefined>;
+	private readonly _options: IEditorWindowComposerFolderOptions;
 
 	constructor(@IWorkspaceContextService workspaceContextService: IWorkspaceContextService) {
-		this._windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
+		const windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
+		this._providedOptions = derived(this, reader => this._providers.read(reader).at(-1)?.provider());
+		this._options = {
+			// A provider without folders lets its composers create sessions anywhere, as a window without folders does
+			allowedFolders: derived(this, reader => {
+				const provided = this._providedOptions.read(reader);
+				return provided ? provided.allowedFolders?.read(reader) ?? [] : windowFolders.read(reader);
+			}),
+			getFolderPresentation: folderUri => this._providedOptions.get()?.getFolderPresentation?.(folderUri),
+		};
 	}
 
 	getComposerFolderOptions(): IEditorWindowComposerFolderOptions {
-		return this._providers.at(-1)?.provider() ?? { allowedFolders: this._windowFolders };
+		return this._options;
 	}
 
 	registerComposer(composer: IEditorWindowRetargetableComposer): IDisposable {
@@ -77,12 +91,7 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 
 	setComposerFolderOptions(provider: () => IEditorWindowComposerFolderOptions): IDisposable {
 		const registration = { provider };
-		this._providers.push(registration);
-		return toDisposable(() => {
-			const index = this._providers.indexOf(registration);
-			if (index >= 0) {
-				this._providers.splice(index, 1);
-			}
-		});
+		this._providers.set([...this._providers.get(), registration], undefined);
+		return toDisposable(() => this._providers.set(this._providers.get().filter(candidate => candidate !== registration), undefined));
 	}
 }
