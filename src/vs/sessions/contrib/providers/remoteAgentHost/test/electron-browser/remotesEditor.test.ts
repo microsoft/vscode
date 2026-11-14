@@ -160,7 +160,7 @@ suite('RemotesEditor', () => {
 		});
 	});
 
-	test('accessibility setup help uses the current Dev Tunnels action labels', async () => {
+	test('accessibility help describes status groups, type filters and their actions', async () => {
 		const { editor, instantiation, input } = createEditor();
 		await editor.setInput(input, undefined, {}, CancellationToken.None);
 		const isVisibleEditor = (pane: RemotesEditor): pane is RemotesEditor & IVisibleEditorPane => pane.input !== undefined;
@@ -168,7 +168,12 @@ suite('RemotesEditor', () => {
 		instantiation.stub(IEditorService, { activeEditorPane: editor });
 		const help = AccessibleViewRegistry.getImplementations().find(implementation => implementation.name === 'remotes' && implementation.type === AccessibleViewType.Help)!;
 		const content = store.add(help.getProvider(instantiation)!).provideContent();
-		assert.ok(content.includes('The Dev Tunnels group has an Open Dev Tunnels Settings action.'));
+		assert.deepStrictEqual([
+			'grouped by status: Ready to use',
+			'The columns are Name, Type, and Actions.',
+			'Type filters below the search field',
+			'for Dev Tunnels and GitHub Environments, it opens their settings.',
+		].filter(text => !content.includes(text)), []);
 	});
 
 	test('offers the open command in the Command Palette and Sessions overflow only with management, Environment picker, AI and remote gates', () => {

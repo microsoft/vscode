@@ -10,6 +10,7 @@ import { ActionViewItem } from '../../../../../../base/browser/ui/actionbar/acti
 import { createInstantHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { renderIcon } from '../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { InputBox } from '../../../../../../base/browser/ui/inputbox/inputBox.js';
+import { IRadioOptionItem, Radio } from '../../../../../../base/browser/ui/radio/radio.js';
 import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action } from '../../../../../../base/common/actions.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
@@ -41,7 +42,7 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { IEditorService, MODAL_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionLabel, getGitHubEnvironmentLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getConnectionLabel, getConnectionWarning, getGitHubEnvironmentLabel, getRemoteStatusGroup, getRemoteStatusGroupDescription, getRemoteStatusGroupLabel, getRemoteTypeLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteStatusGroup, remoteStatusGroups, RemoteTableEntry } from './remotesTable.js';
 import './media/remotesWidget.css';
 
 const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation?: { readonly label: string; readonly href: string } }> = {
@@ -84,12 +85,21 @@ export class RemotesWidget extends Disposable {
 	private readonly clearSearchAction: Action;
 	private readonly collapseAllAction: Action;
 	private readonly refreshAction: Action;
+	private readonly typeFilter: Radio;
+	private readonly typeDocumentationAction: Action;
+	private readonly typeSettingsAction: Action;
+	private readonly typeActions: WorkbenchToolBar;
 	private readonly refreshRequest = this._register(new MutableDisposable<CancellationTokenSource>());
 	private readonly refreshingKinds = new Set<RemoteKind>();
 	private readonly pendingActions = new Set<string>();
 	private readonly pendingConnections = new Map<string, boolean>();
-	private readonly collapsedKinds = new Set<RemoteKind>();
+	private readonly collapsedGroups = new Set<RemoteStatusGroup>();
 	private kinds: readonly RemoteKind[];
+	/** The type the table is filtered to; `undefined` shows all types. */
+	private filterKind: RemoteKind | undefined;
+	private typeFilterKinds: readonly (RemoteKind | undefined)[] = [];
+	private typeFilterItems = '';
+	private typeActionsLayout: string | undefined;
 	private rows: IRemoteTableRow[] = [];
 	private visible = false;
 	private query = '';
@@ -128,8 +138,8 @@ export class RemotesWidget extends Disposable {
 			this.searchInput.focus();
 		}));
 		this.collapseAllAction = this._register(new Action('remotes.collapseAll', localize('remotes.collapseAll', "Collapse All"), ThemeIcon.asClassName(Codicon.collapseAll), true, () => {
-			for (const kind of this.kinds) {
-				this.collapsedKinds.add(kind);
+			for (const group of remoteStatusGroups) {
+				this.collapsedGroups.add(group);
 			}
 			this.render();
 		}));
@@ -144,6 +154,24 @@ export class RemotesWidget extends Disposable {
 		this.refreshAction = this._register(new Action('remotes.refresh', localize('remotes.refresh', "Refresh"), ThemeIcon.asClassName(Codicon.refresh), true, () => this.refresh()));
 		const toolbar = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(searchControls, dom.$('.remotes-header-actions')), { ariaLabel: localize('remotes.actions', "Remotes actions") }));
 		toolbar.setActions([this.refreshAction]);
+		const filterRow = dom.append(this.domNode, dom.$('.remotes-filter-row'));
+		this.typeFilter = this._register(new Radio({
+			items: [], className: 'pills', hoverDelegate: actionHoverDelegate,
+			ariaLabel: localize('remotes.typeFilter', "Filter by type"),
+		}));
+		this.typeFilter.domNode.classList.add('remotes-type-filter');
+		filterRow.appendChild(this.typeFilter.domNode);
+		this._register(this.typeFilter.onDidSelect(index => this.setTypeFilter(this.typeFilterKinds[index])));
+		this.typeDocumentationAction = this._register(new Action('remotes.typeDocumentation', '', ThemeIcon.asClassName(Codicon.info), true, () => {
+			const documentation = this.filterKind && remoteSetup[this.filterKind].documentation;
+			return documentation ? this.openDocumentation(documentation.href) : Promise.resolve();
+		}));
+		this.typeSettingsAction = this._register(new Action('remotes.typeSettings', '', ThemeIcon.asClassName(Codicon.settingsGear), true, () => {
+			return this.filterKind ? this.openConfiguration(this.filterKind) : Promise.resolve();
+		}));
+		this.typeActions = this._register(instantiationService.createInstance(WorkbenchToolBar, dom.append(filterRow, dom.$('.remotes-type-actions')), {
+			ariaLabel: localize('remotes.typeActions', "Type actions"), hoverDelegate: actionHoverDelegate,
+		}));
 		this.message = dom.append(this.domNode, dom.$('.remotes-message', { role: 'status' }));
 		this.tableContainer = dom.append(this.domNode, dom.$('.remotes-table-container'));
 		const viewport = dom.$('.remotes-table-viewport');
@@ -157,15 +185,15 @@ export class RemotesWidget extends Disposable {
 		}));
 		this.tableContainer.appendChild(this.tableScrollable.getDomNode());
 
-		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Status, Actions.");
+		let label = localize('remotes.tableLabel', "Remote environments. Columns: Name, Type, Actions.");
 		const helpKeybinding = keybindingService.lookupKeybinding('editor.action.accessibilityHelp')?.getAriaLabel();
 		if (configurationService.getValue<boolean>(AccessibilityVerbositySettingId.Remotes) && helpKeybinding) {
 			label = localize('remotes.tableLabelWithHelp', "{0} Use {1} for accessibility help.", label, helpKeybinding);
 		}
 		const columnDefinitions = [
 			{ id: 'gutter', label: '', weight: 0, minimumWidth: 64, maximumWidth: 64 },
-			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.8, minimumWidth: 220 },
-			{ id: 'connection', label: localize('remotes.connectionColumn', "Status"), weight: 0.2, minimumWidth: 144 },
+			{ id: 'name', label: localize('remotes.nameColumn', "Name"), weight: 0.75, minimumWidth: 220 },
+			{ id: 'type', label: localize('remotes.typeColumn', "Type"), weight: 0.25, minimumWidth: 168 },
 			{ id: 'actions', label: '', weight: 0, minimumWidth: 144, maximumWidth: 144 },
 		] as const;
 		const renderers = columnDefinitions.map(column => new RemotesTableRenderer(
@@ -187,13 +215,8 @@ export class RemotesWidget extends Disposable {
 				getWidgetAriaLabel: () => label,
 				getAriaLabel: row => {
 					const entry = row.entry;
-					if (entry.type === 'group' && entry.refreshing) {
-						return localize('remotes.groupRefreshingLabel', "{0}, {1} remotes. Refreshing.", entry.label, entry.count);
-					}
 					return entry.type === 'group'
-						? entry.warning
-							? localize('remotes.groupWarningLabel', "{0}, {1} remotes. Warning: {2}", entry.label, entry.count, entry.warning)
-							: localize('remotes.groupLabel', "{0}, {1} remotes", entry.label, entry.count)
+						? localize('remotes.groupLabel', "{0}, {1} remotes. {2}", entry.label, entry.count, getRemoteStatusGroupDescription(entry.group))
 						: entry.type === 'empty'
 							? [entry.label, entry.description, entry.action?.label, entry.documentation?.label].filter(Boolean).join(' ')
 							: this.getRemoteAriaLabel(entry.remote);
@@ -212,7 +235,7 @@ export class RemotesWidget extends Disposable {
 		}));
 		this._register(this.table.onDidOpen(event => {
 			if (event.element?.entry.type === 'group') {
-				this.toggleGroup(event.element.entry.kind);
+				this.toggleGroup(event.element.entry.group);
 			}
 		}));
 		this._register(dom.addDisposableListener(this.table.getHTMLElement(), dom.EventType.KEY_DOWN, event => {
@@ -226,7 +249,7 @@ export class RemotesWidget extends Disposable {
 				keyboardEvent.stopPropagation();
 				const collapse = keyboardEvent.keyCode === KeyCode.LeftArrow;
 				if (entry.collapsed !== collapse) {
-					this.toggleGroup(entry.kind);
+					this.toggleGroup(entry.group);
 				}
 			}
 		}));
@@ -255,11 +278,7 @@ export class RemotesWidget extends Disposable {
 			void this.signInToTunnels();
 		} else if (entry.type === 'group') {
 			if (action === 'toggleGroup') {
-				this.toggleGroup(entry.kind);
-			} else if (action === 'configure') {
-				void this.openConfiguration(entry.kind);
-			} else if (action === 'documentation' && entry.documentation) {
-				void this.openDocumentation(entry.documentation.href);
+				this.toggleGroup(entry.group);
 			}
 		} else if (entry.type === 'remote') {
 			if (action === 'toggleVisibility') {
@@ -319,13 +338,22 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private toggleGroup(kind: RemoteKind): void {
-		if (!this.collapsedKinds.delete(kind)) {
-			this.collapsedKinds.add(kind);
+	private toggleGroup(group: RemoteStatusGroup): void {
+		if (!this.collapsedGroups.delete(group)) {
+			this.collapsedGroups.add(group);
 		}
 		this.render();
-		const index = this.rows.findIndex(row => row.entry.type === 'group' && row.entry.kind === kind);
+		const index = this.rows.findIndex(row => row.entry.type === 'group' && row.entry.group === group);
 		this.table.setFocus([index]);
+	}
+
+	/** Shows only remotes of `kind` in the table, or all types when `kind` is `undefined`. */
+	private setTypeFilter(kind: RemoteKind | undefined): void {
+		if (this.filterKind === kind || kind && !this.kinds.includes(kind)) {
+			return;
+		}
+		this.filterKind = kind;
+		this.render();
 	}
 
 	private async openConfiguration(kind: RemoteKind): Promise<void> {
@@ -363,7 +391,7 @@ export class RemotesWidget extends Disposable {
 		this.clearSearchAction.enabled = !!query;
 		if (changed) {
 			if (this.query) {
-				this.collapsedKinds.clear();
+				this.collapsedGroups.clear();
 			}
 			this.render();
 		}
@@ -407,7 +435,7 @@ export class RemotesWidget extends Disposable {
 				this.failedKinds = failedKinds;
 				this.hasRefreshed = true;
 				if (failedKinds.some(kind => this.kinds.includes(kind) && this.getRefreshWarning(kind))) {
-					status(localize('remotes.refreshWarnings', "Some remote locations could not be refreshed. Check the warnings on the remote groups for details."));
+					status(localize('remotes.refreshWarnings', "Some remote locations could not be refreshed. Check the warnings on the type filters for details."));
 				}
 			}
 		} catch (error) {
@@ -430,7 +458,7 @@ export class RemotesWidget extends Disposable {
 
 	private getFilteredRemotes(): readonly ICustomizationRemote[] {
 		return this.model.remotes.get().filter(remote => this.kinds.includes(remote.kind)
-			&& `${remote.name} ${remote.detail} ${remoteKindLabels[remote.kind]}`.toLowerCase().includes(this.query));
+			&& `${remote.name} ${remote.detail} ${remoteKindLabels[remote.kind]} ${getRemoteTypeLabel(remote.kind)}`.toLowerCase().includes(this.query));
 	}
 
 	private getEmptyEntry(kind: RemoteKind, hasRemotes = false): IRemoteEmptyEntry {
@@ -442,45 +470,71 @@ export class RemotesWidget extends Disposable {
 					? localize('remotes.tunnels.signInToRefresh', "Sign in to refresh your tunnels.")
 					: localize('remotes.tunnels.signInRequired', "Sign in to allow access to your tunnels."),
 				action: { label: localize('remotes.tunnels.signIn', "Sign In"), enabled: !this.signingInToTunnels },
-				// Setup guidance only helps while the group is empty; the group's info action still opens it.
+				// Setup guidance only helps while there are no tunnels; the Dev Tunnels filter's info action still opens it.
 				...(hasRemotes ? {} : { documentation: remoteSetup.tunnel.documentation }),
 			};
 		}
 		if (this.failedKinds.includes(kind)) {
 			return {
 				type: 'empty', id, label: localize('remotes.empty.failed', "Could not refresh {0}.", remoteKindLabels[kind]),
-				description: localize('remotes.empty.retry', "Check the group warning, then try Refresh."),
+				description: localize('remotes.empty.retry', "Check the warning on its type filter, then try Refresh."),
 				documentation: remoteSetup[kind].documentation,
 			};
 		}
 		return { type: 'empty', id, ...remoteSetup[kind] };
 	}
 
-	private render(): void {
-		const remotes = this.getFilteredRemotes();
-		this.message.textContent = this.query && remotes.length === 0 ? localize('remotes.empty.filtered', "No matching remotes.") : '';
+	/**
+	 * Lists the remotes of the filtered type by status, after a tunnel sign-in notice. Types without
+	 * remotes show setup guidance or their refresh failure when filtered to, or when there are no remotes at all.
+	 */
+	private getEntries(remotes: readonly ICustomizationRemote[], respectCollapse: boolean): RemoteTableEntry[] {
+		const kinds = this.filterKind ? [this.filterKind] : this.kinds;
 		const entries: RemoteTableEntry[] = [];
-		for (const kind of this.kinds) {
-			const groupRemotes = remotes.filter(remote => remote.kind === kind);
-			if (this.query && groupRemotes.length === 0) {
+		const tunnelSignIn = kinds.includes('tunnel') && !!this.model.tunnelAuthenticationRequired.get();
+		const hasTunnels = remotes.some(remote => remote.kind === 'tunnel');
+		if (tunnelSignIn && (!this.query || hasTunnels)) {
+			entries.push(this.getEmptyEntry('tunnel', hasTunnels));
+		}
+		for (const group of remoteStatusGroups) {
+			const groupRemotes = remotes.filter(remote => getRemoteStatusGroup(remote) === group).sort((a, b) => a.name.localeCompare(b.name));
+			if (!groupRemotes.length) {
 				continue;
 			}
-			const collapsed = this.collapsedKinds.has(kind);
-			entries.push({
-				type: 'group', id: `remote-group-${kind}`, kind, label: remoteKindLabels[kind],
-				count: groupRemotes.length, collapsed, refreshing: this.refreshingKinds.has(kind), warning: this.getRefreshWarning(kind),
-				documentation: remoteSetup[kind].documentation,
-			});
+			const collapsed = respectCollapse && this.collapsedGroups.has(group);
+			entries.push({ type: 'group', id: `remote-group-${group}`, group, label: getRemoteStatusGroupLabel(group), count: groupRemotes.length, collapsed });
 			if (!collapsed) {
-				if (kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()) {
-					entries.push(this.getEmptyEntry(kind, groupRemotes.length > 0));
-				}
-				entries.push(...(groupRemotes.length ? groupRemotes.map((remote): RemoteTableEntry => ({
+				entries.push(...groupRemotes.map((remote): RemoteTableEntry => ({
 					type: 'remote', remote,
 					busy: this.pendingActions.has(remote.id) || this.pendingConnections.has(remote.id), connecting: this.pendingConnections.get(remote.id),
-				})) : kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get() ? [] : this.hasRefreshed || this.failedKinds.includes(kind) ? [this.getEmptyEntry(kind)] : []));
+				})));
 			}
 		}
+		if (!this.query && (this.filterKind || !remotes.length)) {
+			for (const kind of kinds) {
+				if (!(kind === 'tunnel' && tunnelSignIn) && !remotes.some(remote => remote.kind === kind) && (this.hasRefreshed || this.failedKinds.includes(kind))) {
+					entries.push(this.getEmptyEntry(kind));
+				}
+			}
+		}
+		return entries;
+	}
+
+	private getScopedRemotes(matching: readonly ICustomizationRemote[]): readonly ICustomizationRemote[] {
+		const kind = this.filterKind;
+		return kind ? matching.filter(remote => remote.kind === kind) : matching;
+	}
+
+	private render(): void {
+		if (this.filterKind && !this.kinds.includes(this.filterKind)) {
+			this.filterKind = undefined;
+		}
+		const matching = this.getFilteredRemotes();
+		const remotes = this.getScopedRemotes(matching);
+		this.message.textContent = this.query && remotes.length === 0 ? localize('remotes.empty.filtered', "No matching remotes.") : '';
+		this.updateTypeFilter(matching);
+		this.updateTypeActions();
+		const entries = this.getEntries(remotes, true);
 		this.rows = entries.map(entry => ({ id: entry.type === 'remote' ? entry.remote.id : entry.id, entry }));
 		this.collapseAllAction.enabled = entries.some(entry => entry.type === 'group' && !entry.collapsed);
 		this.table.splice(0, this.table.length, this.rows);
@@ -488,6 +542,68 @@ export class RemotesWidget extends Disposable {
 			this.table.focusFirst();
 		}
 		this.layout();
+	}
+
+	/** Updates the type pills with the number of matching remotes and each type's refresh state. */
+	private updateTypeFilter(remotes: readonly ICustomizationRemote[]): void {
+		const kinds = [undefined, ...this.kinds];
+		const items = kinds.map((kind): IRadioOptionItem => {
+			const count = kind ? remotes.filter(remote => remote.kind === kind).length : remotes.length;
+			const label = kind ? remoteKindLabels[kind] : localize('remotes.typeFilter.all', "All");
+			const warning = kind && this.getRefreshWarning(kind);
+			if (kind && this.refreshingKinds.has(kind)) {
+				return {
+					text: localize('remotes.typeFilter.refreshingPill', "{0} {1} {2}", label, count, '$(loading~spin)'),
+					ariaLabel: localize('remotes.typeFilter.refreshingLabel', "{0}, {1} remotes, refreshing", label, count),
+				};
+			}
+			if (warning) {
+				return {
+					text: localize('remotes.typeFilter.warningPill', "{0} {1} {2}", label, count, '$(warning)'),
+					ariaLabel: localize('remotes.typeFilter.warningLabel', "{0}, {1} remotes. Warning: {2}", label, count, warning),
+					tooltip: warning,
+				};
+			}
+			return {
+				text: localize('remotes.typeFilter.pill', "{0} {1}", label, count),
+				ariaLabel: localize('remotes.typeFilter.label', "{0}, {1} remotes", label, count),
+			};
+		});
+		const serialized = JSON.stringify(items);
+		if (serialized === this.typeFilterItems) {
+			this.typeFilter.setActiveItem(this.typeFilterKinds.indexOf(this.filterKind));
+			return;
+		}
+		const active = dom.getActiveElement();
+		const focused = this.typeFilter.optionElements.findIndex(element => element === active);
+		this.typeFilterItems = serialized;
+		this.typeFilterKinds = kinds;
+		this.typeFilter.setItems(items);
+		this.typeFilter.setActiveItem(kinds.indexOf(this.filterKind));
+		if (focused !== -1 && focused < items.length) {
+			this.typeFilter.focusItem(focused);
+		}
+	}
+
+	/** Offers the filtered type's setup guide and settings next to the type pills. */
+	private updateTypeActions(): void {
+		const kind = this.filterKind;
+		const documentation = kind && remoteSetup[kind].documentation;
+		const settings = kind === 'ssh' ? localize('remotes.openSSHConfig', "Open SSH Configuration")
+			: kind === 'tunnel' ? localize('remotes.openTunnelSettings', "Open Dev Tunnels Settings")
+				: kind === 'environment' ? localize('remotes.openEnvironmentSettings', "Open GitHub Environments Settings")
+					: undefined;
+		const layout = `${documentation?.label}:${settings}`;
+		if (layout === this.typeActionsLayout) {
+			return;
+		}
+		this.typeActionsLayout = layout;
+		this.typeDocumentationAction.label = documentation?.label ?? '';
+		this.typeSettingsAction.label = settings ?? '';
+		this.typeActions.setActions([
+			...(documentation ? [this.typeDocumentationAction] : []),
+			...(settings ? [this.typeSettingsAction] : []),
+		]);
 	}
 
 	private async copyAddress(id: string): Promise<void> {
@@ -596,11 +712,15 @@ export class RemotesWidget extends Disposable {
 		const name = remote.pickerUnavailableReason
 			? localize('remotes.unavailablePickerName', "{0} (not shown in Environment picker: {1})", remote.name, remote.pickerUnavailableReason)
 			: remote.hidden ? localize('remotes.hiddenName', "{0} (hidden from Environment picker)", remote.name) : remote.name;
-		let label = localize('remotes.accessibleRow', "{0}. Status: {1}", name,
+		let label = localize('remotes.accessibleRow', "{0}. Type: {1}. Status: {2}", name, getRemoteTypeLabel(remote.kind),
 			getConnectionLabel(remote, this.pendingConnections.get(remote.id)));
-		const error = remote.lastConnectionError;
-		if (!this.pendingConnections.has(remote.id) && error) {
+		const pending = this.pendingConnections.get(remote.id);
+		const error = pending === undefined ? remote.lastConnectionError : undefined;
+		const warning = getConnectionWarning(remote, pending);
+		if (error) {
 			label = localize('remotes.accessibleConnectionError', "{0}. Connection error: {1}", label, error);
+		} else if (warning) {
+			label = localize('remotes.accessibleConnectionWarning', "{0}. {1}", label, warning);
 		}
 		const gitHubEnvironment = getGitHubEnvironmentLabel(remote);
 		if (gitHubEnvironment) {
@@ -647,28 +767,39 @@ export class RemotesWidget extends Disposable {
 	}
 
 	private getRemotesAccessibilityContent(): string {
-		const remotes = this.getFilteredRemotes();
-		if (this.query && remotes.length === 0) {
-			return localize('remotes.empty.filtered', "No matching remotes.");
+		const kinds = this.filterKind ? [this.filterKind] : this.kinds;
+		const remotes = this.getScopedRemotes(this.getFilteredRemotes());
+		const lines: string[] = [];
+		if (this.filterKind) {
+			lines.push(localize('remotes.accessibleTypeFilter', "Showing {0} only.", remoteKindLabels[this.filterKind]));
 		}
-		return this.kinds.flatMap(kind => {
+		for (const kind of kinds) {
 			const warning = this.getRefreshWarning(kind);
-			const entries = remotes.filter(remote => remote.kind === kind);
-			if (this.query && entries.length === 0) {
-				return [];
+			if (this.refreshingKinds.has(kind)) {
+				lines.push(localize('remotes.refreshingType', "Refreshing {0}.", remoteKindLabels[kind]));
+			} else if (warning) {
+				lines.push(warning);
 			}
-			const empty = kind === 'tunnel' && this.model.tunnelAuthenticationRequired.get()
-				? this.getEmptyEntry(kind, entries.length > 0) : entries.length || !this.hasRefreshed && !warning ? undefined : this.getEmptyEntry(kind);
+		}
+		if (this.query && remotes.length === 0) {
+			lines.push(localize('remotes.empty.filtered', "No matching remotes."));
+		}
+		for (const entry of this.getEntries(remotes, false)) {
+			if (entry.type === 'group') {
+				lines.push(localize('remotes.accessibleGroup', "{0} ({1}): {2}", entry.label, entry.count, getRemoteStatusGroupDescription(entry.group)));
+			} else if (entry.type === 'remote') {
+				lines.push(this.getRemoteAriaLabel(entry.remote));
+			} else {
+				lines.push(...[entry.label, entry.description, entry.action?.label].filter((line): line is string => !!line));
+			}
+		}
+		for (const kind of kinds) {
 			const documentation = remoteSetup[kind].documentation;
-			return [
-				remoteKindLabels[kind],
-				...(this.refreshingKinds.has(kind) ? [localize('remotes.refreshingGroup', "Refreshing.")] : []),
-				...(warning ? [warning] : []),
-				...entries.map(remote => this.getRemoteAriaLabel(remote)),
-				...(empty ? [empty.label, empty.description ?? '', empty.action?.label ?? ''] : []),
-				...(documentation ? [`${documentation.label}: ${documentation.href}`] : []),
-			];
-		}).join('\n');
+			if (documentation) {
+				lines.push(`${documentation.label}: ${documentation.href}`);
+			}
+		}
+		return lines.join('\n');
 	}
 
 	focus(): void {

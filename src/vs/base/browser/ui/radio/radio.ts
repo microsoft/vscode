@@ -42,7 +42,7 @@ export interface IRadioOptions {
 	readonly hoverDelegate?: IHoverDelegate;
 	/** Accessible name of the radio group. */
 	readonly ariaLabel?: string;
-	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for rounded-rectangle segments. */
+	/** Extra class added to {@link Radio.domNode}, e.g. `segmented` for rounded-rectangle segments or `pills` for separate, wrapping pills. */
 	readonly className?: string;
 	/** Leaves every item unchecked when none is marked active, without removing the group from the tab order. */
 	readonly allowNoSelection?: boolean;

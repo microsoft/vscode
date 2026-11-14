@@ -25,11 +25,11 @@
 	border-bottom-right-radius: 3px;
 }
 
-.monaco-custom-radio:not(.segmented) > .monaco-button:not(.active):not(:last-child) {
+.monaco-custom-radio:not(.segmented):not(.pills) > .monaco-button:not(.active):not(:last-child) {
 	border-right: none;
 }
 
-.monaco-custom-radio:not(.segmented) > .monaco-button.previous-active {
+.monaco-custom-radio:not(.segmented):not(.pills) > .monaco-button.previous-active {
 	border-left: none;
 }
 
@@ -185,5 +185,42 @@
 }
 
 .monaco-custom-radio.segmented > .monaco-button:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* optional pill appearance - opt in via IRadioOptions.className */
+
+.monaco-custom-radio.pills {
+	flex-wrap: wrap;
+	gap: var(--vscode-spacing-size60);
+}
+
+.monaco-custom-radio.pills > .monaco-button {
+	flex: 0 0 auto;
+	width: auto;
+	gap: var(--vscode-spacing-size40);
+	height: var(--vscode-spacing-size240);
+	padding: var(--vscode-spacing-sizeNone) var(--vscode-spacing-size100);
+	border: var(--vscode-strokeThickness) solid var(--vscode-radio-inactiveBorder, transparent);
+	border-radius: var(--vscode-cornerRadius-circle);
+	font-size: var(--vscode-fontSize-label1);
+	line-height: normal;
+	white-space: nowrap;
+}
+
+.monaco-custom-radio.pills > .monaco-button.active {
+	border-color: var(--vscode-radio-activeBorder, transparent);
+}
+
+.monaco-custom-radio.pills > .monaco-button > .codicon {
+	font-size: var(--vscode-codiconFontSize-compact);
+}
+
+.monaco-custom-radio.pills > .monaco-button:focus-visible {
+	outline: var(--vscode-strokeThickness) solid var(--vscode-focusBorder);
+	outline-offset: var(--vscode-strokeThickness);
+}
+
+.monaco-custom-radio.pills > .monaco-button:focus:not(:focus-visible) {
 	outline: none;
 }

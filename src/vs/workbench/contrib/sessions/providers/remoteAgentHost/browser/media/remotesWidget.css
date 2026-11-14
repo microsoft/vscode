@@ -50,7 +50,27 @@
 	align-items: center;
 	gap: var(--vscode-spacing-size80);
 	flex-shrink: 0;
-	margin-bottom: var(--vscode-spacing-size160);
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.remotes-widget .remotes-filter-row {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--vscode-spacing-size80);
+	flex-shrink: 0;
+	margin-bottom: var(--vscode-spacing-size120);
+}
+
+.remotes-widget .remotes-type-filter {
+	flex: 1;
+	min-width: 0;
+}
+
+.remotes-widget .remotes-type-actions {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	height: var(--vscode-spacing-size240);
 }
 
 .remotes-widget .remotes-search-controls {
@@ -167,21 +187,14 @@
 
 .remotes-widget .remotes-name,
 .remotes-widget .remotes-empty-description,
-.remotes-widget .remotes-connection-text {
+.remotes-widget .remotes-type-label {
 	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.remotes-widget .remotes-connection-state {
-	display: flex;
-	align-items: center;
-	gap: var(--vscode-spacing-size40);
-	min-width: 0;
-}
-
-.remotes-widget .remotes-connection-icon {
+.remotes-widget .remotes-type-icon {
 	flex-shrink: 0;
 }
 
@@ -209,18 +222,17 @@
 	font-size: var(--vscode-fontSize-body2);
 }
 
-.remotes-widget .remotes-refresh-warning,
 .remotes-widget .remotes-connection-warning {
 	display: flex;
 	flex-shrink: 0;
+}
+
+.remotes-widget .remotes-connection-warning .codicon,
+.remotes-widget .remotes-github-environment.remotes-github-environment-error .codicon {
 	color: var(--vscode-editorWarning-foreground);
 }
 
-.remotes-widget .remotes-connection-warning {
-	margin-inline-start: auto;
-}
-
-.remotes-widget .remotes-group-progress {
+.remotes-widget .remotes-connection-progress {
 	display: flex;
 	flex-shrink: 0;
 	color: var(--vscode-descriptionForeground);
@@ -232,9 +244,6 @@
 	color: var(--vscode-descriptionForeground);
 }
 
-.remotes-widget .remotes-github-environment.remotes-github-environment-error {
-	color: var(--vscode-editorWarning-foreground);
-}
 
 .remotes-widget .remotes-gutter-column,
 .remotes-widget .remotes-actions-column {
@@ -299,11 +308,10 @@
 
 .remotes-widget .remotes-group-count[hidden],
 .remotes-widget .remotes-github-environment[hidden],
-.remotes-widget .remotes-group-progress[hidden],
+.remotes-widget .remotes-connection-progress[hidden],
 .remotes-widget .remotes-empty-signin[hidden],
 .remotes-widget .remotes-signin-progress[hidden],
-.remotes-widget .remotes-refresh-warning[hidden],
-.remotes-widget .remotes-connection-icon[hidden],
+.remotes-widget .remotes-type-icon[hidden],
 .remotes-widget .remotes-connection-warning[hidden],
 .remotes-widget .remotes-empty-description[hidden],
 .remotes-widget .remotes-empty-actions[hidden] {
