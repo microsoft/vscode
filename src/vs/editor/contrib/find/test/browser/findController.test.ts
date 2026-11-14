@@ -492,6 +492,91 @@ suite('FindController', () => {
 		});
 	});
 
+	test('issue #300085: Find Next Selection, seedSearchStringFromSelection: always seeds from word at cursor', async () => {
+		await withAsyncTestCodeEditor([
+			'foo bar',
+			'bar foo'
+		], { serviceCollection: serviceCollection, find: { seedSearchStringFromSelection: 'always' } }, async (editor) => {
+			clipboardState = '';
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// select "foo" on line 1
+			editor.setSelection(new Selection(1, 1, 1, 4));
+
+			// cmd+f3
+			await editor.runAction(nextSelectionMatchFindAction);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+
+			// place the cursor on "bar" on line 2 without selecting anything
+			editor.setSelection(new Selection(2, 1, 2, 1));
+
+			// cmd+f3
+			await editor.runAction(nextSelectionMatchFindAction);
+			assert.strictEqual(findController.getState().searchString, 'bar');
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #300085: Find Next Selection, seedSearchStringFromSelection: selection does not seed from word at cursor', async () => {
+		await withAsyncTestCodeEditor([
+			'foo bar',
+			'bar foo'
+		], { serviceCollection: serviceCollection, find: { seedSearchStringFromSelection: 'selection' } }, async (editor) => {
+			clipboardState = '';
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// select "foo" on line 1
+			editor.setSelection(new Selection(1, 1, 1, 4));
+
+			// cmd+f3
+			await editor.runAction(nextSelectionMatchFindAction);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+				[2, 5, 2, 8]
+			]);
+
+			// place the cursor on "bar" on line 2 without selecting anything
+			editor.setSelection(new Selection(2, 1, 2, 1));
+
+			// cmd+f3
+			await editor.runAction(nextSelectionMatchFindAction);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+				[2, 5, 2, 8]
+			]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #300085: Find Next Selection, seedSearchStringFromSelection: never does not seed from selection', async () => {
+		await withAsyncTestCodeEditor([
+			'foo bar',
+			'bar foo'
+		], { serviceCollection: serviceCollection, find: { seedSearchStringFromSelection: 'never' } }, async (editor) => {
+			clipboardState = '';
+			const findController = editor.registerAndInstantiateContribution(TestFindController.ID, TestFindController);
+			const nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			findController.setSearchString('foo');
+
+			// select "bar" on line 1
+			editor.setSelection(new Selection(1, 5, 1, 8));
+
+			// cmd+f3
+			await editor.runAction(nextSelectionMatchFindAction);
+			assert.strictEqual(findController.getState().searchString, 'foo');
+			assert.deepStrictEqual(editor.getSelections()!.map(fromSelection), [
+				[2, 5, 2, 8]
+			]);
+
+			findController.dispose();
+		});
+	});
+
 	test('issue #47400, CMD+E supports feeding multiple line of text into the find widget', async () => {
 		await withAsyncTestCodeEditor([
 			'ABC',
