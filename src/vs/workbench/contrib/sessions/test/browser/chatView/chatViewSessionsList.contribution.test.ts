@@ -210,15 +210,20 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual(steps, [false, true, false, true, false]);
 	});
 
-	test('registers nothing while the Agents view of #347688 is on too, which takes precedence, also as it turns on and off live', () => {
+	test('registers nothing while the Agents view of #347688 is on too, which takes precedence; as it takes effect on restart, a change of it does not change the Chat view until then', () => {
 		createGate(true, undefined, { 'chat.sessionsView.enabled': true });
-		const steps = [{ providers, runtimeHolds }];
+		const whileAgentsView = [{ providers, runtimeHolds }];
 		change('chat.sessionsView.enabled', false);
-		steps.push({ providers, runtimeHolds });
+		whileAgentsView.push({ providers, runtimeHolds });
+		createGate(true);
+		const withoutAgentsView = [{ providers, runtimeHolds }];
 		change('chat.sessionsView.enabled', true);
-		steps.push({ providers, runtimeHolds });
+		withoutAgentsView.push({ providers, runtimeHolds });
 
-		assert.deepStrictEqual(steps, [{ providers: 0, runtimeHolds: 0 }, { providers: 1, runtimeHolds: 1 }, { providers: 0, runtimeHolds: 0 }]);
+		assert.deepStrictEqual({ whileAgentsView, withoutAgentsView }, {
+			whileAgentsView: [{ providers: 0, runtimeHolds: 0 }, { providers: 0, runtimeHolds: 0 }],
+			withoutAgentsView: [{ providers: 1, runtimeHolds: 1 }, { providers: 1, runtimeHolds: 1 }],
+		});
 	});
 
 	test('registers the actions of the list once the Chat view first shows', () => {

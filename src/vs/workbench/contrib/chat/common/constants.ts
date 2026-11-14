@@ -241,18 +241,30 @@ export const enum OpenInAgentsTitleBarHoverVariant {
 
 /**
  * Whether a window shows the sessions of the Agents window in its Chat view ({@link ChatConfiguration.ChatViewSessionsListEnabled}),
- * as the settings change. Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in a
- * view of its own and takes precedence.
+ * as that setting changes. Not while the Agents view of an editor window (`chat.sessionsView.enabled`) is on, which shows them in a
+ * view of its own and takes precedence: that setting takes effect on restart, so its value as the window started counts.
  */
 export function observeChatViewSessionsListEnabled(configurationService: IConfigurationService): IObservable<boolean> {
 	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	const sessionsViewEnabled = observableConfigValue<boolean>('chat.sessionsView.enabled', false, configurationService);
-	return derived(reader => sessionsListEnabled.read(reader) === true && sessionsViewEnabled.read(reader) !== true);
+	return derived(reader => sessionsListEnabled.read(reader) === true && !isSessionsViewEnabledAtStartup(configurationService));
+}
+
+/** The first value read of `chat.sessionsView.enabled`, per configuration service, which a window has one of. */
+const sessionsViewEnabledAtStartup = new WeakMap<IConfigurationService, boolean>();
+
+/** The Agents view of editor windows (`chat.sessionsView.enabled`) as the window started: the setting takes effect on restart. */
+function isSessionsViewEnabledAtStartup(configurationService: IConfigurationService): boolean {
+	let enabled = sessionsViewEnabledAtStartup.get(configurationService);
+	if (enabled === undefined) {
+		enabled = configurationService.getValue<boolean>('chat.sessionsView.enabled') === true;
+		sessionsViewEnabledAtStartup.set(configurationService, enabled);
+	}
+	return enabled;
 }
 
 /**
  * Whether a window surfaces every local agent host agent, as the Agents window does, as the settings change: also a local editor
- * window that shows the sessions of the Agents window, in its Agents view (`chat.sessionsView.enabled`) or in its Chat view
+ * window that shows the sessions of the Agents window, in its Agents view (`chat.sessionsView.enabled`, as the window started) or in its Chat view
  * ({@link ChatConfiguration.ChatViewSessionsListEnabled}), so that its list and chats are those of the Agents window. A remote
  * window never shows them.
  */
@@ -264,8 +276,7 @@ export function observeSurfacesAllLocalAgentHostAgents(environment: { readonly i
 		return constObservable(false);
 	}
 	const sessionsListEnabled = observableConfigValue<boolean>(ChatConfiguration.ChatViewSessionsListEnabled, false, configurationService);
-	const sessionsViewEnabled = observableConfigValue<boolean>('chat.sessionsView.enabled', false, configurationService);
-	return derived(reader => sessionsViewEnabled.read(reader) === true || sessionsListEnabled.read(reader) === true);
+	return derived(reader => isSessionsViewEnabledAtStartup(configurationService) || sessionsListEnabled.read(reader) === true);
 }
 
 /** {@link observeSurfacesAllLocalAgentHostAgents} as it is now. */
