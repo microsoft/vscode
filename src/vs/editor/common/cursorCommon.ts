@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption } from './config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorAutoClosingEditStrategy, EditorAutoClosingStrategy, EditorAutoIndentStrategy, EditorAutoSurroundStrategy, EditorOption, TextEditorCursorStyle } from './config/editorOptions.js';
 import { LineTokens } from './tokens/lineTokens.js';
 import { Position } from './core/position.js';
 import { Range } from './core/range.js';
@@ -52,6 +52,7 @@ export class CursorConfiguration {
 	_cursorMoveConfigurationBrand: void = undefined;
 
 	public readonly readOnly: boolean;
+	public readonly cursorPositionAffinity: PositionAffinity;
 	public readonly tabSize: number;
 	public readonly indentSize: number;
 	public readonly insertSpaces: boolean;
@@ -87,6 +88,7 @@ export class CursorConfiguration {
 	public static shouldRecreate(e: ConfigurationChangedEvent): boolean {
 		return (
 			e.hasChanged(EditorOption.layoutInfo)
+			|| e.hasChanged(EditorOption.effectiveCursorStyle)
 			|| e.hasChanged(EditorOption.wordSeparators)
 			|| e.hasChanged(EditorOption.emptySelectionClipboard)
 			|| e.hasChanged(EditorOption.multiCursorMergeOverlapping)
@@ -120,6 +122,10 @@ export class CursorConfiguration {
 		const fontInfo = options.get(EditorOption.fontInfo);
 
 		this.readOnly = options.get(EditorOption.readOnly);
+		const cursorStyle = options.get(EditorOption.effectiveCursorStyle);
+		this.cursorPositionAffinity = cursorStyle === TextEditorCursorStyle.Line || cursorStyle === TextEditorCursorStyle.LineThin
+			? PositionAffinity.None
+			: PositionAffinity.LeftOfInjectedTextBlockCursor;
 		this.tabSize = modelOptions.tabSize;
 		this.indentSize = modelOptions.indentSize;
 		this.insertSpaces = modelOptions.insertSpaces;
