@@ -8,7 +8,7 @@ import { raceTimeout } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { constObservable, derived, IObservable, ITransaction, observableFromEvent, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ITransaction, observableValue, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -20,7 +20,6 @@ import { createDecorator, IInstantiationService } from '../../../../../platform/
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { GroupDirection, IContentPart, IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -36,8 +35,9 @@ import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowSe
 import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatEditorWindow, registerSessionChatViewEditor, SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS } from '../chatEditor/chatEditor.js';
-import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, IChatWindowComposerInit, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
+import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
 import { IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
+import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { INewSessionTarget } from '../parts/chatView.js';
@@ -127,7 +127,7 @@ export interface IAgentsChatPartService {
 	 */
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
-	/** The folders its composers create sessions in, and how their workspace pickers show them: the window's folders by default. */
+	/** The folders its composers create sessions in, and how their workspace pickers show them (see `IEditorWindowComposerFoldersService`). */
 	getComposerFolderOptions(): IAgentsChatPartComposerFolderOptions;
 
 	/**
@@ -144,7 +144,7 @@ export interface IAgentsChatPartService {
 }
 
 /** The folders the composers of the chat part create sessions in, besides the folder each aims at, and how they show them. */
-export type IAgentsChatPartComposerFolderOptions = Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'>;
+export type IAgentsChatPartComposerFolderOptions = IEditorWindowComposerFolderOptions;
 
 /**
  * Shows again the chats of the chat part that the layout restored shown. With chat hidden or disabled as the window starts,
@@ -216,7 +216,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	 */
 	private readonly _composerTabs = observableValue<ReadonlySet<EditorInput>>(this, new Set());
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
-	private readonly _composerFolderProviders: (() => IAgentsChatPartComposerFolderOptions)[] = [];
 	/** The composer of each composer's tab, which the tab disposes. */
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
@@ -244,10 +243,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IEditorWindowComposerFoldersService private readonly _composerFolders: IEditorWindowComposerFoldersService,
 	) {
 		super();
-		this._windowFolders = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
 
 		this.activeChat = derived(this, reader => {
 			const input = this._activeInput.read(reader);
@@ -304,9 +302,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._frame.didCreateContent();
 	}
 
-	/** The folders of the window, the only ones its composers create sessions in by default, besides the folder each aims at. */
-	private readonly _windowFolders: IObservable<readonly URI[]>;
-
 	retargetComposerFolders(to: URI, from: URI): void {
 		for (const composer of this._composerModels.values()) {
 			composer.retargetFolder(to, from);
@@ -314,17 +309,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	getComposerFolderOptions(): IAgentsChatPartComposerFolderOptions {
-		return this._composerFolderProviders.at(-1)?.() ?? { allowedFolders: this._windowFolders };
+		return this._composerFolders.getComposerFolderOptions();
 	}
 
 	setComposerFolderOptions(provider: () => IAgentsChatPartComposerFolderOptions): IDisposable {
-		this._composerFolderProviders.push(provider);
-		return toDisposable(() => {
-			const index = this._composerFolderProviders.indexOf(provider);
-			if (index >= 0) {
-				this._composerFolderProviders.splice(index, 1);
-			}
-		});
+		return this._composerFolders.setComposerFolderOptions(provider);
 	}
 
 	private get composers(): ChatWindowComposers {
