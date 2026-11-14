@@ -81,7 +81,7 @@ export class EditorPanes extends Disposable {
 	get maximumHeight() { return this._activeEditorPane?.maximumHeight ?? DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	private _activeEditorPane: EditorPane | null = null;
-	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane as IVisibleEditorPane | null; }
+	get activeEditorPane(): IVisibleEditorPane | null { return this._activeEditorPane?.input ? this._activeEditorPane as IVisibleEditorPane : null; }
 
 	private readonly editorPanes: EditorPane[] = [];
 	private readonly mapEditorPaneToPendingSetInput = new Map<EditorPane, Promise<void>>();
