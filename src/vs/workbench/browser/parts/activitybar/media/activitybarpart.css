@@ -68,6 +68,11 @@
 	height: 35px;
 }
 
+/* While a menu is open, lift the menubar to the context view level (see ContextView) so the menu is above the quick input. Must not exceed the modal dialog level (2575). */
+.monaco-workbench .activitybar > .content > .menubar.menu-open {
+	z-index: 2575;
+}
+
 .monaco-workbench .activitybar .menubar.compact .toolbar-toggle-more {
 	width: 100%;
 	height: 35px;

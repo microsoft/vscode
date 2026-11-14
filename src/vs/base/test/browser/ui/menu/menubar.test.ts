@@ -159,6 +159,59 @@ suite('Menubar', () => {
 		});
 	});
 
+	test('marks its container while a menu is open (#154258)', async () => {
+		const host = mainWindow.document.body.appendChild($('.menubar'));
+		host.style.cssText = 'position: fixed; width: 400px; height: 30px;';
+		const menubar = new MenuBar(host, { enableMnemonics: true, visibility: 'classic' }, unthemedMenuStyles);
+		const states: { open: string | null; marked: boolean }[] = [];
+		const record = () => states.push({
+			open: host.querySelector('.menubar-menu-button.open')?.getAttribute('aria-label') ?? null,
+			marked: host.classList.contains('menu-open')
+		});
+		// Hosts must not be notified while the menubar is disposed, or they could re-create it
+		const eventsDuringDispose: string[] = [];
+		try {
+			// A single menu would only be shown in the overflow menu
+			menubar.push([
+				{ label: '&File', actions: [toAction({ id: 'save', label: 'Save', run: () => { } })] },
+				{ label: '&View', actions: [toAction({ id: 'zoomIn', label: 'Zoom In', run: () => { } })] }
+			]);
+			menubar.update();
+			await new Promise<void>(resolve => getWindow(host).requestAnimationFrame(() => resolve()));
+			const fileButton = getButtonElementByAriaLabel(host, 'File');
+			const viewButton = getButtonElementByAriaLabel(host, 'View');
+			assert.ok(fileButton && viewButton);
+			const openFile = () => fileButton.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
+
+			openFile();
+			record();
+			viewButton.dispatchEvent(new MouseEvent('mouseenter'));
+			record();
+			menubar.blur();
+			record();
+			openFile();
+			record();
+		} finally {
+			store.add(menubar.onFocusStateChange(focused => eventsDuringDispose.push(`focus:${focused}`)));
+			store.add(menubar.onVisibilityChange(visible => eventsDuringDispose.push(`visible:${visible}`)));
+			menubar.dispose();
+			record();
+			host.remove();
+			ModifierKeyEmitter.disposeInstance();
+		}
+
+		assert.deepStrictEqual({ states, eventsDuringDispose }, {
+			states: [
+				{ open: 'File', marked: true },
+				{ open: 'View', marked: true },
+				{ open: null, marked: false },
+				{ open: 'File', marked: true },
+				{ open: null, marked: false }
+			],
+			eventsDuringDispose: []
+		});
+	});
+
 	suite('compact mode', () => {
 		let compactContainer: HTMLElement;
 
