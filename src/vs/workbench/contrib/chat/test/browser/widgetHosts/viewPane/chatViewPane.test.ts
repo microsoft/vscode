@@ -239,8 +239,18 @@ suite('ChatViewPane sessions refresh', () => {
 			// Whether the list shows after the swap, as the Chat view's visibility rules say, such as its own list while
 			// its sessions are disabled in the settings
 			sessionsVisible: true,
-			updateSessionsControlVisibility: () => ({ changed: false, visible: host.sessionsVisible }),
-			relayout: () => { },
+			updateSessionsControlVisibility: () => {
+				host.sessionsViewerVisible = host.sessionsVisible;
+				return { changed: false, visible: host.sessionsVisible };
+			},
+			// Whether the layout shows the list, such as switching to side by side in a wide window, after the visibility check
+			layoutShowsList: false,
+			relayout: () => {
+				if (host.layoutShowsList) {
+					host.sessionsVisible = true;
+					host.updateSessionsControlVisibility();
+				}
+			},
 			sessionsControlContainer: undefined as HTMLElement | undefined,
 			_widget: { focusInput: () => chatInput.focus() },
 		};
@@ -272,8 +282,15 @@ suite('ChatViewPane sessions refresh', () => {
 		host.sessionsVisible = false;
 		sessionsOnly.dispose();
 		steps.push(active());
+		// As before, but the layout then shows the Chat view's own list, such as side by side: that list takes focus
+		const sessionsOnlyAgain = provide(true);
+		focusList();
+		host.sessionsVisible = false;
+		host.layoutShowsList = true;
+		sessionsOnlyAgain.dispose();
+		steps.push(active());
 
-		assert.deepStrictEqual(steps, ['provided', 'elsewhere', 'chat input']);
+		assert.deepStrictEqual(steps, ['provided', 'elsewhere', 'chat input', 'own']);
 	});
 
 	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
