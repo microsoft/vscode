@@ -533,7 +533,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
 				this.modelFactory,
-				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
+				async options => { await this.resolve(resource, { ...options, reload: { async: false, force: options?.forceReadFromFile } }); },
 				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
 				this.editorService, this.elevatedFileService, this.progressService
