@@ -20,6 +20,7 @@ export interface CloneOptions {
 	parentPath?: string;
 	ref?: string;
 	recursive?: boolean;
+	depth?: number;
 	postCloneAction?: ApiPostCloneAction;
 	returnRepositoryPath?: boolean;
 }
@@ -53,12 +54,12 @@ export class CloneManager {
 
 		const cachedRepository = this.repositoryCache.get(url);
 		if (cachedRepository && (cachedRepository.length > 0)) {
-			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref, options.returnRepositoryPath);
+			return this.tryOpenExistingRepository(cachedRepository, url, options.postCloneAction, options.parentPath, options.ref, options.returnRepositoryPath, options.depth);
 		}
 		return this.cloneRepository(url, options.parentPath, options);
 	}
 
-	private async cloneRepository(url: string, parentPath?: string, options: { recursive?: boolean; ref?: string; postCloneAction?: ApiPostCloneAction } = {}): Promise<string | undefined> {
+	private async cloneRepository(url: string, parentPath?: string, options: { recursive?: boolean; ref?: string; depth?: number; postCloneAction?: ApiPostCloneAction } = {}): Promise<string | undefined> {
 		if (!parentPath) {
 			const config = workspace.getConfiguration('git');
 			let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
@@ -101,7 +102,13 @@ export class CloneManager {
 
 			const repositoryPath = await window.withProgress(
 				opts,
-				(progress, token) => this.model.git.clone(url!, { parentPath: parentPath!, progress, recursive: options.recursive, ref: options.ref }, token)
+				(progress, token) => this.model.git.clone(url!, {
+					parentPath: parentPath!,
+					progress,
+					recursive: options.recursive,
+					ref: options.ref,
+					depth: options.depth
+				}, token)
 			);
 
 			await this.doPostCloneAction(repositoryPath, options.postCloneAction);
@@ -191,7 +198,7 @@ export class CloneManager {
 		}
 	}
 
-	private async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: ApiPostCloneAction): Promise<string | undefined> {
+	private async chooseExistingRepository(url: string, existingCachedRepositories: RepositoryCacheInfo[], ref: string | undefined, parentPath?: string, postCloneAction?: ApiPostCloneAction, depth?: number): Promise<string | undefined> {
 		try {
 			const items: { label: string; description?: string; item?: RepositoryCacheInfo }[] = existingCachedRepositories.map(knownFolder => {
 				const isWorkspace = knownFolder.workspacePath.endsWith('.code-workspace');
@@ -203,7 +210,7 @@ export class CloneManager {
 			const placeHolder = l10n.t('Open Existing Repository Clone');
 			const pick = await window.showQuickPick(items, { placeHolder, canPickMany: false });
 			if (pick === cloneAgain) {
-				return (await this.cloneRepository(url, parentPath, { ref, postCloneAction })) ?? undefined;
+				return (await this.cloneRepository(url, parentPath, { ref, depth, postCloneAction })) ?? undefined;
 			}
 			if (!pick?.item) {
 				return undefined;
@@ -214,7 +221,7 @@ export class CloneManager {
 		}
 	}
 
-	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string, returnRepositoryPath?: boolean): Promise<string | undefined> {
+	private async tryOpenExistingRepository(cachedRepository: RepositoryCacheInfo[], url: string, postCloneAction?: ApiPostCloneAction, parentPath?: string, ref?: string, returnRepositoryPath?: boolean, depth?: number): Promise<string | undefined> {
 		// Ignore cached entries whose requested path no longer exists.
 		const existingCachedRepositories: RepositoryCacheInfo[] = (await Promise.all<RepositoryCacheInfo | undefined>(cachedRepository.map(async folder => {
 			const cachedPath = returnRepositoryPath ? folder.repositoryPath : folder.workspacePath;
@@ -228,7 +235,7 @@ export class CloneManager {
 
 		if (!existingCachedRepositories.length) {
 			// fallback to clone
-			return (await this.cloneRepository(url, parentPath, { ref, postCloneAction }) ?? undefined);
+			return (await this.cloneRepository(url, parentPath, { ref, depth, postCloneAction }) ?? undefined);
 		}
 
 		// First, find the cached repo that exists in the current workspace
@@ -242,7 +249,7 @@ export class CloneManager {
 
 		let repoForWorkspace: string | undefined = (existingCachedRepositories.length === 1 ? existingCachedRepositories[0].workspacePath : undefined);
 		if (!repoForWorkspace) {
-			repoForWorkspace = await this.chooseExistingRepository(url, existingCachedRepositories, ref, parentPath, postCloneAction);
+			repoForWorkspace = await this.chooseExistingRepository(url, existingCachedRepositories, ref, parentPath, postCloneAction, depth);
 		}
 		if (repoForWorkspace) {
 			await this.doPostCloneAction(repoForWorkspace, postCloneAction);

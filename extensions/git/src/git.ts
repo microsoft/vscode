@@ -390,6 +390,7 @@ export interface ICloneOptions {
 	readonly progress: Progress<{ increment: number }>;
 	readonly recursive?: boolean;
 	readonly ref?: string;
+	readonly depth?: number;
 }
 
 export class Git {
@@ -491,6 +492,9 @@ export class Git {
 			}
 			if (options.ref) {
 				command.push('--branch', options.ref);
+			}
+			if (options.depth) {
+				command.push(`--depth=${options.depth}`);
 			}
 			await this.exec(options.parentPath, command, {
 				cancellationToken,

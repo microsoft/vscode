@@ -33,6 +33,7 @@ export class GitProtocolHandler implements UriHandler {
 	private async clone(uri: Uri): Promise<void> {
 		const data = querystring.parse(uri.query);
 		const ref = data.ref;
+		const depth = data.depth !== undefined ? Number(data.depth) : undefined;
 
 		if (!data.url) {
 			this.logger.warn('[GitProtocolHandler][clone] Failed to open URI:' + uri.toString());
@@ -46,6 +47,11 @@ export class GitProtocolHandler implements UriHandler {
 
 		if (ref !== undefined && typeof ref !== 'string') {
 			this.logger.warn('[GitProtocolHandler][clone] Failed to open URI due to multiple references:' + uri.toString());
+			return;
+		}
+
+		if (depth !== undefined && (!Number.isSafeInteger(depth) || depth < 1)) {
+			this.logger.warn('[GitProtocolHandler][clone] Invalid depth:' + uri.toString());
 			return;
 		}
 
@@ -88,7 +94,7 @@ export class GitProtocolHandler implements UriHandler {
 		} else {
 			const cloneTarget = cloneUri.toString(true);
 			this.logger.info(`[GitProtocolHandler][clone] Executing git.clone for ${cloneTarget}`);
-			commands.executeCommand('git.clone', cloneTarget, undefined, { ref: ref });
+			commands.executeCommand('git.clone', cloneTarget, undefined, { ref, depth });
 		}
 	}
 
