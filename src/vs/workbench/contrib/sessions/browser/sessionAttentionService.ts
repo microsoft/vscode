@@ -20,7 +20,7 @@ import { IChatSessionsService } from '../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { IChatModel, IChatResponseModel } from '../../chat/common/model/chatModel.js';
 import { getChatSessionType } from '../../chat/common/model/chatUri.js';
-import { IGitHubService } from '../browser/github/githubService.js';
+import { IGitHubService } from './github/githubService.js';
 import { getSessionGitHubReferences } from '../common/github/sessionGitHubReferences.js';
 import { GitHubCIOverallStatus, GitHubPullRequestState } from '../common/github/types.js';
 import { getPullRequestKey } from '../common/github/utils.js';
