@@ -973,7 +973,7 @@ suite('ActivitybarPart', () => {
 		const record = (location: string) => observed.push({ location, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
 
 		record('default');
-		for (const location of ['top', 'bottom', 'default', 'top', 'default', 'hidden']) {
+		for (const location of ['top', 'bottom', 'default', 'top', 'default', 'hidden', 'default']) {
 			harness.setLocation(location);
 			record(location);
 		}
@@ -985,64 +985,67 @@ suite('ActivitybarPart', () => {
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
 			{ location: 'top', activityBarMenubars: 0, titlebarOwns: true },
 			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
-			{ location: 'hidden', activityBarMenubars: 1, titlebarOwns: false },
+			{ location: 'hidden', activityBarMenubars: 0, titlebarOwns: true },
+			{ location: 'default', activityBarMenubars: 1, titlebarOwns: false },
 		]);
 	});
 
-	test('activity bar takes the compact menu when the custom title bar is hidden and releases it when shown', function () {
-		const windowConfig = {
-			titleBarStyle: 'native',
-			menuStyle: 'custom',
-			customTitleBarVisibility: 'auto',
-		};
-		const precondition = new TestConfigurationService({ window: { menuBarVisibility: 'compact', ...windowConfig } });
-		if (isWeb || isMacintosh) {
-			this.skip();
-		}
-		assert.deepStrictEqual({ nativeTitlebar: hasNativeTitlebar(precondition), nativeMenu: hasNativeMenu(precondition), menuBarVisibility: getMenuBarVisibility(precondition) }, { nativeTitlebar: true, nativeMenu: false, menuBarVisibility: 'compact' });
-		const harness = createActivityBarCompositeBar('compact', 'top', 'left', windowConfig);
-		const observed: { step: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
-		const record = (step: string) => observed.push({ step, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
+	for (const location of ['top', 'hidden']) {
+		test(`activity bar takes the compact menu when the custom title bar is hidden and releases it when shown, with the activity bar ${location}`, function () {
+			const windowConfig = {
+				titleBarStyle: 'native',
+				menuStyle: 'custom',
+				customTitleBarVisibility: 'auto',
+			};
+			const precondition = new TestConfigurationService({ window: { menuBarVisibility: 'compact', ...windowConfig } });
+			if (isWeb || isMacintosh) {
+				this.skip();
+			}
+			assert.deepStrictEqual({ nativeTitlebar: hasNativeTitlebar(precondition), nativeMenu: hasNativeMenu(precondition), menuBarVisibility: getMenuBarVisibility(precondition) }, { nativeTitlebar: true, nativeMenu: false, menuBarVisibility: 'compact' });
+			const harness = createActivityBarCompositeBar('compact', location, 'left', windowConfig);
+			const observed: { step: string; activityBarMenubars: number; titlebarOwns: boolean }[] = [];
+			const record = (step: string) => observed.push({ step, activityBarMenubars: harness.menubars(), titlebarOwns: isCompactMenuInTitlebar(harness.configurationService) });
 
-		try {
-			record('initial');
-			harness.setWindowSetting('customTitleBarVisibility', 'never');
-			record('hidden');
-			harness.setWindowSetting('customTitleBarVisibility', 'auto');
-			record('shown');
-			harness.setWindowSetting('customTitleBarVisibility', 'never');
-			record('hiddenAgain');
-			harness.setWindowSetting('customTitleBarVisibility', 'windowed');
-			record('windowed');
-			setFullscreen(true, mainWindow);
-			record('fullscreen');
-			setFullscreen(false, mainWindow);
-			record('exitFullscreen');
-			setFullscreen(true, mainWindow);
-			record('fullscreenAgain');
-			setFullscreen(false, mainWindow);
-			record('exitFullscreenAgain');
-		} finally {
-			setFullscreen(false, mainWindow);
-		}
+			try {
+				record('initial');
+				harness.setWindowSetting('customTitleBarVisibility', 'never');
+				record('hidden');
+				harness.setWindowSetting('customTitleBarVisibility', 'auto');
+				record('shown');
+				harness.setWindowSetting('customTitleBarVisibility', 'never');
+				record('hiddenAgain');
+				harness.setWindowSetting('customTitleBarVisibility', 'windowed');
+				record('windowed');
+				setFullscreen(true, mainWindow);
+				record('fullscreen');
+				setFullscreen(false, mainWindow);
+				record('exitFullscreen');
+				setFullscreen(true, mainWindow);
+				record('fullscreenAgain');
+				setFullscreen(false, mainWindow);
+				record('exitFullscreenAgain');
+			} finally {
+				setFullscreen(false, mainWindow);
+			}
 
-		const titlebar = { activityBarMenubars: 0, titlebarOwns: true };
-		const activityBar = { activityBarMenubars: 1, titlebarOwns: false };
-		assert.deepStrictEqual(observed, [
-			{ step: 'initial', ...titlebar },
-			{ step: 'hidden', ...activityBar },
-			{ step: 'shown', ...titlebar },
-			{ step: 'hiddenAgain', ...activityBar },
-			{ step: 'windowed', ...titlebar },
-			{ step: 'fullscreen', ...activityBar },
-			{ step: 'exitFullscreen', ...titlebar },
-			{ step: 'fullscreenAgain', ...activityBar },
-			{ step: 'exitFullscreenAgain', ...titlebar },
-		]);
-	});
+			const titlebar = { activityBarMenubars: 0, titlebarOwns: true };
+			const activityBar = { activityBarMenubars: 1, titlebarOwns: false };
+			assert.deepStrictEqual(observed, [
+				{ step: 'initial', ...titlebar },
+				{ step: 'hidden', ...activityBar },
+				{ step: 'shown', ...titlebar },
+				{ step: 'hiddenAgain', ...activityBar },
+				{ step: 'windowed', ...titlebar },
+				{ step: 'fullscreen', ...activityBar },
+				{ step: 'exitFullscreen', ...titlebar },
+				{ step: 'fullscreenAgain', ...activityBar },
+				{ step: 'exitFullscreenAgain', ...titlebar },
+			]);
+		});
+	}
 
-	for (const location of ['top', 'bottom']) {
-		test(`activity bar does not install the compact menu when created with the activity bar at the ${location}`, function () {
+	for (const location of ['top', 'bottom', 'hidden']) {
+		test(`activity bar does not install the compact menu when created with the activity bar location ${location}`, function () {
 			if (!compactSupported) {
 				this.skip();
 			}
