@@ -36,7 +36,7 @@ import { getChatWindowMainPartOptions } from '../../../chatWindow/browser/chatWi
 import { enforceChatPartOptions } from '../../../chatWindow/browser/chatWindowService.js';
 import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayout.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IChatEditorWindow, registerSessionChatViewEditor } from '../chatEditor/chatEditor.js';
+import { IChatEditorWindow, registerSessionChatViewEditor, SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS } from '../chatEditor/chatEditor.js';
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, IChatWindowComposerInit, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -145,6 +145,7 @@ export async function restoreAgentsChatPart(layoutService: IWorkbenchLayoutServi
 class AgentsChatPartChat extends SessionChatEditorEntry {
 
 	readonly active: IObservable<boolean>;
+	readonly hostOptions = SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS;
 
 	constructor(
 		chatResource: URI,
