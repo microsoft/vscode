@@ -16,7 +16,7 @@ import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionS
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
-import { IObservable } from '../../../../../../base/common/observable.js';
+import { IObservable, runOnChange } from '../../../../../../base/common/observable.js';
 import { InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatIsArchivedChangedAction, ChatIsReadChangedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { isActionKnownToVersion } from '../../../../../../platform/agentHost/common/state/protocol/version/registry.js';
@@ -122,6 +122,11 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly retainUnlistedProvider?: (provider: string) => boolean;
 			/** Retain unlisted sessions whose existence is owned by another inventory. */
 			readonly retainSession?: (session: URI) => boolean;
+			/**
+			 * Also lists a session whose project (repository root) is a folder of the window, such as one working in a
+			 * worktree of it, while true.
+			 */
+			readonly matchProjectRoot?: IObservable<boolean>;
 		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
@@ -156,6 +161,18 @@ export class AgentHostSessionListStore extends Disposable {
 		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
 		// workspace file: the locations its folder had are no longer its own
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
+
+		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
+		if (this._options.matchProjectRoot) {
+			this._register(runOnChange(this._options.matchProjectRoot, () => {
+				if (this._options.filterToWorkspace === false) {
+					return;
+				}
+				this._cacheValid = false;
+				this._filterEntriesToWorkspace();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -564,7 +581,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories) || this._matchesProjectRoot(entry.summary, folders);
 	}
 
 	private _trackFolderLocation(): void {
@@ -604,6 +621,14 @@ export class AgentHostSessionListStore extends Disposable {
 			this._mutationGeneration++;
 			this._onDidChangeSessions.fire({ removed });
 		}
+	}
+
+	private _matchesProjectRoot(summary: SessionSummary, folders: readonly IWorkspaceFolder[]): boolean {
+		if (!summary.project?.uri || !this._options.matchProjectRoot?.get()) {
+			return false;
+		}
+		const project = URI.parse(summary.project.uri);
+		return folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri));
 	}
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
