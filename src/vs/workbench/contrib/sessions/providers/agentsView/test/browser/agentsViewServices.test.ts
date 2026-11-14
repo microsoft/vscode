@@ -9,6 +9,8 @@ import { getSingletonServiceDescriptors } from '../../../../../../../platform/in
 import { _util, ServiceIdentifier } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
+import { AgentsChatViewHost } from '../../../../browser/agentsView/agentsChatViewHost.js';
+import { EditorWindowChatPartService } from '../../../../browser/agentsView/agentsChatPartContribution.js';
 import { ChatView, NewChatView } from '../../../../browser/chat/chatView.js';
 import { NewChatInSessionWidget } from '../../../../browser/chat/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../../../browser/chat/newChatWidget.js';
@@ -62,7 +64,7 @@ suite('Editor window sessions services', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('an editor window registers every sessions service that its sessions list and chats depend on', () => {
+	test('an editor window registers every sessions service that its sessions list, chats and chat part depend on', () => {
 		const registered = new Map(getSingletonServiceDescriptors().map(([id, descriptor]) => [id.toString(), descriptor]));
 		const missing = new Set<string>();
 		const seen = new Set<unknown>();
@@ -84,7 +86,7 @@ suite('Editor window sessions services', () => {
 		// The views, and what they create as they show a session, such as a chat's input toolbar: their services are checked
 		// as they are created, not as the views that create them are
 		const roots = [
-			SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer,
+			SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, EditorWindowChatPartService,
 			NewChatView, SessionChatInputToolbar, SessionInputBanners, SessionArchiveNudge, SessionStatusIcon, ResponseSelectionSideChatController,
 			SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, SessionReadOnlyBanner, SessionRemoteConnection,
 			SessionsListNotification, SessionsInboxScope, SessionStorageCleanupNotice, SessionsListFilters,

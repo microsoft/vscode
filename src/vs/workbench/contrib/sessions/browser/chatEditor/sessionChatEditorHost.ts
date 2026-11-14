@@ -131,6 +131,8 @@ export abstract class SessionChatEditorEntry extends Disposable implements ISess
 	get isComposer(): boolean { return !!this._composer.get(); }
 	/** Whether it is a new-session composer whose closing loses nothing (see {@link ChatWindowComposerModel.isPristine}). */
 	get isPristineComposer(): boolean { return !!this._composer.get()?.isPristine(); }
+	/** Whether it is a new-session composer with nothing typed or attached, and no send of it under way. */
+	get isIdleComposer(): boolean { return !!this._composer.get()?.isIdle(); }
 	/** The custom group of the sessions list that the sessions of its new-session composer join, while it is one. */
 	get composerGroupId(): string | undefined { return this._composer.get()?.groupId; }
 
