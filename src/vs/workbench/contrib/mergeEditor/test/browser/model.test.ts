@@ -5,22 +5,157 @@
 
 import assert from 'assert';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { IReader, transaction } from '../../../../../base/common/observable.js';
+import { IReader, transaction, waitForState } from '../../../../../base/common/observable.js';
 import { isDefined } from '../../../../../base/common/types.js';
+import { mock } from '../../../../../base/test/common/mock.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { linesDiffComputers } from '../../../../../editor/common/diff/linesDiffComputers.js';
 import { EndOfLinePreference, ITextModel } from '../../../../../editor/common/model.js';
-import { createModelServices, createTextModel } from '../../../../../editor/test/common/testTextModel.js';
+import { createModelServices, createTextModel, instantiateTextModel } from '../../../../../editor/test/common/testTextModel.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IMergeDiffComputer, IMergeDiffComputerResult, toLineRange, toRangeMapping } from '../../browser/model/diffComputer.js';
 import { DetailedLineRangeMapping } from '../../browser/model/mapping.js';
 import { MergeEditorModel } from '../../browser/model/mergeEditorModel.js';
 import { MergeEditorTelemetry } from '../../browser/telemetry.js';
+import { ActionsSource } from '../../browser/view/conflictActions.js';
+import { MergeEditorViewModel } from '../../browser/view/viewModel.js';
 
 suite('merge editor model', () => {
 	// todo: renable when failing case is found https://github.com/microsoft/vscode/pull/190444#issuecomment-1678151428
 	// ensureNoDisposablesAreLeakedInTestSuite();
+
+	suite('conflict action undo', () => {
+		ensureNoDisposablesAreLeakedInTestSuite();
+
+		for (const diffAlgorithm of ['legacy', 'advanced'] as const) {
+			for (const pushUndoStop of [false, true]) {
+				test(`reset to base preserves the preceding manual resolution (${diffAlgorithm}, undo stop: ${pushUndoStop})`, async () => {
+					await testMergeModel({
+						languageId: 'plaintext',
+						base: 'start\nbase\nend',
+						input1: 'start\nleft\nend',
+						input2: 'start\nright\nend',
+						result: 'start\nbase\nend',
+						diffAlgorithm,
+					}, async model => {
+						model.toggleConflict(0, 1);
+						const mergeModel = model.mergeModel;
+						const result = mergeModel.resultTextModel;
+						const states = [result.getValue()];
+						result.pushEditOperations(null, [{ range: new Range(2, 1, 2, 5), text: 'manual' }], () => null);
+						await waitForState(mergeModel.isUpToDate, isUpToDate => isUpToDate);
+						states.push(result.getValue());
+						if (pushUndoStop) {
+							result.pushStackElement();
+						}
+
+						const actions = new ActionsSource(new class extends mock<MergeEditorViewModel>() {
+							override readonly model = mergeModel;
+						}, mergeModel.modifiedBaseRanges.get()[0]);
+						const reset = actions.resultItems.get().find(action => action.text === 'Reset to base');
+						assert.ok(reset?.action);
+						await reset.action();
+						states.push(result.getValue());
+
+						for (const operation of ['undo', 'undo', 'redo', 'redo'] as const) {
+							await result[operation]();
+							await waitForState(mergeModel.isUpToDate, isUpToDate => isUpToDate);
+							states.push(result.getValue());
+						}
+
+						assert.deepStrictEqual(states, [
+							'start\nleft\nend',
+							'start\nmanual\nend',
+							'start\nbase\nend',
+							'start\nmanual\nend',
+							'start\nleft\nend',
+							'start\nmanual\nend',
+							'start\nbase\nend',
+						]);
+					});
+				});
+			}
+
+			test(`removing inputs from two conflicts is independently undoable (${diffAlgorithm})`, async () => {
+				await testMergeModel({
+					languageId: 'plaintext',
+					base: 'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nbase2\nend',
+					input1: 'start\nleft1\nmiddle1\nmiddle2\nmiddle3\nleft2\nend',
+					input2: 'start\nright1\nmiddle1\nmiddle2\nmiddle3\nright2\nend',
+					result: 'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nbase2\nend',
+					diffAlgorithm,
+				}, async model => {
+					model.toggleConflict(0, 1);
+					model.toggleConflict(1, 2);
+					const mergeModel = model.mergeModel;
+					const result = mergeModel.resultTextModel;
+					const states = [result.getValue()];
+					for (const range of mergeModel.modifiedBaseRanges.get()) {
+						const actions = new ActionsSource(new class extends mock<MergeEditorViewModel>() {
+							override readonly model = mergeModel;
+						}, range);
+						const remove = actions.resultItems.get().find(action => action.action);
+						assert.ok(remove?.action);
+						await remove.action();
+						states.push(result.getValue());
+					}
+					for (const operation of ['undo', 'undo', 'redo', 'redo'] as const) {
+						await result[operation]();
+						await waitForState(mergeModel.isUpToDate, isUpToDate => isUpToDate);
+						states.push(result.getValue());
+					}
+
+					assert.deepStrictEqual(states, [
+						'start\nleft1\nmiddle1\nmiddle2\nmiddle3\nright2\nend',
+						'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nright2\nend',
+						'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nbase2\nend',
+						'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nright2\nend',
+						'start\nleft1\nmiddle1\nmiddle2\nmiddle3\nright2\nend',
+						'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nright2\nend',
+						'start\nbase1\nmiddle1\nmiddle2\nmiddle3\nbase2\nend',
+					]);
+				});
+			});
+
+			test(`accepting either input restores the handled state on undo and redo (${diffAlgorithm})`, async () => {
+				await testMergeModel({
+					languageId: 'plaintext',
+					base: 'start\nbase\nend',
+					input1: 'start\nleft\nend',
+					input2: 'start\nright\nend',
+					result: 'start\nbase\nend',
+					diffAlgorithm,
+				}, async model => {
+					const mergeModel = model.mergeModel;
+					const result = mergeModel.resultTextModel;
+					const range = mergeModel.modifiedBaseRanges.get()[0];
+					const states: { value: string; handled: boolean }[] = [];
+					for (const inputNumber of [1, 2] as const) {
+						model.toggleConflict(0, inputNumber);
+						states.push({ value: result.getValue(), handled: mergeModel.isHandled(range).get() });
+						for (const operation of ['undo', 'redo', 'undo'] as const) {
+							await result[operation]();
+							await waitForState(mergeModel.isUpToDate, isUpToDate => isUpToDate);
+							states.push({ value: result.getValue(), handled: mergeModel.isHandled(range).get() });
+						}
+					}
+
+					assert.deepStrictEqual(states, [
+						{ value: 'start\nleft\nend', handled: true },
+						{ value: 'start\nbase\nend', handled: false },
+						{ value: 'start\nleft\nend', handled: true },
+						{ value: 'start\nbase\nend', handled: false },
+						{ value: 'start\nright\nend', handled: true },
+						{ value: 'start\nbase\nend', handled: false },
+						{ value: 'start\nright\nend', handled: true },
+						{ value: 'start\nbase\nend', handled: false },
+					]);
+				});
+			});
+		}
+	});
 
 	test('prepend line', async () => {
 		await testMergeModel(
@@ -252,9 +387,12 @@ async function testMergeModel(
 	const modelInterface = disposables.add(
 		new MergeModelInterface(options, createModelServices(disposables))
 	);
-	await modelInterface.mergeModel.onInitialized;
-	await fn(modelInterface);
-	disposables.dispose();
+	try {
+		await modelInterface.mergeModel.onInitialized;
+		await fn(modelInterface);
+	} finally {
+		disposables.dispose();
+	}
 }
 
 interface MergeModelOptions {
@@ -264,6 +402,7 @@ interface MergeModelOptions {
 	base: string;
 	result: string;
 	resetResult?: boolean;
+	diffAlgorithm?: 'legacy' | 'advanced';
 }
 
 function toSmallNumbersDec(value: number): string {
@@ -276,14 +415,14 @@ class MergeModelInterface extends Disposable {
 
 	constructor(options: MergeModelOptions, instantiationService: IInstantiationService) {
 		super();
-		const input1TextModel = this._register(createTextModel(options.input1, options.languageId));
-		const input2TextModel = this._register(createTextModel(options.input2, options.languageId));
-		const baseTextModel = this._register(createTextModel(options.base, options.languageId));
-		const resultTextModel = this._register(createTextModel(options.result, options.languageId));
+		const input1TextModel = this._register(instantiateTextModel(instantiationService, options.input1, options.languageId));
+		const input2TextModel = this._register(instantiateTextModel(instantiationService, options.input2, options.languageId));
+		const baseTextModel = this._register(instantiateTextModel(instantiationService, options.base, options.languageId));
+		const resultTextModel = this._register(instantiateTextModel(instantiationService, options.result, options.languageId));
 
 		const diffComputer: IMergeDiffComputer = {
 			async computeDiff(textModel1: ITextModel, textModel2: ITextModel, reader: IReader): Promise<IMergeDiffComputerResult> {
-				const result = await linesDiffComputers.getLegacy().computeDiff(
+				const result = await (options.diffAlgorithm === 'advanced' ? linesDiffComputers.getDefault() : linesDiffComputers.getLegacy()).computeDiff(
 					textModel1.getLinesContent(),
 					textModel2.getLinesContent(),
 					{ ignoreTrimWhitespace: false, maxComputationTimeMs: 10000, computeMoves: false }
