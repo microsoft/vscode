@@ -43,6 +43,7 @@ suite('ChatViewHostService', () => {
 			startNewLocalSession: async () => { calls.push('startNewLocalSession'); return undefined; },
 			focus: () => { calls.push('focus'); },
 			focusInput: () => { calls.push('focusInput'); },
+			reportOpened: (resource: URI) => { calls.push(`reportOpened ${resource.toString()}`); },
 			beginSessionsListSuppression: () => { calls.push('suppress'); return toDisposable(() => calls.push('unsuppress')); },
 		});
 		const instantiationService = disposables.add(new TestInstantiationService());
@@ -83,7 +84,7 @@ suite('ChatViewHostService', () => {
 			calls: [
 				`openView ${ChatViewId} focus=true`,
 				`openView ${ChatViewId} focus=false`,
-				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'focusInput',
+				`openView ${ChatViewId} focus=true`, 'loadSession test:/session reason=explicitOverride', 'reportOpened test:/session', 'focusInput',
 				`setPartHidden false ${Parts.AUXILIARYBAR_PART}`,
 				`openView ${ChatViewId} focus=undefined`, 'beforeOpen', 'suppress', 'progress', 'loadSession test:/session reason=explicitOverride', 'focus',
 				`openView ${ChatViewId} focus=undefined`, 'loadSession test:/moved reason=undefined',

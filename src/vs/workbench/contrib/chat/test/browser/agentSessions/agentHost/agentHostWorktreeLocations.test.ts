@@ -28,7 +28,7 @@ suite('AgentHostWorktreeLocations', () => {
 	 * A provider over git entries: `true` is a `.git` directory, and a string the content of a file, such as a worktree's
 	 * `.git` file or its entry's `gitdir` file in the repository.
 	 */
-	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[]) {
+	function createProvider(entries: Record<string, string | boolean>, sessions: readonly IAgentSession[], uncached: readonly IAgentSession[] = []) {
 		const fileService = upcastPartial<IFileService>({
 			stat: async (resource: URI) => {
 				const entry = entries[resource.path];
@@ -48,7 +48,9 @@ suite('AgentHostWorktreeLocations', () => {
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ILogService, new NullLogService());
-		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ sessions: [...sessions] }) }));
+		// The sessions it cached, and those the list has only once it resolved
+		const model = { sessions: [...sessions], resolved: !uncached.length, resolve: async () => { model.sessions.push(...uncached); model.resolved = true; } };
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>(model) }));
 		return instantiationService.createInstance(AgentHostWorktreeLocationProvider);
 	}
 
@@ -109,5 +111,11 @@ suite('AgentHostWorktreeLocations', () => {
 			otherRepository: undefined,
 			primary: undefined,
 		});
+	});
+
+	test('waits for the sessions list to resolve before reading the working directories of sessions it did not cache', async () => {
+		const provider = createProvider(repository, [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/feature')], [session(SessionType.AgentHostCopilot, '/work/vscode.worktrees/relative')]);
+		const locations = await provider.provideLocations(URI.file('/work/vscode'), CancellationToken.None);
+		assert.deepStrictEqual(locations.map(location => location.label), ['feature', 'relative']);
 	});
 });
