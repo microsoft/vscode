@@ -9,7 +9,7 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
-import { AuxiliaryBarMaximizedContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, SecondarySideBarVisibleContext } from '../../../common/contextkeys.js';
+import { AuxiliaryBarMaximizedContext, ChatPartEnabledContext, AuxiliaryBarVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContext, SecondarySideBarVisibleContext } from '../../../common/contextkeys.js';
 import { ViewContainerLocation, ViewContainerLocationToString } from '../../../common/views.js';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts } from '../../../services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
@@ -217,7 +217,8 @@ class MaximizeAuxiliaryBar extends Action2 {
 			tooltip: localize('maximizeAuxiliaryBarTooltip', "Maximize Secondary Side Bar"),
 			category: Categories.View,
 			f1: true,
-			precondition: AuxiliaryBarMaximizedContext.negate(),
+			// Maximizing the secondary side bar would take the space of the chat area
+			precondition: ContextKeyExpr.and(AuxiliaryBarMaximizedContext.negate(), ChatPartEnabledContext.negate()),
 		});
 	}
 
@@ -267,6 +268,8 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 			title: localize2('toggleMaximizedAuxiliaryBar', 'Toggle Maximized Secondary Side Bar'),
 			tooltip: localize('maximizeAuxiliaryBarTooltip2', "Maximize Secondary Side Bar"),
 			f1: true,
+			// With a chat area it only restores a maximized secondary side bar
+			precondition: ContextKeyExpr.or(ChatPartEnabledContext.negate(), AuxiliaryBarMaximizedContext),
 			category: Categories.View,
 			icon: maximizeIcon,
 			toggled: {
@@ -277,6 +280,7 @@ class ToggleMaximizedAuxiliaryBar extends Action2 {
 				id: MenuId.AuxiliaryBarTitle,
 				group: 'navigation',
 				order: 1,
+				when: ContextKeyExpr.or(ChatPartEnabledContext.negate(), AuxiliaryBarMaximizedContext)
 			}
 		});
 	}
