@@ -40,6 +40,32 @@ import { ISessionActivityBarActivityService, SessionActivityBarActivityService }
 import { IDiffEditorOptionsService } from '../../../../services/editor/common/diffEditorOptionsService.js';
 import { DiffEditorOptionsService } from '../../../../services/editor/browser/diffEditorOptionsService.js';
 import { EditorWindowSessionsHostLayout } from './editorWindowSessionsHostLayout.js';
+import { IFocusedSessionHostService, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
+import { GitHubService, IGitHubService } from '../github/githubService.js';
+import '../sessionAttentionService.js';
+import { FocusedSessionHostService, SessionHostService } from '../sessionHostService.js';
+import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
+import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
+import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
+import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
+import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
+import { NullChatWindowService } from '../../../chatWindow/browser/nullChatWindowService.js';
+import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
+import { IChatViewFactory } from '../chatViewFactory.js';
+import { DefaultChatViewFactory } from '../chat/defaultChatViewFactory.js';
+import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../chat/newChatVoice.js';
+import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../chat/sessionChatInputToolbarDebug.js';
+import { ISessionArchiveNudgeService, SessionArchiveNudgeService } from '../chat/sessionArchiveNudge.js';
+import { IWorktreeSuggestionService, WorktreeSuggestionService } from '../worktreeSuggestion/worktreeSuggestionService.js';
+import { ISessionChangesService, SessionChangesService } from '../../../sessionChanges/browser/sessionChangesService.js';
+import { ChangesViewService } from '../../../sessionChanges/browser/changesViewService.js';
+import { IChangesViewService } from '../../common/changesViewService.js';
+import { ISessionsService } from '../sessionsService.js';
+import { ISessionsNavigationService } from '../sessionsNavigationService.js';
+import { EditorWindowSessionsService } from '../agentsView/editorWindowSessionsService.js';
+import { EditorWindowSessionsNavigationHost } from '../agentsView/editorWindowSessionsNavigationHost.js';
+import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenterService } from './editorWindowSessionsPresenter.js';
+import { EditorWindowSessionsRuntime, IEditorWindowSessionsRuntime } from './editorWindowSessionsRuntime.js';
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
@@ -70,3 +96,31 @@ registerSingleton(ISessionsChatBackgroundService, SessionsChatBackgroundService,
 registerSingleton(INewSessionComposerService, NewSessionComposerService, InstantiationType.Delayed);
 registerSingleton(ISessionActivityBarActivityService, SessionActivityBarActivityService, InstantiationType.Delayed);
 registerSingleton(IDiffEditorOptionsService, DiffEditorOptionsService, InstantiationType.Delayed);
+
+// The sessions UI that a feature hosts in an editor window, such as a sessions list or the chat part: its hosts, its
+// composers' drafts and scheduled requests, and the changes of its sessions, as the Agents window has them
+registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);
+registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
+registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
+registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
+registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService, InstantiationType.Delayed);
+registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
+registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);
+// Editor windows open no separate chat windows: the chats' input toolbars, which inject it, find none
+registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
+// Not delayed: hosts are compared by identity, which a delayed proxy would not keep. It does nothing until a feature binds what it shows
+registerSingleton(ISessionHost, EditorWindowMainSessionHost, InstantiationType.Eager);
+// As the Agents window's, so that its chats show over the chat background the user picked
+registerSingleton(IChatViewFactory, DefaultChatViewFactory, InstantiationType.Delayed);
+registerSingleton(INewChatVoiceTargetService, NewChatVoiceTargetService, InstantiationType.Delayed);
+registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, InstantiationType.Delayed);
+registerSingleton(ISessionArchiveNudgeService, SessionArchiveNudgeService, InstantiationType.Delayed);
+registerSingleton(IWorktreeSuggestionService, WorktreeSuggestionService, InstantiationType.Delayed);
+registerSingleton(ISessionChangesService, SessionChangesService, InstantiationType.Delayed);
+registerSingleton(IChangesViewService, ChangesViewService, InstantiationType.Delayed);
+// Its sessions and their chats, which its presenter shows: the chat part, while a feature shows them there, or the Chat view
+registerSingleton(ISessionsService, EditorWindowSessionsService, InstantiationType.Delayed);
+registerSingleton(ISessionsNavigationService, EditorWindowSessionsNavigationHost, InstantiationType.Delayed);
+registerSingleton(IEditorWindowSessionsPresenterService, EditorWindowSessionsPresenterService, InstantiationType.Delayed);
+// Holds the sessions providers for the features that enable it, while what they show shows
+registerSingleton(IEditorWindowSessionsRuntime, EditorWindowSessionsRuntime, InstantiationType.Delayed);
