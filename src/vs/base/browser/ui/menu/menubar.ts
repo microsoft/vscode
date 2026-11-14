@@ -451,6 +451,9 @@ export class MenuBar extends Disposable {
 		this.overflowMenu.titleElement.remove();
 		this.overflowMenu.buttonElement.remove();
 
+		// The container belongs to the host and can be reused, so do not leave it marked as open
+		this.container.classList.remove('menu-open');
+
 		dispose(this.overflowLayoutScheduled);
 		this.overflowLayoutScheduled = undefined;
 	}
@@ -989,6 +992,8 @@ export class MenuBar extends Disposable {
 	}
 
 	private cleanupCustomMenu(): void {
+		this.container.classList.remove('menu-open');
+
 		if (this.focusedMenu) {
 			// Remove focus from the menus first
 			if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
@@ -1021,6 +1026,7 @@ export class MenuBar extends Disposable {
 		const menuHolder = $('div.menubar-menu-items-holder.monaco-menu-container', { 'title': '' });
 
 		customMenu.buttonElement.classList.add('open');
+		this.container.classList.add('menu-open');
 
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
 		const containerBoundingRect = this.container.getBoundingClientRect();
