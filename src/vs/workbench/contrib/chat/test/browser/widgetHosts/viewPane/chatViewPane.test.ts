@@ -130,11 +130,12 @@ suite('ChatViewPane sessions refresh', () => {
 	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat', () => {
 		const calls: string[] = [];
 		const composer = { newChat: () => calls.push('newChat'), focus: () => calls.push('focus') };
-		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: { providedComposer: typeof composer | undefined; composerShown: boolean }) => boolean;
+		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: { providedComposer: typeof composer | undefined; composerShown: boolean; loadSessionCts: { value: undefined } }) => boolean;
+		const loadSessionCts = { value: undefined };
 		const results = {
-			shown: newChat.call({ providedComposer: composer, composerShown: true }),
-			hidden: newChat.call({ providedComposer: composer, composerShown: false }),
-			withoutComposer: newChat.call({ providedComposer: undefined, composerShown: false }),
+			shown: newChat.call({ providedComposer: composer, composerShown: true, loadSessionCts }),
+			hidden: newChat.call({ providedComposer: composer, composerShown: false, loadSessionCts }),
+			withoutComposer: newChat.call({ providedComposer: undefined, composerShown: false, loadSessionCts }),
 		};
 		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['newChat', 'focus', 'newChat'] });
 	});
@@ -478,6 +479,29 @@ suite('ChatViewPane session transitions', () => {
 			input: 'New draft typed while loading', bindings: [nextResource],
 		});
 	});
+
+	test('New Chat of the composer that a slow load shows, as it cleared the chat, supersedes the load', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const rig = createPane();
+		const acquiring = new DeferredPromise<IChatModelReference>();
+		const composerCalls: string[] = [];
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: () => acquiring.p },
+			providedComposer: { newChat: () => composerCalls.push('newChat'), focus: () => composerCalls.push('focus') },
+		});
+		const loading = rig.pane.loadSession(nextResource.with({ path: '/saved' }));
+		await timeout(150);
+		// The cleared chat is a new chat: the composer shows in its place
+		Object.assign(rig.pane, { composerShown: true });
+		const taken = (Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object) => boolean).call(rig.pane);
+		await acquiring.complete(rig.nextRef);
+		await loading;
+		assert.deepStrictEqual({ taken, composerCalls, bindings: rig.bindings, disposed: rig.disposed }, {
+			taken: true,
+			composerCalls: ['newChat', 'focus'],
+			bindings: [undefined],
+			disposed: [previousResource, nextResource],
+		});
+	}));
 
 	for (const untitled of [true, false]) {
 		test(`${untitled ? 'new chats stay bound' : 'saved chats still clear'} while a slow load is pending`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
