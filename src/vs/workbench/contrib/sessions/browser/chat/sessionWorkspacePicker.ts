@@ -99,6 +99,15 @@ export const WORKSPACE_PICKER_LIST_OPTIONS = {
 } as const satisfies IActionListOptions;
 
 /**
+ * How the rows of a picker restricted to a window's folders are laid out: as the Agents window's isolation picker lays out
+ * its choices, by the action list's own icons, which its details align with.
+ */
+export const RESTRICTED_WORKSPACE_PICKER_LIST_OPTIONS = {
+	...WORKSPACE_PICKER_LIST_OPTIONS,
+	className: `${WORKSPACE_PICKER_LIST_OPTIONS.className} sessions-restricted-workspace-picker-list`,
+} as const satisfies IActionListOptions;
+
+/**
  * Grace period for a restored remote workspace's provider to reach Connected
  * before we fall back to no selection. SSH tunnels typically connect within
  * a couple seconds; if it hasn't connected by then, we'd rather show no
@@ -970,12 +979,13 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _buildListOptions(items: readonly IActionListItem<IWorkspacePickerItem>[], pickerWidth: number | undefined): IActionListOptions {
+		const options = this._getAllowedFolders() ? RESTRICTED_WORKSPACE_PICKER_LIST_OPTIONS : WORKSPACE_PICKER_LIST_OPTIONS;
 		const isConsolidatedWorkspacePicker = this._directPickerAttachesContext !== true;
 		const showFilter = isConsolidatedWorkspacePicker
 			|| items.filter(i => i.kind === ActionListItemKind.Action).length > FILTER_THRESHOLD;
 		return showFilter
 			? {
-				...WORKSPACE_PICKER_LIST_OPTIONS,
+				...options,
 				showFilter: true,
 				focusFilterOnOpen: isConsolidatedWorkspacePicker,
 				filterPlaceholder: isConsolidatedWorkspacePicker ? localize('workspacePicker.filter', "Search") : undefined,
@@ -988,7 +998,7 @@ export class WorkspacePicker extends Disposable {
 					this._refreshPickerItems();
 				},
 			}
-			: { ...WORKSPACE_PICKER_LIST_OPTIONS, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth };
+			: { ...options, submenuHoverDelay: isConsolidatedWorkspacePicker ? 0 : undefined, minWidth: pickerWidth, maxWidth: pickerWidth };
 	}
 
 	/**
