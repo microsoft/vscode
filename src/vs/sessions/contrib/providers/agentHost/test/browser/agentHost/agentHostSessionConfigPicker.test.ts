@@ -70,6 +70,7 @@ import { NullWorktreeSuggestionService, TestWorktreeSuggestionService } from '..
 import { WorktreeSuggestionVariant } from '../../../../../../../workbench/contrib/sessions/common/worktreeSuggestion.js';
 import '../../../../../../../workbench/contrib/sessions/browser/chat/media/chatWidget.css';
 // The actions and menu items of the pickers, which the tests of their placement read, as the workbench registers them
+import { EditorWindowAgentHostSessionConfigPickerContribution } from '../../../../../../../workbench/contrib/sessions/providers/agentsView/browser/agentsViewComposerControls.js';
 import '../../../browser/agentHostSessionConfigPicker.contribution.js';
 import { InSessionHostScopeContext, ISessionHost, ISessionHostService } from '../../../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ITestSessionWithChat, testChatSourceOf, testGridPanes } from '../../../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
@@ -747,6 +748,29 @@ suite('Agent Host Session Config Picker', () => {
 			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
 			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
 		assert.deepStrictEqual(localEntries, entries);
+	});
+
+	test('the editor window contribution leaves the isolation control out of the new session composer', () => {
+		const services = setupServices(store);
+		services.instantiationService.stub(IActionViewItemService, new class extends mock<IActionViewItemService>() {
+			override readonly onDidChange = Event.None;
+			override register() { return toDisposable(() => { }); }
+		}());
+		services.instantiationService.stub(IWorkbenchLayoutService, new class extends mock<IWorkbenchLayoutService>() {
+			override readonly mainContainer = document.createElement('div');
+		}());
+		services.instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly gridShown = constObservable([services.activeSession]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		}());
+		store.add(services.instantiationService.createInstance(EditorWindowAgentHostSessionConfigPickerContribution));
+
+		const entries = MenuRegistry.getMenuItems(Menus.NewSessionRepositoryConfig)
+			.filter(isIMenuItem)
+			.filter(item => item.command.id.startsWith('sessions.agentHost.sessionConfigPicker.'))
+			.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value);
+
+		assert.deepStrictEqual(entries, ['Base Branch']);
 	});
 
 	test('repository pickers keep their menu action so the composer can identify them', async () => {

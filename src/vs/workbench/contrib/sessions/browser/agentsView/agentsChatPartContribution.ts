@@ -22,9 +22,11 @@ import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../..
 import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
+import { registerSessionsListConfiguration } from '../sessionsConfiguration.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
+import { AgentsChatPartChangesEditorHeader } from './agentsChatPartChangesEditorHeader.js';
 
 /** How a feature shows chats in the chat part of an editor window (see {@link IEditorWindowChatPartService.enable}). */
 export interface IEditorWindowChatPartOptions {
@@ -144,13 +146,17 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			closeIdleComposers: async () => existing()?.closeIdleComposers(),
 		}));
 
+		// The picker of its changesets, in the header row it shows itself in an editor window
+		store.add(this._instantiationService.createInstance(AgentsChatPartChangesEditorHeader));
+
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.
 		store.add(autorun(reader => {
 			if (!this.enabled.read(reader)) {
 				return;
 			}
-			// Its actions, such as to close it, only while chats open in it
+			// Its actions, such as to close it, and the setting that its header sets, only while chats open in it
+			reader.store.add(registerSessionsListConfiguration());
 			reader.store.add(registerAgentsChatPartActions());
 			const host = this._instantiationService.createInstance(AgentsChatViewHost, this._ownsNewChat);
 			reader.store.add(this._chatViewHostService.registerHost(host));

@@ -10,6 +10,8 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { SESSIONS_CHAT_TABS_SETTING } from '../../../common/sessionConfig.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID } from '../../../../../common/chatSessionCommands.js';
@@ -20,7 +22,7 @@ import { MarkAgentSessionReadAction, MarkAgentSessionUnreadAction } from '../../
 import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
@@ -101,6 +103,63 @@ suite('Agents chat part actions', () => {
 				commandPalette: 'agentHostEnabled && chatIsEnabled',
 			},
 			keybindings: 0,
+		});
+	});
+
+	test('the header of a chat in the chat part offers how it shows its chats, Multiple or Single, only with AI features enabled', async () => {
+		store.add(registerAgentsChatPartActions());
+		const submenuWhen = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).find(item => !isIMenuItem(item) && item.submenu === AgentsChatPartChatTabsMenu)?.when?.serialize();
+
+		assert.deepStrictEqual({
+			submenuWhen,
+			choices: MenuRegistry.getMenuItems(AgentsChatPartChatTabsMenu).filter(isIMenuItem).map(item => [item.command.id, item.command.precondition?.serialize()]),
+		}, {
+			submenuWhen: 'chatIsEnabled && inAgentsChatPart',
+			choices: [['workbench.action.agentsView.showMultipleChatTabs', 'chatIsEnabled'], ['workbench.action.agentsView.showSingleChat', 'chatIsEnabled']],
+		});
+	});
+
+	test('choosing Multiple or Single in the chat part sets sessions.showChatTabs', async () => {
+		store.add(registerAgentsChatPartActions());
+		const updates: [string, unknown][] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, upcastPartial<IConfigurationService>({
+			updateValue: async (key: string, value: unknown) => { updates.push([key, value]); },
+		}));
+		const choose = async (id: string) => {
+			await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(id)!.handler(accessor));
+			return updates[updates.length - 1];
+		};
+
+		assert.deepStrictEqual(
+			[await choose('workbench.action.agentsView.showMultipleChatTabs'), await choose('workbench.action.agentsView.showSingleChat')],
+			[[SESSIONS_CHAT_TABS_SETTING, 'multiple'], [SESSIONS_CHAT_TABS_SETTING, 'single']]);
+	});
+
+	test('the context menu of a session offers its customizations, with AI features enabled, for a single session, which it names', async () => {
+		store.add(registerAgentsViewNewSessionActions());
+		const id = 'workbench.action.agentsView.openSessionCustomizations';
+		const item = MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).find(candidate => candidate.command.id === id);
+		const calls: string[] = [];
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (command: string, arg: { sessionResource: URI }) => { calls.push(`${command} ${arg.sessionResource.toString()}`); } }));
+		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/one') });
+		const handler = CommandsRegistry.getCommand(id)!.handler;
+		await instantiationService.invokeFunction(accessor => handler(accessor, session));
+		const several = await instantiationService.invokeFunction(accessor => Promise.resolve(handler(accessor, [session, session])).then(() => 'opened', () => 'rejected'));
+
+		assert.deepStrictEqual({
+			when: item?.when?.serialize(),
+			precondition: item?.command.precondition?.serialize(),
+			agentsWindowAction: item?.command.id === 'sessionsViewPane.openCustomizations',
+			calls,
+			several,
+		}, {
+			when: 'chatIsEnabled',
+			precondition: 'chatIsEnabled && !sessionItem.isMultiSelection',
+			agentsWindowAction: false,
+			calls: ['aiCustomization.openManagementEditor agent-host-copilot:/one'],
+			several: 'rejected',
 		});
 	});
 

@@ -49,7 +49,7 @@ Archived
 - Pinned sessions appear in the pinned section.
 - A valid custom-group membership places an unpinned, unarchived session in that group, including a quick chat. A session belongs to at most one group at any nesting depth.
 - When dedicated external sectioning is enabled, remaining external sessions appear together before the archived section. Pinning and custom-group membership retain their precedence; disabling sectioning returns external sessions to the ordinary grouping rules without changing that presentation state.
-- Under workspace or repository grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace.
+- Under workspace, repository or worktree grouping, remaining unpinned quick chats appear in the dedicated chats section. Under date or environment grouping there is no chats section; quick chats follow that grouping like other sessions, and so do comparison groups without a workspace. A host can ask (the `quickChatsInTimeGrouping` option, as the editor window's Agents viewlet does) for date grouping to keep the chats section too: quick chats and comparison groups without a workspace are then listed there flat, in the selected order, and the date sections hold only the other sessions.
 - Remaining sessions follow the selected workspace, repository, environment, or date grouping.
 - A regular session created by another regular session is initially placed
   immediately after its creator. While it has neither custom-group membership
@@ -86,7 +86,7 @@ Environment grouping uses the provider-neutral environment identity, combining s
 
 ### Worktree grouping
 
-Worktree grouping is offered only by a host that asks for it (the editor window's Agents viewlet, through `allowWorktreeGrouping`); a view that does not offer it, such as the Agents window's, keeps its default. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
+A host chooses the groupings its view offers and the one it shows by default (the `groupings` option of the Sessions view): the Agents window offers all but worktree, the editor window's Agents viewlet only date (Time, its default), environment and worktree. The Grouping menu shows only the offered groupings, and a stored grouping the view does not offer shows its default without rewriting what is stored. Worktree grouping is therefore offered only by the editor window's Agents viewlet. It places each session by the local folder its main chat works in, as the provider reports it: the main checkouts first, then the worktrees, each by their latest activity, then an "Other" section for sessions without a local folder. Sections are identified by the folder URI, named by the folder and the branch the provider reports, and show the full path on hover. They otherwise follow workspace sections' ordering, nesting and capping rules.
 
 ### Inbox grouping
 

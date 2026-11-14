@@ -108,6 +108,8 @@ const $ = dom.$;
 
 const RUN_SESSION_CODE_REVIEW_ACTION_ID = 'sessions.codeReview.run';
 export const VERSIONS_PICKER_ACTION_ID = 'chatEditing.versionsPicker';
+/** The title of the Changes picker, which it shows while there are no changesets to pick from. */
+export const VERSIONS_PICKER_TITLE = localize2('chatEditing.versionsPicker', 'Versions');
 const desktopChangesEditorHeader = ContextKeyExpr.and(
 	DesktopLayoutContext,
 	ContextKeyExpr.or(ActiveEditorContext.isEqualTo(SessionChangesEditorInput.EDITOR_ID), DesktopChangesEditorTransitionContext)
@@ -2185,7 +2187,7 @@ export class VersionsPickerAction extends Action2 {
 	constructor() {
 		super({
 			id: VersionsPickerAction.ID,
-			title: localize2('chatEditing.versionsPicker', 'Versions'),
+			title: VERSIONS_PICKER_TITLE,
 			category: CHAT_CATEGORY,
 			icon: Codicon.listFilter,
 			f1: false,
@@ -2477,6 +2479,14 @@ export class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem 
 				return '';
 		}
 	}
+}
+
+/** A Changes picker of the changes of `scope`, with a summary and label of its own, which it disposes. */
+export function createScopedChangesPickerActionItem(instantiationService: IInstantiationService, action: MenuItemAction, scope: IChangesSessionScope): ChangesPickerActionItem {
+	const summary = instantiationService.createInstance(ChangesPickerSummary, scope.changes.changesSummaryObs);
+	const item = instantiationService.createInstance(ChangesPickerActionItem, action, summary, createChangesPickerLabelObservable(summary, scope.changes), scope);
+	item.own(summary);
+	return item;
 }
 
 function getChangesSummaryFilesLabel(files: number): string {

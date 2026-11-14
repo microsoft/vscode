@@ -60,7 +60,7 @@ const CORE_SERVICES = new Set([
 	'managedSettingsService', 'menuService', 'modelService', 'notificationService', 'onboardingScenarioService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
 	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'sessionChatPillVisibilityService', 'speechService', 'storageService', 'telemetryService', 'textModelService',
 	'themeService', 'uriIdentityService', 'viewDescriptorService', 'viewsService', 'voiceClientService', 'workingCopyService',
-	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
+	'jsonEditingService', 'markerService', 'terminalService', 'textResourceConfigurationService', 'workspaceContextService', 'workspaceEditingService', 'workspaceFolderLocationService', 'workspacesService', 'workspaceTrustEnablementService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
 ]);
 
 suite('Editor window sessions services', () => {

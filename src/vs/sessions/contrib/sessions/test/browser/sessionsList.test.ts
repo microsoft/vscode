@@ -956,6 +956,32 @@ suite('Sessions - SessionsList', () => {
 			});
 		});
 
+		test('mounts Find in the container of its options rather than in the overlay of the tree', async () => {
+			const harness = createListHarness(disposables, []);
+			const container = harness.createContainer();
+			const findWidgetContainer = mainWindow.document.createElement('div');
+			const listContainer = mainWindow.document.createElement('div');
+			container.append(findWidgetContainer, listContainer);
+			const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, listContainer, {
+				grouping: () => SessionsGrouping.Date,
+				sorting: () => SessionsSorting.Created,
+				findWidgetContainer,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+			const treeElement = listContainer.querySelector('.monaco-list')?.parentElement;
+			const inTreeBefore = treeElement?.querySelectorAll('.monaco-findInput').length;
+			list.openFind();
+			const found = {
+				inContainer: findWidgetContainer.querySelectorAll('.monaco-findInput').length,
+				inTree: listContainer.querySelectorAll('.monaco-findInput').length,
+				inTreeBefore,
+			};
+			list.closeFind();
+			await timeout(350);
+			assert.deepStrictEqual(found, { inContainer: 1, inTree: 0, inTreeBefore: 0 });
+		});
+
 		test('moves Customizations without moving other navigation shortcuts', () => {
 			const harness = createListHarness(disposables, []);
 			const container = harness.createContainer();
@@ -4296,6 +4322,36 @@ suite('Sessions - SessionsList', () => {
 			assert.deepStrictEqual({ two: render(2), three: render(3) }, {
 				two: { sessions: 2, showMore: [] },
 				three: { sessions: 1, showMore: ['+2 more workspaces'] },
+			});
+		});
+
+		const hoursAgo = (hours: number) => new Date(Date.now() - hours * 3_600_000);
+
+		test('grouping by time lists the sessions without a workspace flat in the Chats section, newest first, for a list that asks for it; the time sections keep the others', () => {
+			const harness = createListHarness(disposables, [
+				createTestSession('old chat', { isQuickChat: true, createdAt: hoursAgo(24 * 30) }).session,
+				createTestSession('new chat', { isQuickChat: true, createdAt: hoursAgo(1) }).session,
+				createTestSession('new session', { workspaceLabel: 'vscode', createdAt: hoursAgo(2) }).session,
+				createTestSession('old session', { workspaceLabel: 'vscode', createdAt: hoursAgo(24 * 31) }).session,
+			]);
+			harness.instantiationService.get(IStorageService).store('sessionsListControl.sectionCollapseState', JSON.stringify({ [QUICK_CHATS_SECTION_ID]: false, older: false }), StorageScope.PROFILE, StorageTarget.USER);
+			const render = (quickChatsInTimeGrouping: boolean | undefined) => {
+				const container = harness.createContainer(400, 1400);
+				const list = harness.store.add(harness.instantiationService.createInstance(SessionsList, container, {
+					grouping: () => SessionsGrouping.Date,
+					sorting: () => SessionsSorting.Created,
+					quickChatsInTimeGrouping,
+					onSessionOpen: () => { },
+				}));
+				list.layout(1400, 400);
+				return [...container.querySelectorAll<HTMLElement>('.monaco-list-row')]
+					.sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top))
+					.map(row => row.querySelector('.session-section-label')?.textContent ?? `  ${row.querySelector('.session-title')?.textContent}`);
+			};
+
+			assert.deepStrictEqual({ agentsWindow: render(undefined), editorWindow: render(true) }, {
+				agentsWindow: ['Recent', '  new chat', '  new session', 'Older', '  old chat', '  old session'],
+				editorWindow: ['Chats', '  new chat', '  old chat', 'Recent', '  new session', 'Older', '  old session'],
 			});
 		});
 
@@ -9736,6 +9792,78 @@ suite('Sessions - SessionsList', () => {
 			}, {
 				sections: [{ id: 'recent', count: 10, comparisons: 2 }, { id: 'older', count: 5, comparisons: 0 }],
 				accepted: false, overrides: 0,
+			});
+		});
+
+		/**
+		 * Time grouping with the Chats section, as the editor window's: two comparisons and a session with a workspace, in
+		 * Recent, below newer comparisons without a workspace and a quick chat, in Chats; 15 of these fill Recent's limit.
+		 */
+		function renderChatsAndRecentComparisons(chatComparisons = 15) {
+			const now = Date.now();
+			const attempt = (id: string, createdAt: number, isQuickChat: boolean) => createTestSession(id, { resourceId: id, createdAt: new Date(createdAt), isQuickChat, ...(isQuickChat ? {} : { repository: 'owner/repo' }) }).session;
+			const comparison = (id: string, session: ISession, workspace: boolean): ISessionComparison => ({
+				id, groupId: id, title: id, createdAt: session.createdAt.getTime(), prompt: 'Compare',
+				...(workspace ? { workspace: URI.file('/workspace') } : {}),
+				participants: [{ id: `${id}-attempt`, role: SessionComparisonParticipantRole.Attempt, harness: { providerId: 'test', sessionTypeId: 'copilot', label: 'Copilot' }, sessionResource: session.resource }],
+			});
+			const chatAttempts = Array.from({ length: chatComparisons }, (_, index) => attempt(`chat-${index}`, now - 100 - index, true));
+			const recentAttempts = [attempt('first', now - 3000, false), attempt('second', now - 1000, false)];
+			const comparisons = [
+				...chatAttempts.map((session, index) => comparison(`Chat ${index}`, session, false)),
+				comparison('First', recentAttempts[0], true),
+				comparison('Second', recentAttempts[1], true),
+			];
+			const harness = createListHarness(disposables, [...chatAttempts, ...recentAttempts, attempt('loose-chat', now - 500, true), attempt('older-chat', now - 600, true), attempt('newest', now - 900, false), attempt('ordinary', now - 2000, false)], {
+				groups: comparisons.map(comparison => ({ id: comparison.groupId, name: comparison.title, createdAt: comparison.createdAt })),
+				memberships: new Map([...chatAttempts, ...recentAttempts].map((session, index) => [session.sessionId, comparisons[index].groupId] as const)),
+				comparisons, liveListModel: true, liveGroups: true,
+			});
+			const container = harness.createContainer(400, 4000);
+			const list = harness.store.add(harness.instantiationService.createInstance(TestSessionsList, container, {
+				grouping: () => SessionsGrouping.Date, sorting: () => SessionsSorting.Created, quickChatsInTimeGrouping: true, onSessionOpen: () => { },
+			}));
+			list.setWorkspaceGroupCapped(false);
+			list.layout(4000, 400);
+			list.setHeaderCollapsed(QUICK_CHATS_SECTION_ID, false);
+			const order = (sectionId: string) => list.getTreeSnapshot().flatMap(node => node.type !== 'session' && node.id === sectionId
+				? node.children.map(child => child.type === 'session' ? child.session.sessionId : child.label) : []);
+			return { harness, list, order, now };
+		}
+
+		test('grouping by time with the Chats section, a session drags among the neighbours of its own section only: a quick chat among the comparisons in Chats, a session at the top of Recent above them all', () => {
+			const { list, order, harness, now } = renderChatsAndRecentComparisons(2);
+			const withinChats = dragComparison(list.getItemRow({ session: URI.parse('test-session://older-chat') })!, list.getItemRow({ session: URI.parse('test-session://loose-chat') })!, 'before');
+			const topOfRecent = dragComparison(list.getItemRow({ session: URI.parse('test-session://ordinary') })!, list.getItemRow({ session: URI.parse('test-session://newest') })!, 'before');
+			// With no neighbour above, at the top of Recent, the key is the time of the drop, not one between a Chats comparison and the first of Recent
+			const ordinaryKey = harness.sortChanges.at(-1)?.set.get('ordinary');
+			assert.deepStrictEqual({ withinChats, chats: order(QUICK_CHATS_SECTION_ID), topOfRecent, recent: order('recent'), aboveChatsComparisons: ordinaryKey !== undefined && ordinaryKey > now - 100 }, {
+				withinChats: true,
+				chats: ['Chat 0', 'Chat 1', 'older-chat', 'loose-chat'],
+				topOfRecent: true,
+				recent: ['ordinary', 'newest', 'Second', 'First'],
+				aboveChatsComparisons: true,
+			});
+		});
+
+		test('grouping by time with the Chats section, the comparisons in Chats do not count toward Recent\'s limit, so a drop within Recent is accepted', () => {
+			const { list, order } = renderChatsAndRecentComparisons();
+			const accepted = dragComparison(list.getItemRow({ group: 'First' })!, list.getItemRow({ session: URI.parse('test-session://ordinary') })!, 'before');
+			assert.deepStrictEqual({ accepted, recent: order('recent'), older: order('older') }, {
+				accepted: true,
+				recent: ['newest', 'Second', 'First', 'ordinary'],
+				older: [],
+			});
+		});
+
+		test('grouping by time with the Chats section, a comparison in Chats does not drop among the sessions of Recent, nor one of Recent in Chats', () => {
+			const { list, order, harness } = renderChatsAndRecentComparisons(2);
+			const intoRecent = dragComparison(list.getItemRow({ group: 'Chat 0' })!, list.getItemRow({ session: URI.parse('test-session://ordinary') })!, 'before');
+			const intoChats = dragComparison(list.getItemRow({ group: 'First' })!, list.getItemRow({ session: URI.parse('test-session://loose-chat') })!, 'before');
+			assert.deepStrictEqual({ intoRecent, intoChats, recent: order('recent'), overrides: harness.sortChanges.length }, {
+				intoRecent: false, intoChats: false,
+				recent: ['newest', 'Second', 'ordinary', 'First'],
+				overrides: 0,
 			});
 		});
 

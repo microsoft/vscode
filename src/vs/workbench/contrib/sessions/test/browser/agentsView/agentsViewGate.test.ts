@@ -106,6 +106,8 @@ suite('AgentsViewGate', () => {
 		}));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
 		contextKeyService = new MockContextKeyService();
+		// The Chat view is hidden only where the Sessions view can replace it
+		contextKeyService.contextMatchesRules = () => true;
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
 			getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [],

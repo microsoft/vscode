@@ -80,7 +80,7 @@ import { ISessionChatItem, SessionChatItemCanDeleteContext, SessionChatItemCanMo
 import { SessionsView, SessionsViewGroupingContext, SessionsViewId } from '../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import './media/newSessionActionViewItem.css';
 import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { registerSessionChatTabsActions } from '../../../../workbench/contrib/sessions/browser/sessionChatTabsActions.js';
 import { Direction } from '../../../../base/browser/ui/grid/grid.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ChatMoveSettingId } from '../../../../platform/agentHost/common/agentHostChatMove.js';
@@ -2115,52 +2115,12 @@ for (const menu of SessionHeaderMenus) {
 			SessionActiveChatHasSideChatsContext,
 		),
 	});
-
-	MenuRegistry.appendMenuItem(menu, {
-		submenu: Menus.SessionChatTabs,
-		title: localize2('chatCompositeBar.showChatTabs', "Show Chat Tabs"),
-		group: 'secondary/0_pane',
-		order: 50,
-		when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
-	});
 }
 
-registerAction2(class ShowMultipleChatTabsAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.action.showMultipleChatTabs',
-			title: localize2('showMultipleChatTabs', "Multiple"),
-			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Multiple),
-			menu: {
-				id: Menus.SessionChatTabs,
-				group: '1_presentation',
-				order: 10,
-			},
-		});
-	}
-
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IConfigurationService).updateValue(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Multiple);
-	}
-});
-
-registerAction2(class ShowSingleChatAction extends Action2 {
-	constructor() {
-		super({
-			id: 'sessions.action.showSingleChat',
-			title: localize2('showSingleChat', "Single"),
-			toggled: ContextKeyExpr.equals(`config.${SESSIONS_CHAT_TABS_SETTING}`, SessionsChatTabsMode.Single),
-			menu: {
-				id: Menus.SessionChatTabs,
-				group: '1_presentation',
-				order: 20,
-			},
-		});
-	}
-
-	override run(accessor: ServicesAccessor): Promise<void> {
-		return accessor.get(IConfigurationService).updateValue(SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode.Single);
-	}
+registerSessionChatTabsActions({
+	idPrefix: 'sessions.action',
+	submenu: Menus.SessionChatTabs,
+	when: ContextKeyExpr.and(SessionIsCreatedContext, SessionSupportsMultipleChatsContext),
 });
 
 registerAction2(class TogglePinSessionAction extends Action2 {

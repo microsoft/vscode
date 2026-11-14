@@ -45,6 +45,12 @@ export interface ISessionsHostLayoutService {
 	isEditorPartAutoVisibilitySuppressed(): boolean;
 
 	/**
+	 * Whether session editors, such as the Changes editor, show their own header row because the editor groups of the
+	 * host have no sessions header row to host theirs, as those of an editor window. Hosts that have one leave it unset.
+	 */
+	readonly sessionEditorsShowOwnHeader?: boolean;
+
+	/**
 	 * The docked side pane (editor area and auxiliary bar shown beside the
 	 * session) of hosts that have one, or `undefined` for hosts without it.
 	 */

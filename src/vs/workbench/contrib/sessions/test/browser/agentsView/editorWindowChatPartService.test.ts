@@ -13,6 +13,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { registerSessionsListConfiguration } from '../../../browser/sessionsConfiguration.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
@@ -122,6 +125,23 @@ suite('EditorWindowChatPartService', () => {
 			'unregister host', 'deactivate host', 'unregister presenter',
 			'anchor undefined', 'release providers', 'unregister composer holder',
 		]);
+	});
+
+	test('registers the setting that its header sets while chats open in it, alone or with the sessions list, which registers it too', () => {
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const registered = () => registry.getConfigurations().some(node => node.id === 'sessionsList');
+		const { service } = createService({ visible: false });
+		const steps = [registered()];
+
+		const chatPart = service.enable({ anchorViewId: 'chat', anchorPriority: 1, enabled: constObservable(true) });
+		steps.push(registered());
+		const list = registerSessionsListConfiguration();
+		chatPart.dispose();
+		steps.push(registered());
+		list.dispose();
+		steps.push(registered());
+
+		assert.deepStrictEqual(steps, [false, true, true, false]);
 	});
 
 	test('a feature that enables it twice with the same options keeps it until it disposes both', async () => {

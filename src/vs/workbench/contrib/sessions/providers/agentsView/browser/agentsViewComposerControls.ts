@@ -11,6 +11,24 @@ import { AgentHostAgentPickerContribution, registerAgentHostAgentPickerActions }
 import { AgentHostSessionConfigPickerContribution, registerAgentHostSessionConfigPickerActions } from '../../agentHost/browser/agentHostSessionConfigPicker.js';
 import { CopilotPickerActionViewItemContribution, registerCopilotSandboxPickerActions } from '../../copilotChatSessions/browser/copilotSandboxPickers.js';
 
+/** The agent host's pickers as an editor window's chat part has them: without the isolation picker of a new session, whose workspace picker offers New Worktree instead. */
+export class EditorWindowAgentHostSessionConfigPickerContribution extends AgentHostSessionConfigPickerContribution {
+	protected override showsRepositoryProperty(isIsolation: boolean, isNewSession: boolean): boolean {
+		return !(isIsolation && isNewSession);
+	}
+}
+
+/** Instantiates the contributions of the composer controls of an editor window's chat part, until the returned disposable is disposed. */
+export function createAgentsViewComposerContributions(instantiationService: IInstantiationService): IDisposable {
+	const store = new DisposableStore();
+	store.add(instantiationService.createInstance(SharedChatInputComposerContribution));
+	store.add(instantiationService.createInstance(ModelPickerToolbarsContribution));
+	store.add(instantiationService.createInstance(AgentHostAgentPickerContribution));
+	store.add(instantiationService.createInstance(EditorWindowAgentHostSessionConfigPickerContribution));
+	store.add(instantiationService.createInstance(CopilotPickerActionViewItemContribution));
+	return store;
+}
+
 /**
  * Registers the controls of the new-session composers and of the session chats of an editor window's chat part, as the
  * Agents window has them, until the returned disposable is disposed: the composer's Add Context, model, agent, mode and
@@ -24,10 +42,6 @@ export function registerAgentsViewComposerControls(accessor: ServicesAccessor): 
 	store.add(registerAgentHostAgentPickerActions());
 	store.add(registerAgentHostSessionConfigPickerActions());
 	store.add(registerCopilotSandboxPickerActions());
-	store.add(instantiationService.createInstance(SharedChatInputComposerContribution));
-	store.add(instantiationService.createInstance(ModelPickerToolbarsContribution));
-	store.add(instantiationService.createInstance(AgentHostAgentPickerContribution));
-	store.add(instantiationService.createInstance(AgentHostSessionConfigPickerContribution));
-	store.add(instantiationService.createInstance(CopilotPickerActionViewItemContribution));
+	store.add(createAgentsViewComposerContributions(instantiationService));
 	return store;
 }
