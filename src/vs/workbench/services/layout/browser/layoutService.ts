@@ -630,6 +630,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	isPanelMaximized(): boolean;
 
 	/**
+	 * Whether the window has a chat part, shown or not.
+	 */
+	hasChatPart(): boolean;
+
+	/**
 	 * Whether the editor area is hidden so that the chat part takes its space.
 	 */
 	isEditorHiddenByChat(): boolean;

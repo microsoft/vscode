@@ -2503,6 +2503,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT);
 	}
 
+	hasChatPart(): boolean {
+		return !!this.chatPartView;
+	}
+
 	setEditorHiddenByChat(hidden: boolean): void {
 		if (hidden === this.isEditorHiddenByChat()) {
 			return;
