@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { RunOnceScheduler } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -49,9 +50,17 @@ export class AgentHostWorktreeComposerFolders extends Disposable {
 	constructor(
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
+		@IAgentHostWorktreeSessionSources sessionSources: IAgentHostWorktreeSessionSources,
 	) {
 		super();
 		this._register(_folderLocationService.onDidChangeProviders(() => this.refresh()));
+		// A session can come to work in a new worktree meanwhile, such as one in the background: read once as that settles
+		const refreshForSessions = this._register(new RunOnceScheduler(() => this.refresh(), 500));
+		this._register(sessionSources.onDidChange(() => {
+			if (this._movableFolder()) {
+				refreshForSessions.schedule();
+			}
+		}));
 		// The location the folder is at shows as one also before or without its provider's list
 		this._register(_folderLocationService.onDidChangeLocation(() => this._update(this._locations.get())));
 		// Also as the window's folders change, such as as the folder moves: the service tells whether it can move again then
@@ -165,20 +174,29 @@ export class AgentHostWorktreeSessionLayerSource extends Disposable implements I
 		// As any session it knows is added, removed or changes, also one outside the listed ones (getAllSessions), and as a
 		// session comes to work elsewhere, such as in the worktree its first request created
 		const sessionsChanged = observableSignalFromEvent(this, _sessionsManagementService.onDidChangeSession);
-		let first = true;
+		// Only as where they work changes, not as they change otherwise, such as their status, which reads no folders again
+		let known: string | undefined;
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
+			const working: string[] = [];
 			for (const session of _sessionsManagementService.getAllSessions()) {
-				session.isArchived.read(reader);
-				session.workspace.read(reader);
+				const local = session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID && !session.isArchived.read(reader);
+				const sessionDirectory = session.workspace.read(reader)?.folders[0]?.workingDirectory;
 				for (const chat of session.chats.read(reader)) {
-					chat.workspace.read(reader);
+					const chatWorkspace = chat.workspace.read(reader);
+					if (local) {
+						working.push(`${chat.resource.toString()}=${(chatWorkspace?.folders[0]?.workingDirectory ?? sessionDirectory)?.toString()}`);
+					}
+				}
+				if (local) {
+					working.push(`*=${sessionDirectory?.toString()}`);
 				}
 			}
-			if (!first) {
+			const key = working.join('\n');
+			if (known !== undefined && key !== known) {
 				this._onDidChange.fire();
 			}
-			first = false;
+			known = key;
 		}));
 	}
 

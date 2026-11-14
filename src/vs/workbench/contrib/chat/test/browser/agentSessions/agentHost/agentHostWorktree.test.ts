@@ -48,7 +48,7 @@ suite('AgentHostWorktree', () => {
 	const created = URI.file('/work/vscode.worktrees/created');
 
 	/** The feature in a window whose folder is at `at`, recording the moves it asks for, the chats it opens and its experiment triggers. */
-	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>> }) {
+	function createWorktree(options: { readonly enabled: boolean; readonly at?: URI; readonly canSetLocation?: boolean; readonly worktrees?: readonly URI[]; readonly resolving?: Promise<void>; readonly terminalCwd?: URI; readonly setting?: Promise<void>; readonly resolvingFor?: Record<string, Promise<void>>; readonly realPaths?: Record<string, string> }) {
 		const worktrees = options.worktrees ?? [worktree, created];
 		const marks: string[] = [];
 		const terminal = upcastPartial<ITerminalInstance>({
@@ -150,7 +150,10 @@ suite('AgentHostWorktree', () => {
 			onDidChangeLocation.fire({ folder: folder(), reason: moveOptions?.reason === 'user' ? 'user' : 'programmatic' });
 		};
 		instantiationService.stub(IWorkspaceEditingService, upcastPartial<IWorkspaceEditingService>({ setFolderLocation }));
-		instantiationService.stub(IFileService, upcastPartial<IFileService>({ stat: async () => upcastPartial<IFileStatWithMetadata>({}) }));
+		instantiationService.stub(IFileService, upcastPartial<IFileService>({
+			stat: async () => upcastPartial<IFileStatWithMetadata>({}),
+			realpath: async (resource: URI) => { const real = options.realPaths?.[resource.path]; return real ? URI.file(real) : resource; },
+		}));
 		instantiationService.stub(ILabelService, upcastPartial<ILabelService>({ getUriLabel: (uri: URI) => uri.path }));
 		instantiationService.stub(INotificationService, new TestNotificationService());
 		instantiationService.stub(ITerminalService, upcastPartial<ITerminalService>({ instances: options.terminalCwd ? [terminal] : [], onDidCreateInstance: Event.None }));
@@ -215,6 +218,15 @@ suite('AgentHostWorktree', () => {
 			beforeKnown: [],
 			moves: ['/work/vscode.worktrees/feature (automatic)', '/work/vscode.worktrees/created (automatic)'],
 		});
+	});
+
+	test('follows a chat that works in the folder\'s own location by another path, such as /private/tmp of /tmp, back to the folder', async () => {
+		const feature = createWorktree({ enabled: true, at: worktree, realPaths: { '/private/work/vscode/src': '/work/vscode/src' } });
+		feature.workingDirectories.set(agentSession('a').toString(), '/private/work/vscode/src');
+		feature.show(agentSession('a'));
+		await settle();
+
+		assert.deepStrictEqual(feature.moves, ['/work/vscode']);
 	});
 
 	test('opens the last chat of a location the user moves the folder to themselves', async () => {
