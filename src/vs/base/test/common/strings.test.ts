@@ -391,6 +391,15 @@ suite('Strings', () => {
 		assert.strictEqual(strings.createRegExp('abc ', true, { wholeWord: true }).source, '\\babc ');
 		assert.strictEqual(strings.createRegExp(' abc ', true, { wholeWord: true }).source, ' abc ');
 
+		// Whole word with non-ASCII characters (#347926)
+		assert.strictEqual(strings.createRegExp('дать', false, { wholeWord: true }).source, '\\bдать\\b');
+		assert.strictEqual(strings.createRegExp('και', false, { wholeWord: true }).source, '\\bκαι\\b');
+		assert.strictEqual(strings.createRegExp('من', false, { wholeWord: true }).source, '\\bمن\\b');
+		assert.strictEqual(strings.createRegExp('עם', false, { wholeWord: true }).source, '\\bעם\\b');
+		assert.strictEqual(strings.createRegExp(' дать', true, { wholeWord: true }).source, ' дать\\b');
+		assert.strictEqual(strings.createRegExp('дать ', true, { wholeWord: true }).source, '\\bдать ');
+		assert.strictEqual(strings.createRegExp(' дать ', true, { wholeWord: true }).source, ' дать ');
+
 		const regExpWithoutFlags = strings.createRegExp('abc', true);
 		assert(!regExpWithoutFlags.global);
 		assert(regExpWithoutFlags.ignoreCase);

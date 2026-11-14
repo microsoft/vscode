@@ -207,6 +207,12 @@ export interface RegExpOptions {
 	unicode?: boolean;
 }
 
+const UNICODE_WORD_CHARACTER = /[\p{L}\p{N}\p{M}\p{Pc}]/u;
+
+function isWordBoundaryCandidate(char: string): boolean {
+	return !/\B/.test(char) || UNICODE_WORD_CHARACTER.test(char);
+}
+
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
 	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
@@ -215,10 +221,14 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 		searchString = escapeRegExpCharacters(searchString);
 	}
 	if (options.wholeWord) {
-		if (!/\B/.test(searchString.charAt(0))) {
+		const firstChar = String.fromCodePoint(searchString.codePointAt(0)!);
+		const lastChar = isLowSurrogate(searchString.charCodeAt(searchString.length - 1)) && searchString.length > 1 && isHighSurrogate(searchString.charCodeAt(searchString.length - 2))
+			? searchString.slice(-2)
+			: searchString.slice(-1);
+		if (isWordBoundaryCandidate(firstChar)) {
 			searchString = '\\b' + searchString;
 		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
+		if (isWordBoundaryCandidate(lastChar)) {
 			searchString = searchString + '\\b';
 		}
 	}
