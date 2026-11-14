@@ -4,12 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { ILocalizedString } from '../../../../../platform/action/common/action.js';
+import { MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../../chat/browser/agentSessions/agentSessions.js';
+import { HideAgentSessionsSidebar, ShowAgentSessionsSidebar } from '../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { Menus } from '../menus.js';
 import { autorun, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -20,24 +28,16 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ChatConfiguration, isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
-import { sessionsListConfigurationProperties } from '../sessionsConfiguration.js';
-import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
+import { registerEditorWindowSessionsList } from './editorWindowSessionsList.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
 import { ChatViewSessionsListProvider } from './chatViewSessionsList.js';
-
-/** The settings of the sessions list and of the sessions it opens, as the Agents window registers them. */
-const sessionsListConfiguration: IConfigurationNode = {
-	id: 'sessionsList',
-	properties: sessionsListConfigurationProperties,
-};
 
 /** The chats of the editor window are those of the sessions of the Agents window: not local chats, which the list does not show. */
 const noLocalChatDefaults: IConfigurationDefaults = {
@@ -64,27 +64,18 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			return;
 		}
 
-		// The settings of the list and of the sessions it opens, as the Agents window has them, and no local chats by default
+		// No local chats by default, which the list does not show
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		configurationRegistry.registerConfiguration(sessionsListConfiguration);
 		configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
-		this._register(toDisposable(() => {
-			configurationRegistry.deregisterConfigurations([sessionsListConfiguration]);
-			configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults]);
-		}));
+		this._register(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
 
 		instantiationService.invokeFunction(accessor => {
 			// Not in remote windows, whose Chat view stays as it is
 			if (accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				return;
 			}
-			// The actions of the list and of the sessions it shows, once the Chat view or the chat part first shows
-			this.registerOnFirstShown(instantiationService, () => {
-				this._register(registerSessionsListActions());
-				this._register(registerSessionsListReadStateMenus());
-				this._register(registerAgentsViewNewSessionActions());
-				this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
-			});
+			// The settings and the actions of the shared sessions list, once the Chat view, which shows it, or the chat part first shows
+			this._register(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
 
 			// The chat part, where the chats of sessions open while chat.viewSessions.openInChatPart is on: otherwise it does
 			// not show, also not as the window restores it shown, which it hides before the chat part restores its chats
@@ -108,6 +99,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 				}
 			}, chatPart)));
 			this.registerChatPartHost(instantiationService, chatViewHostService, openInChatPart);
+			this._register(registerSessionsSidebarToggle());
 			this.hideMaximizeWhileInChatPart(accessor.get(IContextKeyService), openInChatPart);
 		});
 	}
@@ -163,36 +155,28 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			}));
 		});
 	}
+}
 
-	/** Runs `register` once, as the Chat view or the chat part, which shows sessions too, first shows. */
-	private registerOnFirstShown(instantiationService: IInstantiationService, register: () => void): void {
-		const { viewsService, layoutService, lifecycleService } = instantiationService.invokeFunction(accessor => ({
-			viewsService: accessor.get(IViewsService),
-			layoutService: accessor.get(IWorkbenchLayoutService),
-			lifecycleService: accessor.get(ILifecycleService),
+/**
+ * Shows and hides the sessions beside the chat of the Chat view from the header of its sessions, as the Chat view's own sessions
+ * header does: while the chats open in the Chat view, not while the Chat view shows only the sessions.
+ */
+function registerSessionsSidebarToggle(): IDisposable {
+	const store = new DisposableStore();
+	const inChatView = ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.notEquals(`config.${ChatConfiguration.ChatViewSessionsOpenInChatPart}`, true));
+	const items: { readonly command: { readonly id: string; readonly title: ILocalizedString }; readonly icon: ThemeIcon; readonly orientation: AgentSessionsViewerOrientation; readonly position: AgentSessionsViewerPosition }[] = [
+		{ command: { id: ShowAgentSessionsSidebar.ID, title: ShowAgentSessionsSidebar.TITLE }, icon: Codicon.layoutSidebarRightOff, orientation: AgentSessionsViewerOrientation.Stacked, position: AgentSessionsViewerPosition.Right },
+		{ command: { id: ShowAgentSessionsSidebar.ID, title: ShowAgentSessionsSidebar.TITLE }, icon: Codicon.layoutSidebarLeftOff, orientation: AgentSessionsViewerOrientation.Stacked, position: AgentSessionsViewerPosition.Left },
+		{ command: { id: HideAgentSessionsSidebar.ID, title: HideAgentSessionsSidebar.TITLE }, icon: Codicon.layoutSidebarRight, orientation: AgentSessionsViewerOrientation.SideBySide, position: AgentSessionsViewerPosition.Right },
+		{ command: { id: HideAgentSessionsSidebar.ID, title: HideAgentSessionsSidebar.TITLE }, icon: Codicon.layoutSidebarLeft, orientation: AgentSessionsViewerOrientation.SideBySide, position: AgentSessionsViewerPosition.Left },
+	];
+	for (const item of items) {
+		store.add(MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+			command: { ...item.command, icon: item.icon },
+			group: 'navigation',
+			order: 100,
+			when: ContextKeyExpr.and(inChatView, ChatContextKeys.agentSessionsViewerOrientation.isEqualTo(item.orientation), ChatContextKeys.agentSessionsViewerPosition.isEqualTo(item.position)),
 		}));
-		const firstShown = this._register(new DisposableStore());
-		const shown = () => {
-			if (!firstShown.isDisposed) {
-				firstShown.dispose();
-				register();
-			}
-		};
-		firstShown.add(viewsService.onDidChangeViewVisibility(e => {
-			if (e.id === ChatViewId && e.visible) {
-				shown();
-			}
-		}));
-		firstShown.add(layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.CHAT_PART && e.visible) {
-				shown();
-			}
-		}));
-		// Either restores shown with the window, without a change of its visibility
-		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			if (viewsService.isViewVisible(ChatViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
-				shown();
-			}
-		});
 	}
+	return store;
 }

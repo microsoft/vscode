@@ -41,7 +41,6 @@ import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_I
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { ChatSessionArchiveActionWording, ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionPresentation, getChatSessionArchiveActionWording, SESSIONS_MARK_AS_DONE_CONFETTI_SETTING } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { resolveSessionCommandTarget } from '../sessionCommandTarget.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
@@ -1005,7 +1004,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('inboxMode', "Inbox Mode"),
 				category: SessionsCategories.Sessions,
 				f1: true,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, EditorWindowSessionsContext, ContextKeyExpr.has(`config.${ChatConfiguration.ChatViewSessionsListEnabled}`)), ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, EditorWindowSessionsContext), ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)),
 				toggled: InboxModeContext,
 				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ContextKeyExpr.and(ChatContextKeys.enabled, sessionsViewOffersGrouping(SessionsGrouping.Inbox)) }],
 			});
