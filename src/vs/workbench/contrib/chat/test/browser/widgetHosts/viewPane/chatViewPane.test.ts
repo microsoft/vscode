@@ -700,6 +700,41 @@ suite('ChatViewPane session transitions', () => {
 		});
 	}));
 
+	test('of two New Chats of its own under way, the later one shows its new chat and aims the composer, also as the earlier one completes last', async () => {
+		const rig = createPane();
+		const disposedNew: string[] = [];
+		const newChat = (name: string) => {
+			const model = upcastPartial<IChatModel>({ sessionResource: URI.from({ scheme: SessionType.AgentHostCopilot, path: `/untitled-${name}` }) });
+			return { model, ref: Object.assign(toDisposable(() => disposedNew.push(name)), { object: model }) as IChatModelReference, acquired: new DeferredPromise<{ modelRef: IChatModelReference }>() };
+		};
+		const a = newChat('a');
+		const b = newChat('b');
+		const acquisitions = [a, b];
+		const composerCalls: string[] = [];
+		Object.assign(rig.pane, {
+			acquireDefaultNewSession: () => acquisitions.shift()!.acquired.p,
+			updateViewState: () => { },
+			providedComposer: { newChat: (target?: { folder?: URI }) => composerCalls.push(`newChat ${target?.folder?.path}`), focus: () => composerCalls.push('focus') },
+			composerShown: false,
+		});
+		const run = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object, target: { folder: URI }, options: { ownChat: boolean; preserveFocus: boolean }) => Promise<boolean>;
+		const first = run.call(rig.pane, { folder: URI.file('/a') }, { ownChat: true, preserveFocus: true });
+		const second = run.call(rig.pane, { folder: URI.file('/b') }, { ownChat: true, preserveFocus: true });
+		await b.acquired.complete({ modelRef: b.ref });
+		const takenLater = await second;
+		await a.acquired.complete({ modelRef: a.ref });
+		const takenEarlier = await first;
+
+		assert.deepStrictEqual({ takenEarlier, takenLater, bindings: rig.bindings.map(resource => resource?.path), composerCalls, disposedNew, shown: rig.widget.viewModel?.sessionResource.path }, {
+			takenEarlier: true,
+			takenLater: true,
+			bindings: ['/untitled-b'],
+			composerCalls: ['newChat /b'],
+			disposedNew: ['a'],
+			shown: '/untitled-b',
+		});
+	});
+
 	for (const untitled of [true, false]) {
 		test(`${untitled ? 'new chats stay bound' : 'saved chats still clear'} while a slow load is pending`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const rig = createPane();

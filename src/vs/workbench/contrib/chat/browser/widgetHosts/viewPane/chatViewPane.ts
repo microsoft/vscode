@@ -918,9 +918,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 */
 	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
 		if (options?.ownChat) {
+			// A transition of the Chat view, as loading a chat is: it supersedes a load, restore or New Chat under way, and a
+			// later one supersedes it, which then neither shows its new chat nor aims the composer
+			this.loadSessionCts.value?.cancel();
+			this._applyModelCts.value?.cancel();
+			const transition = this.loadSessionCts.value = new CancellationTokenSource();
 			if (!this.composerShown) {
 				// Its own new chat, rather than the chat widget that New Chat acts on, such as one that has focus elsewhere
-				await this.clear();
+				this.updateViewState();
+				await this.showModel(transition.token);
+				if (transition.token.isCancellationRequested) {
+					return true;
+				}
+				this.updateActions();
 			}
 		} else if (!this.providedComposer) {
 			return false;
