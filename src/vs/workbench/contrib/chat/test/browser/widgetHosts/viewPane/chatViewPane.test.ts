@@ -26,7 +26,7 @@ import { TestContextService, TestStorageService } from '../../../../../../test/c
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatViewSessionsListService, IChatViewSessionsListProvider } from '../../../../browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { IChatWidgetViewModelChangeEvent } from '../../../../browser/chat.js';
-import { IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
+import { IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { ChatOpenDiagnosticsService } from '../../../../common/chatOpenDiagnosticsService.js';
@@ -138,17 +138,17 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual({ states, withoutComposer: withoutComposer.composerShown }, { states: [true, false, true, false], withoutComposer: false });
 	});
 
-	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat, superseding a chat still loading or restoring', () => {
+	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat, superseding a chat still loading or restoring', async () => {
 		const calls: string[] = [];
 		const composer = { newChat: () => calls.push('newChat'), focus: () => calls.push('focus') };
 		const cancellable = (name: string) => ({ value: { cancel: () => calls.push(`cancel ${name}`) } });
 		type Host = { providedComposer: typeof composer | undefined; composerShown: boolean; loadSessionCts: ReturnType<typeof cancellable>; _applyModelCts: ReturnType<typeof cancellable> };
-		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: Host) => boolean;
+		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: Host) => Promise<boolean>;
 		const host = (providedComposer: typeof composer | undefined, composerShown: boolean): Host => ({ providedComposer, composerShown, loadSessionCts: cancellable('load'), _applyModelCts: cancellable('restore') });
 		const results = {
-			shown: newChat.call(host(composer, true)),
-			hidden: newChat.call(host(composer, false)),
-			withoutComposer: newChat.call(host(undefined, false)),
+			shown: await newChat.call(host(composer, true)),
+			hidden: await newChat.call(host(composer, false)),
+			withoutComposer: await newChat.call(host(undefined, false)),
 		};
 		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['cancel load', 'cancel restore', 'newChat', 'focus', 'newChat'] });
 	});
@@ -610,7 +610,7 @@ suite('ChatViewPane session transitions', () => {
 		await timeout(150);
 		// The cleared chat is a new chat: the composer shows in its place
 		Object.assign(rig.pane, { composerShown: true });
-		const taken = (Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object) => boolean).call(rig.pane);
+		const taken = await (Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object) => Promise<boolean>).call(rig.pane);
 		await acquiring.complete(rig.nextRef);
 		await loading;
 		assert.deepStrictEqual({ taken, composerCalls, bindings: rig.bindings, disposed: rig.disposed }, {
@@ -618,6 +618,36 @@ suite('ChatViewPane session transitions', () => {
 			composerCalls: ['newChat', 'focus'],
 			bindings: [undefined],
 			disposed: [previousResource, nextResource],
+		});
+	}));
+
+	test('a new chat of its own, as a sessions list starts one, replaces the chat it shows and its slow load, aimed at the target, without focus', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const rig = createPane();
+		const acquiring = new DeferredPromise<IChatModelReference>();
+		const freshResource = URI.from({ scheme: SessionType.AgentHostCopilot, path: '/untitled-fresh' });
+		const freshRef = Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: freshResource }) });
+		const calls: string[] = [];
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: () => acquiring.p },
+			acquireDefaultNewSession: async () => ({ modelRef: freshRef }),
+			updateViewState: () => { },
+			providedComposer: { newChat: (target?: IChatViewNewChatTarget) => calls.push(`composer newChat ${target?.folder?.path}`), focus: () => calls.push('composer focus') },
+			composerShown: false,
+		});
+		// A load still under way, while the chat it replaces still shows
+		const loading = rig.pane.loadSession(nextResource);
+		await timeout(150);
+
+		const taken = await (Reflect.get(ChatViewPane.prototype, 'newChat') as (this: object, target: IChatViewNewChatTarget, options: IChatViewHostNewChatOptions) => Promise<boolean>)
+			.call(rig.pane, { folder: URI.file('/repo') }, { ownChat: true, preserveFocus: true });
+		await acquiring.complete(rig.nextRef);
+		await loading;
+
+		assert.deepStrictEqual({ taken, calls, bindings: rig.bindings, shown: rig.widget.viewModel?.sessionResource.path }, {
+			taken: true,
+			calls: ['composer newChat /repo'],
+			bindings: [freshResource],
+			shown: '/untitled-fresh',
 		});
 	}));
 
