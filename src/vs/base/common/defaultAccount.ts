@@ -74,8 +74,8 @@ export interface IPolicyData {
 
 	/**
 	 * Whether at least one managed-settings delivery channel currently contributes governance.
-	 * The Local-only `vscode.temporaryAllowLocalHarness` key does not contribute to this flag;
-	 * other settings retain presence-based governance.
+	 * The harness permissions `vscode.temporaryAllowLocalHarness` and `vscode.allowedHarnesses` do
+	 * not contribute to this flag; other settings retain presence-based governance.
 	 *
 	 * Unlike {@link managedSettings}, this also reflects structured runtime-owned keys that the
 	 * policy projection does not retain.
@@ -86,6 +86,7 @@ export interface IPolicyData {
 export interface ICopilotTokenInfo {
 	readonly sn?: string;
 	readonly fcv1?: string;
+	readonly st?: string;
 }
 
 export interface IDefaultAccountAuthenticationProvider {

@@ -44,3 +44,13 @@ export interface CreateTcpConnectionParams extends BaseParams {
 	 */
 	port: number;
 }
+
+/**
+ * Result of the `createTcpConnection` command.
+ *
+ * An empty object on success.
+ *
+ * @category TCP Commands
+ * @stability 1.0
+ */
+export interface CreateTcpConnectionResult { }

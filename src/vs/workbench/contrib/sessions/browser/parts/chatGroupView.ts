@@ -29,7 +29,7 @@ import { getArchivedChatBannerContent, ISessionReadOnlyBannerContent, SessionRea
 import { ISelectNoWorkspaceOptions, ISelectWorkspaceOptions, WorkspaceSelectionResult } from '../../../../services/sessions/common/workspaceSelection.js';
 import { AbstractChatView, ChatViewKind, IChatViewOptions, ISessionViewHostOptions } from './chatView.js';
 import { ChatViewSessionActivityBar } from './sessionActivityBar.js';
-import { ISessionHost, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
+import { ISessionHost, SessionHost, SessionHostKind, sessionMenuArgs } from '../../../../services/sessions/browser/sessionHost.js';
 import { CLOSE_CHAT_COMMAND_ID } from '../../common/sessionCommands.js';
 import { ChatHeader } from './chatHeader.js';
 import { IGridEdgeInsets, NO_GRID_EDGE_INSETS } from '../../../../browser/parts/partGrid/partGridGap.js';
@@ -135,7 +135,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	private readonly _contextDisposables = this._register(new DisposableStore());
 	private readonly _currentView = this._register(new MutableDisposable<AbstractChatView>());
 	private _draftChatResource: URI | undefined;
+	private readonly _context = observableValue<IChatGroupContext | undefined>(this, undefined);
+	private readonly _activeChat = derived(this, reader => {
+		const context = this._context.read(reader);
+		const activeResource = context?.activeChatResource.read(reader);
+		return context?.chats.read(reader).find(c => c.resource.toString() === activeResource);
+	});
 	private readonly _scopedInstantiationService: IInstantiationService;
+	private readonly _chatViewInstantiationService: IInstantiationService;
 	private readonly _activeChatIsClosableKey: IContextKey<boolean>;
 	private readonly _activeChatCanArchiveKey: IContextKey<boolean>;
 	private readonly _activeChatIsDeletableKey: IContextKey<boolean>;
@@ -190,6 +197,14 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 		super();
 		const scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this._scopedInstantiationService = this._register(this._instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService])));
+		// The group's chat for its chat view, such as its input's pickers. Unregistered, so commands still find the pane.
+		this._chatViewInstantiationService = this._scopedInstantiationService.createChild(new ServiceCollection([ISessionHost, new SessionHost({
+			kind: SessionHostKind.Pane,
+			parent: _sessionHost,
+			session: derived(reader => this._context.read(reader)?.session),
+			chat: this._activeChat,
+			contextKeyService: _sessionHost.contextKeyService,
+		})]));
 		this._activeChatIsClosableKey = SessionActiveChatIsClosableContext.bindTo(scopedContextKeyService);
 		this._activeChatCanArchiveKey = SessionActiveChatCanArchiveContext.bindTo(scopedContextKeyService);
 		this._activeChatIsDeletableKey = SessionActiveChatIsDeletableContext.bindTo(scopedContextKeyService);
@@ -277,6 +292,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 	/** Sets (or clears) the group this view renders. */
 	setContext(context: IChatGroupContext | undefined): void {
 		this._contextDisposables.clear();
+		this._context.set(context, undefined);
 		this._connection.setSession(context?.session);
 
 		if (!context) {
@@ -302,10 +318,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			return;
 		}
 
-		const activeChat = derived(reader => {
-			const activeResource = context.activeChatResource.read(reader);
-			return context.chats.read(reader).find(c => c.resource.toString() === activeResource);
-		});
+		const activeChat = this._activeChat;
 		this._chatHeader.setChat({
 			session: context.session,
 			chat: activeChat,
@@ -438,7 +451,7 @@ export class ChatGroupView extends Disposable implements ISerializableView {
 			let view = this._currentView.value;
 			if (!view || view.kind !== desiredKind) {
 				view = desiredKind === 'chat'
-					? this._chatViewFactory.createChatView(this._scopedInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
+					? this._chatViewFactory.createChatView(this._chatViewInstantiationService, { input: this._hostOptions?.input, session: context.options.session })
 					: this._chatViewFactory.createNewChatView(desiredKind === 'newChatInSession', context.options, this._scopedInstantiationService);
 				this._contentContainer.replaceChildren(view.element, this._remoteHostUnavailableEmptyState.domNode);
 				this._currentView.value = view;

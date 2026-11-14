@@ -10,7 +10,6 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -31,7 +30,7 @@ import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 import { AgenticPromptsService } from './promptsService.js';
@@ -48,6 +47,7 @@ import { SessionWorktreeCleanupAccessibilityHelp } from '../../sessionInputBanne
 import { ArtifactDetailsAccessibilityHelp, ArtifactDetailsAccessibleView } from '../../../../workbench/contrib/sessions/browser/chat/artifactDetailsContextView.js';
 import { SessionsOpenerParticipantContribution } from './sessionsOpenerParticipant.js';
 import { OpenSessionLinkOpenerContribution } from './openSessionLinkOpener.contribution.js';
+import { SessionLinkAttachmentWidgetContribution } from './sessionLinkAttachmentWidget.js';
 import { AGENT_HOST_RUN_WORKTREE_CREATED_TASKS_SETTING } from './worktreeCreatedTaskDispatcher.js';
 import { AGENT_SESSIONS_SCOPED_INPUT_HISTORY_SETTING } from '../../../../workbench/contrib/sessions/browser/chat/sessionsChatHistory.js';
 import '../../sessions/browser/mobile/mobileOverlayContribution.js';
@@ -75,7 +75,7 @@ import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbarDebug.js';
 import { ADD_SESSION_REFERENCE_COMMAND, addSessionReference, IAddSessionReferenceArgs } from '../../../../workbench/contrib/sessions/browser/chat/sessionReferenceCompletions.js';
-import { PromptTemplatePlaceholderFocused, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID, replaceActivePromptTemplatePlaceholder } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
+import { registerReplacePromptTemplatePlaceholderCommand } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
 import { registerCompareAgentsSpotlightDescriptor } from '../../../../workbench/contrib/sessions/browser/chat/compareAgentsSpotlight.js';
 import { registerWorktreeSuggestionTourDescriptor } from '../../../../workbench/contrib/sessions/browser/tours/worktreeSuggestionTour.js';
 import { registerSessionArchiveTourDescriptor } from '../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
@@ -405,6 +405,8 @@ registerAction2(BranchChatSessionAction);
 // chat.desktop.contribution.ts so the phone bundle can omit them.
 registerWorkbenchContribution2(SessionsOpenerParticipantContribution.ID, SessionsOpenerParticipantContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(OpenSessionLinkOpenerContribution.ID, OpenSessionLinkOpenerContribution, WorkbenchPhase.BlockStartup);
+// Before chat inputs restore their drafts, whose session links become pills once a widget can show them.
+registerWorkbenchContribution2(SessionLinkAttachmentWidgetContribution.ID, SessionLinkAttachmentWidgetContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(SessionArchiveNudgeContribution.ID, SessionArchiveNudgeContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentHostSandboxNotifications.ID, AgentHostSandboxNotifications, WorkbenchPhase.AfterRestored);
 
@@ -417,13 +419,7 @@ registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, I
 
 CommandsRegistry.registerCommand(ADD_SESSION_REFERENCE_COMMAND, (_accessor, args: IAddSessionReferenceArgs) => addSessionReference(args));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 2,
-	when: PromptTemplatePlaceholderFocused,
-	primary: KeyCode.Enter,
-	handler: () => replaceActivePromptTemplatePlaceholder(),
-});
+registerReplacePromptTemplatePlaceholderCommand();
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);

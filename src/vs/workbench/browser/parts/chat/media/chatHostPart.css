@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .part.chat {
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.monaco-workbench .part.chat > .content {
+	width: 100%;
+	height: 100%;
+}
+
+/*
+ * The chat part only places what it shows: it draws no frame of its own. What it shows draws its card's edge, as the editor
+ * part does the editor card's (editorBorder.css), so that the chat part is one card with one edge, as the cards beside it
+ * are. With floating panels it is rounded as they are.
+ */
+.monaco-workbench.floating-panels .part.chat {
+	border-radius: var(--vscode-editorArea-cornerRadius, var(--vscode-cornerRadius-large));
+}
+
+.monaco-workbench.floating-panels.modern-ui-compact .part.chat {
+	border-radius: 0;
+}
+
+/*
+ * The part reserves the margins of its card itself, as the other cards do (`ChatHostPart.layout`). The editor part it shows
+ * is not the main editor: it takes none of the main editor's card margins (`floatingPanels.css`), which would double the
+ * gap to the card beside it and move its top and bottom edges off those of the cards beside it.
+ */
+.monaco-workbench.floating-panels > .monaco-grid-view .part.chat > .content .part.editor {
+	margin: 0;
+}
+
+/*
+ * What the part shows draws its card's edge inside its own box, and what it lays over itself, such as a chat background,
+ * stays inside that edge rather than covering it.
+ */
+.monaco-workbench .part.chat > .content .part.editor {
+	position: relative;
+}
+
+/* In compact density each card draws its own top edge at the title bar, as the editor card beside it does. */
+.monaco-workbench.modern-ui.floating-panels.modern-ui-compact .part.chat.floating-part-outer-top > .content .part.editor {
+	--modern-ui-floating-card-top-border-color: var(--modern-ui-floating-card-stroke-color);
+}

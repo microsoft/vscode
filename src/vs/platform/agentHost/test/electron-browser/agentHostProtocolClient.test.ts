@@ -26,7 +26,8 @@ import { AgentHostClientState, AgentHostProtocolClient, RetryableAuthenticationE
 import { AgentHostClientProxyCapabilityMetaKey } from '../../common/meta/agentHostClientProxyMeta.js';
 import { ClientProxyChangedExtensionMethod, LookupClientProxyBasicAuthorizationExtensionMethod, LookupClientProxyKerberosAuthorizationExtensionMethod, ResolveClientProxyExtensionMethod, type IAgentHostClientProxyProvider } from '../../common/clientProxyProtocol.js';
 import { WebPubSubRelayTransport, type IWebSocketLike } from '../../browser/webPubSubRelayTransport.js';
-import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostSessionMoveUnsupportedError, DevContainerConnectExtensionMethod, DevContainerIsDockerAvailableExtensionMethod, DevContainerOutputNotification, DevContainerRelayMessageNotification, DevContainerRelaySendExtensionMethod, DevContainerRemoveExtensionMethod, DevContainerStopExtensionMethod, getAgentHostExtensionInitializeResultMeta, RequestAgentHostMcpAuthenticationExtensionMethod, RequestAgentHostWorkspaceTrustExtensionMethod, type IAgentHostMcpAuthenticationRequest, ArtifactIntegrationUpdateNotification, ClientArtifactIntegrationExtensionMethod, ClientArtifactIntegrationUpdateExtensionMethod, RegisterClientArtifactIntegrationsExtensionMethod, GitHubEnvironmentChangedNotification } from '../../common/agentHostExtensionProtocol.js';
+import { AgentHostGitHubEnvironmentCapabilityMetaKey, type IAgentHostGitHubEnvironmentStatus } from '../../common/meta/agentHostGitHubEnvironmentMeta.js';
 import { McpAuthRequiredReason } from '../../common/state/protocol/channels-session/state.js';
 import { AgentPolicyError, AuthenticateParams, type AuthenticateResult } from '../../common/agent.js';
 import { authenticationAccountMeta } from '../../common/meta/agentAuthenticationAccount.js';
@@ -42,7 +43,7 @@ import { buildAnnotationsUri } from '../../common/annotationsUri.js';
 import { CODEX_SESSION_MODEL_META_KEY, withCodexSessionModel } from '../../common/meta/codexSessionModel.js';
 import { toAgentPermissionResponseMeta } from '../../common/meta/agentPermissionResponseMeta.js';
 import { ConfigurationTarget, type IConfigurationValue } from '../../../configuration/common/configuration.js';
-import { ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
+import { CompletionItemKind, ContentEncoding, ReconnectResultType } from '../../common/state/protocol/commands.js';
 import { ChatSourceKind } from '../../common/state/protocol/channels-chat/commands.js';
 import { ChatInteractivity, ResourceChangeType, ResponsePartKind, SessionLifecycle } from '../../common/state/protocol/state.js';
 import { AhpErrorCodes, JsonRpcErrorCodes } from '../../common/state/protocol/errors.js';
@@ -456,6 +457,38 @@ suite('AgentHostProtocolClient', () => {
 		await connectPromise;
 	}
 
+	for (const nativeHost of [true, false]) {
+		test(`normalizes legacy skill completions only for VS Code hosts (native=${nativeHost})`, async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport, nativeHost ? { 'vscode.agentHost': true } : {});
+			const legacy = {
+				insertText: '/review ', rangeStart: 0, rangeEnd: 1,
+				attachment: {
+					type: MessageAttachmentKind.Simple, label: '/review',
+					_meta: { uri: 'file:///skills/review/SKILL.md', argumentHint: 'Files', description: 'Review changes' },
+				},
+			};
+			const resource = {
+				insertText: '/current ',
+				attachment: {
+					type: MessageAttachmentKind.Resource, label: '/current', displayKind: 'skill', uri: 'custom-skill:/current',
+					_meta: { uri: 'file:///not-the-resource/SKILL.md' },
+				},
+			};
+			const sent = Event.toPromise(Event.filter(transport.onDidSend, () => transport.sentMessages.some(message => hasKey(message, { method: true }) && message.method === 'completions')));
+			const completion = client.completions({ kind: CompletionItemKind.UserMessage, channel: 'custom-session:/session', text: '/', offset: 1 });
+			await sent;
+			const request = transport.sentMessages.findLast((message): message is JsonRpcRequest => hasKey(message, { id: true, method: true }) && message.method === 'completions')!;
+			transport.fireMessage({ jsonrpc: '2.0', id: request.id, result: { items: [legacy, resource] } });
+			assert.deepStrictEqual(await completion, {
+				items: [nativeHost ? {
+					...legacy,
+					attachment: { ...legacy.attachment, type: MessageAttachmentKind.Resource, displayKind: 'skill', uri: legacy.attachment._meta.uri },
+				} : legacy, resource],
+			});
+		});
+	}
+
 	test('artifact integration capability is independent of timing and session import', async () => {
 		const capabilities: ReturnType<typeof getAgentHostArtifactIntegrationsCapability>[] = [];
 		for (const enabled of [false, true]) {
@@ -481,6 +514,27 @@ suite('AgentHostProtocolClient', () => {
 		transport.fireExtensionNotification({ jsonrpc: '2.0', method: ArtifactIntegrationUpdateNotification, params: { ...update, revision: -1 } });
 		assert.deepStrictEqual({ received, errors: errors.args }, {
 			received: [update], errors: [['[ArtifactIntegrations] Invalid update from the agent host']],
+		});
+	});
+
+	test('tracks the GitHub environment status the host reports', async () => {
+		const log = new NullLogService();
+		const errors = sinon.spy(log, 'error');
+		const statuses: (IAgentHostGitHubEnvironmentStatus | undefined)[] = [];
+		const unsupported = createClient();
+		await connectClient(unsupported.client, unsupported.transport);
+		statuses.push(unsupported.client.gitHubEnvironment.get());
+		const { client, transport } = createClient(undefined, undefined, undefined, log);
+		await connectClient(client, transport, { [AgentHostGitHubEnvironmentCapabilityMetaKey]: { instanceId: 'instance' } });
+		statuses.push(client.gitHubEnvironment.get());
+		const registered: IAgentHostGitHubEnvironmentStatus = { instanceId: 'instance', registration: { accountId: 'account', environmentId: 'environment', name: 'Remote' } };
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: GitHubEnvironmentChangedNotification, params: registered });
+		statuses.push(client.gitHubEnvironment.get());
+		transport.fireExtensionNotification({ jsonrpc: '2.0', method: GitHubEnvironmentChangedNotification, params: { registration: registered.registration } });
+		statuses.push(client.gitHubEnvironment.get());
+		assert.deepStrictEqual({ statuses, errors: errors.args.length }, {
+			statuses: [undefined, { instanceId: 'instance' }, registered, registered],
+			errors: 1,
 		});
 	});
 
@@ -934,12 +988,44 @@ suite('AgentHostProtocolClient', () => {
 			});
 		});
 
+		test('reports the initiating relay close before reconnecting and does not report disposal', async () => {
+			const { client, sockets } = createRelayClient();
+			await client.connect();
+			const observations: object[] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'transport.closed') {
+					observations.push({ reason: event.closeReason, state: client.connectionState });
+				}
+			}));
+			disposables.add(client.onDidChangeConnectionState(state => observations.push({ state })));
+			const recovered = Event.toPromise(client.onDidReconnect);
+			sockets[0].receive({
+				type: 'message', from: 'group', group: `${prefix}.to-client`, dataType: 'json',
+				data: { kind: 'closed', generation: 7 },
+			});
+			sockets[0].onclose?.({ code: 1006, reason: 'private remote text' });
+			await recovered;
+			client.dispose();
+			assert.deepStrictEqual(observations, [
+				{ reason: 'hostLaneClosed', state: AgentHostClientState.Connected },
+				{ state: AgentHostClientState.Reconnecting },
+				{ state: AgentHostClientState.Connected },
+				{ state: AgentHostClientState.Closed },
+			]);
+		});
+
 		test('fails the client connection before AHP initialization when capability publication is rejected', async () => {
 			const { client, sockets } = createRelayClient(true);
+			const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'transport.connect' && event.outcome === 'failed') {
+					reasons.push(event.closeReason);
+				}
+			}));
 			await assert.rejects(client.connect(), /WPS publish failed/);
-			assert.deepStrictEqual(sockets[0].sent.filter(frame => frame.type === 'sendToGroup').map(frame => frame.data), [
-				{ kind: 'capabilities', accepts: ['batch'] },
-			]);
+			assert.deepStrictEqual({
+				reasons, frames: sockets[0].sent.filter(frame => frame.type === 'sendToGroup').map(frame => frame.data),
+			}, { reasons: ['publishRejected'], frames: [{ kind: 'capabilities', accepts: ['batch'] }] });
 		});
 	});
 
@@ -947,7 +1033,7 @@ suite('AgentHostProtocolClient', () => {
 		const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
 		const flowControl = {
 			clientReceive: agentHostStateReceiveLimits,
-			hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 },
+			hostReceive: { windowBytes: 64 * 1024, maxFrameBytes: 1024 },
 		};
 		const state: SessionState = {
 			provider: 'other-agent', title: 'Initial', status: SessionStatus.Idle,
@@ -983,6 +1069,23 @@ suite('AgentHostProtocolClient', () => {
 				],
 				snapshots: [{ resource: channel, state, fromSeq: 5 }, { resource: ROOT_STATE_URI, state: { agents: [] }, fromSeq: 6 }],
 				dispatch: { jsonrpc: '2.0', method: 'dispatchAction', params: { channel, clientSeq: 1, action: { type: ActionType.SessionTitleChanged, title: 'Ordinary' } } },
+			});
+		});
+
+		test('offers both frame-limit spellings to a pre-sync host and accepts its legacy-only limits', async () => {
+			const { client, transport } = createClient();
+			await connectClient(client, transport);
+			const pending = client.subscribe(URI.parse(channel));
+			const request = transport.sentMessages.at(-1) as JsonRpcRequest;
+			transport.fireWireMessage({
+				jsonrpc: '2.0', id: request.id,
+				result: JSON.parse('{"flowControl":{"clientReceive":{"windowBytes":1048576,"maximumFrameBytes":16777216},"hostReceive":{"windowBytes":65536,"maximumFrameBytes":1024}}}'),
+			});
+			const snapshot = { resource: channel, state, fromSeq: 5 };
+			transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot } });
+			assert.deepStrictEqual({ offered: request.params, snapshot: await pending }, {
+				offered: { channel, flowControl: { receive: { windowBytes: 1048576, maxFrameBytes: 16777216, maximumFrameBytes: 16777216 } } },
+				snapshot,
 			});
 		});
 
@@ -1178,7 +1281,7 @@ suite('AgentHostProtocolClient', () => {
 			});
 		}
 
-		for (const limit of ['windowBytes', 'maximumFrameBytes'] as const) {
+		for (const limit of ['windowBytes', 'maxFrameBytes'] as const) {
 			test(`rejects a host that increases the offered ${limit}`, async () => {
 				const { client, transport } = createClient();
 				await connectClient(client, transport);
@@ -2029,12 +2132,13 @@ suite('AgentHostProtocolClient', () => {
 				const listing = client.listSessions();
 				const sent = transport.sentMessages[0] as JsonRpcRequest;
 				const directorySets = [undefined, [], ['file:///workspace'], ['file:///workspace', 'file:///second']];
+				const annotations = { resource: 'ahp-annotations://another-host/reviews?scope=one', annotationCount: 2, entryCount: 3 };
 				transport.fireMessage({
 					jsonrpc: '2.0', id: sent.id, result: {
 						items: directorySets.map((workingDirectories, index) => ({
 							resource: `session-store://tenant/session-${index}`, provider: 'other-agent', title: 'Session',
 							status: SessionStatus.Idle, createdAt: new Date(0).toISOString(), modifiedAt: new Date(0).toISOString(),
-							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' },
+							workingDirectories, project: { uri: 'file:///workspace', displayName: 'Workspace' }, annotations,
 						})),
 					}
 				});
@@ -2046,11 +2150,12 @@ suite('AgentHostProtocolClient', () => {
 					workingDirectory: session.workingDirectory?.toString(),
 					workingDirectories: session.workingDirectories?.map(uri => uri.toString()),
 					project: session.project?.uri.toString(),
+					annotations: session.annotations,
 				})), [
-					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace },
-					{ workingDirectory: undefined, workingDirectories: [], project: workspace },
-					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace },
-					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace },
+					{ workingDirectory: undefined, workingDirectories: undefined, project: workspace, annotations },
+					{ workingDirectory: undefined, workingDirectories: [], project: workspace, annotations },
+					{ workingDirectory: workspace, workingDirectories: [workspace], project: workspace, annotations },
+					{ workingDirectory: workspace, workingDirectories: [workspace, secondDirectory], project: workspace, annotations },
 				]);
 			});
 		}
@@ -3118,7 +3223,7 @@ suite('AgentHostProtocolClient', () => {
 				snapshot: {
 					resource: resource.toString(), state: {
 						instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview',
-						url: 'https://example.test/preview',
+						uri: 'https://example.test/preview',
 					}, fromSeq: 1
 				}
 			},
@@ -3126,7 +3231,7 @@ suite('AgentHostProtocolClient', () => {
 		await timeout(0);
 		assert.deepStrictEqual({ params: request.params, state: reference.object.value }, {
 			params: { channel: resource.toString(), flowControl: { receive: agentHostStateReceiveLimits } },
-			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' },
+			state: { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' },
 		});
 	});
 
@@ -4392,6 +4497,11 @@ suite('AgentHostProtocolClient', () => {
 					source: 'user',
 					status: 'running',
 				}, {
+					id: 'user:lazy',
+					name: 'Lazy',
+					source: 'user',
+					status: 'dormant',
+				}, {
 					id: 'session:preview',
 					name: 'Session Preview',
 					source: 'session',
@@ -4440,6 +4550,14 @@ suite('AgentHostProtocolClient', () => {
 				resourcePath: undefined,
 				source: 'user',
 				status: 'running',
+				pluginName: undefined,
+			}, {
+				id: 'user:lazy',
+				name: 'Lazy',
+				resourceScheme: undefined,
+				resourcePath: undefined,
+				source: 'user',
+				status: 'dormant',
 				pluginName: undefined,
 			}, {
 				id: 'plugin:dashboard',
@@ -6036,6 +6154,12 @@ suite('AgentHostProtocolClient', () => {
 		 */
 		async function connectWithHostGateTurningOn(clientSetting: boolean) {
 			const { client, transports, configurationService } = createFactoryClient(undefined, undefined, undefined, { autoRestore: true, initialDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 });
+			const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+			disposables.add(client.onDidConnectionDiagnostic(event => {
+				if (event.phase === 'transport.closed') {
+					reasons.push(event.closeReason);
+				}
+			}));
 			configurationService.setUserConfiguration(ChatProvidersSettingId.Enabled, clientSetting);
 			const connecting = client.connect();
 			transports[0].connectDeferred.complete();
@@ -6051,11 +6175,11 @@ suite('AgentHostProtocolClient', () => {
 				},
 			});
 			await flushMicrotasks();
-			return { client, transports };
+			return { client, transports, reasons };
 		}
 
 		test('re-initializes once when the host enables chats with their own agents after the handshake', async () => {
-			const { client, transports } = await connectWithHostGateTurningOn(true);
+			const { client, transports, reasons } = await connectWithHostGateTurningOn(true);
 			const replacement = await waitForTransport(transports, 1);
 			replacement.connectDeferred.complete();
 			const initialize = await waitForRequest(replacement, 'initialize');
@@ -6076,7 +6200,8 @@ suite('AgentHostProtocolClient', () => {
 				transports: transports.length,
 				replacementMethods: replacement.sentMessages.filter((message): message is JsonRpcRequest => 'id' in message && 'method' in message).map(message => message.method).filter(method => method === 'initialize' || method === 'reconnect'),
 				capability: client.initializeResult.get()?.multipleChatProviders,
-			}, { transports: 2, replacementMethods: ['initialize'], capability: {} });
+				reasons,
+			}, { transports: 2, replacementMethods: ['initialize'], capability: {}, reasons: ['protocolReinitialize'] });
 		});
 
 		test('a subscribe in flight when the host enables chats with their own agents succeeds after the re-initialize', async () => {
@@ -7550,6 +7675,12 @@ suite('AgentHostProtocolClient', () => {
 					}
 				}, undefined, { onDidSuspend: suspend.event, onDidResume: resume.event });
 				await completeHandshake(transports[0], client.connect());
+				const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+				disposables.add(client.onDidConnectionDiagnostic(event => {
+					if (event.phase === 'transport.closed') {
+						reasons.push(event.closeReason);
+					}
+				}));
 				if (suspendBeforeDrop) {
 					suspend.fire();
 				}
@@ -7567,9 +7698,10 @@ suite('AgentHostProtocolClient', () => {
 				const reconnect = findRequest(replacement, 'reconnect')!;
 				replacement.fireMessage({ jsonrpc: '2.0', id: reconnect.id, result: { type: ReconnectResultType.Replay, actions: [], missing: [] } });
 				await flushMicrotasks();
-				assert.deepStrictEqual({ whileAsleep, preparations, state: client.connectionState }, {
+				assert.deepStrictEqual({ whileAsleep, preparations, state: client.connectionState, reasons }, {
 					whileAsleep: { preparations: 0, transports: 1, state: AgentHostClientState.Reconnecting },
 					preparations: 2, state: AgentHostClientState.Connected,
+					reasons: [suspendBeforeDrop ? 'osSuspend' : 'unknown'],
 				});
 				client.dispose();
 			});
@@ -8655,7 +8787,7 @@ suite('AgentHostProtocolClient', () => {
 
 		suite('windowed state recovery', () => {
 			const channel = 'session-store://tenant/sessions/windowed?generation%3D2';
-			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maximumFrameBytes: 1024 } };
+			const flowControl = { clientReceive: agentHostStateReceiveLimits, hostReceive: { windowBytes: 64 * 1024, maxFrameBytes: 1024 } };
 			const window = { channel, flowControl, recovery: 'snapshot' };
 			const offer = { channel, flowControl: { receive: agentHostStateReceiveLimits } };
 			const state: SessionState = {
@@ -8706,6 +8838,29 @@ suite('AgentHostProtocolClient', () => {
 					});
 				});
 			}
+
+			test('reconnect sends both frame limits and accepts legacy-only window recovery', async () => {
+				const { client, transports, subscription } = await fixture();
+				const { transport, request } = await beginRecovery(client, transports);
+				transport.fireWireMessage({
+					jsonrpc: '2.0', id: request.id,
+					result: {
+						type: ReconnectResultType.Replay, actions: [], missing: [],
+						windows: {
+							items: [{
+								channel, recovery: 'snapshot',
+								flowControl: JSON.parse('{"clientReceive":{"windowBytes":1048576,"maximumFrameBytes":16777216},"hostReceive":{"windowBytes":65536,"maximumFrameBytes":1024}}'),
+							}]
+						},
+					},
+				});
+				transport.fireWireMessage({ jsonrpc: '2.0', method: 'channel/snapshot', params: { channel, snapshot: { resource: channel, state: { ...state, title: 'Legacy recovery' }, fromSeq: 8 } } });
+				await waitForConnectedWithin(client);
+				assert.deepStrictEqual({ offered: (request.params as { windows?: unknown }).windows, title: subscription.object.verifiedValue?.title }, {
+					offered: { items: [{ channel, flowControl: { receive: { windowBytes: 1048576, maxFrameBytes: 16777216, maximumFrameBytes: 16777216 } } }] },
+					title: 'Legacy recovery',
+				});
+			});
 
 			test('does not resend an optimistic action whose echo was missed before windowed snapshot recovery', async () => {
 				const { client, transports, subscription } = await fixture();
@@ -10840,6 +10995,12 @@ suite('AgentHostProtocolClient', () => {
 				// Inject a no-load estimator: the shared LoadEstimator singleton
 				// installs a 1s interval that never drains under fake timers.
 				const { client, transports } = createFactoryClient(createPermissionService(), undefined, NullTelemetryService, undefined, { hasHighLoad: () => false });
+				const reasons: IConnectionDiagnosticEvent['closeReason'][] = [];
+				disposables.add(client.onDidConnectionDiagnostic(event => {
+					if (event.phase === 'transport.closed') {
+						reasons.push(event.closeReason);
+					}
+				}));
 				const connectPromise = client.connect();
 				await completeHandshake(transports[0], connectPromise);
 
@@ -10856,6 +11017,7 @@ suite('AgentHostProtocolClient', () => {
 				const err = await pending;
 				assert.ok(err instanceof ProtocolError);
 				assert.match((err as ProtocolError).message, /Connection appears dead/);
+				assert.deepStrictEqual(reasons, ['watchdog']);
 			});
 		});
 

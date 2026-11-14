@@ -7,9 +7,8 @@ import { SequencerByKey } from '../../../base/common/async.js';
 import { OperatingSystem } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { normalizeSandboxFileSystemPath } from '../../sandbox/common/settings.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
-import { applySessionSandboxPathGrant, ISandboxPathGrant, ISessionSandboxPaths, parseSessionSandboxPaths, SESSION_SANDBOX_PATHS_KEY } from '../common/sandboxPathGrant.js';
+import { applySessionSandboxPathGrant, ISandboxPathGrant, ISessionSandboxPaths, parseSessionSandboxPaths, removeSandboxReadonlyPaths, SESSION_SANDBOX_PATHS_KEY } from '../common/sandboxPathGrant.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 
 export const ISessionSandboxPathService = createDecorator<ISessionSandboxPathService>('sessionSandboxPathService');
@@ -56,12 +55,11 @@ export class SessionSandboxPathService implements ISessionSandboxPathService {
 		if (!current || !paths.length) {
 			return;
 		}
-		const removed = new Set(paths.map(path => normalizeSandboxFileSystemPath(path, os)));
-		const readonlyPaths = current.readonlyPaths.filter(path => !removed.has(normalizeSandboxFileSystemPath(path, os)));
-		if (readonlyPaths.length === current.readonlyPaths.length) {
+		const updated = removeSandboxReadonlyPaths(current, paths, os);
+		if (updated === current) {
 			return;
 		}
-		return this._save(session, { ...current, readonlyPaths });
+		return this._save(session, updated);
 	}
 
 	private _save(session: URI, paths: ISessionSandboxPaths): Promise<void> {

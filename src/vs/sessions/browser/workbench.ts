@@ -400,7 +400,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		if (targetDocument === this.mainContainer.ownerDocument) {
 			return this.mainContainer;
 		} else {
-			// eslint-disable-next-line no-restricted-syntax
+			// eslint-disable-next-line eslint-js/no-restricted-syntax
 			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
 		}
 	}
@@ -558,7 +558,7 @@ export abstract class Workbench extends Disposable implements IAgentWorkbenchLay
 		// The viewport `<meta>` tag is injected by the shared workbench.html,
 		// so we cannot use dom.ts `h()` to create it. Look it up by tag name
 		// and filter by the `name` attribute to avoid a selector query.
-		// eslint-disable-next-line no-restricted-syntax
+		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const metaElements = mainWindow.document.head.getElementsByTagName('meta');
 		let viewportMeta: HTMLMetaElement | undefined;
 		for (let i = 0; i < metaElements.length; i++) {

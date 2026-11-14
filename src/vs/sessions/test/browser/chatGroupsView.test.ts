@@ -84,6 +84,7 @@ class TestChatView extends AbstractChatView {
 	constructor(
 		readonly kind: ChatViewKind,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ISessionHost readonly host: ISessionHost,
 	) {
 		super();
 		this._register(contextKeyService.createScoped(this.element));
@@ -913,6 +914,22 @@ suite('Sessions - ChatGroupsView', () => {
 				sashes: 1,
 			},
 		});
+	});
+
+	test('each group of a split session gives its chat view its own chat', async () => {
+		const { sessionsService, view, chatViewFactory } = createHarness(disposables);
+		const main = createChat('main');
+		const child = createChat('child', SessionStatus.Completed, main.resource);
+		const session = new TestActiveSession([main, child]);
+		sessionsService.activeSession.set(session, undefined);
+		view.setSession(paneContent(view, session), options);
+		view.layout(800, 600, 0, 0);
+		view.splitChatToSide(child.resource);
+		await timeout(0);
+
+		assert.deepStrictEqual(
+			chatViewFactory.views.filter(v => !v.isDisposed).map(v => v.host.chat.get()?.resource.toString()),
+			[main.resource.toString(), child.resource.toString()]);
 	});
 
 	test('expands a collapsed group when its chat becomes active without taking focus', async () => {

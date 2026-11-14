@@ -10,7 +10,7 @@ import type { Annotation, AnnotationEntry } from '../../state/protocol/state.js'
  * Shared convention for carrying agent-feedback semantics inside an
  * {@link Annotation._meta} on the agent host annotations channel.
  *
- * Feedback items round-trip as annotations on `<session>/annotations`; the
+ * Feedback items round-trip on the session's advertised annotations channel; the
  * annotation's own fields cover id / resource / range / resolved, and
  * everything else (lifecycle state, origin kind, code context, PR linkage)
  * lives under {@link FEEDBACK_ANNOTATION_META_KEY}. This module is the single

@@ -18,7 +18,6 @@ import { toCopilotMcpServerConfiguration } from '../../../mcp/common/mcpCopilotC
 import { McpServerType, type IMcpServerConfiguration } from '../../../mcp/common/mcpPlatformTypes.js';
 import { resolveAgentDisableModelInvocation, type IMcpServerDefinition, type INamedPluginResource, type IParsedHookCommand, type IParsedHookGroup, type IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import type { ChildCustomization } from '../../common/state/protocol/state.js';
-import type { IInstalledModelRouterAgent, IModelRouterAgent } from '../../common/modelRouterAgents.js';
 import { CLIENT_TOOL_SEARCH_REFERENCE_NAME, RUNTIME_TOOL_SEARCH_TOOL_NAME } from '../../common/toolSearchConstants.js';
 import { resolveMcpServerWorkingDirectory } from '../shared/mcpServerWorkingDirectory.js';
 
@@ -257,65 +256,6 @@ export async function toSdkCustomAgents(
 		}
 	}
 	return clientToolNames ? mapCopilotCustomAgentTools(configs, clientToolNames) : configs;
-}
-
-export interface IModelRouterAgentProjection {
-	readonly agents: CustomAgentConfig[];
-	/** The playbook's agents the session has, for the main agent's briefing. */
-	readonly installed: IInstalledModelRouterAgent[];
-	/** Roles left out, each with the reason, for the log. */
-	readonly omitted: string[];
-}
-
-/**
- * Adds a model router playbook's agents to a session's custom agents. Every role is an agent of
- * its own, named after the role. A role the router describes gets the description as its
- * instructions. A role that reuses an agent gets a copy of that agent, which itself is left as
- * written; it must match exactly one agent by name, and one another agent may start. A role's
- * model is required, so its agent fails rather than running on another model.
- *
- * @param reservedNames Names of agents every session already has. A role with one of them is left out.
- * @param encodeEffort Encodes a role's effort for the runtime, given the model it runs on.
- * @param reusableOnly Agents a role may reuse that are not custom agents of the session, such as
- * those of a plugin the runtime loads itself. They are copied, never added themselves.
- */
-export function withModelRouterAgents(agents: readonly CustomAgentConfig[], roles: readonly IModelRouterAgent[], reservedNames: ReadonlySet<string>, encodeEffort: (model: string | undefined, effort: string) => string = (_model, effort) => effort, reusableOnly: readonly CustomAgentConfig[] = []): IModelRouterAgentProjection {
-	const result: CustomAgentConfig[] = [...agents];
-	const installed: IInstalledModelRouterAgent[] = [];
-	const omitted: string[] = [];
-	for (const role of roles) {
-		if (reservedNames.has(role.name) || result.some(agent => agent.name === role.name)) {
-			omitted.push(`${role.name}: an agent with that name already exists`);
-			continue;
-		}
-		let base: CustomAgentConfig;
-		let description = role.description;
-		if (role.agent) {
-			// Only agents that existed before are reused, never one added above for another role.
-			const wanted = role.agent.toLowerCase();
-			const matches = [...agents, ...reusableOnly].filter(agent => (agent.displayName ?? agent.name).toLowerCase() === wanted);
-			if (matches.length !== 1) {
-				omitted.push(`${role.name}: ${matches.length === 0 ? 'no' : 'more than one'} custom agent is named "${role.agent}"`);
-				continue;
-			}
-			const authored: ICopilotCustomAgentConfig = matches[0];
-			if (authored.infer === false || authored.disableModelInvocation) {
-				omitted.push(`${role.name}: the custom agent "${role.agent}" can't be started by another agent`);
-				continue;
-			}
-			description ||= `The user's ${authored.displayName ?? authored.name} agent.`;
-			base = { ...authored, name: role.name, displayName: role.name, description: customAgentDescription(role.name, description) };
-		} else {
-			base = { name: role.name, displayName: role.name, description: customAgentDescription(role.name, description), tools: null, prompt: description };
-		}
-		result.push({
-			...base,
-			...(role.model ? { model: role.model, modelPolicy: 'required' } : {}),
-			...(role.effort ? { reasoningEffort: encodeEffort(role.model ?? base.model, role.effort) } : {}),
-		});
-		installed.push({ agentType: role.name, description });
-	}
-	return { agents: result, installed, omitted };
 }
 
 /** Projects authored tool references without rereading or mutating the parsed agent configurations. */

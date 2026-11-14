@@ -60,6 +60,8 @@ export interface IToolApprovalEvent {
 	readonly permissionPath?: string;
 	readonly permissionResource?: URI;
 	readonly permissionUrl?: string;
+	readonly mcpServerName?: string;
+	readonly mcpToolName?: string;
 	readonly toolInput?: string;
 	readonly requestSandboxBypass?: boolean;
 	readonly shellLanguage?: IAgentToolPendingConfirmationSignal['shellLanguage'];
@@ -909,6 +911,8 @@ export class SessionPermissionManager extends Disposable {
 	private _permissionRequest(e: IToolApprovalEvent, sessionKey: ProtocolURI): IPermissionRequest {
 		return {
 			kind: e.permissionKind,
+			mcpServerName: e.mcpServerName,
+			mcpToolName: e.mcpToolName,
 			toolName: this._getToolNameForToolCall(sessionKey, e.toolCallId) ?? e.toolName ?? '',
 			shellLanguage: e.shellLanguage,
 			url: e.permissionUrl,

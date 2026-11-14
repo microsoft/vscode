@@ -13,6 +13,7 @@ import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../../editor/browser/editorBrowser.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { isISubmenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -91,6 +92,23 @@ suite('Queue/Steer keybinding resolution', () => {
 				dispose();
 			}
 		}
+	});
+
+	test('attachment-only busy inputs expose contributed send options without changing the default menu', () => {
+		const context = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const submenu = MenuRegistry.getMenuItems(MenuId.ChatExecute).find(item => isISubmenuItem(item) && item.submenu === MenuId.ChatExecuteQueue);
+		assert.ok(submenu);
+		const visible = [false, true].map(hasSecondaryActions => {
+			const overlay = context.createOverlay([
+				[ChatContextKeys.inputHasText.key, false],
+				[ChatContextKeys.inputHasSendableContent.key, true],
+				[ChatContextKeys.requestInProgress.key, true],
+				[ChatContextKeys.transcriptProgressActive.key, false],
+				[ChatContextKeys.hasSecondaryExecuteActions.key, hasSecondaryActions],
+			]);
+			return overlay.contextMatchesRules(submenu.when);
+		});
+		assert.deepStrictEqual(visible, [false, true]);
 	});
 });
 

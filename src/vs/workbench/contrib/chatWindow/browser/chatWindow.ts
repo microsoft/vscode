@@ -352,4 +352,13 @@ export interface IChatWindowNewChatOptions {
 	readonly beside?: boolean;
 	/** Without moving focus to it, such as when opened in the background. */
 	readonly preserveFocus?: boolean;
+	/** The folder the new chat starts in, such as one the user picked, rather than what the window's active chat starts it from. */
+	readonly folder?: IChatWindowNewChatFolder;
+}
+
+/** A folder a new chat starts in ({@link IChatWindowNewChatOptions.folder}). */
+export interface IChatWindowNewChatFolder {
+	readonly uri: URI;
+	/** The provider that resolved the folder before, such as for a recent folder, so that the new chat keeps it. */
+	readonly providerId?: string;
 }

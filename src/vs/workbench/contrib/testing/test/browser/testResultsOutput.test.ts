@@ -27,6 +27,7 @@ import { TerminalMessagePeek } from '../../browser/testResultsView/testResultsOu
 import { MessageSubject, TaskSubject, TestOutputSubject } from '../../browser/testResultsView/testResultsSubject.js';
 import { LiveTestResult } from '../../common/testResult.js';
 import { TestRunProfileBitset } from '../../common/testTypes.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 suite('Testing output terminal', () => {
 	teardown(async () => {
@@ -81,7 +82,7 @@ suite('Testing output terminal', () => {
 				}
 			},
 			new class extends mock<IViewDescriptorService>() { },
-			new class extends mock<IWorkspaceContextService>() { override getWorkspace = () => ({ id: 'workspace', folders: [] }); },
+			new class extends mock<IWorkspaceContextService>() { override getWorkspace = () => (testIWorkspace({ id: 'workspace', folders: [] })); },
 		));
 		result = store.add(new LiveTestResult('result', false, { group: TestRunProfileBitset.Run, targets: [] }, 0, NullTelemetryService));
 		result.addTask({ id: 'task', name: 'task', running: true, ctrlId: 'ctrl' });

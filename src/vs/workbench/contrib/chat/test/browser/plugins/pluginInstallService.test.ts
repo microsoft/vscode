@@ -1178,35 +1178,37 @@ suite('PluginInstallService', () => {
 			}, { result: { updatedNames: [], failedNames: [] }, updated: [plugin], added: [] });
 		});
 
-		test('uses the refreshed Git descriptor and replaces the old installed URI', async () => {
-			const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test' } });
-			const livePlugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test', sha: 'new-sha' } });
-			const oldUri = URI.file('/cache/ref_main/plugins/test');
-			const newUri = URI.file('/cache/sha_new-sha/plugins/test');
-			const { service, state } = createService({
-				installedPlugins: [{ pluginUri: oldUri, plugin }],
-				fetchedMarketplacePlugins: [livePlugin],
-				pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
-				ensurePluginSourceResult: newUri,
-				recordInstalledPlugins: true,
-			});
+		for (const automatic of [false, true]) {
+			test(`uses the refreshed Git descriptor and replaces the old installed URI (${automatic ? 'automatic' : 'manual'})`, async () => {
+				const plugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test' } });
+				const livePlugin = createPlugin({ sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/repo', ref: 'main', path: 'plugins/test', sha: 'new-sha' } });
+				const oldUri = URI.file('/cache/ref_main/plugins/test');
+				const newUri = URI.file('/cache/sha_new-sha/plugins/test');
+				const { service, state } = createService({
+					installedPlugins: [{ pluginUri: oldUri, plugin }],
+					fetchedMarketplacePlugins: [livePlugin],
+					pluginSourceInstallUris: new Map([[PluginSourceKind.GitHub, newUri]]),
+					ensurePluginSourceResult: newUri,
+					recordInstalledPlugins: true,
+				});
 
-			const result = await service.updateAllPlugins({ silent: true }, CancellationToken.None);
+				const result = await service.updateAllPlugins({ silent: true, automatic }, CancellationToken.None);
 
-			assert.deepStrictEqual({
-				result,
-				ensured: state.ensurePluginSourceDescriptors,
-				installed: state.installedPlugins,
-				removed: state.removedPluginUris,
-				fetchOptions: state.fetchMarketplaceOptions,
-			}, {
-				result: { updatedNames: [plugin.name], failedNames: [] },
-				ensured: [livePlugin.sourceDescriptor],
-				installed: [{ pluginUri: newUri, plugin: livePlugin }],
-				removed: [oldUri.toString()],
-				fetchOptions: [{ refresh: true }],
+				assert.deepStrictEqual({
+					result,
+					ensured: state.ensurePluginSourceDescriptors,
+					installed: state.installedPlugins,
+					removed: state.removedPluginUris,
+					fetchOptions: state.fetchMarketplaceOptions,
+				}, {
+					result: { updatedNames: [plugin.name], failedNames: [] },
+					ensured: [livePlugin.sourceDescriptor],
+					installed: [{ pluginUri: newUri, plugin: livePlugin }],
+					removed: [oldUri.toString()],
+					fetchOptions: [{ refresh: true, priority: automatic ? 'background' : undefined }],
+				});
 			});
-		});
+		}
 
 		for (const kind of [PluginSourceKind.Npm, PluginSourceKind.Pip] as const) {
 			for (const force of [false, true]) {
@@ -1451,6 +1453,17 @@ suite('PluginInstallService', () => {
 
 	suite('installPluginFromSource', () => {
 
+		for (const [source, descriptor] of [
+			['owner/collection#feature/beta', { kind: PluginSourceKind.GitHub, repo: 'owner/collection', ref: 'feature/beta' }],
+			['https://example.com/collection.git#release/v1', { kind: PluginSourceKind.GitUrl, url: 'https://example.com/collection.git', ref: 'release/v1' }],
+		] as const) {
+			test(`uses the requested revision for marketplace discovery: ${source}`, async () => {
+				const { service, state } = createService();
+				await service.installPluginFromSource(source, { plugin: 'my-plugin' });
+				assert.deepStrictEqual(state.ensurePluginSourceDescriptors, [descriptor]);
+			});
+		}
+
 		test('rejects marketplace traversal before cloning a pinned source', async () => {
 			const { service, state } = createService({
 				strictMarketplaces: [{ source: 'github', repo: 'microsoft/vscode', ref: 'marketplace' }],
@@ -1471,9 +1484,9 @@ suite('PluginInstallService', () => {
 			});
 		});
 
-		test('keeps legacy source handling for repository-root plugins', async () => {
+		test('keeps the requested revision for repository-root plugins', async () => {
 			const singlePlugin = createPlugin({
-				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				sourceDescriptor: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 			const { service, state } = createService({
 				singlePluginManifestResult: singlePlugin,
@@ -1488,10 +1501,10 @@ suite('PluginInstallService', () => {
 			}, {
 				success: true,
 				sources: [
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
-					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
+					{ kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 				],
-				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog' },
+				installedSource: { kind: PluginSourceKind.GitHub, repo: 'owner/catalog', ref: 'release/v1' },
 			});
 		});
 

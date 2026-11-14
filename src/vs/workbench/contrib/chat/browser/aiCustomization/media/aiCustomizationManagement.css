@@ -828,6 +828,14 @@ per-word capitalization does not survive translation. */
 	line-height: 16px;
 }
 
+.plugin-list-widget .plugin-scope-badge.monaco-text-button {
+	width: auto;
+	padding: 0 var(--vscode-spacing-size40);
+	font-size: var(--vscode-fontSize-label3);
+	border-radius: var(--vscode-cornerRadius-small);
+	border-color: var(--vscode-contrastBorder, transparent);
+}
+
 /* "Managed by your organization" tag for customizations controlled by the user's organization */
 .inline-badge.organization-managed-tag {
 	display: inline-flex;

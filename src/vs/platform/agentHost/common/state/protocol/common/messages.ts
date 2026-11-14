@@ -21,7 +21,7 @@ import type { AuthRequiredParams, ChannelFrameParams, ChannelCreditParams, Chann
 import type { OtlpExportLogsParams, OtlpExportTracesParams, OtlpExportMetricsParams } from '../channels-otlp/notifications.js';
 import type { AhpError } from './errors.js';
 import type { TcpDataParams, TcpEofParams, TcpResetParams } from '../channels-tcp/notifications.js';
-import type { CreateTcpConnectionParams } from '../channels-tcp/commands.js';
+import type { CreateTcpConnectionParams, CreateTcpConnectionResult } from '../channels-tcp/commands.js';
 
 // ─── JSON-RPC Base Types ─────────────────────────────────────────────────────
 
@@ -91,7 +91,7 @@ export interface CommandMap {
 	'createSession': { params: CreateSessionParams; result: null };
 	'disposeSession': { params: DisposeSessionParams; result: null };
 	'createChat': { params: CreateChatParams; result: null };
-	'createTcpConnection': { params: CreateTcpConnectionParams; result: null };
+	'createTcpConnection': { params: CreateTcpConnectionParams; result: CreateTcpConnectionResult };
 	'moveChat': { params: MoveChatParams; result: MoveChatResult };
 	'disposeChat': { params: DisposeChatParams; result: null };
 	'createTerminal': { params: CreateTerminalParams; result: null };
@@ -174,7 +174,7 @@ export interface ClientNotificationMap {
  * Every notification's params MUST carry a top-level `channel: URI` so that
  * the client can dispatch the message to the right subscription.
  * On a windowed subscription, data notifications count against the window,
- * whether or not they are sent in `channel/frame` fragments.
+ * whether or not they are sent in `channel/frame` notifications.
  * `channel/credit` and `tcp/reset` do not.
  *
  * @category Notifications

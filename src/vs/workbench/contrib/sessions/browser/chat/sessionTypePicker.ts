@@ -486,6 +486,12 @@ export class SessionTypePicker extends Disposable {
 		return this._picked;
 	}
 
+	get selectedSessionType(): IProviderSessionType | undefined {
+		const pick = this._picked;
+		return pick && this._folderSessionTypes.find(type =>
+			(!pick.providerId || type.providerId === pick.providerId) && type.sessionType.id === pick.sessionTypeId);
+	}
+
 	/**
 	 * The session types to offer for a session: all quick-chat types when the
 	 * session is a workspace-less quick chat, otherwise the folder's types.

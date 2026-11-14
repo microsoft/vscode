@@ -73,15 +73,6 @@ export const COPILOT_BUILTIN_AGENTS: readonly ICopilotBuiltinAgent[] = [{
 }];
 
 export const COPILOT_BUILTIN_AGENT_NAMES: ReadonlySet<string> = new Set(COPILOT_BUILTIN_AGENTS.map(agent => agent.name));
-/**
- * Names of agents every session already has: the host's own, and the ones the Copilot runtime
- * brings. A custom agent with a runtime agent's name replaces it, so an agent the host adds on
- * its own, such as a model router role, never takes one of these names.
- */
-export const COPILOT_RESERVED_AGENT_NAMES: ReadonlySet<string> = new Set([
-	...COPILOT_BUILTIN_AGENT_NAMES,
-	'explore', 'task', 'general-purpose', 'rubber-duck', 'code-review', 'research', 'security-review', 'rem-agent',
-]);
 export const COPILOT_BUILTIN_AGENT_NAMES_BY_URI: ReadonlyMap<string, string> = new Map(
 	COPILOT_BUILTIN_AGENTS.map(agent => [getComparisonKey(getCopilotBuiltinAgentUri(agent)), agent.name]),
 );

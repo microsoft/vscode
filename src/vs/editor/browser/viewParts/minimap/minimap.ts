@@ -26,7 +26,7 @@ import { RenderingContext, RestrictedRenderingContext } from '../../view/renderi
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
 import { EditorTheme } from '../../../common/editorTheme.js';
 import * as viewEvents from '../../../common/viewEvents.js';
-import { ViewLineData } from '../../../common/viewModel.js';
+import { IViewLayout, ViewLineData } from '../../../common/viewModel.js';
 import { minimapSelection, minimapBackground, minimapForegroundOpacity, editorForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { ModelDecorationMinimapOptions } from '../../../common/model/textModel.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -217,11 +217,11 @@ export class MinimapLayout {
 
 	constructor(
 		/**
-		 * The given editor scrollTop (input).
+		 * The given editor scrollTop (input), measured without view zones in `fit`/`fill` mode.
 		 */
 		public readonly scrollTop: number,
 		/**
-		 * The given editor scrollHeight (input).
+		 * The given editor scrollHeight (input), measured without view zones in `fit`/`fill` mode.
 		 */
 		public readonly scrollHeight: number,
 		public readonly sliderNeeded: boolean,
@@ -277,6 +277,82 @@ export class MinimapLayout {
 	 */
 	public getYForLineNumber(lineNumber: number, minimapLineHeight: number): number {
 		return + (lineNumber - this.startLineNumber + this.topPaddingLineCount) * minimapLineHeight;
+	}
+
+	/**
+	 * In `fit`/`fill` mode the minimap draws every line at the default line height and leaves out
+	 * view zones, so the slider has to follow a scroll position that is measured the same way.
+	 * Without view zones and custom line heights, this is the identity.
+	 *
+	 * | editor                       | zone-free                                                   |
+	 * |------------------------------|-------------------------------------------------------------|
+	 * | top padding                  | unchanged                                                   |
+	 * | view zone above line k       | collapses to the top of line k                              |
+	 * | offset into line k, height h | `(k - 1) * lineHeight + paddingTop + offset * lineHeight / h` |
+	 * | after the last line          | moves 1:1                                                   |
+	 */
+	public static getZoneFreeScrollPosition(
+		viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber' | 'getVerticalOffsetAfterLineNumber' | 'getLineHeightForLineNumber'>,
+		lineCount: number,
+		lineHeight: number,
+		paddingTop: number,
+		viewportStartLineNumber: number,
+		viewportHeight: number,
+		scrollTop: number,
+		scrollHeight: number
+	): { scrollTop: number; scrollHeight: number } {
+		const zoneFreeLinesBottom = lineCount * lineHeight + paddingTop;
+		const linesBottom = viewLayout.getVerticalOffsetAfterLineNumber(lineCount, true);
+		const zoneFreeScrollHeight = scrollHeight - (linesBottom - zoneFreeLinesBottom);
+		if (zoneFreeScrollHeight <= viewportHeight) {
+			// Only the view zones or taller lines make the editor scroll, keep the slider following them
+			return { scrollTop, scrollHeight };
+		}
+		let zoneFreeScrollTop: number;
+		if (scrollTop < paddingTop) {
+			zoneFreeScrollTop = scrollTop;
+		} else if (scrollTop >= linesBottom) {
+			zoneFreeScrollTop = zoneFreeLinesBottom + (scrollTop - linesBottom);
+		} else {
+			const lineTop = viewLayout.getVerticalOffsetForLineNumber(viewportStartLineNumber);
+			const lineHeightAtTop = viewLayout.getLineHeightForLineNumber(viewportStartLineNumber);
+			const offsetIntoLine = lineHeightAtTop > 0 ? Math.min(Math.max(scrollTop - lineTop, 0), lineHeightAtTop) * lineHeight / lineHeightAtTop : 0;
+			zoneFreeScrollTop = (viewportStartLineNumber - 1) * lineHeight + paddingTop + offsetIntoLine;
+		}
+		return { scrollTop: Math.min(zoneFreeScrollTop, zoneFreeScrollHeight - viewportHeight), scrollHeight: zoneFreeScrollHeight };
+	}
+
+	/**
+	 * The inverse of {@link getZoneFreeScrollPosition}: the editor `scrollTop` for a zone-free `scrollTop`.
+	 */
+	public static getScrollTopFromZoneFreeScrollTop(
+		viewLayout: Pick<IViewLayout, 'getVerticalOffsetForLineNumber' | 'getVerticalOffsetAfterLineNumber' | 'getLineHeightForLineNumber'>,
+		lineCount: number,
+		lineHeight: number,
+		paddingTop: number,
+		viewportHeight: number,
+		zoneFreeScrollTop: number,
+		scrollHeight: number
+	): number {
+		const zoneFreeLinesBottom = lineCount * lineHeight + paddingTop;
+		const linesBottom = viewLayout.getVerticalOffsetAfterLineNumber(lineCount, true);
+		const zoneFreeScrollHeight = scrollHeight - (linesBottom - zoneFreeLinesBottom);
+		if (zoneFreeScrollHeight <= viewportHeight) {
+			return zoneFreeScrollTop;
+		}
+		const maxScrollTop = Math.max(0, scrollHeight - viewportHeight);
+		if (zoneFreeScrollTop >= zoneFreeScrollHeight - viewportHeight) {
+			return maxScrollTop;
+		}
+		if (zoneFreeScrollTop < paddingTop) {
+			return Math.max(0, zoneFreeScrollTop);
+		}
+		if (zoneFreeScrollTop >= zoneFreeLinesBottom) {
+			return Math.min(maxScrollTop, linesBottom + (zoneFreeScrollTop - zoneFreeLinesBottom));
+		}
+		const lineNumber = Math.min(Math.max(Math.floor((zoneFreeScrollTop - paddingTop) / lineHeight) + 1, 1), lineCount);
+		const offsetIntoLine = zoneFreeScrollTop - ((lineNumber - 1) * lineHeight + paddingTop);
+		return Math.min(maxScrollTop, viewLayout.getVerticalOffsetForLineNumber(lineNumber) + offsetIntoLine * viewLayout.getLineHeightForLineNumber(lineNumber) / lineHeight);
 	}
 
 	public static create(
@@ -581,13 +657,27 @@ export interface IMinimapModel {
 	getSectionHeaderText(decoration: ViewModelDecoration, fitWidth: (s: string) => string): string | null;
 	getOptions(): TextModelResolvedOptions;
 	revealLineNumber(lineNumber: number): void;
+	/**
+	 * In `fit`/`fill` mode, `scrollTop` is measured without view zones.
+	 */
 	setScrollTop(scrollTop: number): void;
+	/**
+	 * The editor `scrollTop`, measured with view zones in every mode.
+	 */
+	getEditorScrollTop(): number;
+	/**
+	 * Sets the editor `scrollTop`, measured with view zones in every mode.
+	 */
+	setEditorScrollTop(scrollTop: number): void;
 }
 
 interface IMinimapRenderingContext {
 	readonly viewportContainsWhitespaceGaps: boolean;
 
 	readonly scrollWidth: number;
+	/**
+	 * In `fit`/`fill` mode, measured without view zones.
+	 */
 	readonly scrollHeight: number;
 
 	readonly viewportStartLineNumber: number;
@@ -595,6 +685,9 @@ interface IMinimapRenderingContext {
 	readonly viewportStartLineNumberVerticalOffset: number;
 	readonly viewportStartLineNumberLineHeight: number;
 
+	/**
+	 * In `fit`/`fill` mode, measured without view zones.
+	 */
 	readonly scrollTop: number;
 	readonly scrollLeft: number;
 
@@ -972,6 +1065,12 @@ export class Minimap extends ViewPart implements IMinimapModel {
 		let viewportStartLineNumber = ctx.visibleRange.startLineNumber;
 		let viewportEndLineNumber = ctx.visibleRange.endLineNumber;
 
+		let scrollTop = ctx.scrollTop;
+		let scrollHeight = ctx.scrollHeight;
+		if (this.options.minimapHeightIsEditorHeight) {
+			({ scrollTop, scrollHeight } = MinimapLayout.getZoneFreeScrollPosition(ctx, this.getRealLineCount(), this.options.lineHeight, this.options.paddingTop, viewportStartLineNumber, ctx.viewportHeight, ctx.scrollTop, ctx.scrollHeight));
+		}
+
 		if (this._samplingState) {
 			viewportStartLineNumber = this._samplingState.modelLineToMinimapLine(viewportStartLineNumber);
 			viewportEndLineNumber = this._samplingState.modelLineToMinimapLine(viewportEndLineNumber);
@@ -981,14 +1080,14 @@ export class Minimap extends ViewPart implements IMinimapModel {
 			viewportContainsWhitespaceGaps: (ctx.viewportData.whitespaceViewportData.length > 0),
 
 			scrollWidth: ctx.scrollWidth,
-			scrollHeight: ctx.scrollHeight,
+			scrollHeight: scrollHeight,
 
 			viewportStartLineNumber: viewportStartLineNumber,
 			viewportEndLineNumber: viewportEndLineNumber,
 			viewportStartLineNumberVerticalOffset: ctx.getVerticalOffsetForLineNumber(viewportStartLineNumber),
 			viewportStartLineNumberLineHeight: ctx.getLineHeightForLineNumber(viewportStartLineNumber),
 
-			scrollTop: ctx.scrollTop,
+			scrollTop: scrollTop,
 			scrollLeft: ctx.scrollLeft,
 
 			viewportWidth: ctx.viewportWidth,
@@ -1151,6 +1250,18 @@ export class Minimap extends ViewPart implements IMinimapModel {
 	}
 
 	public setScrollTop(scrollTop: number): void {
+		if (this.options.minimapHeightIsEditorHeight) {
+			const viewLayout = this._context.viewModel.viewLayout;
+			scrollTop = MinimapLayout.getScrollTopFromZoneFreeScrollTop(viewLayout, this.getRealLineCount(), this.options.lineHeight, this.options.paddingTop, viewLayout.getCurrentViewport().height, scrollTop, viewLayout.getScrollHeight());
+		}
+		this.setEditorScrollTop(scrollTop);
+	}
+
+	public getEditorScrollTop(): number {
+		return this._context.viewModel.viewLayout.getCurrentScrollTop();
+	}
+
+	public setEditorScrollTop(scrollTop: number): void {
 		this._context.viewModel.viewLayout.setScrollPosition({
 			scrollTop: scrollTop
 		}, ScrollType.Immediate);
@@ -1341,6 +1452,9 @@ class InnerMinimap extends Disposable {
 			return;
 		}
 		const initialPosX = e.pageX;
+		// In `fit`/`fill` mode several editor positions share one slider position (inside a view zone,
+		// or near the end with a tall view zone), so put the editor back instead of mapping the slider back
+		const initialEditorScrollTop = this._model.getEditorScrollTop();
 
 		this._slider.toggleClassName('active', true);
 
@@ -1354,11 +1468,15 @@ class InnerMinimap extends Disposable {
 
 			if (platform.isWindows && pointerOrthogonalDelta > POINTER_DRAG_RESET_DISTANCE) {
 				// The pointer has wondered away from the scrollbar => reset dragging
-				this._model.setScrollTop(initialSliderState.scrollTop);
+				this._model.setEditorScrollTop(initialEditorScrollTop);
 				return;
 			}
 
 			const pointerDelta = posy - initialPosY;
+			if (pointerDelta === 0) {
+				this._model.setEditorScrollTop(initialEditorScrollTop);
+				return;
+			}
 			this._model.setScrollTop(initialSliderState.getDesiredScrollTopFromDelta(pointerDelta));
 		};
 

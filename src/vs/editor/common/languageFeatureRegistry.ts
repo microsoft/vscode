@@ -93,6 +93,14 @@ export class LanguageFeatureRegistry<T> {
 		return this.all(model).length > 0;
 	}
 
+	/**
+	 * Checks potential provider availability before a text model has been resolved.
+	 */
+	hasForResource(uri: URI, languageId: string): boolean {
+		const notebook = this._notebookInfoResolver?.(uri);
+		return this._entries.some(entry => score(entry.selector, uri, languageId, true, notebook?.uri, notebook?.type) > 0);
+	}
+
 	all(model: ITextModel): T[] {
 		if (!model) {
 			return [];

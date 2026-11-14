@@ -88,6 +88,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel } from '../../../common/model/chatModel.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { IParsedChatRequest } from '../../../common/requestParser/chatParserTypes.js';
+import { testIWorkspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
 
 const discovered: ICloudSandboxDiscoveredSession = {
 	environmentId: 'environment-one',
@@ -620,7 +621,7 @@ function createHarness(store: Pick<DisposableStore, 'add'>, options?: {
 	instantiationService.stub(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 		override readonly onDidChangeWorkspaceFolders = workspaceFoldersChanged.event;
 		override getWorkspace() {
-			return { id: 'editor-workspace', folders: state.workspaceFolders };
+			return testIWorkspace({ id: 'editor-workspace', folders: state.workspaceFolders });
 		}
 	}());
 	instantiationService.stub(IGitService, new class extends mock<IGitService>() {

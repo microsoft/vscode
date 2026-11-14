@@ -34,6 +34,48 @@ export function parseSSHConfigHostEntries(content: string): string[] {
 	return hosts;
 }
 
+/** Parses Include arguments with OpenSSH quoting, escapes and comments; undefined indicates invalid quotes or an empty path. */
+export function parseSSHConfigIncludePaths(value: string): string[] | undefined {
+	const paths: string[] = [];
+	let index = 0;
+	while (index < value.length) {
+		while (value[index] === ' ' || value[index] === '\t') {
+			index++;
+		}
+		if (index === value.length || value[index] === '#') {
+			break;
+		}
+
+		let path = '';
+		let quote: '"' | '\'' | undefined;
+		while (index < value.length) {
+			const char = value[index++];
+			if (char === '\\') {
+				const next = value[index];
+				if (next === '"' || next === '\'' || next === '\\' || (!quote && next === ' ')) {
+					path += next;
+					index++;
+				} else {
+					path += char;
+				}
+			} else if (!quote && (char === ' ' || char === '\t')) {
+				break;
+			} else if (!quote && (char === '"' || char === '\'')) {
+				quote = char;
+			} else if (char === quote) {
+				quote = undefined;
+			} else {
+				path += char;
+			}
+		}
+		if (quote || !path) {
+			return undefined;
+		}
+		paths.push(path);
+	}
+	return paths;
+}
+
 /** Retains token boundaries so the node layer can recover unquoted paths using filesystem evidence. */
 export function tokenizeSSHPathList(value: string): { path: string; start: number; end: number; quoted: boolean }[] {
 	const paths: { path: string; start: number; end: number; quoted: boolean }[] = [];

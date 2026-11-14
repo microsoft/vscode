@@ -217,6 +217,10 @@ suite('ServerAgentHostManager', () => {
 		starter.connectionTrackerChannel.getEmitter('onDidChangeConnectionCount').fire(count);
 	}
 
+	function fireGitHubEnvironmentRegistered(registered: boolean): void {
+		starter.connectionTrackerChannel.getEmitter('onDidChangeGitHubEnvironmentRegistered').fire(registered);
+	}
+
 	test('no lifetime token initially', async () => {
 		const manager = createManager();
 		await waitForStart(manager);
@@ -440,28 +444,30 @@ suite('ServerAgentHostManager', () => {
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 	});
 
-	test('releases token only when both sessions and standalone WebSocket connections are zero', async () => {
+	test('releases token only when sessions, standalone WebSocket connections and client GitHub environment registration are gone', async () => {
 		const manager = createManager();
 		await waitForStart(manager);
-
-		fireActiveSessions(1);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		fireConnectionCount(1);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		fireActiveSessions(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
-
-		fireConnectionCount(0);
-		assert.strictEqual(lifetimeService.hasActiveConsumers, false);
+		const states: boolean[] = [];
+		for (const fire of [
+			() => fireActiveSessions(1),
+			() => fireConnectionCount(1),
+			() => fireGitHubEnvironmentRegistered(true),
+			() => fireActiveSessions(0),
+			() => fireConnectionCount(0),
+			() => fireGitHubEnvironmentRegistered(false),
+		]) {
+			fire();
+			states.push(lifetimeService.hasActiveConsumers);
+		}
+		assert.deepStrictEqual(states, [true, true, true, true, true, false]);
 	});
 
-	test('process exit resets both signals and clears token', async () => {
+	test('process exit resets all signals and clears token', async () => {
 		const manager = createManager();
 		await waitForStart(manager);
 		fireActiveSessions(2);
 		fireConnectionCount(1);
+		fireGitHubEnvironmentRegistered(true);
 		assert.strictEqual(lifetimeService.hasActiveConsumers, true);
 
 		starter.fireProcessExit(1);

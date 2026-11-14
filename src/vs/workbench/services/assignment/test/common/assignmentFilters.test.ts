@@ -22,6 +22,18 @@ suite('CopilotAssignmentFilterProvider', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	class TestDefaultAccountService extends mock<IDefaultAccountService>() {
+		private readonly _onDidChangeCopilotTokenInfo = disposables.add(new Emitter<ICopilotTokenInfo | null>());
+		override readonly onDidChangeCopilotTokenInfo = this._onDidChangeCopilotTokenInfo.event;
+
+		override copilotTokenInfo: ICopilotTokenInfo | null = null;
+
+		setCopilotTokenInfo(tokenInfo: ICopilotTokenInfo | null): void {
+			this.copilotTokenInfo = tokenInfo;
+			this._onDidChangeCopilotTokenInfo.fire(tokenInfo);
+		}
+	}
+
 	test('initializes entitlement filters before subscribing to entitlement changes', () => {
 		const onDidChangeEntitlement = disposables.add(new Emitter<void>());
 		const chatEntitlementService = new class extends mock<IChatEntitlementService>() {
@@ -38,10 +50,7 @@ suite('CopilotAssignmentFilterProvider', () => {
 				return this.trackingId.value;
 			}
 		}();
-		const defaultAccountService = new class extends mock<IDefaultAccountService>() {
-			override readonly copilotTokenInfo = null;
-			override readonly onDidChangeCopilotTokenInfo = Event.None;
-		}();
+		const defaultAccountService = new TestDefaultAccountService();
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(ILogService, new NullLogService());
@@ -56,17 +65,14 @@ suite('CopilotAssignmentFilterProvider', () => {
 
 	test('maps extension versions without forwarding cached account filters to new TAS', async () => {
 		const onDidChangeEntitlement = disposables.add(new Emitter<void>());
-		const onDidChangeCopilotTokenInfo = disposables.add(new Emitter<ICopilotTokenInfo | null>());
 		const entitlement = new class extends mock<IChatEntitlementService>() {
 			override readonly onDidChangeEntitlement = onDidChangeEntitlement.event;
 			override sku: string | undefined = 'pro';
 			override readonly organisations = undefined;
 			override readonly copilotTrackingId = undefined;
 		}();
-		const account = new class extends mock<IDefaultAccountService>() {
-			override copilotTokenInfo: ICopilotTokenInfo | null = { sn: '1', fcv1: '1' };
-			override readonly onDidChangeCopilotTokenInfo = onDidChangeCopilotTokenInfo.event;
-		}();
+		const account = new TestDefaultAccountService();
+		account.copilotTokenInfo = { sn: '1', fcv1: '1' };
 		const extension = new class extends mock<IExtensionDescription>() {
 			override readonly version = '0.68.0-insider';
 		}();
@@ -88,18 +94,15 @@ suite('CopilotAssignmentFilterProvider', () => {
 		const initial = Object.fromEntries(provider.getAssignmentsFilters());
 		let changes = 0;
 		disposables.add(provider.onDidChangeFilters(() => changes++));
-		account.copilotTokenInfo = { sn: '1', fcv1: '0' };
-		onDidChangeCopilotTokenInfo.fire(account.copilotTokenInfo);
+		account.setCopilotTokenInfo({ sn: '1', fcv1: '0' });
 		const fcv1Changed = Object.fromEntries(provider.getAssignmentsFilters());
 		entitlement.sku = 'enterprise';
 		onDidChangeEntitlement.fire();
-		account.copilotTokenInfo = { sn: '0' };
-		onDidChangeCopilotTokenInfo.fire(account.copilotTokenInfo);
+		account.setCopilotTokenInfo({ sn: '0' });
 		const refreshed = Object.fromEntries(provider.getAssignmentsFilters());
 		entitlement.sku = undefined;
 		onDidChangeEntitlement.fire();
-		account.copilotTokenInfo = null;
-		onDidChangeCopilotTokenInfo.fire(account.copilotTokenInfo);
+		account.setCopilotTokenInfo(null);
 
 		assert.deepStrictEqual({
 			initial,
@@ -112,6 +115,7 @@ suite('CopilotAssignmentFilterProvider', () => {
 				provider.getFilterValue(ExtensionsFilter.CopilotSku),
 				provider.getFilterValue(ExtensionsFilter.CopilotIsSn),
 				provider.getFilterValue(ExtensionsFilter.CopilotIsFcv1),
+				provider.getFilterValue(ExtensionsFilter.CopilotIsProxima),
 			],
 		}, {
 			initial: {
@@ -127,7 +131,53 @@ suite('CopilotAssignmentFilterProvider', () => {
 				vscode_core_copilotchatextensionversion: '0.68.0',
 			},
 			changes: 4,
-			legacy: ['0.68.0', null, '0', '0'],
+			legacy: ['0.68.0', null, '0', '0', '0'],
+		});
+	});
+
+	test('classifies Proxima from the token stamp and fails closed while it is unresolved', () => {
+		const entitlement = new class extends mock<IChatEntitlementService>() {
+			override readonly onDidChangeEntitlement = Event.None;
+			override readonly organisations = undefined;
+			override readonly copilotTrackingId = undefined;
+		}();
+		const account = new TestDefaultAccountService();
+		const extensionService = new class extends mock<IExtensionService>() {
+			override readonly onDidChangeExtensionsStatus = Event.None;
+			override async getExtension(): Promise<undefined> {
+				return undefined;
+			}
+		}();
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IExtensionService, extensionService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IStorageService, disposables.add(new InMemoryStorageService()));
+		instantiationService.stub(IChatEntitlementService, entitlement);
+		instantiationService.stub(IDefaultAccountService, account);
+
+		const provider = disposables.add(instantiationService.createInstance(CopilotAssignmentFilterProvider));
+		let changes = 0;
+		disposables.add(provider.onDidChangeFilters(() => changes++));
+		const values = [provider.getFilterValue(ExtensionsFilter.CopilotIsProxima)];
+		account.setCopilotTokenInfo({ st: 'dotcom' });
+		values.push(provider.getFilterValue(ExtensionsFilter.CopilotIsProxima));
+		account.setCopilotTokenInfo({ st: 'proxima' });
+		values.push(provider.getFilterValue(ExtensionsFilter.CopilotIsProxima));
+		account.setCopilotTokenInfo({});
+		values.push(provider.getFilterValue(ExtensionsFilter.CopilotIsProxima));
+		account.setCopilotTokenInfo(null);
+		values.push(provider.getFilterValue(ExtensionsFilter.CopilotIsProxima));
+
+		assert.deepStrictEqual({
+			values,
+			changes,
+			assignmentsFilters: Object.fromEntries(provider.getAssignmentsFilters()),
+		}, {
+			values: ['0', '0', '1', '0', '0'],
+			changes: 2,
+			assignmentsFilters: {
+				vscode_core_copilotchatextensionversion: null,
+			},
 		});
 	});
 });

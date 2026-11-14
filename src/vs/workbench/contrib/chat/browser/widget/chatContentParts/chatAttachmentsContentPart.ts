@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../../base/browser/dom.js';
+import { IHoverDelegate } from '../../../../../../base/browser/ui/hover/hoverDelegate.js';
 import { Emitter } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -34,6 +35,8 @@ export interface IChatAttachmentsContentPartOptions {
 	readonly imageReveal?: IChatImageRevealOrigin;
 	readonly imageDimensions?: ResourceMap<dom.IDimension>;
 	readonly imageBase64Data?: ReadonlyMap<string, IChatImageBase64Data>;
+	/** Shared by related pills that preview a GitHub issue or pull request, so that moving between them shows the next preview right away. */
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class ChatAttachmentsContentPart extends Disposable {
@@ -54,6 +57,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 	private readonly imageReveal: IChatImageRevealOrigin | undefined;
 	private readonly imageDimensions: ResourceMap<dom.IDimension> | undefined;
 	private readonly imageBase64Data: ReadonlyMap<string, IChatImageBase64Data> | undefined;
+	private readonly hoverDelegate: IHoverDelegate | undefined;
 	public readonly domNode: HTMLElement | undefined;
 
 	public contextMenuHandler?: (attachment: IChatRequestVariableEntry, event: MouseEvent) => void;
@@ -76,6 +80,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		this.imageReveal = options.imageReveal;
 		this.imageDimensions = options.imageDimensions;
 		this.imageBase64Data = options.imageBase64Data;
+		this.hoverDelegate = options.hoverDelegate;
 		this.domNode = options.domNode ?? dom.$('.chat-attached-context');
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
@@ -280,8 +285,9 @@ export class ChatAttachmentsContentPart extends Disposable {
 			// skip workspace attachments
 			return;
 		} else {
+			// These attachments are shown rather than edited, so a GitHub issue or pull request previews its details and opens when activated.
 			widget = this.chatAttachmentWidgetRegistry.createWidget(attachment, { shouldFocusClearButton: false, supportsDeletion: false }, container, this.sessionResource)
-				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels);
+				?? this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false, supportsReferencePreview: true, hoverDelegate: this.hoverDelegate }, container, this._contextResourceLabels);
 		}
 
 		let ariaLabel: string | null = null;
@@ -293,7 +299,7 @@ export class ChatAttachmentsContentPart extends Disposable {
 		if (isAttachmentPartialOrOmitted) {
 			ariaLabel = `${ariaLabel}${description ? ` ${description}` : ''}`;
 			for (const selector of ['.monaco-icon-suffix-container', '.monaco-icon-name-container']) {
-				// eslint-disable-next-line no-restricted-syntax
+				// eslint-disable-next-line eslint-js/no-restricted-syntax
 				const element = widget.label?.element.querySelector(selector);
 				if (element) {
 					element.classList.add('warning');

@@ -27,7 +27,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { AICustomizationManagementSection, IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
@@ -37,13 +37,13 @@ import { AICustomizationMcpServerCountService, IAICustomizationMcpServerCountSer
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IOpenAICustomizationsCommandOptions, OPEN_AI_CUSTOMIZATIONS_COMMAND_ID } from '../../../../workbench/contrib/sessions/browser/customizationsConstants.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { getExtensionSuggestionsBadgeDescription, IAgentsWindowExtensionSuggestionsService } from '../../../../workbench/contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
 import { ICustomizationItemConfig, readCustomizationCount, CUSTOMIZATION_ITEMS } from '../../../../workbench/contrib/sessions/browser/customizationItems.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ChatAgentLocation, ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ChatCustomizationsLocation, ChatCustomizationsLocationContext, resolveChatCustomizationsLocation } from '../../../../workbench/contrib/chat/common/customizationsLocation.js';
-import { SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
+import { SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING, SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING } from '../../../../workbench/contrib/sessions/common/sessionConfig.js';
 import { ChatCustomizationsActionViewItem, ChatCustomizationsHover } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsHover.js';
+import { observeVisibleSectionBadge, observeVisibleSectionsBadge } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationSectionBadges.js';
 import { ChatCustomizationsTelemetry } from '../../../../workbench/contrib/chat/browser/aiCustomization/chatCustomizationsTelemetry.js';
 import { ICustomizationMigrationService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/customizationMigrationService.js';
 import { getIgnoredCustomizationMigrationGroups } from '../../../../workbench/contrib/chat/browser/aiCustomization/customizationMigrationIgnoredGroups.js';
@@ -80,15 +80,21 @@ const CUSTOMIZATION_OVERVIEW_ITEM: ICustomizationItemConfig = {
 	icon: Codicon.home,
 };
 
-async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, options?: IOpenAICustomizationsCommandOptions, targetSession?: ISession, targetResource?: URI): Promise<void> {
+async function openCustomizationOverviewPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, options?: IOpenAICustomizationsCommandOptions, targetSession?: ISession, targetResource?: URI): Promise<void> {
 	const session = targetSession ?? (targetResource ? undefined : focusedSessionHostService.focusedHost.get().session.get());
 	const resource = targetResource ?? session?.resource;
 	if (resource) {
 		harnessService.setActiveSession(resource);
 	}
+	workspaceService.setActiveSessionResource?.(targetResource);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	const targetLabels = workspaceService.activeTargetLabels?.get();
+	input.setTargetLabels(
+		targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+		targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+		targetLabels?.environment,
+	);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		if (options?.migration) {
@@ -99,14 +105,20 @@ async function openCustomizationOverviewPage(editorService: IEditorService, harn
 	}
 }
 
-async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
+async function openCustomizationSectionPage(editorService: IEditorService, harnessService: ICustomizationHarnessService, focusedSessionHostService: IFocusedSessionHostService, workspaceService: IAICustomizationWorkspaceService, section: typeof AICustomizationManagementSection[keyof typeof AICustomizationManagementSection]): Promise<void> {
 	const session = focusedSessionHostService.focusedHost.get().session.get();
 	if (session) {
 		harnessService.setActiveSession(session.resource);
 	}
+	workspaceService.setActiveSessionResource?.(undefined);
 
 	const input = AICustomizationManagementEditorInput.getOrCreate();
-	input.setTargetLabels(harnessService.getActiveDescriptor().label, session?.workspace.get()?.folders[0]?.name);
+	const targetLabels = workspaceService.activeTargetLabels?.get();
+	input.setTargetLabels(
+		targetLabels?.harness ?? harnessService.getActiveDescriptor().label,
+		targetLabels?.workspace ?? workspaceService.activeProjectLabel.get(),
+		targetLabels?.environment,
+	);
 	const pane = await editorService.openEditor(input, { pinned: true });
 	if (pane instanceof AICustomizationManagementEditor) {
 		pane.selectSectionById(section);
@@ -133,7 +145,6 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 		@IAICustomizationMcpServerCountService private readonly _mcpServerCountService: IAICustomizationMcpServerCountService,
 		@ILanguageModelToolsService private readonly _toolsService: ILanguageModelToolsService,
 		@IAgentHostToolSetEnablementService private readonly _toolEnablementService: IAgentHostToolSetEnablementService,
-		@IAgentsWindowExtensionSuggestionsService private readonly _extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -183,19 +194,22 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 			}
 		}));
 
-		if (this._config.showsExtensionSuggestions) {
-			this._renderExtensionSuggestionsBadge(this._button);
+		if (this._config.section) {
+			this._renderSectionBadge(this._button, this._config.section);
 		}
 	}
 
-	private _renderExtensionSuggestionsBadge(button: Button): void {
-		const description = getExtensionSuggestionsBadgeDescription();
-		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img', 'aria-label': description }));
+	private _renderSectionBadge(button: Button, section: AICustomizationManagementSection): void {
+		const description = this.instantiationService.invokeFunction(accessor => observeVisibleSectionBadge(accessor, section));
+		const badge = append(button.element, $('span.ai-customization-suggestion-badge.hidden', { role: 'img' }));
 		this._viewItemDisposables.add(autorun(reader => {
-			const visible = this._extensionSuggestionsService.showBadge.read(reader);
-			badge.classList.toggle('hidden', !visible);
-			if (visible) {
-				reader.store.add(this._hoverService.setupDelayedHover(button.element, { content: description }));
+			const content = description.read(reader);
+			badge.classList.toggle('hidden', content === undefined);
+			if (content !== undefined) {
+				badge.setAttribute('aria-label', content);
+				reader.store.add(this._hoverService.setupDelayedHover(button.element, { content }));
+			} else {
+				badge.removeAttribute('aria-label');
 			}
 		}));
 	}
@@ -243,14 +257,13 @@ export class CustomizationLinkViewItem extends BaseActionViewItem {
 class SessionsCustomizationsActionViewItemFactory {
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAgentsWindowExtensionSuggestionsService private readonly extensionSuggestionsService: IAgentsWindowExtensionSuggestionsService,
 	) { }
 
 	create(action: MenuItemAction, options: IActionViewItemOptions, location: 'sidebar' | 'chatToolbar' | 'chatInput'): ChatCustomizationsActionViewItem {
 		return this.instantiationService.createInstance(
 			ChatCustomizationsActionViewItem, action, options,
 			this.instantiationService.createInstance(ChatCustomizationsHover),
-			location, undefined, location === 'sidebar', this.extensionSuggestionsService.showBadge,
+			location, undefined, location === 'sidebar', this.instantiationService.invokeFunction(observeVisibleSectionsBadge),
 		);
 	}
 }
@@ -274,11 +287,11 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 		const updateLocation = () => location.set(resolveChatCustomizationsLocation(
 			configurationService.getValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation),
 			true,
-			configurationService.getValue<boolean>(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING),
+			configurationService.getValue<boolean>(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) && !configurationService.getValue<boolean>(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING),
 		));
 		updateLocation();
 		this._register(configurationService.onDidChangeConfiguration(event => {
-			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsLocation) || event.affectsConfiguration(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING)) {
+			if (event.affectsConfiguration(ChatConfiguration.ChatCustomizationsLocation) || event.affectsConfiguration(SESSIONS_SIDEBAR_SEPARATE_NAVIGATION_SETTING) || event.affectsConfiguration(SESSIONS_SIDEBAR_CUSTOMIZATIONS_AT_BOTTOM_SETTING)) {
 				updateLocation();
 			}
 		}));
@@ -295,13 +308,15 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				const hostService = accessor.get(IFocusedSessionHostService);
 				const editorService = accessor.get(IEditorService);
 				const harnessService = accessor.get(ICustomizationHarnessService);
+				const workspaceService = accessor.get(IAICustomizationWorkspaceService);
 				const sessionsService = accessor.get(ISessionsManagementService);
 				const hover = accessor.get(IInstantiationService).createInstance(ChatCustomizationsHover);
-				const resource = hover.getSessionResource(context);
+				const explicitResource = hover.getExplicitSessionResource(context);
+				const resource = explicitResource ?? hover.getSessionResource();
 				const target = sessionsService.getSession(resource) ?? sessionsService.getSessionForChatResource(resource)?.session;
 				const ignored = getIgnoredCustomizationMigrationGroups(accessor.get(IStorageService), getChatSessionType(resource), hover.getProjectRoot(resource));
 				const hint = await accessor.get(ICustomizationMigrationService).computeMigrationHint(resource, CancellationToken.None, ignored);
-				await openCustomizationOverviewPage(editorService, harnessService, hostService, { migration: !!hint }, target, resource);
+				await openCustomizationOverviewPage(editorService, harnessService, hostService, workspaceService, { migration: !!hint }, target, explicitResource);
 			}
 		}));
 		for (const menu of [Menus.SessionBarToolbar, Menus.NewSessionGlobalToolbar, Menus.SidebarCustomizationsEntryPoint, MenuId.ChatExecute]) {
@@ -396,6 +411,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 					accessor.get(IEditorService),
 					accessor.get(ICustomizationHarnessService),
 					accessor.get(IFocusedSessionHostService),
+					accessor.get(IAICustomizationWorkspaceService),
 					options,
 				);
 			}
@@ -439,7 +455,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const harnessService = accessor.get(ICustomizationHarnessService);
-					await openCustomizationSectionPage(editorService, harnessService, accessor.get(IFocusedSessionHostService), section);
+					await openCustomizationSectionPage(editorService, harnessService, accessor.get(IFocusedSessionHostService), accessor.get(IAICustomizationWorkspaceService), section);
 				}
 			}));
 		}

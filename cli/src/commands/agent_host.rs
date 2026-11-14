@@ -60,19 +60,24 @@ const SUPERVISOR_READY_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 ///   endpoint registry and either prints info about the live supervisor
 ///   (`Reuse`), or starts a new supervisor (`SpawnFresh`) — daemonized by
 ///   default, or run inline in this process when `--foreground` is set.
+///   GitHub environments skip registry reuse and always start their own supervisor.
 ///
 /// * **Supervisor** (when [`SUPERVISOR_ENV`] is set): binds the public TCP
 ///   listener, publishes a registry entry recording this process's PID +
 ///   port, runs the proxy accept loop, and manages the underlying VS Code
 ///   server as a regular child process so the supervisor can kill+respawn
 ///   it on update.
-pub async fn agent_host(ctx: CommandContext, mut args: AgentHostArgs) -> Result<i32, AnyError> {
-	if args.github_environment {
-		args.foreground = true;
-		return run_supervisor(ctx, args).await;
-	}
+pub async fn agent_host(ctx: CommandContext, args: AgentHostArgs) -> Result<i32, AnyError> {
 	if std::env::var_os(SUPERVISOR_ENV).is_some() {
 		return run_supervisor(ctx, args).await;
+	}
+	if args.github_environment {
+		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
+		if !args.foreground {
+			let credential = github_environment_credential(&ctx).await?;
+			require_persisted_github_environment_credential(&ctx.paths, &ctx.log, &credential)?;
+		}
+		return start_supervisor(ctx, args).await;
 	}
 	run_foreground(ctx, args).await
 }
@@ -259,7 +264,6 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 
 	let platform: Platform = PreReqChecker::new().verify().await?;
 	let github_environment = if args.github_environment {
-		legal::require_consent(&ctx.paths, args.accept_server_license_terms)?;
 		Some(github_environment_config(&ctx, &args).await?)
 	} else {
 		None
@@ -442,24 +446,32 @@ async fn run_supervisor(mut ctx: CommandContext, mut args: AgentHostArgs) -> Res
 	Ok(0)
 }
 
-async fn github_environment_config(
-	ctx: &CommandContext,
-	args: &AgentHostArgs,
-) -> Result<GithubEnvironmentConfig, AnyError> {
-	if args
-		.name
-		.as_deref()
-		.is_some_and(|name| name.trim().is_empty())
-	{
-		return Err(wrap("", "GitHub environment name must not be empty").into());
-	}
-	let paths = github_environment_paths(&ctx.log, &args.github_environment_root)?;
-	let mut auth = Auth::with_namespace(
-		&ctx.paths,
-		ctx.log.clone(),
-		Some("github-environments".into()),
-	);
+fn github_environment_auth(paths: &LauncherPaths, log: &log::Logger) -> Auth {
+	let mut auth = Auth::with_namespace(paths, log.clone(), Some("github-environments".into()));
 	auth.set_provider(AuthProvider::Github);
+	auth
+}
+
+fn require_persisted_github_environment_credential(
+	paths: &LauncherPaths,
+	log: &log::Logger,
+	credential: &str,
+) -> Result<(), AnyError> {
+	let message = "GitHub environment credentials could not be saved for background startup; retry with --foreground";
+	// A fresh Auth reads storage rather than the login instance's in-memory cache.
+	let persisted = github_environment_auth(paths, log)
+		.get_current_credential()
+		.map_err(|e| wrap(e, message))?;
+	if !persisted.is_some_and(|saved| {
+		matches!(saved.provider, AuthProvider::Github) && saved.access_token() == credential
+	}) {
+		return Err(wrap("", message).into());
+	}
+	Ok(())
+}
+
+async fn github_environment_credential(ctx: &CommandContext) -> Result<String, AnyError> {
+	let auth = github_environment_auth(&ctx.paths, &ctx.log);
 	let credential = if auth.get_current_credential()?.is_some() {
 		auth.get_credential().await?
 	} else {
@@ -473,6 +485,22 @@ async fn github_environment_config(
 	if credential.is_empty() {
 		return Err(wrap("", "GitHub environment access token must not be empty").into());
 	}
+	Ok(credential)
+}
+
+async fn github_environment_config(
+	ctx: &CommandContext,
+	args: &AgentHostArgs,
+) -> Result<GithubEnvironmentConfig, AnyError> {
+	if args
+		.name
+		.as_deref()
+		.is_some_and(|name| name.trim().is_empty())
+	{
+		return Err(wrap("", "GitHub environment name must not be empty").into());
+	}
+	let paths = github_environment_paths(&ctx.log, &args.github_environment_root)?;
+	let credential = github_environment_credential(ctx).await?;
 	#[derive(serde::Deserialize)]
 	struct GithubUser {
 		id: u64,
@@ -1011,12 +1039,18 @@ impl ActiveAgentHost {
 	}
 
 	/// Populate the `--agent-host-bridge-*` fields on a [`CodeServerArgs`]
-	/// so the spawned VS Code server's `agentHostProxy` channel dials this
-	/// supervisor. Uses [`dial_host`] for the host so a supervisor bound
+	/// so a spawned VS Code server that predates registry discovery dials
+	/// this supervisor. Uses [`dial_host`] for the host so a supervisor bound
 	/// to a wildcard (`0.0.0.0` / `::`) is reached via loopback rather
-	/// than the wildcard itself.
+	/// than the wildcard itself. Those servers put the host into a `ws://`
+	/// URL, so IPv6 literals are bracketed.
 	pub fn apply_to_bridge(&self, csa: &mut CodeServerArgs) {
-		csa.agent_host_bridge_host = Some(self.dial_host().to_string());
+		let host = self.dial_host();
+		csa.agent_host_bridge_host = Some(if host.contains(':') && !host.starts_with('[') {
+			format!("[{host}]")
+		} else {
+			host.to_string()
+		});
 		csa.agent_host_bridge_port = Some(self.port);
 		csa.agent_host_bridge_connection_token = self.token.clone();
 	}
@@ -1110,6 +1144,77 @@ mod tests {
 	use crate::async_pipe::{get_socket_name, listen_socket_rw_stream};
 	use std::fs;
 	use tokio::net::TcpListener;
+
+	#[tokio::test]
+	async fn github_environment_background_rejects_missing_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::create_dir(paths.root().join("token-github-environments.json")).unwrap();
+		let auth = github_environment_auth(&paths, &log);
+		let credential = auth
+			.login(Some(AuthProvider::Github), Some("fresh-token".into()), None)
+			.await
+			.unwrap();
+
+		assert_eq!(
+			auth.get_current_credential()
+				.unwrap()
+				.unwrap()
+				.access_token(),
+			credential.access_token()
+		);
+		let error = require_persisted_github_environment_credential(
+			&paths,
+			&log,
+			credential.access_token(),
+		)
+		.unwrap_err();
+		assert_eq!(
+			error.to_string(),
+			"GitHub environment credentials could not be saved for background startup; retry with --foreground: "
+		);
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_rejects_mismatched_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::write(paths.root().join("token-github-environments.json"), "null").unwrap();
+		for (provider, token) in [
+			(AuthProvider::Github, "stale-token"),
+			(AuthProvider::Microsoft, "fresh-token"),
+		] {
+			github_environment_auth(&paths, &log)
+				.login(Some(provider), Some(token.into()), None)
+				.await
+				.unwrap();
+
+			let error =
+				require_persisted_github_environment_credential(&paths, &log, "fresh-token")
+					.unwrap_err();
+			assert_eq!(
+				error.to_string(),
+				"GitHub environment credentials could not be saved for background startup; retry with --foreground: "
+			);
+		}
+	}
+
+	#[tokio::test]
+	async fn github_environment_background_accepts_persisted_credential() {
+		let dir = tempfile::tempdir_in(".").unwrap();
+		let paths = LauncherPaths::new_without_replacements(dir.path().to_path_buf());
+		let log = log::Logger::test();
+		fs::write(paths.root().join("token-github-environments.json"), "null").unwrap();
+		let credential = github_environment_auth(&paths, &log)
+			.login(Some(AuthProvider::Github), Some("fresh-token".into()), None)
+			.await
+			.unwrap();
+
+		require_persisted_github_environment_credential(&paths, &log, credential.access_token())
+			.unwrap();
+	}
 
 	#[test]
 	fn github_environment_roots_default_to_local_filesystems() {
@@ -1266,6 +1371,32 @@ mod tests {
 			token: Some("tok".to_string()),
 			instance_id: "instance-existing".to_string(),
 		}
+	}
+
+	#[test]
+	fn apply_to_bridge_brackets_ipv6_hosts_for_legacy_server_urls() {
+		let bridge_host = |host: Option<&str>| {
+			let mut csa = CodeServerArgs::default();
+			ActiveAgentHost {
+				pid: 1,
+				host: host.map(str::to_string),
+				port: 9000,
+				token: None,
+			}
+			.apply_to_bridge(&mut csa);
+			csa.agent_host_bridge_host.unwrap()
+		};
+		assert_eq!(
+			[
+				Some("::1"),
+				Some("[::1]"),
+				Some("::"),
+				Some("127.0.0.1"),
+				None
+			]
+			.map(bridge_host),
+			["[::1]", "[::1]", "127.0.0.1", "127.0.0.1", "127.0.0.1"]
+		);
 	}
 
 	#[test]

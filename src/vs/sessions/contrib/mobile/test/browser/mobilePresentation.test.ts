@@ -6,6 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import * as dom from '../../../../../base/browser/dom.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
@@ -21,7 +22,10 @@ import { IThemeService } from '../../../../../platform/theme/common/themeService
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
 import { IInputOptions, IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IChatExternalEdit } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { ScreenshotContextValuePick } from '../../../../../workbench/contrib/chat/browser/actions/chatContext.js';
+import { IChatWidget } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatWindowProvider } from '../../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
+import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { AbstractChatView, IChatViewOptions } from '../../../../../workbench/contrib/sessions/browser/parts/chatView.js';
 import { IMobileDiffViewData, MOBILE_OPEN_DIFF_VIEW_COMMAND_ID } from '../../../../browser/parts/mobile/contributions/mobileDiffView.js';
 import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessions/common/agentHostFilter.js';
@@ -46,6 +50,19 @@ suite('Mobile presentation composition', () => {
 		const windows = new MobileNullChatWindowService();
 		await assert.rejects(windows.open(URI.parse('chat:/test')), /Separate chat windows are not available/);
 		assert.throws(() => windows.registerProvider(upcastPartial<IChatWindowProvider>({})), /Separate chat windows are not available/);
+	});
+
+	test('chat screenshot attachments retain the existing browser capture path on mobile', async () => {
+		let captures = 0;
+		const host = new class extends mock<IHostService>() {
+			override async getScreenshot() {
+				captures++;
+				return VSBuffer.fromString('screenshot');
+			}
+		}();
+		const picker = new ScreenshotContextValuePick(host);
+		const attachment = await picker.asAttachment(upcastPartial<IChatWidget>({}));
+		assert.deepStrictEqual({ captures, kind: attachment?.kind }, { captures: 1, kind: 'image' });
 	});
 
 	test('new-session headers retain the instantiation scope of their own view', () => {
@@ -92,10 +109,14 @@ suite('Mobile presentation composition', () => {
 			assert.deepStrictEqual(passedOptions.map(value => ({
 				input: value.inputEditorOptions, icon: value.showEmptyStateIcon, header: typeof value.renderNewSessionHeader, pet: value.renderChatPet,
 				background: value.background?.hasBackground() ?? false,
+				composerPresentation: typeof value.newSessionInput?.createComposer,
+				isolationPresentation: typeof factory.newSessionInput?.createIsolationPicker,
 			})), Array.from({ length: 3 }, (_, index) => ({
 				input: mobile ? { fontSize: 16, lineHeight: 24 } : undefined,
 				icon: mobile ? false : undefined, header: mobile && index < 2 ? 'function' : 'undefined', pet: false,
 				background: !mobile,
+				composerPresentation: mobile ? 'undefined' : 'function',
+				isolationPresentation: mobile ? 'undefined' : 'function',
 			})));
 		});
 	}

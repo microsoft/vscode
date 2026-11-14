@@ -10,6 +10,7 @@ import { $, addDisposableListener, append, registerWindow } from '../../../../..
 import { Orientation, Sash } from '../../../../../base/browser/ui/sash/sash.js';
 import { ensureCodeWindow, mainWindow } from '../../../../../base/browser/window.js';
 import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
+import { Action } from '../../../../../base/common/actions.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../../../../base/common/errors.js';
@@ -25,6 +26,8 @@ import { IAccessibilityService } from '../../../../../platform/accessibility/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
+import { MenuId } from '../../../../../platform/actions/common/actions.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { FileService } from '../../../../../platform/files/common/fileService.js';
 import { FileSystemProviderCapabilities, IFileReadStreamOptions, IFileService } from '../../../../../platform/files/common/files.js';
@@ -44,6 +47,7 @@ import { TestFileService } from '../../../../test/common/workbenchTestServices.j
 import { SASH_GRIPPERS_HIDDEN_ATTRIBUTE, SashGrippersController } from '../../../sash/browser/sash.js';
 import { WebviewThemeDataProvider } from '../../browser/themeing.js';
 import { WebviewElement } from '../../browser/webviewElement.js';
+import { WebviewOptions } from '../../browser/webview.js';
 import { FromWebviewMessage, ToWebviewMessage } from '../../browser/webviewMessages.js';
 import { asWebviewUri, WebviewMouseActivity, webviewMouseActivityEvent, webviewRootResourceAuthority } from '../../common/webview.js';
 
@@ -53,12 +57,17 @@ suite('WebviewElement', () => {
 
 	teardown(() => sinon.restore());
 
-	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow) {
+	async function createWebview(extensionId?: string, platform = 'browser', connect = true, targetWindow = mainWindow, hashParentOrigin?: (parentOrigin: string, defaultHash: () => Promise<string>) => Promise<string>, options: WebviewOptions = {}) {
 		let initialized = new DeferredPromise<string>();
 		class TestWebviewElement extends WebviewElement {
 			public override get element(): HTMLIFrameElement | undefined { return super.element; }
 
 			protected override get platform(): string { return platform; }
+
+			protected override hashParentOrigin(parentOrigin: string): Promise<string> {
+				const defaultHash = () => super.hashParentOrigin(parentOrigin);
+				return hashParentOrigin ? hashParentOrigin(parentOrigin, defaultHash) : defaultHash();
+			}
 
 			protected override webviewContentEndpoint(encodedWebviewOrigin: string): string {
 				const origin = `https://${encodedWebviewOrigin}.invalid`;
@@ -71,8 +80,9 @@ suite('WebviewElement', () => {
 		const configurationService = new TestConfigurationService();
 		store.add(configurationService.onDidChangeConfigurationEmitter);
 		const errorNotification = sinon.stub();
+		const contextMenus: (Parameters<IContextMenuService['showContextMenu']>[0] & { menuId?: MenuId })[] = [];
 		instantiationService.stub(IConfigurationService, configurationService);
-		instantiationService.stub(IContextMenuService, { onDidHideContextMenu: Event.None });
+		instantiationService.stub(IContextMenuService, { onDidHideContextMenu: Event.None, showContextMenu: delegate => { contextMenus.push(delegate); } });
 		instantiationService.stub(INotificationService, { error: errorNotification });
 		instantiationService.stub(IWorkbenchEnvironmentService, {});
 		instantiationService.stub(ILogService, store.add(new NullLogService()));
@@ -91,7 +101,7 @@ suite('WebviewElement', () => {
 
 		const webview = store.add(instantiationService.createInstance(TestWebviewElement, {
 			title: 'Test view',
-			options: {},
+			options,
 			contentOptions: {},
 			extension: extensionId ? { id: new ExtensionIdentifier(extensionId) } : undefined,
 		}, upcastPartial<WebviewThemeDataProvider>({
@@ -99,12 +109,16 @@ suite('WebviewElement', () => {
 			getWebviewThemeData: () => ({ styles: {}, activeTheme: 'vscode-dark', themeLabel: 'Dark', themeId: 'test' }),
 		})));
 		const container = document.createElement('div');
+		const addListener = sinon.spy(container, 'addEventListener');
+		const removeListener = sinon.spy(container, 'removeEventListener');
 		targetWindow.document.body.appendChild(container);
 		store.add(toDisposable(() => container.remove()));
 		assert.ok(webview.element);
 		const frame = webview.element;
+		const connectedWhenSourceAssigned: boolean[] = [];
 		// Capture the shell URL without navigating away from the test document.
 		const setSource = sinon.stub(frame, 'setAttribute').withArgs('src', sinon.match.string);
+		setSource.callsFake(() => { connectedWhenSourceAssigned.push(frame.isConnected); });
 		webview.mountTo(container, targetWindow);
 		const origin = await initialized.p;
 
@@ -128,7 +142,8 @@ suite('WebviewElement', () => {
 		}
 		channel.port2.start();
 		return {
-			webview, instantiationService, port: channel.port2, errorNotification, frame, container, configurationService, createReadyEvent,
+			webview, instantiationService, port: channel.port2, errorNotification, contextMenus, frame, container, configurationService, createReadyEvent, setSource, connectedWhenSourceAssigned,
+			activeMountListeners: () => addListener.callCount - removeListener.callCount,
 			remount: async () => {
 				initialized = new DeferredPromise<string>();
 				webview.reinitializeAfterDismount();
@@ -156,6 +171,51 @@ suite('WebviewElement', () => {
 	async function sendMouseMove(webview: WebviewElement, port: MessagePort, event = mouseMove): Promise<void> {
 		await sendWebviewMessage(webview, port, 'did-mouse-move', event);
 	}
+
+	test('adds host-owned context actions only to the opted-in webview and retains the standard menu', async () => {
+		const action = store.add(new Action('test.preview', 'Preview'));
+		const customized = await createWebview(undefined, 'browser', true, mainWindow, undefined, { getContextMenuActions: () => [action] });
+		const ordinary = await createWebview();
+		const result = [];
+		for (const { webview, port, contextMenus } of [customized, ordinary]) {
+			webview.setContextKeyService(store.add(new MockContextKeyService()));
+			await sendWebviewMessage(webview, port, 'did-context-menu', { clientX: 20, clientY: 30, context: {} });
+			const menu = contextMenus[0];
+			result.push({
+				menuId: menu.menuId,
+				actions: menu.getActions?.().map(action => action.id),
+			});
+		}
+		assert.deepStrictEqual(result, [
+			{ menuId: MenuId.WebviewContext, actions: ['test.preview'] },
+			{ menuId: MenuId.WebviewContext, actions: undefined },
+		]);
+	});
+
+	test('assigns the isolated shell URL before attaching or remounting its iframe', async () => {
+		const { frame, container, connectedWhenSourceAssigned, remount } = await createWebview();
+		await remount();
+		assert.deepStrictEqual({
+			connectedWhenSourceAssigned,
+			parent: frame.parentElement === container,
+			sandbox: [...frame.sandbox],
+		}, {
+			connectedWhenSourceAssigned: [false, false],
+			parent: true,
+			sandbox: ['allow-scripts', 'allow-same-origin', 'allow-forms', 'allow-pointer-lock', 'allow-downloads'],
+		});
+	});
+
+	test('repeated remounts replace their DOM listeners and disposal releases them', async () => {
+		const { webview, remount, activeMountListeners } = await createWebview();
+		const counts = [activeMountListeners()];
+		for (let index = 0; index < 8; index++) {
+			await remount();
+			counts.push(activeMountListeners());
+		}
+		webview.dispose();
+		assert.deepStrictEqual({ counts, disposed: activeMountListeners() }, { counts: Array(9).fill(4), disposed: 0 });
+	});
 
 	test('reports webview activity without synthesizing mouse input', async () => {
 		const { webview, port } = await createWebview();
@@ -328,6 +388,41 @@ suite('WebviewElement', () => {
 			});
 		}
 	}
+
+	test('ignores an earlier mount whose origin hash finishes after a remount', async () => {
+		const firstHash = new DeferredPromise<string>();
+		const secondHash = new DeferredPromise<string>();
+		let delayedHashes: DeferredPromise<string>[] = [];
+		const { webview, container, setSource, createReadyEvent } = await createWebview(undefined, 'browser', false, mainWindow, (_origin, defaultHash) => {
+			const delayed = delayedHashes.shift();
+			return delayed ? delayed.p : defaultHash();
+		});
+		delayedHashes = [firstHash, secondHash];
+		const before = setSource.callCount;
+
+		webview.mountTo(container, mainWindow);
+		webview.mountTo(container, mainWindow);
+		secondHash.complete('current-origin');
+		await secondHash.p;
+		await timeout(0);
+		const afterSecondMount = setSource.callCount - before;
+		firstHash.complete('stale-origin');
+		await firstHash.p;
+		await timeout(0);
+		// The stale hash must not replace the origin that the current mount's shell is checked against.
+		const channel = new MessageChannel();
+		store.add(toDisposable(() => {
+			channel.port1.close();
+			channel.port2.close();
+		}));
+		mainWindow.dispatchEvent(new MessageEvent('message', { ...createReadyEvent(channel.port1), origin: 'https://current-origin.invalid' }));
+
+		assert.deepStrictEqual({ afterSecondMount, afterStaleCompletion: setSource.callCount - before, acceptedCurrentOrigin: channel.port1.onmessage !== null }, {
+			afterSecondMount: 1,
+			afterStaleCompletion: 1,
+			acceptedCurrentOrigin: true,
+		});
+	});
 
 	test('remount rejects the old handshake and key token', async () => {
 		const { webview, frame, createReadyEvent, remount } = await createWebview();

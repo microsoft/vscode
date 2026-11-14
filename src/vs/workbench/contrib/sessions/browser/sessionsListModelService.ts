@@ -9,7 +9,7 @@ import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { equalSets } from '../../../../base/common/collections.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun, IObservable, IReader, observableFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
+import { autorun, IObservable, IReader, observableSignalFromEvent, observableValue, runOnChange, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon, themeColorFromId } from '../../../../base/common/themables.js';
 import { isStringArray } from '../../../../base/common/types.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -142,6 +142,13 @@ export interface ISessionsListModelService {
 
 export const ISessionsListModelService = createDecorator<ISessionsListModelService>('sessionsListModelService');
 
+/** How recently an unread session from before the Inbox's first use must have been modified to still be admitted. */
+const UNREAD_HISTORICAL_INBOX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isUnreadSessionModifiedRecently(session: ISession, reader?: IReader): boolean {
+	return !session.isRead.read(reader) && session.updatedAt.read(reader).getTime() >= Date.now() - UNREAD_HISTORICAL_INBOX_WINDOW_MS;
+}
+
 type StoredSessionInboxState = SessionInboxState | { readonly kind: 'resumed' };
 
 interface ISessionInboxUndoToken {
@@ -195,9 +202,40 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				this.loadInboxState();
 			}
 		}));
-		const catalog = observableFromEvent(this, this.sessionsManagementService.onDidChangeSessions, () => this.sessionsManagementService.getSessions());
+		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
+		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
+		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
+			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
+				const shown = this._shownAutomationSessionIds.get();
+				const hidden = this._hiddenAutomationSessionIds.get();
+				this.fireChanges(this.sessionsManagementService.getSessions()
+					.filter(session => session.isAutomation?.get() && !shown.has(session.sessionId) && !hidden.has(session.sessionId))
+					.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })));
+			}
+		}));
+		this._sortOverrides = this.loadSortOverrides();
+		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
+		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
+		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
+		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
+		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
+
+		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
+		// A session replaced by one with another ID, such as one its host hands off to another connection, continues as it
+		this._register(this.sessionsManagementService.onDidReplaceSession(({ from, to }) => this.migrateIdentities([[from.sessionId, to.sessionId]])));
+		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
+			const sessions = this.sessionsManagementService.getSessions();
+			this.migratePreviousIdentities(sessions);
+			this.updateDefaultPlacement(sessions);
+		}));
+		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
+
+		// Read the sessions afresh: a replacement migrates its state before the change event, and a stale list would admit the replaced session.
+		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
 		this._register(autorun(reader => {
-			const sessions = new Map(catalog.read(reader).map(session => [session.sessionId, session]));
+			sessionsChanged.read(reader);
+			const sessions = new Map(this.sessionsManagementService.getSessions().map(session => [session.sessionId, session]));
 			const state = this._inboxState.read(reader);
 			const attention = this.sessionAttentionService.sessionAttention.read(reader);
 			const next = new Map(state);
@@ -223,36 +261,16 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 					}
 				}
 			}
+			for (const [id, session] of sessions) {
+				if (!next.has(id) && attention.has(id) && !session.isArchived.read(reader)
+					&& session.status.read(reader) === SessionStatus.Completed && !this.getInboxState(session, reader)) {
+					next.set(id, { kind: 'resumed' });
+				}
+			}
 			if ([...next].some(([id, value]) => state.get(id) !== value)) {
 				this.saveInboxState(next);
 			}
 		}));
-		this._shownAutomationSessionIds.set(this.loadSet(SessionsListModelService.SHOWN_AUTOMATION_SESSIONS_KEY), undefined);
-		this._hiddenAutomationSessionIds.set(this.loadSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY), undefined);
-		this._automationSessionsMode = observableConfigValue(SESSIONS_LIST_SHOW_AUTOMATION_SESSIONS_SETTING, AutomationSessionsListMode.AfterReply, configurationService);
-		this._register(runOnChange(this._automationSessionsMode, (mode, previous) => {
-			if ((mode === AutomationSessionsListMode.Always) !== (previous === AutomationSessionsListMode.Always)) {
-				const shown = this._shownAutomationSessionIds.get();
-				const hidden = this._hiddenAutomationSessionIds.get();
-				this.fireChanges(this.sessionsManagementService.getSessions()
-					.filter(session => session.isAutomation?.get() && !shown.has(session.sessionId) && !hidden.has(session.sessionId))
-					.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.AutomationListing })));
-			}
-		}));
-		this._sortOverrides = this.loadSortOverrides();
-		this._updatedDefaultPlacements = this.loadUpdatedDefaultPlacements();
-		this.storageService.remove(SessionsListModelService.RETIRED_CHAT_ORDER_KEY, StorageScope.PROFILE);
-		const legacyRead = this.loadSet(SessionsListModelService.LEGACY_READ_SESSIONS_KEY);
-		this._legacyReadSessionIds = legacyRead.size > 0 ? legacyRead : undefined;
-		this._migratedReadSessionIds = this.loadSet(SessionsListModelService.READ_MIGRATION_DONE_KEY);
-
-		this.migratePreviousIdentities(this.sessionsManagementService.getSessions());
-		this._register(this.sessionsManagementService.onDidChangeSessions(() => {
-			const sessions = this.sessionsManagementService.getSessions();
-			this.migratePreviousIdentities(sessions);
-			this.updateDefaultPlacement(sessions);
-		}));
-		this.updateDefaultPlacement(this.sessionsManagementService.getSessions());
 
 		// Only a definitive deletion discards pin, sort, and automation listing
 		// state. A session merely dropping out of the provider's list is an
@@ -267,7 +285,17 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 	// -- Legacy read-state migration --
 
 	private migratePreviousIdentities(sessions: readonly ISession[]): void {
+		this.migrateIdentities(sessions.flatMap(session => (session.previousIdentities ?? []).map((previous): [string, string] => [previous.sessionId, session.sessionId])));
+	}
+
+	/**
+	 * Moves the list state of each `[from, to]` session ID to `to`, where `to` has none of that state of its own.
+	 * An Inbox entry that records no triage, such as automatic admission before the replacement, counts as none.
+	 */
+	private migrateIdentities(identities: readonly (readonly [from: string, to: string])[]): void {
 		let changed = false;
+		let inboxChanged = false;
+		const inbox = new Map(this._inboxState.get());
 		const shown = new Set(this._shownAutomationSessionIds.get());
 		const hidden = new Set(this._hiddenAutomationSessionIds.get());
 		const sets = [this._pinnedSessionIds, this._migratedReadSessionIds, shown, hidden, ...(this._legacyReadSessionIds ? [this._legacyReadSessionIds] : [])];
@@ -280,20 +308,31 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 				changed = true;
 			}
 		};
-		for (const session of sessions) {
-			for (const previous of session.previousIdentities ?? []) {
-				if (previous.sessionId === session.sessionId) {
-					continue;
+		for (const [from, to] of identities) {
+			if (from === to) {
+				continue;
+			}
+			for (const set of sets) {
+				if (set.delete(from)) {
+					set.add(to);
+					changed = true;
 				}
-				for (const set of sets) {
-					if (set.delete(previous.sessionId)) {
-						set.add(session.sessionId);
-						changed = true;
-					}
+			}
+			move(this._sortOverrides.created, from, to);
+			move(this._sortOverrides.updated, from, to);
+			move(this._updatedDefaultPlacements, from, to);
+			const state = inbox.get(from);
+			if (state) {
+				if ((inbox.get(to)?.kind ?? 'resumed') === 'resumed') {
+					// Acknowledged notification IDs are prefixed with the session ID.
+					const prefix = `${from}:`;
+					inbox.set(to, (state.kind === 'done' || state.kind === 'untilActivity') && state.notificationIds
+						? { ...state, notificationIds: state.notificationIds.map(id => id.startsWith(prefix) ? `${to}:${id.slice(prefix.length)}` : id) }
+						: state);
 				}
-				move(this._sortOverrides.created, previous.sessionId, session.sessionId);
-				move(this._sortOverrides.updated, previous.sessionId, session.sessionId);
-				move(this._updatedDefaultPlacements, previous.sessionId, session.sessionId);
+				inbox.delete(from);
+				changed = true;
+				inboxChanged = true;
 			}
 		}
 		if (changed) {
@@ -307,6 +346,9 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			this.saveSet(SessionsListModelService.HIDDEN_AUTOMATION_SESSIONS_KEY, hidden);
 			this.saveSortOverrides();
 			this.saveUpdatedDefaultPlacements();
+			if (inboxChanged) {
+				this.saveInboxState(inbox);
+			}
 		}
 	}
 
@@ -372,9 +414,8 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 			return state.kind !== 'resumed' && isSessionInboxStateCurrent(state, session, Date.now(), reader, attention) ? state : undefined;
 		}
 		if (attention?.isHistoricalCompletion) {
-			const unreadToday = !session.isRead.read(reader) && session.updatedAt.read(reader).toDateString() === new Date().toDateString();
-			if (!unreadToday) {
-				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds };
+			if (!isUnreadSessionModifiedRecently(session, reader)) {
+				return { kind: 'done', activity: getSessionInboxActivity(session, reader), notificationIds: attention.notificationIds, isHistoricalCompletion: true };
 			}
 		}
 		return undefined;
@@ -495,7 +536,7 @@ export class SessionsListModelService extends Disposable implements ISessionsLis
 		if (this._hiddenAutomationSessionIds.read(reader).has(session.sessionId)) {
 			return false;
 		}
-		if (showAutomationRuns) {
+		if (session.isScheduledChat?.read(reader) || showAutomationRuns) {
 			return true;
 		}
 		return this._shownAutomationSessionIds.read(reader).has(session.sessionId)

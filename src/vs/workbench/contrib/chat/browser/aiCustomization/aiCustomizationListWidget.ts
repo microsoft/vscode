@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { WorkbenchObjectTree } from '../../../../../platform/list/browser/listService.js';
 import { IListContextMenuEvent, IListVirtualDelegate, IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { RenderIndentGuides } from '../../../../../base/browser/ui/tree/abstractTree.js';
-import { IObjectTreeElement, ITreeContextMenuEvent, ObjectTreeElementCollapseState } from '../../../../../base/browser/ui/tree/tree.js';
+import { IObjectTreeElement, ITreeContextMenuEvent } from '../../../../../base/browser/ui/tree/tree.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, builtinIcon } from './aiCustomizationIcons.js';
@@ -845,7 +845,10 @@ export class AICustomizationListWidget extends Disposable {
 	private searchQuery: string = '';
 	private skillBundleFilter: string | undefined;
 	private sectionLoading = false;
+	/** Groups the user collapsed, keyed by section and group, restored whenever the items are re-rendered without a search. */
 	private readonly collapsedGroups = new Set<string>();
+	/** The section whose tree is rendered, so that only a section change starts the tree from scratch. */
+	private renderedTreeSection: AICustomizationManagementSection | undefined;
 	private _layoutDeferred = false;
 	private lastLayoutWidth = 0;
 	private lastLayoutHeight = 0;
@@ -1098,7 +1101,6 @@ export class AICustomizationListWidget extends Disposable {
 				},
 				multipleSelectionSupport: false,
 				openOnSingleClick: true,
-				expandOnlyOnTwistieClick: entry => entry.type !== 'skill-bundle',
 			}
 		));
 
@@ -1117,6 +1119,13 @@ export class AICustomizationListWidget extends Disposable {
 				} else {
 					this.expandedSkillBundles.add(entry.item.id);
 				}
+			} else if (entry?.type === 'group-header' && !this.searchQuery.trim()) {
+				const key = this.getCollapsedGroupKey(entry.groupKey);
+				if (event.node.collapsed) {
+					this.collapsedGroups.add(key);
+				} else {
+					this.collapsedGroups.delete(key);
+				}
 			}
 		}));
 
@@ -1133,7 +1142,7 @@ export class AICustomizationListWidget extends Disposable {
 		// so the focus indicator is visible instead of requiring the user to
 		// press an arrow key first.
 		this._register(this.list.onDidFocus(() => {
-			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header');
+			focusFirstCustomizationTreeItem<IListEntry>(this.list, this.displayEntries, entry => entry.type !== 'group-header' && this.isEntryVisible(entry));
 		}));
 
 		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
@@ -1754,6 +1763,7 @@ export class AICustomizationListWidget extends Disposable {
 	 * Commits the current displayEntries to the list and updates empty state.
 	 */
 	private commitDisplayEntries(): void {
+		this.renderedTreeSection = undefined;
 		this.list.setChildren(null, this.displayEntries.map(element => ({ element })));
 		this.updateEmptyState();
 	}
@@ -1805,6 +1815,7 @@ export class AICustomizationListWidget extends Disposable {
 			}
 			return entries;
 		};
+		const isFiltering = !!this.searchQuery.trim();
 		const children: IObjectTreeElement<IListEntry>[] = groups.map(group => {
 			this.displayEntries.push(group.element);
 			const fileEntries = group.children.filter((element): element is IFileItemEntry => element.type !== 'group-header');
@@ -1812,12 +1823,18 @@ export class AICustomizationListWidget extends Disposable {
 			return {
 				element: group.element,
 				collapsible: true,
-				collapsed: ObjectTreeElementCollapseState.PreserveOrExpanded,
+				collapsed: !isFiltering && group.element.type === 'group-header' && this.collapsedGroups.has(this.getCollapsedGroupKey(group.element.groupKey)),
 				children: entries,
 			};
 		});
-		this.list.setChildren(null);
+		// Update the rows of the same section in place, keeping focus and the
+		// scroll position; only a new section starts from an empty tree.
+		if (this.renderedTreeSection !== this.currentSection) {
+			this.renderedTreeSection = this.currentSection;
+			this.list.setChildren(null);
+		}
 		this.list.setChildren(null, children);
+		this.moveFocusOutOfCollapsedGroups();
 		this.updateAddButton();
 		this.updateEmptyState();
 	}
@@ -2148,6 +2165,10 @@ export class AICustomizationListWidget extends Disposable {
 		this.announceItemCount(this.filterItems());
 		const entry = this.displayEntries.find(entry => entry.type === 'skill-bundle' && entry.item.skillBundle?.id === bundleId);
 		if (entry) {
+			const group = this.list.getParentElement(entry);
+			if (group?.type === 'group-header') {
+				this.collapsedGroups.delete(this.getCollapsedGroupKey(group.groupKey));
+			}
 			this.list.expandTo(entry);
 			this.list.expand(entry);
 			this.list.reveal(entry);
@@ -2176,10 +2197,43 @@ export class AICustomizationListWidget extends Disposable {
 	 */
 	focusList(): void {
 		this.list.domFocus();
-		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header');
+		const firstItem = this.displayEntries.find(entry => entry.type !== 'group-header' && this.isEntryVisible(entry)) ?? this.displayEntries[0];
 		if (firstItem) {
 			this.list.setFocus([firstItem]);
 		}
+	}
+
+	/**
+	 * Moves focus from an entry hidden inside a collapsed group (for example a
+	 * search result once the search is cleared) to its nearest visible ancestor,
+	 * so a focused row and active descendant remain.
+	 */
+	private moveFocusOutOfCollapsedGroups(): void {
+		const [focused] = this.list.getFocus();
+		if (!focused || !this.list.hasElement(focused) || this.isEntryVisible(focused)) {
+			return;
+		}
+		let ancestor = this.list.getParentElement(focused);
+		while (ancestor && !this.isEntryVisible(ancestor)) {
+			ancestor = this.list.getParentElement(ancestor);
+		}
+		this.list.setFocus(ancestor ? [ancestor] : []);
+	}
+
+	/**
+	 * Whether the entry has a row in the list, that is, it is not inside a
+	 * collapsed group or skill bundle.
+	 */
+	private isEntryVisible(entry: IListEntry): boolean {
+		if (!this.list.hasElement(entry)) {
+			return false;
+		}
+		for (let parent = this.list.getParentElement(entry); parent; parent = this.list.getParentElement(parent)) {
+			if (this.list.isCollapsed(parent)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	/**

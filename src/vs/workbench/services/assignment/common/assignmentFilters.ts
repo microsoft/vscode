@@ -56,6 +56,11 @@ export enum ExtensionsFilter {
 	 * Whether the `fcv1` flag is set to `'1'` in the copilot token.
 	 */
 	CopilotIsFcv1 = 'X-GitHub-Copilot-IsFcv1',
+
+	/**
+	 * Whether the account belongs to a Proxima deployment.
+	 */
+	CopilotIsProxima = 'X-GitHub-Copilot-IsProxima',
 }
 
 enum StorageVersionKeys {
@@ -67,6 +72,7 @@ enum StorageVersionKeys {
 	CopilotTrackingId = 'extensionsAssignmentFilterProvider.copilotTrackingId',
 	CopilotIsSn = 'extensionsAssignmentFilterProvider.copilotIsSn',
 	CopilotIsFcv1 = 'extensionsAssignmentFilterProvider.copilotIsFcv1',
+	CopilotIsProxima = 'extensionsAssignmentFilterProvider.copilotIsProxima',
 }
 
 export class CopilotAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
@@ -80,6 +86,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 	private copilotTrackingId: string | undefined;
 	private copilotIsSn: string | undefined;
 	private copilotIsFcv1: string | undefined;
+	private copilotIsProxima: string | undefined;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
@@ -101,6 +108,7 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		this.copilotTrackingId = this._storageService.get(StorageVersionKeys.CopilotTrackingId, StorageScope.PROFILE);
 		this.copilotIsSn = this._storageService.get(StorageVersionKeys.CopilotIsSn, StorageScope.PROFILE);
 		this.copilotIsFcv1 = this._storageService.get(StorageVersionKeys.CopilotIsFcv1, StorageScope.PROFILE);
+		this.copilotIsProxima = this._storageService.get(StorageVersionKeys.CopilotIsProxima, StorageScope.PROFILE);
 
 		this.updateExtensionVersions();
 		this.updateCopilotEntitlementInfo();
@@ -182,16 +190,19 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 		const tokenInfo = this._defaultAccountService.copilotTokenInfo;
 		const newIsSn = tokenInfo?.sn === '1' ? '1' : '0';
 		const newIsFcv1 = tokenInfo?.fcv1 === '1' ? '1' : '0';
+		const newIsProxima = tokenInfo?.st && tokenInfo.st !== 'dotcom' ? '1' : '0';
 
-		if (this.copilotIsSn === newIsSn && this.copilotIsFcv1 === newIsFcv1) {
+		if (this.copilotIsSn === newIsSn && this.copilotIsFcv1 === newIsFcv1 && this.copilotIsProxima === newIsProxima) {
 			return;
 		}
 
 		this.copilotIsSn = newIsSn;
 		this.copilotIsFcv1 = newIsFcv1;
+		this.copilotIsProxima = newIsProxima;
 
 		this._storageService.store(StorageVersionKeys.CopilotIsSn, this.copilotIsSn, StorageScope.PROFILE, StorageTarget.MACHINE);
 		this._storageService.store(StorageVersionKeys.CopilotIsFcv1, this.copilotIsFcv1, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._storageService.store(StorageVersionKeys.CopilotIsProxima, this.copilotIsProxima, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		// Notify that the filters have changed.
 		this._onDidChangeFilters.fire();
@@ -229,6 +240,8 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 				return this.copilotIsSn ?? null;
 			case ExtensionsFilter.CopilotIsFcv1:
 				return this.copilotIsFcv1 ?? null;
+			case ExtensionsFilter.CopilotIsProxima:
+				return this.copilotIsProxima ?? null;
 			default:
 				return null;
 		}

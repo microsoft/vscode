@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import type { IAgentHostManagedWorktree, IAgentHostWorktreeCleanupStatus } from '../../../../platform/agentHost/common/agentHostWorktreeCleanup.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { IArtifactModel } from '../../../../platform/artifactIntegrations/common/artifactIntegration.js';
@@ -23,10 +24,24 @@ import { IAgentModelPreferences } from '../../chat/common/promptSyntax/languageP
 import { IAutomationSessionTemplate } from '../../chat/common/automations/automation.js';
 import { AutomationUnavailableReasonCode, IAutomationProviderConfiguration, IAutomationStore } from '../../chat/common/automations/automationService.js';
 import { ChatModelSource, IChat, ISession, ISessionCanvas, ISessionCanvasDefinition, ISessionCreationReference, ISessionEnvironment, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, ISideChatSelection, type SessionCanvasDefinitionSnapshot } from '../../../services/sessions/common/session.js';
+import type { ICanvasOpenOptions } from '../../../common/canvasReference.js';
 
 /**
  * Event fired when sessions change within a provider.
  */
+/**
+ * The scope a sessions provider lists its sessions in, such as the folders of an editor window's workspace: the sessions
+ * working in one of its folders, and the sessions of the same git or GitHub repositories, such as of their worktrees, as
+ * `SessionsListingScopeFilter` matches them. With no folders, it lists every session.
+ */
+export interface ISessionsListingScope {
+	readonly folders: IObservable<readonly URI[]>;
+	/** The repositories the {@link folders} are known to be checkouts of, such as the main checkout of an open worktree. */
+	readonly repositories: IObservable<readonly URI[]>;
+	/** The GitHub repositories, as `owner/repo`, of the {@link repositories}' `origin`, whose sessions on GitHub are in the scope. */
+	readonly gitHubRepositories?: IObservable<readonly string[]>;
+}
+
 export interface ISessionChangeEvent {
 	readonly added: readonly ISession[];
 	readonly removed: readonly ISession[];
@@ -54,6 +69,14 @@ export interface IChatMoveEnd {
 export interface IChatMovedEvent {
 	readonly from: IChatMoveEnd;
 	readonly to: IChatMoveEnd;
+}
+
+/** A session replaced by another; see {@link ISessionsProvider.onDidReplaceSession}. */
+export interface ISessionReplacedEvent {
+	readonly from: ISession;
+	readonly to: ISession;
+	/** The chats of `to` by the resources of the chats of `from` they continue, when their resources differ. */
+	readonly chats?: ResourceMap<URI>;
 }
 
 /**
@@ -180,6 +203,8 @@ export interface IPreparedNewSession {
  * Options for sending a request to a session.
  */
 export interface ISendRequestOptions {
+	/** Reject an unavailable connection instead of retaining the request for reconnection. */
+	readonly requireConnected?: boolean;
 	/** Initial configuration resolved by the target provider before its first turn. */
 	readonly sessionConfig?: Readonly<Record<string, unknown>>;
 	/** UI-only response observation, forwarded to the chat service rather than the backend. */
@@ -227,6 +252,8 @@ export interface ISessionsProviderCreateSessionOptions {
 	readonly pullRequestUrl?: string;
 	/** Complete Automation state for providers that also own compatibility projections. */
 	readonly automationConfiguration?: IAutomationSessionConfiguration;
+	/** Ordinary saved-draft choices, independent of Automation availability. */
+	readonly draftConfiguration?: ISessionDraftConfiguration;
 }
 
 /** A detached configuration snapshot with provider-neutral properties and the full provider-specific values. */
@@ -243,6 +270,12 @@ export interface IAutomationSessionConfiguration {
 	readonly modelId?: string;
 	readonly mode?: string;
 	readonly permissionLevel?: string;
+}
+
+/** Serializable choices retained by an unsent session, without requiring a connection. */
+export interface ISessionDraftConfiguration extends IAutomationSessionConfiguration {
+	readonly isolationMode?: string;
+	readonly branch?: string;
 }
 
 /** Programmatic worktree settings applied together before a new session starts. */
@@ -286,6 +319,9 @@ export interface ISessionModelsSnapshot {
  * Unlike the aggregate IAutomationService, creation eligibility needs no provider ID because ownership is implicit.
  */
 export interface ISessionsProviderAutomations extends IAutomationStore {
+	/** Explicit host support for durable absolute-time requests; absent means unsupported. */
+	readonly supportsOneTimeAutomation?: IObservable<boolean>;
+	readonly supportsExistingChatAutomation?: IObservable<boolean>;
 	readonly configuration?: IAutomationProviderConfiguration;
 	/** Disabled providers are excluded from the aggregate catalogue and routing. */
 	readonly enabled?: IObservable<boolean>;
@@ -379,9 +415,24 @@ export interface ISessionsProvider {
 	readonly onDidChangeSessionTypes: Event<void>;
 
 	/**
-	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
+	 * The sessions the provider lists, within its listing scope ({@link setListingScope}); without one, every session it
+	 * knows. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
 	 */
 	getSessions(): ISession[];
+
+	/**
+	 * Every session known to the provider, also those outside its listing scope, which {@link getSessions} leaves out,
+	 * such as the sessions of other folders in an editor window; for looking sessions up, not for listing. Without it,
+	 * {@link getSessions} lists every session.
+	 */
+	getAllSessions?(): ISession[];
+
+	/**
+	 * Lists only the sessions of `scope` from then on, in {@link getSessions} and {@link onDidChangeSessions}, such as those
+	 * of an editor window's folders; {@link getAllSessions} still finds every session. Without it, the provider lists every
+	 * session also where a window scopes its listing.
+	 */
+	setListingScope?(scope: ISessionsListingScope): void;
 
 	/** Returns an already acquired execution provider without doing work during catalog reads. */
 	getSessionProvider?(sessionId: string): ISessionsProvider | undefined;
@@ -396,6 +447,12 @@ export interface ISessionsProvider {
 	 * Event that fires when sessions are added, removed, or changed. Consumers should update their session lists and any related UI when this occurs.
 	 */
 	readonly onDidChangeSessions: Event<ISessionChangeEvent>;
+
+	/**
+	 * Event that fires when any of its sessions changes, also one its listing scope hides: see {@link getAllSessions}.
+	 * Without it, {@link onDidChangeSessions} reports every change.
+	 */
+	readonly onDidChangeAllSessions?: Event<ISessionChangeEvent>;
 
 	/**
 	 * Fires when a chat moved between this provider's sessions, after both
@@ -455,7 +512,7 @@ export interface ISessionsProvider {
 	 * @internal This is an implementation detail of the Copilot Chat sessions
 	 * provider. Do not implement or consume this event in other providers.
 	 */
-	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
+	readonly onDidReplaceSession?: Event<ISessionReplacedEvent>;
 
 	/**
 	 * Optional. Fires when the user invokes a changeset operation of one of
@@ -589,6 +646,9 @@ export interface ISessionsProvider {
 	/** Capture Automation draft values; implementing this also declares support for restoring `automationConfiguration` at draft creation. */
 	getAutomationSessionConfiguration?(sessionId: string): Promise<IAutomationSessionConfiguration | undefined>;
 
+	/** Capture ordinary draft choices and support restoring them through `draftConfiguration` at creation. */
+	getDraftSessionConfiguration?(sessionId: string): ISessionDraftConfiguration | undefined;
+
 	/** Model preferences scoped to a session rather than the ordinary New Session defaults. */
 	getAutomationModelConfiguration?(sessionId: string): IModelConfigurationAccess | undefined;
 
@@ -622,7 +682,7 @@ export interface ISessionsProvider {
 	listCanvases?(sessionId: string, chatResource: URI): Promise<SessionCanvasDefinitionSnapshot>;
 
 	/** Open or focus one stable instance of a registered canvas type. */
-	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string): Promise<void>;
+	openCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void>;
 
 	/** Close one live canvas of a chat, notifying the extension that provides it. */
 	closeCanvas?(sessionId: string, chatResource: URI, canvas: ISessionCanvas): Promise<void>;

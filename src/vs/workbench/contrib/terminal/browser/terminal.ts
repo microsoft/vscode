@@ -1641,7 +1641,7 @@ export interface IInternalXtermTerminal {
 	 * **WARNING:** This should never be used outside of the terminal component and only for
 	 * developer purposed inside the terminal component.
 	 */
-	_writeText(data: string): void; // eslint-disable-line @typescript-eslint/naming-convention
+	_writeText(data: string): void; // eslint-disable-line ts-eslint-js/naming-convention
 }
 
 export interface IXtermColorProvider {

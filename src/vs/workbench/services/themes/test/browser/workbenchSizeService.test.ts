@@ -31,6 +31,7 @@ import '../../../../contrib/modernUI/browser/media/editorBorder.css';
 import '../../../../contrib/modernUI/browser/media/roundedCorners.css';
 import '../../../../../base/browser/ui/dialog/dialog.css';
 import '../../../../../platform/quickinput/browser/media/quickInput.css';
+import { registerTestIframe } from '../../../../../base/test/browser/testWindow.js';
 
 suite('WorkbenchSizeService', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -289,6 +290,7 @@ suite('WorkbenchSizeService', () => {
 		store.add(service.onDidChangeSizes(update));
 		const frame = append(document.body, $<HTMLIFrameElement>('iframe'));
 		store.add(toDisposable(() => frame.remove()));
+		store.add(registerTestIframe(frame));
 		const targetWindow = frame.contentWindow;
 		assert.ok(targetWindow);
 		store.add(cloneGlobalStylesheets(targetWindow));

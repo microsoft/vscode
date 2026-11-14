@@ -31,6 +31,7 @@ import { IChatViewFactory } from '../../../../workbench/contrib/sessions/browser
 import { MobileChatViewFactory } from './mobileChatViewFactory.js';
 import { IChatEditPresentationService } from '../../../../workbench/contrib/chat/browser/widget/chatContentParts/chatEditPresentation.js';
 import { MobileChatEditPresenter } from './mobileChatEditPresenter.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { SessionsChatAccessibilityHelp } from '../../chat/browser/sessionsChatAccessibilityHelp.js';
 import './mobileClipboardImageContext.js';
 import './mobileBackgroundNotifier.js';
@@ -75,4 +76,5 @@ registerSingleton(ISessionsListPresentation, MobileSessionsListPresentation, Ins
 registerSingleton(ISessionRepositoryPicker, MobileRepositoryPicker, InstantiationType.Delayed);
 registerSingleton(IChatViewFactory, MobileChatViewFactory, InstantiationType.Delayed);
 registerSingleton(IChatEditPresentationService, MobileChatEditPresenter, InstantiationType.Delayed);
+registerSingleton(IChatAttachmentWidgetRegistry, ChatAttachmentWidgetRegistry, InstantiationType.Delayed);
 AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp(undefined, false));
