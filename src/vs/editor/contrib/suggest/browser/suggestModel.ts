@@ -197,11 +197,16 @@ export class SuggestModel implements IDisposable {
 				this._onCursorChange(e);
 			}
 		}));
-		this._toDispose.add(this._editor.onDidChangeModelContent(() => {
-			// only filter completions when the editor isn't composing a character
+		this._toDispose.add(this._editor.onDidChangeModelContent(e => {
+			// if korean charactor typed, trigger quick suggest
+			// else, only filter completions when the editor isn't composing a character
 			// allow-any-unicode-next-line
 			// e.g. ¨ + u makes ü but just ¨ cannot be used for filtering
-			if (!editorIsComposing && this._triggerState !== undefined) {
+			const isComposingHangul = editorIsComposing && this._isKoreanCharacter(e.changes[0].text);
+			if (isComposingHangul) {
+				this._doTriggerQuickSuggest();
+			}
+			else if (!editorIsComposing && this._triggerState !== undefined) {
 				this._refilterCompletionItems();
 			}
 		}));
@@ -216,6 +221,10 @@ export class SuggestModel implements IDisposable {
 		this._toDispose.dispose();
 		this._completionDisposables.dispose();
 		this.cancel();
+	}
+
+	private _isKoreanCharacter(str: string): boolean {
+  		return /\p{Script=Hangul}/u.test(str);
 	}
 
 	private _updateTriggerCharacters(): void {
