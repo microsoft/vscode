@@ -70,8 +70,11 @@ export interface IChatViewSessionsListService {
 	readonly provider: IChatViewSessionsListProvider | undefined;
 	registerProvider(provider: IChatViewSessionsListProvider): IDisposable;
 
-	/** Whether the Chat view shows only the sessions of the list it shows, without its chat: false while it shows no provided list. */
+	/** Whether the Chat view shows only its sessions, without its chat: while the list it shows says so, or a claim is held. */
 	readonly sessionsOnly: IObservable<boolean>;
+
+	/** Makes the Chat view show only its sessions, whichever list it shows, until the returned disposable is disposed. */
+	claimSessionsOnly(): IDisposable;
 
 	/** Called by the Chat view with the provided list it shows, until the returned disposable is disposed. */
 	setActiveList(list: IChatViewSessionsList): IDisposable;
@@ -89,7 +92,13 @@ export class ChatViewSessionsListService implements IChatViewSessionsListService
 	}
 
 	private readonly _activeList = observableValue<IChatViewSessionsList | undefined>(this, undefined);
-	readonly sessionsOnly: IObservable<boolean> = derived(this, reader => this._activeList.read(reader)?.sessionsOnly.read(reader) ?? false);
+	private readonly _sessionsOnlyClaims = observableValue(this, 0);
+	readonly sessionsOnly: IObservable<boolean> = derived(this, reader => this._sessionsOnlyClaims.read(reader) > 0 || (this._activeList.read(reader)?.sessionsOnly.read(reader) ?? false));
+
+	claimSessionsOnly(): IDisposable {
+		this._sessionsOnlyClaims.set(this._sessionsOnlyClaims.get() + 1, undefined);
+		return toDisposable(() => this._sessionsOnlyClaims.set(this._sessionsOnlyClaims.get() - 1, undefined));
+	}
 
 	setActiveList(list: IChatViewSessionsList): IDisposable {
 		this._activeList.set(list, undefined);

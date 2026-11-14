@@ -899,7 +899,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	 * composer; focus elsewhere, such as in the sessions, stays.
 	 */
 	private updateComposerVisibility(): void {
-		const shown = !!this.providedComposer && !this.providedSessionsList?.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
+		const shown = !!this.providedComposer && !this.sessionsListService.sessionsOnly.get() && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
 		if (shown !== this.composerShown) {
 			const chatHadFocus = shown && !!this._widget?.domNode && isAncestorOfActiveElement(this._widget.domNode);
 			this.composerShown = shown;
@@ -1024,13 +1024,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			// A list of its own header and actions, in place of those of the Chat view's list
 			setVisibility(!provided.hasHeader, sessionsTitleContainer);
 			setVisibility(false, newSessionButtonContainer);
-			this._register(autorun(reader => {
-				const sessionsOnly = provided.sessionsOnly.read(reader);
-				this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
-				this.updateComposerVisibility();
-				this.relayout();
-			}));
 		}
+		// Of the provided list, or of a claim, such as of a chat part that shows every chat
+		this._register(autorun(reader => {
+			const sessionsOnly = this.sessionsListService.sessionsOnly.read(reader);
+			this.viewPaneContainer?.classList.toggle('sessions-only', sessionsOnly);
+			this.updateComposerVisibility();
+			this.relayout();
+		}));
 		const sessionsControl: IChatViewSessionsListControl = this.sessionsControl = this._register(provided?.control ?? this.instantiationService.createInstance(AgentSessionsControl, this.sessionsControlContainer, {
 			initiallyVisible: false,
 			source: 'chatViewPane',
@@ -1109,7 +1110,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 
 		let newSessionsContainerVisible: boolean;
-		if (this.providedSessionsList?.sessionsOnly.get()) {
+		if (this.sessionsListService.sessionsOnly.get()) {
 			newSessionsContainerVisible = !this.welcomeController?.isShowingWelcome.get(); // only the sessions show
 		} else if (this.sessionsListRevealCount > 0) {
 			newSessionsContainerVisible = true;
@@ -1906,7 +1907,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	focusInput(): void {
 		// Showing only the sessions, the Chat view has no input of its own: its sessions take focus
-		if (this.providedSessionsList?.sessionsOnly.get()) {
+		if (this.sessionsListService.sessionsOnly.get()) {
 			this.sessionsControl?.focus();
 			return;
 		}
@@ -2017,7 +2018,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		const oldSessionsViewerOrientation = this.sessionsViewerOrientation;
 		let newSessionsViewerOrientation: AgentSessionsViewerOrientation;
-		const sessionsOnly = !!this.providedSessionsList?.sessionsOnly.get();
+		const sessionsOnly = !!this.sessionsListService.sessionsOnly.get();
 		switch (sessionsOnly ? 'stacked' : this.sessionsViewerOrientationConfiguration) {
 			// Stacked
 			case 'stacked':
