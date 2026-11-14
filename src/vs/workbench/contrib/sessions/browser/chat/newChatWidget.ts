@@ -442,8 +442,8 @@ export class NewChatWidget extends Disposable {
 				}
 				return undefined;
 			},
-			// A composer restricted to its folders, such as an editor window's, always creates its sessions in one
-			getNoWorkspaceOption: () => this._draftHost?.allowedFolders?.get().length ? undefined : this._getNoWorkspaceOption(),
+			// A composer restricted to its folders, such as an editor window's, also offers No Workspace beside them
+			getNoWorkspaceOption: () => this._getNoWorkspaceOption(),
 			ownNoWorkspaceSelection: !!this._draftHost,
 			allowedFolders: this._draftHost?.allowedFolders,
 			getAllowedFolderPresentation: this._draftHost?.getFolderPresentation && (folderUri => this._draftHost?.getFolderPresentation?.(folderUri)),

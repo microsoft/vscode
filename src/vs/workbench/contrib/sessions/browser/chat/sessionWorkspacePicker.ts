@@ -2388,7 +2388,13 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	protected _getNoWorkspaceLabel(): string {
-		return getNoWorkspaceChoicePresentation(undefined).label;
+		// Beside a window's folders, by what it is rather than as a chat
+		return this._getAllowedFolders() ? localize('workspacePicker.restrictedNoWorkspace', "No Workspace") : getNoWorkspaceChoicePresentation(undefined).label;
+	}
+
+	/** What No Workspace is, beside a window's folders: for screen readers and on hover. */
+	private _getRestrictedNoWorkspaceDescription(): string | undefined {
+		return this._getAllowedFolders() ? localize('workspacePicker.restrictedNoWorkspaceDescription', "No workspace: start the session in a temporary directory") : undefined;
 	}
 
 	private _getSelectedNoWorkspaceLabel(): string {
@@ -2504,9 +2510,10 @@ export class WorkspacePicker extends Disposable {
 					: label && label !== emptyLabel
 						? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 						: options.ariaLabel);
-			if (chip && badgeCount === 0) {
-				// What it is, a folder, a worktree or New Worktree, by name for screen readers
-				trigger.setAttribute('aria-label', chip.description);
+			// What it is, a folder, a worktree, New Worktree or No Workspace, by name for screen readers
+			const chipDescription = chip?.description ?? (noWorkspaceSelected ? this._getRestrictedNoWorkspaceDescription() : undefined);
+			if (chipDescription && badgeCount === 0) {
+				trigger.setAttribute('aria-label', chipDescription);
 			}
 			if (reflectsWorkspace) {
 				this._setTriggerReadOnly(trigger, readOnly);
@@ -2984,7 +2991,10 @@ export class WorkspacePicker extends Disposable {
 
 	/** What the chip of a picker restricted to a window's folder and its worktrees shows, by name: for its hover. */
 	getSelectedLocationDescription(): string | undefined {
-		const selected = this._getNoWorkspaceOption()?.isSelected ? undefined : this._selectedResolved;
+		if (this._getNoWorkspaceOption()?.isSelected) {
+			return this._getRestrictedNoWorkspaceDescription();
+		}
+		const selected = this._selectedResolved;
 		return selected && this._getLocationChip(selected.workspace, selected.providerId)?.description;
 	}
 
