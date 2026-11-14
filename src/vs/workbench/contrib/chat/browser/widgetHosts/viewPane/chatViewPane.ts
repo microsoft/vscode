@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/chatViewPane.css';
-import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, setVisibility } from '../../../../../../base/browser/dom.js';
+import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getWindow, isAncestorOfActiveElement, setVisibility } from '../../../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
 import { IActionViewItem } from '../../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../../base/browser/ui/button/button.js';
@@ -1014,12 +1014,17 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
 		this._register(this.sessionsListService.onDidChangeProvider(() => {
+			// Focus moves to the list that replaces the one that had it; focus elsewhere, such as in the chat, stays
+			const hadFocus = isAncestorOfActiveElement(sessionsControlContainer);
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
 			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
 			this.updateSessionsControlVisibility();
 			this.relayout();
+			if (hadFocus) {
+				sessionsControl.focus();
+			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(() => {
 			this.sessionsControl?.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
