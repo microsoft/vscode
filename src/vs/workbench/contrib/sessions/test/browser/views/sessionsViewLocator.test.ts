@@ -10,7 +10,7 @@ import { TestConfigurationService } from '../../../../../../platform/configurati
 import { FocusedViewContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { getSessionsViewResolver, InSessionsViewContext, SessionsView, SessionsViewFocusedContext, SessionsViewId, SessionsViewLocator } from '../../../browser/views/sessionsView.js';
+import { getSessionsViewResolver, InSessionsViewContext, openSessionsView, SessionsView, SessionsViewFocusedContext, SessionsViewId, SessionsViewLocator } from '../../../browser/views/sessionsView.js';
 
 suite('SessionsViewLocator', () => {
 
@@ -50,5 +50,30 @@ suite('SessionsViewLocator', () => {
 		FocusedViewContext.bindTo(scoped).reset();
 		InSessionsViewContext.bindTo(scoped).set(true);
 		assert.strictEqual(scoped.contextMatchesRules(SessionsViewFocusedContext), true);
+	});
+
+	suite('openSessionsView', () => {
+
+		function viewsService(opened: SessionsView | null | undefined): IViewsService {
+			return { openView: async (viewId: string) => viewId === SessionsViewId ? opened : undefined } as unknown as IViewsService;
+		}
+
+		test('the registered view, opened as it is not instantiated yet, wins over an embedded view', async () => {
+			const registered = {} as SessionsView;
+			const sut = new SessionsViewLocator();
+			store.add(sut.register({} as SessionsView));
+			assert.strictEqual(await openSessionsView(viewsService(registered), sut), registered);
+		});
+
+		test('the embedded view is used where no view is registered with the id', async () => {
+			const embedded = {} as SessionsView;
+			const sut = new SessionsViewLocator();
+			store.add(sut.register(embedded));
+			assert.strictEqual(await openSessionsView(viewsService(null), sut), embedded);
+		});
+
+		test('there is no view where none is registered or embedded', async () => {
+			assert.strictEqual(await openSessionsView(viewsService(null), new SessionsViewLocator()), undefined);
+		});
 	});
 });
