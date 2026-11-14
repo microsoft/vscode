@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { IAction, SubmenuAction } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { combinedDisposable, Disposable, ImmortalReference, toDisposable, type IReference } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { basename, dirname, isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -372,6 +372,10 @@ suite('AgentHostSessionInputPills', () => {
 		let workingSetUndo: IChatSessionWorkingSetUndo | undefined;
 		let workingSetKeep: IChatSessionWorkingSetKeep | undefined;
 		let workingSetRegistrations = 0;
+		// What the input's working set shows: the registered changes without the files the input kept itself
+		const registeredChanges = observableValue<IObservable<readonly IEditSessionEntryDiff[] | undefined> | undefined>('registeredChanges', undefined);
+		const keptInInput = observableValue<ReadonlySet<string>>('keptInInput', new Set());
+		const sessionWorkingSetDiffs = derived(reader => (registeredChanges.read(reader)?.read(reader) ?? []).filter(diff => !keptInInput.read(reader).has(diff.modifiedURI.toString())));
 		let backgroundActivityPillSections: IChatBackgroundActivityPillSections | undefined;
 		const widget = upcastPartial<ChatWidget>({
 			domNode: persistentContent,
@@ -379,9 +383,12 @@ suite('AgentHostSessionInputPills', () => {
 				persistentContentContainerElement: persistentContent,
 				registerChatPetHorizontalPlatformProvider: () => Disposable.None,
 				supportsSessionWorkingSet: options?.supportsSessionWorkingSet ?? true,
+				sessionWorkingSetDiffs,
 				registerSessionFileChanges: (changes, undo, keep) => {
 					workingSetRegistrations++;
+					registeredChanges.set(changes, undefined);
 					return combinedDisposable(
+						toDisposable(() => registeredChanges.set(undefined, undefined)),
 						autorun(reader => {
 							workingSetChanges = changes.read(reader);
 							workingSetUndo = undo?.read(reader);
@@ -491,6 +498,8 @@ suite('AgentHostSessionInputPills', () => {
 			workingSetUndo: () => workingSetUndo,
 			workingSetKeep: () => workingSetKeep,
 			workingSetRegistrations: () => workingSetRegistrations,
+			/** Keeps files in the input itself, as its working set does for a host without Accept Changes. */
+			keepInInput: (diffs: readonly IEditSessionEntryDiff[]) => keptInInput.set(new Set([...keptInInput.get(), ...diffs.map(diff => diff.modifiedURI.toString())]), undefined),
 			backgroundActivityPillSections: () => backgroundActivityPillSections,
 			setWorkingSetEnabled: async (enabled: boolean) => {
 				const configurationService = instantiationService.get(IConfigurationService) as TestConfigurationService;
@@ -3145,7 +3154,7 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
-	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper; workingSetOnly?: boolean }) {
+	function createSessionWorkingSetPills(options?: { connectionAuthority?: string; resourceUris?: IAgentHostResourceUriMapper; workingSetOnly?: boolean; withoutWorkingSet?: boolean }) {
 		const errors: string[] = [];
 		const confirmations: Pick<IConfirmation, 'title' | 'message' | 'primaryButton' | 'type'>[] = [];
 		let confirmed = false;
@@ -3155,7 +3164,7 @@ suite('AgentHostSessionInputPills', () => {
 			chats: [],
 			changesets: [
 				{ label: 'Session Changes', uriTemplate: 'vendor-diff:/opaque/session-changes', changeKind: ChangesetKind.Session },
-				{ label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet },
+				...(options?.withoutWorkingSet ? [] : [{ label: 'Working Set', uriTemplate: 'vendor-diff:/opaque/working-set', changeKind: ChangesetKind.WorkingSet }]),
 			],
 		});
 		const harness = createActivityPills(session, upcastPartial<ChatState>({
@@ -3344,6 +3353,20 @@ suite('AgentHostSessionInputPills', () => {
 			withFiles: { hidden: true, actions: [] },
 			afterKeep: { hidden: false, actions: [] },
 			workingSetOff: { hidden: false, actions: ['Show Working Set'] },
+		});
+	});
+
+	test('an input that shows only the working set of a host without a Working Set shows the Changes pill again once it kept every file itself', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true, withoutWorkingSet: true });
+		setOperations([discardWorkingSetChanges(ChangesetOperationStatus.Idle)]);
+		await harness.setWorkingSetEnabled(true);
+		const withFiles = { keptByHost: !!harness.workingSetKeep(), hidden: harness.pills.changesPillHidden.get() };
+		// Session Changes has no Accept Changes: Keep hides the files in the input, which still lists them as changes
+		harness.keepInInput(harness.workingSetChanges() ?? []);
+
+		assert.deepStrictEqual({ withFiles, afterKeep: { changes: harness.workingSetChanges()?.length, hidden: harness.pills.changesPillHidden.get() } }, {
+			withFiles: { keptByHost: false, hidden: true },
+			afterKeep: { changes: 1, hidden: false },
 		});
 	});
 
