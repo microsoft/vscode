@@ -498,6 +498,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 	protected readonly _logger: ILogger;
 	protected readonly _isMicrosoftAuth: boolean;
 	private readonly _disposable: DisposableStore;
+	private _rejectedClientId: string | undefined;
 
 	constructor(
 		@IExtHostWindow protected readonly _extHostWindow: IExtHostWindow,
@@ -641,6 +642,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 
 	async createSession(scopes: string[], _options: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
 		this._logger.info(`Creating session for scopes: ${scopes.join(' ')}`);
+		if (this._rejectedClientId === this._clientId) {
+			this._logger.warn(`Client ID (${this._clientId}) was rejected during a silent token refresh, generating a new one before signing in.`);
+			await this._generateNewClientId();
+			this._rejectedClientId = undefined;
+		}
 		let token: IAuthorizationTokenResponse | undefined;
 		for (let i = 0; i < this._createFlows.length; i++) {
 			const { handler } = this._createFlows[i];
@@ -923,6 +929,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		} else if (isAuthorizationErrorResponse(result) && result.error === AuthorizationErrorType.InvalidClient) {
 			if (!allowClientRegistration) {
 				this._logger.warn(`Client ID (${this._clientId}) was invalid while silently refreshing the token.`);
+				this._rejectedClientId = this._clientId;
 				throw new Error(`Client ID was invalid while silently refreshing the token.`);
 			}
 			this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
