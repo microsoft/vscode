@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, IObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -43,6 +43,14 @@ import { buildTestSession } from '../../common/testSessionBuilder.js';
 import { ISessionsListModelService } from '../../../browser/sessionsListModelService.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { ChatViewHostService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewHostService.js';
+import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
+import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 
 /** An editor group that keeps its editors in memory, as the chat part's groups do, without rendering them. */
 class FakeGroup {
@@ -149,7 +157,7 @@ suite('AgentsChatPartService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void> }) {
+	function createService(options?: { readonly stored?: string; readonly visible?: boolean; readonly chatEnabled?: boolean; readonly sessions?: () => readonly ISession[]; readonly newSession?: IObservable<ISession | undefined>; readonly holdOpen?: () => Promise<void>; readonly delayed?: boolean }) {
 		const store = disposables.add(new DisposableStore());
 		const instantiationService = workbenchInstantiationService(undefined, store);
 		const contextKeyService = store.add(new ChangingContextKeyService());
@@ -179,7 +187,9 @@ suite('AgentsChatPartService', () => {
 			},
 			hasFocus: () => false,
 		}));
-		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), didCreateContent: () => { } }));
+		// The frame has the chat part once it is created, as the real frame does
+		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
+		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), content, contentCreated: derived(reader => !!content.read(reader)), didCreateContent: created => content.set(created, undefined) }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: () => part as unknown as IContentPart, mainPart: undefined }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
@@ -248,11 +258,17 @@ suite('AgentsChatPartService', () => {
 
 		const host = new EditorWindowMainSessionHost(contextKeyService);
 		instantiationService.stub(ISessionHost, host);
-		const service = store.add(instantiationService.createInstance(AgentsChatPartService));
+		// Delayed, as the editor window registers it: created as something first uses it, such as an open
+		const scoped = options?.delayed ? store.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartService, new SyncDescriptor(AgentsChatPartService, [], true)]), false, instantiationService, true)) : undefined;
+		const service: IAgentsChatPartService = scoped ? scoped.invokeFunction(accessor => accessor.get(IAgentsChatPartService)) : store.add(instantiationService.createInstance(AgentsChatPartService));
 		const name = (input: EditorInput | null) => input instanceof ChatEditorInput ? (isChatWindowComposerResource(input.chatResource) ? 'composer' : input.chatResource.path) : null;
 		return {
 			service,
 			part,
+			instantiationService,
+			/** What the editor window creates with the delayed chat part, which it gets as such. */
+			scoped,
+			store,
 			hide: () => instantiationService.get(IWorkbenchLayoutService).setPartHidden(true, Parts.CHAT_PART),
 			save: () => {
 				storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
@@ -397,6 +413,37 @@ suite('AgentsChatPartService', () => {
 		listener.dispose();
 
 		assert.deepStrictEqual({ whileHeld, reports }, { whileHeld: ['other open', 'recalled restore'], reports: ['other open', 'recalled restore'] });
+	});
+
+	test('the Chat view\'s hosts report the chat of the active tab as the user opens and picks tabs, also as the chat part is created as its first chat opens, rather than as the host first reads it', async () => {
+		const first = buildTestSession({ id: 'first', title: 'First' });
+		const second = buildTestSession({ id: 'second', title: 'Second' });
+		const firstChat = first.mainChat.chat.resource;
+		const secondChat = second.mainChat.chat.resource;
+		const { service, part, instantiationService, scoped, store } = createService({ sessions: () => [first.session, second.session], delayed: true });
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: Event.None, getViewWithId: () => null }));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
+		const hosts = store.add(instantiationService.createInstance(ChatViewHostService));
+		// As the editor window registers its host, before the chat part exists
+		store.add(hosts.registerHost(scoped!.createInstance(AgentsChatViewHost, constObservable(true))));
+		const reports: string[] = [];
+		store.add(autorun(reader => {
+			const value = hosts.shownSession.read(reader);
+			if (value) {
+				reports.push(`${isEqual(value.resource, firstChat) ? 'first' : isEqual(value.resource, secondChat) ? 'second' : value.resource.toString()} ${value.reason}`);
+			}
+		}));
+
+		await service.openChat(first.session, firstChat);
+		await service.openChat(second.session, secondChat);
+		await timeout(0);
+		// The user picks the first tab again
+		const firstTab = part.activeGroup.editors.find(editor => editor instanceof ChatEditorInput && isEqual(editor.chatResource, firstChat))!;
+		part.activeGroup.open(firstTab);
+		await timeout(0);
+
+		assert.deepStrictEqual(reports, ['first open', 'second open', 'first open']);
 	});
 
 	test('its composers that aim at the folder their host aimed them at follow it to another folder, also the active one a new session reuses', async () => {
