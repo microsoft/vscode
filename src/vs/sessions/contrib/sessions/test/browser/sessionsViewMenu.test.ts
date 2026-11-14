@@ -58,7 +58,7 @@ import { ISessionsService } from '../../../../../workbench/contrib/sessions/brow
 import { getSessionFilterEnvironments, SessionsListFilters } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListFilters.js';
 import { SessionsInboxScope } from '../../../../../workbench/contrib/sessions/browser/views/sessionsInboxScope.js';
 import { ISessionsListNotice, SessionsListNotification } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListNotification.js';
-import { IsWorkspaceGroupCappedContext, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, ISessionsViewLocator, SessionsView, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewSortingContext, DEFAULT_SESSIONS_GROUPINGS, bindSessionsViewGroupings } from '../../../../../workbench/contrib/sessions/browser/views/sessionsView.js';
 import { EDITOR_WINDOW_SESSIONS_GROUPINGS } from '../../../../../workbench/contrib/sessions/browser/agentsView/editorWindowSessionsList.js';
 import { createListHarness, TestCommandService } from './sessionsListTestUtils.js';
 import { SessionsArchiveActionsContribution } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
@@ -1080,16 +1080,31 @@ suite('Sessions - View Menu', () => {
 		});
 	});
 
-	test('application filter command opens the Sessions view before showing its filter menu', async () => {
-		const instantiationService = store.add(new TestInstantiationService());
-		const calls: string[] = [];
-		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({}), 'openView', async (id: string) => {
-			calls.push(id);
-			return upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push('showApplicationFilters') });
-		});
-		await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+	test('application filter command opens the registered Sessions view, and uses an embedded one only without it', async () => {
+		const run = async (registered: boolean, embedded: boolean) => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const calls: string[] = [];
+			const view = (name: string) => upcastPartial<SessionsView>({ showApplicationFilters: () => calls.push(`${name}.showApplicationFilters`) });
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+				openView: async (id: string) => {
+					calls.push(`open ${id}`);
+					return registered ? view('registered') as never : null;
+				},
+			}));
+			instantiationService.stub(ISessionsViewLocator, upcastPartial<ISessionsViewLocator>({ getEmbeddedView: () => embedded ? view('embedded') : undefined }));
+			await CommandsRegistry.getCommand(SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID)!.handler(instantiationService);
+			return calls;
+		};
 
-		assert.deepStrictEqual(calls, ['sessions.workbench.view.sessionsView', 'showApplicationFilters']);
+		assert.deepStrictEqual({
+			registeredAndEmbedded: await run(true, true),
+			embeddedOnly: await run(false, true),
+			neither: await run(false, false),
+		}, {
+			registeredAndEmbedded: ['open sessions.workbench.view.sessionsView', 'registered.showApplicationFilters'],
+			embeddedOnly: ['open sessions.workbench.view.sessionsView', 'embedded.showApplicationFilters'],
+			neither: ['open sessions.workbench.view.sessionsView'],
+		});
 	});
 
 	test('opens the filter menu with Created In focused and returns focus to the list', () => {
