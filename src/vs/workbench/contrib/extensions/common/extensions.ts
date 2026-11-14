@@ -31,6 +31,8 @@ export interface IExtensionsViewPaneContainer extends IViewPaneContainer {
 	readonly searchValue: string | undefined;
 	search(text: string): void;
 	refresh(): Promise<void>;
+	/** Focus the first expanded, populated results list without modifying the search query. */
+	focusResults(): void;
 }
 
 export interface IWorkspaceRecommendedExtensionsView extends IView {
