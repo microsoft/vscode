@@ -275,33 +275,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Hide / Show Editor Area for the Chat Part
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.hideEditorAreaForChat',
-			title: {
-				...localize2('hideEditorAreaForChat', "Hide Editor Area"),
-				mnemonicTitle: localize({ key: 'miHideEditorArea', comment: ['&& denotes a mnemonic'] }, "Hide &&Editor Area"),
-			},
-			category: Categories.View,
-			f1: true,
-			precondition: ContextKeyExpr.and(ChatPartVisibleContext, MainEditorAreaVisibleContext, IsAuxiliaryWindowFocusedContext.toNegated()),
-			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 6,
-				when: ContextKeyExpr.and(ChatPartVisibleContext, MainEditorAreaVisibleContext, IsSessionsWindowContext.negate())
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setEditorHiddenByChat(true);
-	}
-});
+// --- Editor Area visibility for the Chat Part
 
 class ToggleChatPartVisibilityAction extends Action2 {
 
@@ -331,10 +305,20 @@ class ToggleEditorAreaForChatAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleEditorAreaForChatAction.ID,
-			title: localize2('toggleEditorAreaForChat', "Toggle Editor Area Visibility"),
+			title: {
+				...localize2('toggleEditorAreaForChat', "Toggle Editor Area Visibility Beside Chat"),
+				mnemonicTitle: localize({ key: 'miToggleEditorAreaForChat', comment: ['&& denotes a mnemonic'] }, "&&Editor Area"),
+			},
 			category: Categories.View,
-			f1: false,
-			precondition: ChatPartVisibleContext
+			f1: true,
+			precondition: ContextKeyExpr.or(ChatPartVisibleContext, EditorAreaHiddenByChatContext),
+			toggled: MainEditorAreaVisibleContext,
+			menu: {
+				id: MenuId.MenubarAppearanceMenu,
+				group: '2_workbench_layout',
+				order: 6,
+				when: ContextKeyExpr.and(ContextKeyExpr.or(ChatPartVisibleContext, EditorAreaHiddenByChatContext), IsSessionsWindowContext.negate())
+			}
 		});
 	}
 
@@ -344,32 +328,6 @@ class ToggleEditorAreaForChatAction extends Action2 {
 	}
 }
 registerAction2(ToggleEditorAreaForChatAction);
-
-registerAction2(class extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.showEditorAreaHiddenForChat',
-			title: {
-				...localize2('showEditorAreaHiddenForChat', "Show Editor Area"),
-				mnemonicTitle: localize({ key: 'miShowEditorAreaHiddenForChat', comment: ['&& denotes a mnemonic'] }, "Show &&Editor Area"),
-			},
-			category: Categories.View,
-			f1: true,
-			precondition: EditorAreaHiddenByChatContext,
-			menu: {
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 6,
-				when: ContextKeyExpr.and(EditorAreaHiddenByChatContext, IsSessionsWindowContext.negate())
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		accessor.get(IWorkbenchLayoutService).setEditorHiddenByChat(false);
-	}
-});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
