@@ -503,7 +503,7 @@ export class SessionsView extends ViewPane {
 		this._register(autorun(reader => {
 			const activeSession = this._mainWindowHost.session.read(reader);
 			if (activeSession) {
-				if (!sessionsControl.reveal(activeSession.resource)) {
+				if (!sessionsControl.reveal(activeSession.resource, true)) {
 					sessionsControl.clearFocus();
 				}
 			} else {

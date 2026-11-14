@@ -7782,6 +7782,71 @@ suite('Sessions - SessionsList', () => {
 	});
 
 	suite('section collapse persistence', () => {
+		test('restoring selection preserves a user-collapsed Pinned section after reload', () => {
+			const first = createTestSession('First', { workspaceLabel: 'vscode' }).session;
+			const second = createTestSession('Second', { workspaceLabel: 'vscode' }).session;
+			const harness = createListHarness(disposables, [first, second], { livePins: true });
+			const storageService = harness.instantiationService.get(IStorageService);
+			const modelService = harness.instantiationService.get(ISessionsListModelService);
+			const createList = () => {
+				const list = harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+					grouping: () => SessionsGrouping.Workspace,
+					sorting: () => SessionsSorting.Created,
+					onSessionOpen: () => { },
+				});
+				list.layout(300, 400);
+				return list;
+			};
+
+			const list = createList();
+			modelService.pinSession(first);
+			list.setItemCollapsed({ section: 'pinned' }, true);
+			modelService.pinSession(second);
+			const beforeReload = list.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded');
+			list.dispose();
+
+			const restarted = createList();
+			const revealed = restarted.reveal(first.resource, true);
+			const afterReload = restarted.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded');
+			restarted.dispose();
+
+			assert.deepStrictEqual({
+				beforeReload,
+				revealed,
+				afterReload,
+				persisted: JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}'),
+			}, {
+				beforeReload: 'false',
+				revealed: true,
+				afterReload: 'false',
+				persisted: { pinned: true },
+			});
+		});
+
+		test('explicit reveal still expands a collapsed Pinned section', () => {
+			const session = createTestSession('Session', { workspaceLabel: 'vscode' }).session;
+			const harness = createListHarness(disposables, [session], { pinnedSessionIds: new Set([session.sessionId]) });
+			const storageService = harness.instantiationService.get(IStorageService);
+			storageService.store('sessionsListControl.sectionCollapseState', JSON.stringify({ pinned: true }), StorageScope.PROFILE, StorageTarget.USER);
+			const list = disposables.add(harness.instantiationService.createInstance(TestSessionsList, harness.createContainer(), {
+				grouping: () => SessionsGrouping.Workspace,
+				sorting: () => SessionsSorting.Created,
+				onSessionOpen: () => { },
+			}));
+			list.layout(300, 400);
+
+			const revealed = list.reveal(session.resource);
+			assert.deepStrictEqual({
+				revealed,
+				expanded: list.getItemRow({ section: 'pinned' })?.getAttribute('aria-expanded'),
+				persisted: JSON.parse(storageService.get('sessionsListControl.sectionCollapseState', StorageScope.PROFILE) ?? '{}'),
+			}, {
+				revealed: true,
+				expanded: 'true',
+				persisted: { pinned: false },
+			});
+		});
+
 		const group: ISessionGroup = { id: 'group-1', name: 'My Group', createdAt: 1 };
 
 		test('revealing an active nested chat does not persist its Inbox category expansion', async () => {

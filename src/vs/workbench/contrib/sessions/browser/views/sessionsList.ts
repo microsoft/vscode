@@ -4631,7 +4631,7 @@ export interface ISessionsList {
 	readonly onDidUpdate: Event<void>;
 	readonly onDidChangeFindOpenState: Event<boolean>;
 	refresh(): void;
-	reveal(sessionResource: URI): boolean;
+	reveal(sessionResource: URI, preserveCollapsed?: boolean): boolean;
 	revealPendingSession(id: string): boolean;
 	/**
 	 * Returns the sessions currently visible in the list, in display order.
@@ -7005,9 +7005,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 				this.suspendCollapseStatePersistence = previousSuspendCollapseStatePersistence;
 			}
 		}
-		this.revealActiveItem(chatItem);
-		tree.setFocus([chatItem]);
-		tree.setSelection([chatItem]);
+		const collapsedAncestor = this.isInboxLayout() ? undefined : this.getUserCollapsedAncestor(chatItem);
+		if (!collapsedAncestor) {
+			this.revealActiveItem(chatItem);
+		}
+		tree.setFocus([collapsedAncestor ?? chatItem]);
+		tree.setSelection([collapsedAncestor ?? chatItem]);
 	}
 
 	private revealActiveItem(element: SessionListItem): void {
@@ -7074,6 +7077,26 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return visibleSessions;
 	}
 
+	/** Preserves the user's chosen section collapse state during selection restoration. */
+	private getUserCollapsedAncestor(element: SessionListItem): SessionListItem | undefined {
+		const tree = this.getTree(element);
+		let collapsedAncestor: SessionListItem | undefined;
+		let userCollapsed = false;
+		for (let ancestor = tree.getParentElement(element); ancestor; ancestor = tree.getParentElement(ancestor)) {
+			if (!tree.isCollapsed(ancestor)) {
+				continue;
+			}
+			collapsedAncestor = ancestor;
+			const sectionId = isSessionGroupItem(ancestor)
+				? getSessionGroupSectionId(ancestor.group.id)
+				: isSessionSection(ancestor) ? ancestor.collapseStateId ?? ancestor.id : undefined;
+			if (sectionId && this.getSavedCollapseState(sectionId) === true) {
+				userCollapsed = true;
+			}
+		}
+		return userCollapsed ? collapsedAncestor : undefined;
+	}
+
 	reveal(sessionResource: URI, preserveCollapsed = false): boolean {
 		const resourceStr = sessionResource.toString();
 		for (const session of this.sessions) {
@@ -7087,9 +7110,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 							}
 						}
 					}
-					this.revealActiveItem(session);
-					tree.setFocus([session]);
-					tree.setSelection([session]);
+					const collapsedAncestor = preserveCollapsed ? this.getUserCollapsedAncestor(session) : undefined;
+					if (!collapsedAncestor) {
+						this.revealActiveItem(session);
+					}
+					tree.setFocus([collapsedAncestor ?? session]);
+					tree.setSelection([collapsedAncestor ?? session]);
 					return true;
 				}
 			}
