@@ -76,8 +76,12 @@ export class EditorWorker implements IDisposable, IWorkerTextModelSyncChannelSer
 	private readonly _workerTextModelSyncServer = new WorkerTextModelSyncServer();
 
 	constructor(
-		private readonly _foreignModule: unknown | null = null
+		private _foreignModule: unknown | null = null
 	) { }
+
+	public setForeignModule(foreignModule: unknown): void {
+		this._foreignModule = foreignModule;
+	}
 
 	dispose(): void {
 	}
