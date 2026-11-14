@@ -40,7 +40,8 @@ import { SessionView } from '../../../../../workbench/contrib/sessions/browser/p
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
-import { ArchiveSessionAction } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { ArchiveSessionAction, registerSessionsListReadStateMenus } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../../workbench/common/chatSessionCommands.js';
 import { ISessionChatItem, SessionChatItemCanSetReadStateContext, SessionChatItemIsArchivedContext, SessionChatItemIsReadContext, SessionItemContextMenuId, SessionItemIsAutomationContext, SessionItemIsInSessionsListContext, SessionsList, SessionsListFocusedChatItemContext } from '../../../../../workbench/contrib/sessions/browser/views/sessionsList.js';
 import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
@@ -188,6 +189,46 @@ suite('Sessions - Session management actions', () => {
 		assert.deepStrictEqual(calls, [
 			{ commandId: 'agentSession.markRead', args: [session] },
 			{ commandId: 'agentSession.markUnread', args: [session] },
+		]);
+	});
+
+	test('the read state menus of an editor window run the list commands, which take the session, sessions or chat a menu is shown for', async () => {
+		const first = createTestSession('First').session;
+		const second = createTestSession('Second').session;
+		const peer = upcastPartial<IChat>({ resource: URI.parse('test:/peer') });
+		const active = upcastPartial<ITestSessionWithChat>(createTestSession('Other active').session);
+		const harness = createActionHarness([], active);
+		const calls: string[] = [];
+		harness.instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+			markRead: async session => { calls.push(`markRead ${session.sessionId}`); },
+			markUnread: async session => { calls.push(`markUnread ${session.sessionId}`); },
+			markChatRead: async (session, chat) => { calls.push(`markChatRead ${session.sessionId} ${chat.resource.path}`); },
+			markChatUnread: async (session, chat) => { calls.push(`markChatUnread ${session.sessionId} ${chat.resource.path}`); },
+		}));
+
+		const registration = registerSessionsListReadStateMenus();
+		try {
+			const commandIds = [SessionItemContextMenuId, Menus.SessionChatItemContext].flatMap(menu => MenuRegistry.getMenuItems(menu)
+				.filter(isIMenuItem)
+				.filter(item => item.command.id === SESSIONS_LIST_MARK_READ_COMMAND_ID || item.command.id === SESSIONS_LIST_MARK_UNREAD_COMMAND_ID)
+				.map(item => item.command.id));
+			assert.deepStrictEqual(commandIds, [SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID]);
+		} finally {
+			registration.dispose();
+		}
+
+		for (const commandId of [SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID]) {
+			const handler = CommandsRegistry.getCommand(commandId)?.handler;
+			assert.ok(handler);
+			await handler(harness.instantiationService, first);
+			await handler(harness.instantiationService, [first, second]);
+			await handler(harness.instantiationService, { session: first, chat: peer });
+		}
+
+		const [one, two] = [first.sessionId, second.sessionId];
+		assert.deepStrictEqual(calls, [
+			`markRead ${one}`, `markRead ${one}`, `markRead ${two}`, `markChatRead ${one} /peer`,
+			`markUnread ${one}`, `markUnread ${one}`, `markUnread ${two}`, `markChatUnread ${one} /peer`,
 		]);
 	});
 
