@@ -98,4 +98,16 @@ suite('AgentHostSessionListStore - project root', () => {
 
 		assert.deepStrictEqual(shown(), ['this-workspace']);
 	});
+	test('while the window\'s folder is at one of its worktrees, still lists the sessions whose project is the folder\'s own location', async () => {
+		const { matchProjectRoot, shown, settle } = createList([
+			session('main-checkout', '/work/vscode', '/work/vscode'),
+			session('sibling-worktree', '/work/vscode.worktrees/bar', '/work/vscode'),
+			session('at-worktree', '/work/vscode.worktrees/foo', '/work/vscode'),
+			session('unrelated', '/work/other.worktrees/x', '/work/other'),
+		], { folders: ['/work/vscode.worktrees/foo'] });
+		matchProjectRoot.set(true, undefined);
+		await settle();
+
+		assert.deepStrictEqual(shown(), ['at-worktree', 'main-checkout', 'sibling-worktree']);
+	});
 });
