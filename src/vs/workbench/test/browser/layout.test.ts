@@ -649,4 +649,20 @@ suite('Workbench layout chat part', () => {
 			moved: { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true },
 		});
 	});
+
+	for (const alignment of ['center', 'left', 'right'] satisfies PanelAlignment[]) {
+		for (const sideBar of [Position.LEFT, Position.RIGHT]) {
+			test(`the chat part at its minimum width fits beside a wide secondary side bar as it shows or follows its anchor there, panel aligned ${alignment}, side bar ${sideBar === Position.LEFT ? 'left' : 'right'}`, () => {
+				const widths = { window: 1200, auxiliaryBar: 590 };
+				const shown = createGridLayout({ sideBar, panel: Position.BOTTOM, alignment, chat: { visible: false, size: 280 }, anchor: ViewContainerLocation.AuxiliaryBar, widths });
+				shown.layout.setPartHidden(false, Parts.CHAT_PART);
+				const moved = createGridLayout({ sideBar, panel: Position.BOTTOM, alignment, chat: { visible: true, size: 280 }, anchor: ViewContainerLocation.Sidebar, widths });
+				moved.anchor.location = ViewContainerLocation.AuxiliaryBar;
+				(Reflect.get(moved.layout, 'updateChatPartPosition') as () => void).call(moved.layout);
+
+				const fit = { fits: true, chatAtLeastItsMinimum: true, editorAtLeastItsMinimum: true };
+				assert.deepStrictEqual({ shown: widthsAcross(shown.layout, shown.grid, shown.views, 1200), moved: widthsAcross(moved.layout, moved.grid, moved.views, 1200) }, { shown: fit, moved: fit });
+			});
+		}
+	}
 });
