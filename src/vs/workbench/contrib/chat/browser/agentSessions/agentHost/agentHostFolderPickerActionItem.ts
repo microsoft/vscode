@@ -172,12 +172,12 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
-		// With worktree support, by its icon only, a folder or a worktree, but New Worktree and No Workspace by their names
+		// With worktree support, by its icon and name, a folder, a worktree, New Worktree or No Workspace, also while compact
 		const chip = this._worktree?.isActive() && this._worktree.isNoWorkspaceSelected() ? this._worktree.getNoWorkspaceChip()
 			: selected && this._worktree?.isActive() ? this._worktree.getChip(selected) : undefined;
 		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
 		const shownLabel = chip ? chip.label : label;
-		const compact = this.pickerOptions.compact.get();
+		const compact = !chip && this.pickerOptions.compact.get();
 		element.classList.toggle('icon-only', compact || !shownLabel);
 		dom.reset(
 			element,
