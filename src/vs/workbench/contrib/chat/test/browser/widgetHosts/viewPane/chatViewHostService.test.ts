@@ -18,7 +18,7 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layou
 import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../../../../browser/chat.js';
 import { ChatWidget } from '../../../../browser/widget/chatWidget.js';
-import { IChatViewHost, IChatViewHostShownSession } from '../../../../browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../../browser/chatViewHost.js';
 import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { ChatViewPane } from '../../../../browser/widgetHosts/viewPane/chatViewPane.js';
 
@@ -174,6 +174,17 @@ suite('ChatViewHostService', () => {
 		results.push(await service.newChat());
 
 		assert.deepStrictEqual({ results, started }, { results: [false, true, false], started: 1 });
+	});
+
+	test('a new chat of its own that the host in use leaves to the Chat view starts in the Chat view, which it shows', async () => {
+		const { service, view, calls } = createService();
+		Object.assign(view, { newChat: async (target: IChatViewNewChatTarget | undefined, options: IChatViewHostNewChatOptions | undefined) => { calls.push(`view.newChat ${target?.folder?.path} ownChat=${options?.ownChat}`); return true; } });
+		const registration = service.registerHost(upcastPartial<IChatViewHost>({ newChat: async () => { calls.push('host.newChat'); return false; } }));
+
+		const taken = await service.newChat({ folder: URI.file('/repo') }, { ownChat: true, preserveFocus: true });
+		registration.dispose();
+
+		assert.deepStrictEqual({ taken, calls }, { taken: true, calls: ['host.newChat', `openView ${ChatViewId} focus=false`, 'view.newChat /repo ownChat=true'] });
 	});
 
 	test('reveal waits for the Chat view\'s widget, which its body creates as it first renders, only when asked to', async () => {

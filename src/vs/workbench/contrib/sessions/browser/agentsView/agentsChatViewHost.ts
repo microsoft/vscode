@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../chat/browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { isAgentHostSessionResource, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -92,12 +92,12 @@ export class AgentsChatViewHost implements IChatViewHost {
 	 * New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part, unless the Chat view
 	 * keeps it. Resolves once the composer shows, so that a request that follows goes to it, not to the chat shown before.
 	 */
-	async newChat(target?: IChatViewNewChatTarget): Promise<boolean> {
+	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
 		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
 		const aimed = target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType } : this._composerTarget();
-		await this._chatPart.openComposer(aimed, { newComposer: true });
+		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus });
 		return true;
 	}
 

@@ -14,7 +14,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidget } from '../../chat.js';
-import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostNewChatOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 /** The Chat view, as the host of its chats. */
@@ -71,8 +71,13 @@ export class ChatViewPaneHost implements IChatViewHost {
 		return chatView?.widget;
 	}
 
-	async newChat(target?: IChatViewNewChatTarget): Promise<boolean> {
-		return this.viewsService.isViewVisible(ChatViewId) && !!this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.newChat(target);
+	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
+		if (options?.ownChat) {
+			const view = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options.preserveFocus);
+			return !!view && await view.newChat(target, options);
+		}
+		const view = this.viewsService.isViewVisible(ChatViewId) ? this.viewsService.getViewWithId<ChatViewPane>(ChatViewId) : undefined;
+		return !!view && await view.newChat(target, options);
 	}
 
 	async toggle(): Promise<boolean> {
@@ -271,9 +276,13 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		return host.startSession(sessionResource, options);
 	}
 
-	async newChat(target?: IChatViewNewChatTarget): Promise<boolean> {
-		const host = this.host;
-		const taken = await host.newChat?.(target) ?? false;
+	async newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean> {
+		let host = this.host;
+		let taken = await host.newChat?.(target, options) ?? false;
+		if (!taken && options?.ownChat && host !== this.chatViewHost) {
+			host = this.chatViewHost;
+			taken = await host.newChat?.(target, options) ?? false;
+		}
 		if (taken) {
 			this.claim(host, true);
 		}
