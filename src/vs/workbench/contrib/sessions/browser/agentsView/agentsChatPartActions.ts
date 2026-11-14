@@ -195,7 +195,8 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 				title: localize2('agentsView.newSessionInSameFolder', "New Session in Same Folder"),
 				// For one session: its folder
 				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
-				menu: [{ id: SessionItemContextMenuId, group: '0_new', order: 0, when: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()) }],
+				// Shown, disabled, while several sessions are selected, as the other session actions are
+				menu: [{ id: SessionItemContextMenuId, group: '0_new', order: 0, when: ChatContextKeys.enabled }],
 			});
 		}
 		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
