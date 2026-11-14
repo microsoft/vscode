@@ -117,7 +117,8 @@ suite('AgentHostFolderPickerActionItem', () => {
 			overflowed: true,
 		});
 	});
-	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
+	/** A chat input's secondary row of `availableWidth`, with two neighbors and the folder chip last, as in the chat input. */
+	function createRow(availableWidth: number) {
 		const primary = URI.file('/work/vscode');
 		const longName = URI.file('/work/a-worktree-with-a-name-far-too-long-to-fit-in-the-chat-input-row');
 		const shortName = URI.file('/work/fix');
@@ -166,8 +167,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 				minItems: 1,
 				actionMinWidth: 48,
 				getActionMinWidth: action => (action.id === folderAction.id ? chip?.getMinimumWidth() : undefined) ?? 22,
-				// Room for its neighbors and a chip with a short name, not a long one
-				getAvailableWidth: () => 160,
+				getAvailableWidth: () => availableWidth,
 			},
 			actionViewItemProvider: action => action.id === folderAction.id
 				? chip = instantiationService.createInstance(AgentHostFolderPickerActionItem, upcastPartial<MenuItemAction>(folderAction), widget, { compact: observableValue('compact', true) })
@@ -179,10 +179,21 @@ suite('AgentHostFolderPickerActionItem', () => {
 			noWorkspace = folder === 'none';
 			selected = folder === 'none' ? selected : folder;
 			onDidChangeFolder.fire(session);
+			// The min width the toolbar applied for the name before, as the chip measures the new one
+			let slot = chip?.element;
+			while (slot && !slot.classList.contains('action-item')) {
+				slot = slot.parentElement ?? undefined;
+			}
+			const floor = Number.parseFloat(slot?.style.minWidth ?? '') || 0;
 			toolbar.relayout();
-			return { minWidth: chip?.getMinimumWidth() ?? 0, overflowed: toolbar.hasOverflow() };
+			return { minWidth: chip?.getMinimumWidth() ?? 0, overflowed: toolbar.hasOverflow(), floor };
 		};
+		return { select, chip: () => chip, longName, shortName };
+	}
 
+	test('last in a narrow row, it needs the width of the name it shows now: a shorter name, or No Workspace, brings it back from the overflow', () => {
+		// Room for its neighbors and a chip with a short name, not a long one
+		const { select, longName, shortName } = createRow(160);
 		const short = select(shortName);
 		const long = select(longName);
 		// Changed while in the overflow
@@ -197,5 +208,22 @@ suite('AgentHostFolderPickerActionItem', () => {
 			shorterNeedsLess: shortAgain.minWidth < long.minWidth,
 			sameAsBefore: shortAgain.minWidth === short.minWidth,
 		}, { short: false, long: true, shortAgain: false, none: false, shorterNeedsLess: true, sameAsBefore: true });
+	});
+	test('in a wide row, its width follows its name also while it stays in the row: a shorter name needs what a fresh chip with it does', () => {
+		// Room for the chip with a long name too, which the toolbar then gives a width the shorter name does not need
+		const { select, longName, shortName } = createRow(1000);
+		const fresh = select(shortName);
+		const long = select(longName);
+		const short = select(shortName);
+		const none = select('none');
+
+		assert.deepStrictEqual({
+			overflowed: [fresh.overflowed, long.overflowed, short.overflowed, none.overflowed],
+			longNeedsMore: long.minWidth > fresh.minWidth,
+			// Measured while still held at the long name's width
+			measuredWithinLongFloor: short.floor === long.minWidth,
+			shortAsFresh: short.minWidth === fresh.minWidth,
+			noWorkspaceLessThanLong: none.minWidth < long.minWidth,
+		}, { overflowed: [false, false, false, false], longNeedsMore: true, measuredWithinLongFloor: true, shortAsFresh: true, noWorkspaceLessThanLong: true });
 	});
 });
