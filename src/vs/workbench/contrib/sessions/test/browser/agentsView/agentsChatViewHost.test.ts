@@ -38,6 +38,7 @@ suite('AgentsChatViewHost', () => {
 		readonly widgets?: IChatWidget[];
 		readonly providersAcquired?: () => void;
 		readonly contentCreated?: IObservable<boolean>;
+		readonly chatService?: Partial<IChatService>;
 	}
 
 	function createHost(options: IHostOptions = {}) {
@@ -72,6 +73,7 @@ suite('AgentsChatViewHost', () => {
 					calls.push(`hold ${resource.toString()}`);
 					return upcastPartial<IChatModelReference>({ dispose: () => calls.push(`release ${resource.toString()}`) });
 				},
+				...options.chatService,
 			}),
 			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; } }),
 			upcastPartial<IAgentsChatPartFrame>({ contentCreated: options.contentCreated ?? constObservable(true) }),
@@ -197,6 +199,22 @@ suite('AgentsChatViewHost', () => {
 			cancelled: true,
 			calls: ['info Local chat sessions are not available while chats open in the chat part.'],
 		});
+	});
+
+	test('deactivated while it loads the session it starts, it shows neither the session nor a composer', async () => {
+		const load = new DeferredPromise<void>();
+		const calls: string[] = [];
+		const { host, calls: hostCalls } = createHost({ chatService: { acquireOrLoadSession: async () => { await load.p; return upcastPartial<IChatModelReference>({ dispose: () => calls.push('release model') }); } } });
+
+		const starting = host.startSession(URI.parse('agent-host-copilot:/untitled-1'), { local: false, importingConversation: false });
+		host.deactivate();
+		load.complete();
+		const start = await starting;
+		const shown = await start.complete(URI.parse('agent-host-copilot:/session-1'), true);
+		const composer = await start.createComposer();
+		start.dispose();
+
+		assert.deepStrictEqual({ shown, composer, calls: [...hostCalls, ...calls] }, { shown: false, composer: undefined, calls: ['release model'] });
 	});
 
 	test('deactivated while it looks a session up, it does not open the chat part', async () => {

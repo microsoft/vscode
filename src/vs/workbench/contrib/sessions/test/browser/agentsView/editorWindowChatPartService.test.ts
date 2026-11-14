@@ -57,7 +57,10 @@ suite('EditorWindowChatPartService', () => {
 			contextKeyService,
 			upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }),
 			upcastPartial<IChatViewHostService>({ registerHost: () => { events.push('register host'); return toDisposable(() => events.push('unregister host')); } }),
-			upcastPartial<IEditorWindowSessionsPresenterService>({ registerPresenter: () => { events.push('register presenter'); return toDisposable(() => events.push('unregister presenter')); } }),
+			upcastPartial<IEditorWindowSessionsPresenterService>({
+				registerPresenter: () => { events.push('register presenter'); return toDisposable(() => events.push('unregister presenter')); },
+				registerComposerHolder: () => { events.push('register composer holder'); return toDisposable(() => events.push('unregister composer holder')); },
+			}),
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
 			upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
 		));
@@ -80,17 +83,17 @@ suite('EditorWindowChatPartService', () => {
 
 		assert.deepStrictEqual(events, [
 			'-- nothing enabled',
-			'create part', 'hold providers', 'register host', 'register presenter', 'anchor list',
+			'create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list',
 			'-- the list enables it',
 			'anchor view',
 			'-- the view enables it',
 			'anchor list',
 			'-- the view no longer does',
-			'unregister host', 'deactivate host', 'unregister presenter', 'anchor undefined', 'release providers',
+			'unregister host', 'deactivate host', 'unregister presenter', 'anchor undefined', 'release providers', 'unregister composer holder',
 		]);
 	});
 
-	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats; once they do, it replaces the Chat view', async () => {
+	test('while chats do not open in it, it neither restores nor shows, and the Chat view keeps its chats; once they do, it replaces the Chat view; its composers hold the providers throughout', async () => {
 		const enabled = observableValue('enabled', false);
 		const { service, events } = createService({ visible: true });
 		const step = (label: string) => events.push(`-- ${label}`);
@@ -105,13 +108,13 @@ suite('EditorWindowChatPartService', () => {
 		registration.dispose();
 
 		assert.deepStrictEqual(events, [
-			'create part', 'hold providers', 'anchor chat',
+			'create part', 'hold providers', 'register composer holder', 'anchor chat',
 			'hide',
 			'-- chats open in the chat part',
 			'register host', 'register presenter',
 			'-- they no longer do',
 			'unregister host', 'deactivate host', 'unregister presenter',
-			'anchor undefined', 'release providers',
+			'anchor undefined', 'release providers', 'unregister composer holder',
 		]);
 	});
 
@@ -121,6 +124,6 @@ suite('EditorWindowChatPartService', () => {
 		disposables.add(service.enable({ anchorViewId: 'list', anchorPriority: 1, enabled: constObservable(true) }));
 		await timeout(0);
 
-		assert.deepStrictEqual(events, ['create part', 'hold providers', 'register host', 'register presenter', 'anchor list', 'restore']);
+		assert.deepStrictEqual(events, ['create part', 'hold providers', 'register composer holder', 'register host', 'register presenter', 'anchor list', 'restore']);
 	});
 });

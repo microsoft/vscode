@@ -475,6 +475,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			?? (options?.sideBySide && !part.activeGroup.isEmpty ? part.addGroup(part.activeGroup, GroupDirection.RIGHT) : part.activeGroup);
 		await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
 		this.composers.didOpen([chat.chat.get()]);
+		// Opened, also a tab it restored and shows already, such as one the user picks in a sessions list
+		if (this._activeInput.get() === chat.input) {
+			this._activeReason.set('open', undefined);
+		}
 	}
 
 	private _findChat(resource: URI): AgentsChatPartChat | undefined {

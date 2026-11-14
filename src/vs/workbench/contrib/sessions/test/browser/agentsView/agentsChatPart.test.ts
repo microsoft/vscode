@@ -548,7 +548,7 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
-	test('the chat of the active tab shows as restored while the chat part restored it, and as opened once the user opens a chat', async () => {
+	test('the chat of the active tab shows as restored while the chat part restored it, and as opened once the user opens a chat, also the restored one', async () => {
 		const shownSession = buildTestSession({ id: 'shown', title: 'Shown', chats: [{ id: 'peer', title: 'Peer' }] });
 		const main = shownSession.mainChat.chat.resource;
 		const peer = shownSession.chats.get('peer')!.chat.resource;
@@ -561,9 +561,11 @@ suite('AgentsChatPartService', () => {
 
 		await service.restore();
 		const restored = await shown();
+		await service.openChat(shownSession.session, peer);
+		const reopened = await shown();
 		await service.openChat(shownSession.session, main);
 
-		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'peer restore', opened: 'main open' });
+		assert.deepStrictEqual({ restored, reopened, opened: await shown() }, { restored: 'peer restore', reopened: 'peer open', opened: 'main open' });
 	});
 
 	test('its composers offer the window\'s folders, or those a feature provides while it does', () => {

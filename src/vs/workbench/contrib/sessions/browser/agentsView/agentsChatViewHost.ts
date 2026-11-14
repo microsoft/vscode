@@ -150,6 +150,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 	 * shows instead, where a request that did not run can be put back.
 	 */
 	async startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart> {
+		// Deactivated from here on, such as while its model loads, it shows nothing it started
+		const generation = this._generation;
 		if (options.local) {
 			// It shows sessions, not local chat
 			this._notificationService.info(localize('agentsChatViewHost.localChatUnavailable', "Local chat sessions are not available while chats open in the chat part."));
@@ -160,7 +162,6 @@ export class AgentsChatViewHost implements IChatViewHost {
 			throw new Error(`Unable to load the chat session ${sessionResource.toString()}`);
 		}
 		const sessionType = sessionResource.scheme;
-		const generation = this._generation;
 		let composer: Promise<IChatWidget | undefined> | undefined;
 		return {
 			moved: async () => { },
@@ -171,6 +172,10 @@ export class AgentsChatViewHost implements IChatViewHost {
 				}
 				const given = !isUntitledChatSession(sessionResource);
 				const shown = (sent || given || !isEqual(resource, sessionResource)) && !!await this.openSession(resource);
+				if (!shown && generation !== this._generation) {
+					// Deactivated while it looked the session up: no composer either
+					return false;
+				}
 				if (!shown) {
 					// Shown before the start completes, and given back by createComposer
 					composer = this._openComposer(sessionType);

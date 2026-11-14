@@ -128,8 +128,14 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		}));
 		store.add(toDisposable(() => visible.reset()));
 
-		// The sessions of its chats are known while it shows
+		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
+		// open in it
 		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
+		const existing = () => this._frame.contentCreated.get() ? this._chatPart() : undefined;
+		store.add(this._presenterService.registerComposerHolder({
+			hasComposer: () => !!existing()?.hasComposer(),
+			closeIdleComposers: async () => existing()?.closeIdleComposers(),
+		}));
 
 		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
 		// chat part's content are created as the first request comes, not as the window starts.
@@ -182,8 +188,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			openComposer: (target, options) => this._chatPart().openComposer(target, options),
 			closeChat: async chatResource => existing()?.closeChat(chatResource),
 			isShowing: chatResource => !!existing()?.isShowing(chatResource),
-			hasComposer: () => !!existing()?.hasComposer(),
-			closeIdleComposers: async () => existing()?.closeIdleComposers(),
 			focus: () => this._chatPart().focus(),
 		};
 	}
