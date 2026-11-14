@@ -17,15 +17,21 @@ import { IWorkbenchEnvironmentService } from '../../../../services/environment/c
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../../../chat/browser/chat.js';
+import { ChatViewContainerId, ChatViewId } from '../../../chat/browser/chat.js';
+import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
+import { Event } from '../../../../../base/common/event.js';
+import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
-import { isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
+import { ChatConfiguration, isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
+import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { IAgentsChatPartService } from './agentsChatPart.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
 import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
-import { ChatViewSessionsPane, ChatViewSessionsSurface } from './chatViewSessionsPane.js';
+import { ChatViewSessionsPane, ChatViewSessionsRouter, ChatViewSessionsSurface } from './chatViewSessionsPane.js';
 
 /** The settings of the sessions list and of the sessions it opens, as the Agents window registers them. */
 const sessionsListConfiguration: IConfigurationNode = {
@@ -77,24 +83,39 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			layoutService.setChatPartAnchor({ viewId: ChatViewId });
 			this._register(toDisposable(() => layoutService.setChatPartAnchor(undefined)));
 
+			// The Chat view shows the sessions; their chats open in it, or in the chat part
+			const contextKeyService = accessor.get(IContextKeyService);
+			const active = ChatContextKeys.chatViewSessionsListActive.bindTo(contextKeyService);
+			active.set(true);
+			this._register(toDisposable(() => active.reset()));
 			const surface = this._register(instantiationService.createInstance(ChatViewSessionsSurface));
-			this.replaceChatViewPane(surface);
-			this.registerChatViewHost(instantiationService, accessor.get(IChatViewHostService), accessor.get(IViewsService), surface);
+			const router = new ChatViewSessionsRouter(surface, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)), observableConfigValue(ChatConfiguration.ChatViewSessionsOpenInChatPart, false, configurationService));
+			this.hideMaximizeWhileInChatPart(contextKeyService, router);
+			this.replaceChatViewPane(surface, router);
+			this.registerChatViewHost(instantiationService, accessor.get(IChatViewHostService), accessor.get(IViewsService), router);
 		});
+	}
+
+	/** While the Chat view shows only the sessions, whose chats open in the chat part, the secondary side bar does not offer to maximize it. */
+	private hideMaximizeWhileInChatPart(contextKeyService: IContextKeyService, router: ChatViewSessionsRouter): void {
+		const hidden = AuxiliaryBarMaximizeHiddenContext.bindTo(contextKeyService);
+		const activeAuxiliary = observableFromEvent(this, Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([ActiveAuxiliaryContext.key]))), () => contextKeyService.getContextKeyValue<string>(ActiveAuxiliaryContext.key));
+		this._register(autorun(reader => hidden.set(router.openInChatPart.read(reader) && activeAuxiliary.read(reader) === ChatViewContainerId)));
+		this._register(toDisposable(() => hidden.reset()));
 	}
 
 	/**
 	 * The Chat view shows the sessions and their chats: its pane is replaced as the window starts, before the view is created,
 	 * and stays so; the view, with its title and its actions, is the Chat view's.
 	 */
-	private replaceChatViewPane(surface: ChatViewSessionsSurface): void {
+	private replaceChatViewPane(surface: ChatViewSessionsSurface, router: ChatViewSessionsRouter): void {
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const chatView = viewsRegistry.getView(ChatViewId);
 		const container = viewsRegistry.getViewContainer(ChatViewId);
 		if (!chatView || !container) {
 			return;
 		}
-		const replaced = { ...chatView, ctorDescriptor: new SyncDescriptor(ChatViewSessionsPane, [surface]) };
+		const replaced = { ...chatView, ctorDescriptor: new SyncDescriptor(ChatViewSessionsPane, [surface, router]) };
 		viewsRegistry.deregisterViews([chatView], container);
 		viewsRegistry.registerViews([replaced], container);
 		this._register(toDisposable(() => {
@@ -103,9 +124,9 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		}));
 	}
 
-	/** What would show the Chat view's chats shows those of the Chat view's sessions, as the chat part does. */
-	private registerChatViewHost(instantiationService: IInstantiationService, chatViewHostService: IChatViewHostService, viewsService: IViewsService, surface: ChatViewSessionsSurface): void {
-		const host = instantiationService.createChild(new ServiceCollection([IAgentsChatPartService, surface])).createInstance(AgentsChatViewHost);
+	/** What would show the Chat view's chats shows those of the Chat view's sessions: in the Chat view, or in the chat part. */
+	private registerChatViewHost(instantiationService: IInstantiationService, chatViewHostService: IChatViewHostService, viewsService: IViewsService, router: ChatViewSessionsRouter): void {
+		const host = instantiationService.createChild(new ServiceCollection([IAgentsChatPartService, router])).createInstance(AgentsChatViewHost);
 		this._register(chatViewHostService.registerHost({
 			reveal: async preserveFocus => {
 				const widget = await host.reveal(preserveFocus);
@@ -118,6 +139,9 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			revealIfShowing: (sessionResource, options) => host.revealIfShowing(sessionResource, options),
 			openSession: (sessionResource, options) => host.openSession(sessionResource, options),
 			toggle: async () => {
+				if (router.openInChatPart.get()) {
+					return host.toggle();
+				}
 				if (viewsService.isViewVisible(ChatViewId)) {
 					viewsService.closeView(ChatViewId);
 					return false;

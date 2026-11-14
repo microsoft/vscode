@@ -33,6 +33,7 @@ import { IViewsService } from '../../../../../services/views/common/viewsService
 import { ChatViewContainerId, ChatViewId, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
@@ -82,6 +83,7 @@ suite('ChatViewSessionsGate', () => {
 	let createdChatParts: number;
 	let hosts: number;
 	let chatPartAnchor: string | undefined;
+	let contextKeyService: MockContextKeyService;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
 	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>): ChatViewSessionsGate {
@@ -99,7 +101,8 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false, setChatPartAnchor: anchor => chatPartAnchor = anchor?.viewId }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		contextKeyService = new MockContextKeyService();
+		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ registerHost: () => { hosts++; return toDisposable(() => hosts--); } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
 		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
@@ -146,12 +149,13 @@ suite('ChatViewSessionsGate', () => {
 		const before = registered();
 		const listActionsBefore = sessionItemMenuItems();
 		const gate = createGate(true);
-		const whileOn = { ...registered(), hosts, chatPartAnchor, createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
+		const listActive = () => contextKeyService.getContextKeyValue(ChatContextKeys.chatViewSessionsListActive.key);
+		const whileOn = { ...registered(), hosts, chatPartAnchor, listActive: listActive(), createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
 		gate.dispose();
 
-		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), hosts, chatPartAnchor } }, {
-			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, chatPartAnchor: ChatViewId, createdChatParts: 1, listActionsBeforeShown: 0 },
-			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0, chatPartAnchor: undefined },
+		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), hosts, chatPartAnchor, listActive: listActive() } }, {
+			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, chatPartAnchor: ChatViewId, listActive: true, createdChatParts: 1, listActionsBeforeShown: 0 },
+			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0, chatPartAnchor: undefined, listActive: false },
 		});
 	});
 

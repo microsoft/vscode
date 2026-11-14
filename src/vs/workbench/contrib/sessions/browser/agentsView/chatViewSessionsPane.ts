@@ -261,6 +261,42 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 	}
 }
 
+/**
+ * Where the chats of the Chat view's sessions open: in the Chat view ({@link ChatViewSessionsSurface}) by default, or in the
+ * chat part while `chat.viewSessions.openInChatPart` is on.
+ */
+export class ChatViewSessionsRouter implements IAgentsChatPartService {
+
+	declare readonly _serviceBrand: undefined;
+
+	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
+
+	constructor(
+		private readonly _surface: IAgentsChatPartService,
+		private readonly _chatPart: () => IAgentsChatPartService,
+		/** Whether the chats open in the chat part. */
+		readonly openInChatPart: IObservable<boolean>,
+	) {
+		this.activeChat = derived(this, reader => (this.openInChatPart.read(reader) ? this._chatPart() : this._surface).activeChat.read(reader));
+	}
+
+	private get _target(): IAgentsChatPartService {
+		return this.openInChatPart.get() ? this._chatPart() : this._surface;
+	}
+
+	get mainWindowHost(): ISessionHost { return this._target.mainWindowHost; }
+	openChat(session: ISession, chatResource: URI | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> { return this._target.openChat(session, chatResource, options); }
+	openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> { return this._target.openComposer(target, options); }
+	closeChat(chatResource: URI): Promise<void> { return this._target.closeChat(chatResource); }
+	isShowing(chatResource: URI): boolean { return this._target.isShowing(chatResource); }
+	hasComposer(): boolean { return this._target.hasComposer(); }
+	closeIdleComposers(): Promise<void> { return this._target.closeIdleComposers(); }
+	focus(): void { this._target.focus(); }
+	show(target: INewSessionTarget | undefined, options?: { readonly preserveFocus?: boolean }): Promise<void> { return this._target.show(target, options); }
+	getComposerWidget(): Promise<IChatWidget | undefined> { return this._target.getComposerWidget(); }
+	restore(): Promise<void> { return this._target.restore(); }
+}
+
 /** The sessions list of the Chat view, as the actions of its sessions toolbar act on it. */
 class ChatViewSessionsListControl implements IAgentSessionsControl {
 
@@ -306,6 +342,7 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 
 	constructor(
 		private readonly _surface: ChatViewSessionsSurface,
+		private readonly _router: ChatViewSessionsRouter,
 		options: IViewletViewOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -322,7 +359,6 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
-		ChatContextKeys.chatViewSessionsListActive.bindTo(this.scopedContextKeyService).set(true);
 		this._orientationContext = ChatContextKeys.agentSessionsViewerOrientation.bindTo(this.scopedContextKeyService);
 		this._positionContext = ChatContextKeys.agentSessionsViewerPosition.bindTo(this.scopedContextKeyService);
 
@@ -376,9 +412,9 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus) => {
 				const session = this._sessionsManagementService.getSession(resource);
-				return session ? this._surface.openChat(session, undefined, { preserveFocus }).catch(onUnexpectedError) : undefined;
+				return session ? this._router.openChat(session, undefined, { preserveFocus }).catch(onUnexpectedError) : undefined;
 			},
-			onChatOpen: (session: ISession, chat: IChat, preserveFocus: boolean) => this._surface.openChat(session, chat.resource, { preserveFocus }).catch(onUnexpectedError),
+			onChatOpen: (session: ISession, chat: IChat, preserveFocus: boolean) => this._router.openChat(session, chat.resource, { preserveFocus }).catch(onUnexpectedError),
 		}));
 		this._listControl = new ChatViewSessionsListControl(list, listContainer);
 
@@ -391,9 +427,13 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 		const chatHost = this._chatHost = append(chatContainer, $('.chat-view-sessions-chat'));
 
 		this._register(this._surface.attachView({ focus: () => this.focus() }));
-		this._surface.ensureChat();
 		this._register(autorun(reader => {
-			const chat = this._surface.chat.read(reader);
+			// While the chats open in the chat part, the Chat view shows only their sessions
+			const inView = !this._router.openInChatPart.read(reader);
+			if (inView) {
+				this._surface.ensureChat();
+			}
+			const chat = inView ? this._surface.chat.read(reader) : undefined;
 			this._chatView.clear();
 			if (chat) {
 				const view = this._chatView.value = this.instantiationService.createInstance(ChatEditorView, chat);
@@ -421,7 +461,7 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 		}
 		const { height, width } = dimensions;
 		const configured = this.configurationService.getValue<'stacked' | 'sideBySide' | unknown>(ChatConfiguration.ChatViewSessionsOrientation);
-		this._sessionsOrientation = configured !== 'stacked' && width >= SESSIONS_SIDEBAR_WIDTH + CHAT_MIN_WIDTH ? AgentSessionsViewerOrientation.SideBySide : AgentSessionsViewerOrientation.Stacked;
+		this._sessionsOrientation = configured !== 'stacked' && !this._router.openInChatPart.get() && width >= SESSIONS_SIDEBAR_WIDTH + CHAT_MIN_WIDTH ? AgentSessionsViewerOrientation.SideBySide : AgentSessionsViewerOrientation.Stacked;
 		this._lastDimensions.set(this._sessionsOrientation, { height, width });
 		const position = this._sessionsPosition();
 		this._orientationContext.set(this._sessionsOrientation);
@@ -433,8 +473,19 @@ export class ChatViewSessionsPane extends ViewPane implements IChatViewSessionsC
 		element.classList.toggle('chat-view-position-right', position === Position.RIGHT);
 
 		const showingSession = !!this._surface.chat.get() && !this._surface.hasComposer();
+		const inChatPart = this._router.openInChatPart.get();
+		setVisibility(!inChatPart, this._chatContainer);
 		let chatWidth = width;
 		let chatHeight = height;
+		if (inChatPart) {
+			// Only the sessions, whose chats open in the chat part
+			setVisibility(true, this._sessionsContainer);
+			this._sessionsContainer.style.width = '';
+			this._sessionsContainer.style.height = `${height}px`;
+			this._listContainer.style.height = `${height - SESSIONS_TITLE_HEIGHT}px`;
+			this._list?.layout(height - SESSIONS_TITLE_HEIGHT, width);
+			return;
+		}
 		if (this._sessionsOrientation === AgentSessionsViewerOrientation.SideBySide) {
 			setVisibility(true, this._sessionsContainer);
 			setVisibility(false, this._backBar);
