@@ -9,6 +9,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -146,6 +147,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IViewDescriptorService, { getViewLocationById: () => null });
 			stub(IWorkbenchLayoutService, { setChatPartAnchor: () => { }, onDidChangePartVisibility: Event.None, isVisible: () => false, setPartHidden: () => { } });
 			stub(IProgressService, {});
+			// The banner's Changes editor header that the chat part contribution creates in the integrated try-out
+			stub(IActionViewItemService, { register: () => toDisposable(() => { }) });
 			stub(IContextKeyService, contextKeyService);
 			stub(IConfigurationService, configurationService);
 			stub(IWorkbenchEnvironmentService, { remoteAuthority: undefined, isSessionsWindow: false });
