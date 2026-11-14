@@ -200,6 +200,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _activeReason = observableValue<IChatViewHostShownSession['reason']>(this, 'open');
 	/** The tabs that {@link restore} shows, while it does: a chat the user opens meanwhile is opened, not restored. */
 	private readonly _restoringTabs = new Set<EditorInput>();
+	/** The tabs that are, or were, new-session composers: the session such a tab shows is the one its first send created. */
+	private readonly _composerTabs = new WeakSet<EditorInput>();
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	private readonly _composerFolderProviders: (() => IAgentsChatPartComposerFolderOptions)[] = [];
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
@@ -237,8 +239,14 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			return input ? this._chats.get(input)?.shown.read(reader) : undefined;
 		});
 		this.shownSession = derived(this, reader => {
+			const input = this._activeInput.read(reader);
 			const active = this.activeChat.read(reader);
-			return active ? { resource: active.chat.resource, reason: this._activeReason.read(reader) } : undefined;
+			if (!input || !active) {
+				return undefined;
+			}
+			// A composer shows a session only from its first send on, which the user did, also in a tab the chat part restored
+			const reason = this._composerTabs.has(input) ? 'open' : this._activeReason.read(reader);
+			return { resource: active.chat.resource, reason };
 		});
 		// The window's host, as its service, shows the active tab's chat
 		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
@@ -485,6 +493,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _addChat(resource: URI, composer: ChatWindowComposerModel | undefined): AgentsChatPartChat {
 		const chat = this._instantiationService.createInstance(AgentsChatPartChat, resource, composer, constObservable(this._window), this._activeInput, (chat: AgentsChatPartChat) => this._closeChat(chat));
 		this._chats.set(chat.input, chat);
+		if (composer) {
+			this._composerTabs.add(chat.input);
+		}
 		// It stays in the chat part: its editor shows there
 		chat.input.setMoveRestriction({
 			reason: localize('agentsChatPart.cannotMove', "A chat stays in the chat part."),
