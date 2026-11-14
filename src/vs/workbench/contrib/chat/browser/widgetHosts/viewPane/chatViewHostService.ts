@@ -61,9 +61,12 @@ export class ChatViewPaneHost implements IChatViewHost {
 		const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 		if (chatView) {
 			const reason = getChatViewHostOpenReason(options);
+			const shownBefore = chatView.shownSession.get();
 			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, reason);
-			// Also a chat it showed already, which loading does not set again
-			chatView.reportShown(sessionResource, reason);
+			// A chat it showed already, which loading does not set again, is reported once: a chat that loading set is reported already
+			if (chatView.shownSession.get() === shownBefore) {
+				chatView.reportShown(sessionResource, reason);
+			}
 			if (!options?.preserveFocus) {
 				chatView.focusInput();
 			}
