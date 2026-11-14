@@ -11,7 +11,7 @@ import { promisify } from 'util';
 import { join } from '../../../../base/common/path.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { createShellInitScript, isShellInitScriptList } from '../../common/shellInitScript.js';
+import { createShellInitScript, isShellInitScriptList, withAgentTerminalPath } from '../../common/shellInitScript.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -66,6 +66,43 @@ suite('shellInitScript', () => {
 		}, {
 			decoded: activation,
 			rawPayloadEmbedded: false,
+		});
+	});
+
+	suite('agent terminal PATH', () => {
+		const path = { prepend: [`/opt/o'brien`, '/opt/b'], append: ['/opt/z'] };
+
+		test('returns the client scripts unchanged without entries', () => {
+			const scripts = [{ shell: 'bash' as const, script: 'x' }];
+			assert.strictEqual(withAgentTerminalPath(scripts, { prepend: [], append: [] }, 'bash'), scripts);
+		});
+
+		test('puts the PATH block after the client script and keeps its shell', () => {
+			const [result] = withAgentTerminalPath([{ shell: 'powershell', script: 'client' }], path, 'bash');
+			assert.deepStrictEqual({ shell: result.shell, blockAfterClient: result.script.indexOf('client') < result.script.indexOf('$env:PATH') }, { shell: 'powershell', blockAfterClient: true });
+		});
+
+		(process.platform === 'win32' ? suite.skip : suite)('bash behavior', () => {
+			test('moves prepended entries to the front after a profile pushed them back, once', async () => {
+				const profile = { shell: 'bash' as const, script: 'PATH=/usr/local/bin:"$PATH"' };
+				const [{ script: withProfile }] = withAgentTerminalPath([profile], path, 'bash');
+				const [{ script: alone }] = withAgentTerminalPath([], path, 'bash');
+				const { stdout } = await execFileAsync('bash', ['--norc', '--noprofile', '-c', `${withProfile}\n${alone}\n${alone}\nbuiltin echo "$PATH"`], {
+					env: { ...process.env, PATH: '/usr/bin:/opt/b:/bin:/opt/z' },
+				});
+				assert.strictEqual(stdout.trim(), `/opt/o'brien:/opt/b:/usr/local/bin:/usr/bin:/bin:/opt/z`);
+			});
+		});
+
+		(process.platform === 'win32' ? suite : suite.skip)('PowerShell behavior', () => {
+			test('moves prepended entries to the front after a profile pushed them back, once', async () => {
+				const windowsPath = { prepend: [`C:\\o'brien`, 'C:\\b'], append: ['C:\\z'] };
+				const profile = { shell: 'powershell' as const, script: `$env:PATH = 'C:\\profile;' + $env:PATH` };
+				const [{ script: withProfile }] = withAgentTerminalPath([profile], windowsPath, 'powershell');
+				const [{ script: alone }] = withAgentTerminalPath([], windowsPath, 'powershell');
+				const { stdout } = await execFileAsync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `$env:PATH = 'C:\\x;c:\\B;C:\\z'\n${withProfile}\n${alone}\n${alone}\nWrite-Output $env:PATH`]);
+				assert.strictEqual(stdout.trim(), `C:\\o'brien;C:\\b;C:\\profile;C:\\x;C:\\z`);
+			}).timeout(10_000);
 		});
 	});
 

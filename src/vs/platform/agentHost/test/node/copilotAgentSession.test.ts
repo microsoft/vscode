@@ -159,6 +159,8 @@ import type { IAgentHostRestrictedTelemetry, IAgentHostRestrictedTelemetryContex
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
 import { createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { IAgentHostChatOwnershipService } from '../../node/agentHostChatOwnershipService.js';
+import { IAgentTerminalPathService } from '../../node/agentTerminalPathService.js';
+import { noAgentTerminalPathService } from './noAgentTerminalPathService.js';
 
 type BackgroundTasks = Awaited<ReturnType<CopilotSession['rpc']['tasks']['list']>>['tasks'];
 type TaskOutputRead = Parameters<CopilotSession['rpc']['tasks']['readOutput']>[0];
@@ -1904,6 +1906,8 @@ async function createAgentSession(disposables: DisposableStore, options?: {
 		defaultChat: buildDefaultChatUri(sessionUri.toString()),
 	}, { emitNotification: false });
 	services.set(IAgentHostStateManager, stateManager);
+
+	services.set(IAgentTerminalPathService, noAgentTerminalPathService);
 	services.set(IAgentHostChatOwnershipService, createTestChatOwnershipService(stateManager));
 	const mcpSkillEnablement = new Map<string, readonly CustomizationEnablement[]>();
 	const customizationEnablementService: IAgentHostCustomizationEnablementService = {

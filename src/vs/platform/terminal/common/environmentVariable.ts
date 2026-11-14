@@ -27,6 +27,8 @@ export interface IEnvironmentVariableCollectionDescription {
 export interface IEnvironmentVariableMutatorOptions {
 	applyAtProcessCreation?: boolean;
 	applyAtShellIntegration?: boolean;
+	/** See the `terminalAgentEnvironment` API proposal. */
+	applyToAgentTerminals?: boolean;
 }
 
 export type EnvironmentVariableScope = {

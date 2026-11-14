@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import type { IAgentTerminalPath } from './agentTerminalPath.js';
 
 export type ShellInitScriptShell = 'bash' | 'powershell';
 
@@ -109,6 +110,57 @@ function createPowerShellInitScript(pythonActivation: string | undefined): IShel
 
 /** Generated scripts are a few hundred bytes; anything near this is not one. */
 const MAX_SHELL_INIT_SCRIPT_LENGTH = 64 * 1024;
+
+/**
+ * Adds the agent terminal `PATH` entries after the client script, or as the
+ * only script when the client published none. Running after the user's
+ * profile matches the integrated terminal, which re-applies prepended entries
+ * once login profiles have run. The runtime sources the script before every
+ * command in a long-lived shell, so prepended entries are moved to the front
+ * rather than added again, and appended entries are added only when missing.
+ */
+export function withAgentTerminalPath(scripts: readonly IShellInitScript[], path: IAgentTerminalPath, defaultShell: ShellInitScriptShell): readonly IShellInitScript[] {
+	if (path.prepend.length === 0 && path.append.length === 0) {
+		return scripts;
+	}
+	const shell = scripts[0]?.shell ?? defaultShell;
+	const block = shell === 'powershell' ? createPowerShellPathBlock(path) : createBashPathBlock(path);
+	return [{ shell, script: [...(scripts[0] ? [scripts[0].script] : []), ...block, ''].join('\n') }];
+}
+
+function createBashPathBlock(path: IAgentTerminalPath): string[] {
+	return [
+		`__vscode_agent_path_front() {`,
+		`\tlocal p=":$PATH:"`,
+		`\twhile [[ "$p" == *":$1:"* ]]; do p="\${p//":$1:"/:}"; done`,
+		`\tp="\${p#:}"; p="\${p%:}"`,
+		`\tPATH="$1\${p:+:$p}"`,
+		`}`,
+		// Moving to the front in reverse keeps the given order.
+		...[...path.prepend].reverse().map(directory => `__vscode_agent_path_front ${quoteBash(directory)}`),
+		...path.append.map(directory => {
+			const quoted = quoteBash(directory);
+			return `case ":$PATH:" in *:${quoted}:*) ;; *) PATH="$PATH":${quoted} ;; esac`;
+		}),
+		`builtin unset -f __vscode_agent_path_front`,
+		`export PATH`,
+	];
+}
+
+function createPowerShellPathBlock(path: IAgentTerminalPath): string[] {
+	const quote = (directory: string) => `'${directory.replaceAll(`'`, `''`)}'`;
+	return [
+		`$__vscodePathSeparator = [System.IO.Path]::PathSeparator`,
+		...[...path.prepend].reverse().map(directory => {
+			const quoted = quote(directory);
+			return `$env:PATH = (@(${quoted}) + @($env:PATH -split $__vscodePathSeparator | Where-Object { $_ -and $_ -ne ${quoted} })) -join $__vscodePathSeparator`;
+		}),
+		...path.append.map(directory => {
+			const quoted = quote(directory);
+			return `if (-not (($env:PATH -split $__vscodePathSeparator) -contains ${quoted})) { $env:PATH = $env:PATH + $__vscodePathSeparator + ${quoted} }`;
+		}),
+	];
+}
 
 /** Validates the client-pushed list before the agent host writes it to disk. */
 export function isShellInitScriptList(value: unknown): value is readonly IShellInitScript[] {

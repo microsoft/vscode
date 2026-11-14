@@ -41,6 +41,7 @@ import { AgentHostClientConnectionKind } from '../../common/agentHostTelemetry.j
 import { createTestAgentHostProxyResolver } from './agentServiceTestUtils.js';
 import { TunnelProxy } from '../../../tunnel/node/tunnelProxy.js';
 import { createTunnelStream } from '../../../tunnel/node/tunnelStream.js';
+import { noAgentTerminalPathService } from './noAgentTerminalPathService.js';
 
 class RecordingLogService extends NullLogService {
 	readonly warnings: string[] = [];
@@ -132,7 +133,7 @@ suite('AHP windowed TCP', function () {
 			const connections = store.add(new Emitter<IProtocolTransport>());
 			store.add(new ProtocolServerHandler(service, state, { onConnection: connections.event, address: 'test', dispose() { } }, {},
 				store.add(new AgentHostFileSystemProvider()), log, NullTelemetryService,
-				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state), createTestAgentHostProxyResolver()));
+				managedSettings, clientConnections, devContainers, NullAgentHostOTelService, createTestChatOwnershipService(state), createTestAgentHostProxyResolver(), noAgentTerminalPathService));
 			return connections;
 		}
 		const primaryListener = listener();

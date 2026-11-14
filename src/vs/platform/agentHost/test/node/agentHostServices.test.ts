@@ -38,6 +38,7 @@ import { registerAgentHostCoreServices, registerAgentHostHostServices } from '..
 import { createAgentServiceFoundation } from '../../node/agentServiceFoundation.js';
 import { IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
 import { MockAgent } from './mockAgent.js';
+import { IAgentTerminalPathService } from '../../node/agentTerminalPathService.js';
 
 const ITestService = createDecorator<ITestService>('agentHostTestService');
 
@@ -223,6 +224,8 @@ suite('Agent Host service registrations', () => {
 			IAgentHostPeerChatPersistenceService,
 			IAgentConfigurationService,
 			IAgentHostManagedSettingsService,
+
+			IAgentTerminalPathService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,
@@ -250,6 +253,8 @@ suite('Agent Host service registrations', () => {
 			IAgentHostPeerChatPersistenceService,
 			IAgentConfigurationService,
 			IAgentHostManagedSettingsService,
+
+			IAgentTerminalPathService,
 			IAgentHostAuthenticationService,
 			IAgentHostAuthenticationController,
 			IAgentHostGitHubEndpointService,

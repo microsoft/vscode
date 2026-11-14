@@ -21,6 +21,7 @@ import { AgentConfigurationService, IAgentConfigurationService } from './agentCo
 import { AgentHostAuthenticationService, IAgentHostAuthenticationController, IAgentHostAuthenticationService } from './agentHostAuthenticationService.js';
 import { AgentHostGitHubEndpointService, IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { AgentHostManagedSettingsService, IAgentHostManagedSettingsService } from './agentHostManagedSettingsService.js';
+import { AgentTerminalPathService, IAgentTerminalPathService } from './agentTerminalPathService.js';
 import { AgentHostProxyResolver, IAgentHostProxyResolver } from './agentHostProxyResolver.js';
 import { AgentHostRequestService } from './agentHostRequestService.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
@@ -125,6 +126,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 		},
 	}));
 	const managedSettingsService = options.owned.add(new AgentHostManagedSettingsService());
+	const agentTerminalPathService = options.owned.add(new AgentTerminalPathService());
 	const configurationService = options.owned.add(new AgentConfigurationService(
 		stateManager,
 		options.logService,
@@ -150,6 +152,7 @@ export function createAgentServiceFoundation(options: ICreateAgentServiceFoundat
 	options.services.set(IAgentHostStateManager, stateManager);
 	options.services.set(IAgentConfigurationService, configurationService);
 	options.services.set(IAgentHostManagedSettingsService, managedSettingsService);
+	options.services.set(IAgentTerminalPathService, agentTerminalPathService);
 	options.services.set(IAgentHostAuthenticationService, authenticationService);
 	options.services.set(IAgentHostAuthenticationController, authenticationService);
 	options.services.set(IAgentHostGitHubEndpointService, gitHubEndpointService);

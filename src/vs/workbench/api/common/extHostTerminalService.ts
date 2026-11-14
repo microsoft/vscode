@@ -17,7 +17,7 @@ import { NotSupportedError } from '../../../base/common/errors.js';
 import { serializeEnvironmentDescriptionMap, serializeEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariableShared.js';
 import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { generateUuid } from '../../../base/common/uuid.js';
-import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
+import { IEnvironmentVariableCollectionDescription, IEnvironmentVariableMutator, IEnvironmentVariableMutatorOptions, ISerializableEnvironmentVariableCollection } from '../../../platform/terminal/common/environmentVariable.js';
 import { ICreateContributedTerminalProfileOptions, IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalLocation, IProcessProperty, ProcessPropertyType, IProcessPropertyMap, TerminalShellType, WindowsShellType } from '../../../platform/terminal/common/terminal.js';
 import { TerminalDataBufferer } from '../../../platform/terminal/common/terminalDataBuffering.js';
 import { ThemeColor } from '../../../base/common/themables.js';
@@ -30,7 +30,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { ISerializedTerminalInstanceContext } from '../../contrib/terminal/common/terminal.js';
 import { isWindows } from '../../../base/common/platform.js';
 import { hasKey } from '../../../base/common/types.js';
-import { isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -1038,6 +1038,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			collection = this._register(new UnifiedEnvironmentVariableCollection());
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
+		collection.extension = extension;
 		return collection.getScopedEnvironmentVariableCollection(undefined);
 	}
 
@@ -1084,6 +1085,8 @@ class UnifiedEnvironmentVariableCollection extends Disposable {
 	private readonly scopedCollections: Map<string, ScopedEnvironmentVariableCollection> = new Map();
 	readonly descriptionMap: Map<string, IEnvironmentVariableCollectionDescription> = new Map();
 	private _persistent: boolean = true;
+	/** The owning extension, set before the collection is handed out through the API. */
+	extension: IExtensionDescription | undefined;
 
 	public get persistent(): boolean { return this._persistent; }
 	public set persistent(value: boolean) {
@@ -1128,11 +1131,19 @@ class UnifiedEnvironmentVariableCollection extends Disposable {
 		if (mutator.options && mutator.options.applyAtProcessCreation === false && !mutator.options.applyAtShellIntegration) {
 			throw new Error('EnvironmentVariableMutatorOptions must apply at either process creation or shell integration');
 		}
+		const applyToAgentTerminals = mutator.options?.applyToAgentTerminals === true;
+		if (applyToAgentTerminals) {
+			if (!this.extension) {
+				throw new Error('EnvironmentVariableMutatorOptions.applyToAgentTerminals requires an owning extension');
+			}
+			checkProposedApiEnabled(this.extension, 'terminalAgentEnvironment');
+		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
-		const newOptions = mutator.options ? {
+		const newOptions: IEnvironmentVariableMutatorOptions = mutator.options ? {
 			applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? false,
 			applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
+			...(applyToAgentTerminals ? { applyToAgentTerminals } : {}),
 		} : {
 			applyAtProcessCreation: true
 		};
@@ -1142,6 +1153,7 @@ class UnifiedEnvironmentVariableCollection extends Disposable {
 			current.type !== mutator.type ||
 			current.options?.applyAtProcessCreation !== newOptions.applyAtProcessCreation ||
 			current.options?.applyAtShellIntegration !== newOptions.applyAtShellIntegration ||
+			(current.options?.applyToAgentTerminals ?? false) !== applyToAgentTerminals ||
 			current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index
 		) {
 			const key = this.getKey(variable, mutator.scope);
