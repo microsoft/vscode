@@ -109,7 +109,7 @@ suite('AgentHostWorktreeFolderChoices', () => {
 		chip(unlisted.primaryAlias);
 		await new Promise<void>(resolve => setTimeout(resolve, 0));
 		assert.deepStrictEqual({ inNewWorktree, changes, folderChip, worktreeChip: chip(feature), unlistedBeforeProven, unlistedWorktreeChip: chip(unlisted.worktree), otherRepositoryChip: chip(unlisted.otherRepository), primaryAliasChip: chip(unlisted.primaryAlias) }, {
-			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'Worktree', description: 'New worktree of vscode' } },
+			inNewWorktree: { items: ['New Worktree *', '[Folder] vscode (Current)', '[Worktrees] feature', '[Worktrees] other'], chip: { icon: 'worktree', label: 'New Worktree', description: 'New worktree of vscode' } },
 			changes: ['isolation worktree', 'folder /work/vscode.worktrees/feature', 'isolation folder'],
 			folderChip: { icon: 'folder', label: null, description: 'Folder: vscode' },
 			worktreeChip: { icon: 'worktree', label: null, description: 'Worktree: feature' },

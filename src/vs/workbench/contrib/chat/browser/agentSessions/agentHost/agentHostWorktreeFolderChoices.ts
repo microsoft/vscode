@@ -128,7 +128,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		const choice = choices.find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folder));
 		const primary = choices.find(candidate => candidate.kind === 'folder');
 		if (this.isNewWorktreeSelected()) {
-			return { icon: WORKTREE_ICON, label: localize('agentHost.folderPicker.newWorktreeChip', "Worktree"), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
+			return { icon: WORKTREE_ICON, label: getNewWorktreeLabel(), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
 		}
 		const name = choice?.label ?? basename(folder);
 		// A folder it does not list, such as the worktree a started session works in, is a worktree once git proves it one
