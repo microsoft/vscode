@@ -306,6 +306,13 @@ export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agen
 export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
 
 /**
+ * The command that shows an extension's page, which the Manage Extension action of notifications and status bar items
+ * runs. Editor windows open the Extensions editor; the Agents window opens the Extensions section of Agent
+ * Customizations, or says it can't when it doesn't manage extensions.
+ */
+export const MANAGE_EXTENSION_COMMAND_ID = '_extensions.manage';
+
+/**
  * Controls for each extension, by its identifier, whether it is enabled in the Agents window automatically, overriding
  * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} for that extension. A keyed experiment-controlled setting, so that each
  * extension can be tested in its own experiment. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
