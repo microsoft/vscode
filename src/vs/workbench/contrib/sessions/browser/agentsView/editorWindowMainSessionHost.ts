@@ -17,9 +17,10 @@ export interface IEditorWindowShownChat {
 }
 
 /**
- * The session host of an editor window with the Sessions view, as the service `ISessionHost` of the window: it shows the
- * chat of the active tab of the chat part. What the editors of the editor area show of a session, such as the Changes
- * editor that the pills of a chat open, is of that chat.
+ * The session host of an editor window, as the service `ISessionHost` of the window: it shows the chat that a feature binds
+ * (see {@link bindShownChat}), such as that of the active tab of the chat part. What the editors of the editor area show of
+ * a session, such as the Changes editor that the pills of a chat open, is of that chat. Until a feature binds one, it shows
+ * nothing and does nothing: it only derives what it shows from what is bound.
  */
 export class EditorWindowMainSessionHost extends SessionHost {
 

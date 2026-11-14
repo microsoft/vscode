@@ -22,13 +22,14 @@ import { ICreateNewSessionOptions, IRecentlyOpenedSessions, ISessionsManagementS
 import { ISessionOpenTelemetryService, SESSION_OPEN_TIMEOUT_MS } from '../sessionOpenTelemetryService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { ICloseChatOptions, IOpenChatOptions, IOpenNewChatInSessionOptions, IOpenNewSessionOptions, IOpenNewSessionResult, IOpenSessionOptions, IOpenSessionsOptions, ISessionNavigationRequest, ISessionsService, SessionGridDirection } from '../sessionsService.js';
-import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { getEditorWindowComposerTarget, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { IAgentsViewProvidersService, waitForAgentsViewSession } from './agentsViewProviders.js';
 
 /**
- * The sessions of an editor window with the Sessions view, for the UI the Agents window shares with it, such as the chat
- * view and its pills: the window has no grid of sessions. Its chat part shows sessions and chats, each in a tab, and its
- * active tab is the active session. What only a grid does, such as moving or resizing panes, does nothing here.
+ * The sessions of an editor window, for the UI the Agents window shares with it, such as the chat view and its pills: the
+ * window has no grid of sessions. Its presenter shows sessions and chats (see `IEditorWindowSessionsPresenterService`),
+ * such as the chat part, each in a tab, whose active tab is the active session. What only a grid does, such as moving or
+ * resizing panes, does nothing here.
  */
 export class EditorWindowSessionsService extends Disposable implements ISessionsService {
 
@@ -42,7 +43,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	readonly onDidToggleSessionStickiness: Event<IToggleSessionStickinessEvent> = Event.None;
 
 	constructor(
-		@IAgentsChatPartService private readonly _chatPart: IAgentsChatPartService,
+		@IEditorWindowSessionsPresenterService private readonly _presenterService: IEditorWindowSessionsPresenterService,
+		@ISessionHost private readonly _mainWindowHost: ISessionHost,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService,
@@ -55,8 +57,13 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		super();
 	}
 
+	/** What shows the chats of sessions: the chat part, while a feature shows them there, or the Chat view. */
+	private get _presenter() {
+		return this._presenterService.presenter.get();
+	}
+
 	get gridHost(): ISessionHost {
-		return this._chatPart.mainWindowHost;
+		return this._mainWindowHost;
 	}
 
 	//#region Panes: the window has none
@@ -65,9 +72,9 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		return undefined;
 	}
 
-	/** The host of the active tab of the chat part stands for the active pane. */
+	/** The host of the presenter's active chat stands for the active pane. */
 	isActivePane(host: ISessionHost): boolean {
-		const active = this._chatPart.activeChat.get();
+		const active = this._presenter.activeChat.get();
 		return host === this.gridHost || (!!active && isEqual(host.chatResource.get(), active.chat.resource));
 	}
 
@@ -110,14 +117,14 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	//#endregion
 
-	//#region Sessions and chats: tabs of the chat part
+	//#region Sessions and chats: shown by the presenter
 
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		void this.openSession(sessionResource, options);
 	}
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
-		// Its session is known only while the providers are held: until it shows in the chat part, which holds them then
+		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
 			const session = await waitForAgentsViewSession(this._sessionsManagementService, sessionResource, () => this._sessionsManagementService.getSession(sessionResource));
@@ -137,8 +144,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		try {
 			await this._sessionOpenTelemetryService.withOpenRequest(options?.source ?? 'unknown', cts.token, async attempt => {
 				const chatResource = session.mainChat.get().resource;
-				this._sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._chatPart.isShowing(chatResource), session.loading.get());
-				await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+				this._sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._presenter.isShowing(chatResource), session.loading.get());
+				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 				this._sessionOpenTelemetryService.sessionActivated(attempt, chatResource);
 				await waitForState(session.loading, loading => !loading, undefined, cts.token);
 				this._sessionOpenTelemetryService.sessionLoaded(attempt);
@@ -154,11 +161,11 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openSessionToSide(session: ISession, options?: IOpenSessionOptions & { chatResource?: URI }): Promise<void> {
-		await this._chatPart.openChat(session, options?.chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
+		await this._presenter.openChat(session, options?.chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
 	async openChatToSide(session: ISession, chatResource: URI, options?: { preserveFocus?: boolean }): Promise<void> {
-		await this._chatPart.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
+		await this._presenter.openChat(session, chatResource, { preserveFocus: options?.preserveFocus, sideBySide: true });
 	}
 
 	async canOpenSession(): Promise<boolean> {
@@ -166,30 +173,30 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	async openChat(session: ISession, chatUri: URI, options?: IOpenChatOptions): Promise<void> {
-		await this._chatPart.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
+		await this._presenter.openChat(session, chatUri, { preserveFocus: options?.preserveFocus });
 	}
 
 	async moveChatToGrid(sessionId: string, chatResource: URI, _referenceSlotId: string, _direction: SessionGridDirection): Promise<void> {
 		const owner = this._sessionsManagementService.getSessionForChatResource(chatResource);
 		const session = owner?.session.sessionId === sessionId ? owner.session : this._sessionsManagementService.getSessions().find(candidate => candidate.sessionId === sessionId);
 		if (session) {
-			await this._chatPart.openChat(session, chatResource);
+			await this._presenter.openChat(session, chatResource);
 		}
 	}
 
 	async closeChat(_session: ISession, chat: IChat, _options?: ICloseChatOptions): Promise<void> {
-		await this._chatPart.closeChat(chat.resource);
+		await this._presenter.closeChat(chat.resource);
 	}
 
 	closeSession(session: ISession | undefined): void {
 		for (const chat of session?.chats.get() ?? []) {
-			void this._chatPart.closeChat(chat.resource);
+			void this._presenter.closeChat(chat.resource);
 		}
 	}
 
 	insertAt(session: ISession | undefined): void {
 		if (session) {
-			void this._chatPart.openChat(session, undefined);
+			void this._presenter.openChat(session, undefined);
 		}
 	}
 
@@ -199,13 +206,13 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	async openSessionsInGrid(sessions: readonly ISession[], options?: IOpenSessionOptions): Promise<void> {
 		for (const session of sessions) {
-			await this._chatPart.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
+			await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 		}
 	}
 
 	async openChatsInGrid(chats: readonly { readonly session: ISession; readonly chatResource: URI }[]): Promise<void> {
 		for (const { session, chatResource } of chats) {
-			await this._chatPart.openChat(session, chatResource);
+			await this._presenter.openChat(session, chatResource);
 		}
 	}
 
@@ -214,12 +221,12 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	focusActiveSession(): void {
-		this._chatPart.focus();
+		this._presenter.focus();
 	}
 
 	//#endregion
 
-	//#region New sessions and chats: composers in tabs of the chat part
+	//#region New sessions and chats: composers of the presenter
 
 	async openNewSession(options?: IOpenNewSessionOptions, token: CancellationToken = CancellationToken.None): Promise<IOpenNewSessionResult> {
 		// A composer that holds its drafts in a slot of its own, such as one of the chat part, creates its draft there
@@ -227,8 +234,8 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		if (!draftSlot) {
 			const target = options?.folderUri
 				? { folderUri: options.folderUri, providerId: options.providerId, sessionTypeId: options.sessionTypeId }
-				: getAgentsChatPartComposerTarget(this._workspaceContextService, this._editorService);
-			await this._chatPart.openComposer(target, { sideBySide: options?.toSide });
+				: getEditorWindowComposerTarget(this._workspaceContextService, this._editorService);
+			await this._presenter.openComposer(target, { sideBySide: options?.toSide });
 			return { session: undefined, trustDeclined: false };
 		}
 
@@ -264,7 +271,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 	}
 
 	openQuickChat(_options?: ICreateNewSessionOptions): ISession | undefined {
-		void this._chatPart.openComposer(undefined);
+		void this._presenter.openComposer(undefined);
 		return undefined;
 	}
 
@@ -272,7 +279,7 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 		const { from: _from, ...createOptions } = options ?? {};
 		const chat = await this._sessionsManagementService.createNewChatInSession(session, Object.keys(createOptions).length ? createOptions : undefined);
 		if (chat) {
-			await this._chatPart.openChat(session, chat.resource);
+			await this._presenter.openChat(session, chat.resource);
 		}
 	}
 

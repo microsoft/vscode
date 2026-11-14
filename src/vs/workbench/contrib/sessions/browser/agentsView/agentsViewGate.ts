@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -28,7 +28,8 @@ import { IPaneCompositePartService } from '../../../../services/panecomposite/br
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatViewOpenKeybindings } from '../../../chat/browser/chat.js';
 import { CHAT_OPEN_ACTION_ID } from '../../../chat/browser/actions/chatActions.js';
-import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
+import { IEditorWindowChatPartService } from './agentsChatPartContribution.js';
+import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
 import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -96,13 +97,12 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		});
 
 		instantiationService.invokeFunction(accessor => {
+			// The sessions it lists are known while it or the chat part shows
+			this._register(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [SessionsViewId] }));
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
-				// The chat part docks beside the Sessions view, wherever the user puts it
-				const layoutService = accessor.get(IWorkbenchLayoutService);
-				layoutService.setChatPartAnchor({ viewId: SessionsViewId });
-				this._register(toDisposable(() => layoutService.setChatPartAnchor(undefined)));
-				this._register(instantiationService.createInstance(AgentsChatPartContribution));
+				// The chat part docks beside the Sessions view, wherever the user puts it, over a dock of other features
+				this._register(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: constObservable(true) }));
 				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService), accessor.get(IExtensionService));
 			}
 		});

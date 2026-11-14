@@ -4,81 +4,187 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun, derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
+import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../../common/editor.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { ChangesMultiDiffSourceResolver } from '../../../sessionChanges/browser/changesMultiDiffSourceResolver.js';
 import { SessionChangesEditor } from '../../../sessionChanges/browser/sessionChangesEditor.js';
 import { SessionChangesEditorInput, SessionChangesEditorSerializer } from '../../../sessionChanges/browser/sessionChangesEditorInput.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
+import { IEditorWindowSessionsRuntime } from '../editorWindow/editorWindowSessionsRuntime.js';
 import { IAgentsChatPartService, restoreAgentsChatPart } from './agentsChatPart.js';
 import { AgentsChatPartVisibleContext, registerAgentsChatPartActions } from './agentsChatPartActions.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
-import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
-import { Lazy } from '../../../../../base/common/lazy.js';
+
+/** How a feature shows chats in the chat part of an editor window (see {@link IEditorWindowChatPartService.enable}). */
+export interface IEditorWindowChatPartOptions {
+	/** The view the chat part docks beside, such as the view that lists the sessions whose chats it shows. */
+	readonly anchorViewId: string;
+	/** Of the features that enable the chat part, the anchor of the one with the highest priority applies. */
+	readonly anchorPriority: number;
+	/**
+	 * Whether chats open in the chat part now. While they do, what would show the Chat view's chats shows them in the chat
+	 * part, and the chat part restores the chats it showed as the window last closed. While they do not, the Chat view keeps
+	 * its chats, and the chat part does not restore and hides, as the window gets ready and as this turns false.
+	 */
+	readonly enabled: IObservable<boolean>;
+}
+
+export const IEditorWindowChatPartService = createDecorator<IEditorWindowChatPartService>('editorWindowChatPartService');
 
 /**
- * The chat part of an editor window with the Sessions view. Created as the window starts, before its grid, which then has a
- * place for the chat part. What the chat part shows is created once a chat opens in it, or as the window restores the
- * chat part shown, after the window restored its editors.
+ * The chat part of an editor window: it shows chats of sessions, each in a tab, beside the editor area (see
+ * `IAgentsChatPartService`). It does nothing until a feature enables it.
  */
-export class AgentsChatPartContribution extends Disposable {
+export interface IEditorWindowChatPartService {
+	readonly _serviceBrand: undefined;
+
+	/** Whether chats open in the chat part now: while one of the features that enabled it has it enabled. */
+	readonly enabled: IObservable<boolean>;
+
+	/**
+	 * Has the window show chats in the chat part, as `options` say, until the returned disposable is disposed. Call it as
+	 * the window starts, such as from a contribution of `WorkbenchPhase.BlockStartup`: the chat part has to exist before the
+	 * workbench creates its grid. Features that enable it together share the one chat part.
+	 */
+	enable(options: IEditorWindowChatPartOptions): IDisposable;
+}
+
+export class EditorWindowChatPartService extends Disposable implements IEditorWindowChatPartService {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly _owners = observableValue<readonly IEditorWindowChatPartOptions[]>(this, []);
+	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.enabled.read(reader)));
+
+	/** What the chat part does while a feature enabled it. */
+	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IChatViewHostService chatViewHostService: IChatViewHostService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IChatViewHostService private readonly _chatViewHostService: IChatViewHostService,
+		@IEditorWindowSessionsPresenterService private readonly _presenterService: IEditorWindowSessionsPresenterService,
+		@IEditorWindowSessionsRuntime private readonly _sessionsRuntime: IEditorWindowSessionsRuntime,
+		@IAgentsChatPartFrame private readonly _frame: IAgentsChatPartFrame,
 	) {
 		super();
+	}
 
-		// It replaces the Chat view: what would show the Chat view shows the chat part instead. The host, with the chat part
-		// and the sessions it shows, is created as the first request comes, not as the window starts
-		const host = new Lazy(() => instantiationService.createInstance(AgentsChatViewHost));
-		this._register(chatViewHostService.registerHost({
-			reveal: preserveFocus => host.value.reveal(preserveFocus),
-			revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
-			openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
-			toggle: () => host.value.toggle(),
-			startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
-		}));
+	enable(options: IEditorWindowChatPartOptions): IDisposable {
+		this._owners.set([...this._owners.get(), options], undefined);
+		this._active.value ??= this._activate();
+		this._updateAnchor();
+		return toDisposable(() => {
+			this._owners.set(this._owners.get().filter(candidate => candidate !== options), undefined);
+			if (!this._owners.get().length) {
+				this._active.clear();
+			} else {
+				this._updateAnchor();
+			}
+		});
+	}
+
+	private _updateAnchor(): void {
+		const anchor = [...this._owners.get()].sort((a, b) => b.anchorPriority - a.anchorPriority).at(0);
+		this._layoutService.setChatPartAnchor(anchor && { viewId: anchor.anchorViewId });
+	}
+
+	private _activate(): DisposableStore {
+		const store = new DisposableStore();
+		store.add(toDisposable(() => this._layoutService.setChatPartAnchor(undefined)));
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
-		instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartFrame).part);
+		void this._frame.part;
 
-		this._register(registerAgentsChatPartActions());
+		store.add(registerAgentsChatPartActions());
 
 		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
-		this._register(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+		store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 			EditorPaneDescriptor.create(SessionChangesEditor, SessionChangesEditor.ID, localize('sessionChangesEditor.label', "Changes")),
 			[new SyncDescriptor(SessionChangesEditorInput)]
 		));
-		this._register(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
+		store.add(Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(SessionChangesEditorInput.ID, SessionChangesEditorSerializer));
 		// Its diffs, also of a Changes editor that the window restores
-		this._register(instantiationService.createInstance(ChangesMultiDiffSourceResolver));
+		store.add(this._instantiationService.createInstance(ChangesMultiDiffSourceResolver));
 
-		const visible = AgentsChatPartVisibleContext.bindTo(contextKeyService);
-		this._register(layoutService.onDidChangePartVisibility(({ partId }) => {
+		const visible = AgentsChatPartVisibleContext.bindTo(this._contextKeyService);
+		store.add(this._layoutService.onDidChangePartVisibility(({ partId }) => {
 			if (partId === Parts.CHAT_PART) {
-				visible.set(layoutService.isVisible(Parts.CHAT_PART));
+				visible.set(this._layoutService.isVisible(Parts.CHAT_PART));
 			}
 		}));
+		store.add(toDisposable(() => visible.reset()));
 
-		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			if (this._store.isDisposed) {
+		// The sessions of its chats are known while it shows
+		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
+
+		// While chats open in it, it replaces the Chat view, and shows the chats of the window's sessions. The host and the
+		// chat part's content are created as the first request comes, not as the window starts.
+		store.add(autorun(reader => {
+			if (!this.enabled.read(reader)) {
 				return;
 			}
-			const restored = restoreAgentsChatPart(layoutService, contextKeyService, () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService)));
-			visible.set(layoutService.isVisible(Parts.CHAT_PART));
+			const host = this._instantiationService.createInstance(AgentsChatViewHost);
+			reader.store.add(this._chatViewHostService.registerHost(host));
+			// Unregistered, what the host is still doing does not open the chat part
+			reader.store.add(toDisposable(() => host.deactivate()));
+			reader.store.add(this._presenterService.registerPresenter(this._createPresenter()));
+		}));
+
+		// While chats do not open in it, it does not show, also not as the window restored it shown
+		void this._lifecycleService.when(LifecyclePhase.Ready).then(() => {
+			if (store.isDisposed) {
+				return;
+			}
+			store.add(autorun(reader => {
+				if (!this.enabled.read(reader) && this._layoutService.isVisible(Parts.CHAT_PART)) {
+					this._layoutService.setPartHidden(true, Parts.CHAT_PART);
+				}
+			}));
+		});
+
+		void this._lifecycleService.when(LifecyclePhase.Restored).then(() => {
+			if (store.isDisposed) {
+				return;
+			}
+			const restored = this.enabled.get() ? restoreAgentsChatPart(this._layoutService, this._contextKeyService, () => this._chatPart()) : undefined;
+			visible.set(this._layoutService.isVisible(Parts.CHAT_PART));
 			return restored;
 		}).catch(onUnexpectedError);
+
+		return store;
+	}
+
+	private _chatPart(): IAgentsChatPartService {
+		return this._instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService));
+	}
+
+	/** The chat part as the presenter of the window's sessions; what reads it without needing it does not create it. */
+	private _createPresenter(): IEditorWindowSessionsPresenter {
+		const created = this._frame.contentCreated;
+		const existing = () => created.get() ? this._chatPart() : undefined;
+		return {
+			activeChat: derived(reader => created.read(reader) ? this._chatPart().activeChat.read(reader) : undefined),
+			openChat: (session, chatResource, options) => this._chatPart().openChat(session, chatResource, options),
+			openComposer: (target, options) => this._chatPart().openComposer(target, options),
+			closeChat: async chatResource => existing()?.closeChat(chatResource),
+			isShowing: chatResource => !!existing()?.isShowing(chatResource),
+			hasComposer: () => !!existing()?.hasComposer(),
+			closeIdleComposers: async () => existing()?.closeIdleComposers(),
+			focus: () => this._chatPart().focus(),
+		};
 	}
 }

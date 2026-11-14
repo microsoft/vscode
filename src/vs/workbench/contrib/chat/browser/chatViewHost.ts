@@ -4,12 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { SessionTypeSelectionReason } from '../common/constants.js';
 import { IChatWidget } from './chat.js';
 
 export const IChatViewHostService = createDecorator<IChatViewHostService>('chatViewHostService');
+
+/** The chat that a host shows ({@link IChatViewHost.shownSession}), and why it shows it. */
+export interface IChatViewHostShownSession {
+	readonly resource: URI;
+	/**
+	 * `open` when the user brought the chat up, such as by picking it in the sessions list, starting a new chat or sending
+	 * the first request of one; `restore` when the host shows the chat it last showed, such as as the window starts.
+	 */
+	readonly reason: 'open' | 'restore';
+}
 
 /** How {@link IChatViewHost.reveal} shows the host. */
 export interface IChatViewHostRevealOptions {
@@ -70,6 +81,18 @@ export interface IChatViewHost {
 	toggle(): Promise<boolean>;
 	/** Starts showing the session of `sessionResource`, which its caller may send a first request to. */
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart>;
+	/**
+	 * Whether the host shows the chat of `sessionResource`. A host that does not leaves revealing, opening and starting it to
+	 * the Chat view, such as a host that shows only some kinds of chats; without it, the host shows every chat.
+	 */
+	canShow?(sessionResource: URI): boolean;
+	/**
+	 * Starts a new chat in the host, as New Chat of the Chat view does, and returns whether it takes it. A host that does not
+	 * implement it leaves New Chat to the chat widget it acts on.
+	 */
+	newChat?(): boolean;
+	/** The chat the host shows; a host that does not implement it reports none. */
+	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
 
 /**
@@ -80,6 +103,13 @@ export interface IChatViewHostService extends IChatViewHost {
 	readonly _serviceBrand: undefined;
 
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
+
+	newChat(): boolean;
+
+	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
+	readonly replaced: IObservable<boolean>;
+	/** The chat that the host in use shows; none while a host that does not report one ({@link IChatViewHost.shownSession}) is in use. */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
