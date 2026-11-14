@@ -8,7 +8,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../..
 import { CancellationError } from '../../../../../../../base/common/errors.js';
 import { DeferredPromise, RunOnceScheduler, timeout } from '../../../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
-import { constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { autorun, constObservable, IObservable, observableValue } from '../../../../../../../base/common/observable.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IProgressService } from '../../../../../../../platform/progress/common/progress.js';
+import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
+import { ChatViewHostService } from '../../../../browser/widgetHosts/viewPane/chatViewHostService.js';
 import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
@@ -37,8 +41,8 @@ import { AgentSessionsFilter } from '../../../../browser/agentSessions/agentSess
 import { MenuWorkbenchToolBar } from '../../../../../../../platform/actions/browser/toolbar.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 import { AgentSessionsViewerOrientation } from '../../../../browser/agentSessions/agentSessions.js';
-import { Position } from '../../../../../../services/layout/browser/layoutService.js';
-import { ViewContainerLocation } from '../../../../../../common/views.js';
+import { IWorkbenchLayoutService, Position } from '../../../../../../services/layout/browser/layoutService.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../../../common/views.js';
 
 suite('ChatViewPane sessions refresh', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -325,6 +329,7 @@ suite('ChatViewPane session transitions', () => {
 		const widget = {
 			get viewModel() { return shown && { model: shown, sessionResource: shown.sessionResource }; },
 			getViewState: () => ({}),
+			restoreViewState: () => { },
 			getInput: () => input,
 			setInput: (value: string) => { input = value; },
 			setModel: (model: IChatModel | undefined) => {
@@ -490,6 +495,48 @@ suite('ChatViewPane session transitions', () => {
 			loadedToRestore: '/recalled restore',
 			reopenedToRestore: '/recalled restore',
 			superseded: '/saved open',
+		});
+	});
+
+	test('through the Chat view host, each open reports the chat it shows exactly once: a chat it loads, the chat it shows already when picked again, to restore, and a committed one', async () => {
+		const rig = createPane();
+		// Each open below loads a chat of its own
+		rig.nextRef.dispose();
+		const savedResource = nextResource.with({ path: '/saved' });
+		const committedResource = nextResource.with({ path: '/committed' });
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		Object.assign(rig.pane, { chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const stream: string[] = [];
+		store.add(autorun(reader => {
+			const shown = rig.pane.shownSession.read(reader);
+			stream.push(shown ? `${shown.resource.path} ${shown.reason}` : 'none');
+		}));
+		const step = async (name: string, open: () => Promise<unknown>) => {
+			const before = stream.length;
+			await open();
+			return { [name]: stream.slice(before) };
+		};
+
+		assert.deepStrictEqual(Object.assign({},
+			await step('loaded', () => host.openSession(savedResource, { preserveFocus: true })),
+			await step('pickedAgain', () => host.openSession(savedResource, { preserveFocus: true })),
+			await step('restored', () => host.openSession(savedResource, { preserveFocus: true, restore: true })),
+			await step('committed', () => host.openSession(committedResource, { preserveFocus: true, commit: true })),
+		), {
+			loaded: ['/saved open'],
+			pickedAgain: ['/saved open'],
+			restored: ['/saved restore'],
+			committed: ['/committed commit'],
 		});
 	});
 
