@@ -36,7 +36,7 @@ import { IChat, ISession, SessionStatus } from '../../../../../workbench/service
 import { ISessionsProvider } from '../../../../../workbench/contrib/sessions/common/sessionsProvider.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { findSessionForOpenSessionLink, ISessionLinkChatState, ISessionLinkState, OpenSessionLinkOpenerContribution, readSessionState } from '../../browser/openSessionLinkOpener.contribution.js';
-import { MobileNullChatWindowService } from '../../../mobile/browser/mobileNullChatWindowService.js';
+import { NullChatWindowService } from '../../../../../workbench/contrib/chatWindow/browser/nullChatWindowService.js';
 
 suite('OpenSessionLinkOpenerContribution', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -180,7 +180,7 @@ suite('OpenSessionLinkOpenerContribution', () => {
 			sessionsProvidersService,
 			sessionSummaryHoverService,
 			new class extends mock<ILabelService>() { },
-			new MobileNullChatWindowService(),
+			new NullChatWindowService(),
 			new TestConfigurationService({ [CHAT_WINDOWS_ENABLED_SETTING]: true }),
 		));
 
