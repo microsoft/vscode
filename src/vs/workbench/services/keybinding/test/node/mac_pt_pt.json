@@ -1,0 +1,1192 @@
+{
+	"AltLeft": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"AltRight": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ArrowDown": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ArrowLeft": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ArrowRight": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ArrowUp": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"AudioVolumeDown": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"AudioVolumeMute": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"AudioVolumeUp": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "=",
+		"withShiftAltGr": "=",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Backquote": {
+		"value": "<",
+		"valueIsDeadKey": false,
+		"withAltGr": "≤",
+		"withAltGrIsDeadKey": false,
+		"withShift": ">",
+		"withShiftAltGr": "≥",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Backslash": {
+		"value": "\\",
+		"valueIsDeadKey": false,
+		"withAltGr": "‹",
+		"withAltGrIsDeadKey": false,
+		"withShift": "|",
+		"withShiftAltGr": "›",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Backspace": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"BracketLeft": {
+		"value": "º",
+		"valueIsDeadKey": false,
+		"withAltGr": "°",
+		"withAltGrIsDeadKey": false,
+		"withShift": "ª",
+		"withShiftAltGr": "˚",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"BracketRight": {
+		"value": "´",
+		"valueIsDeadKey": true,
+		"withAltGr": "¨",
+		"withAltGrIsDeadKey": true,
+		"withShift": "`",
+		"withShiftAltGr": "˝",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": true
+	},
+	"CapsLock": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Comma": {
+		"value": ",",
+		"valueIsDeadKey": false,
+		"withAltGr": "“",
+		"withAltGrIsDeadKey": false,
+		"withShift": ";",
+		"withShiftAltGr": "”",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ContextMenu": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ControlLeft": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ControlRight": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Delete": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit0": {
+		"value": "0",
+		"valueIsDeadKey": false,
+		"withAltGr": "≠",
+		"withAltGrIsDeadKey": false,
+		"withShift": "=",
+		"withShiftAltGr": "≈",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit1": {
+		"value": "1",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "!",
+		"withShiftAltGr": "¡",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit2": {
+		"value": "2",
+		"valueIsDeadKey": false,
+		"withAltGr": "@",
+		"withAltGrIsDeadKey": false,
+		"withShift": "\"",
+		"withShiftAltGr": "ﬁ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit3": {
+		"value": "3",
+		"valueIsDeadKey": false,
+		"withAltGr": "€",
+		"withAltGrIsDeadKey": false,
+		"withShift": "#",
+		"withShiftAltGr": "ﬂ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit4": {
+		"value": "4",
+		"valueIsDeadKey": false,
+		"withAltGr": "£",
+		"withAltGrIsDeadKey": false,
+		"withShift": "$",
+		"withShiftAltGr": "¢",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit5": {
+		"value": "5",
+		"valueIsDeadKey": false,
+		"withAltGr": "‰",
+		"withAltGrIsDeadKey": false,
+		"withShift": "%",
+		"withShiftAltGr": "∞",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit6": {
+		"value": "6",
+		"valueIsDeadKey": false,
+		"withAltGr": "¶",
+		"withAltGrIsDeadKey": false,
+		"withShift": "&",
+		"withShiftAltGr": "•",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit7": {
+		"value": "7",
+		"valueIsDeadKey": false,
+		"withAltGr": "÷",
+		"withAltGrIsDeadKey": false,
+		"withShift": "/",
+		"withShiftAltGr": "⁄",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit8": {
+		"value": "8",
+		"valueIsDeadKey": false,
+		"withAltGr": "[",
+		"withAltGrIsDeadKey": false,
+		"withShift": "(",
+		"withShiftAltGr": "{",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Digit9": {
+		"value": "9",
+		"valueIsDeadKey": false,
+		"withAltGr": "]",
+		"withAltGrIsDeadKey": false,
+		"withShift": ")",
+		"withShiftAltGr": "}",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"End": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Enter": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Equal": {
+		"value": "+",
+		"valueIsDeadKey": false,
+		"withAltGr": "±",
+		"withAltGrIsDeadKey": false,
+		"withShift": "*",
+		"withShiftAltGr": "◊",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Escape": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F1": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F2": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F3": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F4": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F5": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F6": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F7": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F8": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F9": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F10": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F11": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F12": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F13": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F14": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F15": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F16": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F17": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F18": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F19": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"F20": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Home": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Insert": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"IntlBackslash": {
+		"value": "§",
+		"valueIsDeadKey": false,
+		"withAltGr": "§",
+		"withAltGrIsDeadKey": false,
+		"withShift": "±",
+		"withShiftAltGr": "±",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"IntlRo": {
+		"value": "<",
+		"valueIsDeadKey": false,
+		"withAltGr": "≤",
+		"withAltGrIsDeadKey": false,
+		"withShift": ">",
+		"withShiftAltGr": "≥",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"IntlYen": {
+		"value": "§",
+		"valueIsDeadKey": false,
+		"withAltGr": "§",
+		"withAltGrIsDeadKey": false,
+		"withShift": "±",
+		"withShiftAltGr": "±",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyA": {
+		"value": "a",
+		"valueIsDeadKey": false,
+		"withAltGr": "å",
+		"withAltGrIsDeadKey": false,
+		"withShift": "A",
+		"withShiftAltGr": "Å",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyB": {
+		"value": "b",
+		"valueIsDeadKey": false,
+		"withAltGr": "∫",
+		"withAltGrIsDeadKey": false,
+		"withShift": "B",
+		"withShiftAltGr": "∫",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyC": {
+		"value": "c",
+		"valueIsDeadKey": false,
+		"withAltGr": "©",
+		"withAltGrIsDeadKey": false,
+		"withShift": "C",
+		"withShiftAltGr": "©",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyD": {
+		"value": "d",
+		"valueIsDeadKey": false,
+		"withAltGr": "∂",
+		"withAltGrIsDeadKey": false,
+		"withShift": "D",
+		"withShiftAltGr": "∆",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyE": {
+		"value": "e",
+		"valueIsDeadKey": false,
+		"withAltGr": "æ",
+		"withAltGrIsDeadKey": false,
+		"withShift": "E",
+		"withShiftAltGr": "Æ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyF": {
+		"value": "f",
+		"valueIsDeadKey": false,
+		"withAltGr": "ƒ",
+		"withAltGrIsDeadKey": false,
+		"withShift": "F",
+		"withShiftAltGr": "ƒ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyG": {
+		"value": "g",
+		"valueIsDeadKey": false,
+		"withAltGr": "˙",
+		"withAltGrIsDeadKey": false,
+		"withShift": "G",
+		"withShiftAltGr": "˙",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyH": {
+		"value": "h",
+		"valueIsDeadKey": false,
+		"withAltGr": "ˇ",
+		"withAltGrIsDeadKey": false,
+		"withShift": "H",
+		"withShiftAltGr": "ˇ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyI": {
+		"value": "i",
+		"valueIsDeadKey": false,
+		"withAltGr": "ı",
+		"withAltGrIsDeadKey": false,
+		"withShift": "I",
+		"withShiftAltGr": "˚",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyJ": {
+		"value": "j",
+		"valueIsDeadKey": false,
+		"withAltGr": "¯",
+		"withAltGrIsDeadKey": false,
+		"withShift": "J",
+		"withShiftAltGr": "¯",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyK": {
+		"value": "k",
+		"valueIsDeadKey": false,
+		"withAltGr": "„",
+		"withAltGrIsDeadKey": false,
+		"withShift": "K",
+		"withShiftAltGr": "‚",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyL": {
+		"value": "l",
+		"valueIsDeadKey": false,
+		"withAltGr": "‘",
+		"withAltGrIsDeadKey": false,
+		"withShift": "L",
+		"withShiftAltGr": "’",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyM": {
+		"value": "m",
+		"valueIsDeadKey": false,
+		"withAltGr": "µ",
+		"withAltGrIsDeadKey": false,
+		"withShift": "M",
+		"withShiftAltGr": "µ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyN": {
+		"value": "n",
+		"valueIsDeadKey": false,
+		"withAltGr": "¬",
+		"withAltGrIsDeadKey": false,
+		"withShift": "N",
+		"withShiftAltGr": "¬",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyO": {
+		"value": "o",
+		"valueIsDeadKey": false,
+		"withAltGr": "ø",
+		"withAltGrIsDeadKey": false,
+		"withShift": "O",
+		"withShiftAltGr": "Ø",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyP": {
+		"value": "p",
+		"valueIsDeadKey": false,
+		"withAltGr": "π",
+		"withAltGrIsDeadKey": false,
+		"withShift": "P",
+		"withShiftAltGr": "∏",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyQ": {
+		"value": "q",
+		"valueIsDeadKey": false,
+		"withAltGr": "œ",
+		"withAltGrIsDeadKey": false,
+		"withShift": "Q",
+		"withShiftAltGr": "Œ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyR": {
+		"value": "r",
+		"valueIsDeadKey": false,
+		"withAltGr": "®",
+		"withAltGrIsDeadKey": false,
+		"withShift": "R",
+		"withShiftAltGr": "®",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyS": {
+		"value": "s",
+		"valueIsDeadKey": false,
+		"withAltGr": "ß",
+		"withAltGrIsDeadKey": false,
+		"withShift": "S",
+		"withShiftAltGr": "ß",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyT": {
+		"value": "t",
+		"valueIsDeadKey": false,
+		"withAltGr": "™",
+		"withAltGrIsDeadKey": false,
+		"withShift": "T",
+		"withShiftAltGr": "™",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyU": {
+		"value": "u",
+		"valueIsDeadKey": false,
+		"withAltGr": "†",
+		"withAltGrIsDeadKey": false,
+		"withShift": "U",
+		"withShiftAltGr": "‡",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyV": {
+		"value": "v",
+		"valueIsDeadKey": false,
+		"withAltGr": "√",
+		"withAltGrIsDeadKey": false,
+		"withShift": "V",
+		"withShiftAltGr": "√",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyW": {
+		"value": "w",
+		"valueIsDeadKey": false,
+		"withAltGr": "∑",
+		"withAltGrIsDeadKey": false,
+		"withShift": "W",
+		"withShiftAltGr": "∑",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyX": {
+		"value": "x",
+		"valueIsDeadKey": false,
+		"withAltGr": "«",
+		"withAltGrIsDeadKey": false,
+		"withShift": "X",
+		"withShiftAltGr": "»",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyY": {
+		"value": "y",
+		"valueIsDeadKey": false,
+		"withAltGr": "¥",
+		"withAltGrIsDeadKey": false,
+		"withShift": "Y",
+		"withShiftAltGr": "¥",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"KeyZ": {
+		"value": "z",
+		"valueIsDeadKey": false,
+		"withAltGr": "Ω",
+		"withAltGrIsDeadKey": false,
+		"withShift": "Z",
+		"withShiftAltGr": "Ω",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Lang1": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Lang2": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"MetaLeft": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"MetaRight": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Minus": {
+		"value": "'",
+		"valueIsDeadKey": false,
+		"withAltGr": "§",
+		"withAltGrIsDeadKey": false,
+		"withShift": "?",
+		"withShiftAltGr": "¿",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumLock": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad0": {
+		"value": "0",
+		"valueIsDeadKey": false,
+		"withAltGr": "0",
+		"withAltGrIsDeadKey": false,
+		"withShift": "0",
+		"withShiftAltGr": "0",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad1": {
+		"value": "1",
+		"valueIsDeadKey": false,
+		"withAltGr": "1",
+		"withAltGrIsDeadKey": false,
+		"withShift": "1",
+		"withShiftAltGr": "1",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad2": {
+		"value": "2",
+		"valueIsDeadKey": false,
+		"withAltGr": "2",
+		"withAltGrIsDeadKey": false,
+		"withShift": "2",
+		"withShiftAltGr": "2",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad3": {
+		"value": "3",
+		"valueIsDeadKey": false,
+		"withAltGr": "3",
+		"withAltGrIsDeadKey": false,
+		"withShift": "3",
+		"withShiftAltGr": "3",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad4": {
+		"value": "4",
+		"valueIsDeadKey": false,
+		"withAltGr": "4",
+		"withAltGrIsDeadKey": false,
+		"withShift": "4",
+		"withShiftAltGr": "4",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad5": {
+		"value": "5",
+		"valueIsDeadKey": false,
+		"withAltGr": "5",
+		"withAltGrIsDeadKey": false,
+		"withShift": "5",
+		"withShiftAltGr": "5",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad6": {
+		"value": "6",
+		"valueIsDeadKey": false,
+		"withAltGr": "6",
+		"withAltGrIsDeadKey": false,
+		"withShift": "6",
+		"withShiftAltGr": "6",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad7": {
+		"value": "7",
+		"valueIsDeadKey": false,
+		"withAltGr": "7",
+		"withAltGrIsDeadKey": false,
+		"withShift": "7",
+		"withShiftAltGr": "7",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad8": {
+		"value": "8",
+		"valueIsDeadKey": false,
+		"withAltGr": "8",
+		"withAltGrIsDeadKey": false,
+		"withShift": "8",
+		"withShiftAltGr": "8",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Numpad9": {
+		"value": "9",
+		"valueIsDeadKey": false,
+		"withAltGr": "9",
+		"withAltGrIsDeadKey": false,
+		"withShift": "9",
+		"withShiftAltGr": "9",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadAdd": {
+		"value": "+",
+		"valueIsDeadKey": false,
+		"withAltGr": "+",
+		"withAltGrIsDeadKey": false,
+		"withShift": "+",
+		"withShiftAltGr": "+",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadComma": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadDecimal": {
+		"value": ",",
+		"valueIsDeadKey": false,
+		"withAltGr": ",",
+		"withAltGrIsDeadKey": false,
+		"withShift": ".",
+		"withShiftAltGr": ".",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadDivide": {
+		"value": "/",
+		"valueIsDeadKey": false,
+		"withAltGr": "/",
+		"withAltGrIsDeadKey": false,
+		"withShift": "/",
+		"withShiftAltGr": "/",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadEnter": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadEqual": {
+		"value": "=",
+		"valueIsDeadKey": false,
+		"withAltGr": "=",
+		"withAltGrIsDeadKey": false,
+		"withShift": "=",
+		"withShiftAltGr": "=",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadMultiply": {
+		"value": "*",
+		"valueIsDeadKey": false,
+		"withAltGr": "*",
+		"withAltGrIsDeadKey": false,
+		"withShift": "*",
+		"withShiftAltGr": "*",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"NumpadSubtract": {
+		"value": "-",
+		"valueIsDeadKey": false,
+		"withAltGr": "-",
+		"withAltGrIsDeadKey": false,
+		"withShift": "-",
+		"withShiftAltGr": "-",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"PageDown": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"PageUp": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Period": {
+		"value": ".",
+		"valueIsDeadKey": false,
+		"withAltGr": "…",
+		"withAltGrIsDeadKey": false,
+		"withShift": ":",
+		"withShiftAltGr": "·",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Quote": {
+		"value": "~",
+		"valueIsDeadKey": true,
+		"withAltGr": "˜",
+		"withAltGrIsDeadKey": true,
+		"withShift": "^",
+		"withShiftAltGr": "ˆ",
+		"withShiftAltGrIsDeadKey": true,
+		"withShiftIsDeadKey": true
+	},
+	"Semicolon": {
+		"value": "ç",
+		"valueIsDeadKey": false,
+		"withAltGr": "¸",
+		"withAltGrIsDeadKey": false,
+		"withShift": "Ç",
+		"withShiftAltGr": "˛",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ShiftLeft": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"ShiftRight": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Slash": {
+		"value": "-",
+		"valueIsDeadKey": false,
+		"withAltGr": "—",
+		"withAltGrIsDeadKey": false,
+		"withShift": "_",
+		"withShiftAltGr": "–",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Space": {
+		"value": " ",
+		"valueIsDeadKey": false,
+		"withAltGr": " ",
+		"withAltGrIsDeadKey": false,
+		"withShift": " ",
+		"withShiftAltGr": " ",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	},
+	"Tab": {
+		"value": "",
+		"valueIsDeadKey": false,
+		"withAltGr": "",
+		"withAltGrIsDeadKey": false,
+		"withShift": "",
+		"withShiftAltGr": "",
+		"withShiftAltGrIsDeadKey": false,
+		"withShiftIsDeadKey": false
+	}
+}

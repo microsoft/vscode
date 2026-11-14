@@ -132,6 +132,8 @@ suite('KeybindingLabels', () => {
 		function assertElectronAcceleratorLabel(OS: OperatingSystem, keybinding: number, expected: string | null): void {
 			const usResolvedKeybinding = createUSLayoutResolvedKeybinding(keybinding, OS)!;
 			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator(), expected);
+			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator('menu'), expected);
+			assert.strictEqual(usResolvedKeybinding.getElectronAccelerator('globalShortcut'), expected);
 		}
 
 		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyMod.WinCtrl | KeyCode.KeyA, 'Ctrl+Shift+Alt+Super+A');
@@ -147,6 +149,10 @@ suite('KeybindingLabels', () => {
 		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyCode.Numpad1, null);
 		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyCode.Numpad1, null);
 		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.Numpad1, null);
+
+		assertElectronAcceleratorLabel(OperatingSystem.Windows, KeyMod.Shift | KeyCode.Shift, null);
+		assertElectronAcceleratorLabel(OperatingSystem.Linux, KeyMod.Shift | KeyCode.Shift, null);
+		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyMod.Shift | KeyCode.Shift, null);
 
 		// special
 		assertElectronAcceleratorLabel(OperatingSystem.Macintosh, KeyCode.LeftArrow, 'Left');
