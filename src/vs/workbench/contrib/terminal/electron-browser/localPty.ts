@@ -15,7 +15,8 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 	constructor(
 		id: number,
 		shouldPersist: boolean,
-		private readonly _proxy: IPtyService
+		private readonly _proxy: IPtyService,
+		readonly isRevived: boolean = false
 	) {
 		super(id, shouldPersist);
 	}

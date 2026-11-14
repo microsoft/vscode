@@ -140,6 +140,7 @@ import { ISecretStorageService } from '../../../../../platform/secrets/common/se
 import '../../../../contrib/chat/browser/aiCustomization/copilotCanvases.contribution.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
 import { getExtensionSuggestionsSectionBadge, IAgentsWindowExtensionSuggestionsService } from '../../../../contrib/sessions/browser/agentsWindowExtensionSuggestions.js';
+import { testIWorkspace } from '../../../../../platform/workspace/test/common/testWorkspace.js';
 
 // ============================================================================
 // Mock helpers
@@ -1902,7 +1903,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 					override async getConfigurationResource() { return undefined; }
 				}(),
 				new class extends mock<IWorkspaceContextService>() {
-					override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+					override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: [] }); }
 				}(),
 				secretStorageService,
 			));
@@ -1966,7 +1967,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IEditorGroupsService, new class extends mock<IEditorGroupsService>() { }());
 			reg.defineInstance(IWorkspaceContextService, new class extends mock<IWorkspaceContextService>() {
 				override readonly onDidChangeWorkspaceFolders = Event.None;
-				override getWorkspace(): IWorkspace { return { id: 'test', folders: [] }; }
+				override getWorkspace(): IWorkspace { return testIWorkspace({ id: 'test', folders: [] }); }
 				override getWorkbenchState(): WorkbenchState { return WorkbenchState.WORKSPACE; }
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
@@ -2902,6 +2903,7 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
@@ -3203,6 +3205,7 @@ function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): voi
 		additionalServices: (reg) => {
 			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
+			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
 			reg.defineInstance(IMcpGalleryManifestService, createMockMcpGalleryManifestService());
 			reg.defineInstance(ICustomizationMarketplaceInstallService, createEmptyCustomizationMarketplaceInstallService());
 			reg.defineInstance(ICustomizationMarketplaceService, createEmptyCustomizationMarketplaceService());
@@ -3761,13 +3764,14 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 
 	CanvasesTab: defineComponentFixture({
 		labels: { kind: 'screenshot', blocksCi: false },
-		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Every Canvas renders directly in a flat scope list with "Plugin: name" or "Extension: name" secondary text. Source controls remain available on each Canvas row, and Workspace-provided Canvases remain read-only.'],
+		expectedVisualDescriptions: ['Canvases reuses the shared Tools content container, including its recessed panel background, border, padding, title/search alignment, and scope-group styling. Workspace appears before User. Each scope lists Canvas extension and plugin parent rows with their Canvases nested beneath; plugin parents follow the user\'s own extensions under User and link "Plugin: name", while other parents show "Extension: name". Enablement switches and source actions appear only on parent rows, including the microsoft-foundry plugin, which reports no Canvases. Canvas child rows show only their names, and Workspace-provided Canvas extensions remain read-only.'],
 		render: ctx => renderEditor(ctx, {
 			sessionResource: agentHostCopilotSessionResource,
 			selectedSection: AICustomizationManagementSection.Canvases,
 			marketplaceVisibilityEnabled: true,
 			copilotExtensionInventory: fixtureCopilotExtensionInventory,
 			copilotCanvases: fixtureCopilotCanvases,
+			height: 1000,
 		}),
 	}),
 

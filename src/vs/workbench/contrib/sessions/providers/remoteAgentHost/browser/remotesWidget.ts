@@ -41,7 +41,7 @@ import { AccessibilityVerbositySettingId } from '../../../../accessibility/brows
 import { IEditorService, MODAL_GROUP } from '../../../../../services/editor/common/editorService.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { getVisibleRemoteKinds, ICustomizationRemote, IRemotesModel, RemoteKind, remoteKindLabels } from './remotesModel.js';
-import { getConnectionLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
+import { getConnectionLabel, getGitHubEnvironmentLabel, IRemoteEmptyEntry, IRemoteTableRow, RemotesTableRenderer, RemoteRowAction, RemoteTableEntry } from './remotesTable.js';
 import './media/remotesWidget.css';
 
 const remoteSetup: Record<RemoteKind, { readonly label: string; readonly description: string; readonly documentation?: { readonly label: string; readonly href: string } }> = {
@@ -278,6 +278,8 @@ export class RemotesWidget extends Disposable {
 				void this.copyAddress(entry.remote.id);
 			} else if (action === 'locationPreference' && (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh')) {
 				void this.manageRemote(entry.remote.id, 'locationPreference');
+			} else if (action === 'githubEnvironment' && entry.remote.gitHubEnvironment?.state !== 'unavailable' && (entry.remote.canShareAsGitHubEnvironment || entry.remote.gitHubEnvironment)) {
+				void this.manageRemote(entry.remote.id, 'githubEnvironment');
 			} else if (action === 'updateServer') {
 				void this.manageRemote(entry.remote.id, 'updateServer');
 			} else if (action === 'delete' && (entry.remote.kind === 'environment' && entry.remote.canRemove || (entry.remote.kind === 'tunnel' || entry.remote.kind === 'ssh') && entry.remote.canDelete)) {
@@ -498,7 +500,7 @@ export class RemotesWidget extends Disposable {
 		}
 	}
 
-	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'updateServer'): Promise<void> {
+	private async manageRemote(id: string, action: 'rename' | 'locationPreference' | 'githubEnvironment' | 'updateServer'): Promise<void> {
 		if (this.pendingActions.has(id) || this.pendingConnections.has(id)) {
 			return;
 		}
@@ -509,6 +511,9 @@ export class RemotesWidget extends Disposable {
 		try {
 			if (action === 'locationPreference') {
 				await this.model.changePreferredAgentLocation(id);
+			} else if (action === 'githubEnvironment') {
+				const remote = this.model.remotes.get().find(remote => remote.id === id);
+				await this.model.setSharedAsGitHubEnvironment(id, !remote?.gitHubEnvironment);
 			} else if (action === 'updateServer') {
 				await this.model.updateServer(id);
 			} else {
@@ -596,6 +601,10 @@ export class RemotesWidget extends Disposable {
 		const error = remote.lastConnectionError;
 		if (!this.pendingConnections.has(remote.id) && error) {
 			label = localize('remotes.accessibleConnectionError', "{0}. Connection error: {1}", label, error);
+		}
+		const gitHubEnvironment = getGitHubEnvironmentLabel(remote);
+		if (gitHubEnvironment) {
+			label = localize('remotes.accessibleGitHubEnvironment', "{0}. {1}", label, gitHubEnvironment);
 		}
 		return remote.unavailableReason ? localize('remotes.accessibleUnavailableRow', "{0}. {1}", label, remote.unavailableReason) : label;
 	}

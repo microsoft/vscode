@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-aSZSsQZ3VF2gvn7sC5jnoieowDdl3wNsG0BTA++XuCA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-UKU7spdILQ1hpvpISnMiBY3D5ALMqQJGeQBNfHugl/Q=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -669,6 +669,7 @@
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
 				repeat: e.repeat,
+				timestamp: (e.view?.performance.timeOrigin ?? performance.timeOrigin) + e.timeStamp,
 				isComposing: e.isComposing,
 				altGraphKey: e.getModifierState('AltGraph'),
 				isTrusted: e.isTrusted,
@@ -1163,7 +1164,11 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				const supportedFeatures = /** @type {HTMLIFrameElement & { featurePolicy?: { features(): string[] } }} */ (newFrame).featurePolicy?.features();
+				if (supportedFeatures?.includes('local-network-access')) {
+					allowRules.push('local-network-access;');
+				}
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
@@ -1271,7 +1276,9 @@
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
 									width: docEl.offsetWidth,
-									height: docEl.offsetHeight
+									height: options.includeHorizontalScrollbarInContentHeight
+										? Math.ceil(docEl.getBoundingClientRect().height + Math.max(0, contentWindow.innerHeight - docEl.clientHeight))
+										: docEl.offsetHeight
 								});
 							};
 

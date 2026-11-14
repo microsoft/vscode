@@ -9,9 +9,9 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import minimist from 'minimist';
-import fetch from 'node-fetch';
 import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry } from './utils';
+import { fetchFromUpdateServer } from './updateServer';
 import { downloadStableCode } from './stableCodeDownload';
 import { parseShard, selectShardSuites, Shard } from './shard';
 
@@ -318,10 +318,9 @@ async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
 		const current = parseVersion(version!);
-		const versionsReq = await retry(() => measureAndLog(() => fetch('https://update.code.visualstudio.com/api/releases/stable'), 'versionReq', logger), 1000, 20);
-
+		const versionsReq = await measureAndLog(() => fetchFromUpdateServer('https://update.code.visualstudio.com/api/releases/stable', { log: message => logger.log(message) }), 'versionReq', logger);
 		if (!versionsReq.ok) {
-			throw new Error('Could not fetch releases from update server');
+			throw new Error(`Could not fetch releases from update server: HTTP ${versionsReq.status}`);
 		}
 
 		const versions: string[] = await measureAndLog(() => versionsReq.json(), 'versionReq.json()', logger);

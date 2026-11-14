@@ -50,6 +50,14 @@ The main VS Code build pipeline:
 - **Definition ID**: `111`
 - **URL**: https://dev.azure.com/monacotools/Monaco/_build?definitionId=111
 
+## VS Code CI Build
+
+The CI builds of `main` and `release/*` commits run in their own pipeline, `build/azure-pipelines/product-build-ci.yml`. It has the quality checks and the CI test jobs of the product build, and it never signs or publishes:
+- **Definition ID**: `727`
+- **URL**: https://dev.azure.com/monacotools/Monaco/_build?definitionId=727
+
+To investigate a red `main` CI, list the builds of definition `727` (`--definition 727`). Definition `111` runs only the scheduled and manual product builds.
+
 ## VS Code Insider Scheduled Builds
 
 Two Insider builds run automatically on a scheduled basis:
@@ -75,7 +83,7 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --branch my-feature-
 node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_BUILD_WEB=false" --parameter "VSCODE_PUBLISH=false"
 
 # Parameter value with spaces
-node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_BUILD_TYPE=Product Build"
+node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_BUILD_TITLE_PREFIX=My Validation "
 ```
 
 > **Important**: Before queueing a new build, cancel any previous builds on the same branch that you no longer need. This frees up build agents and reduces resource waste:
@@ -101,7 +109,7 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | Name | Type | Default | Allowed Values | Description |
 |------|------|---------|----------------|-------------|
 | `VSCODE_QUALITY` | string | `insider` | `exploration`, `insider`, `stable` | Build quality channel |
-| `VSCODE_BUILD_TYPE` | string | `Product Build` | `Product`, `CI` | Build mode for Product vs CI |
+| `VSCODE_BUILD_TITLE_PREFIX` | string | `none` | any | Prefix of the build title |
 | `NPM_REGISTRY` | string | `https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/npm/registry/` | any URL | Custom npm registry |
 | `CARGO_REGISTRY` | string | `sparse+https://pkgs.dev.azure.com/monacotools/Monaco/_packaging/vscode/Cargo/index/` | any URL | Custom Cargo registry |
 | `VSCODE_BUILD_WIN32` | boolean | `true` | `true`, `false` | Build Windows x64 |
@@ -121,13 +129,10 @@ node .github/skills/azure-pipelines/azure-pipeline.ts queue --parameter "VSCODE_
 | `VSCODE_STEP_ON_IT` | boolean | `false` | `true`, `false` | Skip tests |
 | `VSCODE_USE_LEGACY_OSS_NOTICE` | boolean | `false` | `true`, `false` | Keep the legacy mixin ThirdPartyNotices.txt instead of the Component Governance notice |
 
-Example: run a quick CI-oriented validation with minimal publish/release side effects:
+Example: run the CI build (quality checks and the Windows, Linux and macOS CI test jobs) of the current branch, which never signs or publishes:
 
 ```bash
-node .github/skills/azure-pipelines/azure-pipeline.ts queue \
-   --parameter "VSCODE_BUILD_TYPE=CI Build" \
-   --parameter "VSCODE_PUBLISH=false" \
-   --parameter "VSCODE_RELEASE=false"
+node .github/skills/azure-pipelines/azure-pipeline.ts queue --definition 727
 ```
 
 ---
@@ -261,7 +266,6 @@ node .github/skills/azure-pipelines/azure-pipeline.ts status --build-id 123456 -
 ```bash
 # Customize build matrix for quicker validation
 node .github/skills/azure-pipelines/azure-pipeline.ts queue \
-   --parameter "VSCODE_BUILD_TYPE=CI Build" \
    --parameter "VSCODE_BUILD_WEB=false" \
    --parameter "VSCODE_BUILD_ALPINE=false" \
    --parameter "VSCODE_BUILD_ALPINE_ARM64=false" \

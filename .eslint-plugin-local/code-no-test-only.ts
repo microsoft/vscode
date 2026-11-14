@@ -3,12 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import type * as ESTree from 'estree';
+import type { Context, CreateRule, ESTree, Visitor } from '@oxlint/plugins';
 
-export default new class NoTestOnly implements eslint.Rule.RuleModule {
+export default new class NoTestOnly implements CreateRule {
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
+	create(context: Context): Visitor {
 		return {
 			['MemberExpression[object.name=/^(test|suite)$/][property.name="only"]']: (node: ESTree.MemberExpression) => {
 				return context.report({

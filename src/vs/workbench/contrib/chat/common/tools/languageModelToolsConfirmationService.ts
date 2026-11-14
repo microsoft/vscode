@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IQuickInputButton, IQuickTreeItem } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -68,9 +69,11 @@ export interface ILanguageModelToolConfirmationActionProducer {
 }
 
 export interface ILanguageModelToolConfirmationContributionQuickTreeItem extends IQuickTreeItem {
-	onDidTriggerItemButton?(button: IQuickInputButton): void;
-	onDidChangeChecked?(checked: boolean): void;
+	onDidTriggerItemButton?(button: IQuickInputButton): void | Promise<void>;
+	onDidChangeChecked?(checked: boolean): void | Promise<void>;
 	onDidOpen?(): void | Promise<void>;
+	/** Leaves the picker closed after {@link onDidOpen} instead of reopening it, e.g. when opening another editor. */
+	closesPicker?: boolean;
 }
 
 /**
@@ -80,7 +83,7 @@ export interface ILanguageModelToolConfirmationContributionQuickTreeItem extends
 export type ILanguageModelToolConfirmationContribution = Partial<ILanguageModelToolConfirmationActionProducer> & {
 	/**
 	 * Gets items to be shown in the `manageConfirmationPreferences` quick tree.
-	 * These are added under the tool's category.
+	 * These are added under the tool's category; unchecked items remain visible until the picker closes so they can be rechecked.
 	 */
 	getManageActions?(): ILanguageModelToolConfirmationContributionQuickTreeItem[];
 
@@ -95,6 +98,22 @@ export type ILanguageModelToolConfirmationContribution = Partial<ILanguageModelT
 	 */
 	reset?(): void;
 };
+
+/** Backs MCP pre-execution approvals with an external store, such as an agent host's permission rules, instead of the stored approvals. */
+export interface IToolPreApprovalStore {
+	/** Placeholder shown in the manage quick tree. */
+	readonly placeholder: string;
+	/** MCP servers to show even when their tools are unavailable. */
+	readonly servers?: readonly { readonly id: string; readonly label: string }[];
+	/** MCP tools discovered after the manage quick tree opens. */
+	readonly discoveredTools?: IObservable<readonly IToolData[]>;
+	/** Whether tool discovery is running, shown as a busy state in the manage quick tree. */
+	readonly isDiscovering?: IObservable<boolean>;
+	isServerApproved(serverId: string): boolean;
+	setServerApproved(serverId: string, approved: boolean): void;
+	isToolApproved(tool: IToolData): boolean;
+	setToolApproved(tool: IToolData, approved: boolean): void;
+}
 
 /**
  * Handles language model tool confirmation.
@@ -113,7 +132,7 @@ export interface ILanguageModelToolsConfirmationService extends ILanguageModelTo
 	readonly _serviceBrand: undefined;
 
 	/** Opens an IQuickTree to let the user manage their preferences.  */
-	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string }): void;
+	manageConfirmationPreferences(tools: readonly IToolData[], options?: { defaultScope?: 'workspace' | 'profile' | 'session'; focusToolId?: string; preApprovalStore?: IToolPreApprovalStore }): void;
 
 	/**
 	 * Registers a contribution that provides more specific confirmation logic

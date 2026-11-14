@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { vEnum, vLiteral, vNumber, vObj, vOptionalProp, vString, vUnion } from '../../../base/common/validation.js';
+import type { RemoteAgentHostLocationPreference } from './remoteAgentHostLocationPreference.js';
 
 /**
  * Schema version for the shared local agent-host endpoint registry under
@@ -142,6 +143,28 @@ export function parseAgentHostEndpointRegistry(raw: unknown): IAgentHostEndpoint
 		}
 	}
 	return entries;
+}
+
+/**
+ * Whether a VS Code server or Agents Window remote connection of `quality`
+ * should share the agent host of `entry` rather than start its own. Only
+ * `standalone` hosts are shared; `editor` hosts belong to a running VS Code
+ * window. The `protocolVersion` of entries published by the CLI is a fixed
+ * placeholder, so protocol compatibility is left to the connection handshake.
+ */
+export function isShareableAgentHostEndpoint(entry: IAgentHostEndpointMetadata, quality: string | undefined): boolean {
+	return entry.type === 'standalone' && (!entry.quality || !quality || entry.quality === quality);
+}
+
+/** Selects the first matching endpoint in the newest-first order produced by registry readers and `code agent endpoints`. */
+export function selectAgentHostEndpoint(entries: readonly IAgentHostEndpointMetadata[], quality: string | undefined, preference: RemoteAgentHostLocationPreference | undefined): IAgentHostEndpointMetadata | undefined {
+	if (preference === 'editor') {
+		const editor = entries.find(entry => entry.type === 'editor');
+		if (editor) {
+			return editor;
+		}
+	}
+	return entries.find(entry => isShareableAgentHostEndpoint(entry, quality));
 }
 
 /** Stable string key for `(type, pid, instanceId)`, suitable for use as a Map key. */

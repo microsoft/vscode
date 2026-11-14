@@ -76,7 +76,7 @@ function createMockListModelService(): ISessionsListModelService {
 	}();
 }
 
-function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false): void {
+function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithChat, withBackground = false, hovered = false): void {
 	const { container, disposableStore } = ctx;
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: ctx.theme,
@@ -109,6 +109,9 @@ function renderHeader(ctx: ComponentFixtureContext, session: ITestSessionWithCha
 	const header = disposableStore.add(instantiationService.createInstance(SessionHeader));
 	header.setSession(testPaneContentOf(session, () => { }));
 	headerHost.appendChild(header.element);
+	if (hovered) {
+		header.element.querySelector<HTMLElement>('.chat-composite-bar-session-title')?.classList.add('hovered');
+	}
 }
 
 export default defineThemedFixtureGroup({ path: 'sessions/' }, {
@@ -134,5 +137,11 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		render: ctx => renderHeader(ctx, createMockSession({
 			title: 'Investigate and fix the flaky integration test in the notebook editor viewport rendering pipeline',
 		})),
+	}),
+	SessionHeader_Hover: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		additionalThemes: ['darkHighContrast', 'lightHighContrast'],
+		expectedVisualDescriptions: ['The pointer is over the editable chat title. In high contrast themes, a dashed active-contrast boundary surrounds the title without outlining the full header.'],
+		render: ctx => renderHeader(ctx, createMockSession({ title: 'Unclear message' }), false, true),
 	}),
 });

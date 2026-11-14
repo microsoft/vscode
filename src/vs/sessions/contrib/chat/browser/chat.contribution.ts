@@ -10,7 +10,6 @@ import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../plat
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -31,7 +30,7 @@ import './agentHostDelegation.js';
 import './newSessionFolderQuickPickAction.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { INewSessionComposerService, NewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
-import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ISessionsTasksService, SessionsTasksService } from './sessionsTasksService.js';
 import { ISessionTaskRunnerRegistry, SessionTaskRunnerRegistry } from './sessionTaskRunner.js';
 import { AgenticPromptsService } from './promptsService.js';
@@ -76,7 +75,7 @@ import { SessionWorktreeCleanupEditor } from '../../sessionInputBanners/browser/
 import { INewChatVoiceTargetService, NewChatVoiceTargetService } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
 import { ISessionChatPillsDebugService, SessionChatPillsDebugService } from '../../../../workbench/contrib/sessions/browser/chat/sessionChatInputToolbarDebug.js';
 import { ADD_SESSION_REFERENCE_COMMAND, addSessionReference, IAddSessionReferenceArgs } from '../../../../workbench/contrib/sessions/browser/chat/sessionReferenceCompletions.js';
-import { PromptTemplatePlaceholderFocused, REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID, replaceActivePromptTemplatePlaceholder } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
+import { registerReplacePromptTemplatePlaceholderCommand } from '../../../../workbench/contrib/sessions/browser/chat/promptTemplatePlaceholder.js';
 import { registerCompareAgentsSpotlightDescriptor } from '../../../../workbench/contrib/sessions/browser/chat/compareAgentsSpotlight.js';
 import { registerWorktreeSuggestionTourDescriptor } from '../../../../workbench/contrib/sessions/browser/tours/worktreeSuggestionTour.js';
 import { registerSessionArchiveTourDescriptor } from '../../../../workbench/contrib/sessions/browser/tours/sessionArchiveTour.js';
@@ -420,13 +419,7 @@ registerSingleton(ISessionChatPillsDebugService, SessionChatPillsDebugService, I
 
 CommandsRegistry.registerCommand(ADD_SESSION_REFERENCE_COMMAND, (_accessor, args: IAddSessionReferenceArgs) => addSessionReference(args));
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: REPLACE_PROMPT_TEMPLATE_PLACEHOLDER_COMMAND_ID,
-	weight: KeybindingWeight.WorkbenchContrib + 2,
-	when: PromptTemplatePlaceholderFocused,
-	primary: KeyCode.Enter,
-	handler: () => replaceActivePromptTemplatePlaceholder(),
-});
+registerReplacePromptTemplatePlaceholderCommand();
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
 registerSingleton(ISessionsChatViewStateService, SessionsChatViewStateService, InstantiationType.Delayed);

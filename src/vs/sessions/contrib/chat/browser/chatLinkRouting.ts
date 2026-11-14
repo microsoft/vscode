@@ -8,7 +8,7 @@ import { IAgentHostConnectionsService, isDefaultChatLinkId } from '../../../../p
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IChatWindow, IChatWindowService } from '../../../../workbench/contrib/chatWindow/browser/chatWindow.js';
 import { ISession } from '../../../../workbench/services/sessions/common/session.js';
-import { isChatWindowChatGone } from '../../chatWindow/browser/chatWindowOpening.js';
+import { isChatWindowChatGone } from '../../../../workbench/contrib/sessions/browser/chatEditor/sessionChatOpening.js';
 import { CHAT_WINDOWS_ENABLED_SETTING } from '../../chatWindow/common/chatWindows.js';
 
 /** The chat window a link was activated in, and the chat of it the user activated it in. */

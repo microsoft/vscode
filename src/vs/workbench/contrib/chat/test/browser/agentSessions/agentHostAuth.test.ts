@@ -282,6 +282,18 @@ suite('AgentHostAuthTokenCache', () => {
 		assert.deepStrictEqual({ results, authenticateCalls }, { results: [true, false], authenticateCalls: 1 });
 	});
 
+	test('a rejected response is surfaced and does not suppress a same-token retry', async () => {
+		const cache = new AgentHostAuthTokenCache();
+		let accepted = false;
+		let calls = 0;
+		const authenticate = async () => { calls++; return { authenticated: accepted }; };
+		await assert.rejects(cache.authenticate('https://service.example/token', ['read'], 'token', authenticate), /did not accept/);
+		accepted = true;
+		const forwarded = await cache.authenticate('https://service.example/token', ['read'], 'token', authenticate);
+		const repeated = await cache.authenticate('https://service.example/token', ['read'], 'token', authenticate);
+		assert.deepStrictEqual({ calls, forwarded, repeated }, { calls: 2, forwarded: true, repeated: false });
+	});
+
 	test('tracks identical MCP tokens independently by host session and customization id', async () => {
 		const cache = new AgentHostAuthTokenCache();
 		const targets = [
@@ -2217,6 +2229,82 @@ suite('authenticateProtectedResources', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	for (const required of [true, false]) {
+		test(`forwards a broader primary sign-in through an exact-scope provider for ${required ? 'required' : 'optional'} resources`, async () => {
+			const primary: AuthenticationSession = {
+				id: 'primary-session', account: { id: 'selected-account', label: 'Selected' }, accessToken: 'primary-token',
+				scopes: ['read:user', 'repo', 'user:email', 'workflow'],
+			};
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_provider, scopes, options: IAuthenticationProviderSessionOptions | undefined) => [primary].filter(session =>
+					(!scopes || scopes.length === session.scopes.length && scopes.every(scope => session.scopes.includes(scope)))
+					&& (!options?.account || options.account.id === session.account.id)),
+			});
+			const commands = new TestCommandService();
+			const instantiation = createAuthInstantiationService(disposables, authentication, commands);
+			instantiation.stub(IDefaultAccountService, {
+				currentDefaultAccount: {
+					sessionId: primary.id, accountName: primary.account.label, enterprise: false,
+					authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				},
+			});
+			const resource: ProtectedResourceMetadata = { ...protectedResource, scopes_supported: ['read:user', 'user:email'], required };
+			const requests: IAgentHostAuthenticateRequest[] = [];
+			await instantiation.invokeFunction(authenticateProtectedResources, [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [resource];
+			}()], {
+				logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async request => { requests.push(request); },
+			});
+			assert.deepStrictEqual({
+				requests: requests.map(request => ({
+					resource: request.resource, scopes: request.scopes, token: request.token,
+					providerId: readAuthenticationAccount(request)?.providerId, accountId: readAuthenticationAccount(request)?.accountId,
+				})),
+				prompts: commands.calls.length,
+			}, {
+				requests: [{ resource: resource.resource, scopes: resource.scopes_supported, token: primary.accessToken, providerId: 'github', accountId: primary.account.id }],
+				prompts: 0,
+			});
+		});
+	}
+
+	for (const cachedCredential of ['additional permissions', 'another account', 'missing primary session'] as const) {
+		test(`does not authorize optional resources from cached credentials with ${cachedCredential}`, async () => {
+			const primary: AuthenticationSession = {
+				id: 'primary-session', account: { id: 'selected-account', label: 'Selected' }, accessToken: 'primary-token', scopes: ['read:user'],
+			};
+			const cached: AuthenticationSession = {
+				...primary, id: 'cached-session', accessToken: 'cached-token', scopes: ['read:user', 'repo'],
+				account: cachedCredential === 'another account' ? { id: 'other-account', label: 'Other' } : primary.account,
+			};
+			const sessions = cachedCredential === 'missing primary session' ? [cached] : [primary, cached];
+			const authentication = createMockAuthService({
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: async (_provider, scopes, options: IAuthenticationProviderSessionOptions | undefined) => sessions.filter(session =>
+					(!scopes || scopes.length === session.scopes.length && scopes.every(scope => session.scopes.includes(scope)))
+					&& (!options?.account || options.account.id === session.account.id)),
+			});
+			const commands = new TestCommandService();
+			const instantiation = createAuthInstantiationService(disposables, authentication, commands);
+			instantiation.stub(IDefaultAccountService, {
+				currentDefaultAccount: {
+					sessionId: primary.id, accountName: primary.account.label, enterprise: false,
+					authenticationProvider: { id: 'github', name: 'GitHub', enterprise: false },
+				},
+			});
+			const requests: IAgentHostAuthenticateRequest[] = [];
+			await instantiation.invokeFunction(authenticateProtectedResources, [new class extends mock<AgentInfo>() {
+				override readonly protectedResources = [{ ...protectedResource, scopes_supported: ['repo'], required: false }];
+			}()], {
+				logPrefix: '[test]', authTokenCache: new AgentHostAuthTokenCache(),
+				authenticate: async request => { requests.push(request); },
+			});
+			assert.deepStrictEqual({ requests, prompts: commands.calls.length }, { requests: [], prompts: 0 });
+		});
+	}
+
 	for (const requirement of [
 		{ resource: 'https://graph.microsoft.com', scopes_supported: ['User.Read'] },
 		{ resource: 'https://df.loki.delve.office.com/api/v1/llmapi', scopes_supported: ['42c8f7bd-c7a8-4ba9-bc1c-91edfb716247/.default'] },
@@ -2247,7 +2335,7 @@ suite('authenticateProtectedResources', () => {
 			assert.deepStrictEqual({ request, scopedQueries: calls.filter(([, scopes]) => scopes !== undefined) }, {
 				request: {
 					resource: resource.resource, scopes: resource.scopes_supported, token: scoped.accessToken,
-					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id, label: account.label }),
+					_meta: authenticationAccountMeta({ providerId: 'microsoft', accountId: account.id }),
 				},
 				scopedQueries: [['microsoft', resource.scopes_supported, { account, authorizationServer: URI.parse(resource.authorization_servers[0]), silent: true }, true]],
 			});

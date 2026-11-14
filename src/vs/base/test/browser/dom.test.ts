@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter } from '../../browser/dom.js';
+import { $, h, trackAttributes, copyAttributes, disposableWindowInterval, getActiveDocument, getWindows, getWindowsCount, getWindowId, getWindowById, hasWindow, getWindow, getDocument, getDomNodeZoomLevel, isHTMLElement, SafeTriangle, AnimationFrameScheduler, DisposableResizeObserver, getRecentDisposableResizeObserverContextForLoopError, findParentWithClass, hasParentWithClass, ModifierKeyEmitter, alignToDevicePixels, getDevicePixelAlignmentOffset, IDevicePixelAlignment } from '../../browser/dom.js';
 import { asCssValueWithDefault } from '../../../base/browser/cssValue.js';
-import { ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
+import { CodeWindow, ensureCodeWindow, isAuxiliaryWindow, mainWindow } from '../../browser/window.js';
 import { DeferredPromise, timeout } from '../../common/async.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
+import { DisposableStore, toDisposable } from '../../common/lifecycle.js';
 import { runWithFakedTimers } from '../common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
+import { registerTestIframe } from './testWindow.js';
 
 suite('dom', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	test('hasClass', () => {
 
 		const element = document.createElement('div');
@@ -376,6 +379,36 @@ suite('dom', () => {
 		assert.strictEqual(getDocument(event), mainWindow.document);
 	});
 
+	test('getActiveDocument: of windows that all report focus, such as a macOS panel and the window it took focus from without that window losing it, the one focused last, also one that had focus as it registered; not once it lost focus', () => {
+		const createWindow = (focused: { value: boolean }) => {
+			const iframe = mainWindow.document.createElement('iframe');
+			mainWindow.document.body.appendChild(iframe);
+			store.add(toDisposable(() => iframe.remove()));
+			const targetWindow = iframe.contentWindow as CodeWindow;
+			targetWindow.document.hasFocus = () => focused.value;
+			store.add(registerTestIframe(iframe));
+			return targetWindow;
+		};
+		const focus = (targetWindow: CodeWindow) => targetWindow.dispatchEvent(new targetWindow.FocusEvent('focus'));
+		const owner = createWindow({ value: true });
+		focus(owner);
+		// As a panel that took focus as it opened, before it registered, and so has no focus event
+		const panelFocused = { value: true };
+		const panel = createWindow(panelFocused);
+		const active = () => getActiveDocument() === owner.document ? 'owner' : getActiveDocument() === panel.document ? 'panel' : 'other';
+
+		const panelOpenedFocused = active();
+		focus(owner);
+		const ownerFocusedLast = active();
+		focus(panel);
+		const panelFocusedLast = active();
+		panelFocused.value = false;
+		// The first window that reports focus then, which can be the test runner's window
+		const panelActiveOnceUnfocused = active() === 'panel';
+
+		assert.deepStrictEqual({ panelOpenedFocused, ownerFocusedLast, panelFocusedLast, panelActiveOnceUnfocused }, { panelOpenedFocused: 'panel', ownerFocusedLast: 'owner', panelFocusedLast: 'panel', panelActiveOnceUnfocused: false });
+	});
+
 	suite('disposableWindowInterval', () => {
 		test('basics', async () => {
 			let count = 0;
@@ -737,21 +770,201 @@ suite('dom', () => {
 		});
 	});
 
+	test('getDomNodeZoomLevel multiplies ancestor CSS zoom across shadow roots', () => {
+		const outer = mainWindow.document.body.appendChild($('div'));
+		store.add(toDisposable(() => outer.remove()));
+		outer.style.zoom = '1.25';
+		const host = outer.appendChild($('div'));
+		host.style.zoom = '0.8';
+		const shadow = host.attachShadow({ mode: 'open' });
+		const inner = shadow.appendChild($('div'));
+		const leaf = inner.appendChild($('div'));
+		leaf.style.zoom = '2';
+
+		assert.deepStrictEqual({
+			outer: getDomNodeZoomLevel(outer),
+			host: getDomNodeZoomLevel(host),
+			inner: getDomNodeZoomLevel(inner),
+			leaf: getDomNodeZoomLevel(leaf),
+		}, {
+			outer: 1.25,
+			host: 1,
+			inner: 1,
+			leaf: 2,
+		});
+	});
+
 	suite('ModifierKeyEmitter', () => {
 		test('exposes the keyboard event only while notifying listeners', () => {
+			const disposables = new DisposableStore();
 			const emitter = ModifierKeyEmitter.getInstance();
 			const received: (string | undefined)[] = [];
-			const listener = emitter.event(status => received.push(status.event?.type));
+			disposables.add(emitter.event(status => received.push(status.event?.type)));
 			try {
 				mainWindow.dispatchEvent(new KeyboardEvent('keydown', { key: 'Control', ctrlKey: true }));
 				mainWindow.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', ctrlKey: false }));
 			} finally {
-				listener.dispose();
+				disposables.dispose();
 			}
 
 			assert.deepStrictEqual({ received, retained: emitter.keyStatus.event }, { received: ['keydown', 'keyup'], retained: undefined });
 		});
 	});
 
-	ensureNoDisposablesAreLeakedInTestSuite();
+	suite('alignToDevicePixels', () => {
+		let host: HTMLElement;
+
+		setup(() => {
+			host = mainWindow.document.body.appendChild($('div'));
+		});
+
+		teardown(() => {
+			host.remove();
+		});
+
+		/** Chromium lays out in 1/64 device pixels and reports client rects as floats, so an aligned position is only on a device pixel to within the helper's tolerance. */
+		function precision(dpr: number): number {
+			return Math.max(dpr, 1) / 64 * 1.05;
+		}
+
+		/** Whether the element starts on a whole device pixel, within Chromium's layout precision. */
+		function isDeviceAligned(element: HTMLElement): boolean {
+			const rect = element.getBoundingClientRect();
+			const dpr = getWindow(element).devicePixelRatio;
+			const misalignment = (value: number) => Math.abs(value * dpr - Math.round(value * dpr));
+			return misalignment(rect.left) <= precision(dpr) && misalignment(rect.top) <= precision(dpr);
+		}
+
+		function createPositioned(parent: HTMLElement, insets: Partial<Record<'left' | 'top' | 'right' | 'bottom', string>>, zoom = 1): HTMLElement {
+			const element = parent.appendChild($('div'));
+			element.style.position = 'fixed';
+			element.style.width = '50px';
+			element.style.height = '20px';
+			Object.assign(element.style, insets);
+			// Move px insets so the element sits half a device pixel off the grid, clear of the rounding tolerance at any DPR
+			const dpr = getWindow(element).devicePixelRatio;
+			const rect = element.getBoundingClientRect();
+			for (const [start, end, value] of [['left', 'right', rect.left], ['top', 'bottom', rect.top]] as const) {
+				const offset = ((Math.floor(value * dpr) + 0.5) / dpr - value) / zoom;
+				if (element.style[start].endsWith('px')) {
+					element.style[start] = `${parseFloat(element.style[start]) + offset}px`;
+				} else if (element.style[end].endsWith('px')) {
+					element.style[end] = `${parseFloat(element.style[end]) - offset}px`;
+				}
+			}
+			return element;
+		}
+
+		test('moves fractional left/top or right/bottom insets onto whole device pixels without drifting', () => {
+			const leftTop = createPositioned(host, { left: '10px', top: '20px' });
+			const rightBottom = createPositioned(host, { right: '10px', bottom: '20px' });
+			const percent = createPositioned(host, { left: '10.3%', top: '20.7%' });
+			const results = [leftTop, rightBottom].map(element => {
+				const before = isDeviceAligned(element);
+				alignToDevicePixels(element);
+				const styleAfterFirst = [element.style.left, element.style.top, element.style.right, element.style.bottom];
+				alignToDevicePixels(element);
+				const styleAfterSecond = [element.style.left, element.style.top, element.style.right, element.style.bottom];
+				return { before, after: isDeviceAligned(element), stable: styleAfterFirst.join() === styleAfterSecond.join(), untouchedInsets: styleAfterSecond.filter(value => value === '').length };
+			});
+			alignToDevicePixels(percent);
+
+			assert.deepStrictEqual({ results, percentInsets: [percent.style.left, percent.style.top, percent.style.right, percent.style.bottom] }, {
+				results: [
+					{ before: false, after: true, stable: true, untouchedInsets: 2 },
+					{ before: false, after: true, stable: true, untouchedInsets: 2 },
+				],
+				percentInsets: ['10.3%', '20.7%', '', '']
+			});
+		});
+
+		test('accounts for CSS zoom on ancestors, including shadow hosts', () => {
+			const zoomed = host.appendChild($('div'));
+			zoomed.style.zoom = '2';
+			const element = createPositioned(zoomed, { left: '10px', top: '20px' }, 2);
+			const shadowHost = host.appendChild($('div'));
+			shadowHost.style.zoom = '2';
+			const shadowElement = createPositioned(shadowHost.attachShadow({ mode: 'open' }).appendChild($('div')), { left: '10px', top: '20px' }, 2);
+			const results = [element, shadowElement].map(element => {
+				const before = isDeviceAligned(element);
+				alignToDevicePixels(element);
+				return { before, after: isDeviceAligned(element) };
+			});
+
+			assert.deepStrictEqual(results, [{ before: false, after: true }, { before: false, after: true }]);
+		});
+
+		test('rounds in the requested direction', () => {
+			const dpr = getWindow(host).devicePixelRatio;
+			const near = (actual: number, expected: number) => Math.abs(actual - expected) <= precision(dpr);
+			const position = (direction: IDevicePixelAlignment) => {
+				const element = createPositioned(host, { left: '10px', top: '20px' });
+				const before = element.getBoundingClientRect();
+				alignToDevicePixels(element, direction);
+				const after = element.getBoundingClientRect();
+				return { before: [before.left * dpr, before.top * dpr], after: [after.left * dpr, after.top * dpr] };
+			};
+			const upLeft = position({ horizontal: 'start', vertical: 'start' });
+			const downRight = position({ horizontal: 'end', vertical: 'end' });
+			// Starts 0.6 and is sized 0.6 device pixels past whole ones, so rounding its far edge moves it toward the start,
+			// while rounding its near edge would move it toward the end
+			const sized = createPositioned(host, { left: '10px', top: '20px' });
+			sized.style.left = `${parseFloat(sized.style.left) + 0.1 / dpr}px`;
+			sized.style.top = `${parseFloat(sized.style.top) + 0.1 / dpr}px`;
+			sized.style.width = `${(Math.floor(50 * dpr) + 0.6) / dpr}px`;
+			sized.style.height = `${(Math.floor(20 * dpr) + 0.6) / dpr}px`;
+			const before = sized.getBoundingClientRect();
+			alignToDevicePixels(sized, { horizontal: 'nearestEnd', vertical: 'nearestEnd' });
+			const after = sized.getBoundingClientRect();
+			const paintedEnd = (start: number, size: number) => Math.round(start * dpr) + Math.round(size * dpr);
+
+			assert.deepStrictEqual({
+				upLeft: upLeft.after.map((value, i) => near(value, Math.floor(upLeft.before[i]))),
+				downRight: downRight.after.map((value, i) => near(value, Math.ceil(downRight.before[i]))),
+				nearestEnd: {
+					aligned: isDeviceAligned(sized),
+					endsWhereUnaligned: [paintedEnd(after.left, after.width) === Math.round(before.right * dpr), paintedEnd(after.top, after.height) === Math.round(before.bottom * dpr)],
+					movedTowardStart: [after.left < before.left, after.top < before.top]
+				}
+			}, {
+				upLeft: [true, true],
+				downRight: [true, true],
+				nearestEnd: { aligned: true, endsWhereUnaligned: [true, true], movedTowardStart: [true, true] }
+			});
+		});
+
+		test('keeps an aligned start when rounding the far edge again', () => {
+			// Chromium lays out in 1/64 device pixels and reports client rects as floats, so an aligned start can read just short of its device pixel
+			const read = (position: number, dpr: number) => Math.fround(Math.floor(position * dpr * 64 + 1e-6) / 64 / dpr);
+			// A position is only written, and so laid out again, when it moves
+			const align = (position: number, dpr: number, size: number) => {
+				const offset = getDevicePixelAlignmentOffset(position, dpr, 'nearestEnd', size);
+				return offset === 0 ? position : read(position + offset, dpr);
+			};
+			// A 17px view is 25.5 device pixels at DPR 1.5, so its far edge rounds to the device pixel before it when read just short
+			const first = align(3.375, 1.5, 17);
+			let unstable = 0;
+			for (const dpr of [0.5, 1, 1.25, 1.32, 1.5, 1.75, 2, 2.5, 3]) {
+				for (let unit = 0; unit < 4 * 64 * dpr; unit++) {
+					for (let size = 10; size < 30; size += 7 / 64) {
+						if (getDevicePixelAlignmentOffset(align(read(unit / 64 / dpr, dpr), dpr, read(size, dpr)), dpr, 'nearestEnd', read(size, dpr)) !== 0) {
+							unstable++;
+						}
+					}
+				}
+			}
+
+			assert.deepStrictEqual({ first, second: getDevicePixelAlignmentOffset(first, 1.5, 'nearestEnd', 17), unstable }, { first: Math.fround(10 / 3), second: 0, unstable: 0 });
+		});
+
+		test('treats a position floored by layout as aligned below a device pixel ratio of 1', () => {
+			// Chromium floors a position on device pixel 40 to as little as 1/64 device pixel short of it, which must not round down a whole device pixel
+			const offsets = [0.5, 0.67, 0.75, 0.9].map(dpr => {
+				const position = Math.fround((40 - 1 / 64) / dpr);
+				return (['start', 'end', 'nearest', 'nearestEnd'] as const).map(rounding => getDevicePixelAlignmentOffset(position, dpr, rounding, 10));
+			});
+
+			assert.deepStrictEqual(offsets, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]);
+		});
+	});
 });

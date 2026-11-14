@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as eslint from 'eslint';
-import { TSESTree } from '@typescript-eslint/utils';
+import type { Context, CreateRule, ESTree, RuleMeta, Visitor } from '@oxlint/plugins';
 import * as path from 'path';
 import minimatch from 'minimatch';
 import { createImportRuleListener } from './utils.ts';
@@ -77,9 +76,9 @@ interface ImportPatternsConfig {
 	restrictions: string[];
 }
 
-export default new class implements eslint.Rule.RuleModule {
+export default new class implements CreateRule {
 
-	readonly meta: eslint.Rule.RuleMetaData = {
+	readonly meta: RuleMeta = {
 		messages: {
 			badImport: 'Imports violates \'{{restrictions}}\' restrictions. See https://github.com/microsoft/vscode/wiki/Source-Code-Organization',
 			badFilename: 'Missing definition in `code-import-patterns` for this file. Define rules at https://github.com/microsoft/vscode/blob/main/eslint.config.js',
@@ -92,8 +91,9 @@ export default new class implements eslint.Rule.RuleModule {
 		schema: false,
 	};
 
-	create(context: eslint.Rule.RuleContext): eslint.Rule.RuleListener {
-		const options = context.options as RawOption[];
+	create(context: Context): Visitor {
+		// Option interfaces have no index signature, so they don't overlap with JSON values
+		const options = context.options as unknown as readonly RawOption[];
 		const configs = this._processOptions(options);
 		const relativeFilename = getRelativeFilename(context);
 		const segments = relativeFilename.split(/\/+/);
@@ -117,7 +117,7 @@ export default new class implements eslint.Rule.RuleModule {
 	// ESLint passes a new `context.options` array for every file, but the option objects in it are reused.
 	private _optionsCache = new WeakMap<RawOption, ImportPatternsConfig[]>();
 
-	private _processOptions(options: RawOption[]): ImportPatternsConfig[] {
+	private _processOptions(options: readonly RawOption[]): ImportPatternsConfig[] {
 		const cacheKey = options[0];
 		const cached = cacheKey && this._optionsCache.get(cacheKey);
 		if (cached) {
@@ -270,7 +270,7 @@ export default new class implements eslint.Rule.RuleModule {
 		return configs;
 	}
 
-	private _checkImport(context: eslint.Rule.RuleContext, config: ImportPatternsConfig, targetIsVS: boolean, relativeDirname: string, node: TSESTree.Node, importPath: string) {
+	private _checkImport(context: Context, config: ImportPatternsConfig, targetIsVS: boolean, relativeDirname: string, node: ESTree.Node, importPath: string) {
 		if (targetIsVS) {
 
 			// ESM: check for import ending with ".js" or ".css"
@@ -335,7 +335,7 @@ function isAllowedImport(config: ImportPatternsConfig, importPath: string): bool
 /**
  * Returns the filename relative to the project root and using `/` as separators
  */
-function getRelativeFilename(context: eslint.Rule.RuleContext): string {
+function getRelativeFilename(context: Context): string {
 	const filename = path.normalize(context.filename);
 	return filename.substring(REPO_ROOT.length).replace(/\\/g, '/');
 }

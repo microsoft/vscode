@@ -16,6 +16,7 @@ type KeyEvent = {
 	readonly ctrlKey: boolean;
 	readonly metaKey: boolean;
 	readonly repeat: boolean;
+	readonly timestamp?: number;
 	readonly isComposing?: boolean;
 	readonly altGraphKey?: boolean;
 	readonly isTrusted: boolean;
@@ -64,6 +65,7 @@ interface UpdateContentEvent {
 		allowMultipleAPIAcquire: boolean;
 		allowScripts: boolean;
 		allowForms: boolean;
+		includeHorizontalScrollbarInContentHeight?: boolean;
 	};
 	state: any;
 	cspSource: string;

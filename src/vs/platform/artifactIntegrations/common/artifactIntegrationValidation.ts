@@ -83,7 +83,8 @@ export function isArtifactIntegrationDescriptor(value: unknown): value is Artifa
 
 export function isArtifactActor(value: unknown): value is ArtifactActor {
 	return isRecord(value) && (value.kind === 'user'
-		|| (value.kind === 'agent' && typeof value.chat === 'string' && value.chat.length > 0 && (value.turnId === undefined || typeof value.turnId === 'string')));
+		|| (value.kind === 'agent' && typeof value.chat === 'string' && value.chat.length > 0 && (value.turnId === undefined || typeof value.turnId === 'string')
+			&& (value.autoApproved === undefined || typeof value.autoApproved === 'boolean')));
 }
 
 export function isArtifactAutomationOption(value: unknown): value is ArtifactAutomationOption {
@@ -148,6 +149,7 @@ function isAuthority(value: unknown): boolean {
 
 export function isArtifactActionDescriptor(value: unknown): value is ArtifactActionDescriptor {
 	return isRecord(value) && strings(value, 'id', 'iconId', 'label') && (value.kind === 'code' || value.kind === 'prompt')
+		&& (value.activityLabel === undefined || strings(value, 'activityLabel'))
 		&& (value.consentVersion === undefined || typeof value.consentVersion === 'string');
 }
 

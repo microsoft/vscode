@@ -255,12 +255,13 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const copilotRuntimePrebuilds = gulp.src(getCopilotRuntimePrebuildFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
 		ensureOSProxyResolverPlatformPackage(platform, arch);
 		const osProxyResolverPlatformPackage = gulp.src(getOSProxyResolverPlatformFiles(platform, arch), { base: '.', dot: true, allowEmpty: true });
+		// `cleanedDeps` has already dropped dot files; keep those of the platform packages, such as SDK plugin manifests.
 		const deps = es.merge(cleanedDeps, copilotRuntimePrebuilds, osProxyResolverPlatformPackage)
-			.pipe(filter(getCopilotExcludeFilter(platform, arch)))
-			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getRipgrepExcludeFilter(platform, arch)))
-			.pipe(filter(getFoundryLocalExcludeFilter()))
-			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch)))
+			.pipe(filter(getCopilotExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getCopilotTgrepExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getRipgrepExcludeFilter(platform, arch), { dot: true }))
+			.pipe(filter(getFoundryLocalExcludeFilter(), { dot: true }))
+			.pipe(filter(getOSProxyResolverExcludeFilter(platform, arch), { dot: true }))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)

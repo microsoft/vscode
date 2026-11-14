@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
+import sinon from 'sinon';
 import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { createSimpleKeybinding, ResolvedKeybinding, KeyCodeChord, Keybinding } from '../../../../base/common/keybindings.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -71,8 +72,8 @@ suite('AbstractKeybindingService', () => {
 			return [];
 		}
 
-		public testDispatch(kb: number, isComposing: boolean = false, handler?: KeybindingCommandHandler, type: 'keydown' | 'keyup' = 'keydown'): boolean {
-			return this.dispatchEvent(this._toKeyboardEvent(kb, isComposing), null!, handler, type);
+		public testDispatch(kb: number, isComposing: boolean = false, handler?: KeybindingCommandHandler, type: 'keydown' | 'keyup' = 'keydown', timestamp?: number): boolean {
+			return this.dispatchEvent({ ...this._toKeyboardEvent(kb, isComposing), timestamp }, null!, handler, type);
 		}
 
 		public testSoftDispatch(kb: number, isComposing: boolean = false): ResolutionResult {
@@ -241,6 +242,40 @@ suite('AbstractKeybindingService', () => {
 	}
 
 	suite('simple tests: single- and multi-chord keybindings are dispatched', () => {
+
+		test('single-modifier chords use capture time rather than delivery time', () => {
+			const kbService = createTestKeybindingService([kbItem([KeyCode.Shift, KeyCode.Shift], 'deleteWordLeft')]);
+			const local: string[] = [];
+			const handler: KeybindingCommandHandler = id => { local.push(id); return true; };
+			try {
+				currentContextValue = createContext({});
+				const handled = [1000, 1400, 1699, 2500, 2800, 2900].map(timestamp =>
+					kbService.testDispatch(KeyCode.Shift, false, handler, 'keyup', timestamp));
+				assert.deepStrictEqual({ handled, local }, {
+					handled: [false, false, true, false, false, true],
+					local: ['deleteWordLeft', 'deleteWordLeft'],
+				});
+			} finally {
+				kbService.dispose();
+			}
+		});
+
+		test('delayed delivery does not expire a valid captured modifier chord', () => {
+			const clock = sinon.useFakeTimers();
+			const kbService = createTestKeybindingService([kbItem([KeyCode.Shift, KeyCode.Shift], 'deleteWordLeft')]);
+			try {
+				currentContextValue = createContext({});
+				const first = kbService.testDispatch(KeyCode.Shift, false, undefined, 'keyup', 1000);
+				clock.tick(1000);
+				const second = kbService.testDispatch(KeyCode.Shift, false, undefined, 'keyup', 1100);
+				assert.deepStrictEqual({ first, second, calls: executeCommandCalls }, {
+					first: false, second: true, calls: [{ commandId: 'deleteWordLeft', args: [null] }],
+				});
+			} finally {
+				kbService.dispose();
+				clock.restore();
+			}
+		});
 
 		test('target command handler receives single-modifier chords in keyup order', () => {
 			const kbService = createTestKeybindingService([kbItem([KeyCode.Shift, KeyCode.Shift], 'deleteWordLeft')]);

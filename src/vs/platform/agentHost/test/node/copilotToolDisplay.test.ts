@@ -356,15 +356,15 @@ suite('Sandbox path grant confirmation display', () => {
 		const write = getSandboxPathGrantConfirmation({ path: '/write', access: 'readWrite' });
 		const upgrade = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite', deniedPath: '/folder/new/file', removedReadonlyPaths: ['/folder'] });
 		const messages = [read, write, upgrade].map(display => typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage);
-		assert.deepStrictEqual(messages.map(message => message?.split('\n\n').slice(0, 2)), [
-			['Allow read access to `/read` and retry inside the sandbox.', 'Session access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization\'s restrictions still apply.'],
-			['Allow read/write access to `/write` and retry inside the sandbox.', 'Session access is shared by chats in this session and saved when you resume it. User access is saved to your user sandbox settings and shared with connected agent hosts across workspaces and sessions. Your organization\'s restrictions still apply.'],
-			['Change access to `/folder` from read-only to read/write and retry inside the sandbox.', 'The blocked path was `/folder/new/file`. Access will cover the granted path above, including its contents if it is a folder.'],
+		assert.deepStrictEqual(messages, [
+			'Allow read access to `/read` and retry inside the sandbox.',
+			'Allow read/write access to `/write` and retry inside the sandbox.',
+			'Change access to `/folder` from read-only to read/write and retry inside the sandbox.\n\nThe blocked path was `/folder/new/file`. Access will cover `/folder`, including its contents if it is a folder.',
 		]);
 	});
 
-	test('offers Session first, User second and Skip', () => {
-		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' });
+	test('offers Session first, Workspace second, User third and Skip when Workspace is available', () => {
+		const display = getSandboxPathGrantConfirmation({ path: '/folder', access: 'readWrite' }, undefined, true);
 		assert.deepStrictEqual({
 			title: display.confirmationTitle,
 			options: display.options?.map(option => ({ id: option.id, label: option.label, kind: option.kind })),
@@ -372,10 +372,66 @@ suite('Sandbox path grant confirmation display', () => {
 			title: 'Allow sandbox path access and retry?',
 			options: [
 				{ id: 'save-session-sandbox-path', label: 'Allow for This Session', kind: 'approve' },
+				{ id: 'save-workspace-sandbox-path', label: 'Allow for This Workspace', kind: 'approve' },
 				{ id: 'save-sandbox-path', label: 'Allow for This User', kind: 'approve' },
 				{ id: 'skip', label: 'Skip', kind: 'deny' },
 			],
 		});
+	});
+
+	test('labels a blocked session path without narrowing a broader raw grant', () => {
+		const grant = { path: '/copilot/session-state', deniedPath: '/copilot/session-state/sdk/notes.txt', access: 'read' as const };
+		const display = getSandboxPathGrantConfirmation(grant, {
+			path: { label: grant.path, fullPath: grant.path },
+			deniedPath: { label: 'This session / notes.txt', fullPath: grant.deniedPath },
+		});
+		assert.deepStrictEqual(typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown.split('\n\n') : undefined, [
+			'Allow read access to `/copilot/session-state` and retry inside the sandbox.',
+			'The blocked path was `This session / notes.txt`. Access will cover `/copilot/session-state`, including its contents if it is a folder.',
+		]);
+	});
+
+	test('describes session storage with the full relative path in code', () => {
+		const path = '/copilot/session-state/sdk/files/workspace.yml';
+		const display = { label: 'This session / files/workspace.yml', fullPath: path, isCurrentSession: true, relativePath: 'files/workspace.yml' };
+		const variants = [
+			getSandboxPathGrantConfirmation({ path, access: 'read' }, { path: display }),
+			getSandboxPathGrantConfirmation({ path, access: 'readWrite' }, { path: display }),
+			getSandboxPathGrantConfirmation({ path, access: 'readWrite', removedReadonlyPaths: [path] }, { path: display }),
+			getSandboxPathGrantConfirmation({ path: '/copilot/session-state/sdk', access: 'read' }, { path: { ...display, relativePath: '' } }),
+			getSandboxPathGrantConfirmation({ path: '/copilot/session-state/sdk/workspace.yaml', access: 'read' }, { path: { ...display, relativePath: 'workspace.yaml' } }),
+		];
+		assert.deepStrictEqual(variants.map(value => typeof value.invocationMessage === 'object' ? value.invocationMessage.markdown.split('\n\n')[0] : undefined), [
+			'Allow read access to `files/workspace.yml` in this session\'s storage.',
+			'Allow read/write access to `files/workspace.yml` in this session\'s storage.',
+			'Change access to `files/workspace.yml` in this session\'s storage from read-only to read/write.',
+			'Allow read access to this session\'s storage.',
+			'Allow read access to `workspace.yaml` in this session\'s storage.',
+		]);
+	});
+
+	test('names the granted storage folder when the blocked file is inside it', () => {
+		const path = '/copilot/session-state/sdk';
+		const deniedPath = `${path}/workspace.yml`;
+		const display = getSandboxPathGrantConfirmation({ path, deniedPath, access: 'read' }, {
+			path: { label: 'This session', fullPath: path, isCurrentSession: true, relativePath: '' },
+			deniedPath: { label: 'This session / workspace.yml', fullPath: deniedPath, isCurrentSession: true, relativePath: 'workspace.yml' },
+		});
+		assert.deepStrictEqual(typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown.split('\n\n').slice(0, 2) : undefined, [
+			'Allow read access to this session\'s storage.',
+			'The blocked path was `workspace.yml` in this session\'s storage. Access will cover `/copilot/session-state/sdk`, including its contents if it is a folder.',
+		]);
+	});
+
+	test('omits unsupported Workspace scope and keeps the message focused on path access', () => {
+		const displays = [false, true].map(available => getSandboxPathGrantConfirmation({ path: '/read', access: 'read' }, undefined, available));
+		assert.deepStrictEqual(displays.map(display => ({
+			options: display.options?.map(option => option.id),
+			message: typeof display.invocationMessage === 'object' ? display.invocationMessage.markdown : display.invocationMessage,
+		})), [
+			{ options: ['save-session-sandbox-path', 'save-sandbox-path', 'skip'], message: 'Allow read access to `/read` and retry inside the sandbox.' },
+			{ options: ['save-session-sandbox-path', 'save-workspace-sandbox-path', 'save-sandbox-path', 'skip'], message: 'Allow read access to `/read` and retry inside the sandbox.' },
+		]);
 	});
 });
 
@@ -467,6 +523,7 @@ suite('getPermissionDisplay — MCP tool confirmation', () => {
 				toolInput: '{"serverName":"GitHub","toolName":"issue_read"}',
 				permissionKind: AgentPermissionKind.Mcp,
 				permissionPath: undefined,
+				mcpServerName: 'GitHub',
 			},
 			fallback: 'GitHub: issue_read',
 			toolName: 'issue_read',

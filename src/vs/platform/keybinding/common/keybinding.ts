@@ -36,6 +36,8 @@ export interface IKeyboardEvent {
 	readonly altGraphKey: boolean;
 	readonly keyCode: KeyCode;
 	readonly code: string;
+	/** Event capture time in milliseconds since the Unix epoch, including for bridged events. */
+	readonly timestamp?: number;
 }
 
 /** Returns true when the target handles the resolved command instead of the command service. */

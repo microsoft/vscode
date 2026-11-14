@@ -288,7 +288,7 @@ export interface IPermissionsValue {
 const permissionsProperty = schemaProperty<IPermissionsValue>({
 	type: 'object',
 	title: localize('agentHost.sessionConfig.permissions', "Permissions"),
-	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), or Edit(./docs/**). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
+	description: localize('agentHost.sessionConfig.permissionsDescription', "Permission rules: a tool name or Tool(specifier), e.g. Shell(npm run *), WebFetch(example.com), WebFetch(example.com/docs/*), Read(./src/**), Edit(./docs/**), Mcp(server), or Mcp(server/tool). Shell specifiers support wildcards, /regex/flags, and commandLine:<specifier> for the full command line. Deny rules reject matching calls; ask rules require confirmation before allow rules or implicit defaults. Updated automatically when approving \"in this Session\" or \"Always Allow\"."),
 	properties: {
 		allow: {
 			type: 'array',
@@ -592,6 +592,9 @@ export const AgentHostBrowserUseEnabledConfigKey = 'browserUseEnabled';
 /** Root config key forwarded from the renderer for cached MCP tool routing. */
 export const AgentHostMcpToolRoutingEnabledConfigKey = 'mcpToolRoutingEnabled';
 
+/** Root config key forwarded from the renderer for the configured MCP Gallery service URL. */
+export const AgentHostMcpGalleryServiceUrlConfigKey = 'mcpGalleryServiceUrl';
+
 /** Host-persisted server identities explicitly approved for MCP sampling in all sessions. */
 export const AgentHostMcpSamplingAllowedServersConfigKey = 'mcpSamplingAllowedServers';
 
@@ -670,6 +673,7 @@ export type AgentHostAgentOrchestrationLimits = 'on' | 'off';
 
 /** Root config key forwarded from the renderer for the artifact tools and their instruction. */
 export const AgentHostArtifactToolsConfigKey = 'artifactTools';
+export const AgentHostChatResourcesConfigKey = 'chatResources';
 export const AgentHostArtifactIntegrationsConfigKey = 'artifactIntegrations';
 export const AgentHostGitHubArtifactIgnoredChecksConfigKey = 'githubArtifactMarkReadyIgnoredChecks';
 
@@ -969,6 +973,12 @@ export const platformRootSchema = createSchema({
 		description: localize('agentHost.config.mcpToolRoutingEnabled.description', "Whether Copilot agent sessions use cached MCP tool metadata for routing."),
 		default: false,
 	}),
+	[AgentHostMcpGalleryServiceUrlConfigKey]: schemaProperty<string>({
+		type: 'string',
+		title: localize('agentHost.config.mcpGalleryServiceUrl.title', "MCP Gallery Service URL"),
+		description: localize('agentHost.config.mcpGalleryServiceUrl.description', "The MCP Gallery service URL configured in VS Code. The agent host downloads MCP server details for installation from this gallery itself, including when it is on a private network. Empty when no gallery is configured."),
+		default: '',
+	}),
 	[AgentHostMcpSamplingAllowedServersConfigKey]: schemaProperty<string[]>({
 		type: 'array',
 		title: localize('agentHost.config.mcpSamplingAllowedServers.title', "MCP Sampling Allowed Servers"),
@@ -986,7 +996,7 @@ export const platformRootSchema = createSchema({
 	[AgentHostExtensionPermissionApprovalsConfigKey]: schemaProperty<Record<string, 'allow' | 'deny'>>({
 		type: 'object',
 		title: localize('agentHost.config.extensionPermissionApprovals.title', "Extension Permission Approvals"),
-		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, in all sessions on this agent host. Identities include the extension name and requested capabilities. Remove an entry to ask again."),
+		description: localize('agentHost.config.extensionPermissionApprovals.description', "Per-extension-identity decisions for letting Copilot extensions load with privileged capabilities, such as registering hooks, or read sensitive environment variables, in all sessions on this agent host. Identities include the extension name and the requested capabilities or variable names. Decisions about a project's extensions to read sensitive environment variables are never stored. Remove an entry to ask again."),
 		additionalProperties: { type: 'string', title: localize('agentHost.config.extensionPermissionApprovals.entry', "Extension Permission Decision"), enum: ['allow', 'deny'] },
 		default: {},
 	}),
@@ -1053,6 +1063,12 @@ export const platformRootSchema = createSchema({
 		type: 'boolean',
 		title: localize('agentHost.config.artifactTools.title', "Artifact Tools"),
 		description: localize('agentHost.config.artifactTools.description', "Whether agents can record artifacts — pull requests, issues, commits, websites, files and other resources — with the artifact tools."),
+		default: false,
+	}),
+	[AgentHostChatResourcesConfigKey]: schemaProperty<boolean>({
+		type: 'boolean',
+		title: localize('agentHost.config.chatResources.title', "Chat Resources"),
+		description: localize('agentHost.config.chatResources.description', "Whether agents can choose how the chat shows the files they record, such as above the chat input."),
 		default: false,
 	}),
 	[AgentHostArtifactIntegrationsConfigKey]: schemaProperty<boolean>({

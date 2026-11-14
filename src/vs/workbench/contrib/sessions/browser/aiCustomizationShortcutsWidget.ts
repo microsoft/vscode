@@ -5,6 +5,7 @@
 
 import './media/sidebarActionButton.css';
 import './media/customizationsToolbar.css';
+import './media/disclosure.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
@@ -148,7 +149,7 @@ export class AICustomizationShortcutsWidget extends Disposable {
 		this._setRootPadding(container, CUSTOMIZATIONS_VERTICAL_PADDING, CUSTOMIZATIONS_VERTICAL_PADDING);
 
 		// Header
-		const header = DOM.append(container, $('.ai-customization-header'));
+		const header = DOM.append(container, $('.ai-customization-header.sessions-disclosure'));
 		this._headerElement = header;
 		header.setAttribute('role', 'button');
 		header.setAttribute('aria-expanded', 'true');
