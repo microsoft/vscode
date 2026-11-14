@@ -21,6 +21,8 @@ import { IConfigurationChangeEvent, IConfigurationService } from '../../../../..
 import { ExplorerFindProviderActive, IFilesConfiguration, UndoConfirmLevel } from '../../common/files.js';
 import { dirname, joinPath, distinctParents, relativePath } from '../../../../../base/common/resources.js';
 import { localize } from '../../../../../nls.js';
+import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { CANCEL_EXPLORER_EDIT_COMMAND_ID } from '../fileConstants.js';
 import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { equals, deepClone } from '../../../../../base/common/objects.js';
 import { posix, relative, sep } from '../../../../../base/common/path.js';
@@ -839,7 +841,8 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IExplorerService private readonly explorerService: IExplorerService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -1055,6 +1058,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 
 		// Input field for name
 		const lastDot = value.lastIndexOf('.');
+		const cancelKeybinding = this.keybindingService.lookupKeybinding(CANCEL_EXPLORER_EDIT_COMMAND_ID)?.getAriaLabel();
 		const inputBox = disposables.add(this.instantiationService.createInstance(InlineEditInputBox, label.element, {
 			...editableData,
 			onFinish: (value, success) => {
@@ -1064,8 +1068,11 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			}
 		}, {
 			value,
-			ariaLabel: localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or Escape to cancel."),
-			selection: { start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length }
+			ariaLabel: cancelKeybinding
+				? localize('fileInputAriaLabel', "Type file name. Press Enter to confirm or {0} to cancel.", cancelKeybinding)
+				: localize('fileInputAriaLabelNoCancel', "Type file name. Press Enter to confirm."),
+			selection: { start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length },
+			cancelOnEscape: false
 		})).inputBox;
 
 		let currentSelectionState = 'prefix';

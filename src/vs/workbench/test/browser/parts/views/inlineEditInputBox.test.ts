@@ -95,6 +95,20 @@ suite('InlineEditInputBox', () => {
 		});
 	});
 
+	test('leaves Escape to keybindings when cancelOnEscape is false', () => {
+		const inputBox = createInputBox({}, { ariaLabel: 'Rename', value: 'file.txt', cancelOnEscape: false });
+		let bubbled = false;
+		container.addEventListener('keydown', () => bubbled = true);
+
+		pressKey(inputBox, 'Escape');
+
+		assert.deepStrictEqual({ bubbled, finished, rendered: container.childElementCount }, {
+			bubbled: true,
+			finished: [],
+			rendered: 1
+		});
+	});
+
 	test('accepts values with non-error messages', () => {
 		const inputBox = createInputBox({ validationMessage: () => ({ content: 'Info', severity: Severity.Info }) }, { ariaLabel: 'Rename', value: 'name' });
 
