@@ -149,6 +149,22 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['cancel load', 'cancel restore', 'newChat', 'focus', 'newChat'] });
 	});
 
+	test('focusing the input of a Chat view that shows only the sessions focuses its sessions, else the composer that shows, else the chat', () => {
+		const focused: string[] = [];
+		const focusInput = Reflect.get(ChatViewPane.prototype, 'focusInput') as (this: object) => void;
+		const host = (sessionsOnly: boolean, composerShown: boolean) => ({
+			providedSessionsList: { sessionsOnly: constObservable(sessionsOnly) },
+			sessionsControl: { focus: () => focused.push('sessions') },
+			providedComposer: { focus: () => focused.push('composer') },
+			composerShown,
+			_widget: { focusInput: () => focused.push('chat') },
+		});
+		focusInput.call(host(true, true));
+		focusInput.call(host(false, true));
+		focusInput.call(host(false, false));
+		assert.deepStrictEqual(focused, ['sessions', 'composer', 'chat']);
+	});
+
 	test('as New Chat clears a chat with focus in the Chat view, the composer that shows in its place takes focus', () => {
 		const focused: string[] = [];
 		const element = mainWindow.document.body.appendChild(document.createElement('div'));

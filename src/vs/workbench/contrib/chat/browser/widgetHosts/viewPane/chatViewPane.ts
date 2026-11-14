@@ -1873,6 +1873,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	focusInput(): void {
+		// Showing only the sessions, the Chat view has no input of its own: its sessions take focus
+		if (this.providedSessionsList?.sessionsOnly.get()) {
+			this.sessionsControl?.focus();
+			return;
+		}
 		if (this.composerShown && this.providedComposer) {
 			this.providedComposer.focus();
 			return;
