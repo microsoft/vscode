@@ -38,7 +38,7 @@ const CORE_SERVICES = new Set([
 	'ILanguageModelsService', 'ILanguageModelToolsService', 'instantiationService', 'IPromptsService', 'IUriIdentityService', 'IUserDataProfileService', 'IUserDataProfilesService', 'keybindingService',
 	'labelService', 'languageModelsService', 'languageModelToolsService', 'layoutService', 'lifecycleService', 'listService', 'loggerService', 'logService',
 	'managedSettingsService', 'menuService', 'modelService', 'notificationService', 'openerService', 'paneCompositePartService', 'pathService', 'productService', 'progressService',
-	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'storageService', 'telemetryService', 'textModelService',
+	'quickInputService', 'remoteAgentHostService', 'remoteAgentService', 'requestService', 'speechService', 'storageService', 'telemetryService', 'textModelService',
 	'themeService', 'uriIdentityService', 'viewDescriptorService', 'viewsService', 'voiceClientService', 'workingCopyService',
 	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
 ]);

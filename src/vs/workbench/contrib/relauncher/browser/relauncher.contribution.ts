@@ -32,7 +32,7 @@ interface IConfiguration extends IWindowsConfiguration {
 	telemetry?: { feedback?: { enabled?: boolean } };
 	chat?: {
 		extensionUnification?: { enabled?: boolean };
-		agentsView?: { enabled?: boolean };
+		viewSessions?: { sessionsList?: { enabled?: boolean } };
 		agentHost?: {
 			enabled?: boolean;
 			claudeAgent?: { enabled?: boolean };
@@ -96,7 +96,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 	private readonly accessibilityVerbosityDebug = new ChangeObserver('boolean');
 	private readonly telemetryFeedbackEnabled = new ChangeObserver('boolean');
 	private readonly extensionUnificationEnabled = new ChangeObserver('boolean');
-	private readonly agentsViewEnabled = new ChangeObserver('boolean');
+	private readonly viewSessionsListEnabled = new ChangeObserver('boolean');
 	private readonly agentHostClaudeAgentEnabled = new ChangeObserver('boolean');
 	private readonly agentHostComputerUseEnabled = new ChangeObserver('boolean');
 	private readonly editorCodexPreferAgentHost = new ChangeObserver('boolean');
@@ -198,8 +198,8 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		// Extension Unification (only when turning on)
 		processChanged(this.extensionUnificationEnabled.handleChange(config.chat?.extensionUnification?.enabled) && config.chat?.extensionUnification?.enabled === true);
 
-		// Sessions view in editor windows, read once at startup
-		processChanged(this.agentsViewEnabled.handleChange(config.chat?.agentsView?.enabled));
+		// Sessions list in the Chat view of editor windows, read once at startup
+		processChanged(this.viewSessionsListEnabled.handleChange(config.chat?.viewSessions?.sessionsList?.enabled));
 
 		// Agent provider registration and implementation preferences are read at spawn.
 		processChanged(this.agentHostClaudeAgentEnabled.handleChange(config.chat?.agentHost?.claudeAgent?.enabled));

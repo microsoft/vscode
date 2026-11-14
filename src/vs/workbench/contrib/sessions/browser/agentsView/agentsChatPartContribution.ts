@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { localize } from '../../../../../nls.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -40,15 +41,30 @@ export class AgentsChatPartContribution extends Disposable {
 	) {
 		super();
 
-		// It replaces the Chat view: what would show the Chat view shows the chat part instead. The host, with the chat part
-		// and the sessions it shows, is created as the first request comes, not as the window starts
+		// It replaces the Chat view while the Sessions view does (`ChatContextKeys.agentsViewActive`): what would show the Chat
+		// view shows the chat part instead. The host, with the chat part and the sessions it shows, is created as the first
+		// request comes, not as the window starts
 		const host = new Lazy(() => instantiationService.createInstance(AgentsChatViewHost));
-		this._register(chatViewHostService.registerHost({
-			reveal: preserveFocus => host.value.reveal(preserveFocus),
-			revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
-			openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
-			toggle: () => host.value.toggle(),
-			startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
+		const hostRegistration = this._register(new MutableDisposable());
+		const updateHostRegistration = () => {
+			if (!contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.agentsViewActive.key)) {
+				hostRegistration.clear();
+			} else if (!hostRegistration.value) {
+				hostRegistration.value = chatViewHostService.registerHost({
+					reveal: preserveFocus => host.value.reveal(preserveFocus),
+					revealIfShowing: (sessionResource, options) => host.value.revealIfShowing(sessionResource, options),
+					openSession: (sessionResource, options) => host.value.openSession(sessionResource, options),
+					toggle: () => host.value.toggle(),
+					startSession: (sessionResource, options) => host.value.startSession(sessionResource, options),
+				});
+			}
+		};
+		updateHostRegistration();
+		const activeKeys = new Set([ChatContextKeys.agentsViewActive.key]);
+		this._register(contextKeyService.onDidChangeContext(e => {
+			if (e.affectsSome(activeKeys)) {
+				updateHostRegistration();
+			}
 		}));
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
