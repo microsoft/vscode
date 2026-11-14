@@ -260,6 +260,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		return selected && this._worktree.getChip(selected);
 	}
 
+	/**
+	 * Measures what the chip needs besides its name from what does not give way as the toolbar narrows it, its icon,
+	 * gaps, margins, paddings and borders, rather than from its width, which is less than it needs while narrowed.
+	 */
 	private _measureChrome(): void {
 		const element = this.element;
 		const container = this._container;
@@ -269,12 +273,23 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		}
 		const window = dom.getWindow(container);
 		const px = (value: string) => Number.parseFloat(value) || 0;
-		const containerStyle = window.getComputedStyle(container);
+		const edges = (style: CSSStyleDeclaration) => px(style.paddingLeft) + px(style.paddingRight) + px(style.borderLeftWidth) + px(style.borderRightWidth);
 		const elementStyle = window.getComputedStyle(element);
-		const width = element.getBoundingClientRect().width - label.getBoundingClientRect().width
-			+ px(elementStyle.marginLeft) + px(elementStyle.marginRight)
-			+ px(containerStyle.paddingLeft) + px(containerStyle.paddingRight) + px(containerStyle.borderLeftWidth) + px(containerStyle.borderRightWidth);
-		this._chrome = { width, font: window.getComputedStyle(label).font };
+		const labelStyle = window.getComputedStyle(label);
+		let width = px(labelStyle.marginLeft) + px(labelStyle.marginRight) + px(elementStyle.columnGap) * Math.max(0, element.children.length - 1);
+		for (const child of element.children) {
+			if (child !== label) {
+				const childStyle = window.getComputedStyle(child);
+				width += child.getBoundingClientRect().width + px(childStyle.marginLeft) + px(childStyle.marginRight);
+			}
+		}
+		// The element and what holds it in the toolbar's item
+		for (let node: HTMLElement | null = element; node && node !== container; node = node.parentElement) {
+			const style = node === element ? elementStyle : window.getComputedStyle(node);
+			width += edges(style) + px(style.marginLeft) + px(style.marginRight);
+		}
+		width += edges(window.getComputedStyle(container));
+		this._chrome = { width, font: labelStyle.font };
 	}
 
 	/**
