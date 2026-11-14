@@ -6,6 +6,7 @@
 import assert from 'assert';
 import { $, append } from '../../../base/browser/dom.js';
 import { Grid, Direction, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
+import { LayoutPriority } from '../../../base/browser/ui/splitview/splitview.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
@@ -170,6 +171,9 @@ suite('Workbench layout chat part', () => {
 				override updateStyles() { }
 				override toJSON() { return { type: id }; }
 			}();
+			// The priorities of the real parts: the editor area takes what a window gains or loses first, unless hidden for the chat part
+			const priorities = new Map<Parts, LayoutPriority>([[Parts.EDITOR_PART, LayoutPriority.High], [Parts.SIDEBAR_PART, LayoutPriority.Low], [Parts.AUXILIARYBAR_PART, LayoutPriority.Low], [Parts.CHAT_PART, LayoutPriority.Low]]);
+			Object.defineProperty(part, 'priority', { get: () => id === Parts.CHAT_PART && Reflect.get(part, 'fillsEditorArea') ? LayoutPriority.High : priorities.get(id) });
 			views.set(id, part);
 			return part;
 		};
@@ -303,7 +307,7 @@ suite('Workbench layout chat part', () => {
 		grid.layout(1600, 900);
 		Object.assign(layout, { workbenchGrid: grid });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle, save };
+		return { layout, grid, views, middle, save };
 	}
 
 	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
@@ -401,6 +405,96 @@ suite('Workbench layout chat part', () => {
 		}, {
 			panel: { reloaded: false, restored: true },
 			auxiliaryBar: { reloaded: false, restored: true },
+		});
+	});
+
+	suite('editor area hidden for the chat part', () => {
+
+		const configuration: ILayoutConfiguration = { sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 } };
+
+		function state(layout: Layout) {
+			return { hiddenByChat: layout.isEditorHiddenByChat(), editor: layout.isVisible(Parts.EDITOR_PART, mainWindow), chat: layout.isVisible(Parts.CHAT_PART), panel: layout.isVisible(Parts.PANEL_PART) };
+		}
+
+		test('hides and shows the editor area, and the chat part takes its width', () => {
+			const { layout, grid, views } = createGridLayout(configuration);
+			const chat = views.get(Parts.CHAT_PART)!;
+			const editorWidth = grid.getViewSize(views.get(Parts.EDITOR_PART)!).width;
+			const chatWidth = grid.getViewSize(chat).width;
+			const steps: Record<string, unknown> = {};
+			layout.setEditorHiddenByChat(true);
+			steps.hidden = state(layout);
+			const grown = grid.getViewSize(chat).width > chatWidth + editorWidth / 2;
+			layout.setEditorHiddenByChat(false);
+			steps.shown = state(layout);
+			assert.deepStrictEqual({ ...steps, chatTookTheWidth: grown }, {
+				hidden: { hiddenByChat: true, editor: false, chat: true, panel: true },
+				shown: { hiddenByChat: false, editor: true, chat: true, panel: true },
+				chatTookTheWidth: true,
+			});
+		});
+
+		test('does not hide the editor area without a visible chat part', () => {
+			const hidden = createGridLayout({ ...configuration, chat: { visible: false, size: 400 } });
+			hidden.layout.setEditorHiddenByChat(true);
+			const absent = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center' });
+			absent.layout.setEditorHiddenByChat(true);
+			assert.deepStrictEqual({ hidden: state(hidden.layout), absent: absent.layout.isEditorHiddenByChat() }, {
+				hidden: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				absent: false,
+			});
+		});
+
+		test('an editor opening shows the editor area again, as a maximized panel does not take its place', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			const panelMaximized = layout.isPanelMaximized();
+			layout.toggleMaximizedPanel();
+			assert.deepStrictEqual({ panelMaximized, afterToggle: state(layout), panelMaximizedAfter: layout.isPanelMaximized() }, {
+				panelMaximized: false,
+				afterToggle: { hiddenByChat: false, editor: false, chat: false, panel: true },
+				panelMaximizedAfter: true,
+			});
+		});
+
+		test('hiding the chat part, also with the panel hidden, shows the editor area again', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			const withPanel = state(layout);
+			layout.setPartHidden(false, Parts.CHAT_PART);
+			layout.setEditorHiddenByChat(true);
+			layout.setPartHidden(true, Parts.PANEL_PART);
+			layout.setPartHidden(true, Parts.CHAT_PART);
+			assert.deepStrictEqual({ withPanel, withoutPanel: state(layout) }, {
+				withPanel: { hiddenByChat: false, editor: true, chat: false, panel: true },
+				withoutPanel: { hiddenByChat: false, editor: true, chat: false, panel: false },
+			});
+		});
+
+		test('stays hidden after a reload, with the panel hidden too, and shows again when the chat part no longer does', () => {
+			const before = createGridLayout(configuration);
+			before.layout.setPartHidden(true, Parts.PANEL_PART);
+			before.layout.setEditorHiddenByChat(true);
+			const saved = before.save();
+			const reloaded = createGridLayout(configuration, saved);
+			const withoutChat = createGridLayout(configuration, { ...saved, stored: JSON.stringify({ version: 1, visible: false, size: 400 }) });
+			assert.deepStrictEqual({ reloaded: state(reloaded.layout), withoutChat: state(withoutChat.layout) }, {
+				reloaded: { hiddenByChat: true, editor: false, chat: true, panel: false },
+				withoutChat: { hiddenByChat: false, editor: true, chat: false, panel: false },
+			});
+		});
+
+		test('maximizing the secondary side bar and restoring it keeps the editor area hidden', () => {
+			const { layout } = createGridLayout(configuration);
+			layout.setEditorHiddenByChat(true);
+			layout.toggleMaximizedAuxiliaryBar();
+			const maximized = state(layout);
+			layout.toggleMaximizedAuxiliaryBar();
+			assert.deepStrictEqual({ maximized, restored: state(layout) }, {
+				maximized: { hiddenByChat: true, editor: false, chat: false, panel: false },
+				restored: { hiddenByChat: true, editor: false, chat: true, panel: true },
+			});
 		});
 	});
 

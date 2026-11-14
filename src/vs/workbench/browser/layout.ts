@@ -414,6 +414,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				return;
 			}
 
+			// Hidden for the chat part, opening an editor only shows the editor area again
+			if (this.isEditorHiddenByChat()) {
+				this.setEditorHiddenByChat(false);
+				return;
+			}
+
 			if (this.isAuxiliaryBarMaximized()) {
 				// Do not unmaximize the auxiliary side bar when the editor was
 				// opened automatically (e.g. by the chat agent applying edits).
@@ -1994,7 +2000,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setEditorHidden(hidden: boolean): void {
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.EDITOR_PART)) {
+			this.clearEditorHiddenByChat();
 			return; // return: leaving maximised auxiliary bar made this part visible
+		}
+
+		// Showing the editor area, for whatever reason, ends hiding it for the chat part
+		if (!hidden) {
+			this.clearEditorHiddenByChat();
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
@@ -2346,10 +2358,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return (
 			this.getPanelAlignment() === 'center' || 	// the workbench grid currently prevents us from supporting panel
 			!isHorizontal(this.getPanelPosition())		// maximization with non-center panel alignment
-		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized();
+		) && !this.isVisible(Parts.EDITOR_PART, mainWindow) && !this.isAuxiliaryBarMaximized() && !this.isEditorHiddenByChat();
 	}
 
 	toggleMaximizedPanel(): void {
+		// The panel maximizes over a visible editor area, not over one hidden for the chat part
+		this.clearEditorHiddenByChatNow();
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const panelPosition = this.getPanelPosition();
 		const maximize = !this.isPanelMaximized();
@@ -2480,9 +2494,60 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// Closing the chat part gives the editor area its width back, also when it was hidden
-		if (hidden && !this.isVisible(Parts.EDITOR_PART) && !this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()) {
+		if (hidden && !this.isVisible(Parts.EDITOR_PART) && (this.isEditorHiddenByChat() || (!this.isVisible(Parts.PANEL_PART) && !this.isAuxiliaryBarMaximized()))) {
 			this.setEditorHidden(false);
 		}
+	}
+
+	isEditorHiddenByChat(): boolean {
+		return this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT);
+	}
+
+	setEditorHiddenByChat(hidden: boolean): void {
+		if (hidden === this.isEditorHiddenByChat()) {
+			return;
+		}
+
+		if (!hidden) {
+			this.setEditorHidden(false);
+			return;
+		}
+
+		// Only a visible chat part can take the area of the editor, and a maximized secondary side bar has it already
+		const chatPart = this.getChatHostPart();
+		if (!chatPart || this.chatPartHidden || this.isAuxiliaryBarMaximized() || !this.isVisible(Parts.EDITOR_PART, mainWindow)) {
+			return;
+		}
+
+		const hadFocus = this.hasFocus(Parts.EDITOR_PART);
+		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, true);
+		// The chat part, not the last part beside, takes the space the editor area frees
+		chatPart.fillsEditorArea = true;
+		this.setEditorHidden(true);
+		if (hadFocus) {
+			this.focusPart(Parts.CHAT_PART);
+		}
+	}
+
+	/** Ends hiding the editor area for the chat part, whatever shows it again. */
+	private clearEditorHiddenByChat(): void {
+		if (this.isEditorHiddenByChat()) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			const chatPart = this.getChatHostPart();
+			if (chatPart) {
+				chatPart.fillsEditorArea = false;
+			}
+		}
+	}
+
+	private clearEditorHiddenByChatNow(): void {
+		if (this.isEditorHiddenByChat()) {
+			this.setEditorHidden(false);
+		}
+	}
+
+	private getChatHostPart(): ChatHostPart | undefined {
+		return this.chatPartView as ChatHostPart | undefined;
 	}
 
 	/** Hides a visible chat part with the editor, such as for a maximized panel, to show it again with the editor. */
@@ -2651,6 +2716,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		const size = this.workbenchGrid.getViewSize(this.panelPartView);
 		const sideBarSize = this.workbenchGrid.getViewSize(this.sideBarPartView);
 		const auxiliaryBarSize = this.workbenchGrid.getViewSize(this.auxiliaryBarPartView);
+
+		// The panel lays out beside a visible editor area, so reveal one hidden for the chat part first
+		this.clearEditorHiddenByChatNow();
 
 		let editorHidden = !this.isVisible(Parts.EDITOR_PART, mainWindow);
 
@@ -2947,6 +3015,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			visible: this.isVisible(Parts.AUXILIARYBAR_PART)
 		};
 
+		// Hidden for the chat part, the editor area stays hidden only while a chat part shows again
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT) && !(this.chatPartView && this.readChatPartLayout().visible)) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT, false);
+			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+		}
+
 		const editorNode: ISerializedLeafNode = {
 			type: 'leaf',
 			data: { type: Parts.EDITOR_PART },
@@ -2967,6 +3041,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Hidden by the layout for a maximized panel or secondary side bar, it stays hidden only while that restores maximized
 			this.chatPartHiddenByLayout = chatPartLayout.visible && chatPartLayout.hiddenByLayout && (this.isAuxiliaryBarMaximized() || this.isPanelMaximized());
 			this.chatPartHidden = !chatPartLayout.visible || this.chatPartHiddenByLayout;
+			this.getChatHostPart()!.fillsEditorArea = this.isEditorHiddenByChat();
 			chatNode = {
 				type: 'leaf',
 				data: { type: Parts.CHAT_PART },
@@ -3151,6 +3226,7 @@ const LayoutStateKeys = {
 	ACTIVITYBAR_HIDDEN: new RuntimeStateKey<boolean>('activityBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true),
 	SIDEBAR_HIDDEN: new RuntimeStateKey<boolean>('sideBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	EDITOR_HIDDEN: new RuntimeStateKey<boolean>('editor.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
+	EDITOR_HIDDEN_BY_CHAT: new RuntimeStateKey<boolean>('editor.hiddenByChat', StorageScope.WORKSPACE, StorageTarget.MACHINE, false),
 	PANEL_HIDDEN: new RuntimeStateKey<boolean>('panel.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
 	AUXILIARYBAR_HIDDEN: new RuntimeStateKey<boolean>('auxiliaryBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, true),
 	STATUSBAR_HIDDEN: new RuntimeStateKey<boolean>('statusBar.hidden', StorageScope.WORKSPACE, StorageTarget.MACHINE, false, true)
@@ -3359,6 +3435,7 @@ class LayoutStateModel extends Disposable {
 		if (
 			this.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) &&
 			this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN) &&
+			!this.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN_BY_CHAT) &&
 			!this.getRuntimeValue(LayoutStateKeys.AUXILIARYBAR_WAS_LAST_MAXIMIZED)
 		) {
 			this.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
