@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RunOnceScheduler } from '../../../../../../base/common/async.js';
-import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
@@ -48,6 +48,8 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/** The folder's worktrees, read ahead of time, as the chip asks for its choices synchronously. */
 	private _locations: readonly IFolderLocation[] = [];
+	/** Whether folders it does not list are worktrees of the window's folder, by the window's folder and the folder. */
+	private readonly _provenWorktrees = new Map<string, boolean>();
 	private readonly _refresh = this._register(new MutableDisposable());
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
@@ -122,8 +124,8 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 			return { icon: WORKTREE_ICON, label: localize('agentHost.folderPicker.newWorktreeChip', "Worktree"), description: localize('agentHost.folderPicker.newWorktreeChipDescription', "New worktree of {0}", primary?.label ?? basename(folder)) };
 		}
 		const name = choice?.label ?? basename(folder);
-		// A folder that is not the window's own, such as the worktree a started session works in, is a worktree of it
-		const worktree = choice ? choice.kind === 'worktree' : !!primary && !extUriBiasedIgnorePathCase.isEqual(primary.uri, folder);
+		// A folder it does not list, such as the worktree a started session works in, is a worktree once git proves it one
+		const worktree = choice ? choice.kind === 'worktree' : this._isProvenWorktree(folder);
 		return worktree
 			? { icon: WORKTREE_ICON, label: undefined, description: localize('agentHost.folderPicker.worktreeChipDescription', "Worktree: {0}", name) }
 			: { icon: Codicon.folder, label: undefined, description: localize('agentHost.folderPicker.folderChipDescription', "Folder: {0}", name) };
@@ -197,6 +199,29 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 			{ uri: primary, label: basename(primary), kind: 'folder', current: isCurrent(primary) },
 			...locations.map(location => ({ uri: location.uri, label: location.label, kind: 'worktree' as const, current: isCurrent(location.uri) })),
 		];
+	}
+
+	/**
+	 * Whether `folder` is a worktree of the window's folder, as its location providers resolve it, such as by git's links
+	 * between them: not yet known, it is not, and the chip shows it again once it is.
+	 */
+	private _isProvenWorktree(folder: URI): boolean {
+		const primary = this._workspaceContextService.getWorkspace().uri;
+		if (!primary) {
+			return false;
+		}
+		const key = `${primary.toString()}\n${folder.toString()}`;
+		const known = this._provenWorktrees.get(key);
+		if (known === undefined) {
+			this._provenWorktrees.set(key, false);
+			this._folderLocationService.resolveLocation(primary, folder, CancellationToken.None).then(location => {
+				if (location && !this._store.isDisposed) {
+					this._provenWorktrees.set(key, true);
+					this._onDidChange.fire();
+				}
+			}, onUnexpectedError);
+		}
+		return known === true;
 	}
 
 	/** The session's isolation property and values, with whether it can work in a new worktree. */
