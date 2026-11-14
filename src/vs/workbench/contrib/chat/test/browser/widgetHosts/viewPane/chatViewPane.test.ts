@@ -202,7 +202,7 @@ suite('ChatViewPane session transitions', () => {
 		const nextRef = createReference(nextModel);
 		const pane: {
 			showModel(token: CancellationToken, ref: IChatModelReference): Promise<IChatModel | undefined>;
-			loadSession(resource: URI): Promise<IChatModel | undefined>;
+			loadSession(resource: URI, sessionTypeSelectionReason?: undefined, showReason?: 'open' | 'restore'): Promise<IChatModel | undefined>;
 			applyModel(): void;
 			restoringSession: Promise<void> | undefined;
 			readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
@@ -299,6 +299,10 @@ suite('ChatViewPane session transitions', () => {
 		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
 		await restored.pane.loadSession(savedResource);
 		const afterLoad = shown(restored);
+		// A chat loaded as one to restore, such as the last chat of where the user moved the folder
+		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => restored.nextRef } });
+		await restored.pane.loadSession(nextResource, undefined, 'restore');
+		const loadedToRestore = shown(restored);
 
 		// The user loads a chat while the restore still prepares its chat's configuration
 		const preparing = new DeferredPromise<void>();
@@ -315,11 +319,12 @@ suite('ChatViewPane session transitions', () => {
 		await loading;
 		await restoration;
 
-		assert.deepStrictEqual({ afterRestore, otherReported, reopened, afterLoad, superseded: shown(superseded) }, {
+		assert.deepStrictEqual({ afterRestore, otherReported, reopened, afterLoad, loadedToRestore, superseded: shown(superseded) }, {
 			afterRestore: '/untitled-next restore',
 			otherReported: '/untitled-next restore',
 			reopened: '/untitled-next open',
 			afterLoad: '/saved open',
+			loadedToRestore: '/untitled-next restore',
 			superseded: '/saved open',
 		});
 	});
