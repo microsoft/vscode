@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as strings from '../../../../base/common/strings.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IActiveCodeEditor } from '../../../browser/editorBrowser.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { FindMatch, IModelDecorationsChangeAccessor, IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../common/model.js';
+import { FindMatch, IModelDecorationOptions, IModelDecorationsChangeAccessor, IModelDeltaDecoration, MinimapPosition, OverviewRulerLane, TrackedRangeStickiness } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { minimapFindMatch, overviewRulerFindMatchForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { themeColorFromId } from '../../../../platform/theme/common/themeService.js';
@@ -20,6 +21,7 @@ export class FindDecorations implements IDisposable {
 	private _findScopeDecorationIds: string[];
 	private _rangeHighlightDecorationId: string | null;
 	private _highlightedDecorationId: string | null;
+	private _useFindMatchOverviewRuler: boolean;
 	private _startPosition: Position;
 
 	constructor(editor: IActiveCodeEditor) {
@@ -29,6 +31,7 @@ export class FindDecorations implements IDisposable {
 		this._findScopeDecorationIds = [];
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
+		this._useFindMatchOverviewRuler = true;
 		this._startPosition = this._editor.getPosition();
 	}
 
@@ -40,6 +43,7 @@ export class FindDecorations implements IDisposable {
 		this._findScopeDecorationIds = [];
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
+		this._useFindMatchOverviewRuler = true;
 	}
 
 	public reset(): void {
@@ -48,6 +52,7 @@ export class FindDecorations implements IDisposable {
 		this._findScopeDecorationIds = [];
 		this._rangeHighlightDecorationId = null;
 		this._highlightedDecorationId = null;
+		this._useFindMatchOverviewRuler = true;
 	}
 
 	public getCount(): number {
@@ -103,7 +108,14 @@ export class FindDecorations implements IDisposable {
 		const candidates = this._editor.getModel().getDecorationsInRange(desiredRange);
 		for (const candidate of candidates) {
 			const candidateOpts = candidate.options;
-			if (candidateOpts === FindDecorations._FIND_MATCH_DECORATION || candidateOpts === FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION || candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION) {
+			if (
+				candidateOpts === FindDecorations._FIND_MATCH_DECORATION
+				|| candidateOpts === FindDecorations._FIND_MATCH_BIDI_DECORATION
+				|| candidateOpts === FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION
+				|| candidateOpts === FindDecorations._FIND_MATCH_NO_OVERVIEW_BIDI_DECORATION
+				|| candidateOpts === FindDecorations._CURRENT_FIND_MATCH_DECORATION
+				|| candidateOpts === FindDecorations._CURRENT_FIND_MATCH_BIDI_DECORATION
+			) {
 				return this._getDecorationIndex(candidate.id);
 			}
 		}
@@ -128,12 +140,18 @@ export class FindDecorations implements IDisposable {
 		if (this._highlightedDecorationId !== null || newCurrentDecorationId !== null) {
 			this._editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 				if (this._highlightedDecorationId !== null) {
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._FIND_MATCH_DECORATION);
+					const highlightedRange = this._editor.getModel().getDecorationRange(this._highlightedDecorationId);
+					if (highlightedRange) {
+						changeAccessor.changeDecorationOptions(this._highlightedDecorationId, this._getFindMatchDecorationOptions(highlightedRange, this._useFindMatchOverviewRuler));
+					}
 					this._highlightedDecorationId = null;
 				}
 				if (newCurrentDecorationId !== null) {
 					this._highlightedDecorationId = newCurrentDecorationId;
-					changeAccessor.changeDecorationOptions(this._highlightedDecorationId, FindDecorations._CURRENT_FIND_MATCH_DECORATION);
+					const newCurrentRange = this._editor.getModel().getDecorationRange(this._highlightedDecorationId);
+					if (newCurrentRange) {
+						changeAccessor.changeDecorationOptions(this._highlightedDecorationId, this._getCurrentFindMatchDecorationOptions(newCurrentRange));
+					}
 				}
 				if (this._rangeHighlightDecorationId !== null) {
 					changeAccessor.removeDecoration(this._rangeHighlightDecorationId);
@@ -156,17 +174,19 @@ export class FindDecorations implements IDisposable {
 
 	public set(findMatches: FindMatch[], findScopes: Range[] | null): void {
 		this._editor.changeDecorations((accessor) => {
+			const model = this._editor.getModel();
+			const lineContainsRTLCache = model.mightContainRTL() ? new Map<number, boolean>() : undefined;
 
-			let findMatchesOptions: ModelDecorationOptions = FindDecorations._FIND_MATCH_DECORATION;
+			this._useFindMatchOverviewRuler = true;
 			const newOverviewRulerApproximateDecorations: IModelDeltaDecoration[] = [];
 
 			if (findMatches.length > 1000) {
 				// we go into a mode where the overview ruler gets "approximate" decorations
 				// the reason is that the overview ruler paints all the decorations in the file and we don't want to cause freezes
-				findMatchesOptions = FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
+				this._useFindMatchOverviewRuler = false;
 
 				// approximate a distance in lines where matches should be merged
-				const lineCount = this._editor.getModel().getLineCount();
+				const lineCount = model.getLineCount();
 				const height = this._editor.getLayoutInfo().height;
 				const approxPixelsPerLine = height / lineCount;
 				const mergeLinesDelta = Math.max(2, Math.ceil(3 / approxPixelsPerLine));
@@ -201,7 +221,7 @@ export class FindDecorations implements IDisposable {
 			for (let i = 0, len = findMatches.length; i < len; i++) {
 				newFindMatchesDecorations[i] = {
 					range: findMatches[i].range,
-					options: findMatchesOptions
+					options: this._getFindMatchDecorationOptions(findMatches[i].range, this._useFindMatchOverviewRuler, lineContainsRTLCache)
 				};
 			}
 			this._decorations = accessor.deltaDecorations(this._decorations, newFindMatchesDecorations);
@@ -224,6 +244,39 @@ export class FindDecorations implements IDisposable {
 				this._findScopeDecorationIds = findScopes.map(findScope => accessor.addDecoration(findScope, FindDecorations._FIND_SCOPE_DECORATION));
 			}
 		});
+	}
+
+	private _getFindMatchDecorationOptions(range: Range, includeOverviewRuler: boolean, lineContainsRTLCache?: Map<number, boolean>): ModelDecorationOptions {
+		if (this._rangeContainsRTL(range, lineContainsRTLCache)) {
+			return includeOverviewRuler ? FindDecorations._FIND_MATCH_BIDI_DECORATION : FindDecorations._FIND_MATCH_NO_OVERVIEW_BIDI_DECORATION;
+		}
+
+		return includeOverviewRuler ? FindDecorations._FIND_MATCH_DECORATION : FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
+	}
+
+	private _getCurrentFindMatchDecorationOptions(range: Range): ModelDecorationOptions {
+		return this._rangeContainsRTL(range) ? FindDecorations._CURRENT_FIND_MATCH_BIDI_DECORATION : FindDecorations._CURRENT_FIND_MATCH_DECORATION;
+	}
+
+	private _rangeContainsRTL(range: Range, lineContainsRTLCache?: Map<number, boolean>): boolean {
+		const model = this._editor.getModel();
+		if (!model.mightContainRTL()) {
+			return false;
+		}
+
+		for (let lineNumber = range.startLineNumber; lineNumber <= range.endLineNumber; lineNumber++) {
+			let containsRTL = lineContainsRTLCache?.get(lineNumber);
+			if (containsRTL === undefined) {
+				containsRTL = strings.containsRTL(model.getLineContent(lineNumber));
+				lineContainsRTLCache?.set(lineNumber, containsRTL);
+			}
+
+			if (containsRTL) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	public matchBeforePosition(position: Position): Range | null {
@@ -283,46 +336,55 @@ export class FindDecorations implements IDisposable {
 		return result;
 	}
 
-	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		description: 'current-find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		zIndex: 13,
-		className: 'currentFindMatch',
-		inlineClassName: 'currentFindMatchInline',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
-		},
-		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
-		}
-	});
+	private static _createCurrentFindMatchDecorationOptions(description: string, inlineClassName?: string): IModelDecorationOptions {
+		return {
+			description,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			zIndex: 13,
+			className: 'currentFindMatch',
+			inlineClassName,
+			showIfCollapsed: true,
+			overviewRuler: {
+				color: themeColorFromId(overviewRulerFindMatchForeground),
+				position: OverviewRulerLane.Center
+			},
+			minimap: {
+				color: themeColorFromId(minimapFindMatch),
+				position: MinimapPosition.Inline
+			}
+		};
+	}
 
-	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		zIndex: 10,
-		className: 'findMatch',
-		inlineClassName: 'findMatchInline',
-		showIfCollapsed: true,
-		overviewRuler: {
-			color: themeColorFromId(overviewRulerFindMatchForeground),
-			position: OverviewRulerLane.Center
-		},
-		minimap: {
-			color: themeColorFromId(minimapFindMatch),
-			position: MinimapPosition.Inline
-		}
-	});
+	private static _createFindMatchDecorationOptions(description: string, includeOverviewRuler: boolean, zIndex?: number, inlineClassName?: string): IModelDecorationOptions {
+		return {
+			description,
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+			zIndex,
+			className: 'findMatch',
+			inlineClassName,
+			showIfCollapsed: true,
+			overviewRuler: includeOverviewRuler ? {
+				color: themeColorFromId(overviewRulerFindMatchForeground),
+				position: OverviewRulerLane.Center
+			} : undefined,
+			minimap: includeOverviewRuler ? {
+				color: themeColorFromId(minimapFindMatch),
+				position: MinimapPosition.Inline
+			} : undefined
+		};
+	}
 
-	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register({
-		description: 'find-match-no-overview',
-		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		className: 'findMatch',
-		showIfCollapsed: true
-	});
+	public static readonly _CURRENT_FIND_MATCH_DECORATION = ModelDecorationOptions.register(FindDecorations._createCurrentFindMatchDecorationOptions('current-find-match', 'currentFindMatchInline'));
+
+	public static readonly _CURRENT_FIND_MATCH_BIDI_DECORATION = ModelDecorationOptions.register(FindDecorations._createCurrentFindMatchDecorationOptions('current-find-match-bidi'));
+
+	public static readonly _FIND_MATCH_DECORATION = ModelDecorationOptions.register(FindDecorations._createFindMatchDecorationOptions('find-match', true, 10, 'findMatchInline'));
+
+	public static readonly _FIND_MATCH_BIDI_DECORATION = ModelDecorationOptions.register(FindDecorations._createFindMatchDecorationOptions('find-match-bidi', true, 10));
+
+	public static readonly _FIND_MATCH_NO_OVERVIEW_DECORATION = ModelDecorationOptions.register(FindDecorations._createFindMatchDecorationOptions('find-match-no-overview', false));
+
+	public static readonly _FIND_MATCH_NO_OVERVIEW_BIDI_DECORATION = FindDecorations._FIND_MATCH_NO_OVERVIEW_DECORATION;
 
 	private static readonly _FIND_MATCH_ONLY_OVERVIEW_DECORATION = ModelDecorationOptions.register({
 		description: 'find-match-only-overview',
