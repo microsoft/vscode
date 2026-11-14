@@ -302,8 +302,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			chatEnabled = enabled;
 		}));
 
-		// Last: what reads the chat part once it exists reads all of it
-		this._frame.didCreateContent();
+		// Last: what reads the chat part once it exists reads all of it, of this instance
+		this._frame.didCreateContent(this);
 	}
 
 	retargetComposerFolders(to: URI, from: URI): void {
