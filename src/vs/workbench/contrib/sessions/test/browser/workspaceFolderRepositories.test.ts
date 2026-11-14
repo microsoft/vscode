@@ -267,17 +267,19 @@ suite('WorkspaceFolderRepositories', () => {
 		});
 	});
 
-	test('keeps the sessions it lists as the window follows a session to another location of its folder, such as a worktree, and lists only the folders of a multi-root workspace', async () => {
+	test('keeps the sessions it lists as the window follows a session to another location of its folder, such as a worktree, and lists only the folders once the folder is saved as a workspace', async () => {
 		const repository = URI.file('/work/repo');
 		const worktree = URI.file('/work/trees/feature');
 		let state = WorkbenchState.FOLDER;
 		let folder = repository;
 		const onDidChangeWorkspaceFolders = store.add(new Emitter<IWorkspaceFoldersChangeEvent>());
+		const onDidChangeWorkbenchState = store.add(new Emitter<WorkbenchState>());
 		const instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IFileService, createFileService({}).fileService);
 		instantiationService.stub(ILogService, upcastPartial<ILogService>({ warn: () => { } }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			onDidChangeWorkspaceFolders: onDidChangeWorkspaceFolders.event,
+			onDidChangeWorkbenchState: onDidChangeWorkbenchState.event,
 			getWorkbenchState: () => state,
 			getWorkspace: () => upcastPartial<IWorkspace>({ uri: state === WorkbenchState.FOLDER ? repository : URI.file('/work/repo.code-workspace'), folders: [upcastPartial<IWorkspaceFolder>({ uri: folder })] }),
 		}));
@@ -292,14 +294,15 @@ suite('WorkspaceFolderRepositories', () => {
 		folder = worktree;
 		change();
 		const atWorktree = listed();
-		// A multi-root workspace has no own location of a folder: its folders are the scope
+		// Saved as a workspace, such as by Save Workspace As, its folder and its name stay: only the workbench state changes,
+		// and a workspace has no own location of a folder, so its folders are the scope
 		state = WorkbenchState.WORKSPACE;
-		change();
+		onDidChangeWorkbenchState.fire(state);
 
-		assert.deepStrictEqual({ atRepository, atWorktree, multiRoot: listed() }, {
+		assert.deepStrictEqual({ atRepository, atWorktree, savedAsWorkspace: listed() }, {
 			atRepository: ['followed', 'main', 'sibling'],
 			atWorktree: ['followed', 'main', 'sibling'],
-			multiRoot: ['followed'],
+			savedAsWorkspace: ['followed'],
 		});
 	});
 });
