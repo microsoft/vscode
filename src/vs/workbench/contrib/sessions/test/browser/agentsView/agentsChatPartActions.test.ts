@@ -22,7 +22,7 @@ import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/edi
 import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { Menus } from '../../../browser/menus.js';
+import { Menus, SessionHeaderMenus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
