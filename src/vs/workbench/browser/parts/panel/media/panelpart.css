@@ -98,3 +98,19 @@
 	display: inline-block;
 	transform: rotate(180deg);
 }
+
+.monaco-workbench .part.panel > .composite.title > .composite-bar-container {
+	min-width: 0;
+}
+
+.monaco-workbench .part.panel > .composite.title > .title-actions {
+	min-width: 0;
+}
+
+.monaco-workbench .part.panel > .composite.title > .global-actions {
+	flex: 0 0 auto;
+}
+
+.monaco-workbench .panel.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
+	max-width: 200px;
+}
