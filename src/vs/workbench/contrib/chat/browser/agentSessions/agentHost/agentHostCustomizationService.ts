@@ -49,6 +49,7 @@ import { IAgentHostMcpServer } from '../../../../sessions/common/agentHostSessio
 import { resolveMcpServerAuthentication, agentHostMcpServerId, autoAuthenticateMcpServer, authenticateCopilotConnectorCredential, type IAgentHostAuthenticateRequest } from './agentHostAuth.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IMcpService } from '../../../../../contrib/mcp/common/mcpTypes.js';
+import { agentHostMcpLoginHintsSection, type IAgentHostMcpLoginHints } from '../../../../mcp/common/mcpConfiguration.js';
 import { MCP } from '../../../../mcp/common/modelContextProtocol.js';
 import { ContributionEnablementState } from '../../../common/enablement.js';
 import { getLocalAgentHostSessionProvider } from './agentHostSessionUri.js';
@@ -581,6 +582,8 @@ export abstract class AbstractAgentHostCustomizationService extends Disposable i
 				logPrefix: '[AgentHost]',
 				mcpServerId: agentHostMcpServerId(sessionResource.authority, server.name, server.state.resource.resource),
 				mcpServerName: label,
+				configuredServerName: server.name,
+				loginHints: this._configurationService.getValue<IAgentHostMcpLoginHints>(agentHostMcpLoginHintsSection),
 				mcpServerUrl: server.state.resource.resource,
 				oauthClient: server.state.oauthClient,
 				scopes: server.state.requiredScopes ?? [],

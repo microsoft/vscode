@@ -86,6 +86,16 @@ export const mcpDiscoverySection = 'chat.mcp.discovery.enabled';
 export const mcpWorkspaceRootConfig = 'chat.mcp.workspaceRootConfig.enabled';
 export const mcpServerSamplingSection = 'chat.mcp.serverSampling';
 export const mcpServerCollisionBehaviorSection = 'chat.mcp.collisionBehavior';
+
+/** User-scoped account hints for MCP servers managed by Agent Host. */
+export const agentHostMcpLoginHintsSection = 'chat.agentHost.mcp.loginHints';
+
+export interface IAgentHostMcpLoginHints {
+	/** Default login hint keyed by resolved authentication provider id. */
+	readonly defaults?: Readonly<Record<string, string>>;
+	/** Override keyed by the configured MCP server name. */
+	readonly servers?: Readonly<Record<string, string>>;
+}
 /**
  * Configuration key for the enterprise-managed MCP IdP bag. The setting is
  * registered with `included: false` so it is hidden from the Settings UI and

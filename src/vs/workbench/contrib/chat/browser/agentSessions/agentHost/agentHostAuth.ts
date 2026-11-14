@@ -42,6 +42,7 @@ import { IAuthenticationMcpService } from '../../../../../services/authenticatio
 import { IAuthenticationMcpUsageService } from '../../../../../services/authentication/browser/authenticationMcpUsageService.js';
 import { AuthenticationSession, getDynamicAuthenticationProviderId, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IDynamicAuthenticationProviderStorageService } from '../../../../../services/authentication/common/dynamicAuthenticationProviderStorage.js';
+import { agentHostMcpLoginHintsSection, type IAgentHostMcpLoginHints } from '../../../../mcp/common/mcpConfiguration.js';
 import { CHAT_SETUP_ACTION_ID } from '../../actions/chatActions.js';
 import { ChatSetupSource, IChatSetupCommandOptions, IChatSetupResult } from '../../chatSetup/chatSetup.js';
 import { reportAgentHostAuthRecovery, reportAgentHostAuthSignInResult, type AgentHostAuthSignInData, type AgentHostAuthTrigger } from './agentHostAuthTelemetry.js';
@@ -709,6 +710,10 @@ export interface IAgentHostMcpAuthenticationOptionsBase {
 	readonly logPrefix: string;
 	readonly mcpServerId: string;
 	readonly mcpServerName: string;
+	/** The config entry's name, which may differ from its display label. */
+	readonly configuredServerName?: string;
+	/** User-configured account hints; these never bypass MCP access approval. */
+	readonly loginHints?: IAgentHostMcpLoginHints;
 	readonly mcpServerUrl: string;
 	readonly oauthClient?: McpOAuthClient;
 	readonly scopes: readonly string[];
@@ -1295,6 +1300,7 @@ export function autoAuthenticateMcpServer(
 		logPrefix: '[AgentHost]',
 		mcpServerId: agentHostMcpServerId(agentHost.authority, serverName, auth.resource.resource),
 		mcpServerName: serverName,
+		loginHints: accessor.get(IConfigurationService).getValue<IAgentHostMcpLoginHints>(agentHostMcpLoginHintsSection),
 		mcpServerUrl: auth.resource.resource,
 		oauthClient: auth.oauthClient,
 		scopes: auth.requiredScopes ?? [],
@@ -1385,7 +1391,7 @@ export async function resolveMcpServerAuthentication(
 				...providerOptions,
 				silent: !options.allowInteraction,
 			}, true);
-			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options);
+			const allowedSession = getAllowedMcpSession(providerId, sessions, authenticationMcpAccessService, authenticationMcpService, options, authorizationServerUri);
 			if (allowedSession) {
 				await authenticateMcpSession(providerId, allowedSession, scopes, authenticationMcpAccessService, authenticationMcpService, authenticationMcpUsageService, logService, options, false, agentHostMeta);
 				return true;
@@ -1515,16 +1521,63 @@ async function getOrCreateProviderForMcpResource(
 	}
 }
 
+/** Configured hints may be matched case-insensitively; remembered account labels must match exactly. */
+export interface IResolvedMcpLoginHint {
+	readonly label: string;
+	readonly allowCaseInsensitiveMatch: boolean;
+}
+
+/** Resolve configured and remembered hints without changing the authentication provider's sign-in flow. */
+export function resolveMcpLoginHint(
+	configuration: IAgentHostMcpLoginHints | undefined,
+	serverName: string,
+	providerId: string,
+	rememberedAccount: string | undefined,
+	authorizationServer?: URI,
+): IResolvedMcpLoginHint | undefined {
+	const serverHint = configuration?.servers?.[serverName];
+	if (typeof serverHint === 'string' && serverHint.trim()) {
+		return { label: serverHint.trim(), allowCaseInsensitiveMatch: true };
+	}
+	if (rememberedAccount) {
+		return { label: rememberedAccount, allowCaseInsensitiveMatch: false };
+	}
+	// MCP can create an independent dynamic provider even for an Entra authorization server.
+	const issuerOrigin = authorizationServer && `${authorizationServer.scheme}://${authorizationServer.authority}`;
+	const microsoftProvider = authorizationServer?.authority.toLowerCase() === 'login.microsoftonline.com' ? 'microsoft' : undefined;
+	const providerHint = [
+		configuration?.defaults?.[providerId],
+		issuerOrigin && configuration?.defaults?.[issuerOrigin],
+		microsoftProvider && configuration?.defaults?.[microsoftProvider],
+	].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+	return providerHint ? { label: providerHint.trim(), allowCaseInsensitiveMatch: true } : undefined;
+}
+
 function getAllowedMcpSession(
 	providerId: string,
 	sessions: readonly AuthenticationSession[],
 	authenticationMcpAccessService: IAuthenticationMcpAccessService,
 	authenticationMcpService: IAuthenticationMcpService,
 	options: IAgentHostMcpAuthenticationOptionsBase,
+	authorizationServer: URI,
 ): AuthenticationSession | undefined {
-	const accountNamePreference = authenticationMcpService.getAccountPreference(options.mcpServerId, providerId);
+	const accountNamePreference = resolveMcpLoginHint(
+		options.loginHints,
+		options.configuredServerName ?? options.mcpServerName,
+		providerId,
+		authenticationMcpService.getAccountPreference(options.mcpServerId, providerId),
+		authorizationServer,
+	);
 	if (accountNamePreference) {
-		const preferred = sessions.find(session => session.account.label === accountNamePreference);
+		// Remembered account preferences retain their exact-match behavior. Configured
+		// hints can match case-insensitively, but must resolve to only one account.
+		const exact = sessions.filter(session => session.account.label === accountNamePreference.label);
+		const candidates = exact.length || !accountNamePreference.allowCaseInsensitiveMatch
+			? exact
+			: sessions.filter(session => session.account.label.toLowerCase() === accountNamePreference.label.toLowerCase());
+		const preferred = accountNamePreference.allowCaseInsensitiveMatch && new Set(candidates.map(session => session.account.id)).size !== 1
+			? undefined
+			: candidates[0];
 		if (preferred && authenticationMcpAccessService.isAccessAllowedForUrl(providerId, preferred.account.label, options.mcpServerId, options.mcpServerUrl)) {
 			return preferred;
 		}

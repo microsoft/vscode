@@ -64,7 +64,7 @@ import { IEditorResolverService, RegisteredEditorPriority } from '../../../servi
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AddConfigurationType, AssistedTypes } from '../../mcp/browser/mcpCommandsAddConfiguration.js';
-import { McpCollisionBehavior, allDiscoverySources, defaultDiscoverySourceEnablement, discoverySourceSettingsLabel, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
+import { McpCollisionBehavior, allDiscoverySources, defaultDiscoverySourceEnablement, discoverySourceSettingsLabel, agentHostMcpLoginHintsSection, mcpDiscoverySection, mcpEnterpriseManagedAuthIdpSection, mcpServerCollisionBehaviorSection, mcpServerSamplingSection, mcpWorkspaceRootConfig } from '../../mcp/common/mcpConfiguration.js';
 import { autoApprovePolicyValue, getDefaultConfigurationPolicyDescription } from '../common/agentHostConfigPolicy.js';
 import { IChatVariablesService } from '../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../common/chatDebugService.js';
@@ -1332,6 +1332,25 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.mcp.ui.enabled', "Controls whether MCP servers can provide custom UI for tool invocations."),
 			default: true,
 			tags: ['experimental'],
+		},
+		[agentHostMcpLoginHintsSection]: {
+			type: 'object',
+			default: { defaults: {}, servers: {} },
+			scope: ConfigurationScope.APPLICATION,
+			additionalProperties: false,
+			properties: {
+				defaults: {
+					type: 'object',
+					additionalProperties: { type: 'string' },
+					description: nls.localize('chat.agentHost.mcp.loginHints.defaults', "Default login hints for Agent Host MCP servers, keyed by authentication provider ID (for example, 'microsoft')."),
+				},
+				servers: {
+					type: 'object',
+					additionalProperties: { type: 'string' },
+					description: nls.localize('chat.agentHost.mcp.loginHints.servers', "Account hints keyed by the configured Agent Host MCP server name. These override provider defaults."),
+				},
+			},
+			markdownDescription: nls.localize('chat.agentHost.mcp.loginHints', "Preferred signed-in accounts for MCP servers in Agent Host sessions. Does not apply to the standard VS Code MCP runtime. Hints select existing sessions only; they are not forwarded to new sign-ins and do not grant account access. Per-server hints take precedence over remembered preferences, then provider defaults."),
 		},
 		[mcpEnterpriseManagedAuthIdpSection]: {
 			type: 'object',
