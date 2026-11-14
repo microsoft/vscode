@@ -448,6 +448,17 @@
 			}
 		},
 		{
+			"scope": [
+				"markup.bold markup.italic",
+				"markup.italic markup.bold",
+				"markup.bold markup.italic.markdown",
+				"markup.italic markup.bold.markdown"
+			],
+			"settings": {
+				"fontStyle": "bold italic"
+			}
+		},
+		{
 			"scope": "markup.strikethrough",
 			"settings": {
 				"fontStyle": "strikethrough"
