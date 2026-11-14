@@ -11,6 +11,17 @@
 export namespace WebFileSystemAccess {
 
 	export function supported(obj: typeof globalThis): boolean {
+		// In a cross-origin iframe the picker API exists but cannot be used,
+		// so treat it as unsupported when the top window is not accessible.
+		const top = obj.top;
+		if (top && obj.self !== top) {
+				try {
+						// Reading from a cross-origin window throws a SecurityError.
+						void top.document.title;
+				} catch {
+						return false;
+				}
+		}
 		if (typeof (obj as typeof globalThis & { showDirectoryPicker?: unknown })?.showDirectoryPicker === 'function') {
 			return true;
 		}
