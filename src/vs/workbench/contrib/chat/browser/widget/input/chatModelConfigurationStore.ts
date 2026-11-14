@@ -336,8 +336,10 @@ export class ChatModelConfigurationStore extends Disposable implements IModelCon
 		}
 		const applied = filterConfigurationToSchema(current.config, this.getModelConfigurationSchema(modelId));
 		const result = { ...configuration };
+		// A conversation with turns runs with the runtime's values, which also win over preferences it inherited but never set.
+		const ownKeys = this.isEmpty() ? undefined : this._ownKeys.get(modelId) ?? new Set<string>();
 		for (const key of this._defaultKeys(modelId) ?? []) {
-			if (!Object.hasOwn(applied, key) || !isModelConfigurationDefault(configuration, key)) {
+			if (!Object.hasOwn(applied, key) || (!isModelConfigurationDefault(configuration, key) && (!ownKeys || ownKeys.has(key)))) {
 				continue;
 			}
 			result[key] = applied[key];
