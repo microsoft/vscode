@@ -42,6 +42,7 @@ suite('AgentHostSessionListStore - project root', () => {
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => upcastPartial<IWorkspace>(options?.configuration ? { configuration: URI.file(options.configuration), folders } : { uri: URI.file('/work/vscode'), folders }),
 			onDidChangeWorkspaceFolders: Event.None,
+			onDidChangeWorkbenchState: Event.None,
 		}));
 		const connection: IAgentHostSessionListConnection = {
 			onDidNotification: Event.None,
