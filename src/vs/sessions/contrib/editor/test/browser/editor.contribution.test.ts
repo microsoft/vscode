@@ -2110,7 +2110,7 @@ suite('Sessions - Editor Contribution', () => {
 		}
 
 		/**
-		 * Runs the action on real parts with the real move command: a modal editor, maximized, with a first editor (the one
+		 * Runs the action on real parts with the real move command: a modal editor with a first editor (the one
 		 * navigation through changes reopens and closes) and, if given, a later one, recording what the action changes.
 		 */
 		async function runOnParts(options: { readonly navigation: boolean; readonly later?: 'canGo' | 'cannotGo' }) {
@@ -2122,9 +2122,6 @@ suite('Sessions - Editor Contribution', () => {
 			instantiationService.stub(IEditorGroupsService, parts);
 
 			const modal = await parts.createModalEditorPart();
-			if (!modal.maximized) {
-				modal.toggleMaximized(); // the size a modal editor last had carries over to the next one
-			}
 			const navigation = options.navigation ? { total: 1, current: 0, navigate: () => { } } : undefined;
 			await modal.activeGroup.openEditor(disposables.add(new TestFileEditorInput(URI.file('/first'), 'modalEditorInEditorAreaInput')), { pinned: true, modal: { navigation } });
 			if (options.later) {
@@ -2191,20 +2188,20 @@ suite('Sessions - Editor Contribution', () => {
 			});
 		});
 
-		test('navigating changes with only the changes editor reopens the changes, which closes the modal editor, and still maximizes and focuses', async () => {
+		test('navigating changes with only the changes editor reopens the changes, which closes the modal editor, and focuses without maximizing', async () => {
 			const result = await runOnParts({ navigation: true });
 			assert.deepStrictEqual({ log: result.log, modalOpen: result.modalOpen }, {
 				// The modal editor gives focus back to the main window as it closes, before the action focuses it
-				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'focus main', 'maximized true', 'focus main'],
+				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'focus main', 'focus main'],
 				modalOpen: false,
 			});
 		});
 
-		test('navigating changes with a later editor that can go moves it, then maximizes and focuses', async () => {
+		test('navigating changes with a later editor that can go moves it, then focuses without maximizing', async () => {
 			const result = await runOnParts({ navigation: true, later: 'canGo' });
 			assert.deepStrictEqual({ log: result.log, modalOpen: result.modalOpen, mainEditors: result.mainEditors }, {
 				// The move focuses the main window as its editors arrive and as the modal editor closes
-				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'focus main', 'focus main', 'moved true', 'maximized true', 'focus main'],
+				log: ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'focus main', 'focus main', 'moved true', 'focus main'],
 				modalOpen: false,
 				mainEditors: ['/later'],
 			});
@@ -2224,7 +2221,6 @@ suite('Sessions - Editor Contribution', () => {
 			}();
 			const modalPart = new class extends mock<IModalEditorPart>() {
 				override readonly activeGroup = modalGroup;
-				override readonly maximized = true;
 				override getGroups() { return [modalGroup]; }
 			}();
 			const mainGroup = new class extends mock<IEditorGroup>() {
@@ -2253,15 +2249,15 @@ suite('Sessions - Editor Contribution', () => {
 			return log;
 		}
 
-		test('with editors that can go, opens them in the editor area, maximized as the modal editor was, and focused', async () => {
-			assert.deepStrictEqual(await runAllowed({ moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'maximized true', 'focus']);
+		test('with editors that can go, opens them in the editor area, focused and not maximized', async () => {
+			assert.deepStrictEqual(await runAllowed({ moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'focus']);
 		});
 
 		test('with navigation through changes, reopens the changes editor at the current change, as before', async () => {
-			assert.deepStrictEqual(await runAllowed({ navigation: true, moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'close first editor', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'maximized true', 'focus']);
+			assert.deepStrictEqual(await runAllowed({ navigation: true, moved: true }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, 'open changes /changed', 'close first editor', `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`, 'focus']);
 		});
 
-		test('neither maximizes nor focuses when the move command refuses after all', async () => {
+		test('does not focus when the move command refuses after all', async () => {
 			assert.deepStrictEqual(await runAllowed({ moved: false }), ['set workbench.editor.useModal some', `show ${Parts.EDITOR_PART}`, `run ${MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID}`]);
 		});
 	});

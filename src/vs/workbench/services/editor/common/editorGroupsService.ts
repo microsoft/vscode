@@ -677,31 +677,6 @@ export interface IModalEditorPart extends IEditorPart {
 	readonly modalElement: unknown /* HTMLElement */;
 
 	/**
-	 * Whether the modal editor part is currently maximized.
-	 */
-	readonly maximized: boolean;
-
-	/**
-	 * Fired when the maximized state changes.
-	 */
-	readonly onDidChangeMaximized: Event<boolean>;
-
-	/**
-	 * Toggle between default and maximized size.
-	 */
-	toggleMaximized(): void;
-
-	/**
-	 * Size set by the user via resizing, if any.
-	 */
-	readonly size: IDimension | undefined;
-
-	/**
-	 * Position set by the user via dragging, if any.
-	 */
-	readonly position: { left: number; top: number } | undefined;
-
-	/**
 	 * Whether the modal editor part has a sidebar.
 	 */
 	readonly hasSidebar: boolean;

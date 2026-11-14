@@ -339,8 +339,6 @@ export class OpenModalEditorInEditorAction extends Action2 {
 			return;
 		}
 
-		const isMaximized = activeEditorPart.maximized;
-
 		// Set the `workbench.editor.useModal` setting back to 'some'
 		await configurationService.updateValue('workbench.editor.useModal', 'some');
 
@@ -371,11 +369,6 @@ export class OpenModalEditorInEditorAction extends Action2 {
 			if (!moved) {
 				return; // they did not move, such as for an editor that could not go meanwhile
 			}
-		}
-
-		// Maximize
-		if (isMaximized) {
-			layoutService.setEditorMaximized(true);
 		}
 
 		// Focus
