@@ -172,7 +172,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 			model.dispose();
 			throw new CancellationError();
 		}
-		const sessionType = sessionResource.scheme;
+		const sessionType = getChatSessionType(sessionResource);
 		let composer: Promise<IChatWidget | undefined> | undefined;
 		return {
 			moved: async () => { },
@@ -199,13 +199,18 @@ export class AgentsChatViewHost implements IChatViewHost {
 		};
 	}
 
-	/** Shows a new-session composer of `sessionType` and resolves to the widget of its input, whose submits create the session. */
-	private async _openComposer(sessionType: string): Promise<IChatWidget | undefined> {
+	/**
+	 * Shows a new-session composer of the sessions of chat session type `chatSessionType` and resolves to the widget of its
+	 * input, whose submits create the session.
+	 */
+	private async _openComposer(chatSessionType: string): Promise<IChatWidget | undefined> {
 		if (!this._available) {
 			return undefined;
 		}
+		// The provider's own type, which may differ from the type of its chats, such as `claude` of `agent-host-claude` chats
+		const offered = this._sessionsManagementService.getAllProviderSessionTypes().find(({ sessionType }) => (sessionType.chatSessionType ?? sessionType.id) === chatSessionType);
 		// A composer of its own: the one it shows may aim at sessions of another type
-		await this._chatPart.openComposer({ ...this._composerTarget(), sessionTypeId: sessionType }, { newComposer: true });
+		await this._chatPart.openComposer({ ...this._composerTarget(), providerId: offered?.providerId, sessionTypeId: offered?.sessionType.id }, { newComposer: true });
 		return this._chatPart.getComposerWidget();
 	}
 

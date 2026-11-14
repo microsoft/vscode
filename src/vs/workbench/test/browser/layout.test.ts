@@ -7,17 +7,16 @@ import assert from 'assert';
 import { $, append } from '../../../base/browser/dom.js';
 import { Grid, Direction, ISerializedGrid, ISerializedNode, Orientation, SerializableGrid } from '../../../base/browser/ui/grid/grid.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { toDisposable } from '../../../base/common/lifecycle.js';
-import { mock } from '../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { Layout } from '../../browser/layout.js';
 import { Part, updateSashEndpoints } from '../../browser/part.js';
 import { PanelAlignment, Parts, Position } from '../../services/layout/browser/layoutService.js';
 import { NullTelemetryService } from '../../../platform/telemetry/common/telemetryUtils.js';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from '../../common/views.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
-import { SyncDescriptor } from '../../../platform/instantiation/common/descriptors.js';
+import { Extensions as ViewExtensions, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../common/views.js';
 
 suite('Workbench layout sash endpoints', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -150,6 +149,8 @@ suite('Workbench layout chat part', () => {
 		readonly chat?: { readonly visible: boolean; readonly size: number } | 'noLayout';
 		/** The location of the view the chat part docks beside; `null` for a view that is not known; no anchor without. */
 		readonly anchor?: ViewContainerLocation | null;
+		/** Whether that view is registered, as it is by default; one that is not keeps a location saved for it. */
+		readonly anchorRegistered?: boolean;
 	}
 
 	/** The state a window left, to start another window from, as after a reload. */
@@ -197,13 +198,16 @@ suite('Workbench layout chat part', () => {
 			['auxiliaryBar.hidden', false],
 		]);
 		const initialization = new Map<string, unknown>([['sideBar.size', 250], ['auxiliaryBar.size', 260], ['panel.size', 200]]);
-		const anchor = { location: configuration.anchor ?? null };
+		const anchor = { location: configuration.anchor ?? null, registered: configuration.anchorRegistered ?? true };
+		const viewEvents = { location: store.add(new Emitter<void>()), container: store.add(new Emitter<void>()), containerLocation: store.add(new Emitter<void>()), containers: store.add(new Emitter<void>()) };
 		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
+		const focus = { chat: false, focused: [] as string[] };
 		const layout = store.add(new class extends Layout {
 			override isVisible(part: Parts, targetWindow?: Window): boolean {
 				return part === Parts.TITLEBAR_PART || super.isVisible(part, targetWindow);
 			}
-			override hasFocus() { return false; }
+			override hasFocus(part: Parts) { return part === Parts.CHAT_PART && focus.chat; }
+			override focusPart(part: Parts) { focus.focused.push(part.split('.').pop()!); }
 			override isFloatingPanelsEnabled() { return false; }
 			protected override getPart(id: Parts) { return views.get(id)!; }
 		}(mainWindow.document.body));
@@ -213,7 +217,15 @@ suite('Workbench layout chat part', () => {
 			telemetryService: NullTelemetryService,
 			// No view containers: the side bar and the panel show and hide empty
 			paneCompositeService: { getActivePaneComposite: () => undefined, getLastActivePaneCompositeId: () => undefined },
-			viewDescriptorService: { getViewContainersByLocation: () => [], getViewLocationById: () => anchor.location },
+			viewDescriptorService: {
+				getViewContainersByLocation: () => [],
+				getViewDescriptorById: () => anchor.registered ? {} : null,
+				getViewLocationById: () => anchor.location,
+				onDidChangeLocation: viewEvents.location.event,
+				onDidChangeContainer: viewEvents.container.event,
+				onDidChangeContainerLocation: viewEvents.containerLocation.event,
+				onDidChangeViewContainers: viewEvents.containers.event,
+			},
 			configurationService: { getValue: () => undefined },
 			storageService: { get: () => stored, store: (_key: string, value: string) => stored = value },
 			stateModel: {
@@ -230,7 +242,7 @@ suite('Workbench layout chat part', () => {
 			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
 			return { runtime, stored };
 		};
-		return { layout, views, descriptor, save, anchor };
+		return { layout, views, descriptor, save, anchor, focus, viewEvents };
 	}
 
 	/** The parts of `node`, nested as the grid nests them, marking hidden parts. */
@@ -306,13 +318,13 @@ suite('Workbench layout chat part', () => {
 	});
 
 	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
-		const { layout, views, descriptor, save, anchor } = createLayout(configuration, saved);
+		const { layout, views, descriptor, save, anchor, focus, viewEvents } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
 		grid.layout(1600, 900);
 		Object.assign(layout, { workbenchGrid: grid });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle, save, anchor, views };
+		return { layout, grid, middle, save, anchor, views, focus, viewEvents };
 	}
 
 	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
@@ -435,6 +447,7 @@ suite('Workbench layout chat part', () => {
 			rightPanel: middle({ sideBar: Position.LEFT, panel: Position.RIGHT, anchor: ViewContainerLocation.Panel }),
 			bottomPanel: middle({ sideBar: Position.RIGHT, panel: Position.BOTTOM, anchor: ViewContainerLocation.Panel }),
 			unknownView: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: null }),
+			unregisteredViewWithSavedMove: middle({ sideBar: Position.LEFT, panel: Position.BOTTOM, anchor: ViewContainerLocation.AuxiliaryBar, anchorRegistered: false }),
 		}, {
 			sideBar: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
 			sideBarRight: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
@@ -444,26 +457,8 @@ suite('Workbench layout chat part', () => {
 			rightPanel: ['activitybar', 'sidebar', 'editor', 'chat', 'panel', 'auxiliarybar'],
 			bottomPanel: ['auxiliarybar', [['editor', 'chat'], 'panel'], 'sidebar', 'activitybar'],
 			unknownView: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			unregisteredViewWithSavedMove: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
 		});
-	});
-
-	test('the chat part goes back to the primary side bar\'s side as its anchor view is deregistered', () => {
-		const { layout, anchor } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
-		Object.assign(layout, { viewDescriptorService: { ...Reflect.get(layout, 'viewDescriptorService'), onDidChangeContainerLocation: Event.None, onDidChangeContainer: Event.None, onDidChangeLocation: Event.None, onDidChangeViewContainers: Event.None } });
-		const listener = (Reflect.get(layout, 'onDidChangeChatPartAnchorLocation') as () => Event<unknown>).call(layout)(() => (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout));
-		const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({ id: 'layoutTest.anchorContainer', title: { value: 'Anchor', original: 'Anchor' }, ctorDescriptor: new SyncDescriptor(class { }) }, ViewContainerLocation.AuxiliaryBar);
-		const views = [{ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' }, ctorDescriptor: new SyncDescriptor(class { }) }];
-		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		viewsRegistry.registerViews(views, viewContainer);
-		const registered = layout.getChatPartPosition();
-		// Gone, the view has no location
-		anchor.location = null;
-		viewsRegistry.deregisterViews(views, viewContainer);
-		const deregistered = layout.getChatPartPosition();
-		listener.dispose();
-		Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(viewContainer);
-
-		assert.deepStrictEqual({ registered, deregistered }, { registered: Position.RIGHT, deregistered: Position.LEFT });
 	});
 
 	test('the chat part follows its anchor view as the view moves, the side bar flips and the panel moves', () => {
@@ -531,6 +526,78 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual(steps, {
 			maximized: false,
 			restored: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part keeps the focus as it moves to its anchor view\'s side, and follows the view as it is deregistered', () => {
+		const { layout, middle, anchor, focus } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const moveAnchor = (location: ViewContainerLocation | null) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		focus.chat = true;
+		moveAnchor(ViewContainerLocation.Sidebar);
+		const focused = [...focus.focused];
+		focus.chat = false;
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		// As the view deregisters, it is no view the layout knows
+		moveAnchor(null);
+
+		assert.deepStrictEqual({ focused, focusedAfter: focus.focused, deregistered: middle() }, {
+			focused: ['chat'],
+			focusedAfter: ['chat'],
+			deregistered: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('follows its anchor view through the events of the views as they move, deregister and register again', () => {
+		const { layout, middle, anchor, viewEvents } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
+		store.add((Reflect.get(layout, 'followChatPartAnchor') as () => { dispose(): void }).call(layout));
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		const container = upcastPartial<ViewContainer>({ id: 'test.chatPartAnchor' });
+		const view = upcastPartial<IViewDescriptor>({ id: 'sessions', name: { value: 'Sessions', original: 'Sessions' } });
+		const steps: Record<string, unknown> = {};
+
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		viewEvents.location.fire();
+		steps.viewMoved = middle();
+		anchor.location = ViewContainerLocation.Sidebar;
+		viewEvents.containerLocation.fire();
+		steps.containerMoved = middle();
+		viewsRegistry.registerViews([view], container);
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		viewEvents.container.fire();
+		steps.viewContainerChanged = middle();
+		anchor.registered = false;
+		viewsRegistry.deregisterViews([view], container);
+		steps.deregistered = middle();
+		anchor.registered = true;
+		viewsRegistry.registerViews([view], container);
+		steps.registeredAgain = middle();
+		viewsRegistry.deregisterViews([view], container);
+
+		assert.deepStrictEqual(steps, {
+			viewMoved: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			containerMoved: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			viewContainerChanged: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			deregistered: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
+			registeredAgain: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part gives the focus back to what had it inside, such as a button of its toolbar, as it moves to its anchor view\'s side', () => {
+		const { layout, middle, anchor, focus, views } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.Sidebar });
+		mainWindow.document.body.appendChild(layout.mainContainer);
+		store.add(toDisposable(() => layout.mainContainer.remove()));
+		const button = append(views.get(Parts.CHAT_PART)!.element, $('button'));
+		button.focus();
+		focus.chat = true;
+		const focusedBefore = mainWindow.document.activeElement === button;
+		anchor.location = ViewContainerLocation.AuxiliaryBar;
+		(Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout);
+
+		assert.deepStrictEqual({ focusedBefore, moved: middle(), focusedAfter: mainWindow.document.activeElement === button, defaultFocus: focus.focused }, {
+			focusedBefore: true,
+			moved: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+			focusedAfter: true,
+			defaultFocus: [],
 		});
 	});
 });
