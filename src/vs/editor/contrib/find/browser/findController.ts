@@ -339,9 +339,13 @@ export class CommonFindController extends Disposable implements IEditorContribut
 				}
 			}
 		} else if (opts.seedSearchStringFromSelection === 'multiple' && !opts.updateSearchScope) {
-			const selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection);
+			const selectionSearchString = getSelectionSearchString(this._editor, opts.seedSearchStringFromSelection, opts.seedSearchStringFromNonEmptySelection);
 			if (selectionSearchString) {
-				stateChanges.searchString = selectionSearchString;
+				if (this._state.isRegex) {
+					stateChanges.searchString = strings.escapeRegExpCharacters(selectionSearchString);
+				} else {
+					stateChanges.searchString = selectionSearchString;
+				}
 			}
 		}
 
@@ -587,7 +591,7 @@ StartFindAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeE
 	}
 	return controller.start({
 		forceRevealReplace: false,
-		seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? 'single' : 'none',
+		seedSearchStringFromSelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never' ? (editor.getOption(EditorOption.find).autoFindInSelection === 'never' ? 'multiple' : 'single') : 'none',
 		seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
 		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).globalFindClipboard,
 		shouldFocus: FindStartFocusAction.FocusFindInput,
@@ -1048,7 +1052,7 @@ StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor:
 
 	return controller.start({
 		forceRevealReplace: true,
-		seedSearchStringFromSelection: seedSearchStringFromSelection ? 'single' : 'none',
+		seedSearchStringFromSelection: seedSearchStringFromSelection ? (editor.getOption(EditorOption.find).autoFindInSelection === 'never' ? 'multiple' : 'single') : 'none',
 		seedSearchStringFromNonEmptySelection: editor.getOption(EditorOption.find).seedSearchStringFromSelection === 'selection',
 		seedSearchStringFromGlobalClipboard: editor.getOption(EditorOption.find).seedSearchStringFromSelection !== 'never',
 		shouldFocus: shouldFocus,
