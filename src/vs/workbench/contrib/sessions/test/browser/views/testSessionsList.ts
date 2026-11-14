@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasKey, isDefined } from '../../../../../../base/common/types.js';
-import { SessionListItem, SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { SessionChatItem, SessionListItem, SessionsList, SessionsListItemReference } from '../../../browser/views/sessionsList.js';
+import { ISession } from '../../../../../services/sessions/common/session.js';
+
+function isSessionRow(element: SessionListItem): element is ISession {
+	return 'sessionId' in element && 'resource' in element;
+}
 
 /**
  * A sessions list whose focus, selection, collapse state, and rendered rows can be
@@ -112,6 +117,22 @@ export class TestSessionsList extends SessionsList {
 			}
 		}
 		return undefined;
+	}
+
+	/** Returns references to the selected session and chat rows. */
+	getSelectedItems(): SessionsListItemReference[] {
+		return this.trees.flatMap(tree => tree.getSelection()).flatMap((element): SessionsListItemReference[] => {
+			if (element instanceof SessionChatItem) {
+				return [{ session: element.session.resource, chat: element.chat.resource }];
+			}
+			return element && isSessionRow(element) ? [{ session: element.resource }] : [];
+		});
+	}
+
+	/** Whether the referenced row is in the list and entirely within the viewport. */
+	isItemInViewport(item: SessionsListItemReference): boolean {
+		const element = this.findItem(item);
+		return !!element && this.getTree(element).getRelativeTop(element) !== null;
 	}
 
 	private revealElement(element: SessionListItem): void {

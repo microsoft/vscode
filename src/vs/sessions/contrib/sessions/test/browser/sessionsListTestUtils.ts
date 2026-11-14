@@ -300,7 +300,7 @@ export interface IListHarnessOptions {
 	readonly shownAutomationSessionIds?: ReadonlySet<string>;
 	/** Apply sort changes and fire change events, as the real service does. */
 	readonly liveListModel?: boolean;
-	/** Apply pinSession changes and fire change events, as the real service does. */
+	/** Apply pin and unpin changes and fire change events, as the real service does. */
 	readonly livePins?: boolean;
 	/** The active session, whose open chat the list selects. */
 	readonly activeSession?: IObservable<ITestSessionWithChat | undefined>;
@@ -324,6 +324,7 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	const sectionMemberships = options.sectionMemberships ?? new Map();
 	const pinnedSessionIds = options.pinnedSessionIds ?? new Set();
 	const livePinnedSessionIds = new Set<string>();
+	const liveUnpinnedSessionIds = new Set<string>();
 	const shownAutomationSessionIds = new Set(options.shownAutomationSessionIds);
 	const comparisons = options.comparisons ?? [];
 	const deletedGroupIds: string[] = [];
@@ -351,19 +352,31 @@ export function createListHarness(disposables: Pick<DisposableStore, 'add'>, ses
 	});
 	instantiationService.stub(ISessionsListModelService, new class extends mock<ISessionsListModelService>() {
 		override readonly onDidChange = onDidChangeListModel.event;
-		override isSessionPinned(session: ISession): boolean { return pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId); }
+		override isSessionPinned(session: ISession): boolean {
+			return !liveUnpinnedSessionIds.has(session.sessionId) && (pinnedSessionIds.has(session.sessionId) || livePinnedSessionIds.has(session.sessionId));
+		}
 		override pinSession(session: ISession): void {
 			pinChanges.push({ sessionId: session.sessionId, pinned: true });
 			if (options.livePins) {
 				livePinnedSessionIds.add(session.sessionId);
+				liveUnpinnedSessionIds.delete(session.sessionId);
 				onDidChangeListModel.fire({ changes: [{ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned }] });
 			}
 		}
+		override unpinSession(session: ISession): void {
+			this.unpinSessions([session]);
+		}
 		override unpinSessions(sessions: ISession[]): void {
-			for (const session of sessions) {
-				if (pinnedSessionIds.has(session.sessionId)) {
-					pinChanges.push({ sessionId: session.sessionId, pinned: false });
+			const unpinned = sessions.filter(session => this.isSessionPinned(session));
+			for (const session of unpinned) {
+				pinChanges.push({ sessionId: session.sessionId, pinned: false });
+			}
+			if (options.livePins && unpinned.length > 0) {
+				for (const session of unpinned) {
+					livePinnedSessionIds.delete(session.sessionId);
+					liveUnpinnedSessionIds.add(session.sessionId);
 				}
+				onDidChangeListModel.fire({ changes: unpinned.map(session => ({ sessionId: session.sessionId, kind: SessionListModelChangeKind.Pinned })) });
 			}
 		}
 		override migrateLegacyReadState(): void { }

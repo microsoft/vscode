@@ -58,7 +58,7 @@ Archived
   reordering are ordinary persisted list state.
 - A session a nested chat was moved to joins the custom group of the session it was moved from, whatever started the move, unless it already has a placement of its own. It keeps ordinary placement when that session has no group.
 
-The active session remains visible even when an ordinary filter would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
+The active session remains visible even when an ordinary filter, the "+N more" cap of its section, or the "+N more" entry that holds less recent folders would otherwise exclude it. Inbox workspace/environment scope is strict: an out-of-scope active session is hidden from the list without closing its conversation.
 
 A caller can acquire a disposable reveal of a session row or its archive action for onboarding. The list temporarily includes that session despite ordinary filters and presentation caps, expands its section, and exposes the requested spotlight target. A reveal outside the current Inbox scope fails explicitly without changing the scope. An archive-action reveal also keeps the action visible without hover or focus. A workspace reveal targets the header of the workspace section that contains the session, or the session row when the list is not grouped by workspace. Releasing the reveal restores normal filtering and action visibility without changing the user's saved filters.
 
