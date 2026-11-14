@@ -89,8 +89,8 @@ export class SessionsListingScopeFilter extends Disposable {
 
 	/**
 	 * The `sessions` in the scope of `scopeFolders`, such as the folders of an editor window: the sessions with a folder that
-	 * works in a scope folder, or whose root or git repository is in one, such as a session in a worktree of a scope folder's
-	 * repository. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
+	 * works in a scope folder, or whose root or git repository, its project, is a scope folder, such as a session in a
+	 * worktree of a scope folder's repository; not one whose project is only inside a scope folder. `scopeGitHubRepositories`, as lowercase `owner/repo`, are the GitHub repositories of the scope folders'
 	 * `origin`: a session working in one of them on GitHub, on any branch, such as a Copilot Cloud session, is in the scope
 	 * too. Only the metadata the providers report is read, comparing whole URIs, so a session of another host never matches a
 	 * local folder. A workspace-less quick chat, by its own `isQuickChat` flag, is in every scope: a session whose workspace
@@ -100,10 +100,11 @@ export class SessionsListingScopeFilter extends Disposable {
 	private _getSessionsInScope(sessions: readonly ISession[], scopeFolders: readonly URI[], reader: IReader, scopeGitHubRepositories: readonly string[]): ReadonlySet<ISession> {
 		const extUri = extUriBiasedIgnorePathCase;
 		const gitHubRepositories = new Set(scopeGitHubRepositories.map(repository => repository.toLowerCase()));
-		const isInScope = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
+		const worksInScope = (uri: URI) => scopeFolders.some(folder => extUri.isEqualOrParent(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories);
+		const isScopeFolder = (uri: URI | undefined) => !!uri && (scopeFolders.some(folder => extUri.isEqual(uri, folder)) || isGitHubRepositoryOf(uri, gitHubRepositories));
 		const included = new Set<ISession>();
 		for (const session of sessions) {
-			if (session.isQuickChat?.read(reader) || session.workspace.read(reader)?.folders.some(folder => isInScope(folder.workingDirectory) || isInScope(folder.root) || isInScope(folder.gitRepository?.uri))) {
+			if (session.isQuickChat?.read(reader) || session.workspace.read(reader)?.folders.some(folder => worksInScope(folder.workingDirectory) || isScopeFolder(folder.root) || isScopeFolder(folder.gitRepository?.uri))) {
 				included.add(session);
 			}
 		}
