@@ -219,7 +219,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		end: [] as { (): void }[]
 	};
 
-	private readonly pendingWritePromises: Function[] = [];
+	private readonly pendingWritePromises: { resolve(): void; reject(error: Error): void }[] = [];
 
 	/**
 	 * @param reducer a function that reduces the buffered data into a single object;
@@ -268,7 +268,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 
 			// highWaterMark: if configured, signal back when buffer reached limits
 			if (typeof this.options?.highWaterMark === 'number' && this.buffer.data.length > this.options.highWaterMark) {
-				return new Promise(resolve => this.pendingWritePromises.push(resolve));
+				return new Promise((resolve, reject) => this.pendingWritePromises.push({ resolve, reject }));
 			}
 		}
 	}
@@ -425,7 +425,7 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 		// when the buffer is empty, resolve all pending writers
 		const pendingWritePromises = [...this.pendingWritePromises];
 		this.pendingWritePromises.length = 0;
-		pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise());
+		pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise.resolve());
 	}
 
 	private flowErrors(): void {
@@ -460,7 +460,10 @@ class WriteableStreamImpl<T> implements WriteableStream<T> {
 			this.listeners.error.length = 0;
 			this.listeners.end.length = 0;
 
+			// settle pending writers so that they do not hang forever
+			const pendingWritePromises = [...this.pendingWritePromises];
 			this.pendingWritePromises.length = 0;
+			pendingWritePromises.forEach(pendingWritePromise => pendingWritePromise.reject(new Error('WriteableStream destroyed')));
 		}
 	}
 }
