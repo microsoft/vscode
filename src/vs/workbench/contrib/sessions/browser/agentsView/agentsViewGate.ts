@@ -74,7 +74,8 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			hideIfEmpty: true,
 			windowEnablement: WindowEnablement.Editor,
 		}, ViewContainerLocation.Sidebar);
-		this._register(toDisposable(() => viewContainersRegistry.deregisterViewContainer(container)));
 		this._register(registerEditorWindowSessionsViews(container, scoped));
+		// Last, as its views go first: the container is gone before they deregister otherwise, which then skips their cleanup
+		this._register(toDisposable(() => viewContainersRegistry.deregisterViewContainer(container)));
 	}
 }
