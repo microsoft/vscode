@@ -548,9 +548,12 @@ export class AgentHostSessionListStore extends Disposable {
 		return inWorkspace;
 	}
 
-	/** Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). */
+	/**
+	 * Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). Not a session
+	 * of a multi-root workspace, which only the windows of its workspace file list.
+	 */
 	private _matchesProjectRoot(summary: SessionSummary): boolean {
-		if (!summary.project?.uri || !this._options.matchProjectRoot?.get()) {
+		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta)) {
 			return false;
 		}
 		const project = URI.parse(summary.project.uri);

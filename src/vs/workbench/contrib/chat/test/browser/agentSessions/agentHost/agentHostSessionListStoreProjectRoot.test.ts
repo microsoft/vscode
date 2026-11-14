@@ -13,6 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { IAgentHostConnectionsService } from '../../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import { identityAgentHostResourceUriMapper } from '../../../../../../../platform/agentHost/common/agentHostUri.js';
 import { IAgentSessionMetadata } from '../../../../../../../platform/agentHost/common/agentService.js';
+import { withSessionMultiRootMetadata } from '../../../../../../../platform/agentHost/common/state/sessionState.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
@@ -22,12 +23,13 @@ suite('AgentHostSessionListStore - project root', () => {
 
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
-	const session = (id: string, workingDirectory: string, project: string): IAgentSessionMetadata => ({
+	const session = (id: string, workingDirectory: string, project: string, workspaceFile?: string): IAgentSessionMetadata => ({
 		session: URI.from({ scheme: 'copilot', path: `/${id}` }),
 		startTime: 0,
 		modifiedTime: 0,
 		workingDirectories: [URI.file(workingDirectory)],
 		project: { uri: URI.file(project), displayName: project.split('/').pop()! },
+		...(workspaceFile ? { _meta: withSessionMultiRootMetadata(undefined, { workspaceFile: URI.file(workspaceFile).toString() }) } : {}),
 	});
 
 	test('while matching by project root, also lists the sessions whose project is a folder of the window, such as in its worktrees, and lists them again as it turns on and off', async () => {
@@ -44,6 +46,8 @@ suite('AgentHostSessionListStore - project root', () => {
 			// Works in a worktree of the window's folder, which it reports as its project
 			session('worktree', '/work/vscode.worktrees/feature', '/work/vscode'),
 			session('unrelated', '/work/other.worktrees/x', '/work/other'),
+			// A session of another multi-root workspace that shares the folder: only the windows of its workspace file list it
+			session('multi-root', '/work/vscode.worktrees/multi', '/work/vscode', '/work/other.code-workspace'),
 		];
 		const connection: IAgentHostSessionListConnection = {
 			onDidNotification: Event.None,
