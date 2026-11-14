@@ -2208,7 +2208,7 @@ export class NewChatWidget extends Disposable {
 		const workspaceTrigger: IWorkspacePickerTrigger = {
 			label: selectsRepository ? localize('newSessionWorkspacePicker.repository', "Select Repository") : localize('newSessionWorkspacePicker.workspace', "Workspace"),
 			ariaLabel: selectsRepository ? localize('newSessionWorkspacePicker.repositoryAriaLabel', "Choose a repository for the new session") : localize('newSessionWorkspacePicker.workspaceAriaLabel', "Choose a workspace for the new session"),
-			tooltip: localize('newSessionWorkspacePicker.workspaceTooltip', "Project for the agent to work on"),
+			tooltip: () => this._workspacePicker.getSelectedLocationDescription() ?? localize('newSessionWorkspacePicker.workspaceTooltip', "Project for the agent to work on"),
 			focusCommand: {
 				id: FOCUS_NEW_SESSION_WORKSPACE_PICKER_COMMAND_ID,
 				when: FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN,

@@ -424,7 +424,8 @@ interface IRenderWorkspacePickerHarness extends IRenderSessionTypePickerHarness 
 	readonly _workspacePicker: {
 		readonly selectedFolderUri: URI | undefined;
 		readonly onDidChangeSelection: Event<void>;
-		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string; readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
+		getSelectedLocationDescription?(): string | undefined;
+		renderCategoryTriggers(container: HTMLElement, triggers: readonly { readonly label?: string; readonly tooltip?: string | (() => string); readonly icon?: { readonly id: string }; readonly attachesContext?: boolean; readonly clearable?: IObservable<boolean> }[]): HTMLElement;
 	};
 	_renderSessionTypePicker(container: HTMLElement, isQuickChat: boolean): void;
 	_renderPlaceRow(container: HTMLElement, chipRow: HTMLElement): IDisposable;
@@ -1757,6 +1758,7 @@ suite('NewChatWidget', () => {
 			_workspacePicker: {
 				selectedFolderUri: undefined,
 				onDidChangeSelection: Event.None,
+				getSelectedLocationDescription: () => undefined,
 				renderCategoryTriggers: (target, triggers) => {
 					workspaceVisibility.push(pickerVisibility.visibility.get().workspace);
 					const row = document.createElement('div');
@@ -1767,7 +1769,7 @@ suite('NewChatWidget', () => {
 						item.tabIndex = 0;
 						item.textContent = trigger.label ?? 'More';
 						row.appendChild(item);
-						workspaceTriggers.push({ tooltip: trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
+						workspaceTriggers.push({ tooltip: typeof trigger.tooltip === 'function' ? trigger.tooltip() : trigger.tooltip, icon: trigger.icon?.id, attachesContext: trigger.attachesContext });
 					}
 					return row;
 				},

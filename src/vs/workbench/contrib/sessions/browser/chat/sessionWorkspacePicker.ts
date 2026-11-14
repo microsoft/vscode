@@ -42,7 +42,6 @@ import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
 import { FolderLocationKind, getCurrentFolderLocationDescription, getNewWorktreeLabel, groupFolderLocations } from '../../../../services/workspaces/common/folderLocationSections.js';
-import { SESSION_WORKTREE_ICON } from '../../common/sessionWorktreeIcon.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';
@@ -82,6 +81,12 @@ type DevContainerSampleSelectedClassification = {
 };
 
 const FILTER_THRESHOLD = 10;
+
+/**
+ * The icon of a worktree in a composer's folder picker: New Worktree, each worktree of the window's folder, and the
+ * picker's chip at one. The Sessions list keeps its own icon for its Worktree groups.
+ */
+const WORKSPACE_PICKER_WORKTREE_ICON = Codicon.worktree;
 
 /** How workspace picker rows are laid out: the folder name, then its location as a description that truncates first. */
 export const WORKSPACE_PICKER_LIST_OPTIONS = {
@@ -1749,9 +1754,9 @@ export class WorkspacePicker extends Disposable {
 	private _getWorkspaceIcon(workspace: ISessionWorkspace): ThemeIcon {
 		const folderUri = workspace.folders[0]?.root;
 		if (folderUri && this._isSelectedFolder(folderUri) && this._isNewWorktreeSelected()) {
-			return SESSION_WORKTREE_ICON;
+			return WORKSPACE_PICKER_WORKTREE_ICON;
 		}
-		const presentationIcon = folderUri && this.options.getAllowedFolderPresentation?.(folderUri)?.icon;
+		const presentationIcon = folderUri && this._getAllowedFolderIcon(this.options.getAllowedFolderPresentation?.(folderUri));
 		if (presentationIcon) {
 			return presentationIcon;
 		}
@@ -2321,7 +2326,7 @@ export class WorkspacePicker extends Disposable {
 			label: getNewWorktreeLabel(),
 			description: undefined,
 			ariaDescription: localize('workspacePicker.newWorktreeDescription', "Start the session in a new worktree of the selected folder."),
-			group: { title: '', icon: SESSION_WORKTREE_ICON },
+			group: { title: '', icon: WORKSPACE_PICKER_WORKTREE_ICON },
 			item: {
 				id: 'workspacePicker.newWorktree',
 				checked: newWorktreeSelected || undefined,
@@ -2459,7 +2464,8 @@ export class WorkspacePicker extends Disposable {
 				&& this._getCurrentRepositoryId() === undefined;
 			contents.slot.toggleAttribute('hidden', hideForSelectedWorkspace || hideForMissingWorkspace || hideForMissingGitHubRepository);
 			trigger.classList.toggle('selected', noWorkspaceSelected || (reflectsWorkspace && workspace !== undefined) || isSelectedCategory || badgeCount > 0 || relatedGitHubInfo !== undefined);
-			const workspaceIcon = workspace ? this._getWorkspaceIcon(workspace) : undefined;
+			const chip = reflectsWorkspace && workspace ? this._getLocationChip(workspace, this._selectedResolved?.providerId) : undefined;
+			const workspaceIcon = chip?.icon ?? (workspace ? this._getWorkspaceIcon(workspace) : undefined);
 			const icon = noWorkspaceSelected
 				? getNoWorkspaceChoicePresentation(undefined).icon
 				: (reflectsWorkspace ? workspaceIcon : undefined)
@@ -2490,12 +2496,17 @@ export class WorkspacePicker extends Disposable {
 					: label && label !== emptyLabel
 						? localize('workspacePicker.categorySelectionAriaLabel', "{0}: {1}", options.label ?? options.ariaLabel, label)
 						: options.ariaLabel);
+			if (chip && badgeCount === 0) {
+				// By its icon only, but for New Worktree: it names the folder or worktree for screen readers
+				trigger.setAttribute('aria-label', chip.description);
+			}
 			if (reflectsWorkspace) {
 				this._setTriggerReadOnly(trigger, readOnly);
 			}
-			if (label) {
+			const shownLabel = chip ? chip.label : label;
+			if (shownLabel) {
 				contents.label ??= dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
-				contents.label.textContent = label;
+				contents.label.textContent = shownLabel;
 			} else {
 				contents.label?.remove();
 				contents.label = undefined;
@@ -2918,7 +2929,7 @@ export class WorkspacePicker extends Disposable {
 					description: current
 						? getCurrentFolderLocationDescription()
 						: presentation?.label !== undefined ? presentation.description : resolved.workspace.description,
-					group: { title: '', icon: presentation?.icon ?? this._getWorkspaceIcon(resolved.workspace) },
+					group: { title: '', icon: this._getAllowedFolderIcon(presentation) ?? this._getWorkspaceIcon(resolved.workspace) },
 					disabled: this._isProviderUnavailable(resolved.providerId),
 					item: {
 						id: `workspacePicker.workspace.${this.uriIdentityService.extUri.getComparisonKey(folderUri)}`,
@@ -2932,6 +2943,40 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 		return items;
+	}
+
+	/** The icon of an allowed folder as the picker shows it: a worktree's is the picker's worktree icon. */
+	private _getAllowedFolderIcon(presentation: IAllowedFolderPresentation | undefined): ThemeIcon | undefined {
+		return presentation?.kind === 'worktree' ? WORKSPACE_PICKER_WORKTREE_ICON : presentation?.icon;
+	}
+
+	/**
+	 * The chip of a picker whose allowed folders are a window's folder and its worktrees (with a {@link IAllowedFolderPresentation.kind}):
+	 * by its icon only, a folder or a worktree, but New Worktree by its name, with what it is for screen readers and on hover.
+	 */
+	private _getLocationChip(workspace: ISessionWorkspace, providerId: string | undefined): { readonly icon: ThemeIcon; readonly label: string | undefined; readonly description: string } | undefined {
+		const folderUri = workspace.folders[0]?.root;
+		const presentation = folderUri && this._getAllowedFolders() ? this.options.getAllowedFolderPresentation?.(folderUri) : undefined;
+		if (!folderUri || !presentation?.kind) {
+			return undefined;
+		}
+		const name = presentation.label ?? this._getFolderWorkspaceLabel(workspace, providerId);
+		if (this._isSelectedFolder(folderUri) && this._isNewWorktreeSelected()) {
+			// A new worktree of the window's folder, also from one of its worktrees
+			const primary = presentation.kind === 'worktree' ? this._getAllowedFolders()?.find(candidate => this.options.getAllowedFolderPresentation?.(candidate)?.kind === 'folder') : undefined;
+			const primaryResolved = primary ? this._resolveFolder(primary) : undefined;
+			const of = primary && primaryResolved ? this.options.getAllowedFolderPresentation?.(primary)?.label ?? this._getFolderWorkspaceLabel(primaryResolved.workspace, primaryResolved.providerId) : name;
+			return { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: localize('workspacePicker.newWorktreeChip', "Worktree"), description: localize('workspacePicker.newWorktreeChipDescription', "New worktree of {0}", of) };
+		}
+		return presentation.kind === 'worktree'
+			? { icon: WORKSPACE_PICKER_WORKTREE_ICON, label: undefined, description: localize('workspacePicker.worktreeChipDescription', "Worktree: {0}", name) }
+			: { icon: presentation.icon ?? Codicon.folder, label: undefined, description: localize('workspacePicker.folderChipDescription', "Folder: {0}", name) };
+	}
+
+	/** What the chip of a picker restricted to a window's folder and its worktrees shows, by name: for its hover. */
+	getSelectedLocationDescription(): string | undefined {
+		const selected = this._getNoWorkspaceOption()?.isSelected ? undefined : this._selectedResolved;
+		return selected && this._getLocationChip(selected.workspace, selected.providerId)?.description;
 	}
 
 	/** Whether the selected folder's session works in a new worktree of it. */
