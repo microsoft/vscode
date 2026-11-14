@@ -102,6 +102,7 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	Verbose = 'chat.verbose',
+	ResponseStatsDisplay = 'chat.responseStats.display',
 	ProgressBorder = 'chat.progressBorder.enabled',
 	PersistentProgress = 'chat.persistentProgress',
 	PersistentProgressVerbosity = 'chat.persistentProgressVerbosity',

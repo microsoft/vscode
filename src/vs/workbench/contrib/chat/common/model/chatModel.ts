@@ -329,6 +329,8 @@ export interface IChatResponseModel {
 	readonly entireResponse: IResponse;
 	/** Milliseconds timestamp when this chat response was created. */
 	readonly timestamp: number;
+	/** Milliseconds timestamp of the first streamed response content, measured in this client when the provider supplies no timing. */
+	readonly firstTokenTimestamp?: number;
 	/** Milliseconds timestamp when this chat response was completed or cancelled. */
 	readonly completedAt?: number;
 	/** Known completion timestamp for display. Undefined for legacy responses whose completion time was synthesized during restore. */
@@ -382,6 +384,8 @@ export interface IChatResponseModel {
 	initializeCodeBlockInfos(codeBlockInfo: ICodeBlockInfo[]): void;
 	addUndoStop(undoStop: IChatUndoStop): void;
 	setVote(vote: ChatAgentVoteDirection): void;
+	/** Records when the first response content arrived, for a client-measured time to first token. */
+	setFirstTokenTimestamp(timestamp: number): void;
 	setUsage(usage: IChatUsage): void;
 	setElapsedMs(elapsedMs: number): void;
 	setResult(result: IChatAgentResult): void;
@@ -1398,6 +1402,7 @@ export interface IChatResponseModelParameters {
 	restoredId?: string;
 	modelState?: ResponseModelStateT;
 	completionTimestamp?: number | null;
+	firstTokenTimestamp?: number;
 	timeSpentWaiting?: number;
 	elapsedMs?: number;
 	/**
@@ -1442,6 +1447,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private readonly _shouldBeBlocked = observableValue<boolean>(this, false);
 	private readonly _timestamp: number;
 	private _completionTimestamp: number | undefined;
+	private _firstTokenTimestamp: number | undefined;
 	private _timeSpentWaitingAccumulator: number;
 	private _elapsedMs: number | undefined;
 	private readonly _timingChanged = observableSignal(this);
@@ -1509,6 +1515,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	public get completionTimestamp(): number | undefined {
 		return this._completionTimestamp;
+	}
+
+	public get firstTokenTimestamp(): number | undefined {
+		return this._firstTokenTimestamp;
 	}
 
 	public get state(): ResponseModelState {
@@ -1661,6 +1671,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			? undefined
 			: params.completionTimestamp ?? (params.modelState && 'completedAt' in params.modelState ? params.modelState.completedAt : undefined);
 		this._timeSpentWaitingAccumulator = params.timeSpentWaiting || 0;
+		this._firstTokenTimestamp = params.firstTokenTimestamp;
 		this._elapsedMs = params.elapsedMs;
 		this._vote = params.vote;
 		this._result = params.result;
@@ -1786,6 +1797,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatTextEdit | IChatNotebookEdit | IChatExternalToolInvocationUpdate, quiet?: boolean, restored?: boolean) {
 		this._response.updateContent(responsePart, quiet, restored);
+		// Measure time to first token on the first visible content of every live
+		// response, whichever provider or session surface delivered it.
+		if (!restored && (responsePart.kind === 'markdownContent' || responsePart.kind === 'thinking')) {
+			this.setFirstTokenTimestamp(Date.now());
+		}
 	}
 
 	resolveInlineReference(resolveId: string, resolvedReference: IChatContentInlineReference): boolean {
@@ -1933,6 +1949,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._elapsedMs = Math.max(0, elapsedMs);
 	}
 
+	setFirstTokenTimestamp(timestamp: number): void {
+		if (this._firstTokenTimestamp === undefined && Number.isFinite(timestamp)) {
+			this._firstTokenTimestamp = timestamp;
+		}
+	}
+
 	private isSameUsage(currentUsage: IChatUsage, usage: IChatUsage): boolean {
 		return currentUsage.promptTokens === usage.promptTokens
 			&& currentUsage.completionTokens === usage.completionTokens
@@ -1968,6 +1990,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			this._timingChanged.trigger(undefined);
 		}
 		this._completionTimestamp = undefined;
+		this._firstTokenTimestamp = undefined;
 		this._elapsedMs = undefined;
 		this._modelState.set({ value: ResponseModelState.Pending }, undefined);
 		this._onDidChange.fire(defaultChatResponseModelChangeReason);
@@ -2092,6 +2115,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			modelTotals: this.usage?.modelTotals,
 			sessionCopilotCredits: this.usage?.sessionCopilotCredits,
 			sessionCopilotCreditsStatus: this.usage?.sessionCopilotCreditsStatus,
+			firstTokenTimestamp: this.firstTokenTimestamp,
 			elapsedMs: this.elapsedMs ?? (this.completedAt ? Math.max(0, this.completedAt - this.confirmationAdjustedTimestamp.get()) : undefined),
 		} satisfies WithDefinedProps<Omit<ISerializableChatResponseData, 'timestamp' | 'latestModelCall' | 'contextUsage'>> & Pick<ISerializableChatResponseData, 'latestModelCall' | 'contextUsage'>;
 	}
@@ -2221,6 +2245,7 @@ interface ISerializableChatResponseData {
 	modelTotals?: readonly IChatUsageModelTotal[];
 	sessionCopilotCredits?: number;
 	sessionCopilotCreditsStatus?: IChatUsage['sessionCopilotCreditsStatus'];
+	firstTokenTimestamp?: number;
 	elapsedMs?: number;
 }
 
@@ -3485,6 +3510,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				followups: raw.followups,
 				restoredId: raw.responseId,
 				timeSpentWaiting: raw.timeSpentWaiting,
+				firstTokenTimestamp: typeof raw.firstTokenTimestamp === 'number' && raw.firstTokenTimestamp > 0 ? raw.firstTokenTimestamp : undefined,
 				elapsedMs: raw.elapsedMs,
 				shouldBeBlocked: request.shouldBeBlocked.get(),
 				codeBlockInfos: raw.responseMarkdownInfo?.map<ICodeBlockInfo>(info => ({ suggestionId: info.suggestionId })),
