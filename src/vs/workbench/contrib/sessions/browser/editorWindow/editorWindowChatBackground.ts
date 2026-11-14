@@ -1,0 +1,30 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { IWorkbenchContribution } from '../../../../common/contributions.js';
+import { IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
+import { registerChatBackgroundConfiguration } from '../chatBackgroundActions.js';
+
+/**
+ * Has the chat background's settings in an editor window while its chat area is enabled, whose chats show over the chat
+ * background, as the Agents window always has them.
+ */
+export class EditorWindowChatBackgroundConfiguration extends Disposable implements IWorkbenchContribution {
+
+	static readonly ID = 'workbench.contrib.editorWindowChatBackgroundConfiguration';
+
+	constructor(
+		@IEditorWindowChatPartService chatPartService: IEditorWindowChatPartService,
+	) {
+		super();
+		this._register(autorun(reader => {
+			if (chatPartService.enabled.read(reader)) {
+				reader.store.add(registerChatBackgroundConfiguration());
+			}
+		}));
+	}
+}

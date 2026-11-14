@@ -7,7 +7,7 @@ import assert from 'assert';
 import { $, append } from '../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../base/browser/window.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { mock } from '../../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../../platform/accessibility/test/common/testAccessibilityService.js';
@@ -20,6 +20,9 @@ import { ContextKeyValue } from '../../../../../../platform/contextkey/common/co
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { DefaultChatViewFactory } from '../../../browser/chat/defaultChatViewFactory.js';
 import { registerChatBackgroundConfiguration } from '../../../browser/chatBackgroundActions.js';
+import { observableValue } from '../../../../../../base/common/observable.js';
+import { IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
+import { EditorWindowChatBackgroundConfiguration } from '../../../browser/editorWindow/editorWindowChatBackground.js';
 import { ISessionsChatBackground, ISessionsChatBackgroundService } from '../../../browser/chatBackgroundService.js';
 
 suite('Agents Chat Part - chat background', () => {
@@ -113,6 +116,32 @@ suite('Agents Chat Part - chat background', () => {
 			editorWindowWithoutChatPart: [false, false, false],
 			highContrast: [false, false, false],
 			settings: { held: true, released: true },
+		});
+	});
+
+	test('an editor window has the chat background\'s settings while its chat area is enabled, also beside the hold of an Agents window', () => {
+		const registered = () => !!Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties()['chat.agentSessions.preferredDarkBackgroundImage'];
+		const enabled = observableValue('enabled', false);
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IEditorWindowChatPartService, upcastPartial<IEditorWindowChatPartService>({ enabled }));
+		// Unless another suite has loaded the Agents window, which holds them for good
+		const before = registered();
+		const contribution = instantiationService.createInstance(EditorWindowChatBackgroundConfiguration);
+		const disabled = registered();
+		enabled.set(true, undefined);
+		const enabledState = registered();
+		enabled.set(false, undefined);
+		const disabledAgain = registered();
+		// Beside another hold, such as the Agents window's, disabling the chat area keeps them
+		const other = registerChatBackgroundConfiguration();
+		enabled.set(true, undefined);
+		enabled.set(false, undefined);
+		const besideOther = registered();
+		other.dispose();
+		contribution.dispose();
+
+		assert.deepStrictEqual({ disabled: disabled === before, enabled: enabledState, disabledAgain: disabledAgain === before, besideOther, after: registered() === before }, {
+			disabled: true, enabled: true, disabledAgain: true, besideOther: true, after: true,
 		});
 	});
 });
