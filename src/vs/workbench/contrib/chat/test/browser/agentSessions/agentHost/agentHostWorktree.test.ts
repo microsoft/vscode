@@ -546,4 +546,23 @@ suite('AgentHostWorktree', () => {
 			moves: ['/work/vscode.worktrees/feature', '/work/vscode', '/work/vscode.worktrees/created (automatic)'],
 		});
 	});
+
+	test('a working directory that changes back to where the folder is while it follows the previous one is followed once that settles', async () => {
+		const setting = new DeferredPromise<void>();
+		const feature = createWorktree({ enabled: true, setting: setting.p });
+		feature.show(agentSession('r'));
+		await settle();
+		feature.workingDirectories.set(agentSession('r').toString(), worktree.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		// The move to the worktree is under way, as the session comes to work where the folder still is
+		feature.workingDirectories.set(agentSession('r').toString(), primary.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+		setting.complete();
+		await settle();
+		await settle();
+
+		assert.deepStrictEqual(feature.applied, ['/work/vscode.worktrees/feature', '/work/vscode']);
+	});
 });

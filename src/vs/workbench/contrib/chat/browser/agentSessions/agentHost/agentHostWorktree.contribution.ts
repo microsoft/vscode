@@ -335,14 +335,15 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		if (!target || target.scheme !== Schemas.file || !this._enabled) {
 			return;
 		}
+		if (automatic && this._switching > 0) {
+			// Gives way to the switch under way, and follows where the chat works by then once that settles: also where that
+			// is where the folder is now, which the switch under way would leave
+			this._followWhenIdle = { shown, request: this._request };
+			return;
+		}
 		if (extUriBiasedIgnorePathCase.isEqual(target, folder.uri)) {
 			// Where the folder is: the chat is the last one of its location also without a move
 			this._rememberSession(folder.uri, shown.resource);
-			return;
-		}
-		if (automatic && this._switching > 0) {
-			// Gives way to the switch under way, and follows where the chat works by then once that settles
-			this._followWhenIdle = { shown, request: this._request };
 			return;
 		}
 		void this._switch(shown.resource, primary, target, automatic ? this._foreground : undefined);
