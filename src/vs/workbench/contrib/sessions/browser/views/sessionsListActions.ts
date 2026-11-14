@@ -1005,7 +1005,7 @@ function createSessionsListActions(): DisposableStore {
 				title: localize2('inboxMode', "Inbox Mode"),
 				category: SessionsCategories.Sessions,
 				f1: true,
-				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.has(`config.${ChatConfiguration.AgentsViewEnabled}`)), ChatContextKeys.enabled),
+				precondition: ContextKeyExpr.and(ContextKeyExpr.or(IsSessionsWindowContext, ContextKeyExpr.has(`config.${ChatConfiguration.SessionsViewEnabled}`)), ChatContextKeys.enabled),
 				toggled: InboxModeContext,
 				menu: [{ id: Menus.SessionsViewGrouping, group: '1_group', order: 4, when: ChatContextKeys.enabled }],
 			});

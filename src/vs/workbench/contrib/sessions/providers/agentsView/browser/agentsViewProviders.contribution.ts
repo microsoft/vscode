@@ -108,7 +108,7 @@ export class AgentsViewProvidersService extends Disposable implements IAgentsVie
 
 /**
  * Holds the sessions providers of the Sessions view of an editor window while that view or the chat part, which shows
- * sessions too, shows, while {@link ChatConfiguration.AgentsViewEnabled} is on. The setting is read once, as the window
+ * sessions too, shows, while {@link ChatConfiguration.SessionsViewEnabled} is on. The setting is read once, as the window
  * starts: with it off, this does nothing else.
  */
 export class AgentsViewProvidersContribution extends Disposable implements IWorkbenchContribution {
@@ -121,7 +121,7 @@ export class AgentsViewProvidersContribution extends Disposable implements IWork
 	) {
 		super();
 
-		if (configurationService.getValue<boolean>(ChatConfiguration.AgentsViewEnabled) !== true) {
+		if (configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) !== true) {
 			return;
 		}
 

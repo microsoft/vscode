@@ -92,7 +92,7 @@ suite('AgentsViewGate', () => {
 				createdChatParts++;
 			}
 		})])));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.AgentsViewEnabled]: enabled }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.SessionsViewEnabled]: enabled }));
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
@@ -135,11 +135,11 @@ suite('AgentsViewGate', () => {
 				reads.push(String(arg1));
 				return super.getValue<T>(arg1, arg2);
 			}
-		}({ [ChatConfiguration.AgentsViewEnabled]: false });
+		}({ [ChatConfiguration.SessionsViewEnabled]: false });
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
 		disposables.add(new AgentsViewGate(configurationService, upcastPartial<IInstantiationService>({})));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { container: undefined, view: undefined, reads: [ChatConfiguration.AgentsViewEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { container: undefined, view: undefined, reads: [ChatConfiguration.SessionsViewEnabled] });
 	});
 
 	test('registers the Sessions view before the Explorer, without registering its actions, while the setting is on', () => {
@@ -183,7 +183,7 @@ suite('AgentsViewGate', () => {
 
 	test('surfaces every local agent host agent in a local editor window with the setting on, as the Agents window does, but not in a remote one', () => {
 		const surfaces = (enabled: boolean, remoteAuthority?: string, isSessionsWindow = false) =>
-			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.AgentsViewEnabled]: enabled }));
+			surfacesAllLocalAgentHostAgents({ isSessionsWindow, remoteAuthority }, new TestConfigurationService({ [ChatConfiguration.SessionsViewEnabled]: enabled }));
 
 		assert.deepStrictEqual({
 			local: surfaces(true),

@@ -70,7 +70,7 @@ export class SettingsChangeRelauncher extends Disposable implements IWorkbenchCo
 		'accessibility.verbosity.debug',
 		'telemetry.feedback.enabled',
 		'chat.extensionUnification.enabled',
-		'chat.agentsView.enabled',
+		'chat.sessionsView.enabled',
 		'chat.agentHost.claudeAgent.enabled',
 		'chat.agentHost.computerUse.enabled',
 		'chat.editor.codex.preferAgentHost',

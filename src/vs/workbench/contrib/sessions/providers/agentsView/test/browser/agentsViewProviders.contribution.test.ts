@@ -33,7 +33,7 @@ suite('AgentsViewProvidersContribution', () => {
 				reads.push(String(arg1));
 				return super.getValue<T>(arg1, arg2);
 			}
-		}({ [ChatConfiguration.AgentsViewEnabled]: enabled });
+		}({ [ChatConfiguration.SessionsViewEnabled]: enabled });
 	}
 
 	test('reads only its setting and does nothing else while the setting is off', () => {
@@ -41,7 +41,7 @@ suite('AgentsViewProvidersContribution', () => {
 		// Any use of the instantiation service fails: with the setting off, the contribution creates and invokes nothing
 		disposables.add(new AgentsViewProvidersContribution(configuration(false, reads), upcastPartial<IInstantiationService>({})));
 
-		assert.deepStrictEqual(reads, [ChatConfiguration.AgentsViewEnabled]);
+		assert.deepStrictEqual(reads, [ChatConfiguration.SessionsViewEnabled]);
 	});
 
 	test('holds the providers while the Sessions view or the chat part shows, as the window restores too', async () => {

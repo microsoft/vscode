@@ -64,7 +64,7 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 }
 
 /**
- * Shows the Sessions view of the Agents window in an editor window while {@link ChatConfiguration.AgentsViewEnabled} is on.
+ * Shows the Sessions view of the Agents window in an editor window while {@link ChatConfiguration.SessionsViewEnabled} is on.
  * The setting is read once, as the window starts: with it off, this registers nothing and creates no service.
  */
 export class AgentsViewGate extends Disposable implements IWorkbenchContribution {
@@ -77,7 +77,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 	) {
 		super();
 
-		if (configurationService.getValue<boolean>(ChatConfiguration.AgentsViewEnabled) !== true) {
+		if (configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) !== true) {
 			return;
 		}
 
