@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { SESSIONS_CHAT_TABS_SETTING, SessionsChatTabsMode } from '../../../common/sessionConfig.js';
-import { IAgentsViewFolderLocationService } from '../../../browser/agentsView/agentsViewFolderLocation.js';
 import assert from 'assert';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
@@ -256,12 +255,6 @@ suite('AgentsChatPartService', () => {
 		instantiationService.stub(ISessionsListModelService, upcastPartial<ISessionsListModelService>({ getStatusIcon: () => Codicon.circle }));
 		instantiationService.stub(ISessionGroupsService, upcastPartial<ISessionGroupsService>({ setDraftSlotGroup: () => toDisposable(() => { }), getGroupOfSession: () => undefined }));
 
-		// The sessions whose opening asked to move the window's folder to where they work
-		const switchedTo: ISession[] = [];
-		// Whether each of those was automatic, not asked for by the user now
-		const automatic: boolean[] = [];
-		instantiationService.stub(IAgentsViewFolderLocationService, upcastPartial<IAgentsViewFolderLocationService>({ switchToSession: async (session, options) => { switchedTo.push(session); automatic.push(!!options?.automatic); } }));
-
 		const host = new EditorWindowMainSessionHost(contextKeyService);
 		instantiationService.stub(ISessionHost, host);
 		const service = store.add(instantiationService.createInstance(AgentsChatPartService));
@@ -286,8 +279,6 @@ suite('AgentsChatPartService', () => {
 			},
 			/** Changes of sessions that the providers' listing scope hides, such as of another folder: they are not listed. */
 			fireHiddenSessionsChanged: (added: readonly ISession[], removed: readonly ISession[] = []) => allSessionsChanged.fire(toSessionChanges(added, removed) as never),
-			switchedTo,
-			automatic,
 			state: () => ({ tabs: part.groups.reduce((count, group) => count + group.editors.length, 0), liveSlots, sessionListeners, visible: partVisible }),
 			/** The tabs of each group, the active one of each, and whether the layout shows the chat part. */
 			layout: () => ({
@@ -344,112 +335,66 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual({ session: host.session.get() === draft, chat: host.chat.get()?.resource.path, activeChat: service.activeChat.get() }, { session: true, chat: '/a', activeChat: undefined });
 	});
 
-	test('opening a session or picking its tab moves the window\'s folder to where it works; tabs that open, close or restore do not', async () => {
+	test('opening a session or picking its tab shows its chat as opened; closing a tab shows the chat it activates as restored', async () => {
 		const first = buildTestSession({ id: 'first', title: 'First' });
 		const second = buildTestSession({ id: 'second', title: 'Second' });
-		const { service, part, switchedTo } = createService({ sessions: () => [first.session, second.session] });
-		const switched = () => switchedTo.splice(0).map(session => session === first.session ? 'first' : session === second.session ? 'second' : 'other');
+		const { service, part } = createService({ sessions: () => [first.session, second.session] });
+		const shown = () => {
+			const value = service.shownSession.get();
+			return value && { chat: value.resource.path, reason: value.reason };
+		};
 
 		await service.openChat(first.session, undefined);
 		await service.openChat(second.session, undefined);
-		const opened = switched();
+		const opened = shown();
 		// Picking the first tab, as a click does
 		part.activeGroup.open(part.activeGroup.editors[0]);
-		const picked = switched();
+		const picked = shown();
 		// Closing it activates the other tab, which the user did not pick
 		await part.activeGroup.closeEditor(part.activeGroup.activeEditor!);
 		await timeout(0);
 
-		assert.deepStrictEqual({ opened, picked, closed: switched() }, { opened: ['first', 'second'], picked: ['first'], closed: [] });
+		assert.deepStrictEqual({ opened, picked, closed: shown() }, {
+			opened: { chat: second.session.mainChat.get().resource.path, reason: 'open' },
+			picked: { chat: first.session.mainChat.get().resource.path, reason: 'open' },
+			closed: { chat: second.session.mainChat.get().resource.path, reason: 'restore' },
+		});
 	});
 
-	test('a session opened to keep the folder, as for the location the user picked, neither moves the window\'s folder nor follows its session', async () => {
-		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
-		const kept: ISession = { ...buildTestSession({ id: 'kept', title: 'Kept' }).session, workspace };
-		const { service, switchedTo } = createService({ sessions: () => [kept] });
+	test('a session opened to keep the folder shows its chat as restored', async () => {
+		const kept: ISession = { ...buildTestSession({ id: 'kept', title: 'Kept' }).session, workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode')) };
+		const { service } = createService({ sessions: () => [kept] });
 
 		await service.openChat(kept, undefined, { keepFolder: true });
-		const opened = switchedTo.splice(0).length;
-		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
 
-		assert.deepStrictEqual({ shown: service.isShowing(kept.mainChat.get().resource), opened, moved: switchedTo.length }, { shown: true, opened: 0, moved: 0 });
+		assert.deepStrictEqual({ shown: service.isShowing(kept.mainChat.get().resource), reason: service.shownSession.get()?.reason }, { shown: true, reason: 'restore' });
 	});
 
-	test('a session the user opened that comes to work elsewhere, such as in the new worktree its agent created, moves the window\'s folder there too', async () => {
-		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
-		const moving: ISession = { ...buildTestSession({ id: 'moving', title: 'Moving' }).session, workspace };
-		const { service, switchedTo, automatic } = createService({ sessions: () => [moving] });
-		const switches = () => { switchedTo.splice(0); return automatic.splice(0).map(isAutomatic => isAutomatic ? 'automatic' : 'user'); };
-
-		await service.openChat(moving, undefined);
-		const opened = switches();
-		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
-		const moved = switches();
-		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
-
-		// Following the session gives way to a switch the user asked for meanwhile
-		assert.deepStrictEqual({ opened, moved, unchanged: switches() }, { opened: ['user'], moved: ['automatic'], unchanged: [] });
-	});
-
-	test('a composer\'s send moves the window\'s folder to where its session works, also when that is known already, and follows the session into the new worktree its agent creates', async () => {
-		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode.worktrees/a'));
-		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
-		const created = upcastPartial<ISession>({ sessionId: 'created', status, mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace });
-		const newSession = observableValue<ISession | undefined>('newSession', undefined);
-		const { service, switchedTo, automatic } = createService({ newSession });
-		// The send moves the folder automatically: it gives way to a switch the user asked for meanwhile
-		const switches = () => {
-			const kinds = automatic.splice(0);
-			return switchedTo.splice(0).map((switched, index) => `${switched === created ? 'created' : 'other'}${kinds[index] ? ' (automatic)' : ''}`);
-		};
-
-		await service.openComposer(undefined);
-		newSession.set(created, undefined);
-		const draft = switches();
-		// The send: from now on, the composer's tab shows the session it created
-		status.set(SessionStatus.InProgress, undefined);
-		const sent = switches();
-		workspace.set(workspaceIn('/work/vscode.worktrees/new'), undefined);
-
-		assert.deepStrictEqual({ draft, sent, newWorktree: switches() }, { draft: [], sent: ['created (automatic)'], newWorktree: ['created (automatic)'] });
-	});
-
-	test('a composer\'s send that completes after the user opened another tab does not move the window\'s folder back to it', async () => {
+	test('a composer\'s send shows the session it created as opened; the composer shows none', async () => {
 		const status = observableValue<SessionStatus>('status', SessionStatus.Untitled);
 		const created = upcastPartial<ISession>({ sessionId: 'created', status, mainChat: constObservable(upcastPartial<IChat>({ resource: chatA })), workspace: constObservable(workspaceIn('/work/vscode.worktrees/a')) });
-		const other: ISession = { ...buildTestSession({ id: 'other', title: 'Other' }).session, workspace: constObservable(workspaceIn('/work/vscode')) };
 		const newSession = observableValue<ISession | undefined>('newSession', undefined);
-		const { service, switchedTo } = createService({ newSession, sessions: () => [other] });
-		const switches = () => switchedTo.splice(0).map(switched => switched === created ? 'created' : switched === other ? 'other' : 'unknown');
+		const { service } = createService({ newSession });
 
 		await service.openComposer(undefined);
 		newSession.set(created, undefined);
-		// The user sends, then opens another session before the composer's session is created
-		await service.openChat(other, undefined);
-		const opened = switches();
+		const draft = service.shownSession.get();
+		// The send: from now on, the composer's tab shows the session it created
 		status.set(SessionStatus.InProgress, undefined);
 
-		assert.deepStrictEqual({ opened, sendCompleted: switches() }, { opened: ['other'], sendCompleted: [] });
+		assert.deepStrictEqual({ draft, sent: service.shownSession.get() && { chat: service.shownSession.get()!.resource.path, reason: service.shownSession.get()!.reason } }, { draft: undefined, sent: { chat: chatA.path, reason: 'open' } });
 	});
 
-	test('a restored tab neither moves the window\'s folder nor follows its session; one the user opens does, until its tab closes', async () => {
-		const workspace = observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode'));
-		const restored: ISession = { ...buildTestSession({ id: 'restored', title: 'Restored' }).session, workspace };
+	test('a restored tab shows its chat as restored; one the user opens shows it as opened', async () => {
+		const restored: ISession = { ...buildTestSession({ id: 'restored', title: 'Restored' }).session, workspace: observableValue<ISessionWorkspace | undefined>('workspace', workspaceIn('/work/vscode')) };
 		const chat = restored.mainChat.get().resource;
-		const { service, switchedTo } = createService({ stored: JSON.stringify({ chats: [chat.toString()], active: 0 }), visible: true, sessions: () => [restored] });
-		const switches = () => switchedTo.splice(0).length;
+		const { service } = createService({ stored: JSON.stringify({ chats: [chat.toString()], active: 0 }), visible: true, sessions: () => [restored] });
 
 		await service.restore();
-		workspace.set(workspaceIn('/work/vscode.worktrees/a'), undefined);
-		const afterRestore = switches();
+		const afterRestore = service.shownSession.get()?.reason;
 		await service.openChat(restored, chat);
-		const opened = switches();
-		workspace.set(workspaceIn('/work/vscode.worktrees/b'), undefined);
-		const followed = switches();
-		await service.closeChat(chat);
-		workspace.set(workspaceIn('/work/vscode.worktrees/c'), undefined);
 
-		assert.deepStrictEqual({ afterRestore, opened, followed, afterClose: switches() }, { afterRestore: 0, opened: 1, followed: 1, afterClose: 0 });
+		assert.deepStrictEqual({ afterRestore, opened: service.shownSession.get()?.reason }, { afterRestore: 'restore', opened: 'open' });
 	});
 
 	test('closing the tab of a composer releases it: opening and closing composers keeps nothing', async () => {

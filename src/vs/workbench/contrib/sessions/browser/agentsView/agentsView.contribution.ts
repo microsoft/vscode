@@ -21,7 +21,6 @@ import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChats
 import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
 import { NullChatWindowService } from '../../../chatWindow/browser/nullChatWindowService.js';
 import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
-import { AgentsViewFolderLocationService, IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { EditorWindowSessionsService } from './editorWindowSessionsService.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
@@ -84,7 +83,6 @@ registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.D
 // The chat part, and the chats it shows
 registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);
 registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
-registerSingleton(IAgentsViewFolderLocationService, AgentsViewFolderLocationService, InstantiationType.Delayed);
 // Not delayed: hosts are compared by identity, which a delayed proxy would not keep
 registerSingleton(ISessionHost, EditorWindowMainSessionHost, InstantiationType.Eager);
 registerSingleton(ISessionsService, EditorWindowSessionsService, InstantiationType.Delayed);

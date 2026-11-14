@@ -6,6 +6,7 @@
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -15,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions } from '../../../chat/browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostShownSession, IChatViewHostSessionStart, IChatViewHostSessionStartOptions } from '../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
 import { isUntitledChatSession } from '../../../chat/common/model/chatUri.js';
@@ -47,7 +48,11 @@ export class AgentsChatViewHost implements IChatViewHost {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IChatService private readonly _chatService: IChatService,
 		@INotificationService private readonly _notificationService: INotificationService,
-	) { }
+	) {
+		this.shownSession = _chatPart.shownSession;
+	}
+
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/** Increases as the host is deactivated: what started before then does not open the chat part once it continues. */
 	private _generation = 0;

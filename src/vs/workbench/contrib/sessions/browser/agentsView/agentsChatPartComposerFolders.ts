@@ -17,8 +17,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 /**
  * The folders the chat part's new-session composers create their sessions in: the window's folders and, for the one local
  * folder of a window, the other locations of that folder, such as its primary checkout and its linked checkouts
- * (worktrees). Opening a session that works in another location moves the window's folder there (see
- * `IAgentsViewFolderLocationService`).
+ * (worktrees).
  */
 export class AgentsChatPartComposerFolders extends Disposable {
 

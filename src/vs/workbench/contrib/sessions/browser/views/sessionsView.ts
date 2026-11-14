@@ -8,7 +8,7 @@ import * as DOM from '../../../../../base/browser/dom.js';
 import { status } from '../../../../../base/browser/ui/aria/aria.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, derivedOpts, IObservable, IReader, observableSignalFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { structuralEquals } from '../../../../../base/common/equals.js';
 import { isWeb } from '../../../../../base/common/platform.js';
@@ -16,9 +16,11 @@ import { Orientation } from '../../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../../base/common/color.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { FocusedViewContext, IsAuxiliaryWindowContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { createDecorator, IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { InstantiationType, registerSingleton } from '../../../../../platform/instantiation/common/extensions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
@@ -92,8 +94,63 @@ export function getCustomizationsPresentation(phoneLayout: boolean, aiEnabled: b
 	return resolved === 'sidebar' ? 'control' : resolved === 'sessionsHeader' ? 'treatment' : 'hidden';
 }
 
+export const ISessionsViewLocator = createDecorator<ISessionsViewLocator>('sessionsViewLocator');
+
+/** Knows the Sessions views that a host, such as another view, embeds instead of registering them with {@link SessionsViewId}. */
+export interface ISessionsViewLocator {
+	readonly _serviceBrand: undefined;
+
+	/** Registers an embedded Sessions view; the latest registered view is the active one. */
+	register(view: SessionsView): IDisposable;
+
+	getEmbeddedView(): SessionsView | undefined;
+}
+
+export class SessionsViewLocator implements ISessionsViewLocator {
+
+	declare readonly _serviceBrand: undefined;
+
+	private readonly views: SessionsView[] = [];
+
+	register(view: SessionsView): IDisposable {
+		this.views.push(view);
+		return toDisposable(() => {
+			const index = this.views.indexOf(view);
+			if (index >= 0) {
+				this.views.splice(index, 1);
+			}
+		});
+	}
+
+	getEmbeddedView(): SessionsView | undefined {
+		return this.views[this.views.length - 1];
+	}
+}
+
+registerSingleton(ISessionsViewLocator, SessionsViewLocator, InstantiationType.Delayed);
+
+/**
+ * Resolves the Sessions view that the actions of the sessions list act on: the view of {@link SessionsViewId}, or else the one that a host embeds.
+ * It takes its services now, so that the returned function can be called after the accessor is no longer valid.
+ */
+export function getSessionsViewResolver(accessor: ServicesAccessor): () => SessionsView | undefined {
+	const viewsService = accessor.get(IViewsService);
+	const locator = accessor.get(ISessionsViewLocator);
+	return () => viewsService.getViewWithId<SessionsView>(SessionsViewId) ?? locator?.getEmbeddedView();
+}
+
+export function getActiveSessionsView(accessor: ServicesAccessor): SessionsView | undefined {
+	return getSessionsViewResolver(accessor)();
+}
+
 /** Whether the window shows the Sessions view of an editor window, wherever it shows: in the Agents view or in the Chat view. */
 export const EditorWindowSessionsContext = new RawContextKey<boolean>('editorWindowSessions', false);
+
+/** Whether the focus is inside a Sessions view: set on the view's own scope, so it holds wherever the view is embedded. */
+export const InSessionsViewContext = new RawContextKey<boolean>('inSessionsView', false);
+
+/** The focus is in a Sessions view, whether it is the view of {@link SessionsViewId} or one that a host embeds. */
+export const SessionsViewFocusedContext = ContextKeyExpr.or(FocusedViewContext.isEqualTo(SessionsViewId), InSessionsViewContext.isEqualTo(true))!;
 
 export const SessionsViewGroupingContext = new RawContextKey<string>('sessionsViewPane.grouping', SessionsGrouping.Workspace);
 export const SessionsViewSortingContext = new RawContextKey<string>('sessionsViewPane.sorting', SessionsSorting.Created);
@@ -291,6 +348,7 @@ export class SessionsView extends ViewPane {
 		@ISessionsListPresentation private readonly presentation: ISessionsListPresentation,
 		@ISessionDraftsService private readonly sessionDraftsService: ISessionDraftsService,
 		@IScheduledChatsService private readonly scheduledChatsService: IScheduledChatsService,
+		@ISessionsViewLocator sessionsViewLocator: ISessionsViewLocator,
 	) {
 		super(options.headerInTitle ? { ...options, titleMenuId: Menus.SidebarSessionsHeader } : options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.headerInTitle = !!options.headerInTitle;
@@ -302,6 +360,8 @@ export class SessionsView extends ViewPane {
 		this.customizationsLocation = observableConfigValue<ChatCustomizationsLocation>(ChatConfiguration.ChatCustomizationsLocation, 'auto', configurationService);
 		this.customizationsNavigationState = this._register(instantiationService.createInstance(CustomizationsNavigationState, this.customizationsNavigationVisible));
 		this.sessionsListRearrangeContext = SessionsListRearrangeContext.bindTo(this.scopedContextKeyService);
+		InSessionsViewContext.bindTo(this.scopedContextKeyService).set(true);
+		this._register(sessionsViewLocator.register(this));
 
 		// Restore persisted grouping
 		this.groupings = options.groupings;
