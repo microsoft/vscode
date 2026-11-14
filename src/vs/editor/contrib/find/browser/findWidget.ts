@@ -158,6 +158,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 	private _lastFocusedElement: HTMLElement | null = null;
 	private _viewZone?: FindWidgetViewZone;
 	private _viewZoneId?: string;
+	private _viewZoneScrollAdjustment = 0;
 
 	private _resizeSash!: Sash;
 	private _resized!: boolean;
@@ -286,10 +287,13 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		this._register(this._codeEditor.onDidChangeModel(() => {
-			if (!this._isVisible) {
+			// Model swaps destroy zones; clear the stale id and reattach while Find is open (#316054).
+			this._viewZoneId = undefined;
+			this._viewZoneScrollAdjustment = 0;
+			if (!this._isVisible || !this._codeEditor.hasModel()) {
 				return;
 			}
-			this._viewZoneId = undefined;
+			this._showViewZone(false);
 		}));
 
 
@@ -583,6 +587,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				this._domNode.classList.add('visible');
 				this._domNode.setAttribute('aria-hidden', 'false');
 				this._updateFindInputAriaLabel();
+				this._showViewZone(false); // refresh zone height after the widget is laid out (#316054)
 			}, 0));
 
 			// validate query again as it's being dismissed when we hide the find widget.
@@ -592,33 +597,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 			this._codeEditor.layoutOverlayWidget(this);
 
-			let adjustEditorScrollTop = true;
-			if (this._codeEditor.getOption(EditorOption.find).seedSearchStringFromSelection && selection) {
-				const domNode = this._codeEditor.getDomNode();
-				if (domNode) {
-					const editorCoords = dom.getDomNodePagePosition(domNode);
-					const startCoords = this._codeEditor.getScrolledVisiblePosition(selection.getStartPosition());
-					const startLeft = editorCoords.left + (startCoords ? startCoords.left : 0);
-					const startTop = startCoords ? startCoords.top : 0;
-
-					if (this._viewZone && startTop < this._viewZone.heightInPx) {
-						if (selection.endLineNumber > selection.startLineNumber) {
-							adjustEditorScrollTop = false;
-						}
-
-						const leftOfFindWidget = dom.getTopLeftOffset(this._domNode).left;
-						if (startLeft > leftOfFindWidget) {
-							adjustEditorScrollTop = false;
-						}
-						const endCoords = this._codeEditor.getScrolledVisiblePosition(selection.getEndPosition());
-						const endLeft = editorCoords.left + (endCoords ? endCoords.left : 0);
-						if (endLeft > leftOfFindWidget) {
-							adjustEditorScrollTop = false;
-						}
-					}
-				}
-			}
-			this._showViewZone(adjustEditorScrollTop);
+			// Keep the zone in-viewport so Find does not cover the first lines (#316054).
+			this._showViewZone(false);
 		}
 	}
 
@@ -657,16 +637,28 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		if (!this._isVisible) {
 			return;
 		}
+
+		if (!this._viewZone) {
+			this._viewZone = new FindWidgetViewZone(0);
+		}
+
 		const viewZone = this._viewZone;
-		if (this._viewZoneId !== undefined || !viewZone) {
+		if (this._viewZoneId !== undefined) {
+			// Zone already attached; still honor an explicit scroll restore from view-state.
+			if (typeof targetScrollTop === 'number') {
+				this._codeEditor.setScrollTop(targetScrollTop);
+			}
 			return;
 		}
 
 		this._codeEditor.changeViewZones((accessor) => {
-			viewZone.heightInPx = this._getHeight();
+			viewZone.heightInPx = this._getViewZoneHeight();
 			this._viewZoneId = accessor.addZone(viewZone);
-			// scroll top adjust to make sure the editor doesn't scroll when adding viewzone at the beginning.
-			this._codeEditor.setScrollTop(targetScrollTop || this._codeEditor.getScrollTop() + viewZone.heightInPx);
+			this._viewZoneScrollAdjustment = 0;
+			// Restore explicit scroll only; otherwise leave scroll so the zone stays visible (#316054).
+			if (typeof targetScrollTop === 'number') {
+				this._codeEditor.setScrollTop(targetScrollTop);
+			}
 		});
 	}
 
@@ -688,24 +680,25 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const viewZone = this._viewZone;
 
 		this._codeEditor.changeViewZones((accessor) => {
+			const measured = this._getViewZoneHeight();
 			if (this._viewZoneId !== undefined) {
 				// the view zone already exists, we need to update the height
-				const newHeight = this._getHeight();
-				if (newHeight === viewZone.heightInPx) {
+				if (measured === viewZone.heightInPx) {
 					return;
 				}
 
-				const scrollAdjustment = newHeight - viewZone.heightInPx;
-				viewZone.heightInPx = newHeight;
+				const scrollAdjustment = measured - viewZone.heightInPx;
+				viewZone.heightInPx = measured;
 				accessor.layoutZone(this._viewZoneId);
 
 				if (adjustScroll) {
 					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+					this._viewZoneScrollAdjustment += scrollAdjustment;
 				}
 
 				return;
 			} else {
-				let scrollAdjustment = this._getHeight();
+				let scrollAdjustment = measured;
 
 				// if the editor has top padding, factor that into the zone height
 				scrollAdjustment -= this._codeEditor.getOption(EditorOption.padding).top;
@@ -718,9 +711,18 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 				if (adjustScroll) {
 					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() + scrollAdjustment);
+					this._viewZoneScrollAdjustment = scrollAdjustment;
+				} else {
+					this._viewZoneScrollAdjustment = 0;
 				}
 			}
 		});
+	}
+
+	private _getViewZoneHeight(): number {
+		// Use laid-out height with a minimum, plus margin-top, so the zone clears Find (#316054).
+		const marginTop = 4;
+		return Math.max(this._getHeight(), this._domNode.offsetHeight || 0, FIND_INPUT_AREA_HEIGHT) + marginTop;
 	}
 
 	private _removeViewZone() {
@@ -729,7 +731,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 				accessor.removeZone(this._viewZoneId);
 				this._viewZoneId = undefined;
 				if (this._viewZone) {
-					this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZone.heightInPx);
+					// Undo only the scroll shift applied on show, so open/close cycles do not drift (#316054).
+					if (this._viewZoneScrollAdjustment !== 0) {
+						this._codeEditor.setScrollTop(this._codeEditor.getScrollTop() - this._viewZoneScrollAdjustment);
+						this._viewZoneScrollAdjustment = 0;
+					}
 					this._viewZone = undefined;
 				}
 			}
@@ -1379,7 +1385,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		}
 
 		if (state.widgetViewZoneVisible) {
-			// we should add the view zone
+			this._showViewZone(false);
 			this._layoutViewZone(state.scrollTop);
 		}
 	}
