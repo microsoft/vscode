@@ -262,11 +262,11 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			}
 
 			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Repository root: ${repositoryRoot.toString()}`);
-			const buffer = await vscode.workspace.fs.readFile(URI.file(path.join(repositoryRoot.fsPath, '.git', 'config')));
+			const config = await this.readLocalGitConfig(repositoryRoot);
 
 			const remotes = {
 				rootUri: repositoryRoot,
-				remoteFetchUrls: parseGitRemotes(buffer.toString()).map(remote => remote.fetchUrl)
+				remoteFetchUrls: parseGitRemotes(config).map(remote => remote.fetchUrl)
 			};
 
 			this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] Remotes (.git/config): ${JSON.stringify(remotes)}`);
