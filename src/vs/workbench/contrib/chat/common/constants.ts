@@ -56,8 +56,8 @@ export enum ChatConfiguration {
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
 	/**
-	 * Lets an editor window with one local folder move that folder between its primary location and the worktrees its
-	 * agent host sessions work in, and offer them when starting a session.
+	 * Lets an editor window with one local folder move that folder between its own location and the worktrees its agent
+	 * host sessions work in, following the chat that the user opens.
 	 */
 	EditorWindowEnableWorktree = 'chat.editorWindow.enableWorktree',
 	PlanAgentDefaultModel = 'chat.planAgent.defaultModel',
