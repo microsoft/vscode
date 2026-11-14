@@ -832,6 +832,22 @@ suite('CopilotSessionLauncher sandbox policy', () => {
 		}, { selection: 'on', state: { enabled: true }, applied: [true], commands: [] });
 	});
 
+	test('resume preserves off selection when no managed policy is enforced', async () => {
+		const fixture = setup('resume', true, false, false);
+		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };
+		fixture.configuration.setChatSandboxEnabled(target, false);
+		fixture.configuration.updateChatConfig(target, { sandboxEnabled: 'off' });
+
+		store.add(await fixture.launcher.launch(fixture.plan, fixture.runtime));
+
+		assert.deepStrictEqual({
+			selection: fixture.configuration.getChatConfigValues(target)?.sandboxEnabled,
+			state: fixture.sandboxState,
+			applied: fixture.updates.filter(update => update.sandboxConfig).map(update => update.sandboxConfig?.enabled),
+			commands: fixture.commands,
+		}, { selection: 'off', state: { enabled: false }, applied: [false], commands: [] });
+	});
+
 	test('resume honors a newer on selection over previously confirmed off metadata', async () => {
 		const fixture = setup('resume', true, true, true);
 		const target = { session: fixture.owner, chat: buildDefaultChatUri(fixture.owner) };

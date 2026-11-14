@@ -71,6 +71,7 @@ import { ProtocolError } from '../../../../../../platform/agentHost/common/state
 import { areSessionWorkingDirectoriesEqual } from '../../../../../../platform/agentHost/common/state/sessionWorkingDirectories.js';
 import { StateComponents, withSessionMultiRootMetadata, type ModelSelection } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, normalizeAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { InstantiationType, registerSingleton } from '../../../../../../platform/instantiation/common/extensions.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -1324,6 +1325,11 @@ export class AgentHostUntitledProvisionalSessionService extends Disposable imple
 		const configuredMode = configuredDefaults?.mode;
 		if (typeof configuredMode === 'string' && KNOWN_MODE_VALUES.has(configuredMode)) {
 			config[SessionConfigKey.Mode] = configuredMode;
+		}
+
+		const configuredSandbox = this._configurationService.getValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled);
+		if (configuredSandbox !== undefined) {
+			config[SessionConfigKey.SandboxEnabled] = normalizeAgentSandboxEnabledValue(configuredSandbox);
 		}
 
 		return migrateLegacyAutopilotConfig(config);

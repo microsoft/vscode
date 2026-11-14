@@ -78,6 +78,7 @@ import { AgentCapabilities, AgentInfo, buildChatUri, buildSubagentChatUri, DEFAU
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
+import { AgentSandboxEnabledSettingValue, AgentSandboxSettingId, normalizeAgentSandboxEnabledValue } from '../../../../../../platform/sandbox/common/settings.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
@@ -6254,6 +6255,18 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			remembered[SessionConfigKey.Mode] = resolvedMode;
 		} else {
 			delete remembered[SessionConfigKey.Mode];
+		}
+
+		// Sandbox enablement axis: policy > remembered > effective setting.
+		const policySandbox = this._baseConfigurationService.inspect<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled).policyValue;
+		const configuredSandbox = this._baseConfigurationService.getValue<AgentSandboxEnabledSettingValue>(AgentSandboxSettingId.AgentSandboxEnabled);
+		const resolvedSandbox = policySandbox !== undefined ? normalizeAgentSandboxEnabledValue(policySandbox)
+			: remembered[SessionConfigKey.SandboxEnabled] !== undefined ? remembered[SessionConfigKey.SandboxEnabled]
+				: configuredSandbox !== undefined ? normalizeAgentSandboxEnabledValue(configuredSandbox) : undefined;
+		if (resolvedSandbox !== undefined) {
+			remembered[SessionConfigKey.SandboxEnabled] = resolvedSandbox;
+		} else {
+			delete remembered[SessionConfigKey.SandboxEnabled];
 		}
 
 		// Worktree branch prefix, forwarded from `git.branchPrefix`. Seeded

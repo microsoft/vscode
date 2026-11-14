@@ -368,7 +368,7 @@ export class CopilotSessionSandbox extends Disposable {
 	}
 
 	private _target(): IAgentChatConfigurationTarget {
-		return { session: this._options.ownerSession.toString(), chat: this._options.chat.toString() };
+		return this._options.getConfigWriteTarget();
 	}
 
 	private _getLaunchSelection(isResume: boolean): 'on' | 'off' | 'default' | undefined {
@@ -377,8 +377,8 @@ export class CopilotSessionSandbox extends Disposable {
 		}
 		const target = this._target();
 		const policy = this._configurationService.getSessionSandboxPolicy(target.session);
-		return policy?.enabled && policy.allowBypass === true
-			&& this._configurationService.getChatSandboxEnabled(target) === false
+		return (!policy?.enabled || policy.allowBypass === true)
+			&& this._configurationService.getChatSandboxEnabled(target) !== true
 			&& this._configurationService.getChatConfigValues(target)?.[SessionConfigKey.SandboxEnabled] === 'off'
 			? 'off' : undefined;
 	}
@@ -572,7 +572,9 @@ export class CopilotSessionSandbox extends Disposable {
 			this._appliedConfig = serialized;
 			this._disabledForSession = false;
 			this._configurationService.setChatSandboxEnabled(target, sandboxConfig.enabled);
+			const policy = this._configurationService.getSessionSandboxPolicy(target.session);
 			if (isResume && requestedSelection === undefined && sandboxConfig.enabled
+				&& policy?.enabled && !policy.allowBypass
 				&& values?.[SessionConfigKey.SandboxEnabled] === 'off'
 				&& this._configurationService.getChatConfigValues(writeTarget) === values) {
 				this._configurationService.updateChatConfig(writeTarget, { [SessionConfigKey.SandboxEnabled]: 'on' });
