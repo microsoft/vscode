@@ -655,6 +655,31 @@ suite('Chat window composer', () => {
 		});
 	});
 
+	test('a restored composer follows its host to another folder only while its host had aimed it, not once the user picked its folder, nor one stored before that was stored', async () => {
+		const store = disposables.add(new DisposableStore());
+		const { instantiationService, storageService } = createServices(store);
+		const resource = (name: string) => URI.parse(`vscode-agents-composer:/${name}`);
+		const open = async () => { };
+		const composers = instantiationService.createInstance(ChatWindowComposers, async () => undefined);
+		const hostAimed = composers.create(resource('host'), { target: { folderUri: URI.file('/repo') } }, open);
+		const userPicked = composers.create(resource('user'), { target: { folderUri: URI.file('/repo') } }, open);
+		userPicked.setRequestedTarget({ folderUri: URI.file('/repo.worktrees/c') }, 'user');
+		storageService.testEmitWillSaveState(WillSaveStateReason.NONE);
+		// A composer stored by a build that did not store its host's folder
+		storageService.store(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, stringify([...parse(storageService.get(CHAT_WINDOW_COMPOSERS_STORAGE_KEY, StorageScope.WORKSPACE)!), { resource: resource('older'), target: { folderUri: URI.file('/repo') }, input: { inputText: '', attachments: [] } }]), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		composers.dispose();
+		[hostAimed, userPicked].forEach(composer => composer.dispose());
+
+		const reloaded = store.add(instantiationService.createInstance(ChatWindowComposers, async () => undefined));
+		const follows = async (name: string, from: string) => {
+			const restored = await reloaded.restore(resource(name), open);
+			const composer = restored?.kind === 'composer' ? store.add(restored.composer) : undefined;
+			return composer?.retargetFolder(URI.file('/repo.worktrees/a'), URI.file(from));
+		};
+
+		assert.deepStrictEqual({ host: await follows('host', '/repo'), user: await follows('user', '/repo.worktrees/c'), older: await follows('older', '/repo') }, { host: true, user: false, older: false });
+	});
+
 	test('the stored composers the restoration of the chat windows did not claim are forgotten, while open ones and claimed ones are stored again', () => {
 		const store = disposables.add(new DisposableStore());
 		const { instantiationService, storageService } = createServices(store);
