@@ -34,6 +34,8 @@ export interface IChatViewSessionsComposer extends IDisposable {
 	readonly height: IObservable<number>;
 	layout(width: number, height: number): void;
 	focus(): void;
+	/** Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had. */
+	newChat(): void;
 }
 
 /** A sessions list of the Chat view, with how the Chat view shows it. */
