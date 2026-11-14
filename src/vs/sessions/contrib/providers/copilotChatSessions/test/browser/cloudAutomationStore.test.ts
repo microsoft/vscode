@@ -959,14 +959,24 @@ suite('CloudAutomationStore', () => {
 	});
 
 	for (const resolvedAccount of [null, { ...account, enterprise: true }]) {
-		test(`read refresh still rejects an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
+		test(`refresh quietly skips an initialized ${resolvedAccount ? 'enterprise' : 'signed-out'} account`, async () => {
 			const initialAccount = new DeferredPromise<IDefaultAccount | null>();
 			const { provider, api, set } = setup(new NullLogService(), undefined, undefined, initialAccount);
 			await set(CHAT_CLOUD_AUTOMATIONS_ENABLED_SETTING, true);
 			const refresh = provider.refresh();
 			await initialAccount.complete(resolvedAccount);
-			await assert.rejects(refresh, /Sign in to GitHub.com and enable cloud automations/);
-			assert.deepStrictEqual({ state: provider.catalogueState.get(), calls: api.calls }, { state: 'unavailable', calls: [] });
+			await refresh;
+			assert.deepStrictEqual({
+				state: provider.catalogueState.get(),
+				history: provider.historyState.get(),
+				reason: provider.unavailableReason.get(),
+				calls: api.calls,
+			}, {
+				state: 'unavailable',
+				history: 'unavailable',
+				reason: 'Sign in to GitHub.com and enable cloud automations before continuing.',
+				calls: [],
+			});
 		});
 	}
 
