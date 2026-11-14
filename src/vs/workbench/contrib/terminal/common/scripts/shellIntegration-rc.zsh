@@ -171,7 +171,7 @@ __vsc_prompt_end() {
 }
 
 __vsc_update_cwd() {
-	builtin printf '\e]633;P;Cwd=%s\a' "$(__vsc_escape_value "${PWD}")"
+	builtin printf '\e]633;P;Cwd=%s;%s\a' "$(__vsc_escape_value "${PWD}")" "$__vsc_nonce"
 }
 
 __update_env_cache_aa() {
