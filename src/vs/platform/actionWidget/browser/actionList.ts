@@ -2158,7 +2158,7 @@ export class ActionListWidget<T> extends Disposable {
 					const element = this._list.element(i);
 					if (this.focusCondition(element) && (element.item as { id?: string })?.id === initialFocusItemId) {
 						this._list.setFocus([i]);
-						this._list.reveal(i);
+						this._revealOnceLaidOut(i);
 						return;
 					}
 				}
@@ -2167,7 +2167,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (focusedIndex !== undefined) {
 				const focusedElement = this._list.element(focusedIndex);
 				if (focusedElement && this.focusCondition(focusedElement)) {
-					this._list.reveal(focusedIndex);
+					this._revealOnceLaidOut(focusedIndex);
 					return;
 				}
 			}
@@ -2176,7 +2176,7 @@ export class ActionListWidget<T> extends Disposable {
 				const element = this._list.element(i);
 				if (this.focusCondition(element) && (element.item as { checked?: boolean })?.checked) {
 					this._list.setFocus([i]);
-					this._list.reveal(i);
+					this._revealOnceLaidOut(i);
 					return;
 				}
 			}
@@ -2184,7 +2184,7 @@ export class ActionListWidget<T> extends Disposable {
 			this._list.focusFirst(undefined, this.focusCondition);
 			const focused = this._list.getFocus();
 			if (focused.length > 0) {
-				this._list.reveal(focused[0]);
+				this._revealOnceLaidOut(focused[0]);
 			}
 		} finally {
 			this._suppressHover = suppressHover;
@@ -2337,15 +2337,31 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	/**
+	 * Reveals the item at `index` once the list has its height: before, the list would take any item to be out of view, and
+	 * scroll it to the top, hiding the items above it, such as a list's first items above its checked one.
+	 */
+	private _revealOnceLaidOut(index: number): void {
+		if (this._hasLaidOut) {
+			this._list.reveal(index);
+		}
+	}
+
+	/**
 	 * Lays out the list widget with the given explicit dimensions.
 	 */
 	layout(height: number, width?: number): void {
+		const firstLayout = !this._hasLaidOut;
 		this._hasLaidOut = true;
 		if (this._options?.wrapDetails) {
 			this.domNode.style.width = width === undefined ? '' : `${width}px`;
 		}
 		this._list.layout(height, width);
 		this.domNode.style.height = `${height}px`;
+		// What was focused before the list had its height shows now, scrolling only where it is out of view
+		const [focused] = firstLayout ? this._list.getFocus() : [];
+		if (focused !== undefined && focused < this._list.length) {
+			this._list.reveal(focused);
+		}
 
 		// Keep the filter above the list. Skipped when the caller mounted the filter
 		// somewhere else entirely (e.g. inside a tab bar), where it has no list to sit above.
