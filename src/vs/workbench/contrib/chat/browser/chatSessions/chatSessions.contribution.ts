@@ -1046,9 +1046,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return !!controller;
 	}
 
-	async canResolveChatSession(sessionType: string) {
-		await this._extensionService.whenInstalledExtensionsRegistered();
-		if (!this._isContributionAvailableForType(sessionType)) {
+	async canResolveChatSession(sessionType: string, token: CancellationToken = CancellationToken.None) {
+		await raceCancellation(this._extensionService.whenInstalledExtensionsRegistered(), token);
+		if (token.isCancellationRequested || !this._isContributionAvailableForType(sessionType)) {
 			return false;
 		}
 
@@ -1059,35 +1059,39 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		const asyncActivators = this._asyncActivationRegistry.getActivators(sessionType);
 		if (asyncActivators.length) {
 			for (const activator of asyncActivators) {
-				const token = activator.getActivationToken?.(sessionType) ?? CancellationToken.None;
-				if (token.isCancellationRequested) {
+				const lifetime = activator.getActivationToken?.(sessionType) ?? CancellationToken.None;
+				if (token.isCancellationRequested || lifetime.isCancellationRequested) {
 					return false;
 				}
-				const activated = await raceCancellation(
-					this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType)), token, false);
-				if (token.isCancellationRequested) {
-					return false;
-				}
-				if (activated) {
-					const store = new DisposableStore();
-					try {
+				const store = new DisposableStore();
+				const cancellation = store.add(new CancellationTokenSource(token));
+				store.add(lifetime.onCancellationRequested(() => cancellation.cancel()));
+				const activationToken = cancellation.token;
+				try {
+					const activated = await raceCancellation(
+						this._instantiationService.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType, activationToken)), activationToken, false);
+					if (activationToken.isCancellationRequested) {
+						return false;
+					}
+					if (activated) {
 						while (!this._contentProviders.has(sessionType)) {
-							await raceCancellation(Event.toPromise(Event.filter(this.onDidChangeContentProviderSchemes, event => event.added.includes(sessionType)), store), token);
-							if (token.isCancellationRequested) {
+							await raceCancellation(Event.toPromise(Event.filter(this.onDidChangeContentProviderSchemes, event => event.added.includes(sessionType)), store), activationToken);
+							if (activationToken.isCancellationRequested) {
 								return false;
 							}
 						}
 						return true;
-					} finally {
-						store.dispose();
 					}
+				} finally {
+					cancellation.cancel();
+					store.dispose();
 				}
 			}
 			return false;
 		}
 
-		await this._extensionService.activateByEvent(`onChatSession:${sessionType}`);
-		return this._contentProviders.has(sessionType);
+		await raceCancellation(this._extensionService.activateByEvent(`onChatSession:${sessionType}`), token);
+		return !token.isCancellationRequested && this._contentProviders.has(sessionType);
 	}
 
 	async provideChatInputCompletions(sessionResource: URI, params: IChatInputCompletionsParams, token: CancellationToken): Promise<IChatInputCompletionsResult | undefined> {
@@ -1438,11 +1442,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	private async _getOrCreateChatSession(sessionResource: URI, token: CancellationToken): Promise<IChatSession> {
 		const sessionType = getChatSessionType(sessionResource);
-		if (!(await raceCancellationError(this.canResolveChatSession(sessionType), token))) {
-			throw Error(`Cannot find provider '${sessionType}'`);
-		}
+		const canResolve = await raceCancellationError(this.canResolveChatSession(sessionType, token), token);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+		if (!canResolve) {
+			throw Error(`Cannot find provider '${sessionType}'`);
 		}
 
 		// Check again after async provider resolution
@@ -1540,7 +1545,11 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 		const sessionType = getChatSessionType(sessionResource);
 		const resolvedType = this._resolveToPrimaryType(sessionType) || sessionType;
-		if (!(await raceCancellationError(this.canResolveChatSession(resolvedType), token))) {
+		const canResolve = await raceCancellationError(this.canResolveChatSession(resolvedType, token), token);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!canResolve) {
 			throw Error(`Cannot find provider '${resolvedType}'`);
 		}
 		const provider = this._contentProviders.get(resolvedType);

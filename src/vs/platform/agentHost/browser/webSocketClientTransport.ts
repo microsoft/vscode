@@ -12,6 +12,7 @@ import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { AhpJsonlLogger, getAhpLogByteLength, IAhpJsonlLoggerOptions } from '../common/ahpJsonlLogger.js';
 import { AgentHostClientConnectionKind } from '../common/agentHostTelemetry.js';
+import { getRemoteAgentHostWebSocketUrl } from '../common/remoteAgentHostWebSocket.js';
 import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import { parseProtocolMessage, type IClientTransport, type ITransportCloseDetails } from '../common/state/sessionTransport.js';
 import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
@@ -75,16 +76,14 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 				return;
 			}
 
-			let url = this._address.startsWith('ws://') || this._address.startsWith('wss://')
-				? this._address
-				: `ws://${this._address}`;
+			const url = getRemoteAgentHostWebSocketUrl(this._address);
 
 			if (this._connectionToken) {
-				const separator = url.includes('?') ? '&' : '?';
-				url += `${separator}${connectionTokenQueryName}=${encodeURIComponent(this._connectionToken)}`;
+				const separator = url.search ? '&' : '?';
+				url.search += `${separator}${connectionTokenQueryName}=${encodeURIComponent(this._connectionToken)}`;
 			}
 
-			const ws = this.createWebSocket(url);
+			const ws = this.createWebSocket(url.toString());
 			this._ws = ws;
 
 			const onOpen = () => {

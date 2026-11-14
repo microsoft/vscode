@@ -79,13 +79,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			items: {
 				type: 'object',
 				properties: {
-					address: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"localhost:3000\").") },
+					address: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"wss://host.example:3000\"). Use wss:// for encryption. Unencrypted connections outside loopback require confirmation, remembered for that host and port on this machine.") },
 					name: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.name', "A display name for this remote agent host.") },
 					connectionToken: { type: 'string', description: localize('chat.workspaceRemoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
 				},
 				required: ['address', 'name'],
 			},
-			markdownDescription: localize('chat.workspaceRemoteAgentHosts', "WebSocket remote agent hosts that editor windows connect to while this workspace is open. Their agents become available in Chat, and their sessions are listed there. Editor windows don't connect to the hosts in `#chat.remoteAgentHosts#`; those belong to the Agents window. Only applies in trusted workspaces; connected hosts receive your GitHub credentials, so only list hosts you trust."),
+			markdownDescription: localize('chat.workspaceRemoteAgentHosts', "WebSocket remote agent hosts that editor windows connect to while this workspace is open. Unencrypted connections outside loopback require confirmation. Their agents become available in Chat, and their sessions are listed there. Editor windows don't connect to the hosts in `#chat.remoteAgentHosts#`; those belong to the Agents window. Only applies in trusted workspaces; connected hosts receive your GitHub credentials, so only list hosts you trust."),
 			default: [],
 			scope: ConfigurationScope.WINDOW,
 			restricted: true,

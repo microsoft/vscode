@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../../base/common/event.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
@@ -16,7 +17,7 @@ import { AgentHostProtocolClient } from '../../../../../platform/agentHost/brows
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { type AgentProvider, type AuthenticateParams, type AuthenticateResult } from '../../../../../platform/agentHost/common/agent.js';
 import { type IAgentConnection } from '../../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, getEntryAddress, getWorkspaceRemoteAgentHostAddresses } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { type ProtectedResourceMetadata } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type AgentInfo, type RootState } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { AuthRequiredReason, NotificationType, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -63,14 +64,24 @@ Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncAct
 	waitForActivation: waitForRemoteAgentHostActivation,
 });
 
-async function waitForRemoteAgentHostActivation(accessor: ServicesAccessor, sessionType: string): Promise<boolean> {
+async function waitForRemoteAgentHostActivation(accessor: ServicesAccessor, sessionType: string, token: CancellationToken = CancellationToken.None): Promise<boolean> {
 	const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
+	const configurationService = accessor.get(IConfigurationService);
 	const address = getAddressForSessionType(sessionType, remoteAgentHostService);
 	if (!address) {
 		return false;
 	}
 
+	const onDidChange = Event.any(
+		listener => token.onCancellationRequested(listener),
+		remoteAgentHostService.onDidChangeConnections,
+		remoteAgentHostService.onDidChangeConfiguredEntries,
+		Event.filter(configurationService.onDidChangeConfiguration, event => event.affectsConfiguration(RemoteAgentHostsEnabledSettingId)),
+	);
 	while (true) {
+		if (token.isCancellationRequested || configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === false) {
+			return false;
+		}
 		const connection = remoteAgentHostService.getConnection(address);
 		if (connection) {
 			const rootState = connection.rootState.value;
@@ -82,15 +93,13 @@ async function waitForRemoteAgentHostActivation(accessor: ServicesAccessor, sess
 				return rootState.agents.some(agent => remoteAgentHostSessionTypeId(authority, agent.provider) === sessionType);
 			}
 
-			await Promise.race([
-				Event.toPromise(connection.rootState.onDidChange),
-				Event.toPromise(remoteAgentHostService.onDidChangeConnections),
-			]);
+			await Event.toPromise(Event.any(connection.rootState.onDidChange, onDidChange));
 			continue;
 		}
 
 		const connectionInfo = remoteAgentHostService.connections.find(connection => connection.address === address);
 		if (connectionInfo
+			&& !connectionInfo.requiresConfirmation
 			&& !RemoteAgentHostConnectionStatus.isConnecting(connectionInfo.status)
 			&& !RemoteAgentHostConnectionStatus.isReconnecting(connectionInfo.status)) {
 			return false;
@@ -100,7 +109,7 @@ async function waitForRemoteAgentHostActivation(accessor: ServicesAccessor, sess
 			return false;
 		}
 
-		await Event.toPromise(remoteAgentHostService.onDidChangeConnections);
+		await Event.toPromise(onDidChange);
 	}
 }
 

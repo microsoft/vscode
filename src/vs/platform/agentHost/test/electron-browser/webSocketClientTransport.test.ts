@@ -17,7 +17,7 @@ class TestWebSocket extends EventTarget implements WebSocket {
 	readonly bufferedAmount = 0;
 	readonly extensions = '';
 	readonly protocol = '';
-	readonly url = 'ws://test';
+	readonly url = 'wss://test';
 	readyState: WebSocket['readyState'] = 0;
 	binaryType: BinaryType = 'blob';
 	onopen: WebSocket['onopen'] = null;
@@ -32,12 +32,45 @@ class TestWebSocket extends EventTarget implements WebSocket {
 suite('WebSocketClientTransport', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
+	async function connect(address: string, connectionToken: string | undefined) {
+		const socket = new TestWebSocket();
+		const urls: string[] = [];
+		const instantiation = store.add(new TestInstantiationService());
+		const transport = store.add(new class extends WebSocketClientTransport {
+			protected override createWebSocket(url: string): WebSocket {
+				urls.push(url);
+				return socket;
+			}
+		}(address, connectionToken, undefined, instantiation));
+		const connecting = transport.connect();
+		socket.readyState = socket.OPEN;
+		socket.dispatchEvent(new Event('open'));
+		await connecting;
+		return urls;
+	}
+
+	test('connects to approved plaintext and secure endpoints using their parsed URLs', async () => {
+		const cases = [
+			{ address: 'host.example:8081', url: 'ws://host.example:8081/?tkn=test-token' },
+			{ address: 'ws://host.example:8081', url: 'ws://host.example:8081/?tkn=test-token' },
+			{ address: 'ws://192.0.2.1:8081', url: 'ws://192.0.2.1:8081/?tkn=test-token' },
+			{ address: '127.0.0.1:9981', url: 'ws://127.0.0.1:9981/?tkn=test-token' },
+			{ address: 'ws://[::1]:8081', url: 'ws://[::1]:8081/?tkn=test-token' },
+			{ address: 'ws://api.localhost:8080', url: 'ws://api.localhost:8080/?tkn=test-token' },
+			{ address: 'ws://localhost.:8080', url: 'ws://localhost.:8080/?tkn=test-token' },
+			{ address: 'ws://[::ffff:127.0.0.1]:8080', url: 'ws://[::ffff:7f00:1]:8080/?tkn=test-token' },
+			{ address: 'wss://host.example:8081/agent?mode=a%20b&flag', url: 'wss://host.example:8081/agent?mode=a%20b&flag&tkn=test-token' },
+		];
+		const results = await Promise.all(cases.map(async ({ address }) => ({ address, urls: await connect(address, 'test-token') })));
+		assert.deepStrictEqual(results, cases.map(({ address, url }) => ({ address, urls: [url] })));
+	});
+
 	test('sends only AHP messages without Web PubSub capability controls', async () => {
 		const socket = new TestWebSocket();
 		const instantiation = store.add(new TestInstantiationService());
 		const transport = store.add(new class extends WebSocketClientTransport {
 			protected override createWebSocket(): WebSocket { return socket; }
-		}('ws://test', undefined, undefined, instantiation));
+		}('wss://test', undefined, undefined, instantiation));
 		const received: object[] = [];
 		store.add(transport.onMessage(message => received.push(message)));
 		const connecting = transport.connect();
@@ -59,7 +92,7 @@ suite('WebSocketClientTransport', () => {
 			const instantiation = store.add(new TestInstantiationService());
 			const transport = store.add(new class extends WebSocketClientTransport {
 				protected override createWebSocket(): WebSocket { return socket; }
-			}('ws://test', undefined, undefined, instantiation));
+			}('wss://test', undefined, undefined, instantiation));
 			let closeCount = 0;
 			const details: ITransportCloseDetails[] = [];
 			store.add(transport.onClose(() => closeCount++));

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import type { CancellationToken } from '../../../base/common/cancellation.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import type { IObservable } from '../../../base/common/observable.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
@@ -301,6 +302,8 @@ export interface IRemoteAgentHostConnectOptions {
 	 * must never open prompts, pickers or modals.
 	 */
 	readonly userInitiated: boolean;
+	/** Cancel connection setup when its owning attempt is abandoned. */
+	readonly token?: CancellationToken;
 	/** Optional client-local observation of transport-specific setup phases. */
 	readonly onDiagnostic?: ConnectionDiagnosticObserver;
 }
@@ -854,6 +857,8 @@ export interface IRemoteAgentHostConnectionInfo {
 	readonly status: RemoteAgentHostConnectionStatus;
 	/** Last user-visible failure; automatic retries retain it until they fail or succeed. */
 	readonly lastConnectionError?: string;
+	/** Whether setup is waiting for the user's approval of an unencrypted connection. */
+	readonly requiresConfirmation?: boolean;
 	/** Last path style advertised by this host. */
 	readonly pathStyle?: PathStyle;
 }

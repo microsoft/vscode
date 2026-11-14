@@ -9,6 +9,7 @@ import { toAction } from '../../../../../base/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { cloudSandboxAddress } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { isCancellationError } from '../../../../../base/common/errors.js';
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { StopWatch } from '../../../../../base/common/stopwatch.js';
@@ -26,6 +27,8 @@ import { IEditorService } from '../../../../../workbench/services/editor/common/
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { addWebSocketRemoteAgentHostEntry, IRemoteAgentHostService, parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostInputValidationError, RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { confirmRemoteAgentHostConnection } from '../../../../../platform/agentHost/common/remoteAgentHostWebSocket.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { computeSSHConnectionKey, ISSHRemoteAgentHostService, isSSHHostKeyDeniedError, SSHAuthMethod, type ISSHAgentHostConfig, type ISSHResolvedConfig, type SSHAgentHostConnectionRequest } from '../../../../../platform/agentHost/common/sshRemoteAgentHost.js';
 import { isTunnelHosted, ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../../platform/agentHost/common/tunnelAgentHost.js';
@@ -71,19 +74,21 @@ registerAction2(class extends Action2 {
 		const quickInputService = accessor.get(IQuickInputService);
 		const notificationService = accessor.get(INotificationService);
 		const configurationService = accessor.get(IConfigurationService);
+		const dialogService = accessor.get(IDialogService);
+		const storageService = accessor.get(IStorageService);
 
 		// Prompt for address
 		const address = await quickInputService.input({
 			title: localize('addRemoteTitle', "Add Remote Agent Host"),
-			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Example: {0}", 'ws://127.0.0.1:8089'),
-			placeHolder: 'ws://127.0.0.1:8080?tkn=abc-123',
+			prompt: localize('addRemotePrompt', "Paste a host, host:port, or WebSocket URL. Use wss:// for an encrypted connection. Example: {0}", 'wss://host.example:8089'),
+			placeHolder: 'wss://host.example:8080?tkn=abc-123',
 			ignoreFocusLost: true,
 			validateInput: async value => {
 				const result = parseRemoteAgentHostInput(value);
 				if (result.error === RemoteAgentHostInputValidationError.Empty) {
 					return localize('addRemoteValidationEmpty', "Enter a remote agent host address.");
 				}
-				if (result.error === RemoteAgentHostInputValidationError.Invalid) {
+				if (!result.parsed) {
 					return localize('addRemoteValidationInvalid', "Enter a valid host, host:port, or WebSocket URL.");
 				}
 				return undefined;
@@ -95,6 +100,21 @@ registerAction2(class extends Action2 {
 		const parsed = parseRemoteAgentHostInput(address);
 		if (!parsed.parsed) {
 			return;
+		}
+		const confirmationDisposables = new DisposableStore();
+		const cancellation = confirmationDisposables.add(new CancellationTokenSource());
+		confirmationDisposables.add(configurationService.onDidChangeConfiguration(event => {
+			if (event.affectsConfiguration(RemoteAgentHostsEnabledSettingId) && configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === false) {
+				cancellation.cancel();
+			}
+		}));
+		try {
+			if (configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId) === false
+				|| !await confirmRemoteAgentHostConnection(parsed.parsed.address, dialogService, storageService, cancellation.token)) {
+				return;
+			}
+		} finally {
+			confirmationDisposables.dispose();
 		}
 
 		// Prompt for display name
@@ -122,6 +142,10 @@ registerAction2(class extends Action2 {
 					address: parsed.parsed.address,
 				},
 			});
+			const connection = remoteAgentHostService.connections.find(connection => connection.address === parsed.parsed.address);
+			if (connection?.status.kind === 'disconnected' && !remoteAgentHostService.pendingConnections.some(connection => connection.address === parsed.parsed.address)) {
+				remoteAgentHostService.reconnect(parsed.parsed.address, true);
+			}
 			await remoteAgentHostService.waitForConnection(parsed.parsed.address);
 		} catch {
 			notificationService.error(localize('addRemoteFailed', "Failed to connect to remote agent host {0}.", parsed.parsed.address));

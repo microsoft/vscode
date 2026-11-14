@@ -61,13 +61,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			items: {
 				type: 'object',
 				properties: {
-					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"localhost:3000\").") },
+					address: { type: 'string', description: nls.localize('chat.remoteAgentHosts.address', "The WebSocket address of the remote agent host (e.g. \"wss://host.example:3000\"). Use wss:// for encryption. Unencrypted connections outside loopback require confirmation, remembered for that host and port on this machine.") },
 					name: { type: 'string', description: nls.localize('chat.remoteAgentHosts.name', "A display name for this remote agent host.") },
 					connectionToken: { type: 'string', description: nls.localize('chat.remoteAgentHosts.connectionToken', "An optional connection token for authenticating with the remote agent host.") },
 				},
 				required: ['address', 'name'],
 			},
-			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to (e.g. \"localhost:3000\"). SSH remote agent host details are managed by VS Code."),
+			description: nls.localize('chat.remoteAgentHosts', "A list of WebSocket remote agent host addresses to connect to. Unencrypted connections outside loopback require confirmation. SSH remote agent host details are managed by VS Code."),
 			default: [],
 			scope: ConfigurationScope.APPLICATION,
 			restricted: true,

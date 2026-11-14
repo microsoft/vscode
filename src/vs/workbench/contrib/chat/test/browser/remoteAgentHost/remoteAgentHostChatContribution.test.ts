@@ -4,22 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../../base/common/async.js';
+import { $ } from '../../../../../../base/browser/dom.js';
+import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { constObservable } from '../../../../../../base/common/observable.js';
+import { EditorWindowRemoteAgentHostService } from '../../../../../../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
+import { AgentHostProtocolClient } from '../../../../../../platform/agentHost/browser/agentHostProtocolClient.js';
+import { agentHostAuthority } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { remoteAgentHostSessionTypeId } from '../../../../../../platform/agentHost/common/agentHostSessionType.js';
 import { IAgentConnection, type AuthenticateParams } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentHostAdvertisedAuthenticationResolver } from '../../../../../../platform/agentHost/common/agentHostAdvertisedAuthentication.js';
 import { IAgentHostMcpAuthenticationRequest } from '../../../../../../platform/agentHost/common/agentHostExtensionProtocol.js';
 import { ICloudSandboxAgentHostService } from '../../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { authenticationAccountMeta } from '../../../../../../platform/agentHost/common/meta/agentAuthenticationAccount.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, WorkspaceRemoteAgentHostsSettingId } from '../../../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type InitializeResult } from '../../../../../../platform/agentHost/common/state/protocol/common/commands.js';
 import { AuthenticateTargetKind } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { McpAuthRequiredReason } from '../../../../../../platform/agentHost/common/state/protocol/channels-session/state.js';
 import { AuthRequiredReason, type INotification } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -28,6 +37,14 @@ import { ILogService, NullLogService } from '../../../../../../platform/log/comm
 import { IProgressService, type IProgressStep } from '../../../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { TestDialogService } from '../../../../../../platform/dialogs/test/common/testDialogService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
+import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
+import { NotificationService } from '../../../../../services/notification/common/notificationService.js';
+import { NotificationsCenter } from '../../../../../browser/parts/notifications/notificationsCenter.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationMcpAccessService } from '../../../../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../../../../services/authentication/browser/authenticationMcpService.js';
@@ -45,9 +62,119 @@ import { RemoteAgentHostAuthenticationService, IRemoteAgentHostAuthenticationSer
 import { RemoteAgentHostContribution } from '../../../browser/remoteAgentHost/remoteAgentHostChatContribution.js';
 import { IRemoteAgentHostConnectionCustomization, IRemoteAgentHostConnectionCustomizationService } from '../../../browser/remoteAgentHost/remoteAgentHostConnectionCustomization.js';
 import { RemoteAgentHostLogForwarder } from '../../../browser/remoteAgentHost/remoteAgentHostLogForwarder.js';
-import { IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionsExtensions, IAsyncChatSessionActivationRegistry, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
+
+suite('Remote Agent Host consent integration', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	const address = 'restore-consent.example:8080';
+
+	function fixture(addresses = [address], confirmed = true) {
+		const instantiation = store.add(workbenchInstantiationService(undefined, store));
+		const configuration = new TestConfigurationService({
+			[RemoteAgentHostsEnabledSettingId]: true,
+			[WorkspaceRemoteAgentHostsSettingId]: addresses.map(address => ({ address, name: 'Same name' })),
+		});
+		store.add(configuration.onDidChangeConfigurationEmitter);
+		instantiation.stub(IConfigurationService, configuration);
+		const storage = store.add(new InMemoryStorageService());
+		instantiation.stub(IStorageService, storage);
+		const notifications = store.add(new NotificationService(storage));
+		instantiation.stub(INotificationService, notifications);
+		instantiation.stub(IDialogService, new TestDialogService({ confirmed }));
+		instantiation.stub(IAgentHostAdvertisedAuthenticationResolver, {
+			createResolver: () => ({ resolve: async () => [], dispose: () => { } }),
+			takePendingSessionRemovals: () => [],
+		});
+		const root = new class extends mock<RootState>() {
+			override readonly agents = [{ provider: 'copilot', displayName: 'Test', description: 'Test', models: [] }];
+		}();
+		instantiation.stubInstance(AgentHostProtocolClient, {
+			clientId: 'consent-test-client',
+			initializeResult: constObservable<InitializeResult | undefined>(undefined),
+			rootState: { value: root, verifiedValue: root, onDidChange: Event.None, onWillApplyAction: Event.None, onDidApplyAction: Event.None },
+			onDidClose: Event.None,
+			onDidConnectionDiagnostic: Event.None,
+			onDidScheduleReconnect: Event.None,
+			onDidChangeConnectionState: Event.None,
+			connect: async () => { },
+			dispose: () => { },
+		});
+		const service = store.add(instantiation.createInstance(EditorWindowRemoteAgentHostService));
+		instantiation.stub(IRemoteAgentHostService, service);
+		const setConfiguration = async (key: string, value: boolean | { address: string; name: string }[]) => {
+			await configuration.setUserConfiguration(key, value);
+			configuration.onDidChangeConfigurationEmitter.fire({
+				source: ConfigurationTarget.USER,
+				affectedKeys: new Set([key]),
+				change: { keys: [key], overrides: [] },
+				affectsConfiguration: candidate => candidate === key,
+			});
+		};
+		return { instantiation, service, notifications, setConfiguration };
+	}
+
+	for (const outcome of ['approved', 'cancelled', 'removed', 'disabled', 'abandoned', 'dismissed', 'cleared'] as const) {
+		test(`restored chat waits for consent and settles when ${outcome}`, async () => {
+			const context = fixture([address], outcome !== 'cancelled');
+			await timeout(0);
+			const sessionType = remoteAgentHostSessionTypeId(agentHostAuthority(address), 'copilot');
+			const activator = Registry.as<IAsyncChatSessionActivationRegistry>(ChatSessionsExtensions.AsyncActivation).getActivators(sessionType)[0];
+			assert.ok(activator);
+			const cancellation = store.add(new CancellationTokenSource());
+			let settled = false;
+			const activation = (async () => {
+				const result = await context.instantiation.invokeFunction(accessor => activator.waitForActivation(accessor, sessionType, cancellation.token));
+				settled = true;
+				return result;
+			})();
+			await timeout(0);
+			const beforeChoice = settled;
+			if (outcome === 'removed') {
+				await context.setConfiguration(WorkspaceRemoteAgentHostsSettingId, []);
+			} else if (outcome === 'disabled') {
+				await context.setConfiguration(RemoteAgentHostsEnabledSettingId, false);
+			} else if (outcome === 'abandoned') {
+				cancellation.cancel();
+			} else if (outcome === 'dismissed') {
+				context.notifications.model.notifications[0].close();
+			} else if (outcome === 'cleared') {
+				store.add(context.instantiation.createInstance(NotificationsCenter, $('div'), context.notifications.model)).clearAll();
+			} else {
+				const connect = context.notifications.model.notifications[0]?.actions?.primary?.[0];
+				assert.ok(connect);
+				await connect.run();
+			}
+			await timeout(0);
+			const afterChoice = settled;
+			if (!settled) {
+				await context.setConfiguration(WorkspaceRemoteAgentHostsSettingId, []);
+			}
+			assert.deepStrictEqual({ beforeChoice, afterChoice, result: await activation }, {
+				beforeChoice: false, afterChoice: true, result: outcome === 'approved',
+			});
+		});
+	}
+
+	test('same-name consent notifications remain independently actionable and disposable', async () => {
+		const context = fixture(['first-consent.example:8080/one?token=private-first', 'second-consent.example:8080/two?token=private-second'], false);
+		await timeout(0);
+		const notices = [...context.notifications.model.notifications];
+		const before = {
+			count: notices.length,
+			ids: new Set(notices.map(notice => notice.id)).size,
+			containsCredential: notices.some(notice => `${notice.id} ${notice.message.raw}`.includes('private-')),
+		};
+		await context.setConfiguration(WorkspaceRemoteAgentHostsSettingId, [{ address: 'second-consent.example:8080/two?token=private-second', name: 'Same name' }]);
+		const remaining = context.notifications.model.notifications.length;
+		await context.notifications.model.notifications[0]?.actions?.primary?.[0]?.run();
+		await timeout(0);
+		assert.deepStrictEqual({ before, remaining, retry: context.notifications.model.notifications.map(notice => notice.actions?.primary?.map(action => action.label) ?? []) }, {
+			before: { count: 2, ids: 2, containsCredential: false }, remaining: 1, retry: [['Retry']],
+		});
+	});
+});
 
 suite('Remote Agent Host silent MCP authentication', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

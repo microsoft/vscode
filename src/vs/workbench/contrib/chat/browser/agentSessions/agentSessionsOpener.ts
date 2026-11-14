@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { raceCancellation, raceCancellationError } from '../../../../../base/common/async.js';
+import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { isCancellationError } from '../../../../../base/common/errors.js';
 import { AgentSessionStatus, IAgentSession, isLocalAgentSessionItem } from './agentSessionsModel.js';
 import { getAgentSessionProviderIcon, getAgentSessionProviderName } from './agentSessions.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -64,6 +67,27 @@ class SessionOpenerRegistry {
 export const sessionOpenerRegistry = new SessionOpenerRegistry();
 
 //#endregion
+
+const pendingSessionOpens = new WeakMap<IChatWidgetService, CancellationTokenSource>();
+
+async function withSessionOpenCancellation(chatWidgetService: IChatWidgetService, openOptions: ISessionOpenOptions | undefined, open: (token: CancellationToken) => Promise<IChatWidget | undefined>): Promise<IChatWidget | undefined> {
+	const disposables = new DisposableStore();
+	const cancellation = disposables.add(new CancellationTokenSource());
+	// Explicit side-by-side opens have their own destination and must not supersede each other.
+	if (!openOptions?.sideBySide) {
+		pendingSessionOpens.get(chatWidgetService)?.cancel();
+		pendingSessionOpens.set(chatWidgetService, cancellation);
+	}
+	try {
+		return await raceCancellation(open(cancellation.token), cancellation.token);
+	} finally {
+		if (pendingSessionOpens.get(chatWidgetService) === cancellation) {
+			pendingSessionOpens.delete(chatWidgetService);
+		}
+		cancellation.cancel();
+		disposables.dispose();
+	}
+}
 
 /**
  * The agent-host session a legacy chat was just migrated into is not in the list
@@ -170,7 +194,13 @@ function createFallbackAgentSession(resource: URI): IAgentSession {
 	};
 }
 
-export async function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+export function openSessionByResource(accessor: ServicesAccessor, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+	return withSessionOpenCancellation(accessor.get(IChatWidgetService), openOptions,
+		token => instantiationService.invokeFunction(doOpenSessionByResource, token, resource, openOptions));
+}
+
+async function doOpenSessionByResource(accessor: ServicesAccessor, token: CancellationToken, resource: URI, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const chatSessionsService = accessor.get(IChatSessionsService);
@@ -186,6 +216,9 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 	}
 
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		if (!participant.handleOpenSessionResource) {
 			continue;
 		}
@@ -207,7 +240,7 @@ export async function openSessionByResource(accessor: ServicesAccessor, resource
 		throw new Error(`Chat session not found: ${resource.toString()}`);
 	}
 
-	return instantiationService.invokeFunction(openSession, session, openOptions, /* alreadyResolved */ true);
+	return instantiationService.invokeFunction(doOpenSession, token, session, openOptions, /* alreadyResolved */ true);
 }
 
 /**
@@ -220,7 +253,13 @@ export function shouldRevealSessionEditor(chatWidgetService: IChatWidgetService,
 	return !existingWidget || !isIChatViewViewContext(existingWidget.viewContext);
 }
 
-export async function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
+export function openSession(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
+	const instantiationService = accessor.get(IInstantiationService);
+	return withSessionOpenCancellation(accessor.get(IChatWidgetService), openOptions,
+		token => instantiationService.invokeFunction(doOpenSession, token, session, openOptions, alreadyResolved));
+}
+
+async function doOpenSession(accessor: ServicesAccessor, token: CancellationToken, session: IAgentSession, openOptions?: ISessionOpenOptions, alreadyResolved?: boolean): Promise<IChatWidget | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const logService = accessor.get(ILogService);
 	const chatSessionsService = accessor.get(IChatSessionsService);
@@ -242,6 +281,9 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 
 	// First, give registered participants a chance to handle the session
 	for (const participant of sessionOpenerRegistry.getParticipants()) {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		try {
 			const handled = await instantiationService.invokeFunction(accessor => participant.handleOpenSession(accessor, session, openOptions));
 			if (handled) {
@@ -254,10 +296,10 @@ export async function openSession(accessor: ServicesAccessor, session: IAgentSes
 	}
 
 	// Default session opening logic
-	return instantiationService.invokeFunction(accessor => openSessionDefault(accessor, session, openOptions));
+	return instantiationService.invokeFunction(accessor => openSessionDefault(accessor, session, token, openOptions));
 }
 
-async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
+async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSession, token: CancellationToken, openOptions?: ISessionOpenOptions): Promise<IChatWidget | undefined> {
 	const chatSessionsService = accessor.get(IChatSessionsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -265,6 +307,9 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 	const logService = accessor.get(ILogService);
 
 	try {
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
 		session.setRead(true); // mark as read when opened
 
 		let sessionOptions: IChatEditorOptions;
@@ -280,7 +325,7 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 			revealIfOpened: true, // always try to reveal if already opened
 		};
 
-		await chatSessionsService.activateChatSessionItemProvider(session.providerType); // ensure provider is activated before trying to open
+		await raceCancellationError(chatSessionsService.activateChatSessionItemProvider(session.providerType), token); // ensure provider is activated before trying to open
 		logService.trace(`[AgentSessions] openSession: provider '${session.providerType}' activated for ${session.resource.toString()}`);
 
 		let target: typeof SIDE_GROUP | typeof ACTIVE_GROUP | typeof ChatViewPaneTarget | undefined;
@@ -295,13 +340,20 @@ async function openSessionDefault(accessor: ServicesAccessor, session: IAgentSes
 		}
 
 		const isLocalChatSession = session.resource.scheme === Schemas.vscodeChatEditor || getChatSessionType(session.resource) === localChatSessionType;
-		if (!isLocalChatSession && !(await chatSessionsService.canResolveChatSession(getChatSessionType(session.resource)))) {
+		const canResolve = isLocalChatSession || await raceCancellationError(chatSessionsService.canResolveChatSession(getChatSessionType(session.resource), token), token);
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+		if (!canResolve) {
 			target = openOptions?.sideBySide ? SIDE_GROUP : ACTIVE_GROUP; // force to open in editor if session cannot be resolved in panel
 			options = { ...options, revealIfOpened: true };
 		}
 
 		return await chatWidgetService.openSession(session.resource, target, options);
 	} catch (error) {
+		if (isCancellationError(error)) {
+			return undefined;
+		}
 		logService.error(`[AgentSessions] openSession failed: ${session.resource.toString()}`, error);
 		notificationService.error(localize('chat.openSessionFailed', "Failed to open chat session: {0}", toErrorMessage(error)));
 		return undefined;
