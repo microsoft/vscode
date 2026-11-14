@@ -8091,6 +8091,19 @@ suite('AgentHostChatContribution', () => {
 			}, { carried: '/workspace/b', windowDefault: '/workspace/a' });
 		}));
 
+		test('with worktree support, the folder picker leads the chat input\'s pickers; without it, the multi-root folder picker stays last', () => {
+			const items = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary).filter((i): i is IMenuItem => isIMenuItem(i) && i.group === 'navigation');
+			const folderItems = items.filter(i => i.command.id === OpenAgentHostFolderPickerAction.ID);
+			const worktree = folderItems.find(i => !!i.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));
+			const multiRoot = folderItems.find(i => i !== worktree);
+			const others = items.filter(i => i.command.id !== OpenAgentHostFolderPickerAction.ID).map(i => i.order ?? 0);
+
+			assert.deepStrictEqual({
+				worktreeFirst: (worktree?.order ?? 0) < Math.min(...others),
+				multiRootOrder: multiRoot?.order,
+			}, { worktreeFirst: true, multiRootOrder: 1.1 });
+		});
+
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
 				.find((i): i is IMenuItem => isIMenuItem(i) && i.command.id === OpenAgentHostFolderPickerAction.ID);
