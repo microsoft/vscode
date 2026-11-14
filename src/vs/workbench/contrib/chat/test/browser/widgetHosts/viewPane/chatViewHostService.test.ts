@@ -357,4 +357,3 @@ suite('ChatViewHostService', () => {
 		assert.deepStrictEqual({ shown: service.shownSession.get()?.resource.path, replaced: service.replaced.get() }, { shown: '/chat-view', replaced: false });
 	});
 });
-

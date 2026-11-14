@@ -341,7 +341,7 @@ suite('ChatViewSessionsGate', () => {
 	});
 
 	test('the Chat view\'s composer holds the window\'s sessions providers while it has a draft, and goes as they are released only once nothing is typed', async () => {
-		const presenterService = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({}), upcastPartial<ICommandService>({})));
+		const presenterService = disposables.add(new EditorWindowSessionsPresenterService(upcastPartial<IChatViewHostService>({})));
 		let pristine = false;
 		let model: { isPristine(): boolean } | undefined = { isPristine: () => pristine };
 		const holder = disposables.add(presenterService.registerComposerHolder(createChatViewComposerHolder(() => model, () => { model = undefined; })));
