@@ -55,8 +55,8 @@ export class AgentsChatViewHost implements IChatViewHost {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IAgentsChatPartFrame frame: IAgentsChatPartFrame,
 	) {
-		// Read once the chat part exists: reading it does not create it
-		this.shownSession = derived(reader => frame.contentCreated.read(reader) ? this._chatPart.shownSession.read(reader) : undefined);
+		// Read once the chat part exists, of the frame: reading it does not create it, also not again as it is being created
+		this.shownSession = derived(reader => frame.contentCreated.read(reader) ? frame.content.read(reader)?.shownSession.read(reader) : undefined);
 	}
 
 	/** The chat of the chat part's active tab, and whether the user opened it or the chat part restored it. */

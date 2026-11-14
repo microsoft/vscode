@@ -7,7 +7,7 @@ import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -37,7 +37,8 @@ suite('AgentsChatViewHost', () => {
 		readonly sessionsManagementService?: Partial<ISessionsManagementService>;
 		readonly widgets?: IChatWidget[];
 		readonly providersAcquired?: () => void;
-		readonly contentCreated?: IObservable<boolean>;
+		/** The chat part once created, as its frame has it: by default `chatPart`. */
+		readonly content?: (chatPart: IAgentsChatPartService) => IObservable<IAgentsChatPartService | undefined>;
 		readonly chatService?: Partial<IChatService>;
 		readonly ownsNewChat?: boolean;
 	}
@@ -54,6 +55,7 @@ suite('AgentsChatViewHost', () => {
 			isShowing: () => false,
 			...options.chatPart,
 		});
+		const content = options.content?.(chatPart) ?? constObservable(chatPart);
 		const host = new AgentsChatViewHost(
 			constObservable(options.ownsNewChat ?? true),
 			chatPart,
@@ -78,7 +80,7 @@ suite('AgentsChatViewHost', () => {
 				...options.chatService,
 			}),
 			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; } }),
-			upcastPartial<IAgentsChatPartFrame>({ contentCreated: options.contentCreated ?? constObservable(true) }),
+			upcastPartial<IAgentsChatPartFrame>({ content, contentCreated: derived(reader => !!content.read(reader)) }),
 		);
 		return { host, calls, composerWidget };
 	}
@@ -339,13 +341,14 @@ suite('AgentsChatViewHost', () => {
 	});
 
 	test('reports the chat of the chat part\'s active tab only once the chat part exists, without creating it', () => {
-		const contentCreated = observableValue('contentCreated', false);
+		const content = observableValue<IAgentsChatPartService | undefined>('content', undefined);
 		const shown: IChatViewHostShownSession = { resource: URI.parse('agent-host-copilot:/session-1'), reason: 'restore' };
 		const read: string[] = [];
-		const { host } = createHost({ contentCreated, chatPart: { get shownSession() { read.push('shownSession'); return constObservable(shown); } } });
+		let created: IAgentsChatPartService | undefined;
+		const { host } = createHost({ content: chatPart => { created = chatPart; return content; }, chatPart: { get shownSession() { read.push('shownSession'); return constObservable(shown); } } });
 
 		const before = host.shownSession.get();
-		contentCreated.set(true, undefined);
+		content.set(created, undefined);
 
 		assert.deepStrictEqual({ before, after: host.shownSession.get(), read }, { before: undefined, after: shown, read: ['shownSession'] });
 	});
