@@ -8134,6 +8134,25 @@ suite('AgentHostChatContribution', () => {
 			}, { worktreeFirst: true, multiRootOrder: 1.1 });
 		});
 
+		test('with worktree support, the folder picker shows only for a new chat, not for a started or restored session', () => {
+			const worktree = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
+				.find((i): i is IMenuItem => isIMenuItem(i) && i.command.id === OpenAgentHostFolderPickerAction.ID && !!i.when?.keys().includes(`config.${ChatConfiguration.EditorWindowEnableWorktree}`));
+			const evalWhen = (values: Record<string, ContextKeyValue>) => !!worktree?.when?.evaluate({ getValue: <T extends ContextKeyValue = ContextKeyValue>(key: string) => values[key] as T });
+			const singleFolderWindow = {
+				[ChatContextKeys.enabled.key]: true,
+				[ChatContextKeys.chatIsAgentHostSession.key]: true,
+				[`config.${ChatConfiguration.EditorWindowEnableWorktree}`]: true,
+				workbenchState: 'folder',
+				remoteName: '',
+				isSessionsWindow: false,
+			};
+
+			assert.deepStrictEqual({
+				newChat: evalWhen({ ...singleFolderWindow, [ChatContextKeys.chatSessionIsEmpty.key]: true }),
+				startedOrRestored: evalWhen({ ...singleFolderWindow, [ChatContextKeys.chatSessionIsEmpty.key]: false }),
+			}, { newChat: true, startedOrRestored: false });
+		});
+
 		test('folder picker is visible only in multi-root agent-host editor windows when the provider pins an immutable primary directory', () => {
 			const item = MenuRegistry.getMenuItems(MenuId.ChatInputSecondary)
 				.find((i): i is IMenuItem => isIMenuItem(i) && i.command.id === OpenAgentHostFolderPickerAction.ID);
