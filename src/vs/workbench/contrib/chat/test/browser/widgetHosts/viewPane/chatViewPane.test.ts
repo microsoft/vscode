@@ -549,6 +549,47 @@ suite('ChatViewPane session transitions', () => {
 		});
 	});
 
+	test('through the Chat view host, a New Chat of its own that an open supersedes leaves the opened chat as the shown one', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const opened = nextResource.with({ path: '/opened' });
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		const newChatAcquired = new DeferredPromise<{ modelRef: IChatModelReference }>();
+		Object.assign(rig.pane, {
+			chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) },
+			acquireDefaultNewSession: () => newChatAcquired.p,
+			updateViewState: () => { },
+			providedComposer: { newChat: () => { }, focus: () => { } },
+			composerShown: false,
+		});
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+			isViewVisible: () => true,
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
+		const shown = () => { const value = host.shownSession.get(); return value ? `${value.resource.path} ${value.reason}` : 'none'; };
+
+		// New Chat of its own waits for its new chat, and meanwhile the user opens a chat
+		const resetting = host.newChat(undefined, { ownChat: true, preserveFocus: true });
+		await host.openSession(opened, { preserveFocus: true });
+		const afterOpen = shown();
+		await newChatAcquired.complete({ modelRef: reference(nextResource.with({ path: '/untitled-reset' })) });
+		const taken = await resetting;
+
+		assert.deepStrictEqual({ afterOpen, taken, afterReset: shown(), widget: rig.widget.viewModel?.sessionResource.path }, {
+			afterOpen: '/opened open',
+			taken: true,
+			afterReset: '/opened open',
+			widget: '/opened',
+		});
+	});
+
 	test('through the Chat view host, an open of the chat it shows already that supersedes a restore of it under way reports the open, not the restore', async () => {
 		const rig = createPane();
 		rig.nextRef.dispose();
@@ -605,7 +646,7 @@ suite('ChatViewPane session transitions', () => {
 		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
 		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
-		const host = instantiationService.createInstance(ChatViewHostService);
+		const host = store.add(instantiationService.createInstance(ChatViewHostService));
 		const start = await host.startSession(untitled, { local: false, importingConversation: false });
 		const stream: string[] = [];
 		store.add(autorun(reader => {
