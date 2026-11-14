@@ -14,7 +14,8 @@ import { IAgentSession } from '../../../chat/browser/agentSessions/agentSessions
 import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListProvider } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import './media/chatViewSessionsList.css';
 import { DisposableResizeObserver, getWindow } from '../../../../../base/browser/dom.js';
-import { combinedDisposable, Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { INewSessionTarget } from '../parts/chatView.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -26,7 +27,7 @@ import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerR
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
-import { IAgentsChatPartService } from './agentsChatPart.js';
+import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionsView } from '../views/sessionsView.js';
@@ -87,6 +88,22 @@ class ChatViewComposerEntry extends SessionChatEditorEntry {
 }
 
 /**
+ * Creates the model of a composer of the Chat view, aimed at `target`, with the folders the window's composers offer, such
+ * as the worktrees of its folder: the window's folders unless a feature offers others. Until `folders` is disposed, it
+ * follows the window's folder as it moves, as the chat part's composers do.
+ */
+export function createChatViewComposerModel(
+	composers: Pick<ChatWindowComposers, 'create'>,
+	composerFolders: IEditorWindowComposerFoldersService,
+	resource: URI,
+	target: INewSessionTarget | undefined,
+	openStartedSession: (session: ISession) => Promise<void>,
+): { readonly composer: ChatWindowComposerModel; readonly folders: IDisposable } {
+	const composer = composers.create(resource, { target, ...composerFolders.getComposerFolderOptions() }, openStartedSession);
+	return { composer, folders: composerFolders.registerComposer(composer) };
+}
+
+/**
  * The session composer of the Agents window as the Chat view's composer of new chats: with its workspace, worktree and other
  * pickers, of the folders the chat part's composers offer. The session a request starts opens with `open`, and a new composer
  * takes its place.
@@ -104,8 +121,8 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 
 	constructor(
 		private readonly _container: HTMLElement,
-		private readonly _chatPart: () => IAgentsChatPartService,
 		private readonly _open: (session: ISession, chatResource: URI | undefined, preserveFocus: boolean) => Promise<void>,
+		@IEditorWindowComposerFoldersService private readonly _composerFolders: IEditorWindowComposerFoldersService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
@@ -128,10 +145,7 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 
 	private _createComposer(): void {
 		const resource = createChatWindowComposerResource();
-		// The folders, and their presentation, of the chat part's composers: the window's folders unless a feature offers others
-		const folderOptions = this._chatPart().getComposerFolderOptions();
-		const target = getEditorWindowComposerTarget(this._workspaceContextService, this._editorService);
-		const composer = this._composers.create(resource, { target, ...folderOptions }, session => this._open(session, undefined, false));
+		const { composer, folders } = createChatViewComposerModel(this._composers, this._composerFolders, resource, getEditorWindowComposerTarget(this._workspaceContextService, this._editorService), session => this._open(session, undefined, false));
 		const entry = this._instantiationService.createInstance(ChatViewComposerEntry, resource, composer, constObservable(this._window));
 		this._view.clear();
 		this._entry.value = entry;
@@ -141,6 +155,7 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 		this._composers.didOpen([entry.chat.get()]);
 
 		const store = this._entryStore.value = new DisposableStore();
+		store.add(folders);
 		// Its content, at the bottom of its view, gives the composer its height
 		const observer = store.add(new MutableDisposable());
 		store.add(autorun(reader => {
@@ -188,7 +203,6 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 	constructor(
 		private readonly _sessionsOnly: IObservable<boolean>,
 		private readonly _open: (session: ISession, chatResource: URI | undefined, preserveFocus: boolean) => Promise<void>,
-		private readonly _chatPart: () => IAgentsChatPartService,
 	) { }
 
 	create(container: HTMLElement, instantiationService: IInstantiationService, _options: { readonly overrideStyles: IStyleOverride<IListStyles> }): IChatViewSessionsList {
@@ -209,7 +223,7 @@ export class ChatViewSessionsListProvider implements IChatViewSessionsListProvid
 			control: new ChatViewSessionsListControl(list),
 			hasHeader: true,
 			sessionsOnly: this._sessionsOnly,
-			createComposer: composerContainer => instantiationService.createInstance(ChatViewSessionsComposer, composerContainer, this._chatPart, this._open),
+			createComposer: composerContainer => instantiationService.createInstance(ChatViewSessionsComposer, composerContainer, this._open),
 		};
 	}
 }

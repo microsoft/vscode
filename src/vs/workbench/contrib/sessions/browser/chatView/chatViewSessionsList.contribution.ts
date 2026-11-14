@@ -29,7 +29,6 @@ import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration, isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
-import { IAgentsChatPartService } from '../agentsView/agentsChatPart.js';
 import { registerAgentsViewNewSessionActions } from '../agentsView/agentsChatPartActions.js';
 import { ChatViewSessionsListProvider } from '../agentsView/chatViewSessionsList.js';
 import { EditorWindowMainSessionHost } from '../agentsView/editorWindowMainSessionHost.js';
@@ -107,9 +106,8 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 
 			// The sessions list of the Chat view, whose sessions open where the window presents them
 			const presenterService = accessor.get(IEditorWindowSessionsPresenterService);
-			const chatPart = () => instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartService));
 			this._register(accessor.get(IChatViewSessionsListService).registerProvider(new ChatViewSessionsListProvider(sessionsOnly, (session, chatResource, preserveFocus) =>
-				presenterService.presenter.get().openChat(session, chatResource, { preserveFocus }), chatPart)));
+				presenterService.presenter.get().openChat(session, chatResource, { preserveFocus }))));
 			this._register(registerSessionsSidebarToggle());
 			this.showChatViewChat(accessor, sessionsOnly);
 		});

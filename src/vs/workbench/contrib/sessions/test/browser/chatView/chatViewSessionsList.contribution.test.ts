@@ -46,6 +46,9 @@ import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionTool
 import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
+import { EditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
+import { createChatViewComposerModel } from '../../../browser/agentsView/chatViewSessionsList.js';
+import { ChatWindowComposerModel, IChatWindowComposerInit } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
@@ -309,6 +312,31 @@ suite('ChatViewSessionsGate', () => {
 		assert.deepStrictEqual({ inChatView, inChatPart }, {
 			inChatView: ['chat view /main', 'chat view /peer', 'chat view /peer', 'chat view /main'],
 			inChatPart: ['chat part /main', 'chat part /peer', 'chat part /peer to the side', 'chat part main to the side'],
+		});
+	});
+
+	test('the Chat view\'s composer offers the folders that the window\'s composers offer, such as worktrees, and follows the window\'s folder as it moves, until it goes', () => {
+		const composerFolders = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
+		const folder = URI.file('/repo');
+		const worktree = URI.file('/repo.worktrees/feature');
+		const offered = disposables.add(composerFolders.setComposerFolderOptions(() => ({ allowedFolders: constObservable([folder, worktree]) })));
+		const retargeted: string[] = [];
+		let init: IChatWindowComposerInit | undefined;
+		const { folders } = createChatViewComposerModel({
+			create: (_resource, composerInit) => {
+				init = composerInit;
+				return upcastPartial<ChatWindowComposerModel>({ retargetFolder: (to, from) => { retargeted.push(`${from?.path} -> ${to.path}`); return true; } });
+			},
+		}, composerFolders, URI.parse('vscode-agents-composer:/1'), { folderUri: folder }, async () => { });
+		composerFolders.retargetComposerFolders(worktree, folder);
+		folders.dispose();
+		composerFolders.retargetComposerFolders(folder, worktree);
+		offered.dispose();
+
+		assert.deepStrictEqual({ target: init?.target?.folderUri?.path, allowedFolders: init?.allowedFolders?.get().map(uri => uri.path), retargeted }, {
+			target: '/repo',
+			allowedFolders: ['/repo', '/repo.worktrees/feature'],
+			retargeted: ['/repo -> /repo.worktrees/feature'],
 		});
 	});
 });
