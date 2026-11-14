@@ -119,16 +119,24 @@ suite('EditorWindowSessionsPresenterService', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('without a presenter, a new session starts a new chat in the Chat view, rather than the next request going to the chat it showed', async () => {
+	test('without a presenter, a new session starts a new chat in the Chat view, rather than the next request going to the chat it showed, aimed at its target', async () => {
 		const calls: string[] = [];
 		const service = disposables.add(new EditorWindowSessionsPresenterService(
-			upcastPartial<IChatViewHostService>({ reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; } }),
+			upcastPartial<IChatViewHostService>({
+				reveal: async preserveFocus => { calls.push(`reveal preserveFocus=${preserveFocus}`); return undefined; },
+				newChat: async target => { calls.push(`newChat ${target?.folder?.path} provider=${target?.providerId} type=${target?.sessionType}`); return true; },
+			}),
 			upcastPartial<ICommandService>({ executeCommand: async (id: string) => { calls.push(id); return undefined; } }),
 		));
 
 		await service.presenter.get().openComposer(undefined, { preserveFocus: true });
+		const withoutTarget = calls.splice(0);
+		await service.presenter.get().openComposer({ folderUri: URI.file('/repo.worktrees/a'), providerId: 'local-agent-host', sessionTypeId: 'copilotcli' });
 
-		assert.deepStrictEqual(calls, ['reveal preserveFocus=true', ACTION_ID_NEW_CHAT]);
+		assert.deepStrictEqual({ withoutTarget, withTarget: calls }, {
+			withoutTarget: ['reveal preserveFocus=true', ACTION_ID_NEW_CHAT],
+			withTarget: ['reveal preserveFocus=undefined', ACTION_ID_NEW_CHAT, 'newChat /repo.worktrees/a provider=local-agent-host type=copilotcli'],
+		});
 	});
 
 	test('the presenter registered last presents, until its registration is disposed, also when the same presenter is registered twice', () => {
@@ -175,7 +183,7 @@ suite('EditorWindowSessionsService', () => {
 	test('New Session starts a new chat in the Chat view while no feature presents the sessions, and a composer aimed at its target while one does', async () => {
 		const calls: string[] = [];
 		const instantiationService = disposables.add(new TestInstantiationService());
-		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ reveal: async () => { calls.push('reveal'); return undefined; } }));
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ reveal: async () => { calls.push('reveal'); return undefined; }, newChat: async () => { calls.push('newChat'); return true; } }));
 		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (id: string) => { calls.push(id); return undefined; } }));
 		const presenterService = disposables.add(instantiationService.createInstance(EditorWindowSessionsPresenterService));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, presenterService);

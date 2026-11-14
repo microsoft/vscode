@@ -47,7 +47,7 @@ import { ISessionChange, ISessionsManagementService } from '../../../common/sess
 import { EditorWindowSessionsPresenterService, IEditorWindowSessionsPresenter, IEditorWindowSessionsPresenterService } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { EditorWindowSessionsService } from '../../../browser/agentsView/editorWindowSessionsService.js';
 import { EditorWindowComposerFoldersService } from '../../../browser/editorWindow/editorWindowComposerFolders.js';
-import { createChatViewComposerHolder, createChatViewComposerModel } from '../../../browser/agentsView/chatViewSessionsList.js';
+import { createChatViewComposerHolder, createChatViewComposerModel, getChatViewComposerTarget } from '../../../browser/agentsView/chatViewSessionsList.js';
 import { ChatWindowComposerModel, IChatWindowComposerInit } from '../../../browser/chatEditor/chatWindowComposer.js';
 import { IEditorWindowSessionsRuntime } from '../../../browser/editorWindow/editorWindowSessionsRuntime.js';
 
@@ -355,6 +355,19 @@ suite('ChatViewSessionsGate', () => {
 		holder.dispose();
 
 		assert.deepStrictEqual(steps, [true, false]);
+	});
+
+	test('New Chat aims the Chat view\'s composer at its target when it has one, and at the window\'s default otherwise', () => {
+		const folder = URI.file('/repo.worktrees/feature');
+		const fallback = { folderUri: URI.file('/repo') };
+		const aimed = getChatViewComposerTarget({ folder, providerId: 'provider', sessionType: 'claude' }, () => fallback);
+		assert.deepStrictEqual({
+			aimed: { folder: aimed?.folderUri?.path, providerId: aimed?.providerId, sessionTypeId: aimed?.sessionTypeId },
+			default: getChatViewComposerTarget(undefined, () => fallback)?.folderUri?.path,
+		}, {
+			aimed: { folder: '/repo.worktrees/feature', providerId: 'provider', sessionTypeId: 'claude' },
+			default: '/repo',
+		});
 	});
 });
 

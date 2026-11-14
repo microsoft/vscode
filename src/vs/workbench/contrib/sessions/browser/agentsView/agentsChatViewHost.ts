@@ -5,7 +5,7 @@
 
 import { raceTimeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
-import { CancellationError, onUnexpectedError } from '../../../../../base/common/errors.js';
+import { CancellationError } from '../../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
@@ -16,7 +16,7 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
+import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../../chat/browser/chatViewHost.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { isAgentHostSessionResource, localChatSessionType } from '../../../chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../chat/common/constants.js';
@@ -88,12 +88,16 @@ export class AgentsChatViewHost implements IChatViewHost {
 		return type !== localChatSessionType && this._sessionsManagementService.getAllSessionTypes().some(sessionType => (sessionType.chatSessionType ?? sessionType.id) === type);
 	}
 
-	/** New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part, unless the Chat view keeps it. */
-	newChat(): boolean {
+	/**
+	 * New Chat, such as + in the title of the Chat view, opens a new-session composer in the chat part, unless the Chat view
+	 * keeps it. Resolves once the composer shows, so that a request that follows goes to it, not to the chat shown before.
+	 */
+	async newChat(target?: IChatViewNewChatTarget): Promise<boolean> {
 		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
-		this._chatPart.openComposer(this._composerTarget(), { newComposer: true }).catch(onUnexpectedError);
+		const aimed = target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType } : this._composerTarget();
+		await this._chatPart.openComposer(aimed, { newComposer: true });
 		return true;
 	}
 
@@ -127,7 +131,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 			if (!owner || generation !== this._generation) {
 				return undefined;
 			}
-			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus, restore: options?.restore });
+			await this._chatPart.openChat(owner.session, owner.chat.resource, { preserveFocus: options?.preserveFocus, restore: options?.restore, commit: options?.commit });
 			return await this._waitForWidget(owner.chat.resource);
 		} finally {
 			hold.dispose();

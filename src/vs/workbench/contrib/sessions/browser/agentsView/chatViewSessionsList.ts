@@ -16,6 +16,7 @@ import './media/chatViewSessionsList.css';
 import { DisposableResizeObserver, getWindow } from '../../../../../base/browser/dom.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { INewSessionTarget } from '../parts/chatView.js';
+import { IChatViewNewChatTarget } from '../../../chat/browser/chatViewHost.js';
 import { autorun, constObservable, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
@@ -85,6 +86,11 @@ class ChatViewComposerEntry extends SessionChatEditorEntry {
 	}
 
 	protected closeShown(): void { }
+}
+
+/** What a new composer of the Chat view aims at: `target` of New Chat when given, or else the window's default (`fallback`). */
+export function getChatViewComposerTarget(target: IChatViewNewChatTarget | undefined, fallback: () => INewSessionTarget | undefined): INewSessionTarget | undefined {
+	return target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType } : fallback();
 }
 
 /**
@@ -163,10 +169,11 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 		this._createComposer();
 	}
 
-	private _createComposer(): void {
+	private _createComposer(target?: IChatViewNewChatTarget): void {
 		const resource = createChatWindowComposerResource();
 		this._model = undefined;
-		const { composer, folders } = createChatViewComposerModel(this._composers, this._composerFolders, resource, getEditorWindowComposerTarget(this._workspaceContextService, this._editorService), session => this._open(session, undefined, false));
+		const composerTarget = getChatViewComposerTarget(target, () => getEditorWindowComposerTarget(this._workspaceContextService, this._editorService));
+		const { composer, folders } = createChatViewComposerModel(this._composers, this._composerFolders, resource, composerTarget, session => this._open(session, undefined, false));
 		const entry = this._instantiationService.createInstance(ChatViewComposerEntry, resource, composer, constObservable(this._window));
 		this._view.clear();
 		this._entry.value = entry;
@@ -228,8 +235,8 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 		this._container.replaceChildren();
 	}
 
-	newChat(): void {
-		this._createComposer();
+	newChat(target?: IChatViewNewChatTarget): void {
+		this._createComposer(target);
 	}
 }
 

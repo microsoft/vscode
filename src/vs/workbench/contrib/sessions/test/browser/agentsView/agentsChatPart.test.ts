@@ -354,7 +354,7 @@ suite('AgentsChatPartService', () => {
 		assert.deepStrictEqual(reports.slice(-2), ['open', 'open']);
 	});
 
-	test('a chat opened as restored shows as restored, and as opened once the user opens it', async () => {
+	test('a chat opened as restored or committed shows as such, and as opened once the user opens it', async () => {
 		const restoredSession = buildTestSession({ id: 'restored', title: 'Restored' });
 		const main = restoredSession.mainChat.chat.resource;
 		const { service } = createService({ sessions: () => [restoredSession.session] });
@@ -362,9 +362,11 @@ suite('AgentsChatPartService', () => {
 
 		await service.openChat(restoredSession.session, main, { restore: true });
 		const restored = await shown();
+		await service.openChat(restoredSession.session, main, { commit: true });
+		const committed = await shown();
 		await service.openChat(restoredSession.session, main);
 
-		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'main restore', opened: 'main open' });
+		assert.deepStrictEqual({ restored, committed, opened: await shown() }, { restored: 'main restore', committed: 'main commit', opened: 'main open' });
 	});
 
 	test('its composers that aim at the folder their host aimed them at follow it to another folder, also the active one a new session reuses', async () => {

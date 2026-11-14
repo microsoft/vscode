@@ -36,7 +36,7 @@ import { ChatWindowLayoutMode } from '../../../chatWindow/common/chatWindowLayou
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { IChatEditorWindow, registerSessionChatViewEditor, SESSION_CHAT_VIEW_WORKING_SET_HOST_OPTIONS } from '../chatEditor/chatEditor.js';
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
-import { IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IEditorWindowComposerFolderOptions, IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
@@ -71,6 +71,8 @@ export interface IAgentsChatPartOpenOptions {
 	readonly newComposer?: boolean;
 	/** Shows the chat as one the chat part restores, not one the user opens (see `IChatViewHostOpenOptions.restore`). */
 	readonly restore?: boolean;
+	/** Shows the chat as the session that its first send created, not one the user opens (see `IChatViewHostOpenOptions.commit`). */
+	readonly commit?: boolean;
 }
 
 export const IAgentsChatPartService = createDecorator<IAgentsChatPartService>('agentsChatPartService');
@@ -492,10 +494,10 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		this._restoringTabs.delete(chat.input);
 		await this._editorService.openEditor(chat.input, { pinned: true, preserveFocus: options?.preserveFocus }, group);
 		this.composers.didOpen([chat.chat.get()]);
-		// Opened, also a tab it restored and shows already, such as one the user picks in a sessions list, unless shown as restored
+		// Opened, also a tab it restored and shows already, such as one the user picks in a sessions list, unless shown as restored or committed
 		if (this._activeInput.get() === chat.input) {
 			transaction(tx => {
-				this._activeReason.set(options?.restore ? 'restore' : 'open', tx);
+				this._activeReason.set(getChatViewHostOpenReason(options), tx);
 				this._settleComposerTab(chat.input, tx);
 				this._explicitOpens.set(this._explicitOpens.get() + 1, tx);
 			});

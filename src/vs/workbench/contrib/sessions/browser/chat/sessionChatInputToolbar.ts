@@ -421,6 +421,7 @@ export class SessionChatInputToolbar extends Disposable {
 	private readonly _inputPills: ChatInputPills;
 	/** Whether the Changes pill hides, such as while the input shows the session's changes as its working set. */
 	private readonly _changesHidden = observableValue<IObservable<boolean>>(this, constObservable(false));
+	private _changesContextMenuActions: () => IAction[] = () => [];
 	private _inputElement: HTMLElement | undefined;
 
 	/** Sentinel distinguishing "no override" from an explicit `undefined` session. */
@@ -793,6 +794,7 @@ export class SessionChatInputToolbar extends Disposable {
 						chatResource: target !== 'main' ? chat?.resource : undefined,
 					}, target !== 'main' ? target.mainPart.activeGroup : undefined);
 				},
+				getContextMenuPrimaryActions: () => this._changesContextMenuActions(),
 			},
 			pullRequests: pullRequestData,
 			issues: {
@@ -854,6 +856,11 @@ export class SessionChatInputToolbar extends Disposable {
 	/** Hides the Changes pill while `hidden`, such as while the input shows the session's changes as its working set. */
 	setChangesHidden(hidden: IObservable<boolean>): void {
 		this._changesHidden.set(hidden, undefined);
+	}
+
+	/** Adds `actions` to the context menu of the Changes pill, such as to show the session's changes as the working set again. */
+	setChangesContextMenuActions(actions: () => IAction[]): void {
+		this._changesContextMenuActions = actions;
 	}
 
 	setChat(chat: IChat | undefined): void {
