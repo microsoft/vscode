@@ -778,21 +778,33 @@ suite('Sessions - Actions', () => {
 		});
 	});
 
-	test('shares View Mode between session header menus with AI hiding', () => {
-		assert.deepStrictEqual(SessionHeaderMenus.map(menu => {
-			const item = MenuRegistry.getMenuItems(menu).filter(isISubmenuItem).find(item => item.submenu === MenuId.ChatViewMode);
-			return {
-				title: item && (typeof item.title === 'string' ? item.title : item.title.value),
-				group: item?.group,
-				order: item?.order,
-				when: item?.when?.serialize(),
-			};
-		}), SessionHeaderMenus.map(() => ({
-			title: 'View Mode',
-			group: 'secondary/4_manage',
-			order: 10,
-			when: ChatContextKeys.enabled.serialize(),
-		})));
+	test('shares View Mode between the header menus of a created session with AI hiding', () => {
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const chatEnabled = ChatContextKeys.enabled.bindTo(contextKeyService);
+		const sessionIsCreated = SessionIsCreatedContext.bindTo(contextKeyService);
+		const getViewMode = (enabled: boolean, created: boolean) => {
+			chatEnabled.set(enabled);
+			sessionIsCreated.set(created);
+			return SessionHeaderMenus.map(menu => MenuRegistry.getMenuItems(menu)
+				.filter(isISubmenuItem)
+				.filter(item => item.submenu === MenuId.ChatViewMode && contextKeyService.contextMatchesRules(item.when))
+				.map(item => ({
+					title: typeof item.title === 'string' ? item.title : item.title.value,
+					group: item.group,
+					order: item.order,
+				})));
+		};
+		const viewMode = [{ title: 'View Mode', group: 'secondary/4_manage', order: 10 }];
+
+		assert.deepStrictEqual({
+			createdSession: getViewMode(true, true),
+			newSession: getViewMode(true, false),
+			aiDisabled: getViewMode(false, true),
+		}, {
+			createdSession: SessionHeaderMenus.map(() => viewMode),
+			newSession: SessionHeaderMenus.map(() => []),
+			aiDisabled: SessionHeaderMenus.map(() => []),
+		});
 	});
 
 	test('contributes chat tab presentation to the session header overflow', async () => {
