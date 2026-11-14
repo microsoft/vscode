@@ -31,7 +31,7 @@ import { FindAgentSessionInViewerAction, RefreshAgentSessionsViewerAction } from
 import { ChatViewPane } from '../../../../chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatViewContainerId, ChatViewId } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
-import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue, transaction } from '../../../../../../base/common/observable.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
@@ -95,6 +95,8 @@ suite('ChatViewSessionsGate', () => {
 	let opened: string[];
 	/** Whether a host, such as the chat part, replaces the Chat view. */
 	let replaced: ISettableObservable<boolean>;
+	/** Whether the Chat view hosts the chat opened last, such as one that the host that replaces it leaves to it. */
+	let chatViewHosts: ISettableObservable<boolean>;
 	let contextKeyService: MockContextKeyService;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
@@ -103,6 +105,7 @@ suite('ChatViewSessionsGate', () => {
 		runtimeHolds = 0;
 		opened = [];
 		replaced = observableValue('replaced', false);
+		chatViewHosts = observableValue('chatViewHosts', true);
 		const instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, ...configuration }));
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
@@ -111,7 +114,7 @@ suite('ChatViewSessionsGate', () => {
 		contextKeyService = new MockContextKeyService();
 		instantiationService.stub(IContextKeyService, contextKeyService);
 		instantiationService.stub(IChatViewSessionsListService, upcastPartial<IChatViewSessionsListService>({ registerProvider: () => { providers++; return toDisposable(() => providers--); } }));
-		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ replaced, shownSession: constObservable(undefined) }));
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ replaced, chatViewHosts, shownSession: constObservable(undefined) }));
 		instantiationService.stub(IEditorWindowSessionsRuntime, upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { runtimeHolds++; return toDisposable(() => runtimeHolds--); } }));
 		instantiationService.stub(IEditorWindowSessionsPresenterService, upcastPartial<IEditorWindowSessionsPresenterService>({ presenter: constObservable(upcastPartial<IEditorWindowSessionsPresenter>({ openChat: async session => { opened.push(session.sessionId); } })) }));
 		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
@@ -163,16 +166,22 @@ suite('ChatViewSessionsGate', () => {
 		});
 	});
 
-	test('the Chat view shows only its sessions while a host, such as the chat part, replaces it', () => {
+	test('the Chat view shows only its sessions while a host, such as the chat part, replaces it, but a chat that the host leaves to it', () => {
 		createGate(true);
 		const sessionsOnly = () => contextKeyService.getContextKeyValue('chatViewSessionsOnly');
 		const steps = [sessionsOnly()];
-		replaced.set(true, undefined);
+		// The host registers, and hosts the chats
+		transaction(tx => { replaced.set(true, tx); chatViewHosts.set(false, tx); });
 		steps.push(sessionsOnly());
-		replaced.set(false, undefined);
+		// It leaves a chat that it cannot show, such as a local chat, to the Chat view, which shows it
+		chatViewHosts.set(true, undefined);
+		steps.push(sessionsOnly());
+		chatViewHosts.set(false, undefined);
+		steps.push(sessionsOnly());
+		transaction(tx => { replaced.set(false, tx); chatViewHosts.set(true, tx); });
 		steps.push(sessionsOnly());
 
-		assert.deepStrictEqual(steps, [false, true, false]);
+		assert.deepStrictEqual(steps, [false, true, false, true, false]);
 	});
 
 	test('registers nothing while the Agents view of #347688 is on too, which takes precedence', () => {
@@ -228,7 +237,7 @@ suite('ChatViewSessionsGate', () => {
 		createGate(true, undefined, undefined, instantiationService => {
 			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: id => id === ChatViewId }));
 			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
-			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession, replaced }));
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession, replaced, chatViewHosts }));
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				onDidChangeSession: sessionChanged.event,
@@ -244,9 +253,9 @@ suite('ChatViewSessionsGate', () => {
 		shownSession.set({ resource: inView.mainChat.get().resource, reason: 'open' }, undefined);
 		steps.inView = mainHost!.session.get()?.sessionId;
 		// The chat part replaces the Chat view, and then no longer
-		replaced.set(true, undefined);
+		transaction(tx => { replaced.set(true, tx); chatViewHosts.set(false, tx); });
 		steps.inChatPart = mainHost!.session.get()?.sessionId;
-		replaced.set(false, undefined);
+		transaction(tx => { replaced.set(false, tx); chatViewHosts.set(true, tx); });
 		steps.backInView = mainHost!.session.get()?.sessionId;
 		shownSession.set({ resource: peer.mainChat.get().resource, reason: 'open' }, undefined);
 		steps.peerUnknown = mainHost!.session.get()?.sessionId;

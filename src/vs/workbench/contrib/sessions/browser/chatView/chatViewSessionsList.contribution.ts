@@ -97,9 +97,10 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			// The settings and the actions of the shared sessions list, once the Chat view first shows it
 			this._register(registerEditorWindowSessionsList(instantiationService, () => registerAgentsViewNewSessionActions(), ChatViewId));
 
-			// While a host replaces the Chat view, such as the chat part, its chats show there: the Chat view shows only the sessions
+			// While a host replaces the Chat view, such as the chat part, its chats show there: the Chat view shows only the sessions,
+			// unless it hosts the chat opened last, one that the host leaves to it, such as a local chat
 			const chatViewHostService = accessor.get(IChatViewHostService);
-			const sessionsOnly = chatViewHostService.replaced;
+			const sessionsOnly = derived(this, reader => chatViewHostService.replaced.read(reader) && !chatViewHostService.chatViewHosts.read(reader));
 			const sessionsOnlyContext = ChatViewSessionsOnlyContext.bindTo(accessor.get(IContextKeyService));
 			this._register(autorun(reader => sessionsOnlyContext.set(sessionsOnly.read(reader))));
 			this._register(toDisposable(() => sessionsOnlyContext.reset()));
