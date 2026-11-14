@@ -190,7 +190,7 @@ suite('ChatViewPane sessions refresh', () => {
 		]);
 	});
 
-	test('as the sessions list swaps live, the new list takes focus only if the replaced list had it', () => {
+	test('as the sessions list swaps live, the new list takes focus only if the replaced list had it, or the chat while the new list does not show', () => {
 		const service = store.add(new ChatViewSessionsListService());
 		const focused: string[] = [];
 		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
@@ -221,9 +221,11 @@ suite('ChatViewPane sessions refresh', () => {
 			viewPaneContainer: document.createElement('div'),
 			isBodyVisible: () => true,
 			sessionsViewerVisible: true,
-			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			sessionsVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: host.sessionsVisible }),
 			relayout: () => { },
 			sessionsControlContainer: undefined as HTMLElement | undefined,
+			_widget: { focusInput: () => focused.push('chat') },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
 		createControl.call(host, parent);
@@ -240,8 +242,17 @@ suite('ChatViewPane sessions refresh', () => {
 		elsewhere.focus();
 		registration.dispose();
 		steps.push(focused.splice(0));
+		const focusStayed = mainWindow.document.activeElement === elsewhere;
+		// The list has focus, and the list that replaces it does not show: the chat takes it
+		focusList();
+		host.sessionsVisible = false;
+		const hidden = service.registerProvider(upcastPartial<IChatViewSessionsListProvider>({
+			create: container => ({ control: render(container, 'provided'), hasHeader: true, sessionsOnly: constObservable(false) }),
+		}));
+		steps.push(focused.splice(0));
+		hidden.dispose();
 
-		assert.deepStrictEqual({ steps, focusStayed: mainWindow.document.activeElement === elsewhere }, { steps: [['provided'], []], focusStayed: true });
+		assert.deepStrictEqual({ steps, focusStayed }, { steps: [['provided'], [], ['chat']], focusStayed: true });
 	});
 
 	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
