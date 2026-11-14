@@ -1014,6 +1014,281 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(quickpick.selectedItems.length, 0);
 	});
 
+	test('canSelectMany - enables checkboxes for already visible items #209132', async () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const quickpick = store.add(controller.createQuickPick());
+		const items = [{ label: 'first' }, { label: 'second' }];
+		quickpick.items = items;
+		quickpick.show();
+		quickpick.canSelectMany = true;
+		quickpick.selectedItems = [items[0]];
+
+		let accepted: readonly IQuickPickItem[] = [];
+		store.add(quickpick.onDidAccept(() => accepted = quickpick.selectedItems));
+		const rows = Array.from(fixture.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row'));
+		rows[1].querySelector<HTMLElement>('.quick-input-list-label')!.click();
+		await controller.accept();
+
+		assert.deepStrictEqual({
+			roles: rows.map(row => row.getAttribute('role')),
+			checked: rows.map(row => row.getAttribute('aria-checked')),
+			checkboxes: rows.map(row => !!row.querySelector('.monaco-checkbox')),
+			accepted: accepted.map(item => item.label),
+		}, {
+			roles: ['checkbox', 'checkbox'],
+			checked: ['true', 'true'],
+			checkboxes: [true, true],
+			accepted: ['first', 'second'],
+		});
+	});
+
+	test('canSelectMany - removes checkboxes from already visible items', () => {
+		controller.layout({ height: 500, width: 600 }, 0);
+		const quickpick = store.add(controller.createQuickPick());
+		const items = [{ label: 'first' }, { label: 'second' }];
+		quickpick.canSelectMany = true;
+		quickpick.items = items;
+		quickpick.show();
+		quickpick.selectedItems = [items[0]];
+		quickpick.canSelectMany = false;
+
+		let accepted: readonly IQuickPickItem[] = [];
+		store.add(quickpick.onDidAccept(() => accepted = quickpick.selectedItems));
+		const rows = Array.from(fixture.querySelectorAll<HTMLElement>('.quick-input-list .monaco-list-row'));
+		rows[1].querySelector<HTMLElement>('.quick-input-list-label')!.click();
+
+		assert.deepStrictEqual({
+			roles: rows.map(row => row.getAttribute('role')),
+			checkboxes: rows.map(row => !!row.querySelector('.monaco-checkbox')),
+			accepted: accepted.map(item => item.label),
+		}, {
+			roles: ['option', 'option'],
+			checkboxes: [false, false],
+			accepted: ['second'],
+		});
+	});
+
+	for (const modes of [[true, false], [false, true], [true, false, true]]) {
+		for (const value of ['', 'needle']) {
+			test(`canSelectMany - preserves state during ${modes.join(' -> ')} with filter "${value}"`, async () => {
+				controller.layout({ height: 500, width: 600 }, 0);
+				const quickpick = store.add(controller.createQuickPick());
+				const items = [{ label: 'first needle' }, { label: 'second needle' }, { label: 'other' }];
+				quickpick.canSelectMany = modes[0];
+				quickpick.items = items;
+				quickpick.value = value;
+				quickpick.show();
+				quickpick.activeItems = [items[1]];
+				if (modes[0]) {
+					quickpick.selectedItems = [items[1]];
+				}
+
+				let activeChanges = 0;
+				let selectionChanges = 0;
+				const accepted: string[][] = [];
+				store.add(quickpick.onDidChangeActive(() => activeChanges++));
+				store.add(quickpick.onDidChangeSelection(() => selectionChanges++));
+				store.add(quickpick.onDidAccept(() => accepted.push(quickpick.selectedItems.map(item => item.label))));
+
+				for (const mode of modes.slice(1)) {
+					quickpick.canSelectMany = mode;
+				}
+
+				const stateBeforeAccept = {
+					active: quickpick.activeItems.map(item => item.label),
+					selected: quickpick.selectedItems.map(item => item.label),
+					focused: fixture.querySelector('.quick-input-list .monaco-list-row.focused .quick-input-list-label')?.textContent,
+					checked: fixture.querySelectorAll('.quick-input-list .monaco-checkbox[aria-checked="true"]').length,
+					value: quickpick.value,
+					activeChanges,
+					selectionChanges,
+					accepts: accepted.length,
+				};
+				await controller.accept();
+
+				assert.deepStrictEqual({ stateBeforeAccept, accepted }, {
+					stateBeforeAccept: {
+						active: ['second needle'],
+						selected: modes[0] ? ['second needle'] : [],
+						focused: 'second needle',
+						checked: modes[0] && modes[modes.length - 1] ? 1 : 0,
+						value,
+						activeChanges: 0,
+						selectionChanges: 0,
+						accepts: 0,
+					},
+					accepted: modes[modes.length - 1] && !modes[0] ? [[]] : [['second needle']],
+				});
+			});
+		}
+	}
+
+	for (const itemActivation of [ItemActivation.NONE, ItemActivation.SECOND, ItemActivation.LAST]) {
+		for (const modes of [[true, false], [false, true], [true, false, true]]) {
+			test(`canSelectMany - preserves pending ${ItemActivation[itemActivation]} activation during ${modes.join(' -> ')}`, () => {
+				controller.layout({ height: 500, width: 600 }, 0);
+				const quickpick = store.add(controller.createQuickPick());
+				const initial = { label: 'initial' };
+				const items = [{ label: 'first' }, { label: 'second' }, { label: 'last' }];
+				const expectedActive = itemActivation === ItemActivation.NONE ? [] : [items[itemActivation === ItemActivation.SECOND ? 1 : 2]];
+				quickpick.canSelectMany = modes[0];
+				quickpick.items = [initial];
+				quickpick.show();
+				quickpick.activeItems = [initial];
+				quickpick.itemActivation = itemActivation;
+
+				for (const mode of modes.slice(1)) {
+					quickpick.canSelectMany = mode;
+				}
+				const beforeItems = { active: quickpick.activeItems, itemActivation: quickpick.itemActivation };
+				quickpick.items = items;
+				const afterItems = {
+					active: quickpick.activeItems,
+					focused: fixture.querySelector('.quick-input-list .monaco-list-row.focused .quick-input-list-label')?.textContent,
+				};
+				quickpick.items = items;
+
+				assert.deepStrictEqual({ beforeItems, afterItems, nextActive: quickpick.activeItems }, {
+					beforeItems: { active: [initial], itemActivation },
+					afterItems: { active: expectedActive, focused: expectedActive[0]?.label },
+					nextActive: modes[modes.length - 1] ? [] : [items[0]],
+				});
+			});
+		}
+
+		for (const initiallyHidden of [false, true]) {
+			test(`canSelectMany - preserves pending ${ItemActivation[itemActivation]} activation before async items (hidden: ${initiallyHidden})`, async () => {
+				controller.layout({ height: 500, width: 600 }, 0);
+				const quickpick = store.add(controller.createQuickPick());
+				const items = [{ label: 'first' }, { label: 'second' }, { label: 'last' }];
+				const expectedActive = itemActivation === ItemActivation.NONE ? [] : [items[itemActivation === ItemActivation.SECOND ? 1 : 2]];
+				const pendingItems = new DeferredPromise<IQuickPickItem[]>();
+				const populated = pendingItems.p.then(items => { quickpick.items = items; });
+				quickpick.itemActivation = itemActivation;
+				if (!initiallyHidden) {
+					quickpick.show();
+				}
+				quickpick.canSelectMany = true;
+				quickpick.canSelectMany = false;
+				quickpick.show();
+				const activationBeforeItems = quickpick.itemActivation;
+
+				await pendingItems.complete(items);
+				await populated;
+				const afterItems = {
+					active: quickpick.activeItems,
+					focused: fixture.querySelector('.quick-input-list .monaco-list-row.focused .quick-input-list-label')?.textContent,
+				};
+				quickpick.items = items;
+
+				assert.deepStrictEqual({ activationBeforeItems, afterItems, nextActive: quickpick.activeItems }, {
+					activationBeforeItems: itemActivation,
+					afterItems: { active: expectedActive, focused: expectedActive[0]?.label },
+					nextActive: [items[0]],
+				});
+			});
+		}
+
+		test(`canSelectMany - applies pending ${ItemActivation[itemActivation]} activation to items assigned before showing`, () => {
+			controller.layout({ height: 500, width: 600 }, 0);
+			const quickpick = store.add(controller.createQuickPick());
+			const items = [{ label: 'first' }, { label: 'second' }, { label: 'last' }];
+			const expectedActive = itemActivation === ItemActivation.NONE ? [] : [items[itemActivation === ItemActivation.SECOND ? 1 : 2]];
+			quickpick.itemActivation = itemActivation;
+			quickpick.items = items;
+			quickpick.canSelectMany = true;
+			quickpick.canSelectMany = false;
+			quickpick.show();
+			const afterItems = {
+				active: quickpick.activeItems,
+				focused: fixture.querySelector('.quick-input-list .monaco-list-row.focused .quick-input-list-label')?.textContent,
+			};
+			quickpick.items = items;
+
+			assert.deepStrictEqual({ afterItems, nextActive: quickpick.activeItems }, {
+				afterItems: { active: expectedActive, focused: expectedActive[0]?.label },
+				nextActive: [items[0]],
+			});
+		});
+	}
+
+	for (const canSelectMany of [false, true]) {
+		test(`canSelectMany - retains default focus when configured before showing (${canSelectMany})`, () => {
+			const quickpick = store.add(controller.createQuickPick());
+			const items = [{ label: 'first' }, { label: 'second' }];
+			quickpick.items = items;
+			quickpick.canSelectMany = !canSelectMany;
+			quickpick.canSelectMany = canSelectMany;
+			quickpick.show();
+
+			assert.deepStrictEqual({
+				active: quickpick.activeItems,
+				selected: quickpick.selectedItems,
+			}, {
+				active: canSelectMany ? [] : [items[0]],
+				selected: [],
+			});
+		});
+	}
+
+	test('canSelectMany - confirms explicit state configured before showing', () => {
+		const quickpick = store.add(controller.createQuickPick());
+		const items = [{ label: 'first' }, { label: 'second' }];
+		const activeChanges: IQuickPickItem[][] = [];
+		const selectionChanges: IQuickPickItem[][] = [];
+		let accepts = 0;
+		store.add(quickpick.onDidChangeActive(active => activeChanges.push(active)));
+		store.add(quickpick.onDidChangeSelection(selected => selectionChanges.push(selected)));
+		store.add(quickpick.onDidAccept(() => accepts++));
+		quickpick.items = items;
+		quickpick.activeItems = [items[1]];
+		quickpick.selectedItems = [items[1]];
+		quickpick.canSelectMany = true;
+		quickpick.show();
+
+		assert.deepStrictEqual({
+			active: quickpick.activeItems,
+			selected: quickpick.selectedItems,
+			activeChanges,
+			selectionChanges,
+			accepts,
+		}, {
+			active: [items[1]],
+			selected: [items[1]],
+			activeChanges: [[items[1]]],
+			selectionChanges: [[items[1]]],
+			accepts: 0,
+		});
+	});
+
+	for (const canSelectMany of [false, true]) {
+		test(`canSelectMany - assigning the current mode does not rebuild (${canSelectMany})`, () => {
+			const quickpick = store.add(controller.createQuickPick());
+			const items = [{ label: 'first' }, { label: 'second' }];
+			quickpick.canSelectMany = canSelectMany;
+			quickpick.items = items;
+			quickpick.show();
+			quickpick.activeItems = [items[1]];
+			if (canSelectMany) {
+				quickpick.selectedItems = [items[1]];
+			}
+			const observer = new mainWindow.MutationObserver(() => { });
+			store.add(toDisposable(() => observer.disconnect()));
+			observer.observe(fixture.querySelector('.quick-input-list')!, { childList: true, subtree: true });
+			quickpick.canSelectMany = canSelectMany;
+
+			assert.deepStrictEqual({
+				active: quickpick.activeItems,
+				selected: quickpick.selectedItems,
+				mutations: observer.takeRecords().length,
+			}, {
+				active: [items[1]],
+				selected: canSelectMany ? [items[1]] : [],
+				mutations: 0,
+			});
+		});
+	}
+
 	test('activeItems - verify onDidChangeActive is triggered after setting items', async () => {
 		const quickpick = store.add(controller.createQuickPick());
 
