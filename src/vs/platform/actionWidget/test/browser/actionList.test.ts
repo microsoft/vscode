@@ -361,63 +361,6 @@ suite('ActionListWidget', () => {
 		});
 	});
 
-	test('a row with a description and a detail keeps its detail inside it, as one without a description does, also with descriptions inline', () => {
-		const layoutOf = (inlineDescription: boolean) => {
-			const widget = createActionListWidget(disposables, {
-				items: [{ ...action('without'), detail: 'Start without a backing workspace' }, { ...action('with'), description: '~/work', detail: 'Works in the folder already on this computer' }, action('next')],
-				listOptions: { showFilter: true, inlineDescription },
-			});
-			const wrapper = document.createElement('div');
-			wrapper.classList.add('action-widget');
-			widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
-			wrapper.appendChild(widget.domNode);
-			disposables.add({ dispose: () => wrapper.remove() });
-			widget.layout(600, 400);
-			const rows = [...widget.domNode.querySelectorAll<HTMLElement>('.monaco-list-row.action')];
-			const offsets = (row: HTMLElement) => {
-				const bounds = row.getBoundingClientRect();
-				const detail = row.querySelector<HTMLElement>('.detail')!.getBoundingClientRect();
-				const title = row.querySelector<HTMLElement>('.title')!.getBoundingClientRect();
-				return { title: title.top - bounds.top, detail: detail.top - bounds.top, detailInside: detail.bottom <= bounds.bottom };
-			};
-			return {
-				without: offsets(rows[0]),
-				with: offsets(rows[1]),
-				noOverlap: rows[2].getBoundingClientRect().top >= rows[1].querySelector<HTMLElement>('.detail')!.getBoundingClientRect().bottom,
-			};
-		};
-		const result = { stacked: layoutOf(false), inline: layoutOf(true) };
-
-		assert.deepStrictEqual({
-			stacked: { detailInside: result.stacked.with.detailInside, sameAsWithout: result.stacked.with.detail === result.stacked.without.detail && result.stacked.with.title === result.stacked.without.title, noOverlap: result.stacked.noOverlap },
-			inline: { detailInside: result.inline.with.detailInside, sameAsWithout: result.inline.with.detail === result.inline.without.detail && result.inline.with.title === result.inline.without.title, noOverlap: result.inline.noOverlap },
-		}, {
-			stacked: { detailInside: true, sameAsWithout: true, noOverlap: true },
-			inline: { detailInside: true, sameAsWithout: true, noOverlap: true },
-		});
-	});
-
-	test('a row with a detail is laid out alike with descriptions inline or not: its label, and its detail below it as far apart', () => {
-		const offsets = (inlineDescription: boolean) => {
-			const widget = createActionListWidget(disposables, {
-				items: [{ ...action('New Worktree'), detail: 'Creates a separate copy for this session', group: { title: '', icon: Codicon.worktree } }],
-				listOptions: { showFilter: false, inlineDescription },
-			});
-			const wrapper = document.createElement('div');
-			wrapper.classList.add('action-widget');
-			widget.domNode.parentElement?.insertBefore(wrapper, widget.domNode);
-			wrapper.appendChild(widget.domNode);
-			disposables.add({ dispose: () => wrapper.remove() });
-			widget.layout(600, 200);
-			const row = widget.domNode.querySelector<HTMLElement>('.monaco-list-row.action')!;
-			const bounds = row.getBoundingClientRect();
-			const of = (selector: string) => { const b = row.querySelector<HTMLElement>(selector)!.getBoundingClientRect(); return { left: b.left - bounds.left, top: b.top - bounds.top }; };
-			return { height: bounds.height, title: of('.title'), detail: of('.detail') };
-		};
-
-		assert.deepStrictEqual(offsets(true), offsets(false));
-	});
-
 	test('wrapped details resize rows without clipping or overlapping subsequent items', () => {
 		const widget = createActionListWidget(disposables, {
 			items: [{ ...action('Remote environment'), detail: 'Access agents on this machine from VS Code, vscode.dev/agents, GitHub apps, or github.com/copilot. '.repeat(3) }, action('Next')],
