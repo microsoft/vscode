@@ -15,8 +15,8 @@ import { TestConfigurationService } from '../../../platform/configuration/test/c
 import '../../browser/actions/layoutActions.js';
 import '../../browser/parts/auxiliarybar/auxiliaryBarActions.js';
 import { ChatPartEnabledContext } from '../../common/contextkeys.js';
-import { WorkbenchContextKeysHandler } from '../../browser/contextkeys.js';
 import { DEFAULT_EDITOR_PART_OPTIONS } from '../../browser/parts/editor/editor.js';
+import { WorkbenchContextKeysHandler } from '../../browser/contextkeys.js';
 import { IEditorGroupsService } from '../../services/editor/common/editorGroupsService.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../services/layout/browser/layoutService.js';
 import { TestLayoutService, workbenchInstantiationService } from './workbenchTestServices.js';
