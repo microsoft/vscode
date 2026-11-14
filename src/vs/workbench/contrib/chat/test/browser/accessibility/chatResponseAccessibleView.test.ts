@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { toAction } from '../../../../../../base/common/actions.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -34,6 +34,54 @@ import { TestStorageService } from '../../../../../test/common/workbenchTestServ
 
 suite('ChatResponseAccessibleView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	for (const shape of ['string', 'markdown instance', 'markdown DTO'] as const) {
+		test(`includes exact confirmation request details in Accessible View (${shape})`, () => {
+			const details = 'Server: github-mcp-server\n\nTool: add_issue_comment\n\nArguments: {"body":"cloud-approval-10319 probe","issue_number":15}';
+			const markdown = '**Server:** github-mcp-server\n\n**Tool:** add_issue_comment\n\n**Arguments:** {"body":"cloud-approval-10319 probe","issue_number":15}';
+			const message = shape === 'string' ? details : shape === 'markdown instance' ? new MarkdownString(markdown) : { value: markdown, isTrusted: false };
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'confirmation', title: 'Allow add_issue_comment?', message, data: { requestId: 'permission-1' }, buttons: ['Allow Once', 'Deny'] });
+			const item = upcastPartial<IChatResponseViewModel>({ response });
+
+			assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [
+				{ partIndex: 0, text: `Allow add_issue_comment?\n${shape === 'string' ? details : details.replace(/\n\n/g, '\n')}` },
+			]);
+		});
+	}
+
+	test('keeps literal icon syntax in confirmation details unless theme icons are enabled', () => {
+		const codeblock = '```json\n{"body":"Run $(whoami) before continuing"}\n```';
+		const read = (message: string | IMarkdownString) => {
+			const response = store.add(new Response([]));
+			response.updateContent({ kind: 'confirmation', title: 'Allow comment?', message, data: { requestId: 'permission-1' } });
+			return getChatResponsePlaintextParts(upcastPartial<IChatResponseViewModel>({ response }), true).map(part => part.text);
+		};
+
+		assert.deepStrictEqual({
+			markdown: read(new MarkdownString(codeblock)),
+			dto: read({ value: codeblock }),
+			themeIcons: read(new MarkdownString('Run $(check) now', { supportThemeIcons: true })),
+		}, {
+			markdown: ['Allow comment?\n{"body":"Run $(whoami) before continuing"}'],
+			dto: ['Allow comment?\n{"body":"Run $(whoami) before continuing"}'],
+			themeIcons: ['Allow comment?\nRun now'],
+		});
+	});
+
+	test('keeps untrusted confirmation markdown as plain accessible text', () => {
+		const response = store.add(new Response([]));
+		response.updateContent({
+			kind: 'confirmation', title: 'Review proposed action',
+			message: { value: '**Server:** github\n\n`add_issue_comment`\n\n[Review](command:untrusted.run)', isTrusted: false },
+			data: { requestId: 'permission-1' },
+		});
+		const item = upcastPartial<IChatResponseViewModel>({ response });
+
+		assert.deepStrictEqual(getChatResponsePlaintextParts(item, true), [{
+			partIndex: 0, text: 'Review proposed action\nServer: github\nadd_issue_comment\nReview',
+		}]);
+	});
 
 	function createMcpToolInvocation(): ChatToolInvocation {
 		return new ChatToolInvocation({
