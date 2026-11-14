@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { Event, Emitter } from '../../base/common/event.js';
 import { onUnexpectedError } from '../../base/common/errors.js';
 import { alert } from '../../base/browser/ui/aria/aria.js';
-import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension, isHTMLElement } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
@@ -1806,14 +1806,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}));
 			this._register(this.storageService.onWillSaveState(() => this.saveChatPartLayout()));
 
-			// The chat part follows its anchor view as the view, its container or its location changes
-			this._register(Event.any<unknown>(
-				this.viewDescriptorService.onDidChangeContainerLocation,
-				this.viewDescriptorService.onDidChangeContainer,
-				this.viewDescriptorService.onDidChangeLocation,
-				this.viewDescriptorService.onDidChangeViewContainers,
-				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered
-			)(() => this.updateChatPartPosition()));
+			this._register(this.followChatPartAnchor());
 		}
 
 		// The floating cards abut the top window edge only while neither of the two grid rows
@@ -2527,13 +2520,26 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return this.chatPartPosition ?? this.computeChatPartPosition();
 	}
 
+	/** Has the chat part follow its anchor view as the view, its container or its location changes. */
+	private followChatPartAnchor(): IDisposable {
+		return Event.any<unknown>(
+			this.viewDescriptorService.onDidChangeContainerLocation,
+			this.viewDescriptorService.onDidChangeContainer,
+			this.viewDescriptorService.onDidChangeLocation,
+			this.viewDescriptorService.onDidChangeViewContainers,
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered,
+			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsDeregistered
+		)(() => this.updateChatPartPosition());
+	}
+
 	/**
 	 * The side of the editor the chat part belongs on: the side of its anchor view's container. A view in a panel at the
 	 * top or bottom, an unknown view, or no anchor take the primary side bar's side.
 	 */
 	private computeChatPartPosition(): Position.LEFT | Position.RIGHT {
 		const sideBarPosition = this.getSideBarPosition() === Position.RIGHT ? Position.RIGHT : Position.LEFT;
-		const location = this.chatPartAnchor ? this.viewDescriptorService.getViewLocationById(this.chatPartAnchor.viewId) : null;
+		// A view that is not registered has no location, also where a move of it was saved
+		const location = this.chatPartAnchor && this.viewDescriptorService.getViewDescriptorById(this.chatPartAnchor.viewId) ? this.viewDescriptorService.getViewLocationById(this.chatPartAnchor.viewId) : null;
 		switch (location) {
 			case ViewContainerLocation.AuxiliaryBar:
 				return sideBarPosition === Position.LEFT ? Position.RIGHT : Position.LEFT;
@@ -2574,12 +2580,23 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.chatPartPosition = this.computeChatPartPosition();
 
+		// Moving a view in the grid takes it out of the DOM and back: what had focus in it gets it again, such as a link of
+		// the transcript or a button of its toolbar, else the chat part's default
+		const hadFocus = this.hasFocus(Parts.CHAT_PART);
+		const focused = hadFocus ? getActiveElement() : null;
 		const visible = !this.chatPartHidden;
 		const width = visible ? this.workbenchGrid.getViewSize(this.chatPartView).width : undefined;
 		const sizing = width ?? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView) ?? this.chatPartView.minimumWidth);
 		this.workbenchGrid.moveView(this.chatPartView, sizing, this.editorPartView, this.getChatPartDirection());
 		if (width !== undefined) {
 			this.workbenchGrid.resizeView(this.chatPartView, { width, height: this.workbenchGrid.getViewSize(this.chatPartView).height });
+		}
+		if (hadFocus) {
+			if (isHTMLElement(focused) && focused.isConnected && this.chatPartView.element.contains(focused)) {
+				focused.focus();
+			} else {
+				this.focusPart(Parts.CHAT_PART);
+			}
 		}
 	}
 
