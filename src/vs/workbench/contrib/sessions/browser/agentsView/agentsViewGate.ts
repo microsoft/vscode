@@ -105,6 +105,8 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 				// Before the chat part contribution, which registers its host only while the chat part replaces the Chat view
 				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService), accessor.get(IExtensionService));
 				this._register(instantiationService.createInstance(AgentsChatPartContribution));
+				// The chat part docks beside the Sessions view, wherever the user puts it
+				accessor.get(IWorkbenchLayoutService).setChatPartAnchor({ viewId: SessionsViewId });
 			}
 		});
 	}
