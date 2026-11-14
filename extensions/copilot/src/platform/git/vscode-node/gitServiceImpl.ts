@@ -22,7 +22,9 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { ILogService } from '../../log/common/logService';
 import { IGitExtensionService } from '../common/gitExtensionService';
 import { getOrderedRemoteUrlsFromContext, IGitService, RepoContext } from '../common/gitService';
+import { RepositoryRootLookup } from '../common/repositoryRootLookup';
 import { parseGitRemotes } from '../common/utils';
+import { mayBeInRepository } from '../node/repositoryDetection';
 import { API, APIState, Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
 
 const execFileAsync = promisify(execFile);
@@ -48,6 +50,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	private _onDidFinishInitialRepositoryDiscovery = new Emitter<void>();
 	readonly onDidFinishInitialization: Event<void> = this._onDidFinishInitialRepositoryDiscovery.event;
 	private _isInitialized = observableValue(this, false);
+	private readonly _repositoryRootLookup = new RepositoryRootLookup(folder => this.findRepositoryRoot(folder));
 	constructor(
 		@IGitExtensionService private readonly gitExtensionService: IGitExtensionService,
 		@ILogService private readonly logService: ILogService
@@ -255,7 +258,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			}
 
 			// Get repository root
-			const repositoryRoot = await gitAPI.getRepositoryRoot(uri);
+			const repositoryRoot = await this._repositoryRootLookup.get(uri);
 			if (!repositoryRoot) {
 				this.logService.trace(`[GitServiceImpl][getRepositoryFetchUrls] No repository root found`);
 				return undefined;
@@ -275,6 +278,13 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			this.logService.error(`[GitServiceImpl][getRepositoryFetchUrls] Failed to read remotes from .git/config: ${error.message}`);
 			return undefined;
 		}
+	}
+
+	private async findRepositoryRoot(folder: URI): Promise<URI | undefined> {
+		if (!await mayBeInRepository(folder)) {
+			return undefined;
+		}
+		return (await this.gitExtensionService.getExtensionApi()?.getRepositoryRoot(folder)) ?? undefined;
 	}
 
 	private async readLocalGitConfig(rootUri: URI): Promise<string> {
