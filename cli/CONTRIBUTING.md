@@ -38,6 +38,8 @@ Use `code agent host --github-environment --name <name>` to register an agent ho
 
 Background startup requires the GitHub credentials to be saved and readable by the detached supervisor. If credential persistence fails, use `--foreground` to keep the acquired credentials in memory without requiring them to be saved.
 
+Only one GitHub environment supervisor may run per server data directory. Repeated starts, including concurrent starts and `--foreground`, report an error instead of starting another host with the same environment identity. Stop the existing host with `code agent kill` before restarting it with different options, or use a separate `--server-data-dir` for an independent environment. Changing `--cli-data-dir` or `--user-data-dir` alone does not create an independent environment identity.
+
 To restrict access, pass `--github-environment-root <directory>`. Repeat the option to grant multiple directories; explicit roots replace the default filesystem-wide grants and shared projects, with the first root as the default working directory.
 
 ## Headless sandbox certificate management
