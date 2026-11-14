@@ -13,22 +13,26 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { mock } from '../../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 import { assertThrowsAsync, ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { IBulkEditService, ResourceEdit, ResourceFileEdit } from '../../../../../../editor/browser/services/bulkEditService.js';
 import { EditOperation } from '../../../../../../editor/common/core/editOperation.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
-import { TextEdit } from '../../../../../../editor/common/languages.js';
+import { TextEdit, WorkspaceEdit } from '../../../../../../editor/common/languages.js';
 import { IEditorWorkerService } from '../../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { NullCommandService } from '../../../../../../platform/commands/test/common/nullCommandService.js';
+import { FileChangesEvent, FileChangeType, IFileService } from '../../../../../../platform/files/common/files.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
+import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IWorkbenchAssignmentService } from '../../../../../services/assignment/common/assignmentService.js';
 import { NullWorkbenchAssignmentService } from '../../../../../services/assignment/test/common/nullAssignmentService.js';
 import { nullExtensionDescription } from '../../../../../services/extensions/common/extensions.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
+import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
 import { IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { TestWorkerService } from '../../../../inlineChat/test/browser/testWorkerService.js';
 import { IMcpService } from '../../../../mcp/common/mcpTypes.js';
@@ -83,6 +87,7 @@ suite('ChatEditingService', function () {
 	let editingService: ChatEditingService;
 	let chatService: IChatService;
 	let textModelService: ITextModelService;
+	let insta: TestInstantiationService;
 
 	setup(function () {
 		const collection = new ServiceCollection();
@@ -121,7 +126,7 @@ suite('ChatEditingService', function () {
 				return false;
 			}
 		});
-		const insta = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
+		insta = store.add(store.add(workbenchInstantiationService(undefined, store)).createChild(collection));
 		store.add(insta.get(IEditorWorkerService) as TestWorkerService);
 		const value = insta.get(IChatEditingService);
 		assert.ok(value instanceof ChatEditingService);
@@ -302,6 +307,65 @@ suite('ChatEditingService', function () {
 		await isIdle;
 
 		return entry;
+	}
+
+	for (const deletion of ['file deletion', 'undoing creation']) {
+		test(`releases shared created file entries after ${deletion}`, () => runWithFakedTimers({}, async () => {
+			const uri = URI.from({ scheme: 'test-created', path: '/shared-file.txt' });
+			const modelService = insta.get(IModelService);
+			const fileService = insta.get(IFileService) as TestFileService;
+			store.add(textModelService.registerTextModelContentProvider(uri.scheme, {
+				async provideTextContent(resource) {
+					return modelService.getModel(resource);
+				},
+			}));
+			insta.stub(IBulkEditService, new class extends mock<IBulkEditService>() {
+				override async apply(edit: ResourceEdit[] | WorkspaceEdit) {
+					for (const fileEdit of Array.isArray(edit) ? edit : edit.edits) {
+						assertType(ResourceFileEdit.is(fileEdit));
+						if (fileEdit.newResource) {
+							store.add(modelService.createModel('', null, fileEdit.newResource));
+						} else if (fileEdit.oldResource) {
+							fileService.fireFileChanges(new FileChangesEvent([{ resource: fileEdit.oldResource, type: FileChangeType.DELETED }], false));
+						}
+					}
+					return { ariaSummary: '', isApplied: true };
+				}
+			});
+
+			const firstModel = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat)).object as ChatModel;
+			const firstSession = firstModel.editingSession;
+			assertType(firstSession);
+			const firstEntry = await idleAfterEdit(firstSession, firstModel, uri, [{ range: new Range(1, 1, 1, 1), text: 'first\n' }]);
+
+			const secondModel = store.add(chatService.startNewLocalSession(ChatAgentLocation.Chat)).object as ChatModel;
+			const secondSession = secondModel.editingSession;
+			assertType(secondSession);
+			const secondEntry = await idleAfterEdit(secondSession, secondModel, uri, [{ range: new Range(1, 1, 1, 1), text: 'second\n' }]);
+			// Wait for the running diff and its queued follow-up before deleting the models.
+			await secondEntry.getDiffInfo?.();
+			await secondEntry.getDiffInfo?.();
+			const originalModel = modelService.getModel(firstEntry.originalURI);
+			assertType(originalModel);
+
+			if (deletion === 'undoing creation') {
+				await firstSession.undoInteraction();
+			} else {
+				fileService.fireFileChanges(new FileChangesEvent([{ resource: uri, type: FileChangeType.DELETED }], false));
+			}
+
+			assert.deepStrictEqual({
+				sharedEntry: firstEntry === secondEntry,
+				entryCounts: [firstSession.entries.get().length, secondSession.entries.get().length],
+				originalDisposed: originalModel.isDisposed(),
+				fileWatches: fileService.watches.filter(resource => isEqual(resource, uri)).length,
+			}, {
+				sharedEntry: true,
+				entryCounts: [0, 0],
+				originalDisposed: true,
+				fileWatches: 0,
+			});
+		}));
 	}
 
 	test('queued edits retain their originating request and tier snapshots', async () => {
