@@ -16,6 +16,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext } from '../../../../common/contextkeys.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { ChatViewContainerId, ChatViewId } from '../../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewSessionsListService } from '../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
@@ -61,6 +62,7 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		@IEditorWindowSessionsRuntime sessionsRuntime: IEditorWindowSessionsRuntime,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IChatViewSessionsListService private readonly _sessionsListService: IChatViewSessionsListService,
+		@IChatViewHostService chatViewHostService: IChatViewHostService,
 	) {
 		super();
 
@@ -79,8 +81,11 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 		this._register(autorun(reader => {
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
-				// Every chat shows in the chat part, so the Chat view shows only its sessions
-				reader.store.add(this._sessionsListService.claimSessionsOnly());
+				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
+				// part leaves to it, such as a local chat: no chat opens where nothing shows it
+				if (!chatViewHostService.chatViewHosts.read(reader)) {
+					reader.store.add(this._sessionsListService.claimSessionsOnly());
+				}
 				const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 				configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
 				reader.store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));

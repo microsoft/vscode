@@ -9,7 +9,7 @@ import { isCancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
@@ -42,6 +42,7 @@ import { ChatViewContainerId, ChatViewId, IChatWidget, IChatWidgetService } from
 import { ChatViewSessionsListService, IChatViewSessionsListService } from '../../../../chat/browser/widgetHosts/viewPane/chatViewSessionsList.js';
 import { ActiveAuxiliaryContext, AuxiliaryBarMaximizeHiddenContext, RemoteNameContext } from '../../../../../common/contextkeys.js';
 import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ChatConfiguration } from '../../../../chat/common/constants.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartOptions, IEditorWindowChatPartService } from '../../../browser/agentsView/agentsChatPartContribution.js';
 import { ChatViewOpenInChatPartContribution } from '../../../browser/chatView/chatViewOpenInChatPart.contribution.js';
@@ -71,6 +72,8 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		}));
 		const sessionsList = new ChatViewSessionsListService();
 		instantiationService.stub(IChatViewSessionsListService, sessionsList);
+		const chatViewHosts = observableValue('chatViewHosts', false);
+		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ chatViewHosts }));
 		instantiationService.stub(IConfigurationService, configurationService);
 
 		store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
@@ -79,7 +82,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			runtime: runtimeOptions.map(o => o.viewIds),
 			runtimeHeld,
 		});
-		return { state, configurationService, contextKeyService, chatPartOptions, sessionsList };
+		return { state, configurationService, contextKeyService, chatPartOptions, sessionsList, chatViewHosts };
 	}
 
 	test('registers nothing in remote and Agents windows', () => {
@@ -96,6 +99,18 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			off: { anchors: [{ anchorViewId: ChatViewId, anchorPriority: 1, enabled: false }], runtime: [], runtimeHeld: 0 },
 			on: { anchors: [{ anchorViewId: ChatViewId, anchorPriority: 1, enabled: true }], runtime: [[ChatViewId]], runtimeHeld: 1 },
 		});
+	});
+
+	test('the Chat view shows its chat, not only its sessions, while it hosts one', () => {
+		const { sessionsList, chatViewHosts } = setup({ setting: true });
+
+		const steps = [sessionsList.sessionsOnly.get()];
+		chatViewHosts.set(true, undefined);
+		steps.push(sessionsList.sessionsOnly.get());
+		chatViewHosts.set(false, undefined);
+		steps.push(sessionsList.sessionsOnly.get());
+
+		assert.deepStrictEqual(steps, [true, false, true]);
 	});
 
 	test('takes New Chat of the Chat view into the chat part', () => {
@@ -179,10 +194,11 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			stub(IEditorWindowSessionsRuntime, { enable: () => toDisposable(() => { }) });
 			stub(IEditorWindowSessionsPresenterService, { registerPresenter: () => toDisposable(() => { }), registerComposerHolder: () => toDisposable(() => { }) });
 			stub(IAgentsChatPartFrame, { get part() { return undefined!; }, contentCreated: constObservable(false) });
-			stub(IChatViewSessionsListService, new ChatViewSessionsListService());
+			const sessionsList = new ChatViewSessionsListService();
+			stub(IChatViewSessionsListService, sessionsList);
 			const owner = { session: { resource: agentSession }, chat: { resource: agentSession } };
 			stub(IAgentsChatPartService, { openChat: async () => { calls.push('chat part opens'); }, openComposer: async () => { calls.push('chat part composer'); }, activeChat: constObservable(undefined), isShowing: () => false });
-			stub(ISessionsManagementService, { getSessionForChatResource: () => owner as never, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }) });
+			stub(ISessionsManagementService, { getSessionForChatResource: (resource: URI) => resource.scheme === agentSession.scheme ? owner as never : undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }) });
 			stub(IChatWidgetService, { getAllWidgets: () => [upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: agentSession }) })] });
 			stub(IWorkspaceContextService, { getWorkspace: () => ({ folders: [] }) as never });
 			stub(IAgentsViewProvidersService, { acquire: () => toDisposable(() => { }) });
@@ -206,7 +222,7 @@ suite('ChatViewOpenInChatPartContribution', () => {
 				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
 			};
-			return { hostService, calls, loadingModel, setSetting };
+			return { hostService, calls, loadingModel, setSetting, sessionsList };
 		}
 
 		test('with agents disabled, no chat part host takes the chats, so an agent session opens in the Chat view', async () => {
@@ -233,6 +249,22 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const off = await hostService.newChat();
 
 			assert.deepStrictEqual({ on, off, calls }, { on: true, off: false, calls: ['chat part composer'] });
+		});
+
+		test('a chat that the chat part leaves to the Chat view shows there, not only its sessions, until a chat of the chat part opens or New Chat starts', async () => {
+			const { hostService, calls, sessionsList } = setupServices({ agentEnabled: true });
+			const localChat = LocalChatSessionUri.forSession('legacy');
+
+			const steps = [sessionsList.sessionsOnly.get()];
+			await hostService.openSession(localChat);
+			steps.push(sessionsList.sessionsOnly.get());
+			await hostService.openSession(agentSession);
+			steps.push(sessionsList.sessionsOnly.get());
+			await hostService.openSession(localChat);
+			await hostService.newChat();
+			steps.push(sessionsList.sessionsOnly.get());
+
+			assert.deepStrictEqual({ steps, calls }, { steps: [true, false, true, true], calls: ['chat view loads vscode-chat-session', 'chat part opens', 'chat view loads vscode-chat-session', 'chat part composer'] });
 		});
 
 		test('a session that starts while the setting turns off does not reopen the chat part', async () => {
