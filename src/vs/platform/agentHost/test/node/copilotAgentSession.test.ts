@@ -28621,6 +28621,19 @@ Use the attached image as context.
 				},
 			}]);
 		});
+
+		test('does not ask to take over a session in use when no one is there to answer', async () => {
+			const asked: Record<string, boolean> = {};
+			for (const [name, options] of [
+				['autopilot', { configValues: { [SessionConfigKey.Mode]: 'autopilot' } }],
+				['autoReply', { rootValues: { [AgentHostAutoReplyEnabledConfigKey]: true } }],
+			] as const) {
+				const { session, signals } = await createAgentSession(disposables, options);
+				session.resetTurnState('turn-1');
+				asked[name] = session.askToTakeOverSessionInUse() !== undefined || getActions(signals).some(action => action.type === ActionType.ChatInputRequested);
+			}
+			assert.deepStrictEqual(asked, { autopilot: false, autoReply: false });
+		});
 	});
 
 	// ---- elicitation handling ----

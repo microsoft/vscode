@@ -70,7 +70,7 @@ import { AGENT_HOST_FILE_SCHEME, IAgentPluginManager, ISyncedCustomization } fro
 import { toAgentCustomizationMeta } from '../../common/meta/agentCustomizationMeta.js';
 import type { IAgentChatInputResponseMeta } from '../../common/meta/agentChatInputResponseMeta.js';
 import { decodeProviderData, encodeProviderData, type IPersistedChat } from '../agentChatBackings.js';
-import { type IAgentPluginInstallation, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution } from '../../common/agent.js';
+import { type IAgentPluginInstallation, type AgentCanvasDefinitionSnapshot, AgentChatOperationContext, AgentSession, fixedChatOwnerRef, getChatSurfaceOptions, type IAgentChatOwnerRef, isAgentChatDefaultChat, resolveSessionBackedStorage, AgentSignal, AuthenticateParams, COPILOT_CLI_AGENT_PROVIDER_ID, IActiveClient, IAgent, IAgentChatAdoptionResult, type IAgentAdoptedWorktree, type IAgentCanvasCloseRequest, type IAgentCanvasOpenRequest, type AgentCanvasOpenAnswer, type AgentCanvasOpenResult, type IAgentChatCanvasWatchHost, IAgentChatConfigCompletionsParams, IAgentChatContext, type IAgentChatMetadataOptions, type IAgentChatReleaseOptions, IAgentChatSessionSettings, IAgentChatDataChange, IAgentChatMetadata, IAgentChats, IAgentLegacyChat, IAgentCreateChatOptions, IAgentCreateChatResult, IAgentCustomizationInstallation, IAgentCustomizationInstallationApplyRequest, IAgentCustomizationInstallationApplyResult, IAgentCustomizationInstallationPreparation, IAgentCustomizationInstallationRequest, IAgentCustomizationMarketplaceSearchRequest, IAgentCustomizationMarketplaceSearchResult, IAgentDescriptor, IAgentDiscoveredChat, type IAgentExtensionInfo, type IAgentExtensionInventory, IAgentListedChat, IAgentHostManagedSettingsSnapshot, IAgentHostNetworkEndpoint, IAgentKnownSessionsFilter, type IAgentManagedPluginRetryEntry, IAgentMaterializeChatEvent, IAgentModelInfo, type IAgentPendingMessageSender, type IAgentPermissionResponseContext, type IAgentPluginInstallRequest, type IAgentPluginMarketplace, type IAgentPluginMarketplaceItem, type IAgentPluginMarketplaceRefreshResult, type IAgentPluginMarketplaceRemoveResult, type IAgentPluginUninstallRequest, type IAgentPrepareChatResult, IAgentResolveChatConfigParams, IAgentSessionProjectInfo, IAgentSpawnChatEvent, IMcpNotification, isAgentExtensionEnabledAndSettled, SubagentChatSignal, resolveAgentChatContext, resolveAgentHostCustomizations, resolveAgentHostInstructions, resolveSubagentChatParent, type IAgentTurnDiagnosticSnapshot, type IAgentTurnTokenUsage, type IAgentChatSessionEvent, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentTurnModelRequest, type IAgentTurnModelResolution, type IAgentChatHistoryChange } from '../../common/agent.js';
 import { createModelRouterModelMeta, DecisionsApiFeatureFlag, MODEL_ROUTER_FOLDER, MODEL_ROUTER_MAX_FILE_BYTES, modelRouterModelId, type IModelRouter } from '../../common/modelRouter.js';
 import { resolveModelRouterGuidance } from '../../common/modelRouterGuidance.js';
 import { AgentDecisionsUnavailableError, type IAgentDecisionsRequest, type IAgentDecisionsResult } from '../../common/agentDecisions.js';
@@ -517,6 +517,18 @@ interface IReleasedCanvasContinuity {
 	readonly sdkSessionId: string;
 	readonly generation: number;
 	readonly handoff: ICopilotCanvasHandoff;
+}
+
+/** The turn {@link CopilotAgent._claimSessionForTurn} claims a session for, as `sendMessage` received it. */
+interface ICopilotTurnClaim {
+	readonly turnId: string;
+	readonly senderClientId: string | undefined;
+	readonly clientType: AgentHostClientType;
+	readonly clientTelemetryContext: IAgentHostClientTelemetryContext | undefined;
+	readonly workingDirectories: readonly URI[] | undefined;
+	readonly stageRecorder: IAgentProviderSendStageRecorder | undefined;
+	readonly operationContext: URI | IAgentChatContext | undefined;
+	readonly enterUnboundedPhase: () => void;
 }
 
 interface IResolvedCopilotChatContext {
@@ -1242,6 +1254,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _onDidChatProgress = this._register(new Emitter<AgentSignal>());
 	readonly onDidChatProgress = this._onDidChatProgress.event;
+	private readonly _onDidChangeChatHistory = this._register(new Emitter<IAgentChatHistoryChange>());
+	/** Reports a chat reloaded from storage to take it over from another process, so the host replaces its turns. */
+	readonly onDidChangeChatHistory = this._onDidChangeChatHistory.event;
 
 	private readonly _managedSettingsResolver: CopilotManagedSettingsResolver;
 	private readonly _authenticationRequired = observableValueOpts<Omit<AuthRequiredParams, 'channel'> | undefined>(
@@ -9119,6 +9134,23 @@ export class CopilotAgent extends Disposable implements IAgent {
 			await this._applyPendingModelSelection(current, entry, token);
 			if (turnId) {
 				entry.resetTurnState(turnId, senderClientId, clientType, clientTelemetryContext);
+				let claimed: CopilotAgentSession | undefined;
+				try {
+					claimed = await this._claimSessionForTurn(current, entry, { turnId, senderClientId, clientType, clientTelemetryContext, workingDirectories, stageRecorder, operationContext, enterUnboundedPhase }, token);
+				} catch (err) {
+					// The turn never reached the runtime, so no runtime event ends it.
+					entry.discardActiveTurn();
+					throw err;
+				}
+				if (!claimed) {
+					return;
+				}
+				if (claimed !== entry) {
+					entry = claimed;
+					if (credential) {
+						entry.assertScopedCredential(credential);
+					}
+				}
 			}
 
 			try {
@@ -9136,6 +9168,63 @@ export class CopilotAgent extends Disposable implements IAgent {
 				throw err;
 			}
 		});
+	}
+
+	/**
+	 * Makes sure no other process is running a chat's session before its turn is sent. When one is, asks in the turn
+	 * whether to take the session over. Taking over reloads it from storage, so the turn continues after the other
+	 * process's turns, and the host replaces the chat's turns with the reloaded ones. Returns the session to send the
+	 * turn to, or `undefined` when the user cancelled the turn. Throws when the turn can't be sent, leaving the caller
+	 * to end it.
+	 */
+	private async _claimSessionForTurn(current: IResolvedCopilotChatContext, entry: CopilotAgentSession, turn: ICopilotTurnClaim, token: CancellationToken): Promise<CopilotAgentSession | undefined> {
+		const sdkSessionId = entry.sessionId;
+		let inUse = false;
+		try {
+			// The chat's own client: its runtime's lock on the session doesn't count as another process.
+			const client = await this._ensureClientForChat(current.chat);
+			inUse = (await client.rpc.sessions.checkInUse({ sessionIds: [sdkSessionId] })).inUse.includes(sdkSessionId);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${current.ownerSessionId}] Couldn't check whether another process runs session ${sdkSessionId}; sending turn ${turn.turnId}`, err);
+		}
+		// The turn may have been stopped while the check ran.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!inUse) {
+			return entry;
+		}
+		turn.enterUnboundedPhase();
+		const answer = entry.askToTakeOverSessionInUse();
+		if (!answer) {
+			throw new ProtocolError(AhpErrorCodes.Conflict, localize('copilotAgent.sessionInUseTurn', "This session is open in another Copilot CLI process. Exit the session there, then send your message again."));
+		}
+		const takeOver = await answer;
+		// Stopping the turn also declines the question; the host has already ended the turn then.
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
+		if (!takeOver) {
+			this._logService.info(`[Copilot:${current.ownerSessionId}] Not sending turn ${turn.turnId}: session ${sdkSessionId} is open in another process`);
+			entry.cancelTurnBeforeSend();
+			return undefined;
+		}
+		this._logService.info(`[Copilot:${current.ownerSessionId}] Taking over session ${sdkSessionId} from another process; reloading it from storage`);
+		const selection = entry.appliedModelSelection;
+		entry.releaseTurnForReplacement();
+		await this._destroyLiveSession(entry, true);
+		this._persistedChatHistory.delete(current.chatKey);
+		const resumed = await this._ensureResolvedChatSession({ ...current, target: undefined }, turn.workingDirectories, turn.stageRecorder, token, turn.operationContext);
+		if (!resumed) {
+			throw new Error(`[Copilot] Couldn't reload session ${sdkSessionId} to take it over`);
+		}
+		if (selection) {
+			await this._applyModelSelection(current, resumed, selection, token);
+		}
+		// Read before this turn runs: the host keeps the running turn, which the reloaded turns would list under another id.
+		this._onDidChangeChatHistory.fire({ chat: current.chat, turns: await resumed.getMessages(), replace: true });
+		resumed.resetTurnState(turn.turnId, turn.senderClientId, turn.clientType, turn.clientTelemetryContext);
+		return resumed;
 	}
 
 	/**
