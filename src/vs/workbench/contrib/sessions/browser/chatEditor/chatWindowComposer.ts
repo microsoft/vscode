@@ -7,7 +7,7 @@ import { isCancellationError } from '../../../../../base/common/errors.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -318,10 +318,14 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		}
 		const retargeted = { ...target, folderUri };
 		this._hostFolder = folderUri;
-		this._requestedTarget.set(retargeted, undefined);
 		// As a target the user picks: a background send that fails then offers its prompt back, not into another folder silently
 		this._targetGeneration++;
-		this._onDidRetarget.fire(retargeted);
+		// Observers of the target and of the allowed folders, such as the picker's, run only once those of the retarget aimed
+		// the picker and the draft at the new folder: not while the picker still shows a folder no longer allowed
+		transaction(tx => {
+			this._requestedTarget.set(retargeted, tx);
+			this._onDidRetarget.fire(retargeted);
+		});
 		return true;
 	}
 
