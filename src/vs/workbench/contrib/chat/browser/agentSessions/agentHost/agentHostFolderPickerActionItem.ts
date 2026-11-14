@@ -167,7 +167,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	private _selectedFolder(): URI | undefined {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
-		if (sessionResource && this._newSessionFolderService.isNoWorkspace(sessionResource)) {
+		if (this._isNoWorkspace()) {
 			return undefined;
 		}
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
@@ -254,7 +254,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 		if (!this._worktree?.isActive()) {
 			return undefined;
 		}
-		if (this._worktree.isNoWorkspaceSelected()) {
+		if (this._isNoWorkspace()) {
 			return this._worktree.getNoWorkspaceChip();
 		}
 		return selected && this._worktree.getChip(selected);
@@ -264,6 +264,15 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * Measures what the chip needs besides its name from what does not give way as the toolbar narrows it, its icon,
 	 * gaps, margins, paddings and borders, rather than from its width, which is less than it needs while narrowed.
 	 */
+	/**
+	 * Whether the session has no workspace: as chosen for a new chat, or as the started or restored session is, which works in
+	 * a scratch folder the agent host created for it rather than in a folder to show.
+	 */
+	private _isNoWorkspace(): boolean {
+		const sessionResource = this._sessionResource();
+		return !!sessionResource && (this._newSessionFolderService.isNoWorkspace(sessionResource) || this._customizationService.isWorkspaceless?.(sessionResource) === true);
+	}
+
 	private _measureChrome(): void {
 		const element = this.element;
 		const container = this._container;
@@ -298,7 +307,7 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * Returns `undefined` when no folder is selected so no hover is shown.
 	 */
 	private _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
-		if (this._worktree.isActive() && this._worktree.isNoWorkspaceSelected()) {
+		if (this._worktree.isActive() && this._isNoWorkspace()) {
 			const { description } = this._worktree.getNoWorkspaceChip();
 			return { markdown: new MarkdownString().appendText(description), markdownNotSupportedFallback: description };
 		}

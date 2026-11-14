@@ -118,7 +118,7 @@ suite('AgentHostFolderPickerActionItem', () => {
 		});
 	});
 	/** A chat input's secondary row of `availableWidth`, with two neighbors and the folder chip last, as in the chat input. */
-	function createRow(availableWidth: number) {
+	function createRow(availableWidth: number, started?: { readonly workspaceless: boolean }) {
 		const primary = URI.file('/work/vscode');
 		const longName = URI.file('/work/a-worktree-with-a-name-far-too-long-to-fit-in-the-chat-input-row');
 		const shortName = URI.file('/work/fix');
@@ -141,11 +141,17 @@ suite('AgentHostFolderPickerActionItem', () => {
 			getLocation: () => undefined,
 			resolveLocation: async () => undefined,
 		}));
-		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: onDidChangeFolder.event, getFolder: () => noWorkspace ? undefined : selected, isNoWorkspace: () => noWorkspace, getDefaultFolder: () => undefined }));
+		instantiationService.stub(IAgentHostNewSessionFolderService, upcastPartial<IAgentHostNewSessionFolderService>({ onDidChangeFolder: onDidChangeFolder.event, getFolder: () => noWorkspace || started ? undefined : selected, isNoWorkspace: () => noWorkspace, getDefaultFolder: () => undefined }));
 		instantiationService.stub(IAgentHostUntitledProvisionalSessionService, upcastPartial<IAgentHostUntitledProvisionalSessionService>({ onDidChange: Event.None, getResolvedConfig: () => undefined, getPreparedSessionConfig: () => undefined }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({ model: upcastPartial<IAgentSessionsService['model']>({ onDidChangeSessions: Event.None }) }));
 		instantiationService.stub(IAgentHostWorktreeSessionSources, store.add(new AgentHostWorktreeSessionSources()));
-		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({ onDidChangeCustomizations: Event.None, getClientWorkingDirectoryUris: () => [] }));
+		// A started session, such as a restored one, which works in the scratch folder the agent host created for it if it has no workspace
+		const scratch = URI.file('/home/.copilot/chats/3e215af6-5a8e-4060-b25e-0d2f1c9a7b41');
+		instantiationService.stub(IAgentHostCustomizationService, upcastPartial<IAgentHostCustomizationService>({
+			onDidChangeCustomizations: Event.None,
+			getClientWorkingDirectoryUris: () => started ? [started.workspaceless ? scratch : selected] : [],
+			isWorkspaceless: () => started?.workspaceless === true,
+		}));
 		instantiationService.stub(ISCMService, upcastPartial<ISCMService>({ getRepository: () => undefined }));
 		const widget = upcastPartial<IChatWidget>({ viewModel: upcastPartial<NonNullable<IChatWidget['viewModel']>>({ sessionResource: session }), onDidChangeViewModel: Event.None });
 
@@ -253,6 +259,20 @@ suite('AgentHostFolderPickerActionItem', () => {
 			minWidths: [wide.long, wide.short, wide.long, wide.short],
 			overflowed: [true, false, true, false],
 			laidOut: [true, true, true, true],
+		});
+	});
+	test('a started or restored session without a workspace shows No Workspace, not the scratch folder it works in, and one with a folder shows the folder', () => {
+		const shown = (workspaceless: boolean) => {
+			root.textContent = '';
+			const { chip } = createRow(1000, { workspaceless });
+			const element = chip()?.element;
+			const icon = element?.firstElementChild;
+			return { label: element?.textContent, ariaLabel: element?.ariaLabel, noWorkspaceIcon: !!icon?.classList.contains('codicon-comment') };
+		};
+
+		assert.deepStrictEqual({ workspaceless: shown(true), inFolder: shown(false) }, {
+			workspaceless: { label: 'No Workspace', ariaLabel: 'No workspace: start the session in a temporary directory', noWorkspaceIcon: true },
+			inFolder: { label: 'fix', ariaLabel: 'Folder: fix', noWorkspaceIcon: false },
 		});
 	});
 });
