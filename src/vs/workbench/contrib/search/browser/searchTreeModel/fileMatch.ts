@@ -31,6 +31,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		zIndex: 13,
 		className: 'currentFindMatch',
 		inlineClassName: 'currentFindMatchInline',
+		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
@@ -44,8 +45,10 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
 		description: 'search-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		zIndex: 10,
 		className: 'findMatch',
 		inlineClassName: 'findMatchInline',
+		showIfCollapsed: true,
 		overviewRuler: {
 			color: themeColorFromId(overviewRulerFindMatchForeground),
 			position: OverviewRulerLane.Center
