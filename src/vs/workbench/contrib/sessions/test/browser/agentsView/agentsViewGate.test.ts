@@ -86,12 +86,14 @@ suite('AgentsViewGate', () => {
 
 	let hosts: number;
 	let hiddenParts: Parts[];
+	let chatPartAnchors: (string | undefined)[];
 	let contextKeyService: MockContextKeyService;
 
 	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }): AgentsViewGate {
 		createdChatParts = 0;
 		hosts = 0;
 		hiddenParts = [];
+		chatPartAnchors = [];
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
 			constructor() {
 				createdChatParts++;
@@ -104,6 +106,7 @@ suite('AgentsViewGate', () => {
 		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
 			onDidChangePartVisibility: events?.partVisibility ?? Event.None,
 			isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && !!auxiliaryBar?.visible,
+			setChatPartAnchor: anchor => { chatPartAnchors.push(anchor?.viewId); },
 			setPartHidden: (hidden: boolean, part: Parts) => {
 				if (hidden) {
 					hiddenParts.push(part);
@@ -209,10 +212,17 @@ suite('AgentsViewGate', () => {
 		}, { local: true, remote: false, off: false, agentsWindow: true });
 	});
 
-	test('creates no chat part in a remote window', () => {
+	test('creates the chat part docked beside the Sessions view in a local window, and no chat part in a remote one', () => {
+		const localGate = createGate(true);
+		const local = { createdChatParts, chatPartAnchors };
+		localGate.dispose();
 		createGate(true, 'ssh-remote+host');
+		const remote = { createdChatParts, chatPartAnchors };
 
-		assert.deepStrictEqual({ createdChatParts }, { createdChatParts: 0 });
+		assert.deepStrictEqual({ local, remote }, {
+			local: { createdChatParts: 1, chatPartAnchors: [SessionsViewId] },
+			remote: { createdChatParts: 0, chatPartAnchors: [] },
+		});
 	});
 
 	test('replaces the Chat view in a local window: it hides it, its keys and what would show it show the chat part', () => {
