@@ -9,14 +9,15 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { EditorInput } from '../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { ISession, ISessionWorkspace } from '../../../../../services/sessions/common/session.js';
-import { getAgentsChatPartComposerTarget, IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
-import { AgentsChatPartChatTabsMenu, registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
+import { getEditorWindowComposerTarget } from '../../../browser/editorWindow/editorWindowSessionsPresenter.js';
+import { IAgentsChatPartOpenOptions, IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
+import { registerAgentsChatPartActions, registerAgentsViewNewSessionActions } from '../../../browser/agentsView/agentsChatPartActions.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
@@ -100,53 +101,13 @@ suite('Agents chat part actions', () => {
 		});
 	});
 
-	test('the header of a chat in the chat part offers how it shows its chats, Multiple or Single, only with AI features enabled', async () => {
-		store.add(registerAgentsChatPartActions());
-		const submenuWhen = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).find(item => !isIMenuItem(item) && item.submenu === AgentsChatPartChatTabsMenu)?.when?.serialize();
-
-		assert.deepStrictEqual({
-			submenuWhen,
-			choices: MenuRegistry.getMenuItems(AgentsChatPartChatTabsMenu).filter(isIMenuItem).map(item => [item.command.id, item.command.precondition?.serialize()]),
-		}, {
-			submenuWhen: 'chatIsEnabled && inAgentsChatPart',
-			choices: [['workbench.action.agentsView.showMultipleChatTabs', 'chatIsEnabled'], ['workbench.action.agentsView.showSingleChat', 'chatIsEnabled']],
-		});
-	});
-
-	test('the context menu of a session offers its customizations, with AI features enabled, for a single session, which it names', async () => {
-		store.add(registerAgentsViewNewSessionActions());
-		const id = 'workbench.action.agentsView.openSessionCustomizations';
-		const item = MenuRegistry.getMenuItems(SessionItemContextMenuId).filter(isIMenuItem).find(candidate => candidate.command.id === id);
-		const calls: string[] = [];
-		const instantiationService = store.add(new TestInstantiationService());
-		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({ executeCommand: async (command: string, arg: { sessionResource: URI }) => { calls.push(`${command} ${arg.sessionResource.toString()}`); } }));
-		const session = upcastPartial<ISession>({ resource: URI.parse('agent-host-copilot:/one') });
-		const handler = CommandsRegistry.getCommand(id)!.handler;
-		await instantiationService.invokeFunction(accessor => handler(accessor, session));
-		const several = await instantiationService.invokeFunction(accessor => Promise.resolve(handler(accessor, [session, session])).then(() => 'opened', () => 'rejected'));
-
-		assert.deepStrictEqual({
-			when: item?.when?.serialize(),
-			precondition: item?.command.precondition?.serialize(),
-			agentsWindowAction: item?.command.id === 'sessionsViewPane.openCustomizations',
-			calls,
-			several,
-		}, {
-			when: 'chatIsEnabled',
-			precondition: 'chatIsEnabled && !sessionItem.isMultiSelection',
-			agentsWindowAction: false,
-			calls: ['aiCustomization.openManagementEditor agent-host-copilot:/one'],
-			several: 'rejected',
-		});
-	});
-
 	test('a new session of the chat part aims at the window\'s folder of the active editor, else at its first', () => {
 		const folders = [URI.file('/work/vscode'), URI.file('/work/tools')].map(uri => upcastPartial<IWorkspaceFolder>({ uri }));
 		const workspaceContextService = upcastPartial<IWorkspaceContextService>({
 			getWorkspace: () => upcastPartial<IWorkspace>({ folders }),
 			getWorkspaceFolder: (resource: URI) => folders.find(folder => resource.path.startsWith(`${folder.uri.path}/`)) ?? null,
 		});
-		const target = (activeResource: URI | undefined) => getAgentsChatPartComposerTarget(workspaceContextService, upcastPartial<IEditorService>({
+		const target = (activeResource: URI | undefined) => getEditorWindowComposerTarget(workspaceContextService, upcastPartial<IEditorService>({
 			activeEditor: activeResource && upcastPartial<EditorInput>({ resource: activeResource }),
 		}))?.folderUri?.path;
 

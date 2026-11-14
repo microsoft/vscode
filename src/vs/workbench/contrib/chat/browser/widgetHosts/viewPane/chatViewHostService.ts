@@ -165,14 +165,14 @@ export class ChatViewHostService implements IChatViewHostService {
 	registerHost(host: IChatViewHost): IDisposable {
 		const registration = { host };
 		this.registrations.push(registration);
-		this.updateHostInUse();
 		this._replaced.set(true, undefined);
+		this.updateHostInUse();
 		return toDisposable(() => {
 			const index = this.registrations.indexOf(registration);
 			if (index >= 0) {
 				this.registrations.splice(index, 1);
-				this.updateHostInUse();
 				this._replaced.set(this.registrations.length > 0, undefined);
+				this.updateHostInUse();
 			}
 		});
 	}

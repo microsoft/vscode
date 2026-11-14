@@ -13,8 +13,8 @@ import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 export const IAgentsViewProvidersService = createDecorator<IAgentsViewProvidersService>('agentsViewProvidersService');
 
 /**
- * Holds the sessions providers of the Sessions view of an editor window with the Agents view. Their sessions are known only
- * while something holds them: the Sessions view or the chat part while either shows, or an open of a session until it shows.
+ * Holds the sessions providers of an editor window. Their sessions are known only while something holds them: what shows
+ * sessions while it shows (see `IEditorWindowSessionsRuntime`), or an open of a session until it shows.
  */
 export interface IAgentsViewProvidersService {
 	readonly _serviceBrand: undefined;

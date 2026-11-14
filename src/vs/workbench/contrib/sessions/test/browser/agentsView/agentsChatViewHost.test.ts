@@ -6,9 +6,8 @@
 import assert from 'assert';
 import { DeferredPromise, timeout } from '../../../../../../base/common/async.js';
 import { isCancellationError } from '../../../../../../base/common/errors.js';
-import { Emitter } from '../../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
-import { constObservable } from '../../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
@@ -22,8 +21,11 @@ import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.j
 import { IChatModelReference, IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { IAgentsChatPartService } from '../../../browser/agentsView/agentsChatPart.js';
 import { AgentsChatViewHost } from '../../../browser/agentsView/agentsChatViewHost.js';
+import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
+import { IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
+import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
-import { ISessionChange, ISessionsManagementService } from '../../../common/sessionsManagement.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 
 suite('AgentsChatViewHost', () => {
 
@@ -35,8 +37,7 @@ suite('AgentsChatViewHost', () => {
 		readonly sessionsManagementService?: Partial<ISessionsManagementService>;
 		readonly widgets?: IChatWidget[];
 		readonly providersAcquired?: () => void;
-		/** Holds the loading of a session's model until it resolves. */
-		readonly loading?: Promise<void>;
+		readonly contentCreated?: IObservable<boolean>;
 	}
 
 	function createHost(options: IHostOptions = {}) {
@@ -53,7 +54,7 @@ suite('AgentsChatViewHost', () => {
 		});
 		const host = new AgentsChatViewHost(
 			chatPart,
-			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
+			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
 			upcastPartial<IChatWidgetService>({ getAllWidgets: () => options.widgets ?? [] }),
 			upcastPartial<IWorkbenchLayoutService>({ isVisible: () => false }),
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }),
@@ -68,12 +69,12 @@ suite('AgentsChatViewHost', () => {
 			upcastPartial<IEditorService>({ activeEditor: undefined }),
 			upcastPartial<IChatService>({
 				acquireOrLoadSession: async resource => {
-					await options.loading;
 					calls.push(`hold ${resource.toString()}`);
 					return upcastPartial<IChatModelReference>({ dispose: () => calls.push(`release ${resource.toString()}`) });
 				},
 			}),
 			upcastPartial<INotificationService>({ info: message => { calls.push(`info ${message}`); return undefined!; } }),
+			upcastPartial<IAgentsChatPartFrame>({ contentCreated: options.contentCreated ?? constObservable(true) }),
 		);
 		return { host, calls, composerWidget };
 	}
@@ -170,67 +171,6 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('a session it is still looking up as it is deactivated does not open in the chat part once found', async () => {
-		const chatResource = URI.parse('agent-host-copilot:/session-1');
-		const { owner, widget } = sessionOf(chatResource);
-		const changes = new Emitter<readonly ISessionChange[]>();
-		let known = false;
-		const { host, calls } = createHost({
-			sessionsManagementService: { getSessionForChatResource: () => known ? owner : undefined, getSession: () => undefined, onDidChangeSession: changes.event },
-			widgets: [widget],
-		});
-
-		const opening = host.openSession(chatResource);
-		await timeout(0);
-		host.deactivate();
-		known = true;
-		changes.fire([]);
-		const opened = await opening;
-		changes.dispose();
-
-		assert.deepStrictEqual({ opened, calls }, { opened: undefined, calls: ['acquire', 'release'] });
-	});
-
-	test('a session started before it is deactivated shows neither the session nor a composer once it completes', async () => {
-		const untitled = URI.parse('agent-host-copilot:/untitled-1');
-		const real = URI.parse('agent-host-copilot:/session-1');
-		const { owner, widget } = sessionOf(real);
-		const loading = new DeferredPromise<void>();
-		const { host, calls } = createHost({ sessionsManagementService: { getSessionForChatResource: () => owner }, widgets: [widget], loading: loading.p });
-
-		const starting = host.startSession(untitled, { local: false, importingConversation: false });
-		host.deactivate();
-		loading.complete();
-		const start = await starting;
-		const shownRun = await start.complete(real, true);
-		const shownNotRun = await start.complete(untitled, false);
-		const composer = await start.createComposer();
-		start.dispose();
-
-		assert.deepStrictEqual({ shownRun, shownNotRun, composer, calls }, {
-			shownRun: false,
-			shownNotRun: false,
-			composer: undefined,
-			calls: ['hold agent-host-copilot:/untitled-1', 'release agent-host-copilot:/untitled-1'],
-		});
-	});
-
-	test('a session started while active still shows once reactivated calls start anew, but not what started before', async () => {
-		const untitled = URI.parse('agent-host-copilot:/untitled-1');
-		const real = URI.parse('agent-host-copilot:/session-1');
-		const { owner, widget } = sessionOf(real);
-		const { host, calls } = createHost({ sessionsManagementService: { getSessionForChatResource: () => owner }, widgets: [widget] });
-
-		const stale = await host.startSession(untitled, { local: false, importingConversation: false });
-		host.deactivate();
-		const fresh = await host.startSession(untitled, { local: false, importingConversation: false });
-		const shown = { stale: await stale.complete(real, true), fresh: await fresh.complete(real, true) };
-		stale.dispose();
-		fresh.dispose();
-
-		assert.deepStrictEqual({ shown, opened: calls.filter(call => call.startsWith('openChat')) }, { shown: { stale: false, fresh: true }, opened: ['openChat agent-host-copilot:/session-1'] });
-	});
-
 	test('completing a session that did not run waits for its composer to show, and fails as showing it fails', async () => {
 		const untitled = URI.parse('agent-host-copilot:/untitled-1');
 		const opening = new DeferredPromise<void>();
@@ -248,14 +188,70 @@ suite('AgentsChatViewHost', () => {
 		assert.deepStrictEqual({ pendingWhileShowing, error }, { pendingWhileShowing: true, error: 'no composer' });
 	});
 
-	test('does not start local chat, which the Agents view does not show', async () => {
+	test('does not start local chat, which the chat part does not show', async () => {
 		const { host, calls } = createHost();
 
 		const error = await host.startSession(URI.parse('vscode-chat-session://local/1'), { local: true, importingConversation: false }).then(() => undefined, e => e);
 
 		assert.deepStrictEqual({ cancelled: isCancellationError(error), calls }, {
 			cancelled: true,
-			calls: ['info Local chat sessions are not available while the Agents view is enabled.'],
+			calls: ['info Local chat sessions are not available while chats open in the chat part.'],
 		});
+	});
+
+	test('deactivated while it looks a session up, it does not open the chat part', async () => {
+		const chatResource = URI.parse('agent-host-copilot:/session-1');
+		const { owner, widget } = sessionOf(chatResource);
+		const lookup = new DeferredPromise<void>();
+		const { host, calls } = createHost({
+			sessionsManagementService: {
+				getSessionForChatResource: () => lookup.isSettled ? owner : undefined,
+				onDidChangeSession: listener => { void lookup.p.then(() => listener([])); return toDisposable(() => { }); },
+			},
+			widgets: [widget],
+		});
+
+		const opening = host.openSession(chatResource);
+		host.deactivate();
+		lookup.complete();
+
+		assert.deepStrictEqual({ opened: await opening, calls }, { opened: undefined, calls: ['acquire', 'release'] });
+	});
+
+	test('shows the chats of agent host sessions and of the window\'s sessions, and leaves other chats, such as local chat, to the Chat view', () => {
+		const known = URI.parse('copilot-cloud-agent:/known');
+		const { host } = createHost({ sessionsManagementService: { getSessionForChatResource: resource => resource.toString() === known.toString() ? sessionOf(known).owner : undefined } });
+
+		assert.deepStrictEqual({
+			agentHost: host.canShow(URI.parse('agent-host-copilot:/session-1')),
+			known: host.canShow(known),
+			local: host.canShow(LocalChatSessionUri.forSession('local-1')),
+			extension: host.canShow(URI.parse('some-extension-chat:/session-1')),
+		}, { agentHost: true, known: true, local: false, extension: false });
+	});
+
+	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled', () => {
+		const available = createHost();
+		const unavailable = createHost({ chatAvailable: false });
+
+		assert.deepStrictEqual({
+			available: available.host.newChat(), availableCalls: available.calls,
+			unavailable: unavailable.host.newChat(), unavailableCalls: unavailable.calls,
+		}, {
+			available: true, availableCalls: ['openComposer sessionType=undefined newComposer=true'],
+			unavailable: false, unavailableCalls: [],
+		});
+	});
+
+	test('reports the chat of the chat part\'s active tab only once the chat part exists, without creating it', () => {
+		const contentCreated = observableValue('contentCreated', false);
+		const shown: IChatViewHostShownSession = { resource: URI.parse('agent-host-copilot:/session-1'), reason: 'restore' };
+		const read: string[] = [];
+		const { host } = createHost({ contentCreated, chatPart: { get shownSession() { read.push('shownSession'); return constObservable(shown); } } });
+
+		const before = host.shownSession.get();
+		contentCreated.set(true, undefined);
+
+		assert.deepStrictEqual({ before, after: host.shownSession.get(), read }, { before: undefined, after: shown, read: ['shownSession'] });
 	});
 });

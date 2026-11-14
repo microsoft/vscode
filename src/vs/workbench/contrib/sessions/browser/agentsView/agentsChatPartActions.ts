@@ -14,17 +14,15 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../../../chat/browser/actions/chatActions.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
-import { registerSessionChatTabsActions } from '../sessionChatTabsActions.js';
-import { InAgentsChatPartContext } from './agentsView.js';
-import { getAgentsChatPartComposerTarget, IAgentsChatPartService } from './agentsChatPart.js';
+import { InAgentsChatPartContext } from './agentsChatPartContext.js';
+import { IAgentsChatPartService } from './agentsChatPart.js';
+import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { getSessionPresentationWorkspace, ISession } from '../../../../services/sessions/common/session.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { SessionItemIsMultiSelectionContext } from '../../common/contextkeys.js';
 import { ISessionSection, QUICK_CHATS_SECTION_ID, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext } from '../views/sessionsList.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { AICustomizationManagementCommands } from '../../../chat/common/aiCustomizationWorkspaceService.js';
 import { AGENT_HOST_ENABLED_CONTEXT_KEY } from '../../../../../platform/agentHost/common/agentHostEnablementService.js';
 
 /** Whether the chat part of the editor window shows. */
@@ -35,19 +33,8 @@ export const AgentsChatPartVisibleContext = new RawContextKey<boolean>('agentsCh
  * disposed: a new session or a new chat without a workspace in a tab of its own, and focusing, toggling and closing the
  * chat part.
  */
-/** The choices of how the chat part shows its chats, from the header of a chat it shows. */
-export const AgentsChatPartChatTabsMenu = new MenuId('AgentsChatPartChatTabs');
-
 export function registerAgentsChatPartActions(): IDisposable {
 	const store = new DisposableStore();
-
-	// How the chat part shows its chats, which can be of different sessions: from the header of the chat it shows
-	store.add(registerSessionChatTabsActions({
-		idPrefix: 'workbench.action.agentsView',
-		submenu: AgentsChatPartChatTabsMenu,
-		when: ContextKeyExpr.and(ChatContextKeys.enabled, InAgentsChatPartContext),
-		precondition: ChatContextKeys.enabled,
-	}));
 
 	store.add(registerAction2(class extends Action2 {
 		constructor() {
@@ -63,7 +50,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const chatPart = accessor.get(IAgentsChatPartService);
-			await chatPart.openComposer(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+			await chatPart.openComposer(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
 		}
 	}));
 
@@ -150,7 +137,7 @@ export function registerAgentsChatPartActions(): IDisposable {
 			if (layoutService.isVisible(Parts.CHAT_PART)) {
 				layoutService.setPartHidden(true, Parts.CHAT_PART);
 			} else {
-				await chatPart.show(getAgentsChatPartComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
+				await chatPart.show(getEditorWindowComposerTarget(accessor.get(IWorkspaceContextService), accessor.get(IEditorService)));
 			}
 		}
 	}));
@@ -213,32 +200,6 @@ export function registerAgentsViewNewSessionActions(): IDisposable {
 			if (session && folderUri) {
 				await accessor.get(IAgentsChatPartService).openComposer(getNewSessionTarget(folderUri, session), { newComposer: true });
 			}
-		}
-	}));
-
-	// The customizations of a session, as the Agents window offers them from its session list. Its editor opens as any editor
-	// does: an editor opened while the chat part was the part last active goes to the editor area, as its chats hand it off
-	store.add(registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: 'workbench.action.agentsView.openSessionCustomizations',
-				title: localize2('agentsView.openSessionCustomizations', "Open Customizations"),
-				icon: Codicon.extensions,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, SessionItemIsMultiSelectionContext.negate()),
-				menu: {
-					id: SessionItemContextMenuId,
-					group: 'navigation',
-					order: 6,
-					when: ChatContextKeys.enabled,
-				},
-			});
-		}
-		async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
-			const sessions = context ? Array.isArray(context) ? context : [context] : [];
-			if (sessions.length !== 1) {
-				throw new Error(localize('agentsView.openSessionCustomizations.selectSingleSession', "Select a single session to open its customizations."));
-			}
-			await accessor.get(ICommandService).executeCommand(AICustomizationManagementCommands.OpenEditor, { sessionResource: sessions[0].resource });
 		}
 	}));
 

@@ -190,7 +190,7 @@ suite('AgentsChatPartService', () => {
 			},
 			hasFocus: () => false,
 		}));
-		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }) }));
+		instantiationService.stub(IAgentsChatPartFrame, upcastPartial<IAgentsChatPartFrame>({ part: upcastPartial<IAgentsChatPartFrame['part']>({ setContent: () => toDisposable(() => { }) }), didCreateContent: () => { } }));
 		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({ createEditorPart: () => part as unknown as IContentPart, mainPart: undefined }));
 		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({
 			openEditor: (async (editor: EditorInput, editorOptions: IEditorOptions | undefined, group: FakeGroup) => {
@@ -635,6 +635,36 @@ suite('AgentsChatPartService', () => {
 			stored: { chats: ['test:/a', 'test:/b', 'test:/c'], active: 1 },
 			restored: { groups: [{ tabs: ['/a', '/b', '/c'], active: '/b' }], activeGroup: 0, visible: true },
 		});
+	});
+
+	test('the chat of the active tab shows as restored while the chat part restored it, and as opened once the user opens a chat', async () => {
+		const shownSession = buildTestSession({ id: 'shown', title: 'Shown', chats: [{ id: 'peer', title: 'Peer' }] });
+		const main = shownSession.mainChat.chat.resource;
+		const peer = shownSession.chats.get('peer')!.chat.resource;
+		const { service } = createService({ stored: JSON.stringify({ chats: [main.toString(), peer.toString()], active: 1 }), visible: true, sessions: () => [shownSession.session] });
+		const shown = async () => {
+			await timeout(0);
+			const value = service.shownSession.get();
+			return value && `${isEqual(value.resource, main) ? 'main' : isEqual(value.resource, peer) ? 'peer' : value.resource.toString()} ${value.reason}`;
+		};
+
+		await service.restore();
+		const restored = await shown();
+		await service.openChat(shownSession.session, main);
+
+		assert.deepStrictEqual({ restored, opened: await shown() }, { restored: 'peer restore', opened: 'main open' });
+	});
+
+	test('its composers offer the window\'s folders, or those a feature provides while it does', () => {
+		const { service } = createService();
+		const folders = () => service.getComposerFolderOptions().allowedFolders?.get().map(folder => folder.toString());
+
+		const windowFolders = folders();
+		const provided = service.setComposerFolderOptions(() => ({ allowedFolders: constObservable([URI.file('/worktree')]) }));
+		const whileProvided = folders();
+		provided.dispose();
+
+		assert.deepStrictEqual({ whileProvided, afterwards: folders() }, { whileProvided: ['file:///worktree'], afterwards: windowFolders });
 	});
 
 	test('with no chats, the chat part removes what it stored, and restoring nothing closes it', async () => {

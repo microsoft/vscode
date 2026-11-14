@@ -91,7 +91,6 @@ export interface IChatViewHost {
 	 * implement it leaves New Chat to the chat widget it acts on.
 	 */
 	newChat?(): boolean;
-
 	/** The chat the host shows; a host that does not implement it reports none. */
 	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
@@ -107,11 +106,10 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	newChat(): boolean;
 
-	/** The chat that the host in use shows; none while a host that does not report one ({@link IChatViewHost.shownSession}) is in use. */
-	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
-
 	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
 	readonly replaced: IObservable<boolean>;
+	/** The chat that the host in use shows; none while a host that does not report one ({@link IChatViewHost.shownSession}) is in use. */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
