@@ -1230,6 +1230,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 			this.locked = true;
 		}
 
+		const initialSticky = data.sticky;
+
 		this.editors = coalesce(data.editors.map((e, index) => {
 			let editor: EditorInput | undefined;
 
@@ -1242,7 +1244,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				}
 			}
 
-			if (!editor && typeof data.sticky === 'number' && index <= data.sticky) {
+			if (!editor && typeof initialSticky === 'number' && index <= initialSticky) {
 				data.sticky--; // if editor cannot be deserialized but was sticky, we need to decrease sticky index
 			}
 
