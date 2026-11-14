@@ -106,7 +106,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 				} else {
 					await chatViewHostService.openSession(chatResource ?? session.mainChat.get().resource, { preserveFocus });
 				}
-			})));
+			}, chatPart)));
 			this.registerChatPartHost(instantiationService, chatViewHostService, openInChatPart);
 			this.hideMaximizeWhileInChatPart(accessor.get(IContextKeyService), openInChatPart);
 		});
