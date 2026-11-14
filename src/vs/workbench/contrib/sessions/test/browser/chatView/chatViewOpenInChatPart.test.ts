@@ -213,11 +213,13 @@ suite('ChatViewOpenInChatPartContribution', () => {
 			const createInstance = instantiationService.createInstance.bind(instantiationService) as (ctor: unknown, ...args: unknown[]) => unknown;
 			instantiationService.createInstance = ((ctor: unknown, ...args: unknown[]) => ctor === ChangesMultiDiffSourceResolver ? Disposable.None : createInstance(ctor, ...args)) as typeof instantiationService.createInstance;
 
-			const hostService = store.add(instantiationService.createInstance(ChatViewHostService));
+			const hostService = instantiationService.createInstance(ChatViewHostService);
 			stub(IChatViewHostService, hostService);
 			const chatPartService = store.add(instantiationService.createInstance(EditorWindowChatPartService));
 			stub(IEditorWindowChatPartService, chatPartService);
 			store.add(instantiationService.createInstance(ChatViewOpenInChatPartContribution));
+			// The host service goes last, as the hosts that registered in it unregister first
+			store.add(hostService);
 			const setSetting = async (value: boolean) => {
 				await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
 				configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
