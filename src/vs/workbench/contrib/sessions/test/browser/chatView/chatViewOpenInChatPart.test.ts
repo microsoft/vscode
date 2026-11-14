@@ -113,6 +113,18 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		assert.deepStrictEqual(steps, [true, false, true]);
 	});
 
+	test('a change of the host leaves what the feature holds as it is: the runtime hold and the default configuration', () => {
+		const configurationUpdates: number[] = [];
+		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const { state, chatViewHosts } = setup({ setting: true });
+		store.add(registry.onDidUpdateConfiguration(() => configurationUpdates.push(1)));
+
+		chatViewHosts.set(true, undefined);
+		chatViewHosts.set(false, undefined);
+
+		assert.deepStrictEqual({ runtime: state().runtime, runtimeHeld: state().runtimeHeld, configurationUpdates: configurationUpdates.length }, { runtime: [[ChatViewId]], runtimeHeld: 1, configurationUpdates: 0 });
+	});
+
 	test('takes New Chat of the Chat view into the chat part', () => {
 		assert.strictEqual(setup({ setting: true }).chatPartOptions[0].ownsNewChat, undefined);
 	});

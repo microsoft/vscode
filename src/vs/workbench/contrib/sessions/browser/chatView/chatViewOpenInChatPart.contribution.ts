@@ -82,10 +82,13 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 			if (enabled.read(reader)) {
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
 				// The chats show in the chat part, so the Chat view shows only its sessions, except while it hosts a chat that the chat
-				// part leaves to it, such as a local chat: no chat opens where nothing shows it
-				if (!chatViewHostService.chatViewHosts.read(reader)) {
-					reader.store.add(this._sessionsListService.claimSessionsOnly());
-				}
+				// part leaves to it, such as a local chat: no chat opens where nothing shows it. Its own autorun, so that a change of
+				// host leaves what the feature holds as it is.
+				reader.store.add(autorun(hostReader => {
+					if (!chatViewHostService.chatViewHosts.read(hostReader)) {
+						hostReader.store.add(this._sessionsListService.claimSessionsOnly());
+					}
+				}));
 				const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 				configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
 				reader.store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
