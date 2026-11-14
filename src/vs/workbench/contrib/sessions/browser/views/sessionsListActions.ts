@@ -898,7 +898,11 @@ function createSessionsListActions(): DisposableStore {
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const view = accessor.get(ISessionsViewLocator)?.getEmbeddedView() ?? await accessor.get(IViewsService).openView<SessionsView>(SessionsViewId);
+			const viewsService = accessor.get(IViewsService);
+			// A view registered with its id opens as a view does, so that it shows; only a view that a host embeds is used as it is
+			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId)
+				? await viewsService.openView<SessionsView>(SessionsViewId)
+				: accessor.get(ISessionsViewLocator)?.getEmbeddedView() ?? await viewsService.openView<SessionsView>(SessionsViewId);
 			view?.showApplicationFilters();
 		}
 	}));
