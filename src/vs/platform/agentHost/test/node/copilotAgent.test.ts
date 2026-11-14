@@ -102,7 +102,7 @@ import { SyncDescriptor } from '../../../instantiation/common/descriptors.js';
 import { AgentHostAuthenticationScope } from '../../node/agentHostAuthenticationScope.js';
 import type { IAgentHostPullRequestResolver } from '../../node/shared/pullRequestResolver.js';
 import { detachedWorktreeRecordUri, IAgentHostWorktreeIsolation, NullAgentHostWorktreeIsolation, SessionWorkingDirectoryMissingError, WorktreeIsolation } from '../../node/shared/worktreeIsolation.js';
-import { IAgentHostSessionStateStore } from '../../common/agentHostSessionStateStore.js';
+import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../../common/agentHostSessionStateStore.js';
 import { parseSessionAdditionalWorktrees } from '../../node/shared/sessionAdditionalWorktrees.js';
 import { createTestSessionStateStore, createTestWorktreeCleanupService, seedSessionAdditionalWorktrees } from './chatMetadataTestHelpers.js';
 import { AgentHostCatalogSourceResolver } from '../../node/agentHostCatalogSourceResolver.js';
@@ -1692,7 +1692,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 				logService,
 				worktreeIsolation,
 				createTestChatOwnershipService(stateManager),
-				createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionDataService),
+				sessionStateStore,
 			))
 			: createNoopCustomizationEnablementService()));
 	services.set(IByokLmBridgeRegistry, options?.byokBridgeRegistry ?? new ByokLmBridgeRegistry());
@@ -21623,6 +21623,53 @@ suite('CopilotAgent', () => {
 
 		const preparedPluginDir = URI.file('/plugins/plugin-a');
 		const preparedPlugin: ClientPluginCustomization = { type: CustomizationType.Plugin, id: preparedPluginDir.toString(), uri: preparedPluginDir.toString(), name: 'Plugin A' };
+
+		test('restoring before host state registration keeps unchanged plugins on the first send', async () => {
+			const fileService = createInMemoryFileService(disposables, Schemas.file);
+			const workingDirectory = URI.file('/workspace');
+			await fileService.createFolder(workingDirectory);
+			await fileService.writeFile(URI.joinPath(preparedPluginDir, '.plugin', 'plugin.json'), VSBuffer.fromString('{"name":"Plugin A"}'));
+			const client = new TestCopilotClient([]);
+			const launches: (readonly string[])[] = [];
+			client.resumeSession = async (id, config) => {
+				launches.push(config.pluginDirectories ?? []);
+				return new MockCopilotSession(id) as unknown as CopilotSession;
+			};
+			const { agent, stateManager } = createTestAgentContext(disposables, {
+				copilotClient: client,
+				sessionDataService: disposables.add(new TestSessionDataService()),
+				pluginManager: new BlockingPluginManager(),
+				fileService,
+				useRealCustomizationEnablementService: true,
+				rootConfig: { [AgentHostGitHubMcpServerEnabledConfigKey]: false },
+			});
+			afterTest(() => disposeAgent(agent));
+			await agent.authenticate('https://api.github.com', 'token');
+			const session = URI.parse('ahp-session:/restored-plugin-owner');
+			const chat = URI.parse('ahp-chat:/restored-plugin-chat');
+			const context = exactChatContext(session, chat, session);
+			const stateStore = sessionStateStoresByAgent.get(agent)!;
+			await stateStore.writeMetadata(session, session, {
+				[SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify([workingDirectory.toString()]),
+				'copilot.workingDirectory': workingDirectory.toString(),
+			}, SessionStateMirrorFlush.Immediate);
+			await agent.materializeChat(chat, context, JSON.stringify({ sdkSessionId: 'restored-plugin-sdk' }));
+			agent.getOrCreateActiveClient(chat, context, { clientId: 'client-1' }).customizations = [preparedPlugin];
+
+			await agent.chats.getMessages(chat, context);
+			const launchesBeforeRegistration = launches.map(directories => [...directories]);
+			stateManager.createSession({
+				resource: session.toString(), provider: 'copilotcli', title: 'Restored', status: SessionStatus.Idle,
+				createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+				workingDirectories: [workingDirectory.toString()], defaultChat: chat.toString(),
+			});
+			await agent.chats.sendMessage(chat, 'hello', [workingDirectory], undefined, 'turn-1', undefined, context);
+
+			assert.deepStrictEqual({ launchesBeforeRegistration, launches }, {
+				launchesBeforeRegistration: [[preparedPluginDir.fsPath]],
+				launches: [[preparedPluginDir.fsPath]],
+			});
+		});
 
 		test('the prepared turn awaits a plugin sync that started after its preparation and relaunches with the plugin', async () => {
 			const fileService = createInMemoryFileService(disposables, Schemas.file);

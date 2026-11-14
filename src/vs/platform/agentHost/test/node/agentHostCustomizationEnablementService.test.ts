@@ -11,7 +11,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession } from '../../common/agentService.js';
 import { isCustomizationEnabled } from '../../common/customizationEnablement.js';
-import { buildDefaultChatUri, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
+import { AH_META_WORKSPACELESS_DB_KEY, buildDefaultChatUri, SessionStatus, withSessionWorkspaceless, type SessionSummary, type Turn } from '../../common/state/sessionState.js';
 import { ISessionDataService, type ISessionDatabase } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/protocol/common/actions.js';
 import { CustomizationEnablementKind, CustomizationType } from '../../common/state/protocol/channels-session/state.js';
@@ -25,6 +25,8 @@ import { createTestSessionStateStore } from './chatMetadataTestHelpers.js';
 import { AgentHostDatabase } from '../../node/agentHostDatabase.js';
 import { createLiveChatOwnership, createTestChatOwnershipService } from './chatOwnershipTestUtils.js';
 import { chatTurnComplete, chatTurnStarted } from '../common/chatActionBuilders.js';
+import { SessionStateMirrorFlush, sessionStatePatch } from '../../common/agentHostSessionStateStore.js';
+import { SESSION_WORKING_DIRECTORIES_KEY } from '../../node/shared/persistSessionMetadata.js';
 
 class EnablementSessionDatabase extends TestSessionDatabase {
 	metadataLoad: Promise<string | undefined> | undefined;
@@ -1001,6 +1003,64 @@ suite('AgentHostCustomizationEnablementService', () => {
 		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectorySet, directory: workspace.toString() });
 		const directoryState = service.getWorkingDirectoryState(session);
 		assert.deepStrictEqual(directoryState.kind === 'directory' ? { kind: directoryState.kind, uri: directoryState.uri.toString() } : directoryState, { kind: 'directory', uri: workspace.toString() });
+	});
+
+	test('resolves the same restored workspace decisions before host state registration without overriding live or pending worktrees', async () => {
+		service.setEnablement(session, plugin, CustomizationEnablementKind.Workspace, false);
+		const restoredDirectories = [workspace.toString(), 'file:///other'];
+		const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionData));
+		await store.write(URI.parse(session), sessionStatePatch({
+			values: { [SESSION_WORKING_DIRECTORIES_KEY]: JSON.stringify(restoredDirectories) },
+			chats: [{
+				chat: buildDefaultChatUri(session), isDefault: true,
+				fields: { launchWorkingDirectories: ['file:///other'] },
+			}],
+		}), SessionStateMirrorFlush.Immediate);
+		const restoring = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), store));
+		await restoring.initializeSession(session);
+		state.deleteSession(session);
+
+		const beforeRegistration = serializableResolution(restoring.resolve(session, plugin));
+		worktree.pending.add(AgentSession.id(session));
+		const pendingWorktree = restoring.resolve(session, plugin);
+		worktree.pending.clear();
+		state.createSession(makeSummary(session, restoredDirectories));
+		const afterRegistration = serializableResolution(restoring.resolve(session, plugin));
+		state.deleteSession(session);
+		state.createSession(makeSummary(session, ['file:///new-workspace']));
+		const registered = serializableResolution(restoring.resolve(session, plugin));
+		state.dispatchServerAction(session, { type: ActionType.SessionWorkingDirectoryRemoved, directory: 'file:///new-workspace' });
+		const unknownLiveDirectory = restoring.resolve(session, plugin);
+
+		const workspaceResolution = {
+			kind: 'resolved', enabled: false,
+			workingDirectory: { kind: 'directory', uri: workspace.toString() },
+			enablement: [{ kind: CustomizationEnablementKind.Workspace, uri: workspace.toString(), enabled: false }],
+		};
+		assert.deepStrictEqual({ beforeRegistration, afterRegistration, pendingWorktree, registered, unknownLiveDirectory }, {
+			beforeRegistration: workspaceResolution,
+			afterRegistration: workspaceResolution,
+			pendingWorktree: { kind: 'pending', reason: 'workingDirectory' },
+			registered: {
+				kind: 'resolved', enabled: true,
+				workingDirectory: { kind: 'directory', uri: 'file:///new-workspace' }, enablement: [],
+			},
+			unknownLiveDirectory: { kind: 'pending', reason: 'workingDirectory' },
+		});
+	});
+
+	test('resolves a restored workspace-less session before host state registration', async () => {
+		const store = disposables.add(createTestSessionStateStore(disposables.add(new AgentHostDatabase(':memory:')), sessionData));
+		await store.writeMetadata(URI.parse(session), URI.parse(session), {
+			[AH_META_WORKSPACELESS_DB_KEY]: 'true',
+		}, SessionStateMirrorFlush.Immediate);
+		const restoring = disposables.add(new AgentHostCustomizationEnablementService(storage, state, new NullLogService(), worktree, createTestChatOwnershipService(state), store));
+		await restoring.initializeSession(session);
+		state.deleteSession(session);
+
+		assert.deepStrictEqual(restoring.resolve(session, plugin), {
+			kind: 'resolved', enabled: true, workingDirectory: { kind: 'workspaceless' }, enablement: [],
+		});
 	});
 
 	test('an unmarked session whose default chat is in a recorded scratch folder is workspace-less', () => {
