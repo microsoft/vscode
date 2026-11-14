@@ -568,7 +568,7 @@ export class WorkspacePicker extends Disposable {
 				if (allowed && this._selectedFolderUri && !this._isAllowedFolder(this._selectedFolderUri)) {
 					this.setSelectedWorkspace(allowed[0], { persist: false });
 				}
-				this._resolveSelectedAllowedFolder();
+				this._reconcileSelectedAllowedFolder();
 				this._updateTriggerLabel();
 			}));
 		}
@@ -596,7 +596,12 @@ export class WorkspacePicker extends Disposable {
 			if (this._selectedFolderUri) {
 				// Re-resolve in case the previous resolving provider was removed.
 				const reresolved = this._resolveFolder(this._selectedFolderUri);
-				if (!reresolved) {
+				const canonical = reresolved ? undefined : this._canonicalAllowedFolder(this._selectedFolderUri);
+				if (canonical && !this.uriIdentityService.extUri.isEqual(canonical, this._selectedFolderUri)) {
+					// Restricted to its allowed folders: selected again by the allowed folder the window's folder is at
+					this._selectedResolved = undefined;
+					this._reconcileSelectedAllowedFolder();
+				} else if (!reresolved) {
 					this._selectedFolderUri = undefined;
 					this._selectedResolved = undefined;
 					this._selectedDevContainerFolderUri = undefined;
@@ -1447,6 +1452,7 @@ export class WorkspacePicker extends Disposable {
 		if (!this._isAllowedFolder(folderUri)) {
 			return;
 		}
+		folderUri = this._canonicalAllowedFolder(folderUri);
 		if (source === NewSessionWorkspacePreselectionSource.User) {
 			this.options.onUserSelection?.();
 		}
@@ -2983,29 +2989,44 @@ export class WorkspacePicker extends Disposable {
 	}
 
 	/**
-	 * Resolves the selected folder of a picker restricted to its allowed folders, where no provider resolved it as it was
-	 * selected, such as the location a window's folder moved to: the picker shows it, checked, once a provider does.
+	 * The allowed folder to select for `folderUri`: itself, unless no provider resolves it but it is where the window's folder
+	 * is, by another form of its path such as /private/tmp of /tmp: then the allowed folder marked as there that resolves.
 	 */
-	private _resolveSelectedAllowedFolder(): void {
-		if (!this._selectedFolderUri || this._selectedResolved || this._noWorkspaceSelected || !this._getAllowedFolders()) {
-			return;
+	private _canonicalAllowedFolder(folderUri: URI): URI {
+		const allowedFolders = this._getAllowedFolders();
+		if (!allowedFolders || this._resolveFolder(folderUri) || !this.options.getAllowedFolderPresentation?.(folderUri)?.current) {
+			return folderUri;
 		}
-		let resolved = this._resolveFolder(this._selectedFolderUri);
-		if (!resolved && this.options.getAllowedFolderPresentation?.(this._selectedFolderUri)?.current) {
-			// Where the window's folder is now, by another form of its path, such as /private/tmp of /tmp: the allowed folder
-			// that the window's folder is at, and that resolves
-			for (const folderUri of this._getAllowedFolders() ?? []) {
-				const candidate = this.options.getAllowedFolderPresentation?.(folderUri)?.current ? this._resolveFolder(folderUri) : undefined;
-				if (candidate) {
-					this._selectedFolderUri = folderUri;
-					resolved = candidate;
-					break;
-				}
+		return allowedFolders.find(candidate => this.options.getAllowedFolderPresentation?.(candidate)?.current && !!this._resolveFolder(candidate)) ?? folderUri;
+	}
+
+	/** Resolves the selected allowed folder that no provider resolved as it was selected, as it renders: the same folder, silently. */
+	private _resolveSelectedAllowedFolder(): void {
+		if (this._selectedFolderUri && !this._selectedResolved && !this._noWorkspaceSelected && this._getAllowedFolders()) {
+			const resolved = this._resolveFolder(this._selectedFolderUri);
+			if (resolved) {
+				this._selectedResolved = resolved;
+				this._watchSelectedGitHubInfo();
 			}
 		}
-		if (resolved) {
-			this._selectedResolved = resolved;
-			this._watchSelectedGitHubInfo();
+	}
+
+	/**
+	 * As the allowed folders or the providers change: the selected allowed folder that does not resolve is selected again by
+	 * its canonical allowed folder ({@link _canonicalAllowedFolder}), as any selection is, with its events, once.
+	 */
+	private _reconcileSelectedAllowedFolder(): void {
+		const selected = this._selectedFolderUri;
+		if (!selected || this._selectedResolved || this._noWorkspaceSelected || !this._getAllowedFolders()) {
+			return;
+		}
+		const canonical = this._canonicalAllowedFolder(selected);
+		if (!this.uriIdentityService.extUri.isEqual(canonical, selected)) {
+			this._selectFolder(canonical, true, undefined, false, this._preselectionSource, this._selectionOrigin);
+		} else if (this._resolveFolder(selected)) {
+			this._resolveSelectedAllowedFolder();
+			this._updateTriggerLabel();
+			this._onDidChangeSelection.fire();
 		}
 	}
 
