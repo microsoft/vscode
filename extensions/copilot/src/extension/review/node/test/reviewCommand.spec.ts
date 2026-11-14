@@ -159,6 +159,17 @@ suite('reviewCommand', () => {
 			assert.strictEqual(s.edits[0].newText, 'new\n');
 		});
 
+		test('handles rejected promise-based suggestion gracefully', async () => {
+			const comment = createTestComment({ suggestion: Promise.reject(new Error('Failed to resolve suggestion')) });
+
+			await assert.rejects(
+				async () => {
+					await toCodeReviewResult([comment]);
+				},
+				/Failed to resolve suggestion/
+			);
+		});
+
 		test('maps multiple comments', async () => {
 			const comments = [
 				createTestComment({ body: 'first', kind: 'bug' }),
