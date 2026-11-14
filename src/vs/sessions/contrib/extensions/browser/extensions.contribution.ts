@@ -17,6 +17,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../work
 import { aiCustomizationManagementSectionRegistry } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementSectionRegistry.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { extensionsViewIcon } from '../../../../workbench/contrib/extensions/browser/extensionsIcons.js';
+import { webWorkerExtHostConfig } from '../../../../workbench/services/extensions/common/extensions.js';
 import { AgentsWindowExtensionAutoEnablementExperiment } from './agentsWindowExtensionAutoEnablementExperiment.js';
 import { AgentsWindowExtensionAutoEnablementTelemetry } from './agentsWindowExtensionAutoEnablementTelemetry.js';
 import { AgentsWindowExtensionsAccessibilityHelp } from './agentsWindowExtensionsAccessibilityHelp.js';
@@ -77,6 +78,19 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('extensions.experimental.agentsWindowConfirmUninstall', "Controls whether to ask for confirmation before uninstalling an extension from the Extensions section of Agent Customizations, which also uninstalls it from VS Code. Requires `#{0}#`.", EXTENSIONS_AGENTS_WINDOW_MANAGEMENT),
 			default: true,
 			tags: ['experimental'],
+		},
+		// Editor windows register this setting with the Extensions view, which the Agents window doesn't have. Without it,
+		// the Agents window can't run web extensions, and restarting extensions doesn't start them either.
+		[webWorkerExtHostConfig]: {
+			type: ['boolean', 'string'],
+			enum: [true, false, 'auto'],
+			enumDescriptions: [
+				localize('extensionsWebWorker.true', "The Web Worker Extension Host will always be launched."),
+				localize('extensionsWebWorker.false', "The Web Worker Extension Host will never be launched."),
+				localize('extensionsWebWorker.auto', "The Web Worker Extension Host will be launched when a web extension needs it."),
+			],
+			description: localize('extensionsWebWorker', "Enable web worker extension host."),
+			default: 'auto'
 		},
 	},
 });
