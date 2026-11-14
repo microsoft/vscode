@@ -46,19 +46,25 @@ const sessionsListConfiguration: IConfigurationNode = {
 type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
 
 /**
- * The options of the Sessions view in an editor window, wherever it shows: the actions of its header in its title, without the
- * customizations, listing the sessions of the window's folders only while it has some (`scoped`), and grouped as
+ * Where the Sessions view shows its header, with Refresh, Find, Filter and the other actions: in the title of the view
+ * (`title`, as the Agents view does), or as a "Sessions" section header inside the view (`section`, as the Chat view does).
+ */
+export type EditorWindowSessionsHeader = 'title' | 'section';
+
+/**
+ * The options of the Sessions view in an editor window, wherever it shows: the actions of its header in its title or in its
+ * section header (`header`), without the customizations, listing the sessions of the window's folders only while it has some (`scoped`), and grouped as
  * {@link EDITOR_WINDOW_SESSIONS_GROUPINGS} says, with the "Chats" section also under time grouping.
  */
-export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>): IViewletViewOptions & ISessionsViewOptions {
-	return { ...options, headerInTitle: true, showCustomizations: false, scoped, groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, quickChatsInTimeGrouping: true };
+export function createEditorWindowSessionsViewOptions(options: IViewletViewOptions, scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title'): IViewletViewOptions & ISessionsViewOptions {
+	return { ...options, headerInTitle: header === 'title', showCustomizations: false, scoped, groupings: EDITOR_WINDOW_SESSIONS_GROUPINGS, quickChatsInTimeGrouping: true };
 }
 
 /** The Sessions view of an editor window, with {@link createEditorWindowSessionsViewOptions}. */
-export function createEditorWindowSessionsView(scoped: IObservable<boolean>): typeof SessionsView {
+export function createEditorWindowSessionsView(scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title'): typeof SessionsView {
 	return class EditorWindowSessionsView extends SessionsView {
 		constructor(options: IViewletViewOptions, ...services: SessionsViewServices) {
-			super(createEditorWindowSessionsViewOptions(options, scoped), ...services);
+			super(createEditorWindowSessionsViewOptions(options, scoped, header), ...services);
 		}
 	};
 }
@@ -72,7 +78,7 @@ export function createEditorWindowSessionsScope(owner: object, workspaceContextS
  * Registers the Sessions view in `container`, and beside it the view that shows how to sign in or set up chat while it needs
  * that, which the Chat view offered before the Sessions view replaced it.
  */
-export function registerEditorWindowSessionsViews(container: IViewContainerDescriptor, scoped: IObservable<boolean>): IDisposable {
+export function registerEditorWindowSessionsViews(container: IViewContainerDescriptor, scoped: IObservable<boolean>, header: EditorWindowSessionsHeader = 'title'): IDisposable {
 	const store = new DisposableStore();
 	const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 	const common = {
@@ -85,7 +91,7 @@ export function registerEditorWindowSessionsViews(container: IViewContainerDescr
 		windowEnablement: WindowEnablement.Editor,
 	};
 	const views: IViewDescriptor[] = [
-		{ ...common, id: SessionsViewId, ctorDescriptor: new SyncDescriptor(createEditorWindowSessionsView(scoped)), when: AgentsViewWhen },
+		{ ...common, id: SessionsViewId, ctorDescriptor: new SyncDescriptor(createEditorWindowSessionsView(scoped, header)), when: AgentsViewWhen },
 		{ ...common, id: AGENTS_VIEW_SETUP_VIEW_ID, ctorDescriptor: new SyncDescriptor(AgentsViewSetupPane), when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup) },
 	];
 	viewsRegistry.registerViews(views, container);
