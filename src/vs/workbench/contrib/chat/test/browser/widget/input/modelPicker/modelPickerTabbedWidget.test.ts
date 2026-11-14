@@ -3063,6 +3063,56 @@ suite('TabbedModelPicker', () => {
 		});
 	});
 
+	test('configuration refreshes preserve selection motion in both directions across settings', async () => {
+		const standard = model('example-2.5');
+		const fast = model('example-2.5-fast');
+		const result = createPicker({ models: [standard, fast], details: standard.identifier });
+		const container = result.popup.closest<HTMLElement>('.monaco-workbench')!;
+		container.classList.remove('monaco-reduce-motion');
+		container.style.cssText += `
+			--vscode-spacing-sizeNone: 0px;
+			--vscode-spacing-size20: 2px;
+			--vscode-spacing-size240: 24px;
+			--vscode-strokeThickness: 1px;
+			--vscode-fontSize-label2: 11px;
+			--vscode-fontWeight-regular: 400;
+			--vscode-fontWeight-semiBold: 600;
+		`;
+		const targetWindow = dom.getWindow(result.popup);
+		const reducedMotion = targetWindow.matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const selections = [];
+		for (const setting of ['Effort Level', 'Context', 'Speed']) {
+			for (const index of [1, 0]) {
+				await new Promise<void>(resolve => targetWindow.requestAnimationFrame(() => targetWindow.requestAnimationFrame(() => resolve())));
+				const group = element(result.popup, `[role="radiogroup"][aria-label="${setting}"]`);
+				const indicator = element(group, '.monaco-radio-selection');
+				const before = indicator.getBoundingClientRect().left;
+				const option = group.querySelectorAll<HTMLElement>('[role="radio"]')[index];
+				option.click();
+				const animations = indicator.getAnimations();
+				animations.forEach(animation => animation.pause());
+				if (setting === 'Speed') {
+					result.picker.refresh();
+				}
+				await timeout(0);
+				animations.forEach(animation => { animation.currentTime = 80; });
+				const middle = indicator.getBoundingClientRect().left;
+				const destination = option.getBoundingClientRect().left;
+				selections.push({
+					setting,
+					index,
+					connected: reducedMotion || indicator.isConnected,
+					intermediate: reducedMotion || middle > Math.min(before, destination) && middle < Math.max(before, destination),
+				});
+				animations.forEach(animation => animation.finish());
+				await timeout(0);
+			}
+		}
+		assert.deepStrictEqual(selections, ['Effort Level', 'Context', 'Speed'].flatMap(setting => [1, 0].map(index => ({
+			setting, index, connected: true, intermediate: true,
+		}))));
+	});
+
 	test('leaving details prevents a late save from changing the selected model', async () => {
 		const pending = new DeferredPromise<void>();
 		const writes: string[] = [];

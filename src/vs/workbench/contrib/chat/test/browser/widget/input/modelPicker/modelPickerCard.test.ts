@@ -17,7 +17,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../..
 import { NullOpenerService } from '../../../../../../../../platform/opener/test/common/nullOpenerService.js';
 import { IModelCardOptions, IPricingDisclosure, ModelCard } from '../../../../../browser/widget/input/modelPicker/modelPickerCard.js';
 import { getModelHoverContent } from '../../../../../browser/widget/input/modelPicker/modelPickerHover.js';
-import { getModelConfigSummary, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
+import { getModelConfigSummary, IModelConfigPropertySchema, IModelConfigurationAccess, ModelConfigChangeListener, setModelConfigValues } from '../../../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../../../../common/languageModels.js';
 import '../../../../../browser/widget/input/modelPicker/media/modelPicker.css';
 
@@ -1005,17 +1005,20 @@ suite('ModelCard', () => {
 		});
 		element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')[2].click();
 		result.update({ model: fast });
+		const shownWhileSaving = selectedOptions(result.card);
 		await saved.complete();
 		await timeout(0);
 
 		assert.deepStrictEqual({
 			writes,
+			shownWhileSaving,
 			selectedModels: result.selectedModels,
 			accepted: result.accepted,
 			name: element(result.card.element, '.chat-model-card-name').textContent,
 			changes: result.changes,
 		}, {
 			writes: [standard.identifier],
+			shownWhileSaving: ['Medium', '264K'],
 			selectedModels: [],
 			accepted: 0,
 			name: 'Fast Model',
@@ -1251,6 +1254,216 @@ suite('ModelCard', () => {
 			accepted: 1,
 			selected: ['High', '264K'],
 		});
+	});
+
+	test('a refresh during selection motion waits, keeping a reversed selection continuous', async () => {
+		const result = await createAnimatedCard();
+		const effortOption = (label: string) => Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === label)!;
+		const indicator = element(result.card.element, '.monaco-radio-selection');
+		const systemReduced = getWindow(indicator).matchMedia('(prefers-reduced-motion: reduce)').matches;
+		effortOption('Low').focus();
+		effortOption('Low').click();
+		indicator.getAnimations().forEach(animation => { animation.pause(); animation.currentTime = 80; });
+		result.card.refresh();
+		const before = indicator.getBoundingClientRect().left;
+		effortOption('High').focus();
+		effortOption('High').click();
+		const animations = indicator.getAnimations();
+		animations.forEach(animation => animation.pause());
+		const after = indicator.getBoundingClientRect().left;
+		await timeout(0);
+		const during = { connected: systemReduced || indicator.isConnected, continuous: systemReduced || Math.abs(before - after) < 1, accepted: result.accepted };
+		animations.forEach(animation => animation.finish());
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			during,
+			values: result.values,
+			accepted: result.accepted,
+			selected: selectedOptions(result.card),
+			focused: document.activeElement?.textContent,
+		}, {
+			during: { connected: true, continuous: true, accepted: systemReduced ? 1 : 0 },
+			values: { effort: 'high' },
+			accepted: 1,
+			selected: ['High', '264K'],
+			focused: 'High',
+		});
+	});
+
+	test('a refresh keeps showing a choice until it saves', async () => {
+		const secondSave = new DeferredPromise<void>();
+		const values: IStringDictionary<unknown> = {};
+		const writes: IStringDictionary<unknown>[] = [];
+		const result = await createAnimatedCard({
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				setModelConfiguration: async (_modelId, next) => {
+					writes.push(next);
+					if (writes.length === 2) {
+						await secondSave.p;
+					}
+					Object.assign(values, next);
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const effortOption = (label: string) => Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === label)!;
+		const settleMotion = (finish: boolean) => result.card.element.querySelectorAll('.monaco-radio-selection').forEach(indicator => indicator.getAnimations().forEach(animation => finish ? animation.finish() : animation.pause()));
+		effortOption('Low').click();
+		settleMotion(false);
+		await timeout(0);
+		result.card.refresh();
+		effortOption('High').click();
+		result.card.refresh();
+		settleMotion(true);
+		await timeout(0);
+		const whileSaving = selectedOptions(result.card);
+		effortOption('Low').click();
+		settleMotion(true);
+		await secondSave.complete();
+		await timeout(0);
+
+		assert.deepStrictEqual({ whileSaving, writes, values, selected: selectedOptions(result.card) }, {
+			whileSaving: ['High', '264K'],
+			writes: [{ effort: 'low' }, { effort: 'high' }, { effort: 'low' }],
+			values: { effort: 'low' },
+			selected: ['Low', '264K'],
+		});
+	});
+
+	test('a choice that fails to save after switching models and back is taken back, so it can be chosen again', async () => {
+		const failure = new Error('Cannot save effort');
+		const firstSave = new DeferredPromise<void>();
+		const values: IStringDictionary<unknown> = {};
+		const writes: IStringDictionary<unknown>[] = [];
+		const standard = createModel();
+		const fast = { ...standard, identifier: 'copilot/test-model-fast' };
+		const result = createCard({}, {
+			speedVariants: { standard, fast },
+			configurationAccess: {
+				getModelConfiguration: () => values,
+				setModelConfiguration: async (_modelId, next) => {
+					writes.push(next);
+					if (writes.length === 1) {
+						await firstSave.p;
+					}
+					Object.assign(values, next);
+				},
+				getModelConfigurationActions: () => [],
+			},
+		});
+		const effortOption = (label: string) => Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll<HTMLElement>('[role="radio"]')).find(option => option.textContent === label)!;
+		const reported: Error[] = [];
+		const previousHandler = errorHandler.getUnexpectedErrorHandler();
+		setUnexpectedErrorHandler(error => reported.push(error));
+		let whileSaving: string[];
+		let afterFailure: string[];
+		try {
+			effortOption('High').click();
+			result.update({ model: fast });
+			result.update({ model: standard });
+			whileSaving = selectedOptions(result.card);
+			await firstSave.error(failure);
+			await timeout(0);
+			afterFailure = selectedOptions(result.card);
+			effortOption('High').click();
+			await timeout(0);
+		} finally {
+			setUnexpectedErrorHandler(previousHandler);
+		}
+
+		assert.deepStrictEqual({ whileSaving, afterFailure, reported, writes, selected: selectedOptions(result.card) }, {
+			whileSaving: ['High', '264K', 'Standard'],
+			afterFailure: ['Medium', '264K', 'Standard'],
+			reported: [failure],
+			writes: [{ effort: 'high' }, { effort: 'high' }],
+			selected: ['High', '264K', 'Standard'],
+		});
+	});
+
+	for (const [change, rebuilds] of [['the same settings', false], ['other choices', true]] as const) {
+		test(`an update to ${change} during selection motion ${rebuilds ? 'rebuilds the controls right away' : 'waits for it to settle'}`, async () => {
+			const result = await createAnimatedCard();
+			const group = element(result.card.element, '[role="radiogroup"]');
+			const systemReduced = getWindow(group).matchMedia('(prefers-reduced-motion: reduce)').matches;
+			group.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+			const animations = element(group, '.monaco-radio-selection').getAnimations();
+			animations.forEach(animation => animation.pause());
+			result.update({
+				model: createModel(rebuilds ? {
+					configurationSchema: { properties: { effort: { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'high' } } },
+				} : {}),
+			});
+			const rebuilt = element(result.card.element, '[role="radiogroup"]') !== group;
+			animations.forEach(animation => animation.finish());
+			await timeout(0);
+
+			assert.deepStrictEqual({ rebuilt, selected: selectedOptions(result.card) }, {
+				rebuilt: rebuilds || systemReduced,
+				selected: rebuilds ? ['Low'] : ['Low', '264K'],
+			});
+		});
+	}
+
+	for (const change of ['adds', 'disables'] as const) {
+		test(`a refresh after the scope ${change} a choice during selection motion rebuilds the controls right away`, async () => {
+			let effort: IModelConfigPropertySchema = { type: 'string', group: 'navigation', enum: ['low', 'high'], enumItemLabels: ['Low', 'High'], default: 'low' };
+			const values: IStringDictionary<unknown> = {};
+			const result = await createAnimatedCard({
+				configurationAccess: {
+					getModelConfiguration: () => values,
+					getModelConfigurationSchema: () => ({ properties: { effort } }),
+					setModelConfiguration: async (_modelId, next) => { Object.assign(values, next); },
+					getModelConfigurationActions: () => [],
+				},
+			});
+			const group = element(result.card.element, '[role="radiogroup"]');
+			group.querySelectorAll<HTMLElement>('[role="radio"]')[1].click();
+			const animations = element(group, '.monaco-radio-selection').getAnimations();
+			animations.forEach(animation => animation.pause());
+			effort = change === 'adds'
+				? { ...effort, enum: ['low', 'medium', 'high'], enumItemLabels: ['Low', 'Medium', 'High'] }
+				: { ...effort, enumItemDisabled: [true, false] };
+			result.card.refresh();
+			const rebuilt = element(result.card.element, '[role="radiogroup"]') !== group;
+			animations.forEach(animation => animation.finish());
+			await timeout(0);
+			const options = Array.from(element(result.card.element, '[role="radiogroup"]').querySelectorAll('[role="radio"]'));
+
+			assert.deepStrictEqual({
+				rebuilt,
+				values,
+				choices: options.map(option => option.textContent),
+				disabled: options.filter(option => option.getAttribute('aria-disabled') === 'true').map(option => option.textContent),
+				selected: selectedOptions(result.card),
+			}, {
+				rebuilt: true,
+				values: { effort: 'high' },
+				choices: change === 'adds' ? ['Low', 'Medium', 'High'] : ['Low', 'High'],
+				disabled: change === 'adds' ? [] : ['Low'],
+				selected: ['High'],
+			});
+		});
+	}
+
+	test('turning on reduced motion releases a refresh waiting for selection motion', async () => {
+		const result = await createAnimatedCard();
+		const group = element(result.card.element, '[role="radiogroup"]');
+		const indicator = element(group, '.monaco-radio-selection');
+		group.querySelectorAll<HTMLElement>('[role="radio"]')[0].click();
+		indicator.getAnimations().forEach(animation => animation.pause());
+		result.card.refresh();
+		result.card.element.classList.add('monaco-reduce-motion');
+		const animations = indicator.getAnimations().length;
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			values: result.values,
+			accepted: result.accepted,
+			selected: selectedOptions(result.card),
+			animations,
+		}, { values: { effort: 'low' }, accepted: 1, selected: ['Low', '264K'], animations: 0 });
 	});
 
 	test('reduced motion accepts a configuration change immediately without an animation delay', async () => {

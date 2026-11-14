@@ -10,6 +10,7 @@ import { getDefaultHoverDelegate } from '../../../../../../../base/browser/ui/ho
 import { renderLabelWithIcons } from '../../../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IRadioOptionItem, Radio } from '../../../../../../../base/browser/ui/radio/radio.js';
 import { Action } from '../../../../../../../base/common/actions.js';
+import { equals } from '../../../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { IStringDictionary } from '../../../../../../../base/common/collections.js';
 import { onUnexpectedError } from '../../../../../../../base/common/errors.js';
@@ -159,6 +160,14 @@ function routingAlternativesEqual(a: readonly IModelCardRoutingAlternative[] | u
 			&& alternative.label === b[index].label && alternative.replacesTier === b[index].replacesTier && alternative.selectsTier === b[index].selectsTier);
 }
 
+/** The effort and context settings the card's controls save to, with each choice and whether it can be chosen, to tell when rendered controls no longer fit. */
+function getConfigurationBindings(options: IModelCardOptions): readonly (readonly unknown[])[] {
+	return [MODEL_CONFIG_GROUP_EFFORT, MODEL_CONFIG_GROUP_CONTEXT].map(group => {
+		const property = getModelConfigProperty(options.model, options.configurationAccess, group, options.useModelConfigurationSchema);
+		return property ? [property.key, ...getModelConfigChoices(property).flatMap(choice => [choice.value, choice.readOnly])] : [];
+	});
+}
+
 /**
  * Model information and configuration, shared by the picker's details page and fixtures.
  * Configuration changes are written through and preserve keyboard focus.
@@ -172,6 +181,25 @@ export class ModelCard extends DisposableStore {
 	private readonly _groupControls = new Map<string, Radio>();
 	private readonly _pricingDisclosureListener = this.add(new MutableDisposable());
 	private _configurationChangeVersion = 0;
+	/** Choices made here that are still saving, in the order they were made. */
+	private readonly _pendingEdits = new Set<{ readonly configurationAccess: IModelConfigurationAccess; readonly modelId: string; readonly values: IStringDictionary<unknown> }>();
+	/** Reads the saved configuration with those choices on top, so a rebuild before they save keeps showing them. */
+	private readonly _configurationReader: Pick<IModelConfigurationAccess, 'getModelConfiguration' | 'getModelConfigurationSchema'> = {
+		getModelConfiguration: modelId => {
+			const { configurationAccess } = this._options;
+			let values = configurationAccess.getModelConfiguration(modelId);
+			for (const edit of this._pendingEdits) {
+				if (edit.configurationAccess === configurationAccess && edit.modelId === modelId) {
+					values = { ...values, ...edit.values };
+				}
+			}
+			return values;
+		},
+		getModelConfigurationSchema: modelId => this._options.configurationAccess.getModelConfigurationSchema?.(modelId),
+	};
+	private _renderPending = false;
+	/** The settings and choices the current controls were rendered with. */
+	private _renderedBindings: readonly (readonly unknown[])[] = [];
 	private _headerActions: ActionBar | undefined;
 	private _routingBadge: HTMLElement | undefined;
 	/** The effort level the routing badge describes: the one shown as selected, which a click changes before it saves. */
@@ -219,7 +247,7 @@ export class ModelCard extends DisposableStore {
 	}
 
 	private _configProperty(group: string): IModelConfigProperty | undefined {
-		return getModelConfigProperty(this._options.model, this._options.configurationAccess, group, this._options.useModelConfigurationSchema);
+		return getModelConfigProperty(this._options.model, this._configurationReader, group, this._options.useModelConfigurationSchema);
 	}
 
 	private async _setValues(values: IStringDictionary<unknown>, focusedGroup?: string): Promise<void> {
@@ -235,8 +263,10 @@ export class ModelCard extends DisposableStore {
 				}
 			}
 		}
+		let saved = false;
 		try {
-			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration, options.useModelConfigurationSchema);
+			await this._saveValues(options, values);
+			saved = true;
 			if (!this.isDisposed && version === this._configurationChangeVersion) {
 				if (options.selectModelOnConfigurationChange !== false) {
 					options.onSelect?.(options.model);
@@ -245,7 +275,9 @@ export class ModelCard extends DisposableStore {
 			}
 			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
 		} finally {
-			if (!this.isDisposed && version === this._configurationChangeVersion) {
+			// A failed choice is taken back wherever the card still shows its model, even after a newer selection.
+			const showsEdit = this._options.model.identifier === options.model.identifier && this._options.configurationAccess === options.configurationAccess;
+			if (!this.isDisposed && (version === this._configurationChangeVersion || (!saved && showsEdit))) {
 				this._renderPreservingFocus(focusedGroup);
 			}
 		}
@@ -254,7 +286,27 @@ export class ModelCard extends DisposableStore {
 		}
 	}
 
+	private async _saveValues(options: IModelCardOptions, values: IStringDictionary<unknown>): Promise<void> {
+		const edit = { configurationAccess: options.configurationAccess, modelId: options.model.identifier, values };
+		this._pendingEdits.add(edit);
+		try {
+			await setModelConfigValues(options.model, options.configurationAccess, values, options.onDidChangeConfiguration, options.useModelConfigurationSchema);
+		} finally {
+			this._pendingEdits.delete(edit);
+		}
+	}
+
 	private _renderPreservingFocus(fallbackGroup?: string): void {
+		// Controls for other settings or choices could save a value the model no longer offers, so they don't wait for their motion.
+		const controlsFit = equals(this._renderedBindings, getConfigurationBindings(this._options), (a, b) => equals(a, b));
+		if (controlsFit && this._renderPending) {
+			return;
+		}
+		if (controlsFit && [...this._groupControls.values()].some(control => control.isSelectionAnimating)) {
+			this._renderPending = true;
+			this._renderAfterSelectionAnimation(fallbackGroup).catch(onUnexpectedError);
+			return;
+		}
 		const hadFocus = this.element.contains(dom.getActiveElement()) || this.headerElement.contains(dom.getActiveElement());
 		const focusedControl = [...this._groupControls].find(([, control]) => dom.isAncestorOfActiveElement(control.domNode));
 		const group = focusedControl?.[0] ?? fallbackGroup;
@@ -272,6 +324,18 @@ export class ModelCard extends DisposableStore {
 			this._headerActions?.focus(actionIndex);
 		} else {
 			this._restoreFocus(group, optionIndex);
+		}
+	}
+
+	/** Rebuilding the setting controls would cut their selection motion short, so a rebuild waits for it to settle. */
+	private async _renderAfterSelectionAnimation(fallbackGroup?: string): Promise<void> {
+		try {
+			await Promise.all([...this._groupControls.values()].map(control => control.whenSelectionAnimationSettles()));
+		} finally {
+			this._renderPending = false;
+		}
+		if (!this.isDisposed) {
+			this._renderPreservingFocus(fallbackGroup);
 		}
 	}
 
@@ -307,6 +371,7 @@ export class ModelCard extends DisposableStore {
 		this._routingBadge = undefined;
 		this._routingBadgeTier = undefined;
 		this._groupControls.clear();
+		this._renderedBindings = getConfigurationBindings(this._options);
 
 		const { model, isUBB, openerService } = this._options;
 		const metadata = model.metadata;
@@ -398,7 +463,7 @@ export class ModelCard extends DisposableStore {
 			}
 		}
 
-		const changed = getChangedModelConfigProperties(this._options.model, this._options.configurationAccess, this._options.useModelConfigurationSchema);
+		const changed = getChangedModelConfigProperties(this._options.model, this._configurationReader, this._options.useModelConfigurationSchema);
 		if (!changed.length && !this._options.onTogglePin) {
 			return;
 		}
