@@ -22,7 +22,6 @@ import { registerExternalSessionsFilterMenu } from './externalSessionsFilterMenu
 import './agentHost/agentHostChatInputPicker.contribution.js';
 import './agentHost/agentHostModeSynchronizer.js';
 import './agentHost/agentHostWorktreeFollow.js';
-import './agentHost/agentHostWorktreeLocations.js';
 import { ChatSessionArchiveActionWordingSettingId, getChatSessionArchiveActionWording } from '../../../../../platform/chat/common/sessionArchiveActions.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 

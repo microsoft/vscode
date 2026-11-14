@@ -94,7 +94,7 @@ export interface IChatViewHostService extends IChatViewHost {
 
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
 
-	/** The chat that the host in use shows. */
+	/** The chat that the host in use shows; none while a host that does not report one ({@link IChatViewHost.shownSession}) is in use. */
 	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/**

@@ -5,25 +5,16 @@
 
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { basename, extUriBiasedIgnorePathCase, joinPath } from '../../../../../../base/common/resources.js';
 import { isDefined } from '../../../../../../base/common/types.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../../platform/files/common/files.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IFolderLocation, IWorkspaceFolderLocationProvider, IWorkspaceFolderLocationService } from '../../../../../../platform/workspace/common/folderLocations.js';
-import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../common/contributions.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { readFolderGitCheckout } from '../../../../../services/workspaces/common/gitFolderCheckout.js';
 import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
-import { ChatConfiguration } from '../../../common/constants.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 
@@ -135,54 +126,3 @@ export class AgentHostWorktreeLocationProvider implements IWorkspaceFolderLocati
 		return !!content && extUriBiasedIgnorePathCase.isEqual(isAbsolute(content) ? URI.file(content) : joinPath(worktreeGitDir, content), joinPath(folder, '.git'));
 	}
 }
-
-/** Offers the worktrees of the agent host's sessions as locations of an editor window's folder, while the setting is on. */
-export class AgentHostWorktreeLocationsContribution extends Disposable implements IWorkbenchContribution {
-
-	static readonly ID = 'workbench.contrib.agentHostWorktreeLocations';
-
-	private readonly _registration = this._register(new MutableDisposable());
-
-	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IWorkspaceFolderLocationService private readonly _folderLocationService: IWorkspaceFolderLocationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-	) {
-		super();
-		if (environmentService.isSessionsWindow) {
-			return;
-		}
-		this._update();
-		this._register(_configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.EditorWindowEnableWorktree)) {
-				this._update();
-			}
-		}));
-	}
-
-	private _update(): void {
-		if (!this._configurationService.getValue<boolean>(ChatConfiguration.EditorWindowEnableWorktree)) {
-			this._registration.clear();
-		} else if (!this._registration.value) {
-			this._registration.value = this._folderLocationService.registerProvider(this._instantiationService.createInstance(AgentHostWorktreeLocationProvider), { builtIn: true });
-		}
-	}
-}
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	id: 'chatSidebar',
-	title: localize('chatConfigurationTitle', "Chat"),
-	type: 'object',
-	properties: {
-		[ChatConfiguration.EditorWindowEnableWorktree]: {
-			type: 'boolean',
-			default: false,
-			tags: ['experimental'],
-			experiment: { mode: 'auto' },
-			markdownDescription: localize('chat.editorWindow.enableWorktree', "Controls whether a window with a single local folder can move that folder to the worktrees its agent host sessions work in, and back to the folder's own location."),
-		},
-	},
-});
-
-registerWorkbenchContribution2(AgentHostWorktreeLocationsContribution.ID, AgentHostWorktreeLocationsContribution, WorkbenchPhase.BlockRestore);
