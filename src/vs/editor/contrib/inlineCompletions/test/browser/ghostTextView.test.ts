@@ -16,7 +16,10 @@ import { Range } from '../../../../common/core/range.js';
 import { EditSources } from '../../../../common/textModelEditSource.js';
 import { createCodeEditorServices } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
+import { ShrinkEmptyLinesController } from '../../../shrinkEmptyLines/browser/shrinkEmptyLines.js';
+import { GhostText, GhostTextPart } from '../../browser/model/ghostText.js';
 import { InlineCompletionEditorType } from '../../browser/model/provideInlineCompletions.js';
+import { GhostTextView, IGhostTextWidgetData } from '../../browser/view/ghostText/ghostTextView.js';
 import { InlineEditTabAction } from '../../browser/view/inlineEdits/inlineEditsViewInterface.js';
 import { InlineEditsInsertionView } from '../../browser/view/inlineEdits/inlineEditsViews/inlineEditsInsertionView.js';
 import { InlineSuggestionsView } from '../../browser/view/inlineSuggestionsView.js';
@@ -82,6 +85,79 @@ suite('InlineSuggestionsView font family', () => {
 
 suite('GhostTextView', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('preserves indentation and cursor stops on shrunken lines', () => {
+		const container = document.createElement('div');
+		document.body.appendChild(container);
+		store.add(toDisposable(() => container.remove()));
+		const instantiationService = createCodeEditorServices(store);
+		const editor = store.add(instantiationService.createInstance(CodeEditorWidget, container, {
+			renderWhitespace: 'none',
+			minimap: { enabled: false },
+		}, { contributions: [] }));
+		const model = store.add(createTextModel(''));
+		model.updateOptions({ tabSize: 4 });
+		editor.setModel(model);
+		store.add(new ShrinkEmptyLinesController(editor));
+		editor.layout({ width: 700, height: 240 });
+		const input = observableValue<IGhostTextWidgetData | undefined>('ghostText', undefined);
+		const useSyntaxHighlighting = observableValue('useSyntaxHighlighting', true);
+		store.add(instantiationService.createInstance(GhostTextView, editor, input, { useSyntaxHighlighting }));
+
+		function getRenderedText(text: string) {
+			const token = Array.from(container.querySelectorAll('.view-line > span > span')).find(token => token.textContent?.includes(text));
+			assert.ok(token?.firstChild, `Missing rendered text: ${text}`);
+			const offset = token.textContent!.indexOf(text);
+			const range = document.createRange();
+			range.setStart(token.firstChild, offset);
+			range.setEnd(token.firstChild, offset + 1);
+			return {
+				left: range.getBoundingClientRect().left,
+				fontSize: getWindow(container).getComputedStyle(token).fontSize,
+			};
+		}
+
+		for (const syntaxHighlighting of [true, false]) {
+			useSyntaxHighlighting.set(syntaxHighlighting, undefined);
+			for (const [fontSize, multiplier] of [[26, 0.5], [40, 0.25], [26, 1], [26, 0.5]]) {
+				editor.updateOptions({ fontSize, lineHeight: fontSize * 1.5, shrinkEmptyLines: multiplier });
+				for (const indentation of ['    ', '\t', '']) {
+					model.setValue(`function sum() {\n\n${indentation}return total;\n}`);
+					editor.setPosition({ lineNumber: 2, column: 1 });
+					const suggestion = `${indentation}console.log(total);`;
+					input.set({
+						ghostText: new GhostText(2, [new GhostTextPart(1, suggestion, false)]),
+						warning: undefined,
+						handleInlineCompletionShown: () => { },
+					}, undefined);
+					editor.render(true);
+					const preview = getRenderedText('console.log(total);');
+					const reference = getRenderedText('return');
+					const previewHeight = editor.getLineHeightForPosition({ lineNumber: 2, column: 1 });
+					editor.trigger('keyboard', 'cursorRight', {});
+					const nextCursorPosition = editor.getPosition();
+					input.set(undefined, undefined);
+					model.applyEdits([{ range: new Range(2, 1, 2, 1), text: suggestion }]);
+					editor.render(true);
+					const accepted = getRenderedText('console.log(total);');
+
+					assert.deepStrictEqual({
+						alignedWithAcceptedText: Math.abs(preview.left - accepted.left) < 1,
+						alignedWithReference: Math.abs(preview.left - reference.left) < 1,
+						fontSize: preview.fontSize,
+						lineHeight: previewHeight,
+						nextCursorPosition,
+					}, {
+						alignedWithAcceptedText: true,
+						alignedWithReference: true,
+						fontSize: `${fontSize * multiplier}px`,
+						lineHeight: Math.round(fontSize * 1.5 * multiplier),
+						nextCursorPosition: new Position(3, 1),
+					}, `fontSize=${fontSize}, multiplier=${multiplier}, indentation=${JSON.stringify(indentation)}, syntaxHighlighting=${syntaxHighlighting}`);
+				}
+			}
+		}
+	});
 
 	test('accepting a multi-line insertion preserves the viewport', async () => {
 		const context = await createInsertionViewContext(store);

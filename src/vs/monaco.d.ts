@@ -3948,6 +3948,16 @@ declare namespace monaco.editor {
 		 */
 		lineHeight?: number;
 		/**
+		 * Line height and font size multiplier for lines selected by `shrinkEmptyLinesKind`, between 0.25 and 1 inclusive (1 disables shrinking); requires variable line heights and variable fonts.
+		 * Empty-editor hint text and inline suggestions on these lines use the same font size; suggestion continuation lines retain their regular size.
+		 */
+		shrinkEmptyLines?: number;
+		/**
+		 * Controls which lines shrink: `blank` for empty and whitespace-only lines, or `punctuation` for lines without letters or numbers.
+		 * Defaults to `blank`.
+		 */
+		shrinkEmptyLinesKind?: 'blank' | 'punctuation';
+		/**
 		 * The letter spacing
 		 */
 		letterSpacing?: number;
@@ -5255,55 +5265,58 @@ declare namespace monaco.editor {
 		selectOnLineNumbers = 128,
 		showFoldingControls = 129,
 		showUnused = 130,
-		snippetSuggestions = 131,
-		smartSelect = 132,
-		smoothScrolling = 133,
-		stickyScroll = 134,
-		stickyTabStops = 135,
-		stopRenderingLineAfter = 136,
-		suggest = 137,
-		suggestFontSize = 138,
-		suggestLineHeight = 139,
-		suggestOnTriggerCharacters = 140,
-		suggestSelection = 141,
-		tabCompletion = 142,
-		tabIndex = 143,
-		trimWhitespaceOnDelete = 144,
-		unicodeHighlighting = 145,
-		unusualLineTerminators = 146,
-		useShadowDOM = 147,
-		useTabStops = 148,
-		wordBreak = 149,
-		wordSegmenterLocales = 150,
-		wordSeparators = 151,
-		wordWrap = 152,
-		wordWrapBreakAfterCharacters = 153,
-		wordWrapBreakBeforeCharacters = 154,
-		wordWrapColumn = 155,
-		wordWrapOverride1 = 156,
-		wordWrapOverride2 = 157,
-		wrappingIndent = 158,
-		wrappingStrategy = 159,
-		showDeprecated = 160,
-		inertialScroll = 161,
-		inlayHints = 162,
-		wrapOnEscapedLineFeeds = 163,
-		wordWrapIndicator = 164,
-		effectiveCursorStyle = 165,
-		editorClassName = 166,
-		pixelRatio = 167,
-		tabFocusMode = 168,
-		layoutInfo = 169,
-		wrappingInfo = 170,
-		defaultColorDecorators = 171,
-		colorDecoratorsActivatedOn = 172,
-		inlineCompletionsAccessibilityVerbose = 173,
-		effectiveEditContext = 174,
-		scrollOnMiddleClick = 175,
-		effectiveAllowVariableFonts = 176,
-		doubleClickSelectsBlock = 177,
-		fullwidthCharacterWidth = 178,
-		effectiveFullwidthCharacterWidth = 179
+		shrinkEmptyLines = 131,
+		shrinkEmptyLinesKind = 132,
+		snippetSuggestions = 133,
+		smartSelect = 134,
+		smoothScrolling = 135,
+		stickyScroll = 136,
+		stickyTabStops = 137,
+		stopRenderingLineAfter = 138,
+		suggest = 139,
+		suggestFontSize = 140,
+		suggestLineHeight = 141,
+		suggestOnTriggerCharacters = 142,
+		suggestSelection = 143,
+		tabCompletion = 144,
+		tabIndex = 145,
+		trimWhitespaceOnDelete = 146,
+		unicodeHighlighting = 147,
+		unusualLineTerminators = 148,
+		useShadowDOM = 149,
+		useTabStops = 150,
+		wordBreak = 151,
+		wordSegmenterLocales = 152,
+		wordSeparators = 153,
+		wordWrap = 154,
+		wordWrapBreakAfterCharacters = 155,
+		wordWrapBreakBeforeCharacters = 156,
+		wordWrapColumn = 157,
+		wordWrapOverride1 = 158,
+		wordWrapOverride2 = 159,
+		wrappingIndent = 160,
+		wrappingStrategy = 161,
+		showDeprecated = 162,
+		inertialScroll = 163,
+		inlayHints = 164,
+		wrapOnEscapedLineFeeds = 165,
+		wordWrapIndicator = 166,
+		effectiveCursorStyle = 167,
+		editorClassName = 168,
+		pixelRatio = 169,
+		tabFocusMode = 170,
+		layoutInfo = 171,
+		wrappingInfo = 172,
+		defaultColorDecorators = 173,
+		colorDecoratorsActivatedOn = 174,
+		inlineCompletionsAccessibilityVerbose = 175,
+		effectiveEditContext = 176,
+		scrollOnMiddleClick = 177,
+		effectiveAllowVariableFonts = 178,
+		doubleClickSelectsBlock = 179,
+		fullwidthCharacterWidth = 180,
+		effectiveFullwidthCharacterWidth = 181,
+		effectiveShrinkEmptyLines = 182
 	}
 
 	export const EditorOptions: {
@@ -5444,6 +5457,8 @@ declare namespace monaco.editor {
 		selectOnLineNumbers: IEditorOption<EditorOption.selectOnLineNumbers, boolean>;
 		showFoldingControls: IEditorOption<EditorOption.showFoldingControls, 'always' | 'never' | 'mouseover'>;
 		showUnused: IEditorOption<EditorOption.showUnused, boolean>;
+		shrinkEmptyLines: IEditorOption<EditorOption.shrinkEmptyLines, number>;
+		shrinkEmptyLinesKind: IEditorOption<EditorOption.shrinkEmptyLinesKind, 'blank' | 'punctuation'>;
 		showDeprecated: IEditorOption<EditorOption.showDeprecated, boolean>;
 		inlayHints: IEditorOption<EditorOption.inlayHints, Readonly<Required<IEditorInlayHintsOptions>>>;
 		snippetSuggestions: IEditorOption<EditorOption.snippetSuggestions, 'none' | 'inline' | 'top' | 'bottom'>;
@@ -5487,6 +5502,7 @@ declare namespace monaco.editor {
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
 		effectiveFullwidthCharacterWidth: IEditorOption<EditorOption.effectiveFullwidthCharacterWidth, 'font' | 'twoCells'>;
+		effectiveShrinkEmptyLines: IEditorOption<EditorOption.effectiveShrinkEmptyLines, number>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

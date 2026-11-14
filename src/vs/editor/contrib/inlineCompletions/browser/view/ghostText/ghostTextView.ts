@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '..
 import { IObservable, autorun, autorunWithStore, constObservable, derived, derivedOpts, observableSignalFromEvent, observableValue } from '../../../../../../base/common/observable.js';
 import * as strings from '../../../../../../base/common/strings.js';
 import { applyFontInfo } from '../../../../../browser/config/domFontInfo.js';
+import { ClassNameReference, DynamicCssRules } from '../../../../../browser/editorDom.js';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidgetPosition, IViewZoneChangeAccessor, MouseTargetType } from '../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../browser/observableCodeEditor.js';
 import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from '../../../../../common/config/editorOptions.js';
@@ -27,6 +28,7 @@ import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayou
 import { GhostText, GhostTextReplacement, IGhostTextLine } from '../../model/ghostText.js';
 import { RangeSingleLine } from '../../../../../common/core/ranges/rangeSingleLine.js';
 import { ColumnRange } from '../../../../../common/core/ranges/columnRange.js';
+import { OffsetRange } from '../../../../../common/core/ranges/offsetRange.js';
 import { addDisposableListener, getWindow, isHTMLElement, n } from '../../../../../../base/browser/dom.js';
 import './ghostTextView.css';
 import { IMouseEvent, StandardMouseEvent } from '../../../../../../base/browser/mouseEvent.js';
@@ -79,6 +81,14 @@ export class GhostTextView extends Disposable {
 	private readonly _minReservedLineCount: IObservable<number>;
 	private readonly _useSyntaxHighlighting: IObservable<boolean>;
 	private readonly _highlightShortText: boolean;
+	private readonly _ruleFactory: DynamicCssRules;
+	private readonly _whitespaceFontSizeRule = this._register(new MutableDisposable<ClassNameReference>());
+	private readonly _whitespaceFontSizeClassName = derived(this, reader => {
+		const fontSize = this._editorObs.getOption(EditorOption.fontInfo).read(reader).fontSize;
+		const rule = this._ruleFactory.createClassNameRef({ fontSize: `${fontSize}px`, verticalAlign: 'top' });
+		this._whitespaceFontSizeRule.value = rule;
+		return rule.className;
+	});
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -95,6 +105,7 @@ export class GhostTextView extends Disposable {
 	) {
 		super();
 
+		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
 		this._extraClasses = options.extraClasses ?? [];
 		this._isClickable = options.isClickable ?? false;
 		this._shouldKeepCursorStable = options.shouldKeepCursorStable ?? false;
@@ -319,24 +330,48 @@ export class GhostTextView extends Disposable {
 			if (this._highlightShortText && p.text.length < 5) {
 				inlineExtraClassNames += ' short-text';
 			}
-			decorations.push({
-				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
-				options: {
-					description: 'ghost-text-decoration',
-					after: {
-						content: p.text,
-						tokens: p.tokens,
-						inlineClassName: (p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration')
-							+ (this._isClickable ? ' clickable' : '')
-							+ extraClassNames
-							+ inlineExtraClassNames
-							+ p.lineDecorations.map(d => ' ' + d.className).join(' '), // TODO: take the ranges into account for line decorations
-						cursorStops: InjectedTextCursorStops.Left,
-						attachedData: new GhostTextAttachedData(this),
-					},
-					showIfCollapsed: true,
-				}
-			});
+			const inlineClassName = (p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration')
+				+ (this._isClickable ? ' clickable' : '')
+				+ extraClassNames
+				+ inlineExtraClassNames
+				+ p.lineDecorations.map(d => ' ' + d.className).join(' '); // TODO: take the ranges into account for line decorations
+			const leadingWhitespaceLength = /^\s+/.exec(p.text)?.[0].length ?? 0;
+			let parts: { content: string; tokens: typeof p.tokens; inlineClassName: string }[];
+			if (leadingWhitespaceLength > 0 && leadingWhitespaceLength < p.text.length) {
+				const whitespaceRange = new OffsetRange(0, leadingWhitespaceLength);
+				const remainingRange = new OffsetRange(leadingWhitespaceLength, p.text.length);
+				parts = [{
+					content: whitespaceRange.substring(p.text),
+					tokens: p.tokens?.slice(whitespaceRange),
+					inlineClassName: inlineClassName + ' ' + this._whitespaceFontSizeClassName.read(reader),
+				}, {
+					content: remainingRange.substring(p.text),
+					tokens: p.tokens?.slice(remainingRange),
+					inlineClassName,
+				}];
+			} else {
+				parts = [{
+					content: p.text,
+					tokens: p.tokens,
+					inlineClassName,
+				}];
+			}
+			for (const part of parts) {
+				decorations.push({
+					range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
+					options: {
+						description: 'ghost-text-decoration',
+						after: {
+							content: part.content,
+							tokens: part.tokens,
+							inlineClassName: part.inlineClassName,
+							cursorStops: InjectedTextCursorStops.Left,
+							attachedData: new GhostTextAttachedData(this),
+						},
+						showIfCollapsed: true,
+					}
+				});
+			}
 		}
 
 		return decorations;

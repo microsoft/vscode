@@ -172,7 +172,8 @@ export class ViewLine implements IVisibleLine {
 			lineData.textDirection,
 			options.verticalScrollbarSize,
 			false,
-			options.useTwoCellFullwidthCharacters
+			options.useTwoCellFullwidthCharacters,
+			lineData.lineFontSize
 		);
 
 		if (this._renderedViewLine && this._renderedViewLine.input.equals(renderLineInput)) {
@@ -196,7 +197,13 @@ export class ViewLine implements IVisibleLine {
 			sb.appendString('px;padding-right:');
 			sb.appendString(String(options.verticalScrollbarSize));
 		}
-		sb.appendString('px;" class="');
+		sb.appendString('px;');
+		if (lineData.lineFontSize !== null) {
+			sb.appendString('font-size:');
+			sb.appendString(lineData.lineFontSize);
+			sb.appendString(';');
+		}
+		sb.appendString('" class="');
 		sb.appendString(ViewLine.CLASS_NAME);
 		sb.appendString('">');
 

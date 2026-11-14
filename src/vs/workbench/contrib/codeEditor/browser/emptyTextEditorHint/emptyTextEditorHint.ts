@@ -243,10 +243,15 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		super();
 
 		this._register(this.editor.onDidChangeConfiguration((e: ConfigurationChangedEvent) => {
-			if (this.domNode && e.hasChanged(EditorOption.fontInfo)) {
-				this.editor.applyFontInfo(this.domNode);
+			if (this.domNode && e.hasChanged(EditorOption.fontInfo)
+				|| e.hasChanged(EditorOption.lineHeight)
+				|| e.hasChanged(EditorOption.effectiveAllowVariableFonts)
+				|| e.hasChanged(EditorOption.allowVariableLineHeights)) {
+				this.applyFontInfo();
 			}
 		}));
+		this._register(this.editor.onDidChangeLineHeight(() => this.applyFontInfo()));
+		this._register(this.editor.onDidChangeFont(() => this.applyFontInfo()));
 		const onDidFocusEditorText = Event.debounce(this.editor.onDidFocusEditorText, () => undefined, 500);
 		this._register(onDidFocusEditorText(() => {
 			if (this.editor.hasTextFocus() && this.isVisible && this.ariaLabel && this.configurationService.getValue(AccessibilityVerbositySettingId.EmptyEditorHint)) {
@@ -373,6 +378,20 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 		return { hintElement, ariaLabel };
 	}
 
+	private applyFontInfo(): void {
+		if (!this.domNode) {
+			return;
+		}
+		// Reuse the editor's full font styling, then override only size and line height to match the first line if it is shrunk
+		this.editor.applyFontInfo(this.domNode);
+		const fontSize = this.editor._getViewModel()?.getViewLineRenderingData(1).lineFontSize;
+		if (fontSize) {
+			this.domNode.style.fontSize = fontSize;
+		}
+		const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
+		this.domNode.style.lineHeight = `${lineHeight}px`;
+	}
+
 	getDomNode(): HTMLElement {
 		if (!this.domNode) {
 			this.domNode = $('.empty-editor-hint');
@@ -387,9 +406,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 				this.editor.focus();
 			}));
 
-			this.editor.applyFontInfo(this.domNode);
-			const lineHeight = this.editor.getLineHeightForPosition(new Position(1, 1));
-			this.domNode.style.lineHeight = lineHeight + 'px';
+			this.applyFontInfo();
 		}
 
 		return this.domNode;

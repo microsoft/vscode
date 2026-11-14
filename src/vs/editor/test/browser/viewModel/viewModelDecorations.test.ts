@@ -14,6 +14,48 @@ suite('ViewModelDecorations', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
+	test('collects per-view-line font sizes through wrapping and folding', () => {
+		testViewModel([
+			'header',
+			'hello world, this is a buffer that will be wrapped',
+			'',
+			'tail'
+		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 13, allowVariableFonts: true }, (viewModel, model) => {
+			model.deltaDecorations([], [
+				{
+					range: new Range(2, 1, 2, 1),
+					options: { description: 'test-wrapped-line-font', isWholeLine: true, fontSize: '10px' }
+				},
+				{
+					range: new Range(3, 1, 3, 1),
+					options: { description: 'test-empty-line-font', isWholeLine: true, fontSize: '8px' }
+				}
+			]);
+			function getLineFontSizes(range: Range) {
+				const lineNumbers = Array.from({ length: range.endLineNumber - range.startLineNumber + 1 }, (_, index) => range.startLineNumber + index);
+				return {
+					viewport: lineNumbers.map(lineNumber => viewModel.getViewportViewLineRenderingData(range, lineNumber).lineFontSize),
+					line: lineNumbers.map(lineNumber => viewModel.getViewLineRenderingData(lineNumber).lineFontSize)
+				};
+			}
+			const visibleRange = new Range(3, viewModel.getLineMinColumn(3), 8, viewModel.getLineMaxColumn(8));
+			const results = [getLineFontSizes(visibleRange)];
+
+			viewModel.setHiddenAreas([new Range(2, 1, 3, 1)]);
+			results.push(getLineFontSizes(new Range(1, 1, 2, viewModel.getLineMaxColumn(2))));
+			viewModel.setHiddenAreas([]);
+			results.push(getLineFontSizes(visibleRange));
+			const visibleFontSizes = ['10px', '10px', '10px', '10px', '8px', null];
+			const foldedFontSizes = [null, null];
+
+			assert.deepStrictEqual(results, [
+				{ viewport: visibleFontSizes, line: visibleFontSizes },
+				{ viewport: foldedFontSizes, line: foldedFontSizes },
+				{ viewport: visibleFontSizes, line: visibleFontSizes }
+			]);
+		});
+	});
+
 	test('getDecorationsViewportData', () => {
 		const text = [
 			'hello world, this is a buffer that will be wrapped'

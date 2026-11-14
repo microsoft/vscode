@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IModelDecoration, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
+import { IModelDecoration, IModelDecorationOptions, InjectedTextOptions, ITextModel, PositionAffinity } from '../model.js';
 import { Range } from '../core/range.js';
 import { Position } from '../core/position.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
@@ -48,6 +48,10 @@ export interface IViewDecorationsCollection {
 	 * Whether the decorations affect the fonts.
 	 */
 	readonly hasVariableFonts: boolean[];
+	/**
+	 * Line font sizes for each view line.
+	 */
+	readonly lineFontSizes: (string | null)[];
 }
 
 export interface IInlineDecorationsComputer {
@@ -92,9 +96,11 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 		let decorationsInViewportLen = 0;
 		const inlineDecorations: InlineDecoration[][] = [];
 		const hasVariableFonts: boolean[] = [];
+		const lineFontSizes: (string | null)[] = [];
 		for (let j = startLineNumber; j <= endLineNumber; j++) {
 			inlineDecorations[j - startLineNumber] = [];
 			hasVariableFonts[j - startLineNumber] = false;
+			lineFontSizes[j - startLineNumber] = null;
 		}
 
 		for (let i = 0, len = modelDecorations.length; i < len; i++) {
@@ -110,14 +116,21 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
-			if (decorationOptions.inlineClassName) {
-				const inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
+			if (decorationOptions.inlineClassName || this._isLineFontSizeDecoration(decorationOptions)) {
+				const inlineDecoration = decorationOptions.inlineClassName
+					? new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular)
+					: null;
 				const intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				const intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {
-					inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					if (inlineDecoration) {
+						inlineDecorations[j - startLineNumber].push(inlineDecoration);
+					}
 					if (decorationOptions.affectsFont) {
 						hasVariableFonts[j - startLineNumber] = true;
+					}
+					if (this._isLineFontSizeDecoration(decorationOptions)) {
+						lineFontSizes[j - startLineNumber] ??= decorationOptions.fontSize!;
 					}
 				}
 			}
@@ -152,8 +165,13 @@ export class InlineModelDecorationsComputer implements IInlineDecorationsCompute
 		return {
 			decorations: decorationsInViewport,
 			inlineDecorations: inlineDecorations,
-			hasVariableFonts
+			hasVariableFonts,
+			lineFontSizes
 		};
+	}
+
+	private _isLineFontSizeDecoration(decorationOptions: IModelDecorationOptions): boolean {
+		return !!decorationOptions.isWholeLine && !decorationOptions.inlineClassName && !!decorationOptions.fontSize;
 	}
 
 	public reset(): void {

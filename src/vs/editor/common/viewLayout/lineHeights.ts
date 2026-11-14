@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch2 } from '../../../base/common/arrays.js';
+import { findFirstMonotonous } from '../../../base/common/arraysFind.js';
 import { intersection } from '../../../base/common/collections.js';
 import { IEditorConfiguration } from '../config/editorConfiguration.js';
 import { EditorOption } from '../config/editorOptions.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
+import { Range } from '../core/range.js';
+import { LineRange, LineRangeSet } from '../core/ranges/lineRange.js';
 import { IModelDecoration } from '../model.js';
 
 const enum PendingChangeKind {
@@ -57,7 +60,7 @@ export class CustomLine {
  *
  * The class optimizes performance by:
  * - Using binary search to locate lines in the ordered array
- * - Batching updates through a pending changes mechanism
+ * - Batching updates and sorting insertions once per batch
  * - Computing prefix sums for O(1) accumulated height lookup
  * - Tracking maximum height for lines with multiple decorations
  * - Efficiently handling document changes (line insertions and deletions)
@@ -199,19 +202,26 @@ export class LineHeightsManager {
 		if (stagedInserts.length === 0 && this._invalidIndex === Infinity) {
 			return;
 		}
+		let hasInserts = false;
 		for (const pendingChange of stagedInserts) {
 			if (pendingChange.deleted) {
 				continue;
 			}
-			const candidateInsertionIndex = this._binarySearchOverOrderedCustomLinesArray(pendingChange.lineNumber);
-			const insertionIndex = candidateInsertionIndex >= 0 ? candidateInsertionIndex : -(candidateInsertionIndex + 1);
-			this._orderedCustomLines.splice(insertionIndex, 0, pendingChange);
-			this._invalidIndex = Math.min(this._invalidIndex, insertionIndex);
+			this._orderedCustomLines.push(pendingChange);
+			hasInserts = true;
+		}
+		if (hasInserts) {
+			this._orderedCustomLines.sort((a, b) => a.lineNumber - b.lineNumber);
+			this._invalidIndex = 0;
 		}
 		stagedInserts.length = 0;
 		stagedIdMap.clear();
 		if (this._invalidIndex === Infinity) {
 			return;
+		}
+		// Rewind to recompute the maximum height of the line at the invalid index
+		while (this._invalidIndex > 0 && this._orderedCustomLines[this._invalidIndex - 1].lineNumber === this._orderedCustomLines[this._invalidIndex].lineNumber) {
+			this._invalidIndex--;
 		}
 		const newDecorationIDToSpecialLine = new ArrayMap<string, CustomLine>();
 		const newOrderedSpecialLines: CustomLine[] = [];
@@ -450,17 +460,28 @@ export class CustomLineHeightData {
 		readonly lineHeight: number
 	) { }
 
-	public static fromDecorations(decorations: IModelDecoration[], coordinatesConverter: ICoordinatesConverter, configuration: IEditorConfiguration): CustomLineHeightData[] {
+	/** Fully hidden model-line ranges must not resize the visible lines they project onto. */
+	public static fromDecorations(decorations: IModelDecoration[], coordinatesConverter: ICoordinatesConverter, configuration: IEditorConfiguration, hiddenAreas: readonly Range[]): CustomLineHeightData[] {
 		const defaultLineHeight = configuration.options.get(EditorOption.lineHeight);
-		return decorations.map((d) => {
-			const viewRange = coordinatesConverter.convertModelRangeToViewRange(d.range);
-			return new CustomLineHeightData(
-				d.id,
+		const hiddenLineRanges = new LineRangeSet();
+		for (const hiddenArea of hiddenAreas) {
+			hiddenLineRanges.addRange(LineRange.fromRangeInclusive(hiddenArea));
+		}
+		const result: CustomLineHeightData[] = [];
+		for (const decoration of decorations) {
+			const hiddenArea = findFirstMonotonous(hiddenLineRanges.ranges, area => area.endLineNumberExclusive > decoration.range.endLineNumber);
+			if (hiddenArea && hiddenArea.startLineNumber <= decoration.range.startLineNumber) {
+				continue;
+			}
+			const viewRange = coordinatesConverter.convertModelRangeToViewRange(decoration.range);
+			result.push(new CustomLineHeightData(
+				decoration.id,
 				viewRange.startLineNumber,
 				viewRange.endLineNumber,
-				d.options.lineHeight ? d.options.lineHeight * defaultLineHeight : 0
-			);
-		});
+				decoration.options.lineHeight ? decoration.options.lineHeight * defaultLineHeight : 0
+			));
+		}
+		return result;
 	}
 }
 

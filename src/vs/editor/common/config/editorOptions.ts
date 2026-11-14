@@ -793,6 +793,16 @@ export interface IEditorOptions {
 	 */
 	lineHeight?: number;
 	/**
+	 * Line height and font size multiplier for lines selected by `shrinkEmptyLinesKind`, between 0.25 and 1 inclusive (1 disables shrinking); requires variable line heights and variable fonts.
+	 * Empty-editor hint text and inline suggestions on these lines use the same font size; suggestion continuation lines retain their regular size.
+	 */
+	shrinkEmptyLines?: number;
+	/**
+	 * Controls which lines shrink: `blank` for empty and whitespace-only lines, or `punctuation` for lines without letters or numbers.
+	 * Defaults to `blank`.
+	 */
+	shrinkEmptyLinesKind?: 'blank' | 'punctuation';
+	/**
 	 * The letter spacing
 	 */
 	letterSpacing?: number;
@@ -2129,6 +2139,22 @@ class EffectiveFullwidthCharacterWidth extends ComputedEditorOption<EditorOption
 			return 'twoCells';
 		}
 		return 'font';
+	}
+}
+
+//#endregion
+
+//#region effectiveShrinkEmptyLines
+
+class EffectiveShrinkEmptyLines extends ComputedEditorOption<EditorOption.effectiveShrinkEmptyLines, number> {
+
+	constructor() {
+		super(EditorOption.effectiveShrinkEmptyLines, 1);
+	}
+
+	public compute(_env: IEnvironmentalOptions, options: IComputedEditorOptions): number {
+		return options.get(EditorOption.allowVariableLineHeights) && options.get(EditorOption.effectiveAllowVariableFonts)
+			? options.get(EditorOption.shrinkEmptyLines) : 1;
 	}
 }
 
@@ -6070,6 +6096,8 @@ export const enum EditorOption {
 	selectOnLineNumbers,
 	showFoldingControls,
 	showUnused,
+	shrinkEmptyLines,
+	shrinkEmptyLinesKind,
 	snippetSuggestions,
 	smartSelect,
 	smoothScrolling,
@@ -6120,7 +6148,8 @@ export const enum EditorOption {
 	doubleClickSelectsBlock,
 	fullwidthCharacterWidth,
 	// Must come after `fullwidthCharacterWidth`, which it is computed from.
-	effectiveFullwidthCharacterWidth
+	effectiveFullwidthCharacterWidth,
+	effectiveShrinkEmptyLines
 }
 
 export const EditorOptions = {
@@ -6853,6 +6882,26 @@ export const EditorOptions = {
 		EditorOption.showUnused, 'showUnused', true,
 		{ description: nls.localize('showUnused', "Controls fading out of unused code.") }
 	)),
+	shrinkEmptyLines: register(new EditorFloatOption(
+		EditorOption.shrinkEmptyLines, 'shrinkEmptyLines',
+		1, x => EditorFloatOption.clamp(x, 0.25, 1),
+		{
+			markdownDescription: nls.localize('shrinkEmptyLines', "Controls the line height and font size of lines selected by `#editor.shrinkEmptyLinesKind#`, as a multiplier of the regular editor line height and font size, between 0.25 and 1. A value of 1 uses the regular line height and font size. Requires `#editor.allowVariableLineHeights#` and `#editor.allowVariableFonts#` to be enabled, or `#editor.allowVariableFontsInAccessibilityMode#` instead of `#editor.allowVariableFonts#` in accessibility mode.")
+		},
+		0.25, 1
+	)),
+	shrinkEmptyLinesKind: register(new EditorStringEnumOption(
+		EditorOption.shrinkEmptyLinesKind, 'shrinkEmptyLinesKind',
+		'blank' as 'blank' | 'punctuation',
+		['blank', 'punctuation'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('shrinkEmptyLinesKind.blank', "Shrink empty and whitespace-only lines."),
+				nls.localize('shrinkEmptyLinesKind.punctuation', "Shrink lines without Unicode letters or numbers, including empty, whitespace-only, and punctuation-only lines."),
+			],
+			markdownDescription: nls.localize('shrinkEmptyLinesKind', "Controls which lines are shrunk when `#editor.shrinkEmptyLines#` is less than 1.")
+		}
+	)),
 	showDeprecated: register(new EditorBooleanOption(
 		EditorOption.showDeprecated, 'showDeprecated', true,
 		{ description: nls.localize('showDeprecated', "Controls strikethrough deprecated variables.") }
@@ -7074,7 +7123,8 @@ export const EditorOptions = {
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
 	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
-	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth())
+	effectiveFullwidthCharacterWidth: register(new EffectiveFullwidthCharacterWidth()),
+	effectiveShrinkEmptyLines: register(new EffectiveShrinkEmptyLines())
 };
 
 type EditorOptionsType = typeof EditorOptions;
