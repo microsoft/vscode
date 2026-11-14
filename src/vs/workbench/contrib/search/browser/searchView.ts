@@ -1285,7 +1285,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateText(text: string, allowSearchOnType: boolean = true) {
-		if (allowSearchOnType && !this.viewModel.searchResult.isDirty) {
+		// Keep a curated (dismissed/replaced) result list only when the query is unchanged
+		const keepResults = this.viewModel.searchResult.isDirty && this.viewModel.searchResult.query?.contentPattern.pattern === text;
+		if (allowSearchOnType && !keepResults) {
 			this.searchWidget.setValue(text);
 		} else {
 			this.pauseSearching = true;
