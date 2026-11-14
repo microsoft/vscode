@@ -50,7 +50,6 @@ export enum ChatConfiguration {
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
 	ChatViewSessionsListEnabled = 'chat.viewSessions.sessionsList.enabled',
-	ChatViewSessionsOpenInChatPart = 'chat.viewSessions.openInChatPart',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',

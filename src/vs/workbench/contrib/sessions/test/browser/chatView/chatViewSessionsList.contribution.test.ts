@@ -23,6 +23,7 @@ import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneCo
 import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { FindAgentSessionInViewerAction, RefreshAgentSessionsViewerAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
@@ -112,6 +113,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
 		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
 		instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		stub?.(instantiationService);
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}

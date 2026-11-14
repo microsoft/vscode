@@ -57,7 +57,7 @@ suite('EditorWindowChatPartService', () => {
 			contextKeyService,
 			upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }),
 			upcastPartial<IChatViewHostService>({ registerHost: () => { events.push('register host'); return toDisposable(() => events.push('unregister host')); } }),
-			upcastPartial<IEditorWindowSessionsPresenterService>({ registerPresenter: () => { events.push('register presenter'); return toDisposable(() => events.push('unregister presenter')); } }),
+			upcastPartial<IEditorWindowSessionsPresenterService>({ registerPresenter: () => { events.push('register presenter'); return toDisposable(() => events.push('unregister presenter')); }, registerComposerHolder: () => toDisposable(() => { }) }),
 			upcastPartial<IEditorWindowSessionsRuntime>({ enable: () => { events.push('hold providers'); return toDisposable(() => events.push('release providers')); } }),
 			upcastPartial<IAgentsChatPartFrame>({ get part() { events.push('create part'); return undefined!; }, contentCreated: constObservable(false) }),
 		));
