@@ -1812,7 +1812,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.viewDescriptorService.onDidChangeContainer,
 				this.viewDescriptorService.onDidChangeLocation,
 				this.viewDescriptorService.onDidChangeViewContainers,
-				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered
+				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsRegistered,
+				Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).onViewsDeregistered
 			)(() => this.updateChatPartPosition()));
 		}
 
@@ -2574,12 +2575,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		this.chatPartPosition = this.computeChatPartPosition();
 
+		// Moving a view in the grid takes it out of the DOM and back: what had focus in it gets it again
+		const hadFocus = this.hasFocus(Parts.CHAT_PART);
 		const visible = !this.chatPartHidden;
 		const width = visible ? this.workbenchGrid.getViewSize(this.chatPartView).width : undefined;
 		const sizing = width ?? Sizing.Invisible(this.workbenchGrid.getViewCachedVisibleSize(this.chatPartView) ?? this.chatPartView.minimumWidth);
 		this.workbenchGrid.moveView(this.chatPartView, sizing, this.editorPartView, this.getChatPartDirection());
 		if (width !== undefined) {
 			this.workbenchGrid.resizeView(this.chatPartView, { width, height: this.workbenchGrid.getViewSize(this.chatPartView).height });
+		}
+		if (hadFocus) {
+			this.focusPart(Parts.CHAT_PART);
 		}
 	}
 

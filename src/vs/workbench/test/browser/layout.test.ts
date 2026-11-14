@@ -197,11 +197,13 @@ suite('Workbench layout chat part', () => {
 		const initialization = new Map<string, unknown>([['sideBar.size', 250], ['auxiliaryBar.size', 260], ['panel.size', 200]]);
 		const anchor = { location: configuration.anchor ?? null };
 		let stored = saved ? saved.stored : configuration.chat && configuration.chat !== 'noLayout' ? JSON.stringify({ version: 1, ...configuration.chat }) : undefined;
+		const focus = { chat: false, focused: [] as string[] };
 		const layout = store.add(new class extends Layout {
 			override isVisible(part: Parts, targetWindow?: Window): boolean {
 				return part === Parts.TITLEBAR_PART || super.isVisible(part, targetWindow);
 			}
-			override hasFocus() { return false; }
+			override hasFocus(part: Parts) { return part === Parts.CHAT_PART && focus.chat; }
+			override focusPart(part: Parts) { focus.focused.push(part.split('.').pop()!); }
 			override isFloatingPanelsEnabled() { return false; }
 			protected override getPart(id: Parts) { return views.get(id)!; }
 		}(mainWindow.document.body));
@@ -228,7 +230,7 @@ suite('Workbench layout chat part', () => {
 			(Reflect.get(layout, 'saveChatPartLayout') as () => void).call(layout);
 			return { runtime, stored };
 		};
-		return { layout, views, descriptor, save, anchor };
+		return { layout, views, descriptor, save, anchor, focus };
 	}
 
 	/** The parts of `node`, nested as the grid nests them, marking hidden parts. */
@@ -304,13 +306,13 @@ suite('Workbench layout chat part', () => {
 	});
 
 	function createGridLayout(configuration: ILayoutConfiguration, saved?: ISavedLayout) {
-		const { layout, views, descriptor, save, anchor } = createLayout(configuration, saved);
+		const { layout, views, descriptor, save, anchor, focus } = createLayout(configuration, saved);
 		const grid = store.add(SerializableGrid.deserialize(descriptor, { fromJSON: ({ type }: { type: Parts }) => views.get(type)! }, { proportionalLayout: false }));
 		append(layout.mainContainer, grid.element);
 		grid.layout(1600, 900);
 		Object.assign(layout, { workbenchGrid: grid });
 		const middle = () => shape((grid.serialize().root.data as ISerializedNode[])[2]);
-		return { layout, grid, middle, save, anchor, views };
+		return { layout, grid, middle, save, anchor, views, focus };
 	}
 
 	test('the visible neighbors of the parts beside a chat part are the chat part, as long as it shows', () => {
@@ -510,6 +512,24 @@ suite('Workbench layout chat part', () => {
 		assert.deepStrictEqual(steps, {
 			maximized: false,
 			restored: ['activitybar', 'sidebar', [['editor', 'chat'], 'panel'], 'auxiliarybar'],
+		});
+	});
+
+	test('the chat part keeps the focus as it moves to its anchor view\'s side, and follows the view as it is deregistered', () => {
+		const { layout, middle, anchor, focus } = createGridLayout({ sideBar: Position.LEFT, panel: Position.BOTTOM, alignment: 'center', chat: { visible: true, size: 400 }, anchor: ViewContainerLocation.AuxiliaryBar });
+		const moveAnchor = (location: ViewContainerLocation | null) => { anchor.location = location; (Reflect.get(layout, 'updateChatPartPosition') as () => void).call(layout); };
+		focus.chat = true;
+		moveAnchor(ViewContainerLocation.Sidebar);
+		const focused = [...focus.focused];
+		focus.chat = false;
+		moveAnchor(ViewContainerLocation.AuxiliaryBar);
+		// As the view deregisters, it is no view the layout knows
+		moveAnchor(null);
+
+		assert.deepStrictEqual({ focused, focusedAfter: focus.focused, deregistered: middle() }, {
+			focused: ['chat'],
+			focusedAfter: ['chat'],
+			deregistered: ['activitybar', 'sidebar', [['chat', 'editor'], 'panel'], 'auxiliarybar'],
 		});
 	});
 });
