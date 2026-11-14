@@ -10,10 +10,13 @@ import { homedir, tmpdir, userInfo } from 'os';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { FileAccess } from '../../../../base/common/network.js';
 import { join } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { IProductService } from '../../../product/common/productService.js';
+import { toWorkspaceFolder } from '../../../workspace/common/workspace.js';
 import { ITerminalProcessOptions } from '../../common/terminal.js';
+import { EnvironmentVariableMutatorType } from '../../common/environmentVariable.js';
 import { getShellIntegrationInjection, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure, sanitizeEnvForLogging } from '../../node/terminalEnvironment.js';
 import { getWindowsBuildNumberSync } from '../../../../base/node/windowsVersion.js';
 
@@ -117,6 +120,57 @@ suite('platform - terminalEnvironment', async () => {
 		});
 
 		if (process.platform !== 'win32') {
+			for (const scopedDeferred of [false, true]) {
+				for (const replace of [false, true]) {
+					test(`should replay PATH prepends only from process creation (scoped deferred: ${scopedDeferred}, replace: ${replace})`, async () => {
+						const workspaceFolder = toWorkspaceFolder(URI.file('/workspace'));
+						const result = await getShellIntegrationInjection({ executable: 'fish', args: [] }, {
+							...enabledProcessOptions,
+							workspaceFolder,
+							environmentVariableCollections: [
+								['ext1', [
+									['PATH', {
+										variable: 'PATH', value: '/global/bin:', type: EnvironmentVariableMutatorType.Prepend,
+										options: { applyAtProcessCreation: scopedDeferred, applyAtShellIntegration: !scopedDeferred }
+									}],
+									[`PATH:::${workspaceFolder.uri}`, {
+										variable: 'PATH', value: '/scoped/bin:',
+										type: replace ? EnvironmentVariableMutatorType.Replace : EnvironmentVariableMutatorType.Prepend,
+										scope: { workspaceFolder },
+										options: { applyAtProcessCreation: !scopedDeferred, applyAtShellIntegration: scopedDeferred }
+									}]
+								], []]
+							]
+						}, defaultEnvironment, logService, productService, true);
+
+						strictEqual(result.type === 'injection' ? result.envMixin?.VSCODE_PATH_PREFIX : result, scopedDeferred ? '/global/bin:' : replace ? undefined : '/scoped/bin:');
+					});
+				}
+			}
+
+			for (const replace of [false, true]) {
+				test(`should replay only effective scoped PATH prepends (replace: ${replace})`, async () => {
+					const workspaceFolder = toWorkspaceFolder(URI.file('/workspace'));
+					const result = await getShellIntegrationInjection({ executable: 'fish', args: [] }, {
+						...enabledProcessOptions,
+						workspaceFolder,
+						environmentVariableCollections: [
+							['ext1', [
+								['PATH', { variable: 'PATH', value: '/global/bin:', type: EnvironmentVariableMutatorType.Prepend }],
+								[`PATH:::${workspaceFolder.uri}`, {
+									variable: 'PATH',
+									value: '/scoped/bin:',
+									type: replace ? EnvironmentVariableMutatorType.Replace : EnvironmentVariableMutatorType.Prepend,
+									scope: { workspaceFolder }
+								}]
+							], []]
+						]
+					}, defaultEnvironment, logService, productService, true);
+
+					strictEqual(result.type === 'injection' ? result.envMixin?.VSCODE_PATH_PREFIX : result, replace ? undefined : '/scoped/bin:/global/bin:');
+				});
+			}
+
 			suite('zsh', async () => {
 				suite('should override args', async () => {
 					const username = userInfo().username;

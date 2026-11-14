@@ -737,6 +737,143 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		(process.platform === 'win32' ? suite.skip : suite)('environmentVariableCollection', () => {
+			for (const prepend of [false, true]) {
+				test(`should compose scoped replacements at shell integration (prepend: ${prepend})`, async () => {
+					await workspace.getConfiguration('terminal.integrated').update('shellIntegration.enabled', true);
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					const workspaceFolder = workspace.workspaceFolders![0];
+					const options = { applyAtProcessCreation: false, applyAtShellIntegration: true };
+					for (const variable of ['VSCODE_TEST_REPLACE', 'VSCODE_TEST_PROCESS', 'VSCODE_TEST_APPEND']) {
+						if (prepend) {
+							collection.prepend(variable, 'global:', options);
+						} else {
+							collection.append(variable, ':global', options);
+						}
+					}
+					const scoped = collection.getScoped({ workspaceFolder });
+					scoped.replace('VSCODE_TEST_REPLACE', 'scoped', options);
+					scoped.replace('VSCODE_TEST_PROCESS', 'scoped');
+					scoped.append('VSCODE_TEST_APPEND', ':scoped', options);
+
+					const terminal = window.createTerminal({
+						shellPath: '/bin/bash',
+						shellArgs: [],
+						cwd: workspaceFolder.uri,
+						env: {
+							HOME: workspaceFolder.uri.fsPath, HISTFILE: '/dev/null', ENV: null, BASH_ENV: null,
+							VSCODE_TEST_REPLACE: 'base', VSCODE_TEST_PROCESS: 'base', VSCODE_TEST_APPEND: 'base',
+							VSCODE_TEST_ENV_DONE: 'test-done'
+						}
+					});
+					disposables.push(terminal);
+					let data = '';
+					disposables.push(window.onDidWriteTerminalData(e => {
+						if (e.terminal === terminal) {
+							data += sanitizeData(e.data);
+						}
+					}));
+					try {
+						terminal.sendText('printf \'\\nREPLAY_RESULT=%s|%s|%s\\n%s\\n\' "$VSCODE_TEST_REPLACE" "$VSCODE_TEST_PROCESS" "$VSCODE_TEST_APPEND" "$VSCODE_TEST_ENV_DONE"');
+						await poll<void>(() => Promise.resolve(), () => data.includes('test-done'), 'The shell should finish printing the replayed environment');
+						const expected = prepend ? 'scoped|global:scoped|global:base:scoped' : 'scoped|scoped:global|base:global:scoped';
+						ok(data.includes(`REPLAY_RESULT=${expected}`), `Unexpected terminal output: ${data}`);
+					} finally {
+						await new Promise<void>(resolve => {
+							disposables.push(window.onDidCloseTerminal(t => {
+								if (t === terminal) {
+									resolve();
+								}
+							}));
+							terminal.dispose();
+						});
+					}
+				});
+			}
+
+			for (const scopedFirst of [false, true]) {
+				test(`should apply scoped mutations after global mutations (scoped first: ${scopedFirst})`, async () => {
+					const collection = extensionContext.environmentVariableCollection;
+					disposables.push({ dispose: () => collection.clear() });
+					const workspaceFolder = workspace.workspaceFolders![0];
+					const scopedCollection = collection.getScoped({ workspaceFolder });
+					if (scopedFirst) {
+						scopedCollection.append('VSCODE_TEST_ENV_SCOPE', ':scoped');
+					}
+					collection.prepend('VSCODE_TEST_ENV_SCOPE', 'global:');
+					if (!scopedFirst) {
+						scopedCollection.append('VSCODE_TEST_ENV_SCOPE', ':scoped');
+					}
+
+					const terminal = window.createTerminal({
+						shellPath: '/bin/sh',
+						shellArgs: [],
+						cwd: workspaceFolder.uri,
+						env: { VSCODE_TEST_ENV_SCOPE: 'test-base', VSCODE_TEST_ENV_DONE: 'test-done', ENV: null, BASH_ENV: null }
+					});
+					disposables.push(terminal);
+					let data = '';
+					disposables.push(window.onDidWriteTerminalData(e => {
+						if (e.terminal === terminal) {
+							data += sanitizeData(e.data);
+						}
+					}));
+					try {
+						terminal.sendText('printf \'%s\\n%s\\n\' "$VSCODE_TEST_ENV_SCOPE" "$VSCODE_TEST_ENV_DONE"');
+						await poll<void>(() => Promise.resolve(), () => data.includes('test-done'), 'The shell should finish printing the environment variable');
+						ok(data.includes('global:test-base:scoped'), `Unexpected terminal output: ${data}`);
+					} finally {
+						await new Promise<void>(resolve => {
+							disposables.push(window.onDidCloseTerminal(t => {
+								if (t === terminal) {
+									resolve();
+								}
+							}));
+							terminal.dispose();
+						});
+					}
+				});
+			}
+
+			(process.platform === 'darwin' ? test : test.skip)('should preserve scoped PATH precedence after shell integration', async () => {
+				await workspace.getConfiguration('terminal.integrated').update('shellIntegration.enabled', true);
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
+				const workspaceFolder = workspace.workspaceFolders![0];
+				const globalBin = Uri.joinPath(workspaceFolder.uri, 'global-bin').fsPath;
+				const scopedBin = Uri.joinPath(workspaceFolder.uri, 'scoped-bin').fsPath;
+				collection.prepend('PATH', `${globalBin}:`);
+				collection.getScoped({ workspaceFolder }).prepend('PATH', `${scopedBin}:`);
+
+				const terminal = window.createTerminal({
+					shellPath: '/bin/bash',
+					shellArgs: ['-l'],
+					cwd: workspaceFolder.uri,
+					env: { HOME: workspaceFolder.uri.fsPath, HISTFILE: '/dev/null', VSCODE_TEST_ENV_DONE: 'test-done', ENV: null, BASH_ENV: null }
+				});
+				disposables.push(terminal);
+				let data = '';
+				disposables.push(window.onDidWriteTerminalData(e => {
+					if (e.terminal === terminal) {
+						data += sanitizeData(e.data);
+					}
+				}));
+				try {
+					terminal.sendText('printf \'\\nPATH_RESULT=%s\\n%s\\n\' "$PATH" "$VSCODE_TEST_ENV_DONE"');
+					await poll<void>(() => Promise.resolve(), () => data.includes('test-done'), 'The shell should finish printing the contributed PATH');
+					ok(data.includes(`PATH_RESULT=${scopedBin}:${globalBin}:`), `Unexpected terminal output: ${data}`);
+				} finally {
+					await new Promise<void>(resolve => {
+						disposables.push(window.onDidCloseTerminal(t => {
+							if (t === terminal) {
+								resolve();
+							}
+						}));
+						terminal.dispose();
+					});
+				}
+			});
+
 			test('should have collection variables apply to terminals immediately after setting', async () => {
 				// Setup collection and create terminal
 				const collection = extensionContext.environmentVariableCollection;
