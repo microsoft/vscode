@@ -909,10 +909,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		if (!this.providedComposer) {
 			return false;
 		}
-		this.providedComposer.newChat();
 		if (!this.composerShown) {
+			this.providedComposer.newChat();
 			return false;
 		}
+		// A chat still loading, which cleared the chat and so shows the composer, no longer replaces it
+		this.loadSessionCts.value?.cancel();
+		this.providedComposer.newChat();
 		this.providedComposer.focus();
 		return true;
 	}
