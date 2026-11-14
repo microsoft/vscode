@@ -11191,7 +11191,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Always create an ActiveClient so the snapshot includes host +
 		// session-discovered customizations, even when no client has
 		// registered an active-client handle yet.
-		const activeClient = this._getOrCreateActiveClient(owner.get(), customizationDirectory);
+		const activeClient = this._getOrCreateActiveClient(sessionUri, customizationDirectory);
 		activeClient.pluginController.reanchor(customizationDirectory);
 		// Multi-root: re-attach the non-primary roots so discovery spans every
 		// root on resume. Empty when single-root / gated off. A send-time

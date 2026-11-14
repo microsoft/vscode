@@ -12,16 +12,6 @@ Tests that launch a real provider process isolate its home, configuration, logs,
 
 The protocol and E2E folders contain their own running and authoring instructions.
 
-## Copilot resume customization ownership
-
-Client plugins and tools belong to the owning session, not the SDK storage URI. Resume must use the same owning-session active-client state as creation and send-time configuration checks, including when an `ahp-session` owner has a separate `copilotcli` backing.
-
-The `client plugins across chat launches` suite in [copilotAgent.test.ts](./copilotAgent.test.ts) exercises imported AHP sessions, legacy imports, and fresh AHP sessions through the real provider launch path with a mocked SDK. It verifies plugin inclusion, no restarts on unchanged turns, stable backing identity, and exactly one refresh after adding a plugin. Run it alongside import/resume and customization controls after refreshing compiled output:
-
-```bash
-./scripts/test.sh --run src/vs/platform/agentHost/test/node/copilotAgent.test.ts --grep 'client plugins across chat launches|createChat exact-chat provisioning \(import\)|MCP configuration preparation|_resumeSession fallback|customization anchoring|standalone client customizations|the prepared turn awaits' --reporter dot
-```
-
 ## Request-survival model metadata
 
 Outgoing contributions receive the explicit or inherited model selection captured by the send path after selection updates. The survival logger captures that selection's identifier synchronously at the originating boundary and retains it independently of later chat model changes. `baseModel` and `observationModel` describe selections, not provider-resolved executing models; Auto/Fusion remains a selection and unresolved values stay null.

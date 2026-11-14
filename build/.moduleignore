@@ -221,22 +221,9 @@ zone.js/dist/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
 
-# @github/copilot - retain the extension SDK while stripping unneeded binaries and files.
-# Agent Host uses the runtime bundled with @github/copilot-sdk, but the built-in
-# Copilot extension still imports @github/copilot/sdk.
-@github/copilot/index.js
-@github/copilot/prebuilds/**
-@github/copilot/clipboard/**
-@github/copilot/ripgrep/**
-@github/copilot/pvrecorder/**
-@github/copilot/foundry-local-sdk/**
-@github/copilot/mxc-bin/**
-@github/copilot/sharp/**
-@github/copilot/**/keytar.node
-
-# os-theme is pulled in by @github/copilot but the CLI does not use its native addon.
-# See https://github.com/microsoft/vscode-engineering/issues/3087.
-@os-theme/**
+# @github/copilot - strip unneeded binaries and files
+# Agent Host uses the runtime bundled with @github/copilot-sdk.
+@github/copilot/**
 
 # Standalone Copilot CLI platform packages are not product dependencies.
 @github/copilot-darwin-arm64/**
