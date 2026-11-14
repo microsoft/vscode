@@ -49,7 +49,7 @@ export enum ChatConfiguration {
 	ExtraMarketplaces = 'chat.plugins.extraMarketplaces',
 	EnabledPlugins = 'chat.plugins.enabledPlugins',
 	AgentEnabled = 'chat.agent.enabled',
-	AgentsViewEnabled = 'chat.agentsView.enabled',
+	SessionsViewEnabled = 'chat.sessionsView.enabled',
 	AgentsPickerInAttachContextMenu = 'sessions.chat.experimental.agentsPickerInAttachContextMenu',
 	/** Desktop only: lets chat attach a screenshot of the window of another app. */
 	AppWindowScreenshotsEnabled = 'chat.appWindowScreenshots.enabled',
@@ -239,11 +239,11 @@ export const enum OpenInAgentsTitleBarHoverVariant {
 
 /**
  * Whether a window surfaces every local agent host agent, as the Agents window does: also a local editor window that shows
- * the Sessions view ({@link ChatConfiguration.AgentsViewEnabled}), so that its list and chats are those of the Agents
+ * the Sessions view ({@link ChatConfiguration.SessionsViewEnabled}), so that its list and chats are those of the Agents
  * window. A remote window never shows it. Read it once, as the window starts: the setting needs a reload.
  */
 export function surfacesAllLocalAgentHostAgents(environment: { readonly isSessionsWindow: boolean; readonly remoteAuthority?: string }, configurationService: IConfigurationService): boolean {
-	return environment.isSessionsWindow || (!environment.remoteAuthority && configurationService.getValue<boolean>(ChatConfiguration.AgentsViewEnabled) === true);
+	return environment.isSessionsWindow || (!environment.remoteAuthority && configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) === true);
 }
 
 /**

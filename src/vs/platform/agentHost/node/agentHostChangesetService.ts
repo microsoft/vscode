@@ -29,6 +29,7 @@ import {
 	parseFolderChangesetOwnerUri,
 } from '../common/changesetUri.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
+import { getChangesetFileStatus, withLegacyChangesetFile } from '../common/agentHostProtocolTransition.js';
 import { IAgentHostSessionStateStore, readSessionBaseBranch, SessionStateMirrorFlush, type ISessionStateSnapshot } from '../common/agentHostSessionStateStore.js';
 import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
 import type { ChangesetState, ChangesSummary } from '../common/state/protocol/state.js';
@@ -36,6 +37,7 @@ import { addMillisecondsToTimestamp } from '../common/state/protocol/common/time
 import { ActionType } from '../common/state/sessionActions.js';
 import {
 	ChangesetStatus,
+	ChangesetFileStatus,
 	ChatOriginKind,
 	type ChangesetFile,
 	type ISessionFileDiff,
@@ -587,11 +589,13 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 				// Clients can echo a file's nonce to bind an operation to the changes they showed.
 				// They also disable operations on a file while an agent edits it, see `_publishWorkingSetEditing`.
 				const nonces = new Map(files.map(file => [file.diff, file.nonce]));
+				const statuses = new Map(this._stateManager.getChangesetState(changesetUri)?.files.map(file => [file.id, getChangesetFileStatus(file)]));
 				this._publishChangesetDiffs(owner, changesetUri, files.map(file => file.diff), undefined, diff => {
 					const id = diff.after?.uri ?? diff.before?.uri;
 					return {
 						nonce: nonces.get(diff),
-						isEditing: !!id && this._fileEditCoordinator.isEditing(URI.parse(id)),
+						status: ((id ? statuses.get(id) : undefined) ?? 0) & ~ChangesetFileStatus.Editing
+							| (id && this._fileEditCoordinator.isEditing(URI.parse(id)) ? ChangesetFileStatus.Editing : 0),
 					};
 				});
 				this._publishedWorkingSets.add(changesetUri);
@@ -635,11 +639,11 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 			}
 			for (const file of state.files) {
 				const id = file.edit.after?.uri ?? file.edit.before?.uri;
-				if (id && (file.isEditing === true) !== editing && getFileEditResourceKey(URI.parse(id)) === fileKey) {
+				if (id && !!(getChangesetFileStatus(file) & ChangesetFileStatus.Editing) !== editing && getFileEditResourceKey(URI.parse(id)) === fileKey) {
 					if (editing) {
 						this._stateManager.dispatchServerAction(changesetUri, {
 							type: ActionType.ChangesetFileSet,
-							file: { ...file, isEditing: true },
+							file: withLegacyChangesetFile({ ...file, status: getChangesetFileStatus(file) | ChangesetFileStatus.Editing }),
 						});
 					} else {
 						const parsed = parseChangesetUri(changesetUri);
@@ -2451,7 +2455,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 	 * (fileSet, fileRemoved) and moves the changeset to `ready` once the
 	 * fresh file list has been applied.
 	 */
-	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }, getFileDetails?: (edit: ISessionFileDiff) => Pick<ChangesetFile, 'nonce' | 'isEditing'>): void {
+	private _publishChangesetDiffs(session: ProtocolURI, changesetUri: ProtocolURI, diffs: readonly ISessionFileDiff[], reviewed?: { readonly repoRoot: URI; readonly paths: ReadonlySet<string> }, getFileDetails?: (edit: ISessionFileDiff) => Pick<ChangesetFile, 'nonce' | 'status'>): void {
 		// Get the available operations for this changeset. This call assumes that at this point
 		// the git state of the session is up-to-date as it is being used to determine the available
 		// operations. Long term this should be replaced with a more robust mechanism.
@@ -2480,7 +2484,7 @@ export class AgentHostChangesetService extends Disposable implements IAgentHostC
 
 		this._stateManager.dispatchServerAction(changesetUri, {
 			type: ActionType.ChangesetContentChanged,
-			files,
+			files: files.map(withLegacyChangesetFile),
 			operations: operations
 				? [...operations]
 				: undefined,

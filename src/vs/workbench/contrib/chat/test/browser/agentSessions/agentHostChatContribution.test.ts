@@ -1800,7 +1800,7 @@ suite('AgentHostChatContribution', () => {
 			});
 			agentHostService.chatStates.set(chat.toString(), { ...createChatState(peerSummary), canvases: [{ resource: canvasResource.toString() }] });
 			const state: CanvasState = {
-				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/canvas',
+				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', uri: 'https://example.test/canvas',
 			};
 			agentHostService.setCanvasState(canvasResource, state);
 			const provided = await sessionHandler.provideChatSessionContent(URI.from({ scheme: 'agent-host-copilot', path: '/canvas-owner', fragment: 'peer' }), CancellationToken.None);
@@ -1810,7 +1810,7 @@ suite('AgentHostChatContribution', () => {
 			let canvases: readonly ICanvas[] | undefined;
 			disposables.add(autorun(reader => { canvases = context.canvases.read(reader); }));
 			const initial = canvases?.[0].source?.toString();
-			agentHostService.setCanvasState(canvasResource, { ...state, url: 'https://example.test/replacement' });
+			agentHostService.setCanvasState(canvasResource, { ...state, uri: 'https://example.test/replacement' });
 			assert.deepStrictEqual({
 				ownerChat: context.owner.chat.toString(), ownerSession: context.owner.session.toString(),
 				resource: canvases?.[0].resource.toString(), initial, updated: canvases?.[0].source?.toString(),
@@ -1840,7 +1840,7 @@ suite('AgentHostChatContribution', () => {
 			agentHostService.fireAction({ channel: dispatched.channel, action: dispatched.action, serverSeq: 1, origin: { clientId: dispatched.clientId, clientSeq: dispatched.clientSeq } });
 			const canvasResource = URI.parse('ahp-canvas:/opaque-first-turn');
 			agentHostService.setCanvasState(canvasResource, {
-				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', url: 'https://example.test/canvas',
+				instanceId: 'preview', extensionId: 'project:preview', canvasId: 'preview', uri: 'https://example.test/canvas',
 			});
 			agentHostService.fireAction({ channel: dispatched.channel, action: { type: ActionType.ChatCanvasesChanged, canvases: [{ resource: canvasResource.toString() }] }, serverSeq: 2, origin: undefined });
 			agentHostService.fireAction({ channel: dispatched.channel, action: chatTurnComplete(dispatched.action.turnId, 1), serverSeq: 3, origin: undefined });

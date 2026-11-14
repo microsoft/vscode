@@ -97,7 +97,7 @@ import { isModelComparisonSupported } from '../../../chat/browser/widget/input/m
 import { IAgentsWindowDraft } from '../../../../../platform/window/common/window.js';
 import { reviveChatDraft } from '../../../chat/common/attachments/chatDraft.js';
 import { NewChatMigrationNotice } from './newChatMigrationNotice.js';
-import { WorktreeSuggestionController } from '../worktreeSuggestion/worktreeSuggestionController.js';
+import type { INewSessionInputController } from '../newSessionInputPresentation.js';
 import { NewChatConnectorRecommendations } from './newChatConnectorRecommendations.js';
 import { FOCUS_NEW_SESSION_ENVIRONMENT_PICKER_WHEN, FOCUS_NEW_SESSION_HARNESS_PICKER_WHEN, FOCUS_NEW_SESSION_WORKSPACE_PICKER_WHEN } from './newChatPickerKeybinding.js';
 import { WelcomeName } from './welcomeName.js';
@@ -194,7 +194,7 @@ export class NewChatWidget extends Disposable {
 	private readonly _newWorktree: NewWorktreeChoice | undefined;
 	private _changingEnvironment = false;
 	private readonly _chatTipPresenter = this._register(new MutableDisposable<ChatInputTipPresenter>());
-	private _worktreeSuggestion: WorktreeSuggestionController | undefined;
+	private _inputController: INewSessionInputController | undefined;
 	private _isChatTipSessionInitialized = false;
 	private _aquariumToggle: IMountedToggleHandle | undefined;
 
@@ -606,7 +606,7 @@ export class NewChatWidget extends Disposable {
 						return false;
 					}
 				}
-				return this._comparisonSelection.enabled.get() || !this._worktreeSuggestion || this._worktreeSuggestion.confirmBeforeSend(query);
+				return this._comparisonSelection.enabled.get() || !this._inputController || this._inputController.confirmBeforeSend(query);
 			},
 			modelPickerComparison: this._comparisonSelection,
 			sendButtonLabel: derived(this, reader => this._comparisonSelection.enabled.read(reader)
@@ -1037,17 +1037,19 @@ export class NewChatWidget extends Disposable {
 		const chatTipContainer = dom.$(`.new-session-getting-started-tip.new-session-getting-started-tip-below.chat-getting-started-tip-container.${chatInputStackSlotClass}`);
 		belowInputSurfaces.prepend(chatTipContainer);
 		this._register(this.instantiationService.createInstance(NewChatMigrationNotice, belowInputSurfaces, banners, this._session, () => this.focusInput()));
-		this._worktreeSuggestion = this._register(this.instantiationService.createInstance(WorktreeSuggestionController, belowInputSurfaces, {
-			session: this._session,
-			pickerVisibility: this._newChatInput.pickerVisibility,
-			visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
-			getInputValue: () => this._newChatInput.getInputValue(),
-			onDidChangeInput: this._newChatInput.onDidChangeInput,
-			focusInput: () => this.focusInput(),
-			revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
-			openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
-			banners,
-		}));
+		if (this.options.newSessionInput?.createComposer) {
+			this._inputController = this._register(this.options.newSessionInput.createComposer(belowInputSurfaces, {
+				session: this._session,
+				pickerVisibility: this._newChatInput.pickerVisibility,
+				visible: derived(this, reader => (this.options.hostVisible?.read(reader) ?? true) && (this.options.inputVisible?.read(reader) ?? true)),
+				getInputValue: () => this._newChatInput.getInputValue(),
+				onDidChangeInput: this._newChatInput.onDidChangeInput,
+				focusInput: () => this.focusInput(),
+				revealIsolationPicker: () => this._sessionOptionsExpanded.set(true, undefined),
+				openIsolationPicker: () => this.focusWorktreePicker({ focusValue: 'worktree' }),
+				banners,
+			}, this.instantiationService));
+		}
 		const foregroundSessionCountKeys = new Set([ChatContextKeys.foregroundSessionCount.key]);
 		const foregroundSessionCount = observableFromEvent(this,
 			Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(foregroundSessionCountKeys)),

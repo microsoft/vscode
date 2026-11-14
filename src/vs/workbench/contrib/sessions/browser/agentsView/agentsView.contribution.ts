@@ -11,12 +11,15 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../comm
 import { IFocusedSessionHostService, ISessionHost, ISessionHostService } from '../../../../services/sessions/browser/sessionHost.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
 import { GitHubService, IGitHubService } from '../github/githubService.js';
-import { SessionAttentionService } from '../sessionAttentionService.js';
+import '../sessionAttentionService.js';
 import { FocusedSessionHostService, SessionHostService } from '../sessionHostService.js';
 import { ISessionWorktreeCleanupService, SessionWorktreeCleanupService } from '../sessionInputBanners/sessionWorktreeCleanupService.js';
 import { ISessionsListModelService, SessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
-import { ISessionAttentionService } from '../../common/sessionAttentionService.js';
+import { ISessionDraftsService, SessionDraftsService } from '../sessionDraftsService.js';
+import { IScheduledChatsService, ScheduledChatsService } from '../scheduledChatsService.js';
+import { IChatWindowService } from '../../../chatWindow/browser/chatWindow.js';
+import { NullChatWindowService } from '../../../chatWindow/browser/nullChatWindowService.js';
 import { AgentsChatPartService, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsViewFolderLocationService, IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from './agentsChatPartFrame.js';
@@ -40,12 +43,12 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	title: localize('chatConfigurationTitle', "Chat"),
 	type: 'object',
 	properties: {
-		[ChatConfiguration.AgentsViewEnabled]: {
+		[ChatConfiguration.SessionsViewEnabled]: {
 			type: 'boolean',
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('chat.agentsView.enabled', "Controls whether the Sessions view of the Agents window shows in the Primary Side Bar of editor windows. Requires a reload to take effect."),
+			markdownDescription: localize('chat.sessionsView.enabled', "Controls whether the Sessions view of the Agents window shows in the Primary Side Bar of editor windows. Requires a reload to take effect."),
 		},
 	},
 });
@@ -55,9 +58,13 @@ registerSingleton(ISessionsNavigationService, EditorWindowSessionsNavigationHost
 registerSingleton(ISessionsListModelService, SessionsListModelService, InstantiationType.Delayed);
 registerSingleton(ISessionHostService, SessionHostService, InstantiationType.Delayed);
 registerSingleton(IFocusedSessionHostService, FocusedSessionHostService, InstantiationType.Delayed);
-registerSingleton(ISessionAttentionService, SessionAttentionService, InstantiationType.Delayed);
 registerSingleton(IGitHubService, GitHubService, InstantiationType.Delayed);
 registerSingleton(ISessionWorktreeCleanupService, SessionWorktreeCleanupService, InstantiationType.Delayed);
+// The drafts and scheduled requests of the composers, which the Sessions view and the chats inject, as in the Agents window
+registerSingleton(ISessionDraftsService, SessionDraftsService, InstantiationType.Delayed);
+registerSingleton(IScheduledChatsService, ScheduledChatsService, InstantiationType.Delayed);
+// Editor windows open no separate chat windows: the chats' input toolbars, which inject it, find none
+registerSingleton(IChatWindowService, NullChatWindowService, InstantiationType.Delayed);
 
 // The chat part, and the chats it shows
 registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);

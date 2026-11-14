@@ -38,6 +38,7 @@ import { IAgentHostFilterService } from '../../../../../workbench/contrib/sessio
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { AgentWorkbenchLayout, ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { GITHUB_REMOTE_FILE_SCHEME, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB } from '../../../../../workbench/services/sessions/common/session.js';
 import { showMobileWorkspacePickerSheet } from '../../../../../workbench/contrib/sessions/browser/chat/mobile/mobileWorkspacePickerSheet.js';
 import { SessionsChatAccessibilityHelp } from '../../../chat/browser/sessionsChatAccessibilityHelp.js';
@@ -175,6 +176,7 @@ suite('MobileRepositoryPicker', () => {
 		instantiationService.stub(ISessionsHostLayoutService, { agentWorkbenchLayout: AgentWorkbenchLayout.Mobile });
 		instantiationService.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { }());
+		instantiationService.stub(IChatViewFactory, { newSessionInput: undefined });
 		const help = new SessionsChatAccessibilityHelp();
 		const helpProvider = store.add(help.getProvider(instantiationService));
 		const helpContent = helpProvider.provideContent();

@@ -109,7 +109,7 @@ export const AGENTS_WINDOW_REGISTRATIONS: readonly string[] = [
 	'menu CommandPalette command sessionsViewPane.closeSession group  order  when !editorIsOpen && !isNewChatSession',
 	'menu CommandPalette command sessionsViewPane.navigatePreviousSession group  order  when ',
 	'menu CommandPalette command sessionsViewPane.navigateNextSession group  order  when ',
-	'menu CommandPalette command sessionsViewPane.inboxMode group  order  when chatIsEnabled && config.chat.agentsView.enabled && !sessionsViewPane.groupingUnavailable.inbox || chatIsEnabled && isSessionsWindow && !sessionsViewPane.groupingUnavailable.inbox',
+	'menu CommandPalette command sessionsViewPane.inboxMode group  order  when chatIsEnabled && config.chat.sessionsView.enabled && !sessionsViewPane.groupingUnavailable.inbox || chatIsEnabled && isSessionsWindow && !sessionsViewPane.groupingUnavailable.inbox',
 	'menu CommandPalette command sessionsViewPane.refresh group  order  when ',
 	'menu CommandPalette command sessionsView.newQuickChat group  order  when agentHostEnabled && chatIsEnabled',
 	'menu CommandPalette command sessions.sendInBackground group  order  when chatInputHasSendableContent && chatIsEnabled && chatSessionOptionsValid && isSessionsWindow && sessionsChatInputSupportsBackground && !chatInputBlocked',

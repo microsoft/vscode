@@ -20,9 +20,8 @@ import type { URI, StringOrMarkdown, TextRange } from '../common/state.js';
 export interface AnnotationsSummary {
 	/**
 	 * The subscribable annotations channel URI for the owning session
-	 * (typically `ahp-session:/<uuid>/annotations`). Surfaced explicitly even
-	 * though it is derivable from the session URI so badge UI does not need
-	 * to know the derivation rule.
+	 * (`ahp-annotations:/<uuid>`, where `<uuid>` is the owning session's id).
+	 * Clients should use this value rather than derive it from the session URI.
 	 */
 	resource: URI;
 	/** Total number of {@link Annotation} entries in the channel. */
@@ -35,7 +34,7 @@ export interface AnnotationsSummary {
 
 /**
  * Full state for a session's annotations channel, returned when a client
- * subscribes to an `ahp-session:/<uuid>/annotations` URI.
+ * subscribes to an `ahp-annotations:/<uuid>` URI.
  *
  * @category Annotations
  */
