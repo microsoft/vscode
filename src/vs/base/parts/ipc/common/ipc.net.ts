@@ -857,6 +857,10 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onSocketTimeout = new BufferedEmitter<SocketTimeoutEvent>();
 	readonly onSocketTimeout: Event<SocketTimeoutEvent> = this._onSocketTimeout.event;
 
+	private readonly _onDidResetSession = new Emitter<void>();
+	/** Fires after {@link resetSessionStateForFreshHandshake} has cleared session state. Listeners can synchronously queue messages (e.g. an IPC init context) while `_isReconnecting` is still true so they replay ahead of any concurrent sends. */
+	readonly onDidResetSession: Event<void> = this._onDidResetSession.event;
+
 	public get unacknowledgedCount(): number {
 		return this._outgoingMsgId - this._outgoingAckId;
 	}
@@ -969,6 +973,30 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketDisposables.add(this._socket.onClose(e => this._onSocketClose.fire(e)));
 
 		this._socketReader.acceptChunk(initialDataChunk);
+	}
+
+	/** Reset state to talk to a fresh server. Call between begin/endAcceptReconnection. Fires {@link onDidResetSession} synchronously after the reset. */
+	public resetSessionStateForFreshHandshake(): void {
+		if (!this._isReconnecting) {
+			throw new Error('resetSessionStateForFreshHandshake must be called between beginAcceptReconnection and endAcceptReconnection');
+		}
+		if (this._outgoingAckTimeout) {
+			clearTimeout(this._outgoingAckTimeout);
+			this._outgoingAckTimeout = null;
+		}
+		if (this._incomingAckTimeout) {
+			clearTimeout(this._incomingAckTimeout);
+			this._incomingAckTimeout = null;
+		}
+		this._outgoingUnackMsg = new Queue<ProtocolMessage>();
+		this._outgoingMsgId = 0;
+		this._outgoingAckId = 0;
+		this._incomingMsgId = 0;
+		this._incomingAckId = 0;
+		// Baseline to now so ack scheduling uses a sensible window until the first message arrives.
+		this._incomingMsgLastTime = Date.now();
+		this._didSendDisconnect = false;
+		this._onDidResetSession.fire();
 	}
 
 	public endAcceptReconnection(): void {
