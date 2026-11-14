@@ -258,6 +258,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// The layout reads whether the chat part shows from its stored state while it is created, which fires no visibility event
 		this.layoutService.whenRestored.then(() => {
+			this.mainEditorAreaVisibleContext.set(this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow));
 			this.chatPartVisibleContext.set(this.layoutService.isVisible(Parts.CHAT_PART));
 			this.editorAreaHiddenByChatContext.set(this.layoutService.isEditorHiddenByChat());
 		});
