@@ -54,6 +54,10 @@ packages:
   - test/scenario
   - test/smoke
   - test/unit
+# The product ships one TypeScript for the built-in extensions, in extensions/node_modules (the
+# dependency of extensions/package.json). The extensions that build against it use the same version.
+catalog:
+  typescript: ^6.0.3
 pnpmfile: .pnpmfile.mjs
 nodeLinker: isolated
 # Don't hoist the workspace packages by their names (emmet, gulp, npm, git, ...) into

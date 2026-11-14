@@ -2,14 +2,13 @@
   "name": "vscode-extensions",
   "version": "0.0.1",
   "license": "MIT",
-  "description": "Dependencies shared by all extensions",
+  "description": "Runtime dependencies that the product ships in extensions/node_modules for the built-in extensions, and the tooling of the shared esbuild and grammar update scripts in this folder",
   "dependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "catalog:"
   },
   "devDependencies": {
     "@parcel/watcher": "^2.5.6",
     "esbuild": "0.28.1",
-    "minimatch": "^3.1.5",
     "path-browserify": "^1.0.1",
     "vscode-grammar-updater": "^1.1.0"
   }
