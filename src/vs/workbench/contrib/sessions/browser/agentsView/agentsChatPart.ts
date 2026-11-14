@@ -268,9 +268,19 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 			const reason = this._composerTabs.read(reader).has(input) ? 'commit' : this._activeReason.read(reader);
 			return { resource: active.chat.resource, reason };
 		});
-		// The window's host, as its service, shows the active tab's chat
+		// The window's host, as its service, shows the active tab's chat, or the draft of its composer until that sends, as an
+		// Agents window's host does: what acts on the session of the focused window, such as the composer's branch picker of a
+		// folder, which checks out in it, acts on the draft
 		if (this.mainWindowHost instanceof EditorWindowMainSessionHost) {
-			this._register(this.mainWindowHost.bindShownChat(this.activeChat));
+			this._register(this.mainWindowHost.bindShownChat(derived(this, reader => {
+				const shown = this.activeChat.read(reader);
+				if (shown) {
+					return shown;
+				}
+				const input = this._activeInput.read(reader);
+				const draft = input && this._chats.get(input)?.composer.read(reader)?.session.read(reader);
+				return draft ? { session: draft, chat: draft.mainChat.read(reader) } : undefined;
+			})));
 		}
 
 		// The chats show beside the editor area, whose editors their Session Activity Bars read
