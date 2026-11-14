@@ -300,8 +300,9 @@ suite('ChatViewPane session transitions', () => {
 		await restored.pane.loadSession(savedResource);
 		const afterLoad = shown(restored);
 		// A chat loaded as one to restore, such as the last chat of where the user moved the folder
-		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => restored.nextRef } });
-		await restored.pane.loadSession(nextResource, undefined, 'restore');
+		const recalledResource = nextResource.with({ path: '/recalled' });
+		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: recalledResource }) }) } });
+		await restored.pane.loadSession(recalledResource, undefined, 'restore');
 		const loadedToRestore = shown(restored);
 
 		// The user loads a chat while the restore still prepares its chat's configuration
@@ -324,7 +325,7 @@ suite('ChatViewPane session transitions', () => {
 			otherReported: '/untitled-next restore',
 			reopened: '/untitled-next open',
 			afterLoad: '/saved open',
-			loadedToRestore: '/untitled-next restore',
+			loadedToRestore: '/recalled restore',
 			superseded: '/saved open',
 		});
 	});
