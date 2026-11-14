@@ -375,9 +375,7 @@
 	align-content: center;
 	padding-right: 6px;
 
-	/* The list sets the row's line height to its height: the first line keeps to its text, so the detail fits below it */
-	.title,
-	.description {
+	.title {
 		line-height: 14px;
 	}
 }
@@ -449,8 +447,8 @@
 
 /* Inline description mode — description rendered right after the label */
 .action-widget .inline-description .monaco-list-row.action {
-	/* Override the gap between items so group-title and toolbar sit flush; a detail keeps the gap above it */
-	column-gap: 0;
+	/* Override the row gap so group-title and toolbar sit flush */
+	gap: 0;
 
 	.title {
 		flex: 0 1 auto;
