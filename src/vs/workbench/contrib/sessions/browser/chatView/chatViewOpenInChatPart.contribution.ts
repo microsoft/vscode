@@ -8,7 +8,7 @@ import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.j
 import { autorun, derived, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions as ConfigurationExtensions, IConfigurationDefaults, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -35,6 +35,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
+
+/** No local chats, which the chat part does not show: as with the sessions list of the Chat view, whose chats are those of sessions. */
+const noLocalChatDefaults: IConfigurationDefaults = {
+	overrides: { [ChatConfiguration.EditorLocalAgentEnabled]: false },
+};
 
 /** The chat part docks beside the Chat view: the Agents viewlet docks it beside its own view, over this. */
 const CHAT_VIEW_ANCHOR_PRIORITY = 1;
@@ -76,6 +81,9 @@ export class ChatViewOpenInChatPartContribution extends Disposable implements IW
 				reader.store.add(sessionsRuntime.enable({ viewIds: [ChatViewId] }));
 				// Every chat shows in the chat part, so the Chat view shows only its sessions
 				reader.store.add(this._sessionsListService.claimSessionsOnly());
+				const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+				configurationRegistry.registerDefaultConfigurations([noLocalChatDefaults]);
+				reader.store.add(toDisposable(() => configurationRegistry.deregisterDefaultConfigurations([noLocalChatDefaults])));
 			}
 		}));
 		this._hideMaximizeWhileSessionsOnly();

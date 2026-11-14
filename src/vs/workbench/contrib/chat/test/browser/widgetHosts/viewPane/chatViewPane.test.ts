@@ -55,6 +55,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
+			sessionsListService: { sessionsOnly: constObservable(false) },
 			configurationService: configuration,
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.SideBySide,
 			lastDimensions: { width: 1000, height: 600 },
@@ -87,7 +88,7 @@ suite('ChatViewPane sessions refresh', () => {
 			sessionsContainer: document.createElement('div'),
 			viewPaneContainer: document.createElement('div'),
 			sessionsControl: { setVisible: (visible: boolean) => visibility.push(visible) },
-			providedSessionsList: { sessionsOnly },
+			sessionsListService: { sessionsOnly },
 			configurationService: new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsEnabled]: false }),
 			sessionsViewerOrientation: AgentSessionsViewerOrientation.Stacked,
 			lastDimensions: { width: 1000, height: 600 },
@@ -108,9 +109,9 @@ suite('ChatViewPane sessions refresh', () => {
 		let empty = true;
 		let title = '';
 		const sessionsOnly = observableValue('sessionsOnly', false);
-		const host: { providedComposer: object | undefined; providedSessionsList: { sessionsOnly: typeof sessionsOnly }; composerShown: boolean; viewPaneContainer: HTMLElement; element: HTMLElement; _widget: object; relayout(): void } = {
+		const host: { providedComposer: object | undefined; sessionsListService: { sessionsOnly: typeof sessionsOnly }; composerShown: boolean; viewPaneContainer: HTMLElement; element: HTMLElement; _widget: object; relayout(): void } = {
 			providedComposer: { focus: () => { } },
-			providedSessionsList: { sessionsOnly },
+			sessionsListService: { sessionsOnly },
 			composerShown: false,
 			viewPaneContainer: document.createElement('div'),
 			element: document.createElement('div'),
@@ -305,6 +306,8 @@ suite('ChatViewPane sessions refresh', () => {
 			onDidChangeBodyVisibility: Event.None,
 			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
 			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			updateComposerVisibility: () => { },
+			relayout: () => { },
 		};
 		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => AgentSessionsControl;
 		createControl.call(host, document.createElement('div'));

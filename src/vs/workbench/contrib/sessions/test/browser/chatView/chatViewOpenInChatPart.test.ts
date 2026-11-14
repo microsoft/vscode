@@ -13,6 +13,8 @@ import { constObservable, IObservable } from '../../../../../../base/common/obse
 import { upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
+import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IActionViewItemService } from '../../../../../../platform/actions/browser/actionViewItemService.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
@@ -104,6 +106,19 @@ suite('ChatViewOpenInChatPartContribution', () => {
 		const on = setup({ setting: true }).sessionsList.sessionsOnly.get();
 		const off = setup({ setting: false }).sessionsList.sessionsOnly.get();
 		assert.deepStrictEqual({ on, off }, { on: true, off: false });
+	});
+
+	test('local chat is off by default while it is on, and back once it is off', async () => {
+		const { configurationService } = setup({ setting: false });
+		const localChat = () => Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationDefaultsOverrides().get(ChatConfiguration.EditorLocalAgentEnabled)?.value;
+		const steps = [localChat()];
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, true);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		steps.push(localChat());
+		await configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, false);
+		configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectedKeys: new Set([ChatConfiguration.ChatViewSessionsOpenInChatPart]), affectsConfiguration: key => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		steps.push(localChat());
+		assert.deepStrictEqual(steps, [undefined, false, undefined]);
 	});
 
 	test('hides Maximize only while the Chat view shows only the sessions', async () => {
