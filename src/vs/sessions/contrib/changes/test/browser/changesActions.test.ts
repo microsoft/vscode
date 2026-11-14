@@ -19,22 +19,25 @@ import { createActionViewItem } from '../../../../../platform/actions/browser/me
 import { isIMenuItem, MenuId, MenuItemAction, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { AGENT_HOST_CHECKOUT_CHANGESET_OPERATION_ID, AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID, AGENT_HOST_SYNC_CHANGESET_OPERATION_ID } from '../../../../../platform/agentHost/common/agentHostChangesetOperationService.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { Context } from '../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { ActiveEditorContext } from '../../../../../workbench/common/contextkeys.js';
 import { TestEditorGroupView, workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IEditorService } from '../../../../../workbench/services/editor/common/editorService.js';
-import { Menus } from '../../../../browser/menus.js';
+import { IVisibleEditorPane } from '../../../../../workbench/common/editor.js';
+import { Menus } from '../../../../../workbench/contrib/sessions/browser/menus.js';
 import { IAgentWorkbenchLayoutService } from '../../../../browser/workbench.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
-import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../services/sessions/common/session.js';
-import { ChangesetOperationsActionControllerContribution, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
-import { SessionChangesEditor } from '../../browser/sessionChangesEditor.js';
-import { ISessionChangesService } from '../../browser/sessionChangesService.js';
-import { IChangesViewService } from '../../common/changesViewService.js';
+import { ISessionsHostLayoutService } from '../../../../../workbench/services/sessions/browser/sessionsHostLayoutService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChat, ISessionChangeset, ISessionChangesetOperation, ISessionFolder, ISessionGitRepository, ISessionWorkspace, SessionChangesetOperationScope, SessionChangesetOperationStatus, SessionStatus, UNCOMMITTED_CHANGES_CHANGESET_ID } from '../../../../../workbench/services/sessions/common/session.js';
+import { bindChangesetOperations, ChangesHeaderChangesetOperationsActionContribution } from '../../browser/changesActions.js';
+import { SessionChangesEditor } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesEditor.js';
+import { ISessionChangesService } from '../../../../../workbench/contrib/sessionChanges/browser/sessionChangesService.js';
+import { IChangesSessionObservables, IChangesSessionScope, IChangesViewService } from '../../../../../workbench/contrib/sessions/common/changesViewService.js';
+import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IEditorGroup, IEditorGroupsService } from '../../../../../workbench/services/editor/common/editorGroupsService.js';
+import { ITestSessionWithChat, stubSessionHostsFromSessionsService, testGridPanes } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Changes Actions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +58,12 @@ suite('Changes Actions', () => {
 				deletions: 1,
 			}]);
 		});
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() {
+			readonly activeSession = constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ sessionId: 'active', resource: URI.parse('agent-host:active') }));
+			readonly gridShown = constObservable<readonly (ITestSessionWithChat | undefined)[]>([]);
+			override readonly slotPanes = testGridPanes(this.gridShown);
+		});
+		stubSessionHostsFromSessionsService(instantiationService);
 		instantiationService.stub(IEditorService, new class extends mock<IEditorService>() {
 			override async openEditor(...args: unknown[]): Promise<undefined> {
 				const input = args[0] as { readonly resource: URI };
@@ -73,10 +82,7 @@ suite('Changes Actions', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 		const actionViewItemService = new NullActionViewItemService();
 		const register = spy(actionViewItemService, 'register');
-		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = constObservable(undefined);
-		}();
-		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, new class extends mock<IChangesViewService>() { }(), actionViewItemService));
+		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(actionViewItemService));
 
 		const commandId = 'workbench.contrib.sessions.changesHeaderChangesetOperation.commit';
 		assert.deepStrictEqual(register.getCalls().map(call => [call.args[0], call.args[1]]), [
@@ -87,6 +93,7 @@ suite('Changes Actions', () => {
 		instantiationService.stub(IActionViewItemService, actionViewItemService);
 		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() { }());
 		instantiationService.stub(IAgentWorkbenchLayoutService, {});
+		instantiationService.stub(ISessionsHostLayoutService, {});
 		instantiationService.stub(ISessionChangesService, new class extends mock<ISessionChangesService>() { }());
 		const editor = disposables.add(instantiationService.createInstance(SessionChangesEditor, new TestEditorGroupView(1)));
 		const invokedCommands: string[] = [];
@@ -184,15 +191,16 @@ suite('Changes Actions', () => {
 				insertions: 1,
 				deletions: 0,
 			}]);
-			override readonly activeSessionChangesetsLoadingObs = constObservable(false);
-			override readonly activeSessionLoadingObs = constObservable(false);
 			override readonly activeSessionChangesetObs = constObservable(changeset);
 			override readonly activeSessionChangesetOperationsObs = operations;
-			override readonly activeSessionStateObs = constObservable(undefined);
 		}();
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
-		const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
-		disposables.add(new ChangesetOperationsActionControllerContribution(changesViewService, contextKeyService, new NullLogService()));
+		instantiationService.stub(IChangesViewService, changesViewService);
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { readonly mainWindowActiveSession = constObservable(undefined); }());
+		stubSessionHostsFromSessionsService(instantiationService);
+		// The main window's context, bound for its session.
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(bindChangesetOperations({ session: constObservable(undefined), changes: { changesetObs: constObservable(changeset), changesetOperationsObs: operations } }, contextKeyService));
 
 		const commandId = 'workbench.contrib.sessions.changesetOperation.discard-changes';
 		const getAction = (menuId: MenuId) => MenuRegistry.getMenuItems(menuId)
@@ -202,17 +210,17 @@ suite('Changes Actions', () => {
 			operations.set([{ ...operation, status }], undefined);
 			const action = getAction(MenuId.AgentsChangeInlineToolbar);
 			return {
-				present: action !== undefined,
-				precondition: action?.command.precondition?.serialize(),
+				shown: !!action && contextKeyService.contextMatchesRules(action.when),
+				enabled: !!action && contextKeyService.contextMatchesRules(action.command.precondition),
 			};
 		});
 		operations.set([operation], undefined);
 		const multiDiffAction = getAction(MenuId.MultiDiffEditorFileToolbar)!;
-		const context = new Context(1, null);
-		context.setValue('resourceScheme', 'changes-multi-diff-source');
-		const visibleForChanges = multiDiffAction.when?.evaluate(context) ?? true;
-		context.setValue('resourceScheme', 'file');
-		const visibleForOtherEditors = multiDiffAction.when?.evaluate(context) ?? true;
+		const editorContextKeyService = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+		const resourceScheme = editorContextKeyService.createKey<string>('resourceScheme', 'changes-multi-diff-source');
+		const visibleForChanges = editorContextKeyService.contextMatchesRules(multiDiffAction.when);
+		resourceScheme.set('file');
+		const visibleForOtherEditors = editorContextKeyService.contextMatchesRules(multiDiffAction.when);
 		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, URI.file('/workspace/unrelated.ts'));
 		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commandId)!.handler, resource);
 
@@ -223,13 +231,69 @@ suite('Changes Actions', () => {
 			invokedResources,
 		}, {
 			states: [
-				{ present: true, precondition: undefined },
-				{ present: true, precondition: 'false' },
-				{ present: true, precondition: 'false' },
+				{ shown: true, enabled: true },
+				{ shown: true, enabled: false },
+				{ shown: true, enabled: false },
 			],
 			visibleForChanges: true,
 			visibleForOtherEditors: false,
 			invokedResources: [resource.toString()],
+		});
+	});
+
+	test('the Changes editor of every window shows and runs the Commit of the session it shows, as one action that each window shows for its own session', async () => {
+		const invoked: string[] = [];
+		const operations = constObservable<readonly ISessionChangesetOperation[]>([{
+			id: AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID,
+			label: 'Commit',
+			scopes: [SessionChangesetOperationScope.Changeset],
+			status: SessionChangesetOperationStatus.Idle,
+		}]);
+		const scopeOf = (name: string): IChangesSessionScope => {
+			const changeset = upcastPartial<ISessionChangeset>({
+				id: `changeset-${name}`,
+				label: name,
+				isEnabled: constObservable(true),
+				operations,
+				invokeOperation: async operationId => { invoked.push(`${name}:${operationId}`); },
+			});
+			return upcastPartial<IChangesSessionScope>({
+				session: constObservable<ITestSessionWithChat | undefined>(upcastPartial<ITestSessionWithChat>({ resource: URI.parse(`test-session:${name}`), status: constObservable(SessionStatus.Completed) })),
+				chat: constObservable(undefined),
+				changes: upcastPartial<IChangesSessionObservables>({ changesetObs: constObservable<ISessionChangeset | undefined>(changeset), changesetOperationsObs: operations }),
+			});
+		};
+		// The main window binds the keys of its session on its context, a chat window those of its own on its scoped one.
+		const mainContextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		const windowContextKeyService = disposables.add(mainContextKeyService.createScoped(document.createElement('div')));
+		const scopes = { main: scopeOf('main'), window: scopeOf('window') };
+		disposables.add(bindChangesetOperations(scopes.main, mainContextKeyService));
+		disposables.add(bindChangesetOperations(scopes.window, windowContextKeyService));
+		// The Changes editor of each window, in group 1 of the main window and group 2 of the chat window.
+		const editorOf = (scope: IChangesSessionScope) => Object.defineProperty(Object.create(SessionChangesEditor.prototype), 'changesScope', { value: scope }) as SessionChangesEditor;
+		const editors = new Map([[1, editorOf(scopes.main)], [2, editorOf(scopes.window)]]);
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(IEditorGroupsService, new class extends mock<IEditorGroupsService>() {
+			override getGroup(id: number) { return upcastPartial<IEditorGroup>({ activeEditorPane: upcastPartial<IVisibleEditorPane>(editors.get(id)!) }); }
+		}());
+
+		const shown = (contextKeyService: IContextKeyService) => {
+			const editorContextKeyService = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+			ActiveEditorContext.bindTo(editorContextKeyService).set(SessionChangesEditor.ID);
+			return MenuRegistry.getMenuItems(Menus.SessionsEditorTitle).filter(isIMenuItem)
+				.filter(item => item.command.id.startsWith('workbench.contrib.sessions.changesHeaderChangesetOperation.') && editorContextKeyService.contextMatchesRules(item.when) && editorContextKeyService.contextMatchesRules(item.command.precondition))
+				.map(item => item.command.id);
+		};
+		const result = { main: shown(mainContextKeyService), chatWindow: shown(windowContextKeyService) };
+		for (const [id, groupId] of [[result.main[0], 1], [result.chatWindow[0], 2]] as const) {
+			await instantiationService.invokeFunction(CommandsRegistry.getCommand(id)!.handler, URI.parse('changes-multi-diff-source:/session'), { groupId });
+		}
+
+		const commit = `workbench.contrib.sessions.changesHeaderChangesetOperation.${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`;
+		assert.deepStrictEqual({ ...result, invoked }, {
+			main: [commit],
+			chatWindow: [commit],
+			invoked: [`main:${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`, `window:${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`],
 		});
 	});
 
@@ -278,29 +342,34 @@ suite('Changes Actions', () => {
 		const chat = upcastPartial<IChat>({
 			changesets: constObservable([changeset]),
 		});
-		const activeSession = observableValue<IActiveSession | undefined>('test.activeSession', upcastPartial<IActiveSession>({
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('test.activeSession', upcastPartial<ITestSessionWithChat>({
 			resource: URI.parse('test-session:draft'),
 			status,
 			workspace,
 			mainChat: constObservable(chat),
 			activeChat: constObservable(chat),
 		}));
-		const sessionsService = new class extends mock<ISessionsService>() {
-			override readonly activeSession = activeSession;
-		}();
-		const changesViewService = new class extends mock<IChangesViewService>() {
-			override readonly activeSessionChangesetObs = constObservable(changeset);
+		const changes = { changesetObs: constObservable(changeset), changesetOperationsObs: operations };
+		const contextKeyService = disposables.add(new ContextKeyService(new TestConfigurationService()));
+		disposables.add(bindChangesetOperations({ session: activeSession, changes }, contextKeyService));
+		const instantiationService = disposables.add(new TestInstantiationService());
+		instantiationService.stub(ISessionsService, new class extends mock<ISessionsService>() { readonly mainWindowActiveSession = activeSession; }());
+		stubSessionHostsFromSessionsService(instantiationService);
+		instantiationService.stub(IChangesViewService, new class extends mock<IChangesViewService>() {
+			override readonly activeSessionChangesetObs = changes.changesetObs;
 			override readonly activeSessionChangesetOperationsObs = operations;
-		}();
-		disposables.add(new ChangesHeaderChangesetOperationsActionContribution(sessionsService, changesViewService, new NullActionViewItemService()));
+		}());
 
 		const actionPrefix = 'workbench.contrib.sessions.changesHeaderChangesetOperation.';
+		const commitId = `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`;
 		const getActions = () => MenuRegistry.getMenuItems(Menus.SessionsEditorTitle)
 			.filter(isIMenuItem)
 			.filter(item => item.command.id.startsWith(actionPrefix));
-		const disabledActions = getActions();
-		const disabledCommitAction = disabledActions.find(item => item.command.id === `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`)!;
-		const disabledWithoutChanges = disabledCommitAction.command.precondition?.serialize();
+		const editorContextKeyService = disposables.add(contextKeyService.createScoped(document.createElement('div')));
+		const activeEditor = ActiveEditorContext.bindTo(editorContextKeyService);
+		activeEditor.set(SessionChangesEditor.ID);
+		const isEnabled = (id: string) => editorContextKeyService.contextMatchesRules(getActions().find(item => item.command.id === id)?.command.precondition);
+		const disabledWithoutChanges = !isEnabled(commitId);
 		workspace.set(upcastPartial<ISessionWorkspace>({
 			folders: [upcastPartial<ISessionFolder>({
 				gitRepository: upcastPartial<ISessionGitRepository>({
@@ -309,14 +378,12 @@ suite('Changes Actions', () => {
 			})],
 		}), undefined);
 		const actions = getActions();
-		const commitAction = actions.find(item => item.command.id === `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`)!;
-		const context = new Context(1, null);
-		context.setValue(ActiveEditorContext.key, SessionChangesEditor.ID);
-		const visibleForChangesTab = commitAction.when?.evaluate(context) ?? true;
-		context.setValue(ActiveEditorContext.key, 'workbench.editors.textEditor');
-		const visibleForTextTab = commitAction.when?.evaluate(context) ?? true;
-		const instantiationService = disposables.add(new TestInstantiationService());
-		await instantiationService.invokeFunction(CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`)!.handler);
+		const commitAction = actions.find(item => item.command.id === commitId)!;
+		const visibleForChangesTab = editorContextKeyService.contextMatchesRules(commitAction.when);
+		activeEditor.set('workbench.editors.textEditor');
+		const visibleForTextTab = editorContextKeyService.contextMatchesRules(commitAction.when);
+		activeEditor.set(SessionChangesEditor.ID);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commitId)!.handler);
 
 		assert.deepStrictEqual({
 			actions: actions.map(item => ({
@@ -326,7 +393,7 @@ suite('Changes Actions', () => {
 				icon: item.command.icon,
 				group: item.group,
 				order: item.order,
-				precondition: item.command.precondition?.serialize(),
+				enabled: editorContextKeyService.contextMatchesRules(item.command.precondition),
 			})),
 			invokedOperations,
 			disabledWithoutChanges,
@@ -337,16 +404,16 @@ suite('Changes Actions', () => {
 			syncOperationRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_SYNC_CHANGESET_OPERATION_ID}`) !== undefined,
 		}, {
 			actions: [{
-				id: `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`,
+				id: commitId,
 				title: 'Commit',
 				tooltip: 'Commit uncommitted changes',
 				icon: Codicon.check,
 				group: 'navigation',
 				order: 0,
-				precondition: undefined,
+				enabled: true,
 			}],
 			invokedOperations: [AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID],
-			disabledWithoutChanges: 'false',
+			disabledWithoutChanges: true,
 			visibleForChangesTab: true,
 			visibleForTextTab: false,
 			resourceOperationRegistered: false,
@@ -356,9 +423,9 @@ suite('Changes Actions', () => {
 
 		const disabledStates = [SessionChangesetOperationStatus.Disabled, SessionChangesetOperationStatus.Running].map(operationStatus => {
 			operations.set([{ ...operations.get()[0], status: operationStatus }], undefined);
-			return getActions().find(item => item.command.id === `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`)!.command.precondition?.serialize();
+			return isEnabled(commitId);
 		});
-		assert.deepStrictEqual(disabledStates, ['false', 'false']);
+		assert.deepStrictEqual(disabledStates, [false, false]);
 
 		// An existing session only contributes the Commit operation of the
 		// changeset selected in the Changes view.
@@ -366,21 +433,21 @@ suite('Changes Actions', () => {
 		status.set(SessionStatus.Completed, undefined);
 		const existingSessionActions = getActions();
 		invokedOperations.length = 0;
-		await instantiationService.invokeFunction(CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`)!.handler);
+		await instantiationService.invokeFunction(CommandsRegistry.getCommand(commitId)!.handler);
 		assert.deepStrictEqual({
 			actions: existingSessionActions.map(item => ({
 				id: item.command.id,
 				group: item.group,
-				precondition: item.command.precondition?.serialize(),
-				visibleForChangesTab: item.when?.serialize(),
+				enabled: editorContextKeyService.contextMatchesRules(item.command.precondition),
+				visibleForChangesTab: editorContextKeyService.contextMatchesRules(item.when),
 			})),
 			invokedOperations,
 		}, {
 			actions: [{
-				id: `${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`,
+				id: commitId,
 				group: 'navigation',
-				precondition: undefined,
-				visibleForChangesTab: ContextKeyExpr.equals(ActiveEditorContext.key, SessionChangesEditor.ID).serialize(),
+				enabled: true,
+				visibleForChangesTab: true,
 			}],
 			invokedOperations: [AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID],
 		});
@@ -388,7 +455,7 @@ suite('Changes Actions', () => {
 		activeSession.set(undefined, undefined);
 		assert.deepStrictEqual({
 			menuActions: getActions().length,
-			commitCommandRegistered: CommandsRegistry.getCommand(`${actionPrefix}${AGENT_HOST_COMMIT_CHANGESET_OPERATION_ID}`) !== undefined,
+			commitCommandRegistered: CommandsRegistry.getCommand(commitId) !== undefined,
 		}, {
 			menuActions: 0,
 			commitCommandRegistered: false,

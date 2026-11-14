@@ -8,6 +8,7 @@ import type * as vscode from 'vscode';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
+import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { mock } from '../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -63,13 +64,10 @@ suite('ExtHostSCM', () => {
 		const pending = scm.$provideArtifacts(handle, 'group', CancellationToken.None);
 		sourceControl.dispose();
 		await result.complete(artifacts('retired'));
-		try {
-			assert.strictEqual(await pending, undefined);
-			assert.strictEqual(commands.converter.getActualCommand('test.artifact /1'), undefined);
-		} finally {
-			// Also clean up late stores on the unfixed implementation during the red run.
-			sourceControl.dispose();
-		}
+		// Also clean up late stores on the unfixed implementation during the red run.
+		store.add(toDisposable(() => sourceControl.dispose()));
+		assert.strictEqual(await pending, undefined);
+		assert.strictEqual(commands.converter.getActualCommand('test.artifact /1'), undefined);
 	});
 
 	test('does not replace live artifact commands with a retired provider result', async () => {

@@ -180,7 +180,7 @@ export class SessionInputNeededContribution extends Disposable implements IAgent
 			this._turnTracker.turnBlocked(chatUri, blockedTurnId, request.id, request.kind, blockedToolCallId);
 		}
 		if (request.kind !== SessionInputRequestKind.ChatInput) {
-			const agent = this._providerService.getProviderForSession(sessionUri);
+			const agent = this._providerService.getProviderForChat(sessionUri, chatUri);
 			if (agent) {
 				this._toolCallTracker.toolCallBlocked(agent.id, chatUri, sessionUri, request);
 			}

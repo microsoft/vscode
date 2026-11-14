@@ -19,6 +19,10 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { IEditorCommandsContext } from '../../../common/editor.js';
+
+const addTabActionId = 'editor.tabs.addTab';
 
 export interface IEditorAddTabControlOptions {
 
@@ -31,6 +35,12 @@ export interface IEditorAddTabControlOptions {
 	 * Resolves keybindings shown in the dropdown. Defaults to a lookup in the given context key service.
 	 */
 	readonly keybindingProvider?: (action: IAction) => ResolvedKeybinding | undefined;
+
+	/**
+	 * The context the entries run with, such as the group of the tabs bar, so that they act on that group rather than
+	 * on the active one.
+	 */
+	readonly context?: IEditorCommandsContext;
 }
 
 /**
@@ -57,6 +67,7 @@ export class EditorAddTabControl extends Disposable {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -66,7 +77,7 @@ export class EditorAddTabControl extends Disposable {
 		const menu = this._register(menuService.createMenu(menuId, contextKeyService));
 		const getActions = () => getFlatActionBarActions(menu.getActions({ shouldForwardArgs: true }));
 		const addTabAction = toAction({
-			id: 'editor.tabs.addTab',
+			id: addTabActionId,
 			label: localize('addTab', "Add Tab"),
 			class: ThemeIcon.asClassName(Codicon.add),
 			run: () => { }
@@ -79,7 +90,9 @@ export class EditorAddTabControl extends Disposable {
 			ariaLabel: localize('ariaLabelAddTab', "Add Tab"),
 			actionViewItemProvider: action => action === addTabAction ? dropdown : undefined
 		}));
+		toolbar.context = options?.context;
 		toolbar.setActions([addTabAction]);
+		this._registerMenuTelemetry(menuId, dropdown, toolbar, telemetryService);
 
 		const updateVisibility = () => this.element.classList.toggle('hidden', getActions().length === 0);
 		updateVisibility();
@@ -89,6 +102,44 @@ export class EditorAddTabControl extends Disposable {
 			if (wasVisible !== this.visible) {
 				this._onDidChangeVisibility.fire();
 			}
+		}));
+	}
+
+	/**
+	 * Logs the journey through the menu: it was opened, then an entry was picked or it was dismissed.
+	 */
+	private _registerMenuTelemetry(menuId: MenuId, dropdown: DropdownMenuActionViewItem, toolbar: WorkbenchToolBar, telemetryService: ITelemetryService): void {
+		type EditorAddTabMenuEvent = { kind: 'opened' | 'picked' | 'dismissed'; menuId: string; entry: string | undefined };
+		type EditorAddTabMenuClassification = {
+			owner: 'hediet';
+			comment: 'How the add tab (+) button at the end of the editor tabs is used.';
+			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'opened: the menu was opened. picked: an entry was picked. dismissed: the menu was closed without picking an entry.' };
+			menuId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The menu of the button, e.g. the one of the workbench or of the Agents window.' };
+			entry: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The command id of the picked entry.' };
+		};
+		const log = (kind: EditorAddTabMenuEvent['kind'], entry?: string) => telemetryService.publicLog2<EditorAddTabMenuEvent, EditorAddTabMenuClassification>('editorAddTabMenu', { kind, menuId: menuId.id, entry });
+
+		let picked = false;
+		// The dropdown runs its entries with the action runner of the toolbar
+		this._register(toolbar.actionRunner.onWillRun(e => {
+			if (e.action.id === addTabActionId) {
+				return;
+			}
+			picked = true;
+			log('picked', e.action.id);
+		}));
+		this._register(dropdown.onDidChangeVisibility(visible => {
+			if (visible) {
+				picked = false;
+				log('opened');
+				return;
+			}
+			// The menu hides before the picked entry runs, in the same task
+			queueMicrotask(() => {
+				if (!picked) {
+					log('dismissed');
+				}
+			});
 		}));
 	}
 }

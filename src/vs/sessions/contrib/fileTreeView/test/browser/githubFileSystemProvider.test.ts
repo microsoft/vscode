@@ -26,7 +26,7 @@ import { GitHubRequestError } from '../../../../../platform/github/common/github
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME } from '../../../../../workbench/services/sessions/common/session.js';
 import { GitHubFileSystemProvider } from '../../browser/githubFileSystemProvider.js';
 
 const account: IDefaultAccount = {

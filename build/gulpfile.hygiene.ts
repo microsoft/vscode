@@ -15,15 +15,19 @@ import { getChangedFilesScope, getHygieneScope } from './lib/changedFiles.ts';
 
 const dirName = path.dirname(new URL(import.meta.url).pathname);
 
-function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string) {
+/**
+ * Checks that the dependencies of `actualPath` that the root package.json also declares have the
+ * same versions there. `allowedDifferences` names the dependencies that may differ.
+ */
+function checkPackageJSON(this: NodeJS.ReadWriteStream, actualPath: string, allowedDifferences: readonly string[] = []) {
 	const actual = JSON.parse(fs.readFileSync(path.join(dirName, '..', actualPath), 'utf8'));
 	const rootPackageJSON = JSON.parse(fs.readFileSync(path.join(dirName, '..', 'package.json'), 'utf8'));
 	const checkIncluded = (set1: Record<string, string>, set2: Record<string, string>) => {
 		for (const depName in set1) {
 			const depVersion = set1[depName];
 			const rootDepVersion = set2[depName];
-			if (!rootDepVersion) {
-				// missing in root is allowed
+			if (!rootDepVersion || allowedDifferences.includes(depName)) {
+				// missing in root, or allowed to differ
 				continue;
 			}
 			if (depVersion !== rootDepVersion) {
@@ -44,7 +48,8 @@ const checkPackageJSONTask = task.define('check-package-json', () => {
 		es.through(function () {
 			checkPackageJSON.call(this, 'remote/package.json');
 			checkPackageJSON.call(this, 'remote/web/package.json');
-			checkPackageJSON.call(this, 'build/package.json');
+			// The build scripts use glob 7 (and its types); the root's test runners still use glob 5.
+			checkPackageJSON.call(this, 'build/package.json', ['glob']);
 
 			const repoRoot = path.join(dirName, '..');
 			const copilotError = checkCopilotEnginesVersion(repoRoot);

@@ -8,7 +8,7 @@ import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgentHostGitStateService, IRecordedPullRequestAssociationResult, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
+import { IAgentHostGitStateService, IPullRequestLookupFailure, IRefreshSessionGitStateOptions, IRecordedPullRequestAssociationResult, META_GIT_DATA_STATE, META_GIT_STATE, META_GITHUB_DATA_STATE, META_PENDING_RECORDED_PULL_REQUESTS, META_SOURCE_CONTROL_STATE } from '../common/agentHostGitStateService.js';
 import { AgentHostAutoAttachPullRequestsConfigKey, platformRootSchema } from '../common/agentHostSchema.js';
 import { AgentHostAutoAttachPullRequestsSettingId } from '../common/agentService.js';
 import { CopilotCliVSCodeAssignmentContextKey } from '../common/copilotCliConfig.js';
@@ -16,11 +16,13 @@ import { logSettingExperimentTrigger } from '../../telemetry/common/experimentTr
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { getSessionRelatedPullRequestUrls, isAhpChatChannel, ISessionGitHubState, ISessionWithDefaultChat, readFolderGitHubState, readFolderScopeGitState, readSessionGitData, readSessionGitHubData, readSessionGitState, readSessionSourceControlState, SessionLifecycle, SessionSourceControlOutcome, withInitialSessionPullRequest, withMostRecentRelatedSessionPullRequest, withMostRecentSessionPullRequest, withFolderGitHubState, withFolderScopeGitState, withSessionGitState, withSessionSourceControlState, type ISessionGitState, type ISessionSourceControlState, type SessionSummaryMeta } from '../common/state/sessionState.js';
 import { IAgentHostGitService, resolveDiffBaseBranchName } from '../common/agentHostGitService.js';
+import { ActionType } from '../common/state/sessionActions.js';
 import { AgentHostStateManager, IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostSessionStateStore, SessionStateMirrorFlush } from '../common/agentHostSessionStateStore.js';
 import { IAgentConfigurationService } from './agentConfigurationService.js';
 import { PullRequestSummary } from '../../github/common/core/pullRequests.js';
 import { getPullRequestUrlKey } from '../../github/common/githubUrls.js';
+import { GitHubRequestError } from '../../github/common/githubTypes.js';
 import { IAgentHostGitHubService } from './agentHostGitHubService.js';
 import { IAgentHostGitHubEndpointService } from './agentHostGitHubEndpointService.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -63,6 +65,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	readonly onDidChangeSessionGitHubState = this._onDidChangeSessionGitHubState.event;
 
 	private readonly _gitStateRefreshThrottler = this._register(new ThrottlerByKey<string>());
+	/** Keys with a queued refresh that must announce itself even when nothing it reads changed; consumed when the refresh starts. */
+	private readonly _forcedGitStateRefreshes = new Set<string>();
+	/** Reads of a folder's Git state in flight, by folder and base branch. */
+	private readonly _gitStateReads = new Map<string, Promise<ISessionGitState | undefined>>();
+	/** Keys whose first refresh has been announced, with their containing session. */
+	private readonly _announcedGitStateRefreshes = new Map<string, string>();
 	private readonly _gitStateRefreshCancellationTokenSource = new CancellationTokenSource();
 	private readonly _gitStateSaves = new SequencerByKey<string>();
 
@@ -97,9 +105,21 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 
 		this._pullRequestAssociationResolver = this._register(new AgentHostPullRequestAssociationResolver(this._gitService, _gitHubService, this._logService));
 		this._register(toDisposable(() => this._gitStateRefreshCancellationTokenSource.dispose(true)));
+		this._register(this._stateManager.onDidEmitEnvelope(envelope => {
+			if (envelope.action.type === ActionType.SessionChatRemoved) {
+				this._announcedGitStateRefreshes.delete(envelope.action.chat);
+				this._forcedGitStateRefreshes.delete(envelope.action.chat);
+			}
+		}));
 		this._register(this._stateManager.onDidRemoveSession(sessionKey => {
 			this._pullRequestAssociationResolver.removeSession(sessionKey);
 			this._pendingPullRequests.delete(sessionKey);
+			for (const [key, session] of this._announcedGitStateRefreshes) {
+				if (key === sessionKey || session === sessionKey) {
+					this._announcedGitStateRefreshes.delete(key);
+					this._forcedGitStateRefreshes.delete(key);
+				}
+			}
 			for (const [key, session] of this._unavailableCredentialSessions) {
 				if (session === sessionKey) {
 					this._unavailableCredentialSessions.delete(key);
@@ -131,18 +151,17 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 		}));
 	}
 
-	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<void> {
+	async attachSessionGitHubPullRequest(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<IPullRequestLookupFailure | void> {
 		const credentials = this._captureCredentials(sessionKey, source);
 		await this._refreshSessionGitState(sessionKey, workingDirectory, credentials);
 		if (isAhpChatChannel(sessionKey) && !this._chatOwnership.isRegisteredDefaultChat(sessionKey)) {
 			const folder = resolveGitHubStateFolder(this._stateManager, sessionKey);
 			if (folder.folderKey !== undefined) {
-				await this._queueFolderPullRequestLookup(folder, credentials);
-				return;
+				return this._queueFolderPullRequestLookup(folder, credentials);
 			}
 		}
 		const sessionUri = isAhpChatChannel(sessionKey) ? resolveGitHubStateFolder(this._stateManager, sessionKey).sessionUri : sessionKey;
-		await this._queuePullRequestLookup(sessionUri, credentials);
+		return this._queuePullRequestLookup(sessionUri, credentials);
 	}
 
 	/**
@@ -150,11 +169,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * triggers (turn completion, session restore, a refresh observing a branch
 	 * change) issue at most one GitHub request at a time.
 	 */
-	private _queuePullRequestLookup(sessionKey: string, credentials = this._captureCredentials(sessionKey)): Promise<void> {
+	private _queuePullRequestLookup(sessionKey: string, credentials = this._captureCredentials(sessionKey)): Promise<IPullRequestLookupFailure | void> {
 		return this._pullRequestSequencer.queue(sessionKey, () => this._attachSessionGitHubPullRequest(sessionKey, credentials));
 	}
 
-	private async _attachSessionGitHubPullRequest(sessionKey: string, credentials: IRepositoryCredentialContext): Promise<void> {
+	private async _attachSessionGitHubPullRequest(sessionKey: string, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
 		if (credentials.sponsorUnavailable) {
 			return;
 		}
@@ -208,9 +227,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				}
 				if (result.kind === 'failed') {
 					this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to reconcile artifact pull requests for ${sessionKey}`, result.error);
+					return toPullRequestLookupFailure(result.error);
 				}
 			} catch (error) {
 				this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to reconcile artifact pull requests for ${sessionKey}`, error);
+				return toPullRequestLookupFailure(error);
 			}
 			return;
 		}
@@ -268,11 +289,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			await this.setSessionGitHubState(sessionKey, nextGitHubState);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachSessionGitHubPullRequest] Failed to find pull request for ${sessionKey}`, error);
+			return toPullRequestLookupFailure(error);
 		}
 	}
 
 	/** Queues a pull request lookup for a folder other than the session folder. */
-	private _queueFolderPullRequestLookup(folder: IGitHubStateFolder, credentials = this._captureCredentials(folder.sessionUri)): Promise<void> {
+	private _queueFolderPullRequestLookup(folder: IGitHubStateFolder, credentials = this._captureCredentials(folder.sessionUri)): Promise<IPullRequestLookupFailure | void> {
 		return this._pullRequestSequencer.queue(`${folder.sessionUri}#${folder.folderKey}`, () => this._attachFolderGitHubPullRequest(folder, credentials));
 	}
 
@@ -281,7 +303,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 	 * the session folder. Restricted mode reconciles only the session folder;
 	 * other folders rely on the pull requests created from them.
 	 */
-	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder, credentials: IRepositoryCredentialContext): Promise<void> {
+	private async _attachFolderGitHubPullRequest(folder: IGitHubStateFolder, credentials: IRepositoryCredentialContext): Promise<IPullRequestLookupFailure | void> {
 		if (credentials.sponsorUnavailable) {
 			return;
 		}
@@ -325,6 +347,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			await this.setSessionGitHubState(folder.sourceUri, nextGitHubState);
 		} catch (error) {
 			this._logService.warn(`[AgentHostGitStateService][attachFolderGitHubPullRequest] Failed to find pull request for ${folder.sourceUri}`, error);
+			return toPullRequestLookupFailure(error);
 		}
 	}
 
@@ -413,11 +436,11 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			: state;
 	}
 
-	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource): Promise<void> {
-		return this._refreshSessionGitState(sessionKey, workingDirectory, this._captureCredentials(sessionKey, source));
+	async refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, source?: IAgentHostCredentialSource, options?: IRefreshSessionGitStateOptions): Promise<void> {
+		return this._refreshSessionGitState(sessionKey, workingDirectory, this._captureCredentials(sessionKey, source), options?.force);
 	}
 
-	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, credentials: IRepositoryCredentialContext): Promise<void> {
+	private async _refreshSessionGitState(sessionKey: string, workingDirectory: URI | undefined, credentials: IRepositoryCredentialContext, force = false): Promise<void> {
 		const sessionState = this._getStateForGitScope(sessionKey);
 		if (sessionState?.lifecycle === SessionLifecycle.Failed) {
 			return;
@@ -439,12 +462,18 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			return;
 		}
 
+		if (force) {
+			this._forcedGitStateRefreshes.add(sessionKey);
+		}
 		await this._gitStateRefreshThrottler.queue(sessionKey, async () => {
+			// A refresh announces itself only when it observed something new, when it is the first one, or when its caller knows the checkout changed in ways the state does not describe.
+			const forced = this._forcedGitStateRefreshes.delete(sessionKey);
+			let announce = forced || !this._announcedGitStateRefreshes.has(sessionKey);
 			try {
 				this._logService.trace(`[AgentHostGitStateService][refreshSessionGitState] Refreshing git state for ${sessionKey}, ${workingDirectory?.fsPath}`);
 
 				const baseBranchName = await this.resolveSessionBaseBranchName(sessionKey);
-				const gitState = await this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+				const gitState = await this._readGitState(workingDirectory, baseBranchName, forced);
 				const currentWorkingDirectory = this._getStateForGitScope(sessionKey)?.workingDirectories?.[0];
 				const primaryWorkingDirectoryChanged = initialPrimaryWorkingDirectory === undefined
 					? currentWorkingDirectory !== undefined
@@ -461,6 +490,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					const previousGitState = this.getSessionGitState(sessionKey);
 					const gitStateChanged = !objectEquals(previousGitState, gitState);
 					if (gitStateChanged) {
+						announce = true;
 						if (isAhpChatChannel(sessionKey)) {
 							await this._setChatGitState(sessionKey, gitState);
 						} else {
@@ -473,6 +503,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					if (!credentials.sponsorUnavailable && folder && !folder.isSessionFolder && gitState.githubOwner && gitState.githubRepo) {
 						const currentGitHubState = this.getGitHubState(sessionKey);
 						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
+							announce = true;
 							await this.setSessionGitHubState(sessionKey, {
 								owner: gitState.githubOwner,
 								repo: gitState.githubRepo
@@ -486,6 +517,7 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					if (!credentials.sponsorUnavailable && !isAhpChatChannel(sessionKey) && gitState.githubOwner && gitState.githubRepo) {
 						const currentGitHubState = this.getGitHubState(sessionKey);
 						if (currentGitHubState?.owner !== gitState.githubOwner || currentGitHubState.repo !== gitState.githubRepo) {
+							announce = true;
 							await this.setSessionGitHubState(sessionKey, {
 								owner: gitState.githubOwner,
 								repo: gitState.githubRepo
@@ -505,7 +537,10 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 					}
 				}
 
-				this._onDidRefreshSessionGitState.fire(sessionKey);
+				if (announce) {
+					this._announcedGitStateRefreshes.set(sessionKey, isAhpChatChannel(sessionKey) ? this._chatOwnership.getChatOwner(sessionKey) ?? sessionKey : sessionKey);
+					this._onDidRefreshSessionGitState.fire(sessionKey);
+				}
 				void this.reconcilePendingRecordedPullRequests(sessionKey).catch(error =>
 					this._logService.warn(`[AgentHostGitStateService] Failed to reconcile pending pull requests for ${sessionKey}`, error));
 
@@ -522,6 +557,30 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 				this._logService.warn(`[AgentHostGitStateService][refreshSessionGitState] Failed to compute git state for ${sessionKey}:`, error);
 			}
 		});
+	}
+
+	/**
+	 * Chats working in the same folder refresh independently. Those refreshing while a read of the folder is in
+	 * flight share it. A forced refresh knows the checkout just changed, which a read that started earlier may not
+	 * reflect, so it only shares a read another forced refresh started.
+	 */
+	private _readGitState(workingDirectory: URI, baseBranchName: string | undefined, fresh: boolean): Promise<ISessionGitState | undefined> {
+		const key = `${workingDirectory.toString()}\0${baseBranchName ?? ''}`;
+		const freshKey = `${key}\0fresh`;
+		const inFlight = this._gitStateReads.get(freshKey) ?? (fresh ? undefined : this._gitStateReads.get(key));
+		if (inFlight) {
+			return inFlight;
+		}
+		const read = this._gitService.getSessionGitState(workingDirectory, baseBranchName);
+		const readKey = fresh ? freshKey : key;
+		this._gitStateReads.set(readKey, read);
+		const clear = () => {
+			if (this._gitStateReads.get(readKey) === read) {
+				this._gitStateReads.delete(readKey);
+			}
+		};
+		read.then(clear, clear);
+		return read;
 	}
 
 	getSessionGitState(sessionKey: string): ISessionGitState | undefined {
@@ -999,4 +1058,12 @@ export class AgentHostGitStateService extends Disposable implements IAgentHostGi
 			this._logService.warn(`[AgentHostGitStateService][_deleteSessionState] Failed to delete ${keys.join(', ')}`, error);
 		}
 	}
+}
+
+function toPullRequestLookupFailure(error: unknown): IPullRequestLookupFailure {
+	if (error instanceof GitHubRequestError) {
+		const ssoAuthorizationUrl = error.responseMetadata?.ssoAuthorizationUrl;
+		return { kind: error.kind, message: error.message, ...(ssoAuthorizationUrl ? { ssoAuthorizationUrl } : {}) };
+	}
+	return { kind: 'unknown', message: error instanceof Error ? error.message : String(error) };
 }

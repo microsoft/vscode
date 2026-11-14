@@ -17,6 +17,8 @@ import { ADDITIONAL_WORKTREES_METADATA_KEY } from './shared/sessionAdditionalWor
 /** Migration version of the pending worktree removal table. */
 export const WORKTREE_REMOVAL_MIGRATION_VERSION = 18;
 
+export const WORKTREE_REMOVAL_STATUS_MIGRATION_VERSION = 22;
+
 export const WORKTREE_REMOVAL_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS pending_worktree_removals (
 	kind            TEXT NOT NULL CHECK (kind IN ('session', 'detached', 'coOwned')),
@@ -143,6 +145,12 @@ export interface IPendingWorktreeRemoval extends IWorktreeRemovalRequest {
 	readonly attempts: number;
 	/** Earliest time of the next attempt after a failure; `0` when due. */
 	readonly nextAttemptAt: number;
+	readonly lastAttempt?: IWorktreeRemovalAttemptStatus;
+}
+
+export interface IWorktreeRemovalAttemptStatus {
+	readonly state: 'failed' | 'skipped';
+	readonly message?: string;
 }
 
 export interface IAgentHostWorktreeRemovalDatabase {
@@ -156,7 +164,7 @@ export interface IAgentHostWorktreeRemovalDatabase {
 	readPendingWorktreeRemoval(kind: WorktreeRemovalKind, owner: string): Promise<IPendingWorktreeRemoval | undefined>;
 	listPendingWorktreeRemovals(): Promise<readonly IPendingWorktreeRemoval[]>;
 	/** Counts a failed attempt of the request, when it is still pending. Returns the attempts recorded. */
-	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number): Promise<number | undefined>;
+	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number, status: IWorktreeRemovalAttemptStatus): Promise<number | undefined>;
 	/**
 	 * Whether a non-archived, non-deleted session or chat other than those of
 	 * `excludedSession` has a working directory at or inside `worktreePath`,
@@ -200,6 +208,7 @@ export interface IAgentHostWorktreeRemovalDatabase {
 }
 
 const columns = 'kind, owner, owner_session, worktree_path, repository_root, branch, mode, owner_deleted, attempts, requested_at, next_attempt_at';
+const statusColumns = 'last_attempt_state, last_attempt_message';
 
 /** Writes removal requests inside the caller's transaction. */
 export async function insertPendingWorktreeRemovals(connection: Pick<ISessionStateSqlConnection, 'run'>, requests: readonly IWorktreeRemovalRequest[]): Promise<void> {
@@ -208,7 +217,7 @@ export async function insertPendingWorktreeRemovals(connection: Pick<ISessionSta
 			ON CONFLICT(kind, owner) DO UPDATE SET
 				owner_session = excluded.owner_session, worktree_path = excluded.worktree_path, repository_root = excluded.repository_root,
 				branch = excluded.branch, mode = excluded.mode, owner_deleted = excluded.owner_deleted, attempts = 0,
-				requested_at = excluded.requested_at, next_attempt_at = 0
+				requested_at = excluded.requested_at, next_attempt_at = 0, last_attempt_state = NULL, last_attempt_message = NULL
 			WHERE excluded.owner_deleted = 1 OR pending_worktree_removals.owner_deleted = 0`,
 			[request.kind, request.owner, request.ownerSession ?? null, request.worktreePath, request.repositoryRoot, request.branch ?? null, request.mode, request.ownerDeleted ? 1 : 0, request.requestedAt]);
 	}
@@ -227,6 +236,9 @@ function toRemoval(row: Record<string, unknown>): IPendingWorktreeRemoval {
 		attempts: row.attempts as number,
 		requestedAt: row.requested_at as number,
 		nextAttemptAt: row.next_attempt_at as number,
+		lastAttempt: row.last_attempt_state === 'failed' || row.last_attempt_state === 'skipped'
+			? { state: row.last_attempt_state, ...(typeof row.last_attempt_message === 'string' ? { message: row.last_attempt_message } : {}) }
+			: undefined,
 	};
 }
 
@@ -378,19 +390,19 @@ export class AgentHostWorktreeRemovalTables implements IAgentHostWorktreeRemoval
 
 	readPendingWorktreeRemoval(kind: WorktreeRemovalKind, owner: string): Promise<IPendingWorktreeRemoval | undefined> {
 		return this._host.read(async connection => {
-			const row = await connection.get(`SELECT ${columns} FROM pending_worktree_removals WHERE kind = ? AND owner = ?`, [kind, owner]);
+			const row = await connection.get(`SELECT ${columns}, ${statusColumns} FROM pending_worktree_removals WHERE kind = ? AND owner = ?`, [kind, owner]);
 			return row ? toRemoval(row) : undefined;
 		});
 	}
 
 	listPendingWorktreeRemovals(): Promise<readonly IPendingWorktreeRemoval[]> {
-		return this._host.read(async connection => (await connection.all(`SELECT ${columns} FROM pending_worktree_removals ORDER BY requested_at, kind, owner`, [])).map(toRemoval));
+		return this._host.read(async connection => (await connection.all(`SELECT ${columns}, ${statusColumns} FROM pending_worktree_removals ORDER BY requested_at, kind, owner`, [])).map(toRemoval));
 	}
 
-	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number): Promise<number | undefined> {
+	recordPendingWorktreeRemovalFailure(request: Pick<IWorktreeRemovalRequest, 'kind' | 'owner' | 'mode' | 'requestedAt'>, nextAttemptAt: number, status: IWorktreeRemovalAttemptStatus): Promise<number | undefined> {
 		return this._host.write('Failed to record a worktree removal attempt', async connection => {
-			const changed = await connection.run(`UPDATE pending_worktree_removals SET attempts = attempts + 1, next_attempt_at = ?
-				WHERE kind = ? AND owner = ? AND mode = ? AND requested_at = ?`, [nextAttemptAt, request.kind, request.owner, request.mode, request.requestedAt]);
+			const changed = await connection.run(`UPDATE pending_worktree_removals SET attempts = attempts + 1, next_attempt_at = ?, last_attempt_state = ?, last_attempt_message = ?
+				WHERE kind = ? AND owner = ? AND mode = ? AND requested_at = ?`, [nextAttemptAt, status.state, status.message ?? null, request.kind, request.owner, request.mode, request.requestedAt]);
 			if (!changed) {
 				return undefined;
 			}

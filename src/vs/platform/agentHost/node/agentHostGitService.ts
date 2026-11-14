@@ -6,6 +6,7 @@
 import * as cp from 'child_process';
 import * as fsPromises from 'fs/promises';
 import { cp as copyFile } from '@vscode/fs-copyfile';
+import { Schemas } from '../../../base/common/network.js';
 import * as path from '../../../base/common/path.js';
 import { extUriBiasedIgnorePathCase } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
@@ -17,7 +18,7 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileEditKind, type ISessionFileDiff, type ISessionGitState } from '../common/state/sessionState.js';
 import { buildGitBlobUri } from './gitDiffContent.js';
-import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
+import { CheckoutBlockedByLocalChangesError, EMPTY_TREE_OBJECT, IAddWorktreeOptions, IAgentHostGitService, IAgentHostGitWorktree, IBranch, IBranchDiffSafetyInfo, IRefQuery, IComputeSessionFileDiffsOptions, IDefaultBranch, IGitRemote, IPullOptions, IPushOptions, GitRefType, IRemoteBranch, GitRef, ITag, Branch, IWorktreeFileProgress, IDetachedHead } from '../common/agentHostGitService.js';
 import { LRUCache } from '../../../base/common/map.js';
 import { firstParallel, Limiter, SequencerByKey, timeout } from '../../../base/common/async.js';
 import { derived, observableValueOpts, type IObservable } from '../../../base/common/observable.js';
@@ -43,8 +44,17 @@ const SHOW_BLOB_TIMEOUT_MS = 15_000;
  */
 const GET_REFS_TIMEOUT_MS = 30_000;
 
+/** Budget for a git command that doesn't set its own, so that an unresponsive remote can't hang a caller. */
+const GIT_COMMAND_TIMEOUT_MS = 30_000;
+
+/** Beyond this many changed paths, stat-ing them costs about as much as the diff the fingerprint would save. */
+const MAX_FINGERPRINTED_CHANGED_PATHS = 2000;
+
 export class AgentHostGitService implements IAgentHostGitService {
 	declare readonly _serviceBrand: undefined;
+
+	/** The timeout of the git commands that don't set their own; tests shorten it to observe it quickly. */
+	protected readonly _defaultTimeoutMs: number = GIT_COMMAND_TIMEOUT_MS;
 
 	/**
 	 * A cache of repository roots and confirmed non-repositories.
@@ -223,6 +233,10 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getRepositoryRoot(workingDirectory: URI, options?: { readonly refreshIfNone?: boolean }): Promise<URI | undefined> {
+		if (workingDirectory.scheme !== Schemas.file) {
+			return undefined;
+		}
+
 		const workingDirectoryKey = extUriBiasedIgnorePathCase.getComparisonKey(workingDirectory);
 
 		return this._repositoryRootSequencer.queue(workingDirectoryKey, async () => {
@@ -270,16 +284,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	}
 
 	async getWorktreeRoots(workingDirectory: URI): Promise<URI[]> {
-		return this._parseWorktreeRoots(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain']));
+		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z']) ?? '').map(worktree => worktree.path);
 	}
 
-	private _parseWorktreeRoots(porcelainOutput: string | undefined): URI[] {
-		if (!porcelainOutput) {
-			return [];
-		}
-		return porcelainOutput.split(/\r?\n/g)
-			.filter(line => line.startsWith('worktree '))
-			.map(line => URI.file(line.substring('worktree '.length)));
+	async getWorktrees(workingDirectory: URI): Promise<IAgentHostGitWorktree[]> {
+		return parseGitWorktrees(await this._runGit(workingDirectory, ['worktree', 'list', '--porcelain', '-z'], { throwOnError: true }) ?? '');
 	}
 
 	async addWorktree(repositoryRoot: URI, options: IAddWorktreeOptions): Promise<void> {
@@ -426,8 +435,11 @@ export class AgentHostGitService implements IAgentHostGitService {
 	 * a residual directory; and verify the worktree is truly de-registered before
 	 * returning, so a silent `prune` no-op cannot mask a leaked entry.
 	 */
-	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean }): Promise<void> {
-		if (options?.force && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
+	async removeWorktree(repositoryRoot: URI, worktree: URI, options?: { readonly force?: boolean; readonly discardChanges?: boolean }): Promise<void> {
+		if (options?.discardChanges && !options.force) {
+			throw new Error('Discarding worktree changes requires forced removal.');
+		}
+		if (options?.force && !options.discardChanges && await this._pathExists(worktree.fsPath) && await this.isWorktreeRegistered(repositoryRoot, worktree)) {
 			if (!await this._pathExists(path.join(worktree.fsPath, '.git'))) {
 				throw new Error(`Cannot preserve registered worktree '${worktree.fsPath}': its .git file is missing`);
 			}
@@ -547,7 +559,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 	async isWorktreeRegistered(repositoryRoot: URI, worktree: URI): Promise<boolean> {
 		let registered: URI[];
 		try {
-			registered = this._parseWorktreeRoots(await this._runGit(repositoryRoot, ['worktree', 'list', '--porcelain'], { throwOnError: true }));
+			registered = (await this.getWorktrees(repositoryRoot)).map(worktree => worktree.path);
 		} catch {
 			return true;
 		}
@@ -774,6 +786,60 @@ export class AgentHostGitService implements IAgentHostGitService {
 		}
 
 		return this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch);
+	}
+
+	async getBranchDiffFingerprint(workingDirectory: URI, baseBranch?: string): Promise<string | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot) {
+			return undefined;
+		}
+		const [mergeBaseCommit, head, statusOut] = await Promise.all([
+			this._resolveBranchMergeBaseCommit(repositoryRoot, baseBranch),
+			this._runGit(repositoryRoot, ['rev-parse', 'HEAD']),
+			this._runGitStatus(repositoryRoot, ['--porcelain=v1', '-z', '--untracked-files=all']),
+		]);
+		if (statusOut === undefined) {
+			return undefined;
+		}
+		const changedPaths = parseChangedPaths(statusOut);
+		if (changedPaths.length > MAX_FINGERPRINTED_CHANGED_PATHS) {
+			return undefined;
+		}
+		const limiter = new Limiter<string>(16);
+		try {
+			const files = await Promise.all(changedPaths.map(changedPath => limiter.queue(async () => {
+				try {
+					const stat = await fsPromises.lstat(path.join(repositoryRoot.fsPath, changedPath), { bigint: true });
+					return `${stat.size}:${stat.mtimeNs}`;
+				} catch {
+					return 'missing';
+				}
+			})));
+			return JSON.stringify([mergeBaseCommit, head?.trim(), statusOut, files]);
+		} finally {
+			limiter.dispose();
+		}
+	}
+
+	async hasUnignoredPaths(workingDirectory: URI, resources: readonly URI[]): Promise<boolean | undefined> {
+		const repositoryRoot = await this.getRepositoryRoot(workingDirectory);
+		if (!repositoryRoot || resources.length === 0) {
+			return undefined;
+		}
+		const gitDirectory = path.join(repositoryRoot.fsPath, '.git');
+		const paths = resources.map(resource => resource.fsPath);
+		if (paths.some(candidate => candidate === gitDirectory || candidate.startsWith(gitDirectory + path.sep))) {
+			return true;
+		}
+		try {
+			// Tracked files are never reported, only untracked ones that an ignore rule covers.
+			const ignored = await this._runGit(repositoryRoot, ['check-ignore', '-z', '--stdin'], { throwOnError: true, input: paths.join('\0') + '\0' });
+			const ignoredPaths = new Set(ignored?.split('\0').filter(Boolean));
+			return paths.some(candidate => !ignoredPaths.has(candidate));
+		} catch (error) {
+			// Exit status 1 is `check-ignore` saying that no path is ignored.
+			return error instanceof GitCommandError && (error.cause as cp.ExecFileException | undefined)?.code === 1 ? true : undefined;
+		}
 	}
 
 	/**
@@ -1424,7 +1490,7 @@ export class AgentHostGitService implements IAgentHostGitService {
 
 		return new Promise((resolve, reject) => {
 			const env = options?.env ? { ...process.env, ...options.env } : undefined;
-			const timeoutMs = options?.timeout ?? 5000;
+			const timeoutMs = options?.timeout ?? this._defaultTimeoutMs;
 			// Use our own timer rather than execFile's `timeout` option so
 			// we can definitively flag the timeout case in the error
 			// message — execFile only surfaces signal/killed, which can
@@ -1833,7 +1899,7 @@ export function formatGitError(args: readonly string[], timeoutMs: number, didTi
  * Squashes multi-line / carriage-return-heavy stderr (e.g. git progress
  * meters that emit `Updating files:   0% (149/14834)\r...` repeatedly)
  * into a single short line suitable for a one-liner error message.
- * Keeps the most recent non-empty line and caps total length.
+ * Prefers actionable diagnostics over trailing advice and caps total length.
  *
  * Exported for tests.
  */
@@ -1850,8 +1916,17 @@ export function summarizeStderrForError(stderr: string): string {
 		/\bgit-lfs\b/i.test(line) &&
 		/(command not found|not recognized|no such file)/i.test(line)
 	);
-	const summary = gitLfsMissing ?? lines[lines.length - 1];
+	const summary = gitLfsMissing ?? lines.find(line => /^fatal:/i.test(line)) ?? lines[lines.length - 1];
 	return summary.length > MAX ? `${summary.slice(0, MAX - 1)}…` : summary;
+}
+
+export function parseGitWorktrees(output: string): IAgentHostGitWorktree[] {
+	const branchPrefix = 'branch refs/heads/';
+	return output.split('\0\0').filter(record => record.startsWith('worktree ')).map(record => {
+		const fields = record.split('\0');
+		const branch = fields.find(field => field.startsWith(branchPrefix));
+		return { path: URI.file(fields[0].slice('worktree '.length)), branchName: branch?.slice(branchPrefix.length) };
+	});
 }
 
 /**
@@ -2161,9 +2236,10 @@ function parseFetchRemotes(remotesOutput: string | undefined): { name: string; u
 	}
 	const candidates: { name: string; url: string }[] = [];
 	for (const rawLine of remotesOutput.split(/\r?\n/)) {
-		const match = /^(\S+)\s+(\S+)\s+\(fetch\)$/.exec(rawLine.trim());
-		if (match) {
-			candidates.push({ name: match[1], url: match[2] });
+		// Partial clones append the object filter, e.g. `origin <url> (fetch) [blob:none]`.
+		const match = /^(?<name>\S+)\s+(?<url>\S+)\s+\(fetch\)(?:\s+\[[^\]]*\])?$/.exec(rawLine.trim());
+		if (match?.groups) {
+			candidates.push({ name: match.groups.name, url: match.groups.url });
 		}
 	}
 	return candidates;

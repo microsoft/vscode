@@ -38,11 +38,13 @@ import { IQuickDiffModelService } from '../../contrib/scm/browser/quickDiffModel
 class TextEditorSnapshot {
 
 	readonly id: string;
+	readonly model: ITextModel;
 
 	constructor(
 		readonly editor: IActiveCodeEditor,
 	) {
-		this.id = `${editor.getId()},${editor.getModel().id}`;
+		this.model = editor.getModel();
+		this.id = `${editor.getId()},${this.model.id}`;
 	}
 }
 
@@ -126,7 +128,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		@IPaneCompositePartService private readonly _paneCompositeService: IPaneCompositePartService,
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
-		this._modelService.onModelRemoved(_ => this._updateState(), this, this._toDispose);
+		this._modelService.onModelRemoved(this._updateStateOnModelRemove, this, this._toDispose);
 		this._editorService.onDidActiveEditorChange(_ => this._updateState(), this, this._toDispose);
 
 		this._codeEditorService.onCodeEditorAdd(this._onDidAddEditor, this, this._toDispose);
@@ -183,6 +185,37 @@ class MainThreadDocumentAndEditorStateComputer {
 
 		this._onDidChangeState(new DocumentAndEditorStateDelta(
 			[], [model],
+			[], [],
+			undefined, undefined
+		));
+	}
+
+	private _updateStateOnModelRemove(model: ITextModel): void {
+		if (!this._currentState) {
+			// too early
+			this._updateState();
+			return;
+		}
+
+		if (!this._currentState.documents.has(model)) {
+			// not synchronized (too large, simple widget), nothing to remove
+			return;
+		}
+
+		for (const snapshot of this._currentState.textEditors.values()) {
+			if (snapshot.model === model) {
+				// an editor shows this model, compute the full state
+				this._updateState();
+				return;
+			}
+		}
+
+		// small (fast) delta, avoids recomputing the full state for each
+		// removed model which is quadratic when many models are disposed at once
+		this._currentState.documents.delete(model);
+
+		this._onDidChangeState(new DocumentAndEditorStateDelta(
+			[model], [],
 			[], [],
 			undefined, undefined
 		));

@@ -53,11 +53,16 @@ class TestLogService extends NullLogService {
 	}
 }
 
-function createGitService(disposables: Pick<DisposableStore, 'add'>, logService: NullLogService = new NullLogService()): AgentHostGitService {
+function createGitService(disposables: Pick<DisposableStore, 'add'>, logService: NullLogService = new NullLogService(), ctor: typeof AgentHostGitService = AgentHostGitService): AgentHostGitService {
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
 	const env: Partial<INativeEnvironmentService> = { tmpDir: URI.file(tmpdir()) };
-	return new AgentHostGitService(fileService, env as INativeEnvironmentService, logService);
+	return new ctor(fileService, env as INativeEnvironmentService, logService);
+}
+
+/** Times git commands out after 300ms by default, so that tests can observe the default timeout quickly. */
+class ShortTimeoutGitService extends AgentHostGitService {
+	protected override readonly _defaultTimeoutMs = 300;
 }
 
 async function rmDirWithRetry(path: string | undefined): Promise<void> {
@@ -1382,6 +1387,29 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		assert.strictEqual(await svc!.branchExists(URI.file(dir), 'does-not-exist'), false);
 	});
 
+	(hasGit ? test : test.skip)('inventories unusual worktree paths without bypassing registered dirty-worktree protection', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, isWindows ? 'checkout with spaces' : 'checkout with\n"quotes"');
+		cp.execFileSync('git', ['worktree', 'add', '-b', 'agents/inventory', wtPath], { cwd: dir, env, stdio: 'pipe' });
+		writeFileSync(join(wtPath, 'keep.txt'), 'uncommitted work');
+		// Git expands Windows short paths that Node's realpathSync can preserve.
+		const gitRoot = (cwd: string) => URI.file(cp.execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd, env, encoding: 'utf8' }).trim());
+		const repository = gitRoot(dir);
+		const worktree = gitRoot(wtPath);
+		const inventory = await svc!.getWorktrees(repository);
+		assert.deepStrictEqual({
+			inventory: inventory.map(entry => ({ path: entry.path.toString(), branch: entry.branchName })),
+			roots: (await svc!.getWorktreeRoots(repository)).map(root => root.toString()),
+			registered: await svc!.isWorktreeRegistered(repository, worktree),
+		}, {
+			inventory: [{ path: repository.toString(), branch: 'main' }, { path: worktree.toString(), branch: 'agents/inventory' }],
+			roots: [repository.toString(), worktree.toString()],
+			registered: true,
+		});
+		await assert.rejects(svc!.removeWorktree(repository, worktree));
+		assert.ok(existsSync(join(wtPath, 'keep.txt')));
+	});
+
 	(hasGit ? test : test.skip)('createBranch preserves dirty changes and leaves the base branch unchanged', async () => {
 		const dir = initRepo();
 		const fs = await import('fs/promises');
@@ -1823,8 +1851,7 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		}
 	});
 
-	(hasGit ? test : test.skip)('fetch bounds an unresponsive remote to five seconds unless its caller overrides the timeout', async function () {
-		this.timeout(20_000);
+	(hasGit ? test : test.skip)('fetch bounds an unresponsive remote to the default git timeout unless its caller overrides the timeout', async function () {
 		const dir = initRepo();
 		const sockets = new Set<Socket>();
 		const server = createServer(socket => {
@@ -1848,8 +1875,11 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 		cp.execFileSync('git', ['remote', 'add', 'unresponsive', `git://127.0.0.1:${address.port}/repo`], { cwd: dir, env, stdio: 'pipe' });
 		const branch = { kind: GitRefType.RemoteHead as const, remote: 'unresponsive', name: 'unresponsive/main', ref: 'refs/remotes/unresponsive/main' };
 
-		await assert.rejects(svc!.fetch(URI.file(dir), branch), /git fetch timed out after 5000ms/);
-		await assert.rejects(svc!.fetch(URI.file(dir), branch, { timeout: 100 }), /git fetch timed out after 100ms/);
+		// Waiting for the real 30 second default would make this the slowest node.js integration test, so a
+		// service with a shorter default observes that fetch uses the default timeout.
+		const shortTimeoutSvc = createGitService(disposables, undefined, ShortTimeoutGitService);
+		await assert.rejects(shortTimeoutSvc.fetch(URI.file(dir), branch), /git fetch timed out after 300ms/);
+		await assert.rejects(shortTimeoutSvc.fetch(URI.file(dir), branch, { timeout: 100 }), /git fetch timed out after 100ms/);
 	});
 
 	(hasGit ? test : test.skip)('removeWorktree preserves dirty work unless forced', async () => {
@@ -1975,6 +2005,28 @@ suite('AgentHostGitService - worktree helpers (real git)', () => {
 			preserved: cp.execFileSync('git', ['show', `${refs[0]}:untracked.txt`], { cwd: dir, env, encoding: 'utf8' }),
 			branchHead: cp.execFileSync('git', ['rev-parse', 'agents/preserve'], { cwd: dir, env, encoding: 'utf8' }).trim(),
 		}, { exists: false, refs: 1, preserved: 'recover this work', branchHead: head });
+	});
+
+	(hasGit ? test : test.skip)('explicit discard removes dirty work without a recovery ref and retains committed history', async () => {
+		const dir = initRepo();
+		const wtPath = join(dir, '..', `wt-discard-${Date.now()}`);
+		const fs = await import('fs/promises');
+		try {
+			await svc!.addWorktree(URI.file(dir), { path: URI.file(wtPath), commitish: 'main', newBranchName: 'agents/discard', track: false });
+			const head = cp.execFileSync('git', ['rev-parse', 'agents/discard'], { cwd: dir, env, encoding: 'utf8' }).trim();
+			await fs.writeFile(join(wtPath, 'untracked.txt'), 'discard this work');
+			await fs.writeFile(join(wtPath, '.gitignore'), 'ignored.txt\n');
+			await fs.writeFile(join(wtPath, 'ignored.txt'), 'discard ignored work');
+			await assert.rejects(svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { discardChanges: true }), /requires forced removal/);
+			await svc!.removeWorktree(URI.file(dir), URI.file(wtPath), { force: true, discardChanges: true });
+			assert.deepStrictEqual({
+				exists: existsSync(wtPath),
+				recoveryRefs: cp.execFileSync('git', ['for-each-ref', '--format=%(refname)', 'refs/vscode-preserved-worktrees/'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+				branchHead: cp.execFileSync('git', ['rev-parse', 'agents/discard'], { cwd: dir, env, encoding: 'utf8' }).trim(),
+			}, { exists: false, recoveryRefs: '', branchHead: head });
+		} finally {
+			await rmDirWithRetry(wtPath);
+		}
 	});
 
 	(hasGit ? test : test.skip)('forced removal aborts when preservation cannot capture the worktree', async () => {
@@ -2607,5 +2659,140 @@ suite('AgentHostGitService - resolveBranchBaselineCommit (real git)', () => {
 		tmpRoot = dir;
 		const result = await svc!.resolveBranchBaselineCommit(URI.file(dir), 'main');
 		assert.strictEqual(result, undefined);
+	});
+});
+
+suite('AgentHostGitService - getBranchDiffFingerprint (real git)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hasGit = (() => {
+		try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+	})();
+
+	let tmpRoot: string | undefined;
+	let svc: AgentHostGitService | undefined;
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+
+	setup(() => {
+		tmpRoot = undefined;
+		svc = createGitService(disposables);
+	});
+
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
+	});
+
+	function initRepo(): (...args: string[]) => Buffer {
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-')));
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: tmpRoot!, env, stdio: 'pipe' });
+		run('init', '-q', '-b', 'main');
+		return run;
+	}
+
+	(hasGit ? test : test.skip)('changes with edits, including to a file that is already modified, commits and the base branch used, and with nothing else', async () => {
+		const fs = await import('fs/promises');
+		const run = initRepo();
+		const directory = URI.file(tmpRoot!);
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'base\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'base');
+		run('checkout', '-q', '-b', 'feature');
+		const fingerprint = () => svc!.getBranchDiffFingerprint(directory, 'main');
+		const steps: Record<string, string | undefined> = { clean: await fingerprint() };
+		const unchanged = await fingerprint() === steps.clean;
+
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'one\n');
+		steps.modified = await fingerprint();
+		await fs.writeFile(join(tmpRoot!, 'a.txt'), 'two\n');
+		steps.modifiedAgain = await fingerprint();
+		await fs.writeFile(join(tmpRoot!, 'untracked.txt'), 'new\n');
+		steps.untracked = await fingerprint();
+		run('add', '.');
+		run('commit', '-q', '-m', 'feature');
+		steps.committed = await fingerprint();
+		run('checkout', '-q', 'main');
+		await fs.writeFile(join(tmpRoot!, 'b.txt'), 'main\n');
+		run('add', '.');
+		run('commit', '-q', '-m', 'main moves');
+		run('checkout', '-q', 'feature');
+		// The base branch moving on leaves the merge base, and with it the diff, as it was.
+		const baseMovedOn = await fingerprint() === steps.committed;
+		steps.noBaseBranch = await svc!.getBranchDiffFingerprint(directory);
+		const settled = baseMovedOn && await fingerprint() === steps.committed;
+
+		assert.deepStrictEqual({
+			unchanged,
+			settled,
+			defined: Object.values(steps).every(value => value !== undefined),
+			distinct: new Set(Object.values(steps)).size,
+		}, {
+			unchanged: true,
+			settled: true,
+			defined: true,
+			distinct: Object.keys(steps).length,
+		});
+	});
+
+	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-fingerprint-none-'));
+		assert.strictEqual(await svc!.getBranchDiffFingerprint(URI.file(tmpRoot), 'main'), undefined);
+	});
+});
+
+suite('AgentHostGitService - hasUnignoredPaths (real git)', () => {
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const hasGit = (() => {
+		try { cp.execFileSync('git', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; }
+	})();
+
+	let tmpRoot: string | undefined;
+	let svc: AgentHostGitService | undefined;
+	const env = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+
+	setup(() => {
+		tmpRoot = undefined;
+		svc = createGitService(disposables);
+	});
+
+	teardown(async () => {
+		await rmDirWithRetry(tmpRoot);
+	});
+
+	(hasGit ? test : test.skip)('tells ignored build output from changes that can affect what Git reports', async () => {
+		const fs = await import('fs/promises');
+		tmpRoot = realpathSync(mkdtempSync(join(tmpdir(), 'agent-host-git-ignored-')));
+		const root = tmpRoot;
+		const run = (...args: string[]) => cp.execFileSync('git', args, { cwd: root, env, stdio: 'pipe' });
+		run('init', '-q', '-b', 'main');
+		await fs.mkdir(join(root, 'out'));
+		await fs.mkdir(join(root, 'dist'));
+		await fs.writeFile(join(root, '.gitignore'), 'out/\n');
+		await fs.writeFile(join(root, 'dist', 'bundle.js'), '1');
+		run('add', '.');
+		run('commit', '-q', '-m', 'init');
+		const directory = URI.file(root);
+		const check = (...relativePaths: string[]) => svc!.hasUnignoredPaths(directory, relativePaths.map(relativePath => URI.file(join(root, relativePath))));
+
+		assert.deepStrictEqual({
+			ignoredOnly: await check('out/a.js', 'out/nested/b.js'),
+			deletedIgnored: await check('out/gone.js'),
+			untracked: await check('src/new.ts'),
+			mixed: await check('out/a.js', 'src/new.ts'),
+			tracked: await check('dist/bundle.js'),
+			gitMetadata: await check('.git/HEAD'),
+		}, {
+			ignoredOnly: false,
+			deletedIgnored: false,
+			untracked: true,
+			mixed: true,
+			tracked: true,
+			gitMetadata: true,
+		});
+	});
+
+	(hasGit ? test : test.skip)('is undefined outside a repository', async () => {
+		tmpRoot = mkdtempSync(join(tmpdir(), 'agent-host-git-ignored-none-'));
+		assert.strictEqual(await svc!.hasUnignoredPaths(URI.file(tmpRoot), [URI.file(join(tmpRoot, 'a'))]), undefined);
 	});
 });

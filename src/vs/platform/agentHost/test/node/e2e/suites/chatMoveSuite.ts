@@ -225,35 +225,8 @@ export function defineChatMoveTests(context: IAgentHostE2ETestContext): void {
 			}, {
 				defaultChat: AgentChatMoveRefusal.NotMovable,
 				notSingleChat: AgentChatMoveRefusal.NotSingleChat,
-				source: { defaultChat: defaultChatChannel(source), chats: [[defaultChatChannel(source), false], [peer, true]] },
+				source: { defaultChat: defaultChatChannel(source), chats: [[defaultChatChannel(source), false], [peer, false]] },
 				target: { defaultChat: defaultChatChannel(target), chats: [[defaultChatChannel(target), false]] },
-			});
-		});
-	}, config.supportsMultipleChats);
-
-	conformanceTest(context, 'a chat of an archived session is announced not movable until its session is unarchived', async function () {
-		const source = await createSession('archived', workspace('archived'));
-		const peer = await createPeer(source);
-		await withChatMoves(async () => {
-			const before = await catalog(source);
-			/** Archives or unarchives the session and returns the `movable` its catalog then announces for the peer. */
-			const archive = async (isArchived: boolean) => {
-				context.client.clearReceived();
-				await dispatchAndWait(source, { type: ActionType.SessionIsArchivedChanged, isArchived });
-				const update = await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionChatUpdated)
-					&& getActionEnvelope(n).channel === source
-					&& (getActionEnvelope(n).action as { readonly chat: string; readonly changes: Partial<ChatSummary> }).chat === peer
-					&& (getActionEnvelope(n).action as { readonly changes: Partial<ChatSummary> }).changes.movable !== undefined, 30_000);
-				return (getActionEnvelope(update).action as { readonly changes: Partial<ChatSummary> }).changes.movable;
-			};
-			const archived = await archive(true);
-			const unarchived = await archive(false);
-
-			assert.deepStrictEqual({ before: before.chats, archived, unarchived, after: (await catalog(source)).chats }, {
-				before: [[defaultChatChannel(source), false], [peer, true]],
-				archived: false,
-				unarchived: true,
-				after: [[defaultChatChannel(source), false], [peer, true]],
 			});
 		});
 	}, config.supportsMultipleChats);

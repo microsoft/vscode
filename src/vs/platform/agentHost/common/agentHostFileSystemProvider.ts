@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
-import { disposableTimeout } from '../../../base/common/async.js';
+import { disposableTimeout, Limiter } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { createFileSystemProviderError, FileChangeType, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileChange, IFileDeleteOptions, IFileOverwriteOptions, IFileSystemProvider, IFileSystemProviderWithFileRealpathCapability, IFileWriteOptions, IStat, IWatchOptions, toFileSystemProviderErrorCode } from '../../files/common/files.js';
+import { getAgentHostPathStyle, type IAgentHostEnvironmentConnection } from './agentHostPathStyle.js';
 import { fromAgentHostUri, isAgentHostContentRefUri, toAgentHostUri } from './agentHostUri.js';
-import { ContentEncoding, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
+import { MCP_RESOURCE_SCHEME } from './mcpResourceUri.js';
+import { ContentEncoding, PathStyle, type CreateResourceWatchParams, type DirectoryEntry, type ResourceCopyParams, type ResourceCopyResult, type ResourceDeleteParams, type ResourceDeleteResult, type ResourceListResult, type ResourceMkdirParams, type ResourceMkdirResult, type ResourceMoveParams, type ResourceMoveResult, type ResourceReadResult, type ResourceRequestParams, type ResourceRequestResult, type ResourceResolveParams, type ResourceResolveResult, type ResourceWriteParams, type ResourceWriteResult } from './state/protocol/commands.js';
 import { AhpErrorCodes } from './state/protocol/errors.js';
 import { ProtocolError } from './state/sessionProtocol.js';
 import { ActionType, type ActionEnvelope } from './state/sessionActions.js';
@@ -22,8 +24,8 @@ import { ROOT_STATE_URI } from './state/sessionState.js';
  * Both {@link IAgentConnection} (client→server) and client-exposed
  * filesystems (server→client) satisfy this contract.
  */
-export interface IRemoteFilesystemConnection {
-	/** Fires when the same logical connection finishes reconnecting. */
+export interface IRemoteFilesystemConnection extends IAgentHostEnvironmentConnection {
+	/** Fires when the same logical connection recovers its transport or expired relay authorization. */
 	readonly onDidReconnect?: Event<void>;
 	resourceList(uri: URI): Promise<ResourceListResult>;
 	resourceRead(uri: URI, encoding?: ContentEncoding): Promise<ResourceReadResult>;
@@ -136,6 +138,22 @@ export function agentHostRemotePath(uri: URI): string {
 	return fromAgentHostUri(uri).path;
 }
 
+/**
+ * This provider is path-case-sensitive as a whole because it also serves posix hosts,
+ * but a Windows host may report a change with different casing than the watch
+ * (for example a lowercased drive letter, as `URI.toString()` produces), which would never
+ * match the watched resource. Re-case the event path to the watched one when they only
+ * differ by case.
+ */
+function matchWatchedPathCase(uri: URI, watchedPath: string): URI {
+	const prefix = watchedPath.endsWith('/') ? watchedPath.slice(0, -1) : watchedPath;
+	const path = uri.path;
+	if (path.length < prefix.length || (path.length > prefix.length && path[prefix.length] !== '/') || path.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) {
+		return uri;
+	}
+	return uri.with({ path: prefix + path.slice(prefix.length) });
+}
+
 // ---- Abstract base ----------------------------------------------------------
 
 interface IAuthorityEntry {
@@ -214,6 +232,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * Tests can override this via the constructor parameter.
 	 */
 	private static readonly _DEFAULT_CONNECTION_GRACE_MS = 5000;
+	private static readonly _READ_FILE_CONCURRENCY = 10;
+
+	private readonly _readLimiter = this._register(new Limiter<Uint8Array>(AHPFileSystemProvider._READ_FILE_CONCURRENCY));
 
 	constructor(
 		private readonly _connectionGraceMs: number = AHPFileSystemProvider._DEFAULT_CONNECTION_GRACE_MS,
@@ -321,9 +342,10 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 		const handleHolder = store.add(new MutableDisposable<IDisposable>());
 		const reconnectListener = store.add(new MutableDisposable<IDisposable>());
 		const authority = resource.authority;
+		const remoteResource = this._decodeUri(resource);
 		const params: CreateResourceWatchParams = {
 			channel: ROOT_STATE_URI,
-			uri: this._decodeUri(resource).toString(),
+			uri: remoteResource.toString(),
 			recursive: opts.recursive,
 			...(opts.excludes.length > 0 ? { excludes: { items: [...opts.excludes] } } : {}),
 			...(opts.includes && opts.includes.length > 0
@@ -384,10 +406,18 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 					handle.dispose();
 					return;
 				}
-				const sub = handle.onDidChange(changes => this._onDidChangeFile.fire(changes.map(c => ({
-					resource: this._encodeUri(c.resource, resource.authority),
-					type: c.type,
-				}))));
+				const sub = handle.onDidChange(changes => {
+					// Read per batch so a watch attached before the handshake picks up the host's path style.
+					// Only Windows-style hosts are re-cased: re-casing is lossy and would alias distinct files
+					// on case-sensitive posix volumes (including macOS). Unknown hosts stay case-sensitive.
+					const caseInsensitive = getAgentHostPathStyle(target) === PathStyle.Windows;
+					this._onDidChangeFile.fire(changes.map(c => ({
+						resource: this._encodeUri(caseInsensitive ? matchWatchedPathCase(c.resource, remoteResource.path) : c.resource, resource.authority),
+						type: c.type,
+						// Correlated watchers (such as the browser's auto-reload) only receive events carrying their ID.
+						...(opts.correlationId !== undefined ? { cId: opts.correlationId } : {}),
+					})));
+				});
 				handleHolder.value = toDisposable(() => {
 					sub.dispose();
 					handle.dispose();
@@ -426,7 +456,8 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	private _isContentRef(resource: URI, decoded: URI): boolean {
 		return isAgentHostContentRefUri(resource)
 			|| decoded.scheme === 'session-db'
-			|| decoded.scheme === 'git-blob';
+			|| decoded.scheme === 'git-blob'
+			|| decoded.scheme === MCP_RESOURCE_SCHEME;
 	}
 
 	async stat(resource: URI): Promise<IStat> {
@@ -491,16 +522,18 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	}
 
 	async readFile(resource: URI): Promise<Uint8Array> {
-		try {
-			const originalUri = this._decodeUri(resource);
-			const result = await this._readFromConnection(resource.authority, connection => connection.resourceRead(originalUri, ContentEncoding.Base64));
-			if (result.encoding === ContentEncoding.Base64) {
-				return decodeBase64(result.data).buffer;
+		return this._readLimiter.queue(async () => {
+			try {
+				const originalUri = this._decodeUri(resource);
+				const result = await this._readFromConnection(resource.authority, connection => connection.resourceRead(originalUri, ContentEncoding.Base64));
+				if (result.encoding === ContentEncoding.Base64) {
+					return decodeBase64(result.data).buffer;
+				}
+				return VSBuffer.fromString(result.data).buffer;
+			} catch (err) {
+				throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
 			}
-			return VSBuffer.fromString(result.data).buffer;
-		} catch (err) {
-			throw this._mapError(err, FileSystemProviderErrorCode.FileNotFound);
-		}
+		});
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, _opts: IFileWriteOptions): Promise<void> {
@@ -659,6 +692,9 @@ export abstract class AHPFileSystemProvider extends Disposable implements IFileS
 	 * via {@link requestResourceAccess}.
 	 */
 	private _mapError(err: unknown, defaultCode: FileSystemProviderErrorCode): Error {
+		if (err instanceof ProtocolError && err.code === AhpErrorCodes.AuthRequired) {
+			return createFileSystemProviderError(err.message, FileSystemProviderErrorCode.Unavailable);
+		}
 		if (err instanceof ProtocolError && err.code === AhpErrorCodes.PermissionDenied) {
 			return createFileSystemProviderError(err.message, FileSystemProviderErrorCode.NoPermissions);
 		}

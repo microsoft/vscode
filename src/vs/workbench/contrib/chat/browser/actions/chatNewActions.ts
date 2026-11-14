@@ -185,7 +185,8 @@ export function registerNewChatActions() {
 				title: localize2('chat.newLocalChat.label', "New Local Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
+				// The Agents view does not show local chat
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), ChatContextKeys.agentsViewActive.negate()),
 				f1: false,
 			});
 		}
@@ -314,7 +315,7 @@ export function registerNewChatActions() {
 			const requestText = currentWidget?.viewModel?.model.checkpoint?.message.text;
 
 			// if the input has the same text that we just restored, clear it.
-			if (currentWidget?.inputEditor.getValue() === requestText) {
+			if (currentWidget?.getInput() === requestText) {
 				currentWidget?.input.setValue('', false);
 			}
 

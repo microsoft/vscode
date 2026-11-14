@@ -39,6 +39,8 @@ export interface IChatSideChatRequestOptions {
 	readonly token?: CancellationToken;
 	/** Branch from this source request instead of the latest request. */
 	readonly sourceTurnId?: string;
+	/** Defaults to true. Set to false to exclude source history and active-turn context while retaining side-chat provenance. */
+	readonly includeSourceContext?: boolean;
 }
 
 /** Supplies window-specific side chat creation and origin navigation. */
@@ -50,8 +52,8 @@ export interface IChatSideChatProvider {
 	canAskInSideChat(sessionResource: URI): boolean;
 
 	/**
-	 * Branches a side chat from the chosen or latest turn, reveals it, and
-	 * sends `query` on it. Rejects if the side chat could not be created.
+	 * Creates and reveals a side chat, inheriting source context unless disabled in `options`, and sends `query`.
+	 * Rejects if the side chat could not be created.
 	 */
 	askInSideChat(sessionResource: URI, query: string, selection?: IChatSideChatSelection, options?: IChatSideChatRequestOptions): Promise<void>;
 

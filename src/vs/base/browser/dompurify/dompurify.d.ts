@@ -1,4 +1,4 @@
-/*! @license DOMPurify 3.4.16 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.16/LICENSE */
+/*! @license DOMPurify 3.4.17 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.4.17/LICENSE */
 import { TrustedHTML, TrustedTypePolicy, TrustedTypesWindow } from "trusted-types/lib/index.js";
 /**
  * Configuration to control DOMPurify behavior.

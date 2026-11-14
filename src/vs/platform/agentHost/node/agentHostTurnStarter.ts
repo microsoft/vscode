@@ -21,7 +21,7 @@ import { IAgentHostStateManager } from './agentHostStateManager.js';
 import { IAgentHostProviderService } from './agentHostProviderService.js';
 import { IAgentHostSessionTitleController } from './agentHostSessionTitleController.js';
 import { getMessageOriginTelemetryKind, IAgentHostTelemetryReporter } from './agentHostTelemetryReporter.js';
-import { getTurnTelemetryContext } from './agentHostTurnTelemetryContext.js';
+import { getApplicableTurnModel, getTurnTelemetryContext } from './agentHostTurnTelemetryContext.js';
 import { IAgentHostTurnTracker } from './agentHostTurnTracker.js';
 
 /** The resolved agent for a turn that has passed host admission. */
@@ -116,7 +116,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	}
 	titleController.seedTitleFromFirstMessage(request.session, request.message.text, request.chat, request.message.model);
 
-	const agent = providerService.getProviderForSession(request.session);
+	const agent = providerService.getProviderForChat(request.session, request.turnChannel);
 	if (!agent) {
 		const error: ErrorInfo = { errorType: 'noAgent', message: 'No agent found for session' };
 		stateManager.dispatchServerAction(request.turnChannel, {
@@ -139,7 +139,7 @@ export function startTurn(accessor: ServicesAccessor, request: ITurnStartRequest
 	const isEphemeralSession = stateManager.isEphemeralSession(request.session);
 	const messageOriginKind = getMessageOriginTelemetryKind(request.message, isEphemeralSession);
 	telemetryReporter.userMessageSent(agent.id, request.clientId, request.clientContext, request.chat, request.session, request.turnId, state, request.source, request.message, isEphemeralSession, stateManager.getChatParent(request.chat) !== undefined);
-	const { model, modelTelemetryKind, modelSelectionKind, autoTier, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat), sessionStateStore.peek(URI.parse(request.session))), configurationService.getChatConfigState({ session: request.session, chat: request.chat }), request.message.model);
+	const { model, modelTelemetryKind, modelSelectionKind, autoTier, permissionLevel, interactionMode } = getTurnTelemetryContext(agent, request.chat, createAgentChatContext(stateManager, authenticationService, request.session, request.chat, stateManager.resolveChatStorageResource(request.session, request.chat), sessionStateStore.peek(URI.parse(request.session))), configurationService.getChatConfigState({ session: request.session, chat: request.chat }), getApplicableTurnModel(agent, stateManager.getSessionState(request.session)?.provider, request.message.model));
 	turnTracker.turnStarted(agent, request.chat, request.session, request.turnId, model, modelTelemetryKind, modelSelectionKind, permissionLevel, interactionMode, request.clientContext, request.clientId, undefined, undefined, messageOriginKind, undefined, undefined, stateManager.getChatParent(request.chat) !== undefined ? 'task' : undefined);
 	if (autoTier !== undefined) {
 		turnTracker.updateFusionTelemetry(request.chat, request.turnId, { autoTier });

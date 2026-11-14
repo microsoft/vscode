@@ -137,6 +137,8 @@ export interface ILocalModelTurnPresentationContext {
 	readonly resolveCloudModelName: (rawModelId: string) => string | undefined;
 	/** Auto explainability is hidden: name no cloud model the router picked. */
 	readonly hideCloudModelName?: boolean;
+	/** Auto is presented as Copilot Fusion, so the labels name it that way. */
+	readonly fusion?: boolean;
 }
 
 /**
@@ -162,7 +164,9 @@ export function getLocalModelTurnPresentation(execution: ILocalTurnExecution, co
 	switch (execution.execution) {
 		case 'local': {
 			return {
-				name: localize({ key: 'agentHost.localModel.labelLocal', comment: ['{0} is a model name followed by "On-device", e.g. "MAI Code 1.1 Flash · On-device"'] }, "Auto ({0})", onDeviceName),
+				name: context.fusion
+					? localize({ key: 'agentHost.localModel.labelLocalFusion', comment: ['{0} is a model name followed by "On-device", e.g. "MAI Code 1.1 Flash · On-device"'] }, "Copilot Fusion ({0})", onDeviceName)
+					: localize({ key: 'agentHost.localModel.labelLocal', comment: ['{0} is a model name followed by "On-device", e.g. "MAI Code 1.1 Flash · On-device"'] }, "Auto ({0})", onDeviceName),
 				routed: { id: context.localModelId ?? execution.familyId ?? onDeviceName, name: onDeviceName },
 				billed: context.localModelId ? { rawModelId: context.localModelId, name: onDeviceName } : undefined,
 			};
@@ -170,16 +174,28 @@ export function getLocalModelTurnPresentation(execution: ILocalTurnExecution, co
 		case 'fallback': {
 			const hover = localize('agentHost.localModel.fallbackHover', "The on-device model was unavailable, so a cloud model was used.");
 			return {
-				name: localize('agentHost.localModel.labelFallback', "Auto ({0})", cloudName),
+				name: context.fusion
+					? localize('agentHost.localModel.labelFallbackFusion', "Copilot Fusion ({0})", cloudName)
+					: localize('agentHost.localModel.labelFallback', "Auto ({0})", cloudName),
 				hover,
-				routed: cloudModelId ? { id: cloudModelId, name: cloudName, reason: localize('agentHost.localModel.fallbackReason', "Auto routed task to {0}. {1}", cloudName, hover) } : undefined,
+				routed: cloudModelId ? {
+					id: cloudModelId,
+					name: cloudName,
+					reason: context.fusion
+						? localize('agentHost.localModel.fallbackReasonFusion', "Copilot Fusion routed task to {0}. {1}", cloudName, hover)
+						: localize('agentHost.localModel.fallbackReason', "Auto routed task to {0}. {1}", cloudName, hover),
+				} : undefined,
 				billed: cloudModelId ? { rawModelId: cloudModelId, name: cloudName } : undefined,
 			};
 		}
 		case 'mixed': {
-			const reason = localize('agentHost.localModel.mixedReason', "Auto ran part of this task on this device and part on {0}.", cloudName);
+			const reason = context.fusion
+				? localize('agentHost.localModel.mixedReasonFusion', "Copilot Fusion ran part of this task on this device and part on {0}.", cloudName)
+				: localize('agentHost.localModel.mixedReason', "Auto ran part of this task on this device and part on {0}.", cloudName);
 			return {
-				name: localize('agentHost.localModel.labelMixed', "Auto (On-device + {0})", cloudName),
+				name: context.fusion
+					? localize('agentHost.localModel.labelMixedFusion', "Copilot Fusion (On-device + {0})", cloudName)
+					: localize('agentHost.localModel.labelMixed', "Auto (On-device + {0})", cloudName),
 				hover: reason,
 				routed: cloudModelId ? { id: cloudModelId, name: cloudName, reason } : undefined,
 				billed: cloudModelId ? { rawModelId: cloudModelId, name: cloudName } : undefined,
@@ -246,8 +262,11 @@ export class AgentHostLocalModelSupport extends Disposable {
 		return this._isEnabled() ? getLocalModelDisplayName(this._getStatus(), rawModelId) : undefined;
 	}
 
-	/** The label of a turn that reported on-device execution, or `undefined` to keep the existing label. */
-	getTurnPresentation(usage: UsageInfo | undefined, selectedRawModelId: string | undefined, resolveCloudModelName: (rawModelId: string) => string | undefined, hideCloudModelName: boolean | undefined): ILocalModelTurnPresentation | undefined {
+	/**
+	 * The label of a turn that reported on-device execution, or `undefined` to keep the existing label.
+	 * @param fusion Whether the chat's Auto model is presented as Copilot Fusion.
+	 */
+	getTurnPresentation(usage: UsageInfo | undefined, selectedRawModelId: string | undefined, resolveCloudModelName: (rawModelId: string) => string | undefined, hideCloudModelName: boolean | undefined, fusion?: boolean): ILocalModelTurnPresentation | undefined {
 		const execution = readLocalModelTurnExecution(usage);
 		if (!execution || execution.execution === 'unknown') {
 			return undefined;
@@ -256,11 +275,14 @@ export class AgentHostLocalModelSupport extends Disposable {
 		const isAuto = selectedRawModelId === AUTO_RAW_MODEL_ID || !!resolution;
 		const localModelId = resolution?.chosenModel ?? usage?.model ?? selectedRawModelId;
 		const localName = getLocalModelDisplayName(this._getStatus(), localModelId, execution.familyId);
-		return getLocalModelTurnPresentation(execution, { isAuto, localName, localModelId, resolveCloudModelName, hideCloudModelName });
+		return getLocalModelTurnPresentation(execution, { isAuto, localName, localModelId, resolveCloudModelName, hideCloudModelName, fusion });
 	}
 
-	/** Shows the one-time fallback notice for a session when a live turn fell back from the on-device model to the cloud. */
-	noteCompletedTurn(sessionResource: URI, usage: UsageInfo | undefined): void {
+	/**
+	 * Shows the one-time fallback notice for a session when a live turn fell back from the on-device model to the cloud.
+	 * @param fusion Whether the chat's Auto model is presented as Copilot Fusion.
+	 */
+	noteCompletedTurn(sessionResource: URI, usage: UsageInfo | undefined, fusion?: boolean): void {
 		const execution = readLocalModelTurnExecution(usage);
 		const key = sessionResource.toString();
 		if (execution?.execution !== 'fallback' || this._fallbackNoticeShown.has(key)) {
@@ -273,7 +295,9 @@ export class AgentHostLocalModelSupport extends Disposable {
 			id: `localModel.fallback.${key}`,
 			sessionResources: [sessionResource],
 			severity: ChatInputNotificationSeverity.Info,
-			message: localize('agentHost.localModel.fallbackNotice', "{0} couldn't respond, so Auto used a cloud model.", name),
+			message: fusion
+				? localize('agentHost.localModel.fallbackNoticeFusion', "{0} couldn't respond, so Copilot Fusion used a cloud model.", name)
+				: localize('agentHost.localModel.fallbackNotice', "{0} couldn't respond, so Auto used a cloud model.", name),
 			description: undefined,
 			actions: [],
 			dismissible: true,
@@ -282,8 +306,11 @@ export class AgentHostLocalModelSupport extends Disposable {
 		});
 	}
 
-	/** The pre-send guard: `true` when the request may be sent; otherwise its draft goes back to the input and a notice offers to load the model, switch, or use Auto. */
-	async checkBeforeSend(request: IChatAgentRequest, rawModelId: string | undefined): Promise<boolean> {
+	/**
+	 * The pre-send guard: `true` when the request may be sent; otherwise its draft goes back to the input and a notice offers to load the model, switch, or use Auto.
+	 * @param fusion Whether the chat's Auto model is presented as Copilot Fusion.
+	 */
+	async checkBeforeSend(request: IChatAgentRequest, rawModelId: string | undefined, fusion?: boolean): Promise<boolean> {
 		if (!rawModelId || !this._isEnabled() || !this._getStatus()) {
 			return true;
 		}
@@ -299,7 +326,7 @@ export class AgentHostLocalModelSupport extends Disposable {
 		this._logService.info(`[AgentHost] On-device model '${identifierForLog(check.familyId)}' isn't loaded; keeping the draft`);
 		this._restoreDraft(request);
 		void this._chatService.removeRequest(request.sessionResource, request.requestId).catch(onUnexpectedError);
-		this._showModelNotActiveNotice(request.sessionResource, check, status);
+		this._showModelNotActiveNotice(request.sessionResource, check, status, fusion);
 		return false;
 	}
 
@@ -327,7 +354,7 @@ export class AgentHostLocalModelSupport extends Disposable {
 		return `localModel.modelNotActive.${sessionResource.toString()}`;
 	}
 
-	private _showModelNotActiveNotice(sessionResource: URI, check: Extract<LocalModelSendCheck, { kind: 'block' }>, status: ILocalModelStatusV1 | undefined): void {
+	private _showModelNotActiveNotice(sessionResource: URI, check: Extract<LocalModelSendCheck, { kind: 'block' }>, status: ILocalModelStatusV1 | undefined, fusion: boolean | undefined): void {
 		const id = this._notificationId(sessionResource);
 		const family = status?.families.find(candidate => candidate.familyId === check.familyId);
 		const activeFamily = check.activeFamilyId ? status?.families.find(candidate => candidate.familyId === check.activeFamilyId) : undefined;
@@ -355,7 +382,9 @@ export class AgentHostLocalModelSupport extends Disposable {
 		}
 		actions.push({
 			kind: ChatInputNotificationActionKind.SwitchToModel,
-			label: localize('agentHost.localModel.useAuto', "Use Auto"),
+			label: fusion
+				? localize('agentHost.localModel.useFusion', "Use Copilot Fusion")
+				: localize('agentHost.localModel.useAuto', "Use Auto"),
 			matchesModel: model => isAutoLanguageModel(model) && model.metadata.targetChatSessionType === this._sessionType,
 			requireUniqueModel: true,
 			telemetryActionId: 'localModel.useAuto',

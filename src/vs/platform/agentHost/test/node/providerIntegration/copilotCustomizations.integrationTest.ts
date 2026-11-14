@@ -15,6 +15,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { AGENT_BUILTIN_CUSTOMIZATION_SCHEME } from '../../../common/agentHostCustomizationUri.js';
 import { ActionType, SessionCustomizationsChangedAction } from '../../../common/state/sessionActions.js';
 import { customizationId, CustomizationType, ISessionWithDefaultChat, type ClientPluginCustomization, type DirectoryCustomization, type PluginCustomization, type URI as ProtocolURI } from '../../../common/state/sessionState.js';
 import { type AhpNotification, type DisposeSessionParams } from '../../../common/state/sessionProtocol.js';
@@ -324,9 +325,10 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const isBuiltInGitHubMcpServer = customization.type === CustomizationType.McpServer
 			&& customization.uri.startsWith('mcp-top-level:copilotcli:')
 			&& customization.uri.endsWith(':github-mcp-server');
-		// Built-in agents (e.g. Ask) are provider-owned and covered by copilotBuiltinAgents.test.ts.
-		const isBuiltInAgents = customization.uri.startsWith(`${COPILOT_BUILTIN_AGENTS_SCHEME}:`);
-		return !isBuiltInSkill && !isBuiltInGitHubMcpServer && !isBuiltInAgents;
+		// Provider-owned agents and skills have dedicated built-in customization tests.
+		const isProviderBuiltIn = customization.uri.startsWith(`${COPILOT_BUILTIN_AGENTS_SCHEME}:`)
+			|| customization.uri.startsWith(`${AGENT_BUILTIN_CUSTOMIZATION_SCHEME}:`);
+		return !isBuiltInSkill && !isBuiltInGitHubMcpServer && !isProviderBuiltIn;
 	};
 
 	async function runEmptyWorkspaceCustomizationsTest(): Promise<void> {
@@ -461,14 +463,15 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 		const expectedCustomizations = [
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.agents', 'skills')).toString(), children: [URI.file(userSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(userHomeDir, '.copilot', 'agents')).toString(), children: [URI.file(userAgentFile).toString()] },
-			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [URI.file(userHookFile).toString()] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(userHomeDir, '.copilot', 'hooks')).toString(), children: [] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: 'agent-discovery://copilot/hooks', children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(userHomeDir, '.copilot', 'skills')).toString(), children: [URI.file(userCopilotSkillFile).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.agents', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.claude', 'agents')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.claude', 'rules')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.claude', 'skills')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Agent, uri: URI.file(join(workspaceDir, '.github', 'agents')).toString(), children: [URI.file(join(agentsDir, 'hello.agent.md')).toString()] },
-			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [URI.file(join(hooksDir, 'pre-tool.json')).toString()] },
+			{ type: CustomizationType.Directory, contents: CustomizationType.Hook, uri: URI.file(join(workspaceDir, '.github', 'hooks')).toString(), children: [] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Rule, uri: URI.file(join(workspaceDir, '.github', 'instructions')).toString(), children: [URI.file(join(instructionsDir, 'policy.instructions.md')).toString()] },
 			{ type: CustomizationType.Directory, contents: CustomizationType.Skill, uri: URI.file(join(workspaceDir, '.github', 'skills')).toString(), children: [URI.file(join(skillsDir, 'SKILL.md')).toString()] },
 			{
@@ -752,10 +755,12 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				env: createCopilotCliEnvironment(createIsolatedProviderEnvironment(pluginHomeDir)),
 			});
 			let sdkClientStarted = false;
+			let installedPluginName: string;
 			try {
 				await sdkClient.start();
 				sdkClientStarted = true;
-				await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+				const { plugin } = await sdkClient.rpc.plugins.install({ source: pluginSourceDir });
+				installedPluginName = plugin.name;
 			} finally {
 				if (sdkClientStarted) {
 					await sdkClient.stop();
@@ -771,8 +776,8 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 			const session = await setupSession(consumerSessionUri, consumerClientId, 'turn-customizations-plugin-consumer-mock');
 			const installedPlugin = session.customizations
 				?.filter((customization): customization is PluginCustomization => customization.type === CustomizationType.Plugin)
-				.find(customization => customization.name === 'SDK Installed Plugin');
-			assert.ok(installedPlugin);
+				.find(customization => customization.name === installedPluginName);
+			assert.ok(installedPlugin, JSON.stringify(session.customizations));
 			assert.deepStrictEqual({
 				version: installedPlugin.version,
 				pluginDirectories: session.customizations
@@ -786,7 +791,6 @@ suite('Agent Host Provider Integration — Copilot Customizations', function () 
 				pluginDirectories: [],
 				children: [
 					{ type: CustomizationType.Agent, name: 'Installed Agent' },
-					{ type: CustomizationType.Rule, name: 'installed' },
 					{ type: CustomizationType.Skill, name: 'installed-skill' },
 				].sort((a, b) => a.name.localeCompare(b.name)),
 			});

@@ -10,25 +10,27 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { mock } from '../../../../../base/test/common/mock.js';
+import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IOpenerService, OpenOptions } from '../../../../../platform/opener/common/opener.js';
+import { COPILOT_COMMUNICATION_SUPPORT_URL_KEY, ManagedSettingsData, IManagedSettingsService, NullManagedSettingsService } from '../../../../../platform/policy/common/copilotManagedSettings.js';
+import { ManagedSettingsFreshnessFailure, ManagedSettingsFreshnessState } from '../../../../../platform/policy/common/managedSettingsFreshness.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { DisablementReason, State, UpdateType } from '../../../../../platform/update/common/update.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { AccountPolicyGateState, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
+import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateInfo, IAccountPolicyGateService } from '../../../../../workbench/services/policies/common/accountPolicyService.js';
 import { getManagedSettingsUpdateInfo, IManagedSettingsUpdateInfo, IManagedSettingsUpdateService } from '../../../../../workbench/services/policies/common/managedSettingsUpdate.js';
 import { TestLayoutService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { SessionsPolicyBlockedContribution } from '../../browser/policyBlocked.contribution.js';
-import { ISessionsPartService } from '../../../../services/sessions/browser/sessionsPartService.js';
-import { ISessionsService } from '../../../../services/sessions/browser/sessionsService.js';
-import { IActiveSession } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
+import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { ITestSessionsService, ITestSessionWithChat } from '../../../../../workbench/contrib/sessions/test/browser/sessionHostTestUtils.js';
 
 suite('Sessions policy update explanation', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -48,7 +50,7 @@ suite('Sessions policy update explanation', () => {
 		store.add(toDisposable(() => root.remove()));
 		const content = append(root, $('div'));
 		const fallbackFocusTarget = append(content, $('input', { 'aria-label': 'Session input' }));
-		const activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		const activeSession = observableValue<ITestSessionWithChat | undefined>('activeSession', undefined);
 		const fallbackFocusCalls: { sessionId: string | undefined; inert: boolean }[] = [];
 		const layoutEvent = store.add(new Emitter<{ width: number; height: number }>());
 		const layout = new class extends TestLayoutService {
@@ -66,28 +68,147 @@ suite('Sessions policy update explanation', () => {
 			override readonly onDidChangeGateInfo = gateChange.event;
 		}();
 		const opened: string[] = [];
+		const openedExternally: string[] = [];
+		let managedSettings: ManagedSettingsData = {};
+		const managedSettingsChange = store.add(new Emitter<void>());
 		services.stub(IWorkbenchLayoutService, layout);
 		services.stub(IManagedSettingsUpdateService, { updateInfo });
 		services.stub(IConfigurationService, configuration);
 		services.stub(IAccountPolicyGateService, gate);
-		services.stub(ISessionsService, { activeSession });
-		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() {
-			override focusSession(session: IActiveSession | undefined): void {
-				fallbackFocusCalls.push({ sessionId: session?.sessionId, inert: content.inert });
-				fallbackFocusTarget.focus();
-			}
+		services.stub(IManagedSettingsService, new class extends NullManagedSettingsService {
+			override readonly onDidChangeManagedSettings = managedSettingsChange.event;
+			override getManagedSettingValue(key: string) { return managedSettings[key]; }
 		}());
+		services.stub(ISessionsService, upcastPartial<ITestSessionsService>({
+			activeSession,
+			focusActiveSession: () => {
+				fallbackFocusCalls.push({ sessionId: activeSession.get()?.sessionId, inert: content.inert });
+				fallbackFocusTarget.focus();
+			},
+		}));
+		services.stub(ISessionsPartService, new class extends mock<ISessionsPartService>() { }());
 		services.stub(IDefaultAccountService, new class extends mock<IDefaultAccountService>() {
 			override readonly currentDefaultAccount = null;
 		}());
 		services.stub(IProductService, product);
 		services.stub(ICommandService, new class extends mock<ICommandService>() { }());
 		services.stub(IOpenerService, new class extends mock<IOpenerService>() {
-			override async open(target: string | URI) { opened.push(target.toString()); return true; }
+			override async open(target: string | URI, options?: OpenOptions) {
+				opened.push(target.toString());
+				if (options?.openExternal) {
+					openedExternally.push(target.toString());
+				}
+				return true;
+			}
 		}());
 		const contribution = store.add(services.createInstance(SessionsPolicyBlockedContribution));
-		return { root, content, updateInfo, opened, contribution, layout, layoutEvent, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls };
+		const setManagedSettings = (values: ManagedSettingsData) => {
+			managedSettings = values;
+			managedSettingsChange.fire();
+		};
+		return { root, content, updateInfo, opened, openedExternally, setManagedSettings, contribution, layout, layoutEvent, gate, gateChange, activeSession, fallbackFocusTarget, fallbackFocusCalls };
 	}
+
+	test('offers the organization support page wherever an agent restriction says to contact an administrator', () => {
+		const { root, gate, gateChange, openedExternally, setManagedSettings } = setup(undefined, false);
+		const buttons = () => [...root.querySelectorAll<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button')].map(button => button.textContent);
+		const states: { [state: string]: (string | null)[] } = {};
+		states.agentDisabledWithoutUrl = buttons();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'javascript:alert(1)' });
+		states.agentDisabledInvalidUrl = buttons();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		states.agentDisabled = buttons();
+		const contactAdministrator = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button:not(.secondary)')!;
+		const contactAdministratorAriaLabel = contactAdministrator.getAttribute('aria-label');
+		contactAdministrator.click();
+		gate.gateInfo = { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.OrgNotApproved, approvedOrganizations: ['example-org'] };
+		gateChange.fire(gate.gateInfo);
+		states.accountGate = buttons();
+		for (const failure of [ManagedSettingsFreshnessFailure.NoUrl, ManagedSettingsFreshnessFailure.NoToken, ManagedSettingsFreshnessFailure.RateLimited, ManagedSettingsFreshnessFailure.Network] as const) {
+			gate.gateInfo = {
+				state: AccountPolicyGateState.Restricted,
+				reason: AccountPolicyGateUnsatisfiedReason.ManagedSettingsRefresh,
+				managedSettingsFreshness: { state: ManagedSettingsFreshnessState.Blocked, source: 'server', failure, lastAttemptAt: 0 },
+			};
+			gateChange.fire(gate.gateInfo);
+			states[failure] = buttons();
+		}
+		setManagedSettings({});
+		states.refreshFailedWithoutUrl = buttons();
+		assert.deepStrictEqual({ states, contactAdministratorAriaLabel, openedExternally }, {
+			states: {
+				agentDisabledWithoutUrl: ['Open VS Code'],
+				agentDisabledInvalidUrl: ['Open VS Code'],
+				agentDisabled: ['Contact Admin', 'Open VS Code'],
+				accountGate: ['Sign In', 'Contact Admin'],
+				[ManagedSettingsFreshnessFailure.NoUrl]: ['Contact Admin', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.NoToken]: ['Sign In', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.RateLimited]: ['Retry', 'Open VS Code'],
+				[ManagedSettingsFreshnessFailure.Network]: ['Retry', 'Contact Admin', 'Open VS Code'],
+				refreshFailedWithoutUrl: ['Retry', 'Open VS Code'],
+			},
+			contactAdministratorAriaLabel: 'Contact Admin',
+			openedExternally: ['https://example.com/copilot-help'],
+		});
+	});
+
+	test('keys reach dialogs and quick picks opened from the overlay, and Tab cycles within the card, but nothing reaches the blocked workbench', () => {
+		const { root, content, setManagedSettings } = setup(undefined, false);
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
+		const dialogButton = append(append(root, $('.monaco-dialog-modal-block')), $('button'));
+		const quickPickInput = append(append(root, $('.quick-input-widget')), $('input'));
+		const press = (target: HTMLElement, key = 'Enter', shiftKey = false) => {
+			let reachedTarget = false;
+			const listener = () => reachedTarget = true;
+			target.addEventListener('keydown', listener);
+			const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+			target.dispatchEvent(event);
+			target.removeEventListener('keydown', listener);
+			return { reachedTarget, defaultPrevented: event.defaultPrevented };
+		};
+		const focused = () => mainWindow.document.activeElement === overlay ? 'overlay' : mainWindow.document.activeElement?.textContent;
+		const initialFocus = focused();
+		press(overlay, 'Tab');
+		const afterTab = focused();
+		press(mainWindow.document.activeElement as HTMLElement, 'Tab', true);
+		const afterShiftTabFromFirst = focused();
+		press(mainWindow.document.activeElement as HTMLElement, 'Tab');
+		const afterTabFromLast = focused();
+		assert.deepStrictEqual({
+			dialog: press(dialogButton),
+			quickPick: press(quickPickInput, 'Escape'),
+			workbench: press(content),
+			initialFocus, afterTab, afterShiftTabFromFirst, afterTabFromLast,
+		}, {
+			dialog: { reachedTarget: true, defaultPrevented: false },
+			quickPick: { reachedTarget: true, defaultPrevented: false },
+			workbench: { reachedTarget: false, defaultPrevented: true },
+			initialFocus: 'overlay',
+			afterTab: 'Learn more',
+			afterShiftTabFromFirst: 'Open VS Code',
+			afterTabFromLast: 'Learn more',
+		});
+	});
+
+	test('a rerender keeps focus on the same action, falls back to the primary action, and leaves focus in a dialog the overlay opened', () => {
+		const { root, setManagedSettings } = setup(undefined, false);
+		const button = (label: string) => [...root.querySelectorAll<HTMLElement>('.sessions-policy-blocked-overlay .monaco-button')].find(element => element.textContent === label)!;
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		button('Contact Admin').focus();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/other-help' });
+		const keptAction = mainWindow.document.activeElement?.textContent;
+		setManagedSettings({});
+		const fallback = mainWindow.document.activeElement?.textContent;
+		const dialogButton = append(append(root, $('.monaco-dialog-modal-block')), $('button', undefined, 'Open'));
+		dialogButton.focus();
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		assert.deepStrictEqual({ keptAction, fallback, dialogKeptFocus: mainWindow.document.activeElement === dialogButton }, {
+			keptAction: 'Contact Admin',
+			fallback: 'Open VS Code',
+			dialogKeptFocus: true,
+		});
+	});
 
 	test('initially blocked Agents shows versions and a keyboard-focusable update action below the title bar', () => {
 		const { root, content, opened, contribution, layout, layoutEvent } = setup(info);
@@ -214,7 +335,7 @@ suite('Sessions policy update explanation', () => {
 	for (const unavailable of ['removed', 'disabled'] as const) {
 		test(`focuses the active Sessions view if the prior target is ${unavailable}`, () => {
 			const { content, updateInfo, activeSession, fallbackFocusTarget, fallbackFocusCalls } = setup(undefined);
-			activeSession.set(new class extends mock<IActiveSession>() { override readonly sessionId = 'active-session'; }(), undefined);
+			activeSession.set(new class extends mock<ITestSessionWithChat>() { override readonly sessionId = 'active-session'; }(), undefined);
 			const previous = append(content, $('button', undefined, 'Previous action'));
 			previous.focus();
 			updateInfo.set(info, undefined);
@@ -274,13 +395,21 @@ suite('Sessions policy update explanation', () => {
 		}, { noHorizontalOverflow: true, verticalOverflow: true, scrollsToAction: true, actionVisible: true, focusedActionStillVisibleAfterResize: true, focused: true });
 	});
 
-	test('leaves generic blocked-state layout unchanged', () => {
-		const { root } = setup(undefined, false);
+	test('keeps every action of a generic blocking card reachable in a short viewport', async () => {
+		const { root, setManagedSettings } = setup(undefined, false);
+		setManagedSettings({ [COPILOT_COMMUNICATION_SUPPORT_URL_KEY]: 'https://example.com/copilot-help' });
+		root.style.height = '160px';
 		const overlay = root.querySelector<HTMLElement>('.sessions-policy-blocked-overlay')!;
+		const scrollContent = overlay.querySelector<HTMLElement>('.sessions-policy-blocked-scroll-content')!;
+		const lastAction = overlay.querySelector<HTMLElement>('.monaco-button.secondary')!;
+		lastAction.focus();
+		await new Promise<void>(resolve => mainWindow.requestAnimationFrame(() => resolve()));
+		const viewport = scrollContent.getBoundingClientRect();
+		const actionBounds = lastAction.getBoundingClientRect();
 		assert.deepStrictEqual({
 			updateStyles: overlay.classList.contains('update-required'),
-			display: mainWindow.getComputedStyle(overlay).display,
-			scrollContainers: overlay.querySelectorAll('.sessions-policy-blocked-scrollable').length,
-		}, { updateStyles: false, display: 'flex', scrollContainers: 0 });
+			verticalOverflow: scrollContent.scrollHeight > scrollContent.clientHeight,
+			actionVisible: actionBounds.top >= viewport.top && actionBounds.bottom <= viewport.bottom,
+		}, { updateStyles: false, verticalOverflow: true, actionVisible: true });
 	});
 });

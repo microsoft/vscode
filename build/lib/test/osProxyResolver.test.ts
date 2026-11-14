@@ -10,6 +10,8 @@ import * as path from 'path';
 import { suite, test } from 'node:test';
 import { create } from 'tar';
 import { ensureOSProxyResolverPlatformPackage, getOSProxyResolverExcludeFilter, getOSProxyResolverPlatformFiles, osProxyResolverPlatforms } from '../osProxyResolver.ts';
+import { writePnpmLockfile } from './pnpmLockfileFixture.ts';
+import { parsePackageKey, readPnpmLockfile } from '../pnpmLock.ts';
 
 suite('osProxyResolver', () => {
 	test('selects the target platform package', () => {
@@ -65,10 +67,9 @@ suite('osProxyResolver', () => {
 
 	// Fails when a version bump adds a platform package, which is how the musl binaries first leaked into the RPM.
 	test('accounts for every platform package in the lockfile', () => {
-		const lockFilePath = path.join(import.meta.dirname, '..', '..', '..', 'package-lock.json');
-		const lockFile = JSON.parse(fs.readFileSync(lockFilePath, 'utf8'));
-		const lockedPlatforms = Object.keys(lockFile.packages)
-			.map(key => /(?:^|\/)node_modules\/@vscode\/os-proxy-resolver-(?<platform>.+)$/.exec(key)?.groups?.platform)
+		const lockFile = readPnpmLockfile(path.join(import.meta.dirname, '..', '..', '..', 'pnpm-lock.yaml'));
+		const lockedPlatforms = Object.keys(lockFile.packages ?? {})
+			.map(key => /^@vscode\/os-proxy-resolver-(?<platform>.+)@/.exec(parsePackageKey(key).name + '@')?.groups?.platform)
 			.filter(platform => platform !== undefined)
 			.sort();
 
@@ -80,13 +81,7 @@ suite('osProxyResolver', () => {
 		const nodeModulesRoot = path.join(repoRoot, 'node_modules');
 		try {
 			fs.mkdirSync(nodeModulesRoot, { recursive: true });
-			fs.writeFileSync(path.join(repoRoot, 'package-lock.json'), JSON.stringify({
-				packages: {
-					'node_modules/@vscode/os-proxy-resolver-darwin-x64': {
-						version: '0.2.0',
-					}
-				}
-			}));
+			writePnpmLockfile(path.join(repoRoot, 'pnpm-lock.yaml'), { '@vscode/os-proxy-resolver-darwin-x64': { version: '0.2.0' } });
 
 			ensureOSProxyResolverPlatformPackage('darwin', 'x64', nodeModulesRoot, {
 				packPackage: (_packageName, _version, tempDir) => {

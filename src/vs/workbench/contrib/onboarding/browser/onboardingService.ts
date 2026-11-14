@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DeferredPromise } from '../../../../base/common/async.js';
+import { DeferredPromise, raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { CancellationError, isCancellationError, onUnexpectedError } from '../../../../base/common/errors.js';
-import { Emitter } from '../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable, IReader, observableSignal, observableValue } from '../../../../base/common/observable.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -106,6 +107,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchAssignmentService private readonly assignmentService: IWorkbenchAssignmentService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IDialogService private readonly dialogService: IDialogService,
 	) {
 		super();
 
@@ -161,6 +163,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		}));
 
 		this._register(this.contextKeyService.onDidChangeContext(() => this._evaluate()));
+		this._register(this.dialogService.onDidShowDialog(() => this._evaluate()));
 
 		this._register(this.assignmentService.onDidRefetchAssignments(() => this._resolveExperiments()));
 
@@ -278,7 +281,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 	 * scorecard regardless of which arm the developer happens to be assigned to.
 	 */
 	private _evaluate(): void {
-		if (!this._enabled || this._stopped) {
+		if (!this._enabled || this._stopped || this.dialogService.hasDialog) {
 			return;
 		}
 
@@ -368,6 +371,7 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 
 	private _isStillEligible(scenario: IOnboardingScenario): boolean {
 		return this._enabled
+			&& !this.dialogService.hasDialog
 			&& (!scenario.when || this.contextKeyService.contextMatchesRules(scenario.when))
 			&& (scenario.trigger.kind !== 'observable' || scenario.trigger.signal.get() === true);
 	}
@@ -454,6 +458,10 @@ export class OnboardingScenarioService extends Disposable implements IOnboarding
 		this._activeAbort = abort;
 		try {
 			return await runWithOnboardingPresentation(mainWindow, cancellation.token, async () => {
+				// A modal can open while this run waits for the presentation slot.
+				while (run.automatic && this.dialogService.hasDialog) {
+					await raceCancellationError(Event.toPromise(this.dialogService.onDidShowDialog, store), cancellation.token);
+				}
 				// An automatic run can wait behind other presentations, so it only starts if it is still eligible.
 				if (this._stopped || run.automatic && !this._isStillEligible(scenario)) {
 					throw new CancellationError();

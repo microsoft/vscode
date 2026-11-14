@@ -7,12 +7,13 @@ import type { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { constObservable } from '../../../../base/common/observable.js';
 import type { IDetailedDiffResult, IDiffComputeService, IDiffCountResult, IDiffHunksResult } from '../../common/diffComputeService.js';
-import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord } from '../../common/sessionDataService.js';
+import { MAX_TERMINAL_OUTPUT_BYTES, MAX_TOOL_RESULT_RESOURCE_BYTES, type IFileEditContent, type IFileEditRecord, type IPersistedTurnRecord, type IReviewedFileRecord, type ISessionCatalogSyncAcknowledgement, type ISessionCatalogSyncPendingSnapshot, type ISessionCatalogSyncSnapshot, type ISessionDatabase, type ISessionDataService, type ISessionRowsWatermark, type IToolResultResource, type SessionCatalogSyncTransitionResult, type SessionCatalogSyncWriteResult, type SessionCatalogSyncWriteValidator, SESSION_FOREIGN_TURN_IDS_METADATA_KEY, SESSION_ROW_OWNER_CHAT_METADATA_KEY, type ITurnCheckpointRecord, type StoredAssistantResponsePart } from '../../common/sessionDataService.js';
 import type { IAgentHostCheckpointService } from '../../common/agentHostCheckpointService.js';
 import type { IAgentHostGitStateService } from '../../common/agentHostGitStateService.js';
 import { AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY, type ISessionGitHubState, type Message } from '../../common/state/sessionState.js';
+
+export { createNoopGitService } from './testAgentHostGitService.js';
 
 /** A metadata map that reports every write. */
 class ObservedMetadata extends Map<string, string> {
@@ -49,6 +50,8 @@ export class TestSessionDatabase implements ISessionDatabase {
 	private readonly _turns = new Set<string>();
 	private readonly _persistedTurns = new Map<string, IPersistedTurnRecord & { seq: number }>();
 	private readonly _turnUsages = new Map<string, string>();
+	private readonly _turnMetadata = new Map<string, ObservedMetadata>();
+	private readonly _assistantResponseParts = new Map<string, { turnId: string; parts: readonly StoredAssistantResponsePart[] }>();
 	private readonly _turnDelegations = new Map<string, string>();
 	private readonly _turnWorkspaceTransitions = new Map<string, string>();
 	private readonly _turnEventIds = new Map<string, string>();
@@ -61,7 +64,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 	deleteTurnsAfterCalls: string[] = [];
 	deleteAllTurnsCalls = 0;
 	setTurnEventIdCalls: Array<{ turnId: string; eventId: string }> = [];
-	setMetadataCalls: Array<{ key: string; value: string }> = [];
+	setMetadataCalls: Array<{ key: string; value: string; turnId?: string }> = [];
 
 	addEdit(edit: IFileEditRecord & IFileEditContent): void {
 		this._edits.push(edit);
@@ -77,7 +80,7 @@ export class TestSessionDatabase implements ISessionDatabase {
 		this._turnDelegations.delete(turnId);
 		this._turnWorkspaceTransitions.delete(turnId);
 		this._turnEventIds.delete(turnId);
-		this._deleteToolResultsForTurns(new Set([turnId]));
+		this._deleteTurnContent(new Set([turnId]));
 		for (let i = this._edits.length - 1; i >= 0; i--) {
 			if (this._edits[i].turnId === turnId) {
 				this._edits.splice(i, 1);
@@ -151,6 +154,17 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return this._terminalOutputs.get(toolCallId)?.content.byteLength;
 	}
 
+	async getTerminalOutputSizes(toolCallIds: readonly string[]): Promise<Map<string, number>> {
+		const result = new Map<string, number>();
+		for (const toolCallId of toolCallIds) {
+			const output = this._terminalOutputs.get(toolCallId);
+			if (output) {
+				result.set(toolCallId, output.content.byteLength);
+			}
+		}
+		return result;
+	}
+
 	async readTerminalOutput(toolCallId: string): Promise<Uint8Array | undefined> {
 		const content = this._terminalOutputs.get(toolCallId)?.content;
 		if (content && content.byteLength > MAX_TERMINAL_OUTPUT_BYTES) {
@@ -188,27 +202,45 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return row?.content ? { content: row.content.slice(), mimeType: row.mimeType } : undefined;
 	}
 
-	async getMetadata(key: string): Promise<string | undefined> {
-		return this._metadata.get(key);
+	private _getMetadataMap(turnId?: string): ObservedMetadata | undefined {
+		return turnId === undefined ? this._metadata : this._turnMetadata.get(turnId);
 	}
 
-	async getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }> {
-		return Object.fromEntries(Object.keys(obj).map(key => [key, this._metadata.get(key)])) as { [K in keyof T]: string | undefined };
+	private _getOrCreateMetadataMap(turnId?: string): ObservedMetadata {
+		if (turnId === undefined) {
+			return this._metadata;
+		}
+		this._turns.add(turnId);
+		let metadata = this._turnMetadata.get(turnId);
+		if (!metadata) {
+			metadata = new ObservedMetadata(() => this._onDidChangeMetadata.fire());
+			this._turnMetadata.set(turnId, metadata);
+		}
+		return metadata;
 	}
 
-	async setMetadata(key: string, value: string): Promise<void> {
-		this.setMetadataCalls.push({ key, value });
-		this._metadata.set(key, value);
+	async getMetadata(key: string, turnId?: string): Promise<string | undefined> {
+		return this._getMetadataMap(turnId)?.get(key);
 	}
 
-	async updateMetadata(key: string, update: (value: string | undefined) => string): Promise<void> {
-		await this.setMetadata(key, update(this._metadata.get(key)));
+	async getMetadataObject<T extends Record<string, unknown>>(obj: T, turnId?: string): Promise<{ [K in keyof T]: string | undefined }> {
+		const metadata = this._getMetadataMap(turnId);
+		return Object.fromEntries(Object.keys(obj).map(key => [key, metadata?.get(key)])) as { [K in keyof T]: string | undefined };
 	}
 
-	async setMetadataValues(values: Readonly<Record<string, string>>): Promise<void> {
+	async setMetadata(key: string, value: string, turnId?: string): Promise<void> {
+		this.setMetadataCalls.push({ key, value, ...(turnId === undefined ? {} : { turnId }) });
+		this._getOrCreateMetadataMap(turnId).set(key, value);
+	}
+
+	async updateMetadata(key: string, update: (value: string | undefined) => string, turnId?: string): Promise<void> {
+		await this.setMetadata(key, update(this._getMetadataMap(turnId)?.get(key)), turnId);
+	}
+
+	async setMetadataValues(values: Readonly<Record<string, string>>, turnId?: string): Promise<void> {
 		for (const [key, value] of Object.entries(values)) {
-			this.setMetadataCalls.push({ key, value });
-			this._metadata.set(key, value);
+			this.setMetadataCalls.push({ key, value, ...(turnId === undefined ? {} : { turnId }) });
+			this._getOrCreateMetadataMap(turnId).set(key, value);
 		}
 	}
 
@@ -293,25 +325,26 @@ export class TestSessionDatabase implements ISessionDatabase {
 		return true;
 	}
 
-	async deleteMetadata(keys: readonly string[]): Promise<void> {
+	async deleteMetadata(keys: readonly string[], turnId?: string): Promise<void> {
+		const metadata = this._getMetadataMap(turnId);
 		for (const key of keys) {
-			this._metadata.delete(key);
+			metadata?.delete(key);
 		}
 	}
 
-	async setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}): Promise<boolean> {
-		if (this._metadata.has(key)) {
+	async setMetadataValuesIfAbsent(key: string, values: Readonly<Record<string, string>>, copies: Readonly<Record<string, string>> = {}, turnId?: string): Promise<boolean> {
+		if (this._getMetadataMap(turnId)?.has(key)) {
 			return false;
 		}
 		for (const [targetKey, value] of Object.entries(values)) {
-			this.setMetadataCalls.push({ key: targetKey, value });
-			this._metadata.set(targetKey, value);
+			this.setMetadataCalls.push({ key: targetKey, value, ...(turnId === undefined ? {} : { turnId }) });
+			this._getOrCreateMetadataMap(turnId).set(targetKey, value);
 		}
 		for (const [targetKey, sourceKey] of Object.entries(copies)) {
-			const value = this._metadata.get(sourceKey);
+			const value = this._getMetadataMap(turnId)?.get(sourceKey);
 			if (value !== undefined) {
-				this.setMetadataCalls.push({ key: targetKey, value });
-				this._metadata.set(targetKey, value);
+				this.setMetadataCalls.push({ key: targetKey, value, ...(turnId === undefined ? {} : { turnId }) });
+				this._getOrCreateMetadataMap(turnId).set(targetKey, value);
 			}
 		}
 		return true;
@@ -340,7 +373,9 @@ export class TestSessionDatabase implements ISessionDatabase {
 	async setTurnEventId(turnId: string, eventId: string): Promise<void> {
 		this.setTurnEventIdCalls.push({ turnId, eventId });
 		this._turns.add(turnId);
-		this._turnEventIds.set(turnId, eventId);
+		if (!this._turnEventIds.has(turnId)) {
+			this._turnEventIds.set(turnId, eventId);
+		}
 	}
 
 	async getTurnEventId(turnId: string): Promise<string | undefined> {
@@ -361,6 +396,31 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async getTurnUsages(): Promise<Map<string, string>> { return new Map(this._turnUsages); }
+
+	async getTurnMetadata(key: string): Promise<Map<string, string>> {
+		const foreignTurnIds = this._getForeignTurnIds();
+		const result = new Map<string, string>();
+		for (const turnId of this._turns) {
+			const value = this._turnMetadata.get(turnId)?.get(key);
+			if (value !== undefined && !foreignTurnIds.has(turnId)) {
+				result.set(turnId, value);
+				const eventId = this._turnEventIds.get(turnId);
+				if (eventId !== undefined) {
+					result.set(eventId, value);
+				}
+			}
+		}
+		return result;
+	}
+
+	async setAssistantResponseParts(turnId: string, responseId: string, parts: readonly StoredAssistantResponsePart[]): Promise<void> {
+		this._turns.add(turnId);
+		this._assistantResponseParts.set(responseId, { turnId, parts: parts.map(part => ({ ...part })) });
+	}
+
+	async getAssistantResponseParts(): Promise<Map<string, readonly StoredAssistantResponsePart[]>> {
+		return new Map([...this._assistantResponseParts].map(([id, value]) => [id, value.parts]));
+	}
 
 	async setTurnDelegation(turnId: string, delegation: string): Promise<void> {
 		this._turns.add(turnId);
@@ -411,52 +471,58 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async truncateFromTurn(turnId: string): Promise<void> {
-		const turnIds = [...this._turns];
+		const foreignTurnIds = this._getForeignTurnIds();
+		const turnIds = [...this._turns].filter(id => !foreignTurnIds.has(id));
 		const index = turnIds.indexOf(turnId);
 		if (index >= 0) {
-			const prunedTurnIds = new Set(turnIds.slice(index));
-			this._deleteToolResultsForTurns(prunedTurnIds);
-			for (const prunedTurnId of prunedTurnIds) {
-				this._turns.delete(prunedTurnId);
-				this._persistedTurns.delete(prunedTurnId);
+			for (const prunedTurnId of turnIds.slice(index)) {
+				await this.deleteTurn(prunedTurnId);
 			}
 		}
 	}
 
 	async deleteTurnsAfter(turnId: string): Promise<void> {
 		this.deleteTurnsAfterCalls.push(turnId);
-		const turnIds = [...this._turns];
+		const foreignTurnIds = this._getForeignTurnIds();
+		const turnIds = [...this._turns].filter(id => !foreignTurnIds.has(id));
 		const index = turnIds.indexOf(turnId);
 		if (index >= 0) {
-			const prunedTurnIds = new Set(turnIds.slice(index + 1));
-			this._deleteToolResultsForTurns(prunedTurnIds);
-			for (const prunedTurnId of prunedTurnIds) {
-				this._turns.delete(prunedTurnId);
-				this._persistedTurns.delete(prunedTurnId);
+			for (const prunedTurnId of turnIds.slice(index + 1)) {
+				await this.deleteTurn(prunedTurnId);
 			}
 		}
 	}
 
 	async deleteAllTurns(): Promise<void> {
 		this.deleteAllTurnsCalls++;
-		this._turns.clear();
-		this._edits.length = 0;
-		this._turnDelegations.clear();
-		this._turnWorkspaceTransitions.clear();
-		this._metadata.delete(AH_META_HAS_WORKSPACE_TRANSITIONS_DB_KEY);
-		this._turnEventIds.clear();
-		this._persistedTurns.clear();
-		this._terminalOutputs.clear();
-		this._toolResultResources.clear();
+		const foreignTurnIds = this._getForeignTurnIds();
+		for (const turnId of [...this._turns]) {
+			if (!foreignTurnIds.has(turnId)) {
+				await this.deleteTurn(turnId);
+			}
+		}
+		for (let i = this._edits.length - 1; i >= 0; i--) {
+			if (!foreignTurnIds.has(this._edits[i].turnId)) {
+				this._edits.splice(i, 1);
+			}
+		}
+		const ownerChat = this._metadata.get(SESSION_ROW_OWNER_CHAT_METADATA_KEY);
+		for (const [turnId, turn] of this._persistedTurns) {
+			if (ownerChat === undefined || turn.chatUri === ownerChat) {
+				this._persistedTurns.delete(turnId);
+			}
+		}
+		this._deleteWorkspaceTransitionMarkerIfEmpty();
 	}
 
 	async deleteProviderTurns(providerTurnIds: readonly string[], afterHostTurnId?: string): Promise<void> {
 		const ids = new Set(providerTurnIds);
+		const foreignTurnIds = this._getForeignTurnIds();
 		const boundaryEvent = afterHostTurnId ? this._turnEventIds.get(afterHostTurnId) : undefined;
 		let afterBoundary = false;
 		for (const turnId of this._turns) {
 			const eventId = this._turnEventIds.get(turnId);
-			if (!this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
+			if (!foreignTurnIds.has(turnId) && !this._persistedTurns.has(turnId) && (ids.has(turnId) || ids.has(eventId ?? '') || (afterBoundary && boundaryEvent !== undefined && eventId === boundaryEvent))) {
 				await this.deleteTurn(turnId);
 			}
 			if (turnId === afterHostTurnId) {
@@ -490,6 +556,12 @@ export class TestSessionDatabase implements ISessionDatabase {
 	}
 
 	async remapTurnIds(mapping: ReadonlyMap<string, string>, eventIds?: ReadonlyMap<string, string>): Promise<void> {
+		const normalizedMapping = new Map<string, string>();
+		for (const [oldId, newId] of mapping) {
+			const storedId = this._turns.has(oldId) ? oldId : [...this._turnEventIds].find(([, eventId]) => eventId === oldId)?.[0] ?? oldId;
+			normalizedMapping.set(storedId, mapping.get(storedId) ?? newId);
+		}
+		mapping = normalizedMapping;
 		const remappedFailedPayloads = new Map<string, string>();
 		for (const [oldId, newId] of mapping) {
 			const persisted = this._persistedTurns.get(oldId);
@@ -497,16 +569,31 @@ export class TestSessionDatabase implements ISessionDatabase {
 				remappedFailedPayloads.set(oldId, remapPersistedTurnPayload(persisted.payload, oldId, newId));
 			}
 		}
+		const foreignTurnIds = this._getForeignTurnIds();
 		for (const turnId of [...this._turns]) {
-			if (!mapping.has(turnId)) {
-				this._turns.delete(turnId);
+			if (foreignTurnIds.has(turnId) || (mapping.size > 0 && !mapping.has(turnId))) {
+				await this.deleteTurn(turnId);
+			}
+		}
+		const ownerChat = this._metadata.get(SESSION_ROW_OWNER_CHAT_METADATA_KEY);
+		for (const [turnId, turn] of this._persistedTurns) {
+			if ((ownerChat !== undefined && turn.chatUri !== ownerChat) || (mapping.size > 0 && !mapping.has(turnId))) {
 				this._persistedTurns.delete(turnId);
 			}
 		}
+		this._metadata.delete(SESSION_ROW_OWNER_CHAT_METADATA_KEY);
+		this._metadata.delete(SESSION_FOREIGN_TURN_IDS_METADATA_KEY);
+		const remappedTurns = [...this._turns].map(id => mapping.get(id) ?? id);
+		this._turns.clear();
+		for (const turnId of remappedTurns) {
+			this._turns.add(turnId);
+		}
+		const remappedMetadata = [...this._turnMetadata].map(([turnId, metadata]) => [mapping.get(turnId) ?? turnId, metadata] as const);
+		this._turnMetadata.clear();
+		for (const [turnId, metadata] of remappedMetadata) {
+			this._turnMetadata.set(turnId, metadata);
+		}
 		for (const [oldId, newId] of mapping) {
-			if (this._turns.delete(oldId)) {
-				this._turns.add(newId);
-			}
 			const persisted = this._persistedTurns.get(oldId);
 			if (persisted?.kind === 'failed') {
 				this._persistedTurns.delete(oldId);
@@ -526,16 +613,21 @@ export class TestSessionDatabase implements ISessionDatabase {
 			}
 		}
 		for (const turnId of [...this._turnDelegations.keys()]) {
-			if (!mapping.has(turnId)) {
+			if (mapping.size > 0 && !mapping.has(turnId)) {
 				this._turnDelegations.delete(turnId);
 			}
 		}
 		for (const turnId of [...this._turnWorkspaceTransitions.keys()]) {
-			if (!mapping.has(turnId)) {
+			if (mapping.size > 0 && !mapping.has(turnId)) {
 				this._turnWorkspaceTransitions.delete(turnId);
 			}
 		}
 		for (const [oldId, newId] of mapping) {
+			const usage = this._turnUsages.get(oldId);
+			if (usage !== undefined) {
+				this._turnUsages.delete(oldId);
+				this._turnUsages.set(newId, usage);
+			}
 			const delegation = this._turnDelegations.get(oldId);
 			if (delegation) {
 				this._turnDelegations.delete(oldId);
@@ -552,8 +644,16 @@ export class TestSessionDatabase implements ISessionDatabase {
 				this._turnEventIds.set(newId, eventId);
 			}
 		}
+		for (let i = this._edits.length - 1; i >= 0; i--) {
+			const turnId = mapping.get(this._edits[i].turnId);
+			if (turnId !== undefined) {
+				this._edits[i] = { ...this._edits[i], turnId };
+			} else if (mapping.size > 0) {
+				this._edits.splice(i, 1);
+			}
+		}
 		for (const [toolCallId, output] of this._terminalOutputs) {
-			const remappedTurnId = mapping.get(output.turnId);
+			const remappedTurnId = mapping.get(output.turnId) ?? (mapping.size === 0 ? output.turnId : undefined);
 			if (!remappedTurnId) {
 				this._terminalOutputs.delete(toolCallId);
 			} else {
@@ -561,17 +661,41 @@ export class TestSessionDatabase implements ISessionDatabase {
 			}
 		}
 		for (const [toolCallId, resources] of this._toolResultResources) {
-			const remappedTurnId = mapping.get(resources.turnId);
+			const remappedTurnId = mapping.get(resources.turnId) ?? (mapping.size === 0 ? resources.turnId : undefined);
 			if (!remappedTurnId) {
 				this._toolResultResources.delete(toolCallId);
 			} else {
 				this._toolResultResources.set(toolCallId, { ...resources, turnId: remappedTurnId });
 			}
 		}
+		for (const [responseId, response] of this._assistantResponseParts) {
+			const turnId = mapping.get(response.turnId) ?? (mapping.size === 0 ? response.turnId : undefined);
+			if (turnId) {
+				this._assistantResponseParts.set(responseId, { ...response, turnId });
+			} else {
+				this._assistantResponseParts.delete(responseId);
+			}
+		}
+		for (const [turnId, eventId] of eventIds ?? []) {
+			if (this._turns.has(turnId)) {
+				this._turnEventIds.set(turnId, eventId);
+			}
+		}
 		this._deleteWorkspaceTransitionMarkerIfEmpty();
 	}
 
-	private _deleteToolResultsForTurns(turnIds: ReadonlySet<string>): void {
+	private _deleteTurnContent(turnIds: ReadonlySet<string>): void {
+		for (const turnId of turnIds) {
+			this._turnUsages.delete(turnId);
+			if (this._turnMetadata.delete(turnId)) {
+				this._onDidChangeMetadata.fire();
+			}
+		}
+		for (const [responseId, response] of this._assistantResponseParts) {
+			if (turnIds.has(response.turnId)) {
+				this._assistantResponseParts.delete(responseId);
+			}
+		}
 		for (const [toolCallId, output] of this._terminalOutputs) {
 			if (turnIds.has(output.turnId)) {
 				this._terminalOutputs.delete(toolCallId);
@@ -632,23 +756,27 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	async getRowsWatermark(): Promise<ISessionRowsWatermark> { return { maxTurnRowid: this._turns.size, drafts: new Map(this._drafts) }; }
 
-	/** Records the keys only; this fake does not model the foreign-row filter of real databases. */
+	private _getForeignTurnIds(): Set<string> {
+		return new Set(JSON.parse(this._metadata.get(SESSION_FOREIGN_TURN_IDS_METADATA_KEY) ?? '[]') as string[]);
+	}
+
 	async setForeignRows(ownerChat: string, turnIds: readonly string[]): Promise<void> {
 		this._metadata.set(SESSION_ROW_OWNER_CHAT_METADATA_KEY, ownerChat);
 		this._metadata.set(SESSION_FOREIGN_TURN_IDS_METADATA_KEY, JSON.stringify([...new Set(turnIds)]));
 	}
 
-	async getMetadataByPrefix(prefix: string): Promise<Record<string, string>> {
-		return Object.fromEntries([...this._metadata].filter(([key]) => key.startsWith(prefix)).sort(([a], [b]) => a.localeCompare(b)));
+	async getMetadataByPrefix(prefix: string, turnId?: string): Promise<Record<string, string>> {
+		return Object.fromEntries([...this._getMetadataMap(turnId) ?? []].filter(([key]) => key.startsWith(prefix)).sort(([a], [b]) => a.localeCompare(b)));
 	}
 
-	async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[]): Promise<void> {
+	async applyMetadataChanges(set: Readonly<Record<string, string>>, remove: readonly string[], turnId?: string): Promise<void> {
 		for (const [key, value] of Object.entries(set)) {
-			this.setMetadataCalls.push({ key, value });
-			this._metadata.set(key, value);
+			this.setMetadataCalls.push({ key, value, ...(turnId === undefined ? {} : { turnId }) });
+			this._getOrCreateMetadataMap(turnId).set(key, value);
 		}
+		const metadata = this._getMetadataMap(turnId);
 		for (const key of remove) {
-			this._metadata.delete(key);
+			metadata?.delete(key);
 		}
 	}
 
@@ -801,62 +929,6 @@ export function createNullSessionDataService(): ISessionDataService {
 
 export function encodeString(text: string): Uint8Array {
 	return new TextEncoder().encode(text);
-}
-
-/**
- * Returns a no-op {@link IAgentHostGitService} suitable for tests that
- * exercise the {@link AgentService} but don't care about git state.
- * Tests that DO care about git state should pass their own implementation.
- */
-export function createNoopGitService(): import('../../common/agentHostGitService.js').IAgentHostGitService {
-	return {
-		_serviceBrand: undefined,
-		getCurrentBranch: async () => undefined,
-		getHEAD: async () => undefined,
-		getDefaultBranch: async () => undefined,
-		getDefaultBranch2: async () => undefined,
-		getBranch: async () => undefined,
-		getRefs: async () => [],
-		getBranches: async () => [],
-		hasGitRoot: () => constObservable(undefined),
-		getRepositoryRoot: async () => undefined,
-		getWorktreeRoots: async () => [],
-		addWorktree: async () => { },
-		copyWorktreeIncludeFiles: async () => { },
-		symlinkWorktreeFolders: async () => [],
-		addExistingWorktree: async () => { },
-		isWorktreeRegistered: async () => true,
-		removeWorktree: async () => { },
-		branchExists: async () => false,
-		createBranch: async () => { },
-		checkout: async () => { },
-		hasUncommittedChanges: async () => false,
-		createStash: async () => { },
-		commitAll: async () => { },
-		mergeBranch: async () => '',
-		restore: async () => { },
-		hasUpstream: async () => false,
-		fetch: async () => { },
-		pull: async () => { },
-		push: async () => { },
-		getSessionGitState: async () => undefined,
-		computeSessionFileDiffs: async () => undefined,
-		resolveBranchBaselineCommit: async () => undefined,
-		showBlob: async () => undefined,
-		captureWorkingTreeAsTree: async () => undefined,
-		commitTree: async () => undefined,
-		updateRef: async () => { },
-		deleteRefs: async () => { },
-		revParse: async () => undefined,
-		overlayPathIntoTree: async () => undefined,
-		diffTreePaths: async () => undefined,
-		computeFileDiffsBetweenRefs: async () => undefined,
-		getFetchRemoteUrls: async () => undefined,
-		getFetchRemotes: async () => undefined,
-		getUntrackedPaths: async () => [],
-		getBranchDiffSafetyInfo: async () => undefined,
-		getDiffPatchBetweenRefs: async () => undefined,
-	};
 }
 
 /**

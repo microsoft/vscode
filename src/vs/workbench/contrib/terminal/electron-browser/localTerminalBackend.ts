@@ -221,11 +221,11 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 		return pty;
 	}
 
-	async attachToProcess(id: number, pid?: number): Promise<ITerminalChildProcess | undefined> {
+	async attachToProcess(id: number, pid?: number, isRevived: boolean = false): Promise<ITerminalChildProcess | undefined> {
 		await this._connectToDirectProxy();
 		try {
 			await this._proxy.attachToProcess(id, pid);
-			const pty = new LocalPty(id, true, this._proxy);
+			const pty = new LocalPty(id, true, this._proxy, isRevived);
 			this._ptys.set(id, pty);
 			return pty;
 		} catch (e) {
@@ -239,7 +239,7 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 		try {
 			const newId = await this._proxy.getRevivedPtyNewId(this._getWorkspaceId(), id);
 			if (newId !== undefined) {
-				return await this.attachToProcess(newId);
+				return await this.attachToProcess(newId, undefined, true);
 			}
 			// The original ID may belong to another window's process after a pty host restart
 			return await this.attachToProcess(id, pid > 0 ? pid : undefined);
@@ -393,11 +393,11 @@ export class LocalTerminalBackend extends BaseTerminalBackend implements ITermin
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void> {
-		return this._proxy.installAutoReply(match, reply);
+	installAutoReply(match: string, reply: string, ownerId: string): Promise<void> {
+		return this._proxy.installAutoReply(match, reply, ownerId);
 	}
-	uninstallAllAutoReplies(): Promise<void> {
-		return this._proxy.uninstallAllAutoReplies();
+	uninstallAllAutoReplies(ownerId: string): Promise<void> {
+		return this._proxy.uninstallAllAutoReplies(ownerId);
 	}
 
 	// #endregion

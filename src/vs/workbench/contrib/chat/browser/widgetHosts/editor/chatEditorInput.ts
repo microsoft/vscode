@@ -31,12 +31,12 @@ import { EditorInput, IEditorCloseHandler } from '../../../../../common/editor/e
 import { IEditorGroup } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IChatModelReference, IChatService } from '../../../common/chatService/chatService.js';
 import { IChatSessionsService, isAgentHostTarget, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatEditorTitleMaxLength, SessionTypeSelectionReason, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isNewChatSessionTypeUsable, managedPolicyRequiresAgentHostMessage } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatEditorTitleMaxLength, SessionTypeSelectionReason, getDefaultNewChatSessionType, getDefaultNewChatSessionTypeAndReasonFromServices, getLocalFallbackSessionTypeSelectionReason, isLocalAgentHostSessionTypeDisabledByPolicy, isNewChatSessionTypeUsable, managedPolicyRequiresAgentHostMessage } from '../../../common/constants.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri, getChatSessionType, getNewChatSessionResource, isUntitledChatSession } from '../../../common/model/chatUri.js';
 import { IAgentHostConnectionsService } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
-import { adoptLegacyCopilotCliResource, isLegacyMigrationEnabledAtStartup, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
+import { adoptLegacyCopilotCliResource, canOpenLegacyCopilotCliResource, LEGACY_MIGRATION_RESTORE_TIMEOUT_MS, reportLegacyMigrationOpen } from '../../agentSessions/agentHost/agentHostLegacyMigration.js';
 import { migratedCopilotCliResource } from '../../copilotCliEventsUri.js';
 import { IClearEditingSessionConfirmationOptions } from '../../actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
@@ -176,7 +176,15 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			return false;
 		}
 
-		return isEqual(this.sessionResource, otherInput.sessionResource);
+		if (isEqual(this.sessionResource, otherInput.sessionResource)) {
+			return true;
+		}
+		if (!this.sessionResource || !otherInput.sessionResource) {
+			return false;
+		}
+		const previous = this.chatSessionsService.getPreviousChatSessionResource?.(this.sessionResource);
+		const otherPrevious = this.chatSessionsService.getPreviousChatSessionResource?.(otherInput.sessionResource);
+		return !!previous && isEqual(previous, otherInput.sessionResource) || !!otherPrevious && isEqual(this.sessionResource, otherPrevious);
 	}
 
 	override get typeId(): string {
@@ -184,6 +192,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override getName(): string {
+		return this.getKnownTitle() ?? this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+	}
+
+	/**
+	 * The title of this chat, or `undefined` if only the generic fallback name is known.
+	 */
+	getKnownTitle(): string | undefined {
 		// If we have a resolved model, use its title
 		if (this.model?.title) {
 			// Only truncate if the default title is being used (don't truncate custom titles)
@@ -205,13 +220,13 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			}
 		}
 
-		// If a preferred title was provided in options, use it
-		if (this.options.title?.preferred) {
-			return this.options.title.preferred;
+		// The title cached when this editor was last serialized is more recent than the preferred title it was opened with
+		if (this.options.restoredTitle) {
+			return this.options.restoredTitle;
 		}
 
-		// Fall back to default naming pattern
-		return this.options.title?.fallback ?? nls.localize('chatEditorName', "Chat");
+		// If a preferred title was provided in options, use it
+		return this.options.title?.preferred || undefined;
 	}
 
 	override getTitle(verbosity?: Verbosity): string {
@@ -288,6 +303,11 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const chatSessionType = searchParams.get('chatSessionType');
 		const inputType = chatSessionType ?? this.resource.authority;
 
+		if (this._sessionResource && !this.options.target && isUntitledChatSession(this._sessionResource) && isLocalAgentHostSessionTypeDisabledByPolicy(getChatSessionType(this._sessionResource), this.configurationService)) {
+			// An empty draft of a harness that policy disables can only show the read-only banner, so open the default new chat instead.
+			this._sessionResource = undefined;
+		}
+
 		if (this._sessionResource) {
 			let migratedResource: URI | undefined;
 			// Restore addresses a session by URI, which for a legacy Copilot CLI
@@ -304,7 +324,6 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 						this.agentHostConnectionsService.ambientConnection,
 						this._sessionResource!,
 						this.logService,
-						this.configurationService,
 						this.telemetryService,
 						'restore',
 						LEGACY_MIGRATION_RESTORE_TIMEOUT_MS,
@@ -313,9 +332,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 				if (migrated) {
 					this._sessionResource = migrated;
 					migratedResource = migrated;
-				} else if (isLegacyMigrationEnabledAtStartup(this.configurationService)
-					&& this.chatSessionsService.getChatSessionContribution
-					&& !this.chatSessionsService.getChatSessionContribution(this._sessionResource.scheme)) {
+				} else if (!await canOpenLegacyCopilotCliResource(this.chatSessionsService, this._sessionResource)) {
 					this._sessionResource = twin;
 				}
 			}
@@ -543,7 +560,7 @@ export class ChatEditorInputSerializer implements IEditorSerializer {
 		}
 
 		const obj: ISerializedChatEditorInput = {
-			options: { ...input.options, sessionTypeSelectionReason: undefined },
+			options: { ...input.options, restoredTitle: input.getKnownTitle(), sessionTypeSelectionReason: undefined },
 			sessionResource: input.sessionResource,
 			resource: input.resource,
 

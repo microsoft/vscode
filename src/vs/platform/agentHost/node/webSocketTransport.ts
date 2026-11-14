@@ -7,13 +7,12 @@
 // Uses JSON serialization with URI revival for cross-process communication.
 
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostTransportKind } from '../common/agentHostTelemetry.js';
 import { JSON_RPC_PARSE_ERROR, type AhpServerNotification, type JsonRpcNotification, type JsonRpcParseErrorResponse, type JsonRpcRequest, type JsonRpcResponse, type ProtocolMessage } from '../common/state/sessionProtocol.js';
 import { parseProtocolMessage, type IProtocolServer, type IProtocolTransport } from '../common/state/sessionTransport.js';
-import { authenticateAgentHostTransport } from './agentHostTransportAuthentication.js';
 import type * as wsTypes from 'ws';
 import type * as httpTypes from 'http';
 
@@ -50,11 +49,20 @@ export class WebSocketProtocolTransport extends Disposable implements IProtocolT
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
+	private readonly _onDidReceiveData = this._register(new Emitter<void>());
+	/** Includes partial messages and control frames from the underlying socket. */
+	readonly onDidReceiveData = this._onDidReceiveData.event;
+
 	constructor(
 		private readonly _ws: wsTypes.WebSocket,
 		private readonly _WebSocket: typeof wsTypes.WebSocket,
+		socket: httpTypes.IncomingMessage['socket'],
 	) {
 		super();
+
+		const onData = () => this._onDidReceiveData.fire();
+		socket.on('data', onData);
+		this._register(toDisposable(() => socket.off('data', onData)));
 
 		this._ws.on('message', (data: Buffer | string) => {
 			try {
@@ -215,12 +223,9 @@ export class WebSocketProtocolServer extends Disposable implements IProtocolServ
 			});
 		}
 
-		this._wss.on('connection', (wsConn) => {
+		this._wss.on('connection', (wsConn, request) => {
 			this._logService.trace('[WebSocketProtocol] New client connection');
-			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket);
-			if (opts.connectionTokenValidate) {
-				authenticateAgentHostTransport(transport);
-			}
+			const transport = new WebSocketProtocolTransport(wsConn, this._WebSocket, request.socket);
 			this._onConnection.fire(transport);
 		});
 

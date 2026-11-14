@@ -5,20 +5,23 @@
 
 import assert from 'assert';
 import { getActiveDocument } from '../../../../../../base/browser/dom.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isMacintosh, OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { KeyCode, KeyMod } from '../../../../../../base/common/keyCodes.js';
 import { decodeKeybinding } from '../../../../../../base/common/keybindings.js';
+import { MarshalledId } from '../../../../../../base/common/marshallingIds.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { isIMenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { ContextKeyValue, IContext } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../../../../../platform/contextkey/common/contextkeys.js';
 import { RawWorkbenchListFocusContextKey } from '../../../../../../platform/list/browser/listService.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
 import { KeybindingsRegistry } from '../../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeybindingResolver } from '../../../../../../platform/keybinding/common/keybindingResolver.js';
 import { ResolvedKeybindingItem } from '../../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
@@ -28,10 +31,10 @@ import { IsSessionsWindowContext } from '../../../../../common/contextkeys.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
 import { AGENT_SESSION_RENAME_ACTION_ID, AgentSessionProviders } from '../../../browser/agentSessions/agentSessions.js';
-import { ArchiveAgentSessionAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, RenameAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
+import { ArchiveAgentSessionAction, MarkAgentSessionDoneAction, MarkAgentSessionReadAction, MarkAgentSessionUnreadAction, MarkAllAgentSessionsReadAction, OpenAgentSessionCustomizationsAction, RenameAgentSessionAction, RestoreAgentSessionAction, UnarchiveAgentSessionAction } from '../../../browser/agentSessions/agentSessionsActions.js';
 import { AgentSessionsControl } from '../../../browser/agentSessions/agentSessionsControl.js';
 import { ChatViewPane } from '../../../browser/widgetHosts/viewPane/chatViewPane.js';
-import { IAgentSession } from '../../../browser/agentSessions/agentSessionsModel.js';
+import { IAgentSession, IAgentSessionsModel, IMarshalledAgentSessionContext } from '../../../browser/agentSessions/agentSessionsModel.js';
 import { IAgentSessionsService } from '../../../browser/agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../../common/chatService/chatService.js';
@@ -40,46 +43,97 @@ import { IChatModel } from '../../../common/model/chatModel.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { IChatViewModel } from '../../../common/model/chatViewModel.js';
 import { AGENT_SESSION_MARK_READ_ACTION_ID, AGENT_SESSION_MARK_UNREAD_ACTION_ID } from '../../../../../common/chatSessionCommands.js';
+import { AICustomizationManagementCommands } from '../../../common/aiCustomizationWorkspaceService.js';
 
 suite('AgentSessionsActions', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-	const actionRegistration = registerAction2(RenameAgentSessionAction);
+	let actionRegistration: IDisposable;
 
+	suiteSetup(() => actionRegistration = registerAction2(RenameAgentSessionAction));
 	suiteTeardown(() => actionRegistration.dispose());
 
-	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {
-		const registrations = new DisposableStore();
-		try {
-			for (const action of [new MarkAgentSessionReadAction(), new MarkAgentSessionUnreadAction()]) {
-				const keybinding = action.desc.keybinding;
-				assert.ok(keybinding && !Array.isArray(keybinding));
-				registrations.add(KeybindingsRegistry.registerKeybindingRule({ id: action.desc.id, ...keybinding }));
-			}
-			const sessionsList = {
-				[ChatContextKeys.agentSessionsViewerFocused.key]: true,
-				[RawWorkbenchListFocusContextKey.key]: true,
+	test('offers Open Customizations for one selected session and hides it when AI is disabled', () => {
+		disposables.add(registerAction2(OpenAgentSessionCustomizationsAction));
+		const item = MenuRegistry.getMenuItems(MenuId.AgentSessionsContext).filter(isIMenuItem).find(item => item.command.id === 'agentSession.openCustomizations');
+		assert.ok(item);
+		const evaluate = (enabled: boolean, multipleSelection: boolean) => {
+			const values: Record<string, boolean> = {
+				[ChatContextKeys.enabled.key]: enabled,
+				[ChatContextKeys.hasMultipleAgentSessionsSelected.key]: multipleSelection,
 			};
-			const context = (values: Record<string, ContextKeyValue>): IContext => ({
-				getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined,
-			});
-			for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
-				for (const [commandId, keyCode] of [[AGENT_SESSION_MARK_READ_ACTION_ID, KeyCode.KeyI], [AGENT_SESSION_MARK_UNREAD_ACTION_ID, KeyCode.KeyU]] as const) {
-					const hash = decodeKeybinding(KeyMod.Shift | keyCode, operatingSystem)!.getHashCode();
-					const rule = KeybindingsRegistry.getDefaultKeybindingsForOS(operatingSystem).find(item =>
-						item.command === commandId && item.keybinding?.getHashCode() === hash && item.when?.evaluate(context(sessionsList)));
-					assert.ok(rule?.when);
-					assert.deepStrictEqual({
-						list: rule.when.evaluate(context(sessionsList)),
-						input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
-						agentsWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: true })),
-						otherList: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.agentSessionsViewerFocused.key]: false })),
-						noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
-						childChat: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.isAgentSessionChild.key]: true })),
-					}, { list: true, input: false, agentsWindow: false, otherList: false, noListFocus: false, childChat: true });
-				}
+			const context: IContext = { getValue: <T>(key: string) => values[key] as T | undefined };
+			return { visible: item.when?.evaluate(context), enabled: item.command.precondition?.evaluate(context) };
+		};
+		assert.deepStrictEqual({
+			group: item.group,
+			single: evaluate(true, false),
+			multiple: evaluate(true, true),
+			aiDisabled: evaluate(false, false),
+		}, {
+			group: 'navigation',
+			single: { visible: true, enabled: true },
+			multiple: { visible: true, enabled: false },
+			aiDisabled: { visible: false, enabled: false },
+		});
+	});
+
+	test('adapts explicit session contexts to the customization command without falling back to another session', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { commandId: string; target: { sessionResource: URI } }[] = [];
+		instantiationService.stub(ICommandService, upcastPartial<ICommandService>({
+			executeCommand: async (commandId: string, target: { sessionResource: URI }) => {
+				calls.push({ commandId, target });
+				return undefined;
+			},
+		}));
+		const session = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-copilot:/selected-session') });
+		const other = upcastPartial<IAgentSession>({ resource: URI.parse('agent-host-claude:/other-session') });
+		const action = new OpenAgentSessionCustomizationsAction();
+		await instantiationService.invokeFunction(accessor => action.run(accessor, session));
+		await instantiationService.invokeFunction(accessor => action.run(accessor, {
+			$mid: MarshalledId.AgentSessionContext, session, sessions: [session],
+		}));
+		for (const sessions of [[], [session, other]]) {
+			await assert.rejects(() => instantiationService.invokeFunction(accessor => action.run(accessor, {
+				$mid: MarshalledId.AgentSessionContext, session, sessions,
+			})), /Select a single session/);
+		}
+		await assert.rejects(() => instantiationService.invokeFunction(accessor => action.run(accessor)), /Select a single session/);
+		assert.deepStrictEqual(calls, Array(2).fill({
+			commandId: AICustomizationManagementCommands.OpenEditor,
+			target: { sessionResource: session.resource },
+		}));
+	});
+
+	test('scopes read and unread shortcuts to the editor Sessions list on every platform', () => {
+		const registrations = disposables.add(new DisposableStore());
+		for (const action of [new MarkAgentSessionReadAction(), new MarkAgentSessionUnreadAction()]) {
+			const keybinding = action.desc.keybinding;
+			assert.ok(keybinding && !Array.isArray(keybinding));
+			registrations.add(KeybindingsRegistry.registerKeybindingRule({ id: action.desc.id, ...keybinding }));
+		}
+		const sessionsList = {
+			[ChatContextKeys.agentSessionsViewerFocused.key]: true,
+			[RawWorkbenchListFocusContextKey.key]: true,
+		};
+		const context = (values: Record<string, ContextKeyValue>): IContext => ({
+			getValue: <T extends ContextKeyValue>(key: string) => values[key] as T | undefined,
+		});
+		for (const operatingSystem of [OperatingSystem.Windows, OperatingSystem.Macintosh, OperatingSystem.Linux]) {
+			for (const [commandId, keyCode] of [[AGENT_SESSION_MARK_READ_ACTION_ID, KeyCode.KeyI], [AGENT_SESSION_MARK_UNREAD_ACTION_ID, KeyCode.KeyU]] as const) {
+				const hash = decodeKeybinding(KeyMod.Shift | keyCode, operatingSystem)!.getHashCode();
+				const rule = KeybindingsRegistry.getDefaultKeybindingsForOS(operatingSystem).find(item =>
+					item.command === commandId && item.keybinding?.getHashCode() === hash && item.when?.evaluate(context(sessionsList)));
+				assert.ok(rule?.when);
+				assert.deepStrictEqual({
+					list: rule.when.evaluate(context(sessionsList)),
+					input: rule.when.evaluate(context({ ...sessionsList, [InputFocusedContext.key]: true })),
+					agentsWindow: rule.when.evaluate(context({ ...sessionsList, [IsSessionsWindowContext.key]: true })),
+					otherList: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.agentSessionsViewerFocused.key]: false })),
+					noListFocus: rule.when.evaluate(context({ ...sessionsList, [RawWorkbenchListFocusContextKey.key]: false })),
+					childChat: rule.when.evaluate(context({ ...sessionsList, [ChatContextKeys.isAgentSessionChild.key]: true })),
+				}, { list: true, input: false, agentsWindow: false, otherList: false, noListFocus: false, childChat: true });
 			}
-		} finally {
-			registrations.dispose();
 		}
 	});
 
@@ -145,6 +199,75 @@ suite('AgentSessionsActions', () => {
 		}
 		assert.deepStrictEqual(calls, [true, false].flatMap(read =>
 			['first', 'second', 'second'].map(session => ({ session, read }))));
+	});
+
+	test('marks automation runs read when the sessions list shows them', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: string[] = [];
+		const createSession = (name: string) => upcastPartial<IAgentSession>({
+			resource: URI.parse(`test:/${name}`),
+			isArchived: () => false,
+			isRead: () => false,
+			setRead: () => calls.push(name),
+		});
+		const ordinary = createSession('ordinary');
+		const automation = createSession('automation');
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
+			model: upcastPartial<IAgentSessionsModel>({
+				sessions: [ordinary],
+				sessionsIncludingAutomationRuns: [ordinary, automation],
+			}),
+		}));
+		const context: IMarshalledAgentSessionContext = {
+			$mid: MarshalledId.AgentSessionContext,
+			session: ordinary,
+			sessions: [ordinary],
+			showAutomationRuns: true,
+		};
+		const action = new MarkAllAgentSessionsReadAction();
+
+		await instantiationService.invokeFunction(accessor => action.run(accessor));
+		const defaultSessions = calls.splice(0);
+		await instantiationService.invokeFunction(accessor => action.run(accessor, context));
+
+		assert.deepStrictEqual({ defaultSessions, displayedSessions: calls }, {
+			defaultSessions: ['ordinary'],
+			displayedSessions: ['ordinary', 'automation'],
+		});
+	});
+
+	test('completes and restores focused or selected side chats without changing their parent', async () => {
+		const instantiationService = disposables.add(new TestInstantiationService());
+		const calls: { session: string; archived: boolean }[] = [];
+		const parent = upcastPartial<IAgentSession>({
+			resource: URI.parse('test:/parent'),
+			setArchived: archived => calls.push({ session: 'parent', archived }),
+		});
+		const createChild = (name: string, canArchive: boolean) => upcastPartial<IAgentSession>({
+			resource: parent.resource.with({ fragment: name }),
+			parentSession: { resource: parent.resource, label: 'Parent' },
+			canArchive,
+			setArchived: archived => calls.push({ session: name, archived }),
+		});
+		const first = createChild('first', true);
+		const second = createChild('second', true);
+		const unsupported = createChild('unsupported', false);
+		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({}));
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({ getSession: () => undefined }));
+		instantiationService.stub(IDialogService, upcastPartial<IDialogService>({}));
+		instantiationService.stub(IViewsService, new class extends mock<IViewsService>() { }(), 'getActiveViewWithId', () => upcastPartial<ChatViewPane>({
+			getFocusedSessions: () => [first],
+			agentSessionsControl: upcastPartial<AgentSessionsControl>({
+				getSelectedSessions: () => [parent, first, second, unsupported],
+			}),
+		}));
+		for (const action of [new MarkAgentSessionDoneAction(), new RestoreAgentSessionAction(), new ArchiveAgentSessionAction(), new UnarchiveAgentSessionAction()]) {
+			await instantiationService.invokeFunction(accessor => action.run(accessor));
+			await instantiationService.invokeFunction(accessor => action.run(accessor, second));
+			await instantiationService.invokeFunction(accessor => action.run(accessor, unsupported));
+		}
+		assert.deepStrictEqual(calls, [true, false, true, false].flatMap(archived =>
+			['first', 'second', 'second'].map(session => ({ session, archived }))));
 	});
 
 	function buildResolver(operatingSystem = OS): KeybindingResolver {

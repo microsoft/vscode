@@ -292,8 +292,6 @@ export interface IExtensionCapabilities {
 	readonly agentsWindow?: { readonly supported: boolean };
 }
 
-export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experimental.enableAgentsWindowCapability';
-
 /**
  * Lets users choose which extensions run in the Agents window. When disabled, extensions that do not
  * support the Agents window stay disabled there and saved choices are ignored.
@@ -301,11 +299,18 @@ export const EXTENSIONS_ENABLE_AGENTS_WINDOW_CAPABILITY = 'extensions.experiment
 export const EXTENSIONS_AGENTS_WINDOW_MANAGEMENT = 'extensions.experimental.agentsWindowManagement';
 
 /**
- * Enables extensions in the Agents window automatically when they contribute something useful there and nothing
- * that relies on features the Agents window lacks. Users can still disable them. Requires
- * {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ * Enables extensions in the Agents window automatically. When `true`, enables extensions that contribute something
+ * useful there and nothing that relies on features the Agents window lacks. When an array of extension identifiers,
+ * enables only the listed extensions. Users can still disable them. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
  */
 export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE = 'extensions.experimental.agentsWindowAutoEnable';
+
+/**
+ * Controls for each extension, by its identifier, whether it is enabled in the Agents window automatically, overriding
+ * {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} for that extension. A keyed experiment-controlled setting, so that each
+ * extension can be tested in its own experiment. Requires {@link EXTENSIONS_AGENTS_WINDOW_MANAGEMENT}.
+ */
+export const EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS = 'extensions.experimental.agentsWindowAutoEnableExtensions';
 
 export const ALL_EXTENSION_KINDS: readonly ExtensionKind[] = ['ui', 'workspace', 'web'];
 

@@ -19,6 +19,7 @@ import { IMarkdownRendererService } from '../../../../../../../platform/markdown
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { ChatErrorLevel, ChatMcpAppData, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { getMcpServerDisplayLabel, IAgentHostCustomizationService } from '../../../agentSessions/agentHost/agentHostCustomizationService.js';
+import { IAgentHostMcpAppToolsService } from '../../../agentSessions/agentHost/agentHostMcpAppToolsService.js';
 import { renderMcpServerSignInButton } from '../../../aiCustomization/mcpServerSignInButton.js';
 import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -86,6 +87,7 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
 		@IAgentHostCustomizationService private readonly _agentHostCustomizationService: IAgentHostCustomizationService,
+		@IAgentHostMcpAppToolsService appToolsService: IAgentHostMcpAppToolsService,
 	) {
 		super(toolInvocation);
 
@@ -101,20 +103,16 @@ export class ChatMcpAppSubPart extends BaseChatToolInvocationSubPart {
 		this._downloadContainer = dom.$('div.mcp-app-downloads');
 		this.domNode.appendChild(this._downloadContainer);
 
-		const targetWindow = dom.getWindow(this.domNode);
+		const targetWindow = dom.getWindow(context.container);
 		const getMaxHeight = () => maxWebviewHeightPct * targetWindow.innerHeight;
-		const maxHeight = observableValue('mcpAppMaxHeight', getMaxHeight());
-		dom.addDisposableListener(targetWindow, 'resize', () => maxHeight.set(getMaxHeight(), undefined));
+		const maxHeight = observableValue(this, getMaxHeight());
+		this._register(dom.addDisposableListener(targetWindow, 'resize', () => maxHeight.set(getMaxHeight(), undefined)));
 
-		// Create the model - it will mount the webview to the container
-		this._model = this._register(this._instantiationService.createInstance(
-			ChatMcpAppModel,
-			toolInvocation,
-			this._renderData,
-			this._webviewContainer,
-			maxHeight,
-			context.currentWidth,
-		));
+		const createModel = () => this._instantiationService.createInstance(ChatMcpAppModel, toolInvocation, this._renderData, undefined);
+		this._model = this._renderData.kind === 'agentHost'
+			? this._register(appToolsService.acquire(this._renderData, toolInvocation.toolCallId, createModel)).object
+			: this._register(createModel());
+		this._register(this._model.attach(this._webviewContainer, { targetWindow, maxHeight, currentWidth: context.currentWidth, clippingContainer: context.getOverlayClippingContainer?.() }));
 
 		// Update container height from model
 		this._updateContainerHeight();

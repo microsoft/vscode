@@ -315,7 +315,7 @@ export class ImageViewer extends Disposable {
 		// Pass the pending image instead of awaiting it, so the clipboard write starts while the
 		// user gesture that triggered the copy is still being handled
 		const data = this._sourceData;
-		const png = data?.mimeType === 'image/png' ? this._readPng(data) : this._encodeAsPng();
+		const png = data?.mimeType === 'image/png' ? this._readPng(data) : encodeImageAsPng(this._image, this._webWorkerService);
 		return this._clipboardService.writeImage(png);
 	}
 
@@ -581,69 +581,68 @@ export class ImageViewer extends Disposable {
 		} catch {
 			// Encode the displayed image instead
 		}
-		return this._encodeAsPng();
+		return encodeImageAsPng(this._image, this._webWorkerService);
+	}
+}
+
+/**
+ * Encodes the displayed frame at its natural size, sharing the image viewer's worker encoder.
+ */
+export async function encodeImageAsPng(image: HTMLImageElement, webWorkerService: IWebWorkerService): Promise<Uint8Array> {
+	const width = image.naturalWidth || image.clientWidth;
+	const height = image.naturalHeight || image.clientHeight;
+	const canvas = width && height ? new OffscreenCanvas(width, height) : undefined;
+	const context = canvas?.getContext('2d');
+	if (!canvas || !context) {
+		throw new Error('Failed to encode image');
 	}
 
-	private async _encodeAsPng(): Promise<Uint8Array> {
-		const width = this._image.naturalWidth || this._image.clientWidth;
-		const height = this._image.naturalHeight || this._image.clientHeight;
-		const canvas = width && height ? new OffscreenCanvas(width, height) : undefined;
-		const context = canvas?.getContext('2d');
-		if (!canvas || !context) {
-			throw new Error('Failed to encode image');
-		}
-
-		// Draw on the main thread so that EXIF orientation, color conversion and the current frame of
-		// animated images match what is shown
-		context.drawImage(this._image, 0, 0, width, height);
-		const bitmap = canvas.transferToImageBitmap();
-		try {
-			return await this._encodeInWorker(bitmap);
-		} catch {
-			// For example when workers can't be created
-			return await this._encodeOnMainThread(bitmap);
-		} finally {
-			bitmap.close();
-		}
+	// Draw on the main thread to preserve orientation, color conversion and the displayed animation frame.
+	context.drawImage(image, 0, 0, width, height);
+	const bitmap = canvas.transferToImageBitmap();
+	try {
+		return await encodeInWorker(bitmap, webWorkerService);
+	} catch {
+		// For example when workers can't be created
+		return await encodeOnMainThread(bitmap);
+	} finally {
+		bitmap.close();
 	}
+}
 
-	/**
-	 * Encodes in a worker, since the main thread encodes canvases using idle tasks, which can be
-	 * starved for seconds while the renderer is busy.
-	 */
-	private async _encodeInWorker(bitmap: ImageBitmap): Promise<Uint8Array> {
-		const worker = this._webWorkerService.createWorkerClient<ImageEncoderWorker>(new WebWorkerDescriptor({
-			esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/mediaPreview/browser/imageEncoderWorkerMain.js'),
-			label: 'ImageEncoderWorker',
-		}));
-		try {
-			return new Uint8Array(await worker.proxy.$encodePng(bitmap));
-		} finally {
-			worker.dispose();
-		}
+/** Encodes in a worker to avoid delays from main-thread idle task scheduling. */
+async function encodeInWorker(bitmap: ImageBitmap, webWorkerService: IWebWorkerService): Promise<Uint8Array> {
+	const worker = webWorkerService.createWorkerClient<ImageEncoderWorker>(new WebWorkerDescriptor({
+		esmModuleLocation: FileAccess.asBrowserUri('vs/workbench/contrib/mediaPreview/browser/imageEncoderWorkerMain.js'),
+		label: 'ImageEncoderWorker',
+	}));
+	try {
+		return new Uint8Array(await worker.proxy.$encodePng(bitmap));
+	} finally {
+		worker.dispose();
 	}
+}
 
-	private _encodeOnMainThread(bitmap: ImageBitmap): Promise<Uint8Array> {
-		return new Promise((resolve, reject) => {
-			const canvas = $<HTMLCanvasElement>('canvas');
-			canvas.width = bitmap.width;
-			canvas.height = bitmap.height;
-			const context = canvas.getContext('2d');
-			if (!context) {
+function encodeOnMainThread(bitmap: ImageBitmap): Promise<Uint8Array> {
+	return new Promise((resolve, reject) => {
+		const canvas = $<HTMLCanvasElement>('canvas');
+		canvas.width = bitmap.width;
+		canvas.height = bitmap.height;
+		const context = canvas.getContext('2d');
+		if (!context) {
+			reject(new Error('Failed to encode image'));
+			return;
+		}
+		context.drawImage(bitmap, 0, 0);
+		canvas.toBlob(async blob => {
+			canvas.width = canvas.height = 0;
+			if (blob) {
+				resolve(new Uint8Array(await blob.arrayBuffer()));
+			} else {
 				reject(new Error('Failed to encode image'));
-				return;
 			}
-			context.drawImage(bitmap, 0, 0);
-			canvas.toBlob(async blob => {
-				canvas.width = canvas.height = 0;
-				if (blob) {
-					resolve(new Uint8Array(await blob.arrayBuffer()));
-				} else {
-					reject(new Error('Failed to encode image'));
-				}
-			}, 'image/png');
-		});
-	}
+		}, 'image/png');
+	});
 }
 
 const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];

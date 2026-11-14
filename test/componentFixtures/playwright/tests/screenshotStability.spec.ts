@@ -101,12 +101,12 @@ test('sessions grid header actions update their owning state', async ({ page }) 
 	};
 	await overflow().click();
 	await expect(page.locator('.context-view .action-label:not(.separator)')).toHaveText([
-		'Archive', 'Show Chat Tabs', 'Unpin', 'Close', 'Maximize', 'Session Layout', 'Mark as Unread',
+		'Close', 'Maximize', 'Session Layout', 'Show Chat Tabs', 'Mark as Unread', 'Archive', 'Unpin',
 	]);
 	await activate('menuitemcheckbox', 'Maximize');
 	await expect(page.locator('.session-view:visible')).toHaveCount(1);
-	await openOverflow('Restore');
-	await activate('menuitemcheckbox', 'Restore');
+	await openOverflow('Restore Size');
+	await activate('menuitemcheckbox', 'Restore Size');
 	await expect(page.locator('.session-view:visible')).toHaveCount(3);
 	await session.getByRole('button', { name: 'Unpin', exact: true }).click();
 	await expect(session.getByRole('button', { name: 'Unpin', exact: true })).toHaveCount(0);

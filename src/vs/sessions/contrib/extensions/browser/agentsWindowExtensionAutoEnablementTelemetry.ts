@@ -8,7 +8,7 @@ import { autorun, derived, IObservable, observableSignalFromEvent } from '../../
 import { isString } from '../../../../base/common/types.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
+import { ExtensionIdentifier, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { logSettingExperimentTrigger } from '../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -77,8 +77,9 @@ function getLanguageIds(manifest: IExtensionManifest): string[] {
 }
 
 /**
- * Logs whether extensions that the Agents window can enable automatically, because they could be useful there, are
- * enabled and used, together with the trigger of the {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} experiment.
+ * Logs whether extensions that the Agents window can enable automatically, because they could be useful there or
+ * because {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} or {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS} enable
+ * them, are enabled and used, together with the trigger of the {@link EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE} experiment.
  */
 export class AgentsWindowExtensionAutoEnablementTelemetry extends Disposable implements IWorkbenchContribution {
 
@@ -100,29 +101,37 @@ export class AgentsWindowExtensionAutoEnablementTelemetry extends Disposable imp
 		super();
 
 		const managementEnabled = observableConfigValue(EXTENSIONS_AGENTS_WINDOW_MANAGEMENT, false, configurationService);
+		const autoEnable = observableConfigValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE, false, configurationService);
+		const autoEnableExtensions = observableConfigValue<unknown>(EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE_EXTENSIONS, {}, configurationService);
 		const extensionsChanged = observableSignalFromEvent(this, extensionsWorkbenchService.onChange);
-		// Candidates don't depend on the experiment, which only decides whether they are enabled automatically.
-		const candidates = derived(this, reader => {
+		const installed = derived(this, reader => {
 			if (!managementEnabled.read(reader)) {
 				return [];
 			}
 			extensionsChanged.read(reader);
-			return extensionsWorkbenchService.local.filter(extension => !extension.isBuiltin && !!extension.local && extension.state === ExtensionState.Installed
-				&& extensionManifestPropertiesService.canAutoEnableOnSessionsWindow(extension.local.manifest));
+			return extensionsWorkbenchService.local.flatMap(extension => !extension.isBuiltin && extension.local && extension.state === ExtensionState.Installed
+				? [{ extension, manifest: extension.local.manifest }]
+				: []);
 		});
+		// Extensions that could be useful don't depend on the experiment, which only decides whether they are enabled
+		// automatically, so every arm logs the trigger alike.
+		const hasCandidates = derived(this, reader => installed.read(reader).some(({ manifest }) => extensionManifestPropertiesService.canAutoEnableOnSessionsWindow(manifest)));
 		this.enabledCandidates = derived(this, reader => {
+			autoEnable.read(reader);
+			autoEnableExtensions.read(reader);
 			const enabledCandidates = new Map<string, IEnabledCandidate>();
-			for (const extension of candidates.read(reader)) {
+			for (const { extension, manifest } of installed.read(reader)) {
 				const enabledBy = getEnabledBy(extension.enablementState);
-				if (enabledBy && extension.local) {
-					enabledCandidates.set(ExtensionIdentifier.toKey(extension.identifier.id), { enabledBy, manifest: extension.local.manifest });
+				// Listed extensions are enabled automatically even when they don't look useful.
+				if (enabledBy && (extensionManifestPropertiesService.canAutoEnableOnSessionsWindow(manifest) || extensionManifestPropertiesService.shouldAutoEnableOnSessionsWindow(manifest))) {
+					enabledCandidates.set(ExtensionIdentifier.toKey(extension.identifier.id), { enabledBy, manifest });
 				}
 			}
 			return enabledCandidates;
 		});
 
 		this._register(autorun(reader => {
-			if (candidates.read(reader).length > 0) {
+			if (hasCandidates.read(reader)) {
 				logSettingExperimentTrigger(this.telemetryService, EXTENSIONS_AGENTS_WINDOW_AUTO_ENABLE);
 			}
 			let newlyEnabled = false;

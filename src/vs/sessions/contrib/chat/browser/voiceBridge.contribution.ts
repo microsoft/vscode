@@ -15,23 +15,30 @@ import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/c
 import { IVoiceSessionController, VoiceNewSessionPreparationResult } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceSessionController.js';
 import { combineVoiceInput } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceInputUtils.js';
 import { IVoiceModelSelectionResult, resolveVoiceModel } from '../../../../workbench/contrib/chat/browser/voiceClient/voiceToolDispatchService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
-import { IActiveSession, inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from './newChatVoice.js';
-import { INewSessionComposerService } from './newSessionComposerService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { getFocusedSessionChatSource, getMainWindowHost, IFocusedSessionHostService, ISessionHostService } from '../../../../workbench/services/sessions/browser/sessionHost.js';
+import { isSessionCreated, SessionStatus, ISession } from '../../../../workbench/services/sessions/common/session.js';
+import { inheritableSessionTarget, ISendRequestOptions, ISessionsManagementService } from '../../../../workbench/contrib/sessions/common/sessionsManagement.js';
+import { INewChatVoiceComposer, INewChatVoiceTargetService, NEW_CHAT_VOICE_SENTINEL } from '../../../../workbench/contrib/sessions/browser/chat/newChatVoice.js';
+import { INewSessionComposerService } from '../../../../workbench/contrib/sessions/browser/newSessionComposerService.js';
 import { ChatRequestQueueKind } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 
 export async function prepareNewVoiceSession(
 	text: string,
-	sessionsService: ISessionsService,
+	sessionsService: Pick<ISessionsService, 'openNewSession'>,
+	shown: {
+		/** The session the user looks at: the focused window's, which a new session inherits its target from. */
+		readonly focused: () => ISession | undefined;
+		/** The session the main window shows, where the new session opens. */
+		readonly mainWindow: () => ISession | undefined;
+	},
 	sessionsManagementService: ISessionsManagementService,
 	voiceSessionController: IVoiceSessionController,
 	hasActiveComposer: () => boolean,
 	beginVoiceTransition: () => IDisposable,
 	logService: ILogService,
 ): Promise<VoiceNewSessionPreparationResult> {
-	const activeSession = sessionsService.activeSession.get();
+	const activeSession = shown.focused();
 	const isQuickChat = activeSession?.isQuickChat?.get() ?? false;
 	const folderUri = isQuickChat ? undefined : activeSession?.workspace.get()?.uri;
 	const previousTarget = voiceSessionController.targetSession.get();
@@ -64,7 +71,7 @@ export async function prepareNewVoiceSession(
 			}
 			return 'prepared';
 		}
-		return sessionsService.activeSession.get() === undefined && hasActiveComposer() ? 'prepared' : fail();
+		return shown.mainWindow() === undefined && hasActiveComposer() ? 'prepared' : fail();
 	} catch (error) {
 		logService.error('Failed to prepare a new session for Voice Mode:', error);
 		return fail();
@@ -96,6 +103,8 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService private readonly focusedSessionHostService: IFocusedSessionHostService,
+		@ISessionHostService private readonly sessionHostService: ISessionHostService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@INewChatVoiceTargetService private readonly newChatVoiceTargetService: INewChatVoiceTargetService,
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
@@ -173,6 +182,10 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 			return prepareNewVoiceSession(
 				text,
 				this.sessionsService,
+				{
+					focused: () => this.focusedSessionHostService.getFocusedHost().session.get(),
+					mainWindow: () => getMainWindowHost(this.sessionHostService).session.get(),
+				},
 				this.sessionsManagementService,
 				this.voiceSessionController,
 				() => !!this._activeComposerTarget(),
@@ -222,7 +235,7 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 			return partialMatches.length === 1 ? partialMatches[0].resource.toString() : undefined;
 		}));
 		this._commandDisposables.add(CommandsRegistry.registerCommand('_chat.voice.getSessionInfo', (): string => {
-			const activeSession = this.sessionsService.activeSession.get();
+			const activeSession = this.focusedSessionHostService.getFocusedHost().session.get();
 			const sessions = this.sessionsManagementService.getSessions()
 				.filter(session => !session.isArchived.get())
 				.map(session => {
@@ -328,11 +341,11 @@ export class SessionsVoiceBridgeContribution extends Disposable implements IWork
 
 	/**
 	 * The active chat resource, only after its session exists.
-	 * {@link IActiveSession.isCreated} distinguishes it from the welcome composer.
+	 * {@link isSessionCreated} distinguishes it from the welcome composer.
 	 */
 	private _createdActiveChatResource(): URI | undefined {
-		const active = this.sessionsService.activeSession.get();
-		return active?.isCreated.get() ? active.activeChat.get()?.resource : undefined;
+		const focusedHost = this.focusedSessionHostService.getFocusedHost();
+		return isSessionCreated(focusedHost.session.get()) ? focusedHost.chat.get()?.resource : undefined;
 	}
 
 	/** The chat widget backing the currently active (created) session, if any. */
@@ -365,7 +378,7 @@ registerWorkbenchContribution2(SessionsVoiceBridgeContribution.ID, SessionsVoice
  * response deferral, and buffered playback follow the visible session.
  *
  * Agents can render multiple chat widgets while DOM focus stays on the sessions
- * list, so forward {@link ISessionsService.activeSession}. Draft composers report
+ * list, so forward what the focused window's host shows. Draft composers report
  * `undefined` to avoid reusing a stale session.
  */
 export class SessionsVoiceActiveSessionContribution extends Disposable implements IWorkbenchContribution {
@@ -374,14 +387,15 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 
 	constructor(
 		@IVoiceSessionController private readonly voiceSessionController: IVoiceSessionController,
-		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@INewSessionComposerService newSessionComposerService: INewSessionComposerService,
 		@INewChatVoiceTargetService newChatVoiceTargetService: INewChatVoiceTargetService,
 	) {
 		super();
 
-		let voiceDraftSession: IActiveSession | undefined;
+		const focused = getFocusedSessionChatSource(focusedSessionHostService);
+		let voiceDraftSession: ISession | undefined;
 		let voiceDraftRequest: ISendRequestOptions | undefined;
 		this._register(newSessionComposerService.onWillSendRequest(({ options }) => {
 			const composer = newChatVoiceTargetService.activeComposer.get();
@@ -398,29 +412,30 @@ export class SessionsVoiceActiveSessionContribution extends Disposable implement
 			}
 		}));
 		this._register(autorun(reader => {
-			const active = this.sessionsService.activeSession.read(reader);
+			const active = focused.session.read(reader);
 			const hasDraftTarget = this.voiceSessionController.hasDraftTarget.read(reader);
 			if (!hasDraftTarget || !this.voiceSessionController.isConnected.read(reader)) {
 				voiceDraftRequest = undefined;
 			}
 			if (!hasDraftTarget) {
 				voiceDraftSession = undefined;
-			} else if (!voiceDraftSession && active && !active.isCreated.read(reader)) {
+			} else if (!voiceDraftSession && active && !isSessionCreated(active, reader)) {
 				voiceDraftSession = active;
 			}
-			if (!voiceDraftRequest && voiceDraftSession?.isCreated.read(reader)) {
-				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.activeChat.read(reader).resource);
+			if (!voiceDraftRequest && voiceDraftSession && isSessionCreated(voiceDraftSession, reader)) {
+				// Once sent, the draft's chat is its main chat
+				this.voiceSessionController.promoteDraftTarget(voiceDraftSession.mainChat.read(reader).resource);
 				voiceDraftSession = undefined;
 			}
 			if (!active) {
 				this.voiceSessionController.setActiveSessionShown(undefined);
 				return;
 			}
-			if (!active.isCreated.read(reader)) {
+			if (!isSessionCreated(active, reader)) {
 				this.voiceSessionController.setActiveSessionShown(null);
 				return;
 			}
-			this.voiceSessionController.setActiveSessionShown(active.activeChat.read(reader)?.resource);
+			this.voiceSessionController.setActiveSessionShown(focused.chat.read(reader)?.resource);
 		}));
 	}
 }
@@ -439,7 +454,7 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 
 	constructor(
 		@IVoiceSessionController voiceSessionController: IVoiceSessionController,
-		@ISessionsService sessionsService: ISessionsService,
+		@IFocusedSessionHostService focusedSessionHostService: IFocusedSessionHostService,
 	) {
 		super();
 
@@ -449,8 +464,7 @@ class SessionsVoiceListeningContribution extends Disposable implements IWorkbenc
 			const voiceState = voiceSessionController.voiceState.read(reader);
 			const targetSession = voiceSessionController.targetSession.read(reader);
 			const turns = voiceSessionController.transcriptTurns.read(reader);
-			const activeSession = sessionsService.activeSession.read(reader);
-			const currentSession = activeSession?.activeChat.read(reader)?.resource;
+			const currentSession = focusedSessionHostService.focusedHost.read(reader).chat.read(reader)?.resource;
 
 			if (!connected) {
 				listeningSession = undefined;

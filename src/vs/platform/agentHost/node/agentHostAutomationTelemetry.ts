@@ -72,6 +72,7 @@ type AutomationCreatedClassification = AutomationConfigurationClassification & {
 type AutomationUpdatedEvent = IAutomationDefinitionTelemetry & {
 	enabledChanged: boolean;
 	scheduleChanged: boolean;
+	disableConditionsChanged: boolean;
 	sessionConfigurationChanged: boolean;
 	promptChanged: boolean;
 	titleChanged: boolean;
@@ -80,6 +81,7 @@ type AutomationUpdatedClassification = Omit<AutomationCreatedClassification, 'co
 	comment: 'Records persisted, user-editable changes to Agent Host automations, excluding replay and migration bookkeeping.';
 	enabledChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic execution was enabled or disabled.' };
 	scheduleChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether automatic triggers changed, without recording expressions or time zones.' };
+	disableConditionsChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the scheduled end-date condition changed, without recording its date.' };
 	sessionConfigurationChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the saved session template changed, without recording arbitrary configuration.' };
 	promptChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation message changed, without recording its content.' };
 	titleChanged: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the automation title changed, without recording its content.' };
@@ -89,13 +91,13 @@ type AutomationDeletedClassification = Omit<AutomationCreatedClassification, 'co
 };
 
 type AutomationRunCreatedEvent = IAutomationRunTelemetry & IAutomationConfigurationTelemetry;
-type AutomationRunCreatedClassification = AutomationRunClassification & AutomationConfigurationClassification & {
+type AutomationRunCreatedClassification = AutomationRunClassification & Omit<AutomationConfigurationClassification, 'provider'> & {
 	owner: 'ulugbekna';
 	comment: 'Records a new durable Agent Host automation run claim, including runs that fail before a session exists. Replays, suppressed overlaps and restored claims do not emit.';
 };
 
 type AutomationRunStartedEvent = IAutomationRunTelemetry & IAutomationConfigurationTelemetry;
-type AutomationRunStartedClassification = AutomationRunClassification & AutomationConfigurationClassification & {
+type AutomationRunStartedClassification = AutomationRunClassification & Omit<AutomationConfigurationClassification, 'provider'> & {
 	owner: 'ulugbekna';
 	comment: 'Records the first durable session linkage of a non-terminal automation run, with its saved configuration.';
 };

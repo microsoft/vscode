@@ -18,6 +18,7 @@ import { CommandsRegistry } from '../../../../../platform/commands/common/comman
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ResolvedKeybindingItem } from '../../../../../platform/keybinding/common/resolvedKeybindingItem.js';
 import { createUSLayoutResolvedKeybinding } from '../../../../../platform/keybinding/test/common/keybindingsTestUtils.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -26,7 +27,7 @@ import { INativeHostService, INativeSystemWideKeybinding, INativeSystemWideKeybi
 import { INotification, INotificationHandle } from '../../../../../platform/notification/common/notification.js';
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { AgentsWindowOpenSource } from '../../../../../platform/window/common/window.js';
-import { OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
+import { AGENTS_LAUNCHER_COMMAND_ID, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, OPEN_AGENTS_WINDOW_COMMAND_ID } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { OpenAgentsWindowSystemWideKeybindingContribution } from '../../electron-browser/openAgentsWindow.contribution.js';
 import { registerOpenAgentsWindowCommand } from '../../electron-browser/openAgentsWindowCommand.js';
 
@@ -111,20 +112,20 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 		return resolved;
 	}
 
-	function item(encoded: number, command: string, options?: { readonly args?: unknown; readonly when?: string; readonly systemWide?: boolean }): ResolvedKeybindingItem {
+	function item(encoded: number, command: string, options?: { readonly args?: unknown; readonly when?: string; readonly systemWide?: boolean; readonly isDefault?: boolean }): ResolvedKeybindingItem {
 		return new ResolvedKeybindingItem(
 			resolve(encoded),
 			command,
 			options?.args,
 			options?.when ? ContextKeyExpr.deserialize(options.when) : undefined,
-			false,
+			options?.isDefault ?? false,
 			null,
 			false,
 			options?.systemWide ?? true,
 		);
 	}
 
-	async function createContribution(keybindings: readonly ResolvedKeybindingItem[] = [], failed: string[] = []) {
+	async function createContribution(keybindings: readonly ResolvedKeybindingItem[] = [], failed: string[] = [], contextKeyService = new MockContextKeyService()) {
 		const keybindingService = store.add(new TestKeybindingService());
 		keybindingService.keybindings = keybindings;
 		const nativeHostService = new TestNativeHostService();
@@ -136,17 +137,20 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			nativeHostService,
 			notificationService,
 			logService,
+			contextKeyService,
 		));
 		await clock.tickAsync(0);
 		return { contribution, keybindingService, nativeHostService, notificationService, logService };
 	}
 
-	test('mirrors only a globally selected direct Open Agents Window binding', async () => {
+	test('mirrors only globally selected direct Agents window bindings', async () => {
 		const { nativeHostService } = await createContribution([
 			item(KeyMod.CtrlCmd | KeyCode.KeyA, 'other.command'),
 			item(KeyMod.CtrlCmd | KeyCode.KeyA, OPEN_AGENTS_WINDOW_COMMAND_ID),
 			item(KeyMod.CtrlCmd | KeyCode.KeyB, 'runCommands', { args: { commands: [OPEN_AGENTS_WINDOW_COMMAND_ID] } }),
 			item(KeyMod.CtrlCmd | KeyCode.KeyC, OPEN_AGENTS_WINDOW_COMMAND_ID, { args: { source: AgentsWindowOpenSource.KeyboardShortcut }, when: 'editorFocus' }),
+			item(KeyMod.CtrlCmd | KeyCode.KeyD, AGENTS_LAUNCHER_COMMAND_ID),
+			item(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyS, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID),
 		]);
 
 		assert.deepStrictEqual(nativeHostService.keybindingPayloads, [[{
@@ -154,6 +158,16 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			commandId: OPEN_AGENTS_WINDOW_COMMAND_ID,
 			args: { source: AgentsWindowOpenSource.KeyboardShortcut },
 			userSettingsLabel: 'cmd+c',
+		}, {
+			accelerator: 'Cmd+D',
+			commandId: AGENTS_LAUNCHER_COMMAND_ID,
+			args: undefined,
+			userSettingsLabel: 'cmd+d',
+		}, {
+			accelerator: 'Ctrl+Cmd+S',
+			commandId: ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID,
+			args: undefined,
+			userSettingsLabel: 'ctrl+cmd+s',
 		}]]);
 	});
 
@@ -211,6 +225,30 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 		});
 	});
 
+	test('mirrors a default binding while its when clause holds, and only logs when the system refuses it', async () => {
+		const contextKeyService = new class extends MockContextKeyService {
+			override contextMatchesRules(): boolean { return true; }
+		};
+		const { nativeHostService, notificationService, logService } = await createContribution([
+			item(KeyMod.WinCtrl | KeyMod.CtrlCmd | KeyCode.KeyS, ATTACH_APP_WINDOW_SCREENSHOT_COMMAND_ID, { isDefault: true, when: 'config.chat.appWindowScreenshots.enabled' }),
+			item(KeyMod.CtrlCmd | KeyCode.KeyA, OPEN_AGENTS_WINDOW_COMMAND_ID),
+		], ['ctrl+cmd+s', 'cmd+a'], contextKeyService);
+
+		assert.deepStrictEqual({
+			payloads: nativeHostService.keybindingPayloads.map(payload => payload.map(keybinding => keybinding.userSettingsLabel)),
+			notifications: notificationService.notifications.map(notification => notification.message),
+			warnings: logService.warnings,
+		}, {
+			payloads: [['cmd+a', 'ctrl+cmd+s']],
+			notifications: [
+				'Some system-wide keybindings could not be registered (cmd+a); the key combination may already be taken by the operating system or another application.'
+			],
+			warnings: [
+				'[OpenAgentsWindowSystemWideKeybinding] default system-wide keybindings could not be registered (ctrl+cmd+s); the key combination may already be taken by the operating system or another application.'
+			],
+		});
+	});
+
 	test('retries unchanged payload after an IPC error', async () => {
 		const openAgentsWindowBinding = item(KeyMod.CtrlCmd | KeyCode.KeyA, OPEN_AGENTS_WINDOW_COMMAND_ID);
 		const keybindingService = store.add(new TestKeybindingService());
@@ -222,6 +260,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			nativeHostService,
 			new RecordingNotificationService(),
 			new RecordingLogService(),
+			new MockContextKeyService(),
 		));
 		await clock.tickAsync(0);
 
@@ -284,6 +323,7 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 			nativeHostService,
 			notificationService,
 			new RecordingLogService(),
+			new MockContextKeyService(),
 		);
 		await clock.tickAsync(0);
 
@@ -294,16 +334,21 @@ suite('OpenAgentsWindowSystemWideKeybindingContribution', () => {
 		assert.deepStrictEqual(notificationService.notifications, []);
 	});
 
-	test('logs rejected direct Open Agents Window bindings', async () => {
+	test('logs rejected owned Agents window bindings', async () => {
 		const { logService } = await createContribution([
 			item(KeyMod.CtrlCmd | KeyCode.KeyA, 'other.command'),
 			item(KeyMod.CtrlCmd | KeyCode.KeyA, OPEN_AGENTS_WINDOW_COMMAND_ID),
 			item(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyC), OPEN_AGENTS_WINDOW_COMMAND_ID),
+			item(KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyD), AGENTS_LAUNCHER_COMMAND_ID),
+			item(KeyMod.CtrlCmd | KeyCode.KeyB, 'other.command'),
+			item(KeyMod.CtrlCmd | KeyCode.KeyB, AGENTS_LAUNCHER_COMMAND_ID),
 		]);
 
 		assert.deepStrictEqual(logService.warnings, [
 			`[OpenAgentsWindowSystemWideKeybinding] 'cmd+k cmd+c' cannot be registered as a system-wide shortcut (only single key combinations are supported).`,
+			`[OpenAgentsWindowSystemWideKeybinding] 'cmd+k cmd+d' cannot be registered as a system-wide shortcut (only single key combinations are supported).`,
 			`[OpenAgentsWindowSystemWideKeybinding] duplicate system-wide accelerator for 'cmd+a', keeping the first binding.`,
+			`[OpenAgentsWindowSystemWideKeybinding] duplicate system-wide accelerator for 'cmd+b', keeping the first binding.`,
 		]);
 	});
 

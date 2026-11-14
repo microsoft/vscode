@@ -10,6 +10,7 @@ import { stableStringify } from '../../../../../base/common/objects.js';
 import { localize } from '../../../../../nls.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import type { AutomationTriggerDefinition } from '../../../../../platform/github/common/missionControl/automations.js';
+import type { Message } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatPermissionLevel } from '../constants.js';
 import { IAutomationCloudTrigger, IAutomationDescriptor, IAutomationRun, IAutomationSchedule, IAutomationSessionTemplate, AutomationTarget } from './automation.js';
 
@@ -63,6 +64,7 @@ export interface IAutomationWorkspaceTarget {
 	readonly pending?: boolean;
 	readonly isRepository?: boolean;
 	readonly isPrivateRepository?: boolean;
+	readonly allowReadAccessTriggers?: boolean;
 }
 
 /** Catalogue completeness; only `ready` makes an empty snapshot authoritative. */
@@ -124,9 +126,16 @@ export function assertAutomationSessionTemplateAuthority(current: IAutomationDes
  * `nextRunAt`.
  */
 export interface ICreateAutomationOptions {
+	/** Client-generated UUID retained across retries of a scheduled-chat handoff. */
+	readonly creationId?: string;
+	/** Called by a scheduled-chat store with its opaque descriptor id before dispatch; throwing aborts creation. */
+	readonly onWillCreate?: (id: string) => void;
 	readonly ownership?: 'user' | 'repository';
 	readonly name: string;
 	readonly prompt: string;
+	readonly purpose?: 'scheduledChat';
+	readonly request?: Message;
+	readonly conversation?: IAutomationDescriptor['conversation'];
 	readonly schedule: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target: AutomationTarget;
@@ -138,6 +147,7 @@ export interface ICreateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string;
 	readonly enabled?: boolean;
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 	/**
 	 * Ids of the {@link IAutomationCustomizationChoice | customizations} to sync.
 	 * Absent means the provider's default: every customization enabled for the target.
@@ -166,6 +176,8 @@ export interface IAutomationCustomizationChoice {
 export interface IUpdateAutomationOptions {
 	readonly name?: string;
 	readonly prompt?: string;
+	readonly purpose?: 'scheduledChat';
+	readonly request?: Message;
 	readonly schedule?: IAutomationSchedule;
 	readonly cloudTrigger?: IAutomationCloudTrigger;
 	readonly target?: AutomationTarget;
@@ -177,6 +189,8 @@ export interface IUpdateAutomationOptions {
 	/** @deprecated Compatibility input translated into {@link sessionTemplate}. */
 	readonly permissionLevel?: string | null;
 	readonly enabled?: boolean;
+	/** Replaces end-date conditions while retaining other host-owned conditions; omission preserves all conditions. */
+	readonly disableConditions?: IAutomationDescriptor['disableConditions'];
 	/**
 	 * Ids of the customizations to sync. Selected entries that are outdated are refreshed.
 	 * Absent keeps the saved customizations unless the target changes.
@@ -216,8 +230,18 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 	return stableStringify({
 		name: automation.name,
 		prompt: automation.prompt,
+		purpose: automation.purpose,
+		request: automation.request,
+		conversation: automation.conversation ? {
+			sessionResource: automation.conversation.sessionResource.toString(),
+			chatResource: automation.conversation.chatResource.toString(),
+		} : undefined,
+		oneTimeRunId: automation.oneTimeRunId,
 		schedule: {
 			interval: automation.schedule.interval,
+			runAt: automation.schedule.runAt,
+			cronExpression: automation.schedule.cronExpression,
+			cronTimeZone: automation.schedule.cronTimeZone,
 			scheduleHour: automation.schedule.scheduleHour,
 			scheduleMinute: automation.schedule.scheduleMinute,
 			scheduleDay: automation.schedule.scheduleDay,
@@ -229,6 +253,7 @@ export function serializeAutomationEditableState(automation: IAutomationDescript
 		mode: automation.mode,
 		permissionLevel: automation.permissionLevel ?? ChatPermissionLevel.Default,
 		enabled: automation.enabled,
+		disableConditions: [...automation.disableConditions ?? []].sort((a, b) => a.kind.localeCompare(b.kind)),
 		cloudTrigger: automation.cloudTrigger,
 	});
 }
@@ -253,6 +278,12 @@ export interface IAutomationRefreshOptions {
 	/** Reload catalogue data without invalidating workspace eligibility used by open drafts. */
 	readonly background?: boolean;
 }
+
+export interface IDeleteAutomationOptions {
+	readonly deleteHistory: boolean;
+}
+
+export type AutomationHistoryState = 'retained' | 'deleting' | 'interrupted';
 
 /**
  * Provider-neutral catalogue and command contract shared by individual providers and the aggregate service.
@@ -287,8 +318,17 @@ export interface IAutomationStore {
 	 * Runtime timestamps may change without conflicting, so reviewed edits preserve scheduler progress.
 	 */
 	updateAutomationIfUnchanged(id: string, patch: IUpdateAutomationOptions, expected: IAutomationDescriptor, mutationGuard?: AutomationMutationGuard): Promise<IGuardedAutomationUpdateResult>;
-	/** Deletes an automation and its retained run history; missing IDs are ignored. */
-	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard): Promise<void>;
+	/** Deletes an automation and, by default, its retained history. Explicit history options require provider support; missing IDs are ignored. */
+	deleteAutomation(id: string, mutationGuard?: AutomationMutationGuard, options?: IDeleteAutomationOptions): Promise<void>;
+	/** Whether this provider supports an explicit keep/delete history policy. */
+	supportsDeleteHistoryChoice?(id: string): boolean;
+	/** Includes removed definitions whose run history is retained. */
+	getAutomationHistoryName?(id: string): string | undefined;
+	/** State of a removed definition's retained history. */
+	getAutomationHistoryState?(id: string): AutomationHistoryState | undefined;
+	/** Permanently deletes retained history or retries an interrupted deletion. */
+	deleteAutomationHistory?(id: string): Promise<void>;
+	canDeleteAutomationHistory?(id: string): boolean;
 	/**
 	 * Lists the customizations an automation targeting `target` can sync, including
 	 * those saved in automation `existingId`. Resolves `undefined` when the provider
@@ -330,6 +370,9 @@ export type AutomationUnavailableReasonCode = 'disconnected' | 'initializing' | 
 export interface IAutomationProviderDescriptor {
 	readonly id: string;
 	readonly label: string;
+	/** Explicitly negotiated support, never inferred from ordinary recurring schedules. */
+	readonly supportsOneTimeAutomation?: boolean;
+	readonly supportsExistingChatAutomation?: boolean;
 	/** Optional category for grouping providers without interpreting localized explanations. */
 	readonly unavailableReasonCode?: AutomationUnavailableReasonCode;
 	/** A provider-specific explanation, absent when none applies. */

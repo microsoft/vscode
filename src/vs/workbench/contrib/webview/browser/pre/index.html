@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-r276TsHbdWJnsWBkBVhoPNK3PT9ng29r81o15iXB+vA=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-VY65u6y1DZWK8Cb4MlVpSVlMYcM338BRDVhygiwXLLg=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -135,8 +135,13 @@
 				max-height: 100%;
 			}
 
-			a, a code {
+			a {
 				color: var(--vscode-textLink-foreground);
+			}
+
+			a code {
+				color: var(--vscode-textPreformat-foreground);
+				text-decoration: underline;
 			}
 
 			p > a {
@@ -164,6 +169,7 @@
 			}
 
 			pre code {
+				background-color: transparent;
 				padding: 0;
 			}
 
@@ -1079,7 +1085,11 @@
 				}
 				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
 
-				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
+				const allowRules = ['cross-origin-isolated;', 'autoplay;'];
+				const supportedFeatures = /** @type {HTMLIFrameElement & { featurePolicy?: { features(): string[] } }} */ (newFrame).featurePolicy?.features();
+				if (supportedFeatures?.includes('local-network-access')) {
+					allowRules.push('local-network-access;');
+				}
 				if (!isFirefox && options.allowScripts) {
 					allowRules.push('clipboard-read;', 'clipboard-write;');
 				}
@@ -1185,7 +1195,9 @@
 							const postSize = () => {
 								hostMessaging.postMessage('updated-intrinsic-content-size', {
 									width: docEl.offsetWidth,
-									height: docEl.offsetHeight
+									height: options.includeHorizontalScrollbarInContentHeight
+										? Math.ceil(docEl.getBoundingClientRect().height + Math.max(0, contentWindow.innerHeight - docEl.clientHeight))
+										: docEl.offsetHeight
 								});
 							};
 
@@ -1320,7 +1332,10 @@
 				}
 				const contentDocument = assertIsDefined(target.contentDocument);
 				const lastFocused = lastFocusedElements.get(contentDocument);
-				if ((contentDocument.activeElement === contentDocument.body || contentDocument.activeElement === contentDocument.documentElement)
+				const selection = contentDocument.getSelection();
+				// Restoring focus to an input would discard a selection in non-focusable content.
+				if ((!selection || selection.isCollapsed)
+					&& (contentDocument.activeElement === contentDocument.body || contentDocument.activeElement === contentDocument.documentElement)
 					&& lastFocused?.isConnected && lastFocused.ownerDocument === contentDocument) {
 					lastFocused.focus({ preventScroll: true });
 				}

@@ -18,8 +18,6 @@ const updatePackageJsonModuleUrl = new URL('./scripts/updateMarkdownEditorPackag
 const updatePackageJsonModulePath = fileURLToPath(updatePackageJsonModuleUrl);
 const taskProgressBuildModuleUrl = new URL('./scripts/buildTaskProgressHtml.mts', import.meta.url);
 const taskProgressBuildModulePath = fileURLToPath(taskProgressBuildModuleUrl);
-const mermaidBuildModuleUrl = new URL('./scripts/buildMermaidHtml.mts', import.meta.url);
-const mermaidBuildModulePath = fileURLToPath(mermaidBuildModuleUrl);
 
 async function updateMarkdownEditorPackageJsonFile(): Promise<unknown> {
 	const version = (await stat(updatePackageJsonModulePath)).mtimeMs;
@@ -40,21 +38,10 @@ run({
 		updatePackageJsonModulePath,
 		fileURLToPath(new URL('./scripts/markdownEditorPackage.mts', import.meta.url)),
 		taskProgressBuildModulePath,
-		mermaidBuildModulePath,
 	],
 	beforeBuild: updateMarkdownEditorPackageJsonFile,
 	additionalOptions: {
 		plugins: [...(editorPackage.directory ? [markdownEditorOverridePlugin(editorPackage.directory)] : []), {
-			name: 'mermaid-html',
-			setup(build) {
-				build.onLoad({ filter: /mermaid\.html$/ }, async ({ path: htmlPath }) => {
-					const version = (await stat(mermaidBuildModulePath)).mtimeMs;
-					const module = await import(`${mermaidBuildModuleUrl.href}?version=${version}`) as typeof import('./scripts/buildMermaidHtml.mts');
-					const html = await module.buildMermaidHtml(path.dirname(htmlPath));
-					return { contents: `export default ${JSON.stringify(html)};`, loader: 'js' };
-				});
-			},
-		}, {
 			name: 'task-progress-html',
 			setup(build) {
 				build.onLoad({ filter: /taskProgress\.html$/ }, async ({ path: htmlPath }) => {

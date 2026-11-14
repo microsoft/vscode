@@ -86,6 +86,7 @@ export interface IChatInputNotificationMuteAction {
 
 /** Input state used to choose notification content. */
 export interface IChatInputNotificationModelState {
+	readonly agentModelPolicyError?: string;
 	readonly currentModel: ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly models: readonly ILanguageModelChatMetadataAndIdentifier[];
 }

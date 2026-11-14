@@ -9,11 +9,10 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { IFileService } from '../../../files/common/files.js';
-import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
-import { NullLogService } from '../../../log/common/log.js';
 import { AhpErrorCodes, ContentEncoding, ResourceType, type ResourceReadResult } from '../../common/state/sessionProtocol.js';
 import { AgentHostResourceProviders } from '../../node/agentHostResourceProviders.js';
 
@@ -23,8 +22,7 @@ suite('AgentHostResourceProviders', () => {
 	let resources: AgentHostResourceProviders;
 
 	setup(() => {
-		fileService = disposables.add(new FileService(new NullLogService()));
-		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		fileService = createInMemoryFileService(disposables, Schemas.inMemory);
 		const instantiationService = disposables.add(new InstantiationService(new ServiceCollection([IFileService, fileService]), true));
 		resources = disposables.add(instantiationService.createInstance(AgentHostResourceProviders));
 	});

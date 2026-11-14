@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import { mainWindow } from '../../../../../../base/browser/window.js';
+import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { mock } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
@@ -16,6 +18,43 @@ import { AICustomizationManagementSection } from '../../../browser/aiCustomizati
 
 suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('welcome submission delegates harness selection without inserting init', () => {
+		const parent = document.createElement('div');
+		document.body.appendChild(parent);
+		store.add(toDisposable(() => parent.remove()));
+		const calls: { query: string; options: Parameters<IWelcomePageCallbacks['prefillChat']>[1] }[] = [];
+		const page = store.add(new PromptLaunchersAICustomizationWelcomePage(
+			parent,
+			{ showGettingStartedBanner: true },
+			new class extends mock<IWelcomePageCallbacks>() {
+				override prefillChat(query: string, options?: Parameters<IWelcomePageCallbacks['prefillChat']>[1]): void {
+					calls.push({ query, options });
+				}
+			}(),
+			new class extends mock<ICommandService>() { }(),
+			new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly managementSections = [];
+			}(),
+			new class extends mock<IHoverService>() {
+				override setupManagedHover(): ReturnType<IHoverService['setupManagedHover']> {
+					return new class extends mock<ReturnType<IHoverService['setupManagedHover']>>() {
+						override dispose(): void { }
+					}();
+				}
+			}(),
+			'Copilot',
+		));
+		const input = page.container.querySelector<HTMLInputElement>('.welcome-prompts-input')!;
+		input.value = 'Prefer concise commits.';
+		input.dispatchEvent(new mainWindow.Event('input'));
+		page.container.querySelector<HTMLButtonElement>('.welcome-prompts-input-submit')!.click();
+		assert.deepStrictEqual(calls, [{
+			query: 'Prefer concise commits.',
+			options: { isPartialQuery: false, newChat: true, generateCustomizations: true },
+		}]);
+	});
 
 	test('migration card has one native interactive target', () => {
 		const parent = document.createElement('div');
@@ -48,30 +87,27 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			count: 1,
 		};
 
-		try {
-			page.setMigrationCategories([category]);
-			const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-migration-card');
-			parent.classList.add('ai-customization-management-editor');
-			parent.style.setProperty('--vscode-inputValidation-warningForeground', 'rgb(1, 2, 3)');
-			card?.click();
-			page.focus();
+		store.add(toDisposable(() => parent.remove()));
+		page.setMigrationCategories([category]);
+		const card = parent.querySelector<HTMLButtonElement>('.welcome-prompts-migration-card');
+		parent.classList.add('ai-customization-management-editor');
+		parent.style.setProperty('--vscode-inputValidation-warningForeground', 'rgb(1, 2, 3)');
+		card?.click();
+		page.focus();
 
-			assert.deepStrictEqual({
-				cardTagName: card?.tagName,
-				buttonCount: card?.querySelectorAll('button').length,
-				focusedCard: document.activeElement === card,
-				actionColor: mainWindow.getComputedStyle(card!.querySelector('.welcome-prompts-card-action-label')!).color,
-				reviewedMigrations,
-			}, {
-				cardTagName: 'BUTTON',
-				buttonCount: 0,
-				focusedCard: true,
-				actionColor: 'rgb(1, 2, 3)',
-				reviewedMigrations: true,
-			});
-		} finally {
-			parent.remove();
-		}
+		assert.deepStrictEqual({
+			cardTagName: card?.tagName,
+			buttonCount: card?.querySelectorAll('button').length,
+			focusedCard: document.activeElement === card,
+			actionColor: mainWindow.getComputedStyle(card!.querySelector('.welcome-prompts-card-action-label')!).color,
+			reviewedMigrations,
+		}, {
+			cardTagName: 'BUTTON',
+			buttonCount: 0,
+			focusedCard: true,
+			actionColor: 'rgb(1, 2, 3)',
+			reviewedMigrations: true,
+		});
 	});
 
 	test('category cards are single native navigation targets', () => {
@@ -107,32 +143,29 @@ suite('aiCustomizationWelcomePagePromptLaunchers', () => {
 			'Copilot',
 		));
 
-		try {
-			page.rebuildCards(new Set([
-				AICustomizationManagementSection.Agents,
-				AICustomizationManagementSection.Skills,
-				AICustomizationManagementSection.Instructions,
-				AICustomizationManagementSection.Hooks,
-				AICustomizationManagementSection.McpServers,
-				AICustomizationManagementSection.Plugins,
-				AICustomizationManagementSection.Tools,
-			]));
-			const cards = [...parent.querySelectorAll<HTMLButtonElement>('.welcome-prompts-navigation-card')];
-			const card = cards.find(candidate => candidate.getAttribute('aria-label') === 'Open Agents');
-			card?.click();
-			assert.deepStrictEqual({
-				cardLabels: cards.map(candidate => candidate.querySelector('.welcome-prompts-card-label')?.textContent),
-				tagName: card?.tagName,
-				nestedButtons: card?.querySelectorAll('button').length,
-				selectedSections,
-			}, {
-				cardLabels: ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks', 'Tools'],
-				tagName: 'BUTTON',
-				nestedButtons: 0,
-				selectedSections: [AICustomizationManagementSection.Agents],
-			});
-		} finally {
-			parent.remove();
-		}
+		store.add(toDisposable(() => parent.remove()));
+		page.rebuildCards(new Set([
+			AICustomizationManagementSection.Agents,
+			AICustomizationManagementSection.Skills,
+			AICustomizationManagementSection.Instructions,
+			AICustomizationManagementSection.Hooks,
+			AICustomizationManagementSection.McpServers,
+			AICustomizationManagementSection.Plugins,
+			AICustomizationManagementSection.Tools,
+		]));
+		const cards = [...parent.querySelectorAll<HTMLButtonElement>('.welcome-prompts-navigation-card')];
+		const card = cards.find(candidate => candidate.getAttribute('aria-label') === 'Open Agents');
+		card?.click();
+		assert.deepStrictEqual({
+			cardLabels: cards.map(candidate => candidate.querySelector('.welcome-prompts-card-label')?.textContent),
+			tagName: card?.tagName,
+			nestedButtons: card?.querySelectorAll('button').length,
+			selectedSections,
+		}, {
+			cardLabels: ['Plugins', 'MCP Servers', 'Skills', 'Instructions', 'Agents', 'Hooks', 'Tools'],
+			tagName: 'BUTTON',
+			nestedButtons: 0,
+			selectedSections: [AICustomizationManagementSection.Agents],
+		});
 	});
 });

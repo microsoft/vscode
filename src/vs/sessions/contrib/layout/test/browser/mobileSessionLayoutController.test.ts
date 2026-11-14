@@ -8,7 +8,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
-import { SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
 import { MobileLayoutController } from '../../browser/mobileSessionLayoutController.js';
 import { createTestHarness, ICreateOptions, ITestLayoutHarness, makeChange, makeSession } from './layoutControllerTestUtils.js';
 

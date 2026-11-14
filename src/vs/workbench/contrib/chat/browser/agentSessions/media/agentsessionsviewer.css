@@ -27,12 +27,28 @@
 	}
 
 	/* Suppressed while selected so the selection highlight is not overpainted. */
-	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.agent-session-icon.needs-input) {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+	.monaco-list-row:not(.selected):not(.focused):not(:hover):has(.agent-session-icon.needs-input),
+	.monaco-list-row:not(.selected):not(.focused):not(:hover) .agent-session-chat-item.needs-input {
+		background-color: color-mix(in srgb, var(--vscode-agentSessionNeedsInput-foreground) 8%, transparent);
+
+		:is(.hc-black, .hc-light) & {
+			background-color: transparent;
+
+			.agent-session-attention-indicator {
+				display: block;
+			}
+		}
 	}
 
-	.monaco-list-row:not(.selected):not(.focused):not(:hover) .agent-session-chat-item.needs-input {
-		background-color: color-mix(in srgb, var(--vscode-list-warningForeground) 8%, transparent);
+	.agent-session-attention-indicator {
+		display: none;
+		position: absolute;
+		top: var(--vscode-spacing-size40);
+		bottom: var(--vscode-spacing-size40);
+		left: 0;
+		width: var(--vscode-spacing-size20);
+		background-color: var(--vscode-agentSessionNeedsInput-foreground);
+		pointer-events: none;
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -139,7 +155,9 @@
 
 	/* On hover or keyboard focus: show toolbar, hide pinned indicator */
 	.monaco-list-row:hover,
-	.monaco-list-row.focused:not(.selected) {
+	.monaco-list-row.focused:not(.selected),
+	.monaco-list-row.agent-session-chat-row.focused,
+	.monaco-list-row.agent-session-chat-row:focus-within {
 
 		.agent-session-pinned-indicator {
 			display: none;
@@ -464,6 +482,10 @@
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
+		}
+
+		.agent-session-title-toolbar {
+			flex-shrink: 0;
 		}
 
 		&.needs-input .agent-session-chat-title {

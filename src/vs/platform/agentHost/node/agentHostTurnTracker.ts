@@ -13,7 +13,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { URI } from '../../../base/common/uri.js';
 import type { AgentModelCallFinishedOutcome, AgentSubagentKind, AgentSubagentTaskModelSource, IAgent, IAgentTelemetryContext, IAgentTokenUsageSummary, IAgentTurnDiagnosticSnapshot, IAgentTurnTokenUsage } from '../common/agent.js';
 import type { SessionMode } from '../common/agentHostSchema.js';
-import { type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
+import { type AgentHostPrewarmSkipReason, type CodexModelProvider, createUnknownAgentHostClientTelemetryContext, type AgentHostProviderSendStage, type IAgentHostClientTelemetryContext, type IAgentProviderSendStageRecorder, type IAgentProviderTurnTelemetryContext } from '../common/agentHostTelemetry.js';
 import { AgentHostClientType } from '../common/agentHostClientInfo.js';
 import { IAgentHostClientConnectionService } from './agentHostClientConnectionService.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
@@ -22,7 +22,7 @@ import { captureProviderTurnTelemetryContext, getModelTelemetryContext } from '.
 import { canRefineContributor, toolSourceKindFromContributor } from './shared/toolCallContributor.js';
 import { SessionInputRequestKind } from '../common/state/protocol/state.js';
 import { isSubagentSession, type ITurnTokenTotal, type ToolCallContributor } from '../common/state/sessionState.js';
-import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type IAgentHostFusionTurnTelemetry, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnFailure } from './agentHostTelemetryReporter.js';
+import { IAgentHostTelemetryReporter, type AgentHostInitiatorClientConnectionState, type AgentHostMessageOriginTelemetryKind, type AgentHostModelSelectionKind, type AgentHostModelTelemetryKind, type IAgentHostFusionTurnTelemetry, type AgentHostProviderDiagnosticState, type AgentHostTelemetryReporter, type AgentHostTurnFailureStage, type AgentHostTurnHangReason, type AgentHostTurnResult, type AgentHostTurnSendStage, type IAgentHostTurnCompletedReport, type IAgentHostTurnFailure, type IAgentHostTurnHungReport } from './agentHostTelemetryReporter.js';
 
 /**
  * How long a turn must go without any observed activity before the watchdog
@@ -183,6 +183,10 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	readonly _serviceBrand: undefined;
 	readonly onDidStartTurn: Event<string>;
 	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }>;
+	/** Fires after a turn's completion was reported, with the report `agentHost.turnCompleted` was built from. */
+	readonly onDidCompleteTurn: Event<IAgentHostTurnCompletedReport>;
+	/** Fires after the hang watchdog reported a turn, with the report `agentHost.turnHung` was built from. */
+	readonly onDidReportTurnHang: Event<IAgentHostTurnHungReport>;
 	turnStarted(agent: IAgent, session: string, owner: string, turnId: string, model: string | undefined, modelTelemetryKind: AgentHostModelTelemetryKind | undefined, modelSelectionKind: AgentHostModelSelectionKind, permissionLevel: string | undefined, interactionMode: SessionMode | undefined, clientContext?: IAgentHostClientTelemetryContext, initiatorClientId?: string, parentTurnId?: string, parentToolCallId?: string, messageOriginKind?: AgentHostMessageOriginTelemetryKind, subagentTaskModelSource?: AgentSubagentTaskModelSource, providerChat?: URI, subagentKind?: AgentSubagentKind): void;
 	setTitleGenerationStrategy(session: string, turnId: string, strategy: AutomaticTitleGenerationStrategy): void;
 	markFirstProgress(session: string, turnId: string): void;
@@ -212,6 +216,8 @@ export interface IAgentHostTurnTracker extends IDisposable {
 	setCodexModelProvider(session: string, turnId: string, provider: CodexModelProvider): void;
 	/** Records that the turn's send used a pre-warmed provider session, or, with a reason, that it discarded one. */
 	markPrewarmedSession(session: string, turnId: string, discardReason: string | undefined): void;
+	/** Records why the turn's send found no pre-warmed provider session to claim or discard. */
+	markPrewarmSkipped(session: string, turnId: string, reason: AgentHostPrewarmSkipReason): void;
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined;
 	getSubagentKind(session: string, turnId: string): AgentSubagentKind | undefined;
 	getMessageOriginKind(session: string, turnId: string): AgentHostMessageOriginTelemetryKind | undefined;
@@ -253,6 +259,12 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 	 * before this point never reached the provider.
 	 */
 	readonly onDidDispatchTurn: Event<{ readonly chat: string; readonly turnId: string }> = this._onDidDispatchTurn.event;
+
+	private readonly _onDidCompleteTurn = this._register(new Emitter<IAgentHostTurnCompletedReport>());
+	readonly onDidCompleteTurn: Event<IAgentHostTurnCompletedReport> = this._onDidCompleteTurn.event;
+
+	private readonly _onDidReportTurnHang = this._register(new Emitter<IAgentHostTurnHungReport>());
+	readonly onDidReportTurnHang: Event<IAgentHostTurnHungReport> = this._onDidReportTurnHang.event;
 
 	constructor(
 		@IAgentHostTelemetryReporter private readonly _reporter: AgentHostTelemetryReporter,
@@ -668,6 +680,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			timing.fusion = {
 				autoTier: fusion.autoTier ?? timing.fusion.autoTier,
 				fusionModel: fusion.fusionModel ?? timing.fusion.fusionModel,
+				modelRouterOutcome: fusion.modelRouterOutcome ?? timing.fusion.modelRouterOutcome,
 			};
 		}
 	}
@@ -754,6 +767,16 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 	}
 
+	markPrewarmSkipped(session: string, turnId: string, reason: AgentHostPrewarmSkipReason): void {
+		const timing = this._turnTimings.get(this._key(session, turnId));
+		if (timing) {
+			timing.providerTelemetryContext = Object.freeze({
+				...timing.providerTelemetryContext,
+				prewarmSkipReason: reason,
+			});
+		}
+	}
+
 	getProviderTelemetryContext(session: string, turnId: string): IAgentProviderTurnTelemetryContext | undefined {
 		return this._turnTimings.get(this._key(session, turnId))?.providerTelemetryContext;
 	}
@@ -816,7 +839,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 		this._disposeTurn(key, timing);
 
-		this._reporter.turnCompleted({
+		const report: IAgentHostTurnCompletedReport = {
 			clientContext: timing.clientContext,
 			telemetryContext: timing.telemetryContext,
 			providerTelemetryContext: timing.providerTelemetryContext,
@@ -859,7 +882,8 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			directCompletionTokenCount: usage?.directCompletionTokenCount,
 			directBilledNanoAiu: usage?.directBilledNanoAiu,
 			modelCallCount: timing.completedModelCallIds.size,
-		});
+		};
+		this._reporter.turnCompleted(report);
 
 		// Paired recovery event: the turn was reported as hung but did finish,
 		// which distinguishes a permanent hang from a merely slow turn.
@@ -895,6 +919,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				this._logService.error(`[AgentHostTurnTracker] Failed to report provider token usage for provider=${timing.agent.id}: ${getErrorMessage(error)}`, error);
 			}
 		}
+		this._onDidCompleteTurn.fire(report);
 		return true;
 	}
 
@@ -979,7 +1004,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			const userBlocker = this._firstUserBlocker(timing);
 			const stuckTool = this._resolveStuckTool(timing, hangReason);
 			const providerDiagnostics = this._getProviderDiagnostics(timing);
-			this._reporter.turnHung({
+			const report: IAgentHostTurnHungReport = {
 				clientContext: timing.clientContext,
 				telemetryContext: timing.telemetryContext,
 				providerTelemetryContext: timing.providerTelemetryContext,
@@ -1006,7 +1031,9 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 				modelSelectionKind: timing.modelSelectionKind,
 				...timing.fusion,
 				permissionLevel: timing.permissionLevel,
-			});
+			};
+			this._reporter.turnHung(report);
+			this._onDidReportTurnHang.fire(report);
 		}
 
 		if (timing.quietWindows < MAX_HANG_CHECK_WINDOWS) {

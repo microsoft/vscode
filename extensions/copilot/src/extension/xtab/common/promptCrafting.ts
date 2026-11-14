@@ -239,8 +239,7 @@ export interface CascadeResult {
 }
 
 /**
- * Single-pool budget cascade across prompt parts, modeled after completions-core's
- * `CascadingPromptFactory`. For each part in `globalBudget.order`, allocate
+ * Single-pool budget cascade across prompt parts. For each part in `globalBudget.order`, allocate
  * `surplus + totalTokens * shares[part]` and run that sub-builder with the override.
  * Unspent budget cascades to the next part.
  *

@@ -223,6 +223,8 @@ suite('Dev Container sandbox configuration', () => {
 		{ name: 'pre-existing privileged container', container: { ...supportedContainer, HostConfig: { ...supportedContainer.HostConfig, Privileged: true, SecurityOpt: null, Devices: null } }, supported: true },
 		{ name: 'privileged container with explicit AppArmor confinement', container: { ...supportedContainer, AppArmorProfile: 'custom-confined', HostConfig: { ...supportedContainer.HostConfig, Privileged: true, SecurityOpt: null, Devices: null } }, supported: false },
 		{ name: 'privileged container on a host without AppArmor', container: { ...supportedContainer, AppArmorProfile: '', HostConfig: { ...supportedContainer.HostConfig, Privileged: true, SecurityOpt: null, Devices: null } }, supported: true },
+		{ name: 'Podman inspection without masked or read-only paths', container: { ...supportedContainer, AppArmorProfile: '', HostConfig: { ...supportedContainer.HostConfig, MaskedPaths: undefined, ReadonlyPaths: undefined } }, supported: false },
+		{ name: 'privileged Podman container', container: { ...supportedContainer, AppArmorProfile: '', HostConfig: { ...supportedContainer.HostConfig, Privileged: true, MaskedPaths: undefined, ReadonlyPaths: undefined } }, supported: true },
 	]) {
 		test(`detects actual Docker support: ${scenario.name}`, () => {
 			assert.strictEqual(isDevContainerSandboxSupported(JSON.stringify(scenario.container)), scenario.supported);

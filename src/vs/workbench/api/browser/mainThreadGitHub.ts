@@ -9,8 +9,15 @@ import { Disposable, DisposableStore, toDisposable } from '../../../base/common/
 import { localize } from '../../../nls.js';
 import { IGitHubAccountClient } from '../../../platform/github/common/account/account.js';
 import { IGitHubAnonymousClient } from '../../../platform/github/common/anonymous/anonymous.js';
+import { PaginationLimitError } from '../../../platform/github/common/client/pagination.js';
 import { ApiRequestOptions } from '../../../platform/github/common/client/request.js';
 import { parse, SchemaError } from '../../../platform/github/common/client/schema.js';
+import { PageOptions, RepositoryRef } from '../../../platform/github/common/client/types.js';
+import { Connection } from '../../../platform/github/common/core/core.js';
+import { CreatePullRequestRequest, ListPullRequestsOptions, PullRequestSummary } from '../../../platform/github/common/core/pullRequests.js';
+import { Branch, CreateRepositoryRequest, ListRepositoriesOptions, Repository, RepositoryAssignableUser, RepositoryCommitAuthor, RepositoryRulesetNode, RepositoryViewerInfo } from '../../../platform/github/common/core/repositories.js';
+import { RepositorySearchItem } from '../../../platform/github/common/core/search.js';
+import { User } from '../../../platform/github/common/core/users.js';
 import { Gist } from '../../../platform/github/common/gists/gists.js';
 import { withGitHubCredentialDeadline } from '../../../platform/github/common/githubCredentialService.js';
 import { RequestError, RequestErrorKind } from '../../../platform/github/common/types.js';
@@ -21,7 +28,7 @@ import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions
 import { IWorkbenchGitHubService } from '../../services/github/common/githubService.js';
 import { GitHubErrorCodeDto, GitHubResultDto, IGitHubCreateGistDto, IGitHubErrorDto, IGitHubGistDto, MainContext, MainThreadGitHubShape } from '../common/extHost.protocol.js';
 
-/** The initial proposal binds only GitHub.com sessions; Enterprise sessions are not selectable. */
+/** The internal module binds only GitHub.com sessions; Enterprise sessions are not selectable. */
 const gitHubProviderId = 'github';
 
 /** One extension-host lease; the client is set once acquisition completes. */
@@ -44,7 +51,7 @@ class GitHubOperationError extends Error {
 }
 
 /**
- * Executes the proposed `vscode.github` API through the workbench GitHub service, which routes to the shared
+ * Executes the internal `@vscode/internal-github` module through the workbench GitHub service, which routes to the shared
  * process on desktop and runs locally in browser deployments. The extension host only chooses a session id;
  * this side resolves it, enforces the extension's account access, and never returns credentials.
  */
@@ -125,13 +132,75 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 	}
 
 	async $createGist(handle: number, gist: IGitHubCreateGistDto, token: CancellationToken): Promise<GitHubResultDto<IGitHubGistDto>> {
-		return this._run(handle, token, async (entry, client, signal) => {
-			if (entry.accountLabel === undefined || !isAccountClient(client)) {
-				throw new GitHubOperationError('authentication', localize('github.createRequiresSession', "Creating a gist requires a client bound to a GitHub session."));
-			}
+		return this._runAuthenticated(handle, token, async (client, signal, options) => {
 			const request = validateCreateGist(gist);
-			return toGistDto(await client.gist.create(request, signal, this._requestOptions(entry)));
+			return toGistDto(await client.gist.create(request, signal, options));
 		});
+	}
+
+	async $getGitHubUser(handle: number, token: CancellationToken): Promise<GitHubResultDto<User>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.users.getAuthenticated(signal, options));
+	}
+
+	async $getGitHubRepository(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Repository>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.get({ owner: repository?.owner, repo: repository?.repo }, signal, options));
+	}
+
+	async $listGitHubRepositories(handle: number, query: ListRepositoriesOptions['query'], token: CancellationToken): Promise<GitHubResultDto<readonly Repository[]>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listForAuthenticatedUser(signal, {
+			...options, query: validateRequest(query, parseRepositoryQuery),
+		}));
+	}
+
+	async $searchGitHubRepositories(handle: number, query: string, token: CancellationToken): Promise<GitHubResultDto<readonly RepositorySearchItem[]>> {
+		return this._runAuthenticated(handle, token, async (client, signal, options) => {
+			const result = await client.search.repositories(validateRequest(query, parse.nonEmptyString), signal, { ...options, query: { sort: 'stars' } });
+			return result.items;
+		});
+	}
+
+	async $listGitHubBranches(handle: number, repository: RepositoryRef, query: PageOptions | undefined, token: CancellationToken): Promise<GitHubResultDto<readonly Branch[]>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listBranches({ owner: repository?.owner, repo: repository?.repo }, signal, {
+			...options, query: validateRequest(query, parseBranchQuery),
+		}));
+	}
+
+	async $createGitHubRepository(handle: number, request: CreateRepositoryRequest, token: CancellationToken): Promise<GitHubResultDto<Repository>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.create(validateRequest(request, parseCreateRepository), signal, options));
+	}
+
+	async $forkGitHubRepository(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Repository>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.fork({ owner: repository?.owner, repo: repository?.repo }, {}, signal, options));
+	}
+
+	async $listGitHubPullRequests(handle: number, repository: RepositoryRef, query: ListPullRequestsOptions['query'], token: CancellationToken): Promise<GitHubResultDto<readonly PullRequestSummary[]>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.pullRequests.list({ owner: repository?.owner, repo: repository?.repo }, signal, {
+			...options, query: validateRequest(query, parsePullRequestQuery),
+		}));
+	}
+
+	async $createGitHubPullRequest(handle: number, repository: RepositoryRef, request: CreatePullRequestRequest, token: CancellationToken): Promise<GitHubResultDto<PullRequestSummary>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.pullRequests.create({ owner: repository?.owner, repo: repository?.repo }, validateRequest(request, parseCreatePullRequest), signal, options));
+	}
+
+	async $getGitHubRepositoryViewerInfo(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<RepositoryViewerInfo | null>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getViewerInfo(validateRequest(repository, parseRepositoryRef), signal, options));
+	}
+
+	async $listGitHubRulesetConnection(handle: number, repository: RepositoryRef, after: string | undefined, maxPages: number | undefined, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryRulesetNode> | null>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listRulesetConnection(validateRequest(repository, parseRepositoryRef), signal, {
+			...options, query: { first: 100, after: validateRequest(after, parse.optional(parse.nonEmptyString)) }, maxPages,
+		}));
+	}
+
+	async $listGitHubAssignableUsers(handle: number, repository: RepositoryRef, token: CancellationToken): Promise<GitHubResultDto<Connection<RepositoryAssignableUser> | null>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.listAssignableUsers(validateRequest(repository, parseRepositoryRef), signal, {
+			...options, query: { first: 100 },
+		}));
+	}
+
+	async $getGitHubCommitAuthor(handle: number, repository: RepositoryRef, ref: string, token: CancellationToken): Promise<GitHubResultDto<RepositoryCommitAuthor | null>> {
+		return this._runAuthenticated(handle, token, (client, signal, options) => client.repositories.getCommitAuthor(validateRequest(repository, parseRepositoryRef), validateRequest(ref, parse.nonEmptyString), signal, options));
 	}
 
 	private async _acquire(
@@ -203,6 +272,15 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 		}
 	}
 
+	private _runAuthenticated<T>(handle: number, token: CancellationToken, operation: (client: IGitHubAccountClient, signal: AbortSignal, options: ApiRequestOptions) => Promise<T>): Promise<GitHubResultDto<T>> {
+		return this._run(handle, token, (entry, client, signal) => {
+			if (entry.accountLabel === undefined || !isAccountClient(client)) {
+				throw new GitHubOperationError('authentication', localize('github.operationRequiresSession', "This operation requires a client bound to a GitHub session."));
+			}
+			return operation(client, signal, this._requestOptions(entry));
+		});
+	}
+
 	/** Resolves a `github` session the extension may use; absent and inaccessible sessions are indistinguishable. */
 	private async _resolveSession(extensionId: string, sessionId: string, signal: AbortSignal): Promise<AuthenticationSession> {
 		if (typeof sessionId !== 'string' || !sessionId) {
@@ -253,6 +331,12 @@ export class MainThreadGitHub extends Disposable implements MainThreadGitHubShap
 		}
 		if (error instanceof GitHubOperationError) {
 			return { kind: 'error', error: { code: error.code, message: error.message } };
+		}
+		if (error instanceof SchemaError) {
+			return { kind: 'error', error: { code: 'invalidResponse', message: localize('github.invalidResponse', "The GitHub response was invalid.") } };
+		}
+		if (error instanceof PaginationLimitError) {
+			return { kind: 'error', error: { code: 'invalidResponse', message: localize('github.paginationLimit', "GitHub pagination exceeded the limit of {0} pages.", error.maxPages) } };
 		}
 		if (error instanceof RequestError) {
 			return { kind: 'error', error: { code: toErrorCode(error.kind), message: error.message, status: error.statusCode } };
@@ -310,6 +394,50 @@ function validateCreateGist(gist: IGitHubCreateGistDto): IGitHubCreateGistDto {
 	} catch (error) {
 		if (error instanceof SchemaError) {
 			throw new GitHubOperationError('validation', localize('github.invalidGist', "Invalid gist request: {0}", error.message));
+		}
+		throw error;
+	}
+}
+
+const parseRepositoryRef = parse.copyObject<RepositoryRef>({
+	owner: parse.nonEmptyString,
+	repo: parse.nonEmptyString,
+});
+
+const pageSchema = {
+	page: parse.optional(parse.finiteNumber),
+	per_page: parse.optional(parse.finiteNumber),
+};
+
+const parseBranchQuery = parse.optional(parse.copyObject(pageSchema));
+const parseRepositoryQuery = parse.optional(parse.copyObject({
+	...pageSchema,
+	sort: parse.optional(parse.oneOf('created', 'updated', 'pushed', 'full_name')),
+}));
+
+const parseCreateRepository = parse.copyObject({
+	name: parse.nonEmptyString,
+	private: parse.optional(parse.boolean),
+});
+
+const parsePullRequestQuery = parse.optional(parse.copyObject({
+	head: parse.optional(parse.nonEmptyString),
+	state: parse.optional(parse.oneOf('open', 'closed', 'all')),
+}));
+
+const parseCreatePullRequest = parse.copyObject({
+	title: parse.nonEmptyString,
+	body: parse.optional(parse.string),
+	head: parse.nonEmptyString,
+	base: parse.nonEmptyString,
+});
+
+function validateRequest<T>(value: unknown, parser: parse.Parser<T>): T {
+	try {
+		return parser(value);
+	} catch (error) {
+		if (error instanceof SchemaError) {
+			throw new GitHubOperationError('validation', localize('github.invalidRequest', "Invalid GitHub request: {0}", error.message));
 		}
 		throw error;
 	}

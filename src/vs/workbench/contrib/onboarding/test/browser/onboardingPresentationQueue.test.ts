@@ -13,6 +13,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextKeyService } from '../../../../../platform/contextkey/browser/contextKeyService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
 import { InMemoryStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import { Memento } from '../../../../common/memento.js';
@@ -91,6 +92,7 @@ suite('Onboarding presentation isolation', () => {
 		const scenarioService = store.add(new OnboardingScenarioService(
 			store.add(new InMemoryStorageService()), contextKeys, configuration,
 			store.add(new TestLifecycleService()), new NullWorkbenchAssignmentService(), NullTelemetryService,
+			new TestDialogService(),
 		));
 		scenarioService.start();
 		const automaticRun = scenarioService.runScenario('test.automatic');

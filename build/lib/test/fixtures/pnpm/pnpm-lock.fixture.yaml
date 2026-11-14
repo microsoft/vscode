@@ -1,0 +1,81 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: false
+  excludeLinksFromLockfile: false
+
+overrides:
+  b: ^2.0.0
+
+importers:
+
+  .:
+    dependencies:
+      a:
+        specifier: ^1.0.0
+        version: 1.3.0(b@2.1.0)
+      mock:
+        specifier: file:./mocks/mock
+        version: file:mocks/mock
+    devDependencies:
+      tool:
+        specifier: latest
+        version: 0.1.1
+      ts:
+        specifier: npm:@scope/ts6@^6.0.0
+        version: '@scope/ts6@6.0.2'
+
+packages:
+
+  '@scope/ts6@6.0.2':
+    resolution: {integrity: sha512-x}
+
+  a@1.3.0:
+    resolution: {integrity: sha512-x}
+    peerDependencies:
+      b: '*'
+
+  b@1.0.0:
+    resolution: {integrity: sha512-x}
+
+  b@2.1.0:
+    resolution: {integrity: sha512-x}
+
+  mock@file:mocks/mock:
+    resolution: {directory: mocks/mock, type: directory}
+
+  tagged@0.0.2-54:
+    resolution: {integrity: sha512-x}
+
+  tool@0.1.1:
+    resolution: {integrity: sha512-x}
+
+  ts-real@6.0.3:
+    resolution: {integrity: sha512-x}
+
+  vsda@https://codeload.github.com/microsoft/vsda/tar.gz/0123456789abcdef0123456789abcdef01234567:
+    resolution: {tarball: https://codeload.github.com/microsoft/vsda/tar.gz/0123456789abcdef0123456789abcdef01234567}
+
+snapshots:
+
+  '@scope/ts6@6.0.2':
+    dependencies:
+      '@old/ts': ts-real@6.0.3
+
+  a@1.3.0(b@2.1.0):
+    dependencies:
+      b: 1.0.0
+      mock: file:mocks/mock
+      tagged: 0.0.2-54
+
+  b@1.0.0: {}
+
+  b@2.1.0: {}
+
+  mock@file:mocks/mock: {}
+
+  tagged@0.0.2-54: {}
+
+  tool@0.1.1: {}
+
+  ts-real@6.0.3: {}

@@ -31,6 +31,7 @@ export interface ICloudSandboxReadOnlyConfig {
 	readonly taskId: string;
 	/** Resolve the owning task when several sessions share this environment's provider. */
 	readonly getTaskId?: (resource: URI) => string | undefined;
+	readonly getSessionId?: (resource: URI) => string | undefined;
 	/** Chat participant id. Matches the live handler, where `agentId === sessionType`. */
 	readonly agentId: string;
 	/** Sanitized agent-host authority used to rewrite resource URIs in history. */
@@ -105,7 +106,8 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 	}
 
 	private _findSession(resource: URI, history: IReplayedTaskHistory | undefined): IReplayedSession | undefined {
-		return history?.sessions.find(session => AgentSession.id(URI.parse(session.session)) === AgentSession.id(resource));
+		const sessionId = this._config.getSessionId?.(resource) ?? AgentSession.id(resource);
+		return history?.sessions.find(session => AgentSession.id(URI.parse(session.session)) === sessionId);
 	}
 
 	private _getChatResource(resource: URI, session: IReplayedSession): string | undefined {
@@ -199,7 +201,7 @@ export class CloudSandboxReadOnlySessionHandler extends Disposable implements IC
 
 	resolveChatResponseUri(resource: URI, href: string, kind: 'link' | 'image'): string {
 		const context = this._chatContexts.get(resource);
-		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, undefined, kind === 'image' ? context?.directory : undefined);
+		const resolve = (target: string) => rewriteAgentHostLinkTarget(target, this._config.connectionAuthority, undefined, kind === 'image' || kind === 'link' ? context?.directory : undefined);
 		const resolved = resolve(href);
 		return (kind === 'image' ? resolveAgentHostToolResultImage(context?.chat, resolved, resolve) : undefined) ?? resolved;
 	}

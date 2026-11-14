@@ -42,6 +42,7 @@ suite('Copilot app tool presentation compatibility', () => {
 		{ names: ['exit_plan_mode'], kind: undefined, completed: 'Finished plan' },
 		{ names: ['respond_to_session_plan'], kind: undefined, completed: 'Responded to plan' },
 		{ names: ['skill'], kind: undefined, completed: 'Read skill' },
+		{ names: ['read_resource'], kind: undefined, completed: 'Read MCP resource' },
 		{ names: ['show_file'], kind: undefined, completed: 'Showed file' },
 		{ names: ['web_search'], kind: undefined, completed: 'Searched the web' },
 		{ names: ['web_fetch'], kind: undefined, completed: 'Fetched webpage' },
@@ -213,6 +214,34 @@ suite('Copilot app tool presentation compatibility', () => {
 		assert.deepStrictEqual(readToolCallPresentation(pending), {
 			toolKind: undefined, invocationMessage: { markdown: 'Edit [a\\](command:unsafe).ts](file:///workspace/a%5D%28command%3Aunsafe%29.ts)' }, pastTenseMessage: 'Edited',
 		});
+	});
+
+	test('URL permission prompts keep the URL visible while the host catches up', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'open', toolName: 'web_fetch', displayName: 'Open URL',
+			invocationMessage: 'Read article', confirmationTitle: 'Open URL',
+			_meta: { promptRequest: { kind: 'url', url: 'https://example.com/docs' } },
+		};
+		assert.deepStrictEqual(readToolCallPresentation(pending), {
+			toolKind: undefined, invocationMessage: 'Read article: https://example.com/docs', pastTenseMessage: 'Fetched webpage', confirmationTitle: 'Open URL',
+		});
+	});
+
+	test('URL permission fallback preserves host-provided URLs and markdown', () => {
+		const pending: ToolCallPendingConfirmationState = {
+			status: ToolCallStatus.PendingConfirmation, toolCallId: 'open', toolName: 'web_fetch', displayName: 'Open URL',
+			invocationMessage: 'Read article', confirmationTitle: 'Open URL',
+			_meta: { promptRequest: { kind: 'url', url: 'https://example.com/docs' } },
+		};
+		const messages = [
+			'Read article: https://example.com/docs',
+			{ markdown: 'Read [article](https://example.com/docs) after confirming access' },
+			{ markdown: '**Read article** after confirming access' },
+		];
+		assert.deepStrictEqual(
+			messages.map(invocationMessage => readToolCallPresentation({ ...pending, invocationMessage })),
+			messages.map(invocationMessage => ({ toolKind: undefined, invocationMessage, pastTenseMessage: 'Fetched webpage' })),
+		);
 	});
 
 	for (const { path, title, markdown } of [

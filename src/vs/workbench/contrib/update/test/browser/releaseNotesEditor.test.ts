@@ -12,8 +12,10 @@ import { DeferredPromise, timeout } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
+import { FileAccess, Schemas } from '../../../../../base/common/network.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { VSBuffer, bufferToStream } from '../../../../../base/common/buffer.js';
+import { isWeb } from '../../../../../base/common/platform.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
@@ -28,7 +30,7 @@ import { AccessibleViewProviderId } from '../../../../../platform/accessibility/
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { TestAccessibilityService } from '../../../../../platform/accessibility/test/common/testAccessibilityService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ContextMenuService } from '../../../../../platform/contextview/browser/contextMenuService.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
@@ -41,10 +43,17 @@ import { INotificationService } from '../../../../../platform/notification/commo
 import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
+import { IRequestService } from '../../../../../platform/request/common/request.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
 import { TestThemeService } from '../../../../../platform/theme/test/common/testThemeService.js';
+import { IHostService } from '../../../../services/host/browser/host.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { createOnboardingTryoutUri, IOnboardingTryoutService, OnboardingTryoutAvailability, OnboardingTryoutResult, RUN_ONBOARDING_TRYOUT_COMMAND_ID } from '../../../onboarding/common/onboardingTryout.js';
 import { IOverlayWebview, WebviewMessageReceivedEvent } from '../../../webview/browser/webview.js';
@@ -52,6 +61,7 @@ import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.j
 import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
 import { ReleaseNotesAccessibilityHelp } from '../../browser/releaseNotesAccessibilityHelp.js';
 import { applyReleaseNotesTokenization, initializeReleaseNotesNavigation, ReleaseNotesManager } from '../../browser/releaseNotesEditor.js';
+import { releaseNotesWithHighlightsVideo } from './releaseNotesTestUtils.js';
 
 suite('Release notes editor Try This integration', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -88,6 +98,8 @@ suite('Release notes editor Try This integration', () => {
 		const onDispose = store.add(new Emitter<void>());
 		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IHostService, { onDidChangeFocus: Event.None, onDidChangeActiveWindow: Event.None });
+		instantiationService.stub(ILifecycleService, { onWillShutdown: Event.None });
 		const webview = new class extends mock<IOverlayWebview>() {
 			override readonly container = $('div');
 			override readonly onMessage = onMessage.event;
@@ -134,6 +146,7 @@ suite('Release notes editor Try This integration', () => {
 		instantiationService.stub(IConfigurationService, new TestConfigurationService({ update: { showReleaseNotes: true } }));
 		instantiationService.stub(IProductService, { quality: 'stable', enableTelemetry: false });
 		instantiationService.stub(IEnvironmentService, { isBuilt: false });
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, { whenInstalledExtensionsRegistered: () => whenExtensionsRegistered() });
 		instantiationService.stub(ILanguageService, store.add(new LanguageService()));
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
@@ -145,6 +158,84 @@ suite('Release notes editor Try This integration', () => {
 	function documentId(): string {
 		return /const documentId = "(?<id>[^"]+)"/.exec(html[html.length - 1])!.groups!.id;
 	}
+
+	function createVideoManager(enabled: boolean, explicit = false, sessionsWindow = false) {
+		manager.dispose();
+		const telemetry = new TestExperimentTriggerTelemetryService();
+		const configuration = new TestConfigurationService({ update: { showReleaseNotes: true, showReleaseHighlightsVideo: enabled } });
+		const inspect = stub(configuration, 'inspect').callsFake(() => ({ value: enabled, defaultValue: enabled, ...(explicit ? { userValue: enabled } : {}) }));
+		store.add(toDisposable(() => inspect.restore()));
+		const request = stub().callsFake(async () => ({ res: { statusCode: 200, headers: {} }, stream: bufferToStream(VSBuffer.fromString(markdown)) }));
+		instantiationService.stub(IConfigurationService, configuration);
+		instantiationService.stub(ITelemetryService, telemetry);
+		instantiationService.stub(IRequestService, { request });
+		instantiationService.stub(IWorkbenchEnvironmentService, { isBuilt: false, isSessionsWindow: sessionsWindow });
+		instantiationService.stub(IEditorService, {
+			get activeEditor() { return activeEditor; },
+			visibleEditorPanes: [],
+			onDidActiveEditorChange: Event.None,
+			onDidVisibleEditorsChange: Event.None,
+		});
+		manager = store.add(instantiationService.createInstance(ReleaseNotesManager));
+		return { telemetry, configuration, request };
+	}
+
+	test('video eligibility triggers in both arms once, excluding explicit choices and unsupported windows', async () => {
+		const results: { enabled: boolean; explicit: boolean; sessionsWindow: boolean; triggers: string[]; video: boolean }[] = [];
+		markdown = releaseNotesWithHighlightsVideo;
+		for (const enabled of [false, true]) {
+			for (const [explicit, sessionsWindow] of [[false, false], [true, false], [false, true]]) {
+				const { telemetry } = createVideoManager(enabled, explicit, sessionsWindow);
+				await manager.show('1.147.0', false);
+				await manager.show('1.147.0', false);
+				results.push({ enabled, explicit, sessionsWindow, triggers: telemetry.triggers, video: html.at(-1)!.includes('<video') });
+			}
+		}
+		assert.deepStrictEqual(results, [false, true].flatMap(enabled => [[false, false], [true, false], [false, true]].map(([explicit, sessionsWindow]) => ({
+			enabled, explicit, sessionsWindow,
+			triggers: !isWeb && !explicit && !sessionsWindow ? ['config.update.showReleaseHighlightsVideo'] : [],
+			video: !isWeb && !sessionsWindow && enabled,
+		}))));
+	});
+
+	test('missing videos stay cached until a fresh manager fetches the later revision', async () => {
+		markdown = '# Notes\n\nNo video yet.';
+		const first = createVideoManager(true);
+		await manager.show('1.147.0', false);
+		markdown = releaseNotesWithHighlightsVideo;
+		await manager.show('1.147.0', false);
+		const cached = { requests: first.request.callCount, triggers: [...first.telemetry.triggers], video: html.at(-1)!.includes('<video') };
+		const fresh = createVideoManager(true);
+		await manager.show('1.147.0', false);
+		assert.deepStrictEqual({
+			cached,
+			fresh: { requests: fresh.request.callCount, triggers: fresh.telemetry.triggers, video: html.at(-1)!.includes('<video') },
+		}, {
+			cached: { requests: 1, triggers: [], video: false },
+			fresh: { requests: 1, triggers: isWeb ? [] : ['config.update.showReleaseHighlightsVideo'], video: !isWeb },
+		});
+	});
+
+	test('preference changes apply on the next opening without rewriting the existing document', async () => {
+		markdown = releaseNotesWithHighlightsVideo;
+		const { configuration } = createVideoManager(false, true);
+		await manager.show('1.147.0', true);
+		const before = html.length;
+		await configuration.setUserConfiguration('update.showReleaseHighlightsVideo', true);
+		configuration.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: key => key === 'update.showReleaseHighlightsVideo', affectedKeys: new Set(['update.showReleaseHighlightsVideo']), source: ConfigurationTarget.USER, change: { keys: [], overrides: [] } });
+		const afterChange = html.length;
+		await manager.show('1.147.0', true);
+		assert.deepStrictEqual({ before, afterChange, afterReopen: html.length, video: html.at(-1)!.includes('<video') }, {
+			before: 1, afterChange: 1, afterReopen: 2, video: !isWeb,
+		});
+	});
+
+	test('current-file video previews never trigger the experiment', async () => {
+		markdown = releaseNotesWithHighlightsVideo;
+		const { telemetry } = createVideoManager(true);
+		await manager.show('1.147.0', true);
+		assert.deepStrictEqual({ triggers: telemetry.triggers, productionTelemetry: html.at(-1)!.includes('releaseNotesTelemetrySample') }, { triggers: [], productionTelemetry: false });
+	});
 
 	test('preserves the CSP and only extends the existing command allowlist with the dispatcher', async () => {
 		markdown += '\n<script>untrustedScript()</script>';
@@ -161,6 +252,51 @@ suite('Release notes editor Try This integration', () => {
 		}, {
 			csp: true, scripts: 2, untrustedScript: false,
 			options: Array(3).fill({ allowCommands: ['workbench.action.openSettings', 'summarize.release.notes', RUN_ONBOARDING_TRYOUT_COMMAND_ID] }),
+		});
+	});
+
+	test('fenced code and code links remain independent of the webview inline-code tint', async () => {
+		markdown = '# Code styles\n\nNormal `inline`, [text link](https://example.com), and [`code link`](https://example.com).\n\n```\nplain code\n```';
+		await manager.show('1.100.0', true);
+		const response = await fetch(FileAccess.asBrowserUri('vs/workbench/contrib/webview/browser/pre/index.html').toString(true));
+		assert.ok(response.ok);
+		const shell = await response.text();
+		const defaults = /defaultStyles\.textContent\s*=\s*`(?<styles>[\s\S]*?)`/.exec(shell)?.groups?.styles;
+		assert.ok(defaults);
+		const document = new mainWindow.DOMParser().parseFromString(html[0], 'text/html');
+		const container = $('div');
+		store.add(toDisposable(() => container.remove()));
+		for (const [name, color] of Object.entries({
+			'--vscode-textPreformat-background': 'rgba(0, 0, 0, 0.12)',
+			'--vscode-textPreformat-foreground': '#3b3b3b',
+			'--vscode-textCodeBlock-background': '#ececec',
+			'--vscode-textLink-foreground': '#0069cc',
+			'--text-link-decoration': 'none',
+		})) {
+			container.style.setProperty(name, color);
+		}
+		const shadow = container.attachShadow({ mode: 'open' });
+		const styles = $('style');
+		styles.textContent = defaults + '\n' + Array.from(document.querySelectorAll('style'), style => style.textContent).join('\n');
+		shadow.appendChild(styles);
+		shadow.append(...Array.from(document.body.children).filter(element => element.tagName !== 'SCRIPT'));
+		mainWindow.document.body.appendChild(container);
+		const pre = shadow.querySelector('pre')!;
+		const blockCode = pre.querySelector('code')!;
+		const inline = shadow.querySelector('p > code')!;
+		const linkCode = shadow.querySelector('a code')!;
+		assert.deepStrictEqual({
+			blockBackground: getWindow(pre).getComputedStyle(pre).backgroundColor,
+			codeBackground: getWindow(blockCode).getComputedStyle(blockCode).backgroundColor,
+			inlineBackground: getWindow(inline).getComputedStyle(inline).backgroundColor,
+			linkColor: getWindow(linkCode).getComputedStyle(linkCode).color,
+			linkDecoration: getWindow(linkCode).getComputedStyle(linkCode).textDecorationLine,
+		}, {
+			blockBackground: 'rgb(236, 236, 236)',
+			codeBackground: 'rgba(0, 0, 0, 0)',
+			inlineBackground: 'rgba(0, 0, 0, 0.12)',
+			linkColor: 'rgb(59, 59, 59)',
+			linkDecoration: 'underline',
 		});
 	});
 

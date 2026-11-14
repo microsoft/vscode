@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AGENTS_WINDOW_PR_COMMENTS_SETTING } from './agentFeedbackEditorInputContribution.js';
-import './agentFeedbackEditorWidgetContribution.js';
+import { AgentFeedbackEditorWidgetContribution } from './agentFeedbackEditorWidgetContribution.js';
 import './agentFeedbackOverviewRulerContribution.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, observableFromEvent } from '../../../../base/common/observable.js';
+import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../nls.js';
 import { MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
@@ -16,7 +17,9 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { AgentFeedbackService, AgentFeedbackState, IAgentFeedbackService } from './agentFeedbackService.js';
+import { AgentFeedbackService } from './agentFeedbackService.js';
+import { IAgentFeedbackService } from '../../../../workbench/contrib/sessions/browser/agentFeedback.js';
+import { AgentFeedbackState } from '../../../../workbench/contrib/sessions/browser/agentFeedbackModel.js';
 import { AgentFeedbackAttachmentContribution } from './agentFeedbackAttachment.js';
 import { AgentEditorCommentsProviderContribution } from './agentEditorCommentsProvider.js';
 import { AgentFeedbackPRThreadResolverContribution } from './agentFeedbackPRThreadResolver.js';
@@ -28,7 +31,7 @@ import { registerAgentFeedbackReviewCommands } from './agentFeedbackReviewComman
 import { IChatAttachmentWidgetRegistry } from '../../../../workbench/contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IAgentFeedbackVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 /**
@@ -78,6 +81,8 @@ class ActiveSessionFeedbackContextContribution extends Disposable implements IWo
 		}));
 	}
 }
+
+registerEditorContribution(AgentFeedbackEditorWidgetContribution.ID, AgentFeedbackEditorWidgetContribution, EditorContributionInstantiation.Eventually);
 
 registerWorkbenchContribution2(ActiveSessionFeedbackContextContribution.ID, ActiveSessionFeedbackContextContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentFeedbackEditorOverlay.ID, AgentFeedbackEditorOverlay, WorkbenchPhase.AfterRestored);

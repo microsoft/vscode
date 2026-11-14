@@ -48,6 +48,7 @@ import { resolveAgentMergeOwningChat, resolveGitHubStateFolder } from '../../nod
 import { AgentHostStateManager, creationTimeChatStorageResource } from '../../node/agentHostStateManager.js';
 import { createArtifactServerToolGroup } from '../../node/shared/artifactServerTools.js';
 import { RepositoryRef } from '../../../github/common/client/types.js';
+import { GitHubRequestError } from '../../../github/common/githubTypes.js';
 import { IPullRequestsClient, ListPullRequestsOptions, PullRequestSummary } from '../../../github/common/core/pullRequests.js';
 import { TestSessionDatabase, createNoopChangesetService, createNoopGitService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { createTestGitHubEndpointService } from './testGitHubEndpointService.js';
@@ -856,9 +857,82 @@ suite('AgentHostGitStateService', () => {
 			scopedState: chatGitState,
 			persistedAfterRefresh: { [scopeId]: chatGitState },
 			persistedAfterUnavailable: { [scopeId]: chatGitState },
-			runEvents: [chat, chat],
+			// An inconclusive probe observes nothing new.
+			runEvents: [chat],
 		});
 	}));
+
+	test('announces a refresh only when it observed a change, is the first, or is forced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const state: ISessionGitState = { branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 1 };
+		h.setGitResult(state);
+		const announced: Record<string, number> = {};
+		const record = async (step: string, refresh: () => Promise<void>) => {
+			const before = h.runEvents.length;
+			await refresh();
+			announced[step] = h.runEvents.length - before;
+		};
+
+		await record('first', () => h.service.refreshSessionGitState(SESSION, undefined));
+		await record('unchanged', () => h.service.refreshSessionGitState(SESSION, undefined));
+		await record('unchangedAgain', () => h.service.refreshSessionGitState(SESSION, undefined));
+		h.setGitResult({ ...state, uncommittedChanges: 2 });
+		await record('changed', () => h.service.refreshSessionGitState(SESSION, undefined));
+		await record('forced', () => h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true }));
+		h.setGitResult(undefined);
+		await record('inconclusive', () => h.service.refreshSessionGitState(SESSION, undefined));
+		await record('forcedInconclusive', () => h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true }));
+		await record('afterForced', () => h.service.refreshSessionGitState(SESSION, undefined));
+
+		assert.deepStrictEqual(announced, { first: 1, unchanged: 0, unchangedAgain: 0, changed: 1, forced: 1, inconclusive: 0, forcedInconclusive: 1, afterForced: 0 });
+	}));
+
+	test('a forced refresh queued behind an unforced one is still announced', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main' });
+		await h.service.refreshSessionGitState(SESSION, undefined);
+		const before = h.runEvents.length;
+
+		await Promise.all([
+			h.service.refreshSessionGitState(SESSION, undefined, undefined, { force: true }),
+			h.service.refreshSessionGitState(SESSION, undefined),
+		]);
+
+		assert.strictEqual(h.runEvents.length - before, 1);
+	}));
+
+	test('chats of one folder refreshing together share one read of its Git state; forced refreshes share a read only with each other', async () => {
+		const h = createHarness();
+		seedSession(h.stateManager, { workingDirectory: WORKING_DIRECTORY });
+		const addChats = (prefix: string) => Array.from({ length: 12 }, (_, index) => {
+			const chat = buildChatUri(SESSION, `${prefix}-${index}`);
+			h.stateManager.addChat(SESSION, chat, creationTimeChatStorageResource(SESSION, chat, buildDefaultChatUri(SESSION)), { workingDirectories: ['file:///shared'] });
+			return chat;
+		});
+		const overlapping = addChats('overlapping');
+		const forced = addChats('forced');
+		// Reading Git takes a while, so the chats' refreshes overlap. Each refresh then pauses before it can repeat, so they stay pending until the service is disposed.
+		const realTimeout = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+		const read = new DeferredPromise<ISessionGitState | undefined>();
+		h.setGitResultPromise(read.p);
+
+		const refreshes = overlapping.map(chat => h.service.refreshSessionGitState(chat, undefined));
+		await realTimeout(50);
+		await read.complete({ branchName: 'feature', baseBranchName: 'main' });
+		await realTimeout(50);
+		const sharedReads = h.gitCalls.length;
+		h.setGitResultPromise(undefined);
+		h.setGitResult({ branchName: 'feature', baseBranchName: 'main' });
+		refreshes.push(...forced.map(chat => h.service.refreshSessionGitState(chat, undefined, undefined, { force: true })));
+		await realTimeout(50);
+		const forcedReads = h.gitCalls.length - sharedReads;
+
+		h.service.dispose();
+		await Promise.all(refreshes);
+		assert.deepStrictEqual({ sharedReads, forcedReads }, { sharedReads: 1, forcedReads: 1 });
+	});
 
 	test('keeps default-chat Git state when the Git probe fails', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const h = createHarness();
@@ -2138,6 +2212,33 @@ suite('AgentHostGitStateService', () => {
 			});
 		});
 	});
+
+	for (const autoAttachPullRequests of [false, true]) {
+		test(`returns a pull request lookup GitHub refused for single sign-on, with its authorization page (${autoAttachPullRequests ? 'automatic' : 'restricted'} association)`, async () => {
+			await runWithFakedTimers({ useFakeTimers: true }, async () => {
+				const gitState: ISessionGitState = { branchName: 'local/pr-2', baseBranchName: 'main' };
+				const ssoAuthorizationUrl = 'https://github.com/orgs/microsoft/sso?authorization_request=abc';
+				const refusal = new GitHubRequestError('GitHub API request failed: GET repos/microsoft/vscode/pulls - 403 Forbidden - Resource protected by organization SAML enforcement.', 'authorization', 403, undefined, undefined, 'Forbidden', { ssoAuthorizationUrl });
+				const h = createHarness({
+					autoAttachPullRequests,
+					query: new class extends mock<IPullRequestsClient>() {
+						override async list(): Promise<never> { throw refusal; }
+					}(),
+				});
+				seedSession(h.stateManager, {
+					workingDirectory: WORKING_DIRECTORY,
+					gitState,
+					gitHubState: { owner: 'microsoft', repo: 'vscode' },
+					artifacts: [pullRequestArtifact(2)],
+				});
+				h.setGitResult(gitState);
+
+				assert.deepStrictEqual(await h.service.attachSessionGitHubPullRequest(SESSION, URI.parse(WORKING_DIRECTORY)), {
+					kind: 'authorization', message: refusal.message, ssoAuthorizationUrl,
+				});
+			});
+		});
+	}
 
 	test('reconciles an existing automatically discovered PR when the setting is disabled', async () => {
 		const gitState: ISessionGitState = { branchName: 'feature', baseBranchName: 'main' };

@@ -21,6 +21,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { WindowTitle } from './windowTitle.js';
+import { CommandCenterLabel } from './commandCenterLabel.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -182,10 +183,9 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							searchIcon.classList.add('search-icon');
 
 							// label: just workspace name and optional decorations
-							const label = this._getLabel();
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
-							labelElement.textContent = label;
+							this._renderLabel(labelElement);
 							if (isCompactMode) {
 								reset(container, labelElement);
 							} else {
@@ -197,16 +197,23 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {
 								hover.update(this.getTooltip());
-								labelElement.textContent = this._getLabel();
+								this._renderLabel(labelElement);
 							}));
 
 							// update label & tooltip when tabs visibility changes
 							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
 								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
 									hover.update(this.getTooltip());
-									labelElement.textContent = this._getLabel();
+									this._renderLabel(labelElement);
 								}
 							}));
+						}
+
+						private _label: CommandCenterLabel | undefined;
+
+						private _renderLabel(labelElement: HTMLElement): void {
+							this._label ??= this._store.add(that._instaService.createInstance(CommandCenterLabel, labelElement, that._hoverDelegate));
+							this._label.update(this._getLabel(), that._windowTitle.folderLocationInfo);
 						}
 
 						protected override getTooltip() {
@@ -214,24 +221,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 						}
 
 						private _getLabel(): string {
-							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
-							let label = that._windowTitle.workspaceName;
-							if (that._windowTitle.isCustomTitleFormat()) {
-								label = that._windowTitle.getWindowTitle();
-							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
-								label = that._windowTitle.fileName ?? label;
-							}
-							if (!label) {
-								label = localize('label.dfl', "Search");
-							}
-							if (prefix) {
-								label = localize('label1', "{0} {1}", prefix, label);
-							}
-							if (suffix) {
-								label = localize('label2', "{0} {1}", label, suffix);
-							}
-
-							return label.replaceAll(/\r\n|\r|\n/g, '\u23CE');
+							return that._windowTitle.getCommandCenterLabel({ showFileName: that._editorGroupService.partOptions.showTabs === 'none' });
 						}
 					});
 				}

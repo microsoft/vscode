@@ -20,7 +20,8 @@ import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js
 import { IChatModel } from '../../../chat/common/model/chatModel.js';
 import { IChatViewModel } from '../../../chat/common/model/chatViewModel.js';
 import { ChatNewCanvasMenuId, OPEN_EDITOR_CANVAS_COMMAND_ID, registerEditorCanvasActions, REOPEN_EDITOR_CANVAS_COMMAND_ID } from '../../browser/editorCanvasActions.js';
-import { getCanvasDefinitionInstanceId, ICanvas, ICanvasContext, ICanvasDefinition, ICanvasReopenTarget, ICanvasService } from '../../common/canvas.js';
+import { getCanvasDefinitionInstanceId, ICanvasContext, ICanvasDefinition, ICanvasService } from '../../common/canvas.js';
+import { ICanvas } from '../../../../common/canvasReference.js';
 
 suite('EditorCanvasActions', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -81,7 +82,13 @@ suite('EditorCanvasActions', () => {
 			title: 'Counter',
 			source: undefined,
 		};
-		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [existing, unavailableProject]);
+		const preview: ICanvas = {
+			resource: URI.parse('agent-host-canvas:/preview'),
+			instanceId: 'preview-secondary',
+			title: 'Preview',
+			source: URI.parse('https://example.test/preview'),
+		};
+		const canvases = observableValue<readonly ICanvas[] | undefined>('canvases', [existing, unavailableProject, preview]);
 		const context: ICanvasContext = {
 			owner,
 			canvases,
@@ -112,33 +119,12 @@ suite('EditorCanvasActions', () => {
 			onDidAddWidget: widgetAdded.event,
 			onDidRemoveWidget: widgetRemoved.event,
 		});
-		const stableTarget: ICanvasReopenTarget = {
-			reference: { ...owner, canvas: URI.parse('agent-host-canvas:/project-counter') },
-			canvas: {
-				resource: URI.parse('agent-host-canvas:/project-counter'),
-				instanceId: getCanvasDefinitionInstanceId(projectDefinition),
-				title: 'Counter',
-				source: URI.parse('https://example.test/project-counter'),
-			},
-		};
-		const secondaryTarget: ICanvasReopenTarget = {
-			reference: { ...owner, canvas: URI.parse('agent-host-canvas:/preview') },
-			canvas: {
-				resource: URI.parse('agent-host-canvas:/preview'),
-				instanceId: 'preview-secondary',
-				title: 'Preview',
-				source: URI.parse('https://example.test/preview'),
-			},
-		};
 		const enabled = observableValue('enabled', true);
-		const reopenableCanvases = observableValue<readonly ICanvasReopenTarget[]>('reopenableCanvases', [stableTarget, secondaryTarget]);
 		const revealed: string[] = [];
-		const reopened: string[] = [];
 		const canvasService = upcastPartial<ICanvasService>({
 			enabled,
-			reopenableCanvases,
+			isOwnerPresentable: (_reference, reader) => enabled.read(reader),
 			revealCanvas: async reference => { revealed.push(reference.canvas.toString()); },
-			reopenCanvas: async reference => { reopened.push(reference.canvas.toString()); },
 		});
 		const registration = registerEditorCanvasActions(
 			canvasService,
@@ -156,6 +142,7 @@ suite('EditorCanvasActions', () => {
 			.filter(isISubmenuItem)
 			.filter(item => item.submenu === ChatNewCanvasMenuId);
 		const initialItems = getItems();
+		const initialGroupTitles = initialItems.map(item => MenuRegistry.getMenuGroup(ChatNewCanvasMenuId, item.group ?? '')?.title);
 		const initialSubmenus = getSubmenus();
 		const initialCommandIds = initialItems.map(item => item.command.id);
 		for (const item of initialItems) {
@@ -196,11 +183,11 @@ suite('EditorCanvasActions', () => {
 			submenuGroups: initialSubmenus.map(item => item.group),
 			initialTitles: initialItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			groups: initialItems.map(item => item.group),
+			groupTitles: initialGroupTitles,
 			requiresChat: initialItems.map(item => item.when?.serialize().includes(ChatContextKeys.enabled.key)),
 			listCalls,
 			opened,
 			revealed,
-			reopened,
 			unchangedSubmenuRetained: unchangedSubmenus[0] === initialSubmenus[0],
 			refreshedTitles: refreshedItems.map(item => typeof item.command.title === 'string' ? item.command.title : item.command.title.value),
 			uninitializedItems: uninitializedItems.length,
@@ -213,18 +200,21 @@ suite('EditorCanvasActions', () => {
 		}, {
 			submenuTitles: ['Canvas'],
 			submenuGroups: ['z_canvas'],
-			initialTitles: ['Counter (Project Counter)', 'Counter (User Counter)', 'Preview'],
-			groups: ['1_available', '1_available', '2_open'],
-			requiresChat: [true, true, true],
+			initialTitles: ['Counter', 'Preview', 'Counter (Project Counter)', 'Counter (User Counter)'],
+			groups: ['1_running', '1_running', '2_available', '2_available'],
+			groupTitles: ['Running', 'Running', 'Available', 'Available'],
+			requiresChat: [true, true, true, true],
 			listCalls: 4,
 			opened: [{
 				canvas: 'project:counter',
-				instanceId: getCanvasDefinitionInstanceId(projectDefinition),
+				instanceId: `${getCanvasDefinitionInstanceId(projectDefinition)}-2`,
+			}, {
+				canvas: 'user:counter',
+				instanceId: `${getCanvasDefinitionInstanceId(userDefinition)}-2`,
 			}],
-			revealed: ['agent-host-canvas:/project-counter', 'agent-host-canvas:/user-counter'],
-			reopened: ['agent-host-canvas:/preview'],
+			revealed: ['agent-host-canvas:/user-counter', 'agent-host-canvas:/preview'],
 			unchangedSubmenuRetained: true,
-			refreshedTitles: ['Chart', 'Counter', 'Preview'],
+			refreshedTitles: ['Counter', 'Preview', 'Chart'],
 			uninitializedItems: 0,
 			uninitializedSubmenus: 0,
 			disabledItems: 0,
@@ -285,7 +275,6 @@ suite('EditorCanvasActions', () => {
 		const enabled = observableValue('enabled', true);
 		const canvasService = upcastPartial<ICanvasService>({
 			enabled,
-			reopenableCanvases: observableValue<readonly ICanvasReopenTarget[]>('reopenableCanvases', []),
 		});
 		const registration = registerEditorCanvasActions(
 			canvasService,

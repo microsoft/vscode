@@ -16,6 +16,7 @@ import type { IActiveSubscriptionInfo, IAgentSubscription } from '../../../../..
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { AGENT_HOST_CHAT_OWNER_TIMEOUT_MS, resolveAgentHostChatOwner } from '../../../browser/agentSessions/agentHost/agentHostChatOwner.js';
 import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { buildChatUri, buildDefaultChatUri, SessionStatus, StateComponents, type ComponentToState, type SessionState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance } from '../../../browser/attachments/chatAttachmentWidgetRegistry.js';
 import { createChatReferenceVariableEntry, IChatRequestVariableEntry } from '../../../common/attachments/chatVariableEntries.js';
@@ -204,6 +205,7 @@ suite('ChatReferenceAttachment', () => {
 				new class extends mock<ISessionSummaryHoverService>() { override registerProvider(): IDisposable { return Disposable.None; } }(),
 				new class extends mock<IPathService>() { }(),
 				connections,
+				new TestConfigurationService(),
 			));
 			const links: string[] = [];
 			instantiationService.stub(IOpenerService, upcastPartial<IOpenerService>({

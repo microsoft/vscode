@@ -55,6 +55,7 @@ export function createCustomizationMarketplaceInstallationSnapshot(
 	const byResource = new Map<string, IRecordedCustomizationMarketplaceResource>();
 	const skillsByUri = new ResourceMap<IRecordedCustomizationMarketplaceResource>();
 	const pluginsByUri = new ResourceMap<IRecordedCustomizationMarketplaceResource>();
+	const pluginsByName = new Map<string, IRecordedCustomizationMarketplaceResource | undefined>();
 	const mcpById = new Map<string, IRecordedCustomizationMarketplaceResource>();
 	const connectorsByName = new Map<string, IRecordedCustomizationMarketplaceResource>();
 	for (const installation of snapshotInstallations) {
@@ -72,6 +73,9 @@ export function createCustomizationMarketplaceInstallationSnapshot(
 			case 'plugin':
 				if (target.uri && !pluginsByUri.has(target.uri)) {
 					pluginsByUri.set(target.uri, installation);
+				}
+				if (target.name) {
+					pluginsByName.set(target.name, pluginsByName.has(target.name) ? undefined : installation);
 				}
 				break;
 			case 'mcp':
@@ -93,7 +97,7 @@ export function createCustomizationMarketplaceInstallationSnapshot(
 		findByTarget: target => {
 			switch (target.kind) {
 				case 'skill': return target.uri ? skillsByUri.get(target.uri) : undefined;
-				case 'plugin': return target.uri ? pluginsByUri.get(target.uri) : undefined;
+				case 'plugin': return target.uri ? pluginsByUri.get(target.uri) ?? (target.name ? pluginsByName.get(target.name) : undefined) : target.name ? pluginsByName.get(target.name) : undefined;
 				case 'mcp': return target.id ? mcpById.get(target.id) : undefined;
 				case 'copilotConnector': return connectorsByName.get(target.name);
 			}
@@ -112,6 +116,8 @@ export interface ICustomizationMarketplaceInstallService {
 	readonly onDidChange: Event<void>;
 	/** Applicable marketplace installations indexed by catalog identity and exact installed target. */
 	readonly installations: IObservable<ICustomizationMarketplaceInstallationSnapshot>;
+	/** Returns the unambiguous recorded installation associated with a catalog resource. */
+	findInstallation(resource: ICustomizationMarketplaceResource): IRecordedCustomizationMarketplaceResource | undefined;
 	getInstallState(resource: ICustomizationMarketplaceResource): CustomizationMarketplaceInstallState;
 	/** Uses the owning install flow; cancellation rejects with a CancellationError. */
 	install(resource: ICustomizationMarketplaceResource, origin?: CustomizationMarketplaceInstallOrigin): Promise<void>;

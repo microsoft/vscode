@@ -342,10 +342,11 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					},
 				},
 			}, 100);
-			// Materialize without a model turn so the recorded tool call cannot race MCP startup.
 			const chatUri = newTestChatUri();
 			await context.client.call('createChat', { channel: sessionUri, chat: chatUri }, 30_000);
 			await context.client.call<SubscribeResult>('subscribe', { channel: chatUri });
+			const turnId = 'turn-root-mcp';
+			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			await context.client.waitForNotification(n => {
 				if (n.method !== 'action') {
 					return false;
@@ -357,8 +358,6 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 					&& action.customization.name === 'root_probe_server'
 					&& action.customization.state.kind === McpServerStatus.Ready;
 			}, 30_000);
-			const turnId = 'turn-root-mcp';
-			await driveChatTurnToCompletion(context.client, chatUri, turnId, 'Call root_probe exactly once, then reply with only its exact result.', 1);
 			const completion = context.client.receivedNotifications(n => isActionNotification(n, 'chat/toolCallComplete'))
 				.map(n => getActionEnvelope(n).action as ChatToolCallCompleteAction)
 				.find(action => action.turnId === turnId);
@@ -393,81 +392,71 @@ export function defineCopilotCoverageTests(context: IAgentHostE2ETestContext): v
 	(context.runRecordOnlyTests ? test : test.skip)('tool search exposes deferred client tools and executes the selected result', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('tool-search-success');
-		try {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			context.client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: {
-					type: ActionType.SessionActiveClientSet,
-					activeClient: {
-						clientId: 'tool-search-success-client',
-						tools: [{
-							name: 'toolSearch',
-							description: 'Searches deferred tools by name.',
-							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-						}, {
-							name: 'get_magic_word',
-							description: 'Returns the magic word.',
-							inputSchema: { type: 'object', properties: {} },
-						}],
-					},
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'tool-search-success-client',
+					tools: [{
+						name: 'toolSearch',
+						description: 'Searches deferred tools by name.',
+						inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+					}, {
+						name: 'get_magic_word',
+						description: 'Returns the magic word.',
+						inputSchema: { type: 'object', properties: {} },
+					}],
 				},
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+			},
+		});
+		await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
 
-			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-success', '["get_magic_word"]');
-			assert.deepStrictEqual({
-				hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
-				hasMagicWord: result.toolNames.includes('get_magic_word'),
-				response: result.responseText.trim(),
-			}, {
-				hasSearch: true,
-				hasMagicWord: true,
-				response: 'MAGIC_WORD',
-			});
-		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: false }, 101);
-		}
+		const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-success', '["get_magic_word"]');
+		assert.deepStrictEqual({
+			hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
+			hasMagicWord: result.toolNames.includes('get_magic_word'),
+			response: result.responseText.trim(),
+		}, {
+			hasSearch: true,
+			hasMagicWord: true,
+			response: 'MAGIC_WORD',
+		});
 	});
 
 	(context.runRecordOnlyTests ? test : test.skip)('tool search tolerates a malformed client result without activating a deferred tool', async function () {
 		this.timeout(240_000);
 		const { sessionUri } = await createWorkspaceSession('tool-search-malformed');
-		try {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: true }, 100);
-			context.client.dispatch({
-				channel: sessionUri,
-				clientSeq: 1,
-				action: {
-					type: ActionType.SessionActiveClientSet,
-					activeClient: {
-						clientId: 'tool-search-malformed-client',
-						tools: [{
-							name: 'toolSearch',
-							description: 'Searches deferred tools by name.',
-							inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
-						}, {
-							name: 'get_magic_word',
-							description: 'Returns the magic word.',
-							inputSchema: { type: 'object', properties: {} },
-						}],
-					},
+		context.client.dispatch({
+			channel: sessionUri,
+			clientSeq: 1,
+			action: {
+				type: ActionType.SessionActiveClientSet,
+				activeClient: {
+					clientId: 'tool-search-malformed-client',
+					tools: [{
+						name: 'toolSearch',
+						description: 'Searches deferred tools by name.',
+						inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+					}, {
+						name: 'get_magic_word',
+						description: 'Returns the magic word.',
+						inputSchema: { type: 'object', properties: {} },
+					}],
 				},
-			});
-			await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
+			},
+		});
+		await context.client.waitForNotification(n => isActionNotification(n, ActionType.SessionActiveClientSet), 30_000);
 
-			const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-malformed', 'not-json');
-			assert.deepStrictEqual({
-				hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
-				hasMagicWord: result.toolNames.includes('get_magic_word'),
-			}, {
-				hasSearch: true,
-				hasMagicWord: false,
-			});
-		} finally {
-			await setRootConfig({ [CopilotCliConfigKey.ToolSearchEnabled]: false }, 101);
-		}
+		const result = await driveToolSearchTurn(sessionUri, 'turn-tool-search-malformed', 'not-json');
+		assert.deepStrictEqual({
+			hasSearch: result.toolNames.some(name => name === 'toolSearch' || name === 'tool_search_tool'),
+			hasMagicWord: result.toolNames.includes('get_magic_word'),
+		}, {
+			hasSearch: true,
+			hasMagicWord: false,
+		});
 	});
 
 	fullOnlyTest('view range returns only the requested workspace lines', async function () {

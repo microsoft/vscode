@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { cancelOnDispose, CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
+import { equals } from '../../../../../base/common/arrays.js';
 import { CancellationError, getErrorMessage } from '../../../../../base/common/errors.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
@@ -14,12 +15,11 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { normalizePluginPath, PLUGIN_MANIFEST_PATHS } from '../../../../../platform/agentPlugins/common/pluginParsers.js';
 import { CustomizationMarketplaceInstallation, CustomizationMarketplaceMediaType, getCustomizationMarketplaceResourceKey, ICustomizationMarketplaceResource, ICustomizationMarketplaceService, isCustomizationMarketplaceIconEqual } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
-import { normalizeMcpGalleryUrl } from '../../../../../platform/customizationMarketplace/common/mcpGalleryMarketplaceProvider.js';
 import { affectsCustomizationMarketplaceSources, CustomizationMarketplaceConfiguration, CustomizationMarketplaceSources, getVisibleCustomizationMarketplaceSources } from '../../../../../platform/customizationMarketplace/common/customizationMarketplaceSources.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { FileOperationResult, IFileService, toFileOperationResult } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { mcpGalleryServiceUrlConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { mcpGalleryServiceUrlConfig, normalizeMcpGalleryUrl } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpGalleryManifest, IMcpGalleryManifestService } from '../../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
@@ -195,7 +195,11 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 	private rememberResource(resource: ICustomizationMarketplaceResource): void {
 		const key = getCustomizationMarketplaceResourceKey(resource);
 		const previous = this.knownResources.get(key);
-		if (previous && isCustomizationMarketplaceIconEqual(previous.icon, resource.icon)) {
+		if (previous
+			&& isCustomizationMarketplaceIconEqual(previous.icon, resource.icon)
+			&& equals(previous.tags, resource.tags)
+			&& equals(previous.compatibilityTags ?? [], resource.compatibilityTags ?? [])
+			&& previous.installCount === resource.installCount) {
 			return;
 		}
 		this.knownResources.set(key, resource);
@@ -275,6 +279,14 @@ export class CustomizationMarketplaceInstallService extends Disposable implement
 		const exactMatches = this.providerInstallations.filter(installation => getCustomizationMarketplaceResourceKey(installation.resource) === key);
 		const matches = exactMatches.length ? exactMatches : this.providerInstallations.filter(installation => this.matchesProviderInstallation(installation.resource, resource));
 		return matches.length === 1 ? matches[0] : undefined;
+	}
+
+	findInstallation(resource: ICustomizationMarketplaceResource): IRecordedCustomizationMarketplaceResource | undefined {
+		const providerInstallation = this.findProviderInstallation(resource);
+		if (providerInstallation || this.providerInstallations.some(installation => this.matchesProviderInstallation(installation.resource, resource))) {
+			return providerInstallation;
+		}
+		return this.installations.get().findByResource(resource);
 	}
 
 	private getGitHubMcpRegistryIdentity(resource: ICustomizationMarketplaceResource): string | undefined {

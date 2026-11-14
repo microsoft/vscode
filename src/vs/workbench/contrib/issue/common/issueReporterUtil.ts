@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { rtrim } from '../../../../base/common/strings.js';
+import { GitHubAuthorizationContext } from '../../../../platform/github/common/githubTypes.js';
+import { AuthenticationSession } from '../../../services/authentication/common/authentication.js';
 
 export function normalizeGitHubUrl(url: string): string {
 	// If the url has a .git suffix, remove it
@@ -23,4 +25,14 @@ export function normalizeGitHubUrl(url: string): string {
 	}
 
 	return url;
+}
+
+export function getGitHubAuthorization(session: AuthenticationSession): GitHubAuthorizationContext {
+	return {
+		providerId: 'github',
+		sessionId: session.id,
+		accountId: session.account.id,
+		scopes: [...session.scopes],
+		authorizationServer: session.authorizationServer?.toString(),
+	};
 }

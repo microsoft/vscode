@@ -10,7 +10,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { MOUSE_BACK_FORWARD_NAVIGATION_SETTING } from '../../../../workbench/services/history/common/history.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { ISessionsService } from '../../../services/sessions/browser/sessionsService.js';
+import { ISessionsService } from '../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IWindowCanvasService } from '../../../../workbench/contrib/sessions/browser/windowCanvas.js';
 
 export class SessionsMouseNavigationContribution extends Disposable implements IWorkbenchContribution {
 
@@ -20,6 +21,7 @@ export class SessionsMouseNavigationContribution extends Disposable implements I
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ISessionsService private readonly sessionsService: ISessionsService,
+		@IWindowCanvasService private readonly windowCanvasService: IWindowCanvasService,
 	) {
 		super();
 
@@ -33,7 +35,8 @@ export class SessionsMouseNavigationContribution extends Disposable implements I
 	}
 
 	private handleMouseNavigation(event: MouseEvent, isMouseDown: boolean): void {
-		if (!this.configurationService.getValue(MOUSE_BACK_FORWARD_NAVIGATION_SETTING) || this.layoutService.hasFocus(Parts.EDITOR_PART)) {
+		if (!this.configurationService.getValue(MOUSE_BACK_FORWARD_NAVIGATION_SETTING)
+			|| this.layoutService.hasFocus(Parts.EDITOR_PART) && !this.windowCanvasService.activeCanvasId.get()) {
 			return;
 		}
 

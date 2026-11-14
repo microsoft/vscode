@@ -144,6 +144,29 @@ suite('KeybindingsEditing', () => {
 		return assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
+	test('add a keybinding preserves command arguments and the system-wide flag', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{
+			key: 'ctrl+cmd+a',
+			command: 'workbench.action.openAgentsWindow',
+			args: { source: 'keyboardShortcut' },
+			systemWide: true,
+		}];
+		const keybinding = new ResolvedKeybindingItem(
+			undefined,
+			'workbench.action.openAgentsWindow',
+			{ source: 'keyboardShortcut' },
+			undefined,
+			false,
+			null,
+			false,
+			true,
+		);
+
+		await testObject.addKeybinding(keybinding, 'ctrl+cmd+a', undefined);
+
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
 	test('add a new default keybinding', async () => {
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }];
 		await testObject.addKeybinding(aResolvedKeybindingItem({ command: 'a' }), 'alt+c', undefined);
@@ -167,6 +190,12 @@ suite('KeybindingsEditing', () => {
 		await writeToKeybindingsFile({ key: 'escape', command: 'b' }, { key: 'alt+shift+g', command: 'c' });
 		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'b' }, { key: 'alt+shift+g', command: 'c' }];
 		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'b', isDefault: false }), 'alt+c', undefined);
+		assert.deepStrictEqual(await getUserKeybindings(), expected);
+	});
+
+	test('edit a default system-wide keybinding adds a user keybinding that is not system-wide', async () => {
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: 'a' }, { key: 'escape', command: '-a' }];
+		await testObject.editKeybinding(aResolvedKeybindingItem({ firstChord: { keyCode: KeyCode.Escape }, command: 'a', systemWide: true }), 'alt+c', undefined);
 		assert.deepStrictEqual(await getUserKeybindings(), expected);
 	});
 
@@ -262,7 +291,7 @@ suite('KeybindingsEditing', () => {
 		return json.parse((await fileService.readFile(userDataProfileService.currentProfile.keybindingsResource)).value.toString());
 	}
 
-	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers } }): ResolvedKeybindingItem {
+	function aResolvedKeybindingItem({ command, when, isDefault, firstChord, secondChord, systemWide }: { command?: string; when?: string; isDefault?: boolean; firstChord?: { keyCode: KeyCode; modifiers?: Modifiers }; secondChord?: { keyCode: KeyCode; modifiers?: Modifiers }; systemWide?: boolean }): ResolvedKeybindingItem {
 		const aSimpleKeybinding = function (chord: { keyCode: KeyCode; modifiers?: Modifiers }): KeyCodeChord {
 			const { ctrlKey, shiftKey, altKey, metaKey } = chord.modifiers || { ctrlKey: false, shiftKey: false, altKey: false, metaKey: false };
 			return new KeyCodeChord(ctrlKey!, shiftKey!, altKey!, metaKey!, chord.keyCode);
@@ -275,6 +304,6 @@ suite('KeybindingsEditing', () => {
 			}
 		}
 		const keybinding = chords.length > 0 ? new USLayoutResolvedKeybinding(chords, OS) : undefined;
-		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false);
+		return new ResolvedKeybindingItem(keybinding, command || 'some command', null, when ? ContextKeyExpr.deserialize(when) : undefined, isDefault === undefined ? true : isDefault, null, false, systemWide);
 	}
 });

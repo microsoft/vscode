@@ -29,11 +29,12 @@ import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import product from '../../../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../../../platform/product/common/productService.js';
-import { NullTelemetryService, NullTelemetryServiceShape } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
 import { CopilotConnectorsMarketplaceProvider, CopilotConnectorsService } from '../../../browser/aiCustomization/copilotConnectorsService.js';
 import { CustomizationMarketplaceMediaType } from '../../../../../../platform/customizationMarketplace/common/customizationMarketplaceService.js';
+import { TestDataTelemetryService } from '../../../../../../platform/telemetry/test/common/testTelemetryService.js';
 
 function catalogResponse(
 	status: ConnectorPlugin['connection']['status'],
@@ -62,16 +63,6 @@ function catalogResponse(
 			},
 		})),
 	};
-}
-
-class TestTelemetryService extends NullTelemetryServiceShape {
-	readonly events: { readonly name: string; readonly data: Record<string, unknown> }[] = [];
-
-	override publicLog2(eventName?: string, data?: Record<string, unknown>): void {
-		if (eventName && data) {
-			this.events.push({ name: eventName, data });
-		}
-	}
 }
 
 suite('CopilotConnectorsService', () => {
@@ -164,7 +155,7 @@ suite('CopilotConnectorsService', () => {
 				return true;
 			}
 		}();
-		const telemetryService = new TestTelemetryService();
+		const telemetryService = new TestDataTelemetryService();
 		const grants: GitHubAuthorizationContext[] = [];
 		const leases = { acquired: 0, released: 0 };
 		const invalidatedGrants = store.add(new Emitter<GitHubCredentialChange>());
@@ -563,7 +554,7 @@ suite('CopilotConnectorsService', () => {
 		const unavailable = createFixture([], true, true);
 		await unavailable.service.refresh(CancellationToken.None);
 
-		const snapshot = (telemetry: TestTelemetryService) => telemetry.events.find(event => event.name === 'copilotConnectors.catalogSnapshot')?.data;
+		const snapshot = (telemetry: TestDataTelemetryService) => telemetry.events.find(event => event.name === 'copilotConnectors.catalogSnapshot')?.data;
 		assert.deepStrictEqual({
 			scoped: snapshot(scoped.telemetryService),
 			unscoped: snapshot(unscoped.telemetryService),
@@ -787,7 +778,7 @@ suite('CopilotConnectorsService', () => {
 		});
 	});
 
-	test('a connector session that covers a narrow default session but not the Copilot credential scopes does not satisfy authorization', async () => {
+	test('a connector session that covers a narrow default session but not the forwarded Copilot credential scopes does not satisfy authorization', async () => {
 		const fixture = createFixture([]);
 		fixture.setSessions([
 			{ ...fixture.initialSession, scopes: ['user:email'] },
@@ -796,8 +787,40 @@ suite('CopilotConnectorsService', () => {
 		]);
 		const authorized = await fixture.service.authorize(CancellationToken.None);
 		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
-			consent: [['github', ['user:email', 'read:user', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
 			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that grants the Copilot scopes but drops scopes of the forwarded credential does not satisfy authorization', async () => {
+		// A narrow default session once produced a Connector session without `repo`. The Agent Host never forwards it
+		// in place of the account's Copilot credential, so it must not count as authorized. Equally narrow credentials
+		// may each be forwarded, so the new session keeps the scopes of all of them.
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'codespace-session', accessToken: 'codespace-token', scopes: ['codespace', 'read:user', 'repo', 'user:email'] },
+			{ ...fixture.initialSession, id: 'narrow-connector-session', accessToken: 'narrow-connector-token', scopes: ['user:email', 'read:user', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [['github', ['user:email', 'read:user', 'repo', 'workflow', 'codespace', 'write:plugin_gateway_connections'], { account: { id: 'account', label: 'octocat' } }]],
+			authorized: 'authorized-session',
+		});
+	});
+
+	test('a connector session that keeps the forwarded Copilot credential scopes satisfies authorization without consent', async () => {
+		const fixture = createFixture([]);
+		fixture.setSessions([
+			{ ...fixture.initialSession, scopes: ['user:email'] },
+			{ ...fixture.initialSession, id: 'copilot-session', accessToken: 'copilot-token', scopes: ['read:user', 'user:email', 'repo', 'workflow'] },
+			{ ...fixture.initialSession, id: 'full-connector-session', accessToken: 'full-connector-token', scopes: ['read:user', 'user:email', 'repo', 'workflow', 'write:plugin_gateway_connections'] },
+		]);
+		const authorized = await fixture.service.authorize(CancellationToken.None);
+		assert.deepStrictEqual({ consent: fixture.consentCalls, authorized: authorized.id }, {
+			consent: [],
+			authorized: 'full-connector-session',
 		});
 	});
 
@@ -1350,6 +1373,25 @@ suite('CopilotConnectorsService', () => {
 		fixture.setAccount({ ...fixture.initialAccount, accountName: 'other', sessionId: 'other-session' });
 		await response.complete();
 		await connect;
+		assert.deepStrictEqual(fixture.requests.map(request => request.type), ['GET', 'PUT', 'GET']);
+	});
+
+	test('cancelling while waiting for browser authorization stops polling', async () => {
+		const reached = new DeferredPromise<void>();
+		const fixture = createFixture([
+			{ body: catalogResponse('not_connected') },
+			{ body: { status: 'Unauthenticated', provisioning_state: 'Succeeded', consent_link: 'https://github.com/settings/copilot/connectors/mail' } },
+			{ body: catalogResponse('pending'), ready: () => { void reached.complete(); return Promise.resolve(); } },
+			{ body: catalogResponse('connected') },
+		]);
+		const cancellation = store.add(new CancellationTokenSource());
+		const connect = assert.rejects(fixture.service.connect('mail', cancellation.token), isCancellationError);
+		await reached.p;
+		await timeout(50);
+
+		cancellation.cancel();
+		await connect;
+
 		assert.deepStrictEqual(fixture.requests.map(request => request.type), ['GET', 'PUT', 'GET']);
 	});
 

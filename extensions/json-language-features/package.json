@@ -29,9 +29,9 @@
     }
   },
   "scripts": {
-    "compile": "npx gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
-    "watch": "npx gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
-    "install-client-next": "npm install vscode-languageclient@next"
+    "compile": "pnpm exec gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
+    "watch": "pnpm exec gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
+    "install-client-next": "pnpm add vscode-languageclient@next"
   },
   "categories": [
     "Programming Languages"
@@ -217,7 +217,12 @@
     "vscode-languageclient": "^10.1.1"
   },
   "devDependencies": {
-    "@types/node": "24.x"
+    "@types/glob": "7.1.3",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "24.x",
+    "glob": "^5.0.13",
+    "mocha": "^10.8.2",
+    "tslib": "^2.6.3"
   },
   "repository": {
     "type": "git",

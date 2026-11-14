@@ -23,7 +23,6 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverService } from '../../../../../platform/hover/browser/hoverService.js';
 import { ILayoutService } from '../../../../../platform/layout/browser/layoutService.js';
 import { IMarkdownRendererService, MarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
-// eslint-disable-next-line local/code-import-patterns
 import { TitleBarAccountWidget } from '../../../../../sessions/contrib/accountMenu/browser/account.contribution.js';
 import { chatPetAchievements, ChatPetAchievementIds } from '../../../../contrib/chat/browser/chatPetAchievements.js';
 import { IChatPetService } from '../../../../contrib/chat/browser/chatPetService.js';

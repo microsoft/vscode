@@ -6,9 +6,10 @@
 import assert from 'assert';
 import sinon from 'sinon';
 import { Event } from '../../../../base/common/event.js';
+import { Separator } from '../../../../base/common/actions.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { IMenuItem, isIMenuItem, MenuId, MenuRegistry, SubmenuItemAction } from '../../common/actions.js';
+import { getMenuActionGroupTitle, IMenuItem, isIMenuItem, MenuId, MenuRegistry, SubmenuItemAction } from '../../common/actions.js';
 import { MenuService } from '../../common/menuService.js';
 import { NullCommandService } from '../../../commands/test/common/nullCommandService.js';
 import { ContextKeyExpr, ContextKeyExpression } from '../../../contextkey/common/contextkey.js';
@@ -192,6 +193,38 @@ suite('MenuService', function () {
 		});
 	});
 
+	test('getMenuActions evaluates submenu toggle state without checking its children', () => {
+		const submenuId = new MenuId(`testo/${generateUuid()}`);
+		const active = contextKeyService.createKey<boolean>('submenuActive', false);
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			title: 'Submenu',
+			submenu: submenuId,
+			toggled: ContextKeyExpr.has('submenuActive'),
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(submenuId, {
+			command: { id: 'child', title: 'Child' },
+		}));
+		const snapshot = () => {
+			const action = menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0];
+			assert.ok(action instanceof SubmenuItemAction);
+			return { checked: action.checked, childChecked: action.actions[0].checked };
+		};
+
+		const inactive = snapshot();
+		active.set(true);
+		const activeState = snapshot();
+
+		assert.deepStrictEqual({
+			inactive,
+			active: activeState,
+			contexts: [...menuService.getMenuContexts(testMenuId)],
+		}, {
+			inactive: { checked: false, childChecked: undefined },
+			active: { checked: true, childChecked: undefined },
+			contexts: ['submenuActive'],
+		});
+	});
+
 	test('getMenuActions observes implicit command palette items synchronously', () => {
 		const commandId = `testo/${generateUuid()}`;
 		const containsCommand = () => menuService.getMenuActions(MenuId.CommandPalette, contextKeyService)
@@ -203,6 +236,66 @@ suite('MenuService', function () {
 		snapshots.push(containsCommand());
 
 		assert.deepStrictEqual(snapshots, [false, true, false]);
+	});
+
+	test('getMenuActions gives actions the title of their menu group and keeps plain separators', () => {
+		const canvasMenuId = new MenuId(`testo/${generateUuid()}`);
+		disposables.add(MenuRegistry.appendMenuItems([
+			{ id: testMenuId, item: { command: { id: 'files', title: 'Files' }, group: 'navigation' } },
+			{ id: testMenuId, item: { title: 'Canvas', submenu: canvasMenuId, group: '2_tools' } },
+			{ id: canvasMenuId, item: { command: { id: 'recent', title: 'Recent Plan' }, group: '0_recent' } },
+			{ id: canvasMenuId, item: { command: { id: 'plan', title: 'Plan' }, group: '1_available' } },
+			{ id: canvasMenuId, item: { command: { id: 'hidden', title: 'Hidden' }, group: '3_discover', order: 0, when: ContextKeyExpr.has('missing') } },
+			{ id: canvasMenuId, item: { command: { id: 'create', title: 'Create a Canvas' }, group: '3_discover', order: 1 } },
+			{ id: canvasMenuId, item: { command: { id: 'browse', title: 'Browse Canvases' }, group: '3_discover', order: 2 } },
+		]));
+		disposables.add(MenuRegistry.appendMenuGroup(testMenuId, { group: '2_tools', title: 'Tools' }));
+		disposables.add(MenuRegistry.appendMenuGroup(canvasMenuId, { group: '0_recent', title: 'Recent' }));
+		disposables.add(MenuRegistry.appendMenuGroup(canvasMenuId, { group: '3_discover', title: 'Discover More' }));
+		// Groups are described per menu
+		disposables.add(MenuRegistry.appendMenuGroup(testMenuId, { group: '1_available', title: 'Other Menu' }));
+
+		const groups = menuService.getMenuActions(testMenuId, contextKeyService);
+		const canvas = groups[1][1][0];
+		assert.ok(canvas instanceof SubmenuItemAction);
+
+		assert.deepStrictEqual({
+			groups: groups.map(([group, actions]) => [group, actions.map(action => [action.label, getMenuActionGroupTitle(action)])]),
+			canvas: canvas.actions.map(action => action instanceof Separator ? `---${action.label ? ` ${action.label}` : ''}` : [action.label, getMenuActionGroupTitle(action)]),
+		}, {
+			groups: [
+				['navigation', [['Files', undefined]]],
+				['2_tools', [['Canvas', 'Tools']]],
+			],
+			canvas: [['Recent Plan', 'Recent'], '---', ['Plan', undefined], '---', ['Create a Canvas', 'Discover More'], ['Browse Canvases', 'Discover More']],
+		});
+	});
+
+	test('the latest description of a menu group applies until disposed and updates open menus', async () => {
+		const menuId = new MenuId(`testo/${generateUuid()}`);
+		disposables.add(MenuRegistry.appendMenuItem(menuId, { command: { id: 'create', title: 'Create a Canvas' }, group: '3_discover' }));
+		const menu = disposables.add(menuService.createMenu(menuId, contextKeyService, { eventDebounceDelay: 0 }));
+		const title = () => getMenuActionGroupTitle(menu.getActions()[0][1][0]);
+		const titles = [title()];
+
+		let changed = Event.toPromise(menu.onDidChange);
+		const original = disposables.add(MenuRegistry.appendMenuGroup(menuId, { group: '3_discover', title: 'Discover More' }));
+		await changed;
+		titles.push(title());
+
+		changed = Event.toPromise(menu.onDidChange);
+		const override = disposables.add(MenuRegistry.appendMenuGroup(menuId, { group: '3_discover', title: 'Explore' }));
+		await changed;
+		titles.push(title());
+
+		for (const registration of [override, original]) {
+			changed = Event.toPromise(menu.onDidChange);
+			registration.dispose();
+			await changed;
+			titles.push(title());
+		}
+
+		assert.deepStrictEqual(titles, [undefined, 'Discover More', 'Explore', 'Discover More', undefined]);
 	});
 
 	test('getMenuActions observes changes to registered titles, orders and groups', () => {
@@ -350,6 +443,28 @@ suite('MenuService', function () {
 			labels: ['Short', 'Long title'],
 			hidden: [true, false, true],
 			calls: [['command', 'first', 'forwarded'], ['command', 'second']],
+		});
+	});
+
+	test('isModifiedFromDefault reflects divergence from the default state', async () => {
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'hiddenByDefault', title: 'Hidden By Default' },
+			isHiddenByDefault: true,
+		}));
+		disposables.add(MenuRegistry.appendMenuItem(testMenuId, {
+			command: { id: 'visibleByDefault', title: 'Visible By Default' },
+		}));
+		const get = () => menuService.getMenuActions(testMenuId, contextKeyService)[0][1].map(a => a.hideActions?.isModifiedFromDefault);
+		const initial = get();
+		await menuService.getMenuActions(testMenuId, contextKeyService)[0][1][0].hideActions?.toggle.run();
+		await menuService.getMenuActions(testMenuId, contextKeyService)[0][1][1].hideActions?.toggle.run();
+		const modified = get();
+		menuService.resetHiddenStates([testMenuId]);
+
+		assert.deepStrictEqual({ initial, modified, reset: get() }, {
+			initial: [false, false],
+			modified: [true, true],
+			reset: [false, false]
 		});
 	});
 

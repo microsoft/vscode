@@ -16,24 +16,18 @@ suite('claudeTransportMode', () => {
 		const bools: readonly boolean[] = [false, true];
 
 		const actual: Record<string, string> = {};
-		for (const allowSignedOutWhenUsable of bools) {
-			for (const hasGitHubToken of bools) {
-				for (const hasExistingSetup of bools) {
-					const key = `flag=${allowSignedOutWhenUsable},token=${hasGitHubToken},setup=${hasExistingSetup}`;
-					actual[key] = resolveClaudeTransportMode({ allowSignedOutWhenUsable, hasGitHubToken, hasExistingSetup });
-				}
+		for (const hasGitHubToken of bools) {
+			for (const hasExistingSetup of bools) {
+				const key = `token=${hasGitHubToken},setup=${hasExistingSetup}`;
+				actual[key] = resolveClaudeTransportMode({ hasGitHubToken, hasExistingSetup });
 			}
 		}
 
 		assert.deepStrictEqual(actual, {
-			'flag=false,token=false,setup=false': 'proxy', // flag off ⇒ today's default
-			'flag=false,token=false,setup=true': 'proxy',  // flag off ignores setup
-			'flag=false,token=true,setup=false': 'proxy',
-			'flag=false,token=true,setup=true': 'proxy',
-			'flag=true,token=false,setup=false': 'proxy',  // nothing usable ⇒ safe end (fails at use, not here)
-			'flag=true,token=false,setup=true': 'native',  // signed out + own creds ⇒ native
-			'flag=true,token=true,setup=false': 'proxy',   // signed in ⇒ prefer Copilot
-			'flag=true,token=true,setup=true': 'proxy',    // signed in wins over setup
+			'token=false,setup=false': 'proxy',
+			'token=false,setup=true': 'native',
+			'token=true,setup=false': 'proxy',
+			'token=true,setup=true': 'proxy',
 		});
 	});
 

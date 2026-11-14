@@ -598,12 +598,6 @@
 	min-width: max-content;
 }
 
-.agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container.standard-new-session-composer-layout .new-chat-controls-container {
-	flex: 0 0 auto;
-	min-width: max-content;
-	overflow: visible;
-}
-
 .agent-sessions-workbench.phone-layout .new-chat-widget-container .new-chat-bottom-container .monaco-action-bar > .actions-container > .action-item.repository-config-separator {
 	display: none;
 }

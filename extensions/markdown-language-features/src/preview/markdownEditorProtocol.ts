@@ -8,7 +8,7 @@ import * as z from 'zod/mini';
 
 const offset = z.int().check(z.nonnegative());
 const range = z.object({ start: offset, endExclusive: offset });
-const editorConfiguration = z.object({ highlightActiveBlock: z.boolean() });
+const editorConfiguration = z.object({ highlightActiveBlock: z.boolean(), renderWhitespace: z.boolean() });
 const selection = z.object({ anchor: offset, active: offset });
 export const navigationState = z.object({
 	editEpoch: offset,
@@ -42,6 +42,7 @@ export const codeBlockEditorPresentation = z.object({
 	fullWidth: z.optional(z.boolean()),
 	fullView: z.optional(z.boolean()),
 	minHeight: z.optional(z.number().check(z.positive(), z.maximum(10_000))),
+	maxAutomaticHeight: z.optional(z.number().check(z.positive(), z.maximum(10_000))),
 });
 
 export function mergeCodeBlockEditorPresentation(
@@ -59,6 +60,7 @@ export function mergeCodeBlockEditorPresentation(
 		fullWidth: resolved.fullWidth ?? contributed.fullWidth,
 		fullView: resolved.fullView ?? contributed.fullView,
 		minHeight: resolved.minHeight ?? contributed.minHeight,
+		maxAutomaticHeight: resolved.maxAutomaticHeight ?? contributed.maxAutomaticHeight,
 	};
 }
 

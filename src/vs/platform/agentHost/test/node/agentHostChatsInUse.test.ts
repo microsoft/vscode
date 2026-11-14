@@ -68,6 +68,21 @@ suite('getChatsInUse', () => {
 		], { excludedChat: 'excluded' }), [{ source: 'live', workingDirectories: ['file:///live'] }]);
 	});
 
+	for (const archived of [false, true]) {
+		test(`an independently ${archived ? 'archived' : 'excluded'} side chat and its descendants release their private folders`, () => {
+			assert.deepStrictEqual(foldersInUse([
+				chat('parent', { workingDirectories: ['file:///parent'] }),
+				chat('side', { archived, workingDirectories: ['file:///side'], origin: { kind: ChatOriginKind.SideChat, chat: 'parent', turnId: 'turn' } }),
+				chat('tool', { origin: { kind: ChatOriginKind.Tool, chat: 'side', toolCallId: 't' } }),
+				chat('nested-side', { workingDirectories: ['file:///nested'], origin: { kind: ChatOriginKind.SideChat, chat: 'tool', turnId: 'turn' } }),
+				chat('sibling', { workingDirectories: ['file:///sibling'], origin: { kind: ChatOriginKind.SideChat, chat: 'parent', turnId: 'turn' } }),
+			], { excludedChat: archived ? undefined : 'side' }), [
+				{ source: 'parent', workingDirectories: ['file:///parent'] },
+				{ source: 'sibling', workingDirectories: ['file:///sibling'] },
+			]);
+		});
+	}
+
 	test('a chat whose spawning chat is unknown has no known folders', () => {
 		assert.deepStrictEqual(foldersInUse([chat('orphan', { origin: { kind: ChatOriginKind.Tool, chat: 'missing', toolCallId: 't' } })]), [
 			{ source: undefined, workingDirectories: undefined },

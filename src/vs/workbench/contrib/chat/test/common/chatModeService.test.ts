@@ -16,7 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IChatAgentService } from '../../common/participants/chatAgents.js';
-import { ChatMode, ChatModeService, CustomChatMode } from '../../common/chatModes.js';
+import { ChatMode, ChatModeService, CustomChatMode, getChatModeSourceLabel } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { createVSCodeHarnessDescriptor, CustomizationHarnessServiceBase, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
@@ -80,6 +80,39 @@ suite('ChatModeService', () => {
 	const waitForRefresh = async (): Promise<void> => {
 		await (await chatModeService.getLocalModes()).waitForPendingUpdates();
 	};
+
+	test('preserves source labels through caching and updates without changing agent names or IDs', async () => {
+		const first: ICustomAgent = {
+			id: 'client-agent:/first', uri: URI.parse('client-agent:/first'), name: 'Reviewer',
+			source: { storage: PromptsStorage.local, label: 'VS Code' },
+			agentInstructions: { content: '', toolReferences: [] },
+			target: Target.Undefined, visibility: { userInvocable: true, agentInvocable: true }, enabled: true,
+		};
+		const second: ICustomAgent = { ...first, id: 'client-agent:/second', uri: URI.parse('client-agent:/second'), source: { storage: PromptsStorage.local, label: 'Plugin: review-tools' } };
+		promptsService.setCustomModes([first, second]);
+		await waitForRefresh();
+		const modes = await chatModeService.getLocalModes();
+		storageService.store('chat.customModes.local', modes.custom, StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		const cached = testDisposables.add(chatModeService.createModes(LocalChatSessionUri.getNewSessionUri()));
+		const cachedLabels = cached.custom.map(mode => mode.source?.label);
+		const before = modes.findModeById(first.id);
+		promptsService.setCustomModes([{ ...first, source: { ...first.source, label: 'Workspace' } }, second]);
+		await waitForRefresh();
+		const after = modes.findModeById(first.id);
+		assert.deepStrictEqual({
+			cachedLabels,
+			sameMode: before === after,
+			identity: { id: after?.id, name: after?.name.get(), source: after?.source?.label },
+			duplicateSources: modes.custom.map(mode => getChatModeSourceLabel(mode, modes.custom)),
+			uniqueSource: after && getChatModeSourceLabel(after, [after]),
+		}, {
+			cachedLabels: ['VS Code', 'Plugin: review-tools'],
+			sameMode: true,
+			identity: { id: first.id, name: 'Reviewer', source: 'Workspace' },
+			duplicateSources: ['Workspace', 'Plugin: review-tools'],
+			uniqueSource: undefined,
+		});
+	});
 
 	test('should return builtin modes', async () => {
 		const modes = await chatModeService.getLocalModes();

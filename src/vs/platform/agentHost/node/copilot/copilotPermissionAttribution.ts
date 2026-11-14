@@ -6,7 +6,11 @@
 import { createAttributedPermissionResult, type AttributedPermissionResult, type PermissionDecisionSource, type PermissionRequestResult, type PermissionResult } from '@github/copilot-sdk';
 import type { IAgentHostToolApprovalReport } from '../agentHostTelemetryReporter.js';
 
-export function attributePermissionResult(result: PermissionRequestResult, source: PermissionDecisionSource | undefined): PermissionRequestResult | AttributedPermissionResult {
+/**
+ * Attributes a permission decision to its source. Only a person's response carries their
+ * optional feedback, which the runtime records solely as restricted telemetry.
+ */
+export function attributePermissionResult(result: PermissionRequestResult, source: PermissionDecisionSource | undefined, userFeedback?: string): PermissionRequestResult | AttributedPermissionResult {
 	if (!source || result.kind === 'no-result') {
 		return result;
 	}
@@ -16,6 +20,7 @@ export function attributePermissionResult(result: PermissionRequestResult, sourc
 			surface: 'sdk',
 			outcome: 'prompted_user',
 			responseCapability: 'interactive',
+			...(userFeedback ? { userFeedback } : {}),
 		});
 	}
 	return createAttributedPermissionResult(result, {

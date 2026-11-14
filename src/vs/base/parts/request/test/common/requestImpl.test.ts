@@ -54,6 +54,34 @@ suite('Fetch request diagnostics', () => {
 	}
 
 	for (const phase of ['headers', 'body']) {
+		test(`reports a timeout, not cancellation, while awaiting ${phase}`, async () => {
+			let abortReason: string | undefined;
+			const result = request({
+				url: 'https://example.test/private-path', callSite: 'request.test.timeoutDiagnostics', diagnosticId: 'timeout-test', timeout: 10,
+			}, CancellationToken.None, undefined, async (_url, init) => {
+				const signal = init?.signal;
+				assert.ok(signal);
+				const abort = () => new Promise<never>((_resolve, reject) => {
+					signal.addEventListener('abort', () => {
+						abortReason = signal.reason.name;
+						reject(phase === 'headers' ? signal.reason : new DOMException('Aborted', 'AbortError'));
+					}, { once: true });
+				});
+				if (phase === 'headers') {
+					return abort();
+				}
+				return new class extends Response {
+					override arrayBuffer(): Promise<ArrayBuffer> {
+						return abort();
+					}
+				}();
+			});
+			await assert.rejects(result, { name: 'Error', message: 'Fetch timeout: 10ms' });
+			assert.deepStrictEqual({ abortReason, remainingMarks: marks('timeout-test') }, {
+				abortReason: 'TimeoutError', remainingMarks: [],
+			});
+		});
+
 		test(`preserves cancellation and clears diagnostic marks while awaiting ${phase}`, () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const source = store.add(new CancellationTokenSource());
 			let reachedBody = false;

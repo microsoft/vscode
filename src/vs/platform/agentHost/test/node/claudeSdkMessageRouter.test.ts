@@ -24,12 +24,13 @@ import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { IAgentEditAttribution, IAgentEditAttributionService, NullAgentEditAttributionService } from '../../common/fileEditAttribution.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType } from '../../common/state/sessionActions.js';
-import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, SessionStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { buildChatUri, buildDefaultChatUri, buildSubagentChatUri, SessionStatus, ToolCallContributorKind, ToolResultContentType, type ToolDefinition } from '../../common/state/sessionState.js';
 import { createAgentChatContext } from '../../node/agentChatContext.js';
 import { AgentHostAuthenticationService } from '../../node/agentHostAuthenticationService.js';
 import { AgentHostFileEditCoordinator, IAgentHostFileEditCoordinator } from '../../node/agentHostFileEditCoordinator.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { ClaudeSdkMessageRouter } from '../../node/claude/claudeSdkMessageRouter.js';
+import { SessionClientToolsModel } from '../../node/claude/clientTools/claudeSessionClientToolsModel.js';
 import { SubagentRegistry } from '../../node/claude/claudeSubagentRegistry.js';
 import { IEditArcReporterService, NullEditArcReporterService } from '../../node/shared/editArcReporter.js';
 import { IEditSurvivalReporterFactory, NullEditSurvivalReporterFactory } from '../../node/shared/editSurvivalReporter.js';
@@ -51,6 +52,7 @@ interface IRouterHarness {
 	readonly signals: AgentSignal[];
 	readonly fileService: FileService;
 	readonly database: TestSessionDatabase;
+	readonly clientTools: SessionClientToolsModel;
 }
 
 class RecordingAgentEditAttributionService extends NullAgentEditAttributionService {
@@ -95,6 +97,7 @@ function createRouter(
 	);
 	const inst: IInstantiationService = disposables.add(new InstantiationService(services));
 	const subagents = disposables.add(new SubagentRegistry());
+	const clientTools = new SessionClientToolsModel();
 	const router = disposables.add(inst.createInstance(
 		ClaudeSdkMessageRouter,
 		chatChannelUri,
@@ -102,11 +105,11 @@ function createRouter(
 		isMintedTestDefaultChat(chatChannelUri.toString()) ? URI.parse('claude:/sess-1') : chatChannelUri,
 		dbRef,
 		subagents,
-		undefined,
+		clientTools,
 	));
 	const signals: AgentSignal[] = [];
 	disposables.add(router.onDidProduceSignal(s => signals.push(s)));
-	return { router, signals, fileService, database: db };
+	return { router, signals, fileService, database: db, clientTools };
 }
 
 function assistantMessage(content: unknown, parentToolUseId: string | null = null): Extract<SDKMessage, { type: 'assistant' }> {
@@ -120,6 +123,36 @@ function userMessage(content: unknown, parentToolUseId: string | null = null): E
 suite('ClaudeSdkMessageRouter', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('reads live client-tool ownership for streaming and subagent calls', async () => {
+		const { router, signals, clientTools } = createRouter(disposables);
+		const tools: ToolDefinition[] = [{ name: 'echo', inputSchema: { type: 'object' } }];
+		clientTools.setTools('first', tools);
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(0, 'top-first', 'mcp__client__echo')), 'turn-1');
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'inner-first', name: 'mcp__client__echo', input: {} },
+		], 'parent'), 'turn-1');
+		clientTools.setTools('second', tools);
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(1, 'top-collision', 'mcp__client__echo')), 'turn-1');
+		clientTools.removeClient('first');
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(2, 'top-second', 'mcp__client__echo')), 'turn-1');
+		await router.handle(assistantMessage([
+			{ type: 'tool_use', id: 'inner-second', name: 'mcp__client__echo', input: {} },
+		], 'parent'), 'turn-1');
+		clientTools.removeClient('second');
+		await router.handle(makeStreamEvent('sess-1', makeContentBlockStartToolUse(3, 'top-removed', 'mcp__client__echo')), 'turn-1');
+		const starts = signals.flatMap(signal => signal.kind === 'action' && signal.action.type === ActionType.ChatToolCallStart
+			? [{ id: signal.action.toolCallId, contributor: signal.action.contributor }]
+			: []);
+		assert.deepStrictEqual(starts, [
+			{ id: 'top-first', contributor: { kind: ToolCallContributorKind.Client, clientId: 'first' } },
+			{ id: 'inner-first', contributor: { kind: ToolCallContributorKind.Client, clientId: 'first' } },
+			{ id: 'top-collision', contributor: { kind: ToolCallContributorKind.Client, clientId: 'first' } },
+			{ id: 'top-second', contributor: { kind: ToolCallContributorKind.Client, clientId: 'second' } },
+			{ id: 'inner-second', contributor: { kind: ToolCallContributorKind.Client, clientId: 'second' } },
+			{ id: 'top-removed', contributor: undefined },
+		]);
+	});
 
 	test('handle with turnId=undefined produces no signals (turn-less messages are routed to nowhere)', async () => {
 		const { router, signals } = createRouter(disposables);

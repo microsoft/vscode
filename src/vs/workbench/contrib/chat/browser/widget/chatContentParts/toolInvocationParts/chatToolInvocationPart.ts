@@ -241,6 +241,19 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		this.domNode.appendChild(subPartDomNode);
 
 		const render = () => {
+			const state = toolInvocation.kind === 'toolInvocation' ? toolInvocation.state.get() : undefined;
+			if (context.renderInputRequests === false && state && (
+				state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+				|| state.type === IChatToolInvocation.StateKind.WaitingForPostApproval
+				|| state.type === IChatToolInvocation.StateKind.WaitingForAuthentication
+				|| (toolInvocation.toolSpecificData?.kind === 'extensions' && !IChatToolInvocation.isComplete(toolInvocation))
+			)) {
+				partStore.clear();
+				imageResultPart.clear();
+				this.subPart = undefined;
+				this._isVisible.set(false, undefined);
+				return;
+			}
 			const wasGeneratingImage = this.subPart instanceof ChatImageGenerationToolProgressPart;
 			const imageReveal = this.subPart instanceof ChatImageGenerationToolProgressPart ? this.subPart.getRevealOrigin(this.domNode) : undefined;
 			const isGeneratingImage = isImageGenerationToolInProgress(toolInvocation);
@@ -379,7 +392,8 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 	 * for the tool and a chat widget exists to host it; only the carousel's own copy renders it.
 	 */
 	private defersConfirmationToCarousel(): boolean {
-		return !this.context.inToolConfirmationCarousel
+		return this.context.renderInputRequests !== false
+			&& !this.context.inToolConfirmationCarousel
 			&& isCarouselToolConfirmation(this.toolInvocation)
 			&& !!this.configurationService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)
 			&& !!this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource);

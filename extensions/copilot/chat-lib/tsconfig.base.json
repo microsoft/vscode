@@ -1,6 +1,11 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
+		// TypeScript 6 resolves with the bundler rules here, which add the `import` condition. Add
+		// `require`, the condition with which Node loads this CommonJS output, so that declarations
+		// can name the types of packages with `exports` (such as @sinclair/typebox) through pnpm's
+		// symlinked node_modules instead of failing with TS2883 ("likely not portable").
+		"customConditions": ["require"],
 		"target": "es2022",
 		"lib": ["ES2022"],
 		"sourceMap": true,
