@@ -255,9 +255,10 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		this.groupId = init.groupId;
 		this._getFolderPresentation = init.getFolderPresentation;
 		const windowFolders = init.allowedFolders;
-		const targetFolder = init.target?.folderUri;
+		// Also the folder it aims at, such as one its host retargets it to outside the window's folders
 		this.allowedFolders = windowFolders && derived(this, reader => {
 			const folders = windowFolders.read(reader);
+			const targetFolder = this._requestedTarget.read(reader)?.folderUri;
 			return folders.length && targetFolder && !folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, targetFolder)) ? [...folders, targetFolder] : folders;
 		});
 		this._requestedTarget.set(init.target, undefined);

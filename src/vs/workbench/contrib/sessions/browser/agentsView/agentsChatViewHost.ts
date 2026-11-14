@@ -96,7 +96,7 @@ export class AgentsChatViewHost implements IChatViewHost {
 		if (!this._ownsNewChat.get() || !this._available) {
 			return false;
 		}
-		const aimed = target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType } : this._composerTarget();
+		const aimed = target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer } : this._composerTarget();
 		await this._chatPart.openComposer(aimed, { newComposer: true, preserveFocus: options?.preserveFocus });
 		return true;
 	}

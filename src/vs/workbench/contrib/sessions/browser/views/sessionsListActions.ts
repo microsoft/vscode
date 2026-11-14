@@ -632,10 +632,18 @@ function setSessionListChatReadState(sessionsManagementService: ISessionsManagem
 	return isRead ? sessionsManagementService.markChatRead(session, chat) : sessionsManagementService.markChatUnread(session, chat);
 }
 
-async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISession[] | ISessionChatItem | undefined, isRead: boolean): Promise<void> {
+async function markSessionListTargetsRead(accessor: ServicesAccessor, context: ISession | ISessionChatItem | readonly (ISession | ISessionChatItem)[] | undefined, isRead: boolean): Promise<void> {
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
-	if (context && !Array.isArray(context) && hasKey(context, { session: true, chat: true })) {
-		await setSessionListChatReadState(sessionsManagementService, context, isRead);
+	const isChatItem = (target: ISession | ISessionChatItem): target is ISessionChatItem => hasKey(target, { session: true, chat: true });
+	if (context && !Array.isArray(context) && isChatItem(context as ISession | ISessionChatItem)) {
+		await setSessionListChatReadState(sessionsManagementService, context as ISessionChatItem, isRead);
+		return;
+	}
+	// Several targets, each a session or a chat of a session, such as the chat tabs a command runs for
+	if (Array.isArray(context) && context.some(isChatItem)) {
+		for (const target of context) {
+			await (isChatItem(target) ? setSessionListChatReadState(sessionsManagementService, target, isRead) : isRead ? sessionsManagementService.markRead(target) : sessionsManagementService.markUnread(target));
+		}
 		return;
 	}
 	if (!context) {
@@ -647,7 +655,7 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
 			return;
 		}
 	}
-	const sessions = context ? (Array.isArray(context) ? context : [context]) : getFocusedSessionListTargets(accessor) ?? [];
+	const sessions = (context ? (Array.isArray(context) ? context : [context]) : getFocusedSessionListTargets(accessor) ?? []) as readonly ISession[];
 	for (const session of sessions) {
 		await (isRead ? sessionsManagementService.markRead(session) : sessionsManagementService.markUnread(session));
 	}
@@ -660,8 +668,8 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
  */
 export function registerSessionsListReadStateCommands(): IDisposable {
 	const store = new DisposableStore();
-	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, true)));
-	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, false)));
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISessionChatItem | readonly (ISession | ISessionChatItem)[]) => markSessionListTargetsRead(accessor, context, true)));
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISessionChatItem | readonly (ISession | ISessionChatItem)[]) => markSessionListTargetsRead(accessor, context, false)));
 	return store;
 }
 
