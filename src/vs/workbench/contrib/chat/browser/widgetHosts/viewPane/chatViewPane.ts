@@ -69,7 +69,7 @@ import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelc
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
-import { IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
+import { IChatViewSessionsComposer, IChatViewSessionsList, IChatViewSessionsListControl, IChatViewSessionsListService } from './chatViewSessionsList.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
@@ -461,6 +461,18 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Chat Control
 		const chatWidget = this.createChatControl(parent);
+
+		// Composer of new chats of a provided sessions list, in place of the chat while it is a new chat
+		const composer = this.providedSessionsList?.createComposer?.(append(parent, $('.chat-view-composer-container')));
+		if (composer) {
+			this.providedComposer = this._register(composer);
+			this._register(Event.any(chatWidget.onDidChangeEmptyState, chatWidget.onDidChangeViewModel)(() => this.updateComposerVisibility()));
+			this._register(autorun(reader => {
+				composer.height.read(reader);
+				this.relayout();
+			}));
+			this.updateComposerVisibility();
+		}
 
 		// Controls Listeners
 		this.registerControlsListeners(sessionsControl, chatWidget, welcomeController);
@@ -868,6 +880,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsControl: IChatViewSessionsListControl | undefined;
 	/** The sessions list a provider gives in place of the Chat view's own, if any. */
 	private providedSessionsList: IChatViewSessionsList | undefined;
+	/** The composer of new chats of {@link providedSessionsList}, if any, and whether it shows in place of the chat. */
+	private providedComposer: IChatViewSessionsComposer | undefined;
+	private composerShown = false;
+
+	/** Shows the provided composer in place of the chat while the chat is a new chat: empty, without a title. */
+	private updateComposerVisibility(): void {
+		const shown = !!this.providedComposer && (!this._widget?.viewModel || (this._widget.isEmpty() && !this._widget.viewModel.model.title));
+		if (shown !== this.composerShown) {
+			this.composerShown = shown;
+			this.viewPaneContainer?.classList.toggle('shows-composer', shown);
+			this.relayout();
+		}
+	}
 
 	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl instanceof AgentSessionsControl ? this.sessionsControl : undefined; }
 	private sessionsListRevealCount = 0;
@@ -1767,6 +1792,10 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	focusInput(): void {
+		if (this.composerShown && this.providedComposer) {
+			this.providedComposer.focus();
+			return;
+		}
 		this._widget.focusInput();
 	}
 
@@ -1851,6 +1880,11 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			layoutChatWidgetForInputHeight(this._widget, inputMaxHeight, remainingHeight - heightReduction, remainingWidth - widthReduction);
 		}
 
+		// Composer, in place of the chat
+		if (this.composerShown) {
+			this.providedComposer?.layout(remainingWidth - widthReduction, remainingHeight - heightReduction);
+		}
+
 		// Remember last dimensions per orientation
 		this.lastDimensionsPerOrientation.set(this.sessionsViewerOrientation, { height, width });
 	}
@@ -1927,7 +1961,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		let availableSessionsHeight = height - sessionsTitleHeight;
 		let reservedChatWidgetHeight = 0;
 		if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
-			reservedChatWidgetHeight = sessionsOnly ? 0 : Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
+			reservedChatWidgetHeight = sessionsOnly ? 0 : this.composerShown && this.providedComposer ? this.providedComposer.height.get() : Math.max(ChatViewPane.MIN_CHAT_WIDGET_HEIGHT, this._widget?.input?.height.get() ?? 0);
 			availableSessionsHeight -= reservedChatWidgetHeight;
 		} else {
 			availableSessionsHeight -= this.sessionsNewButtonContainer?.offsetHeight ?? 0;
