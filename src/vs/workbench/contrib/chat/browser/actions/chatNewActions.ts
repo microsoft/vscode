@@ -114,15 +114,17 @@ export class NewChatAction extends Action2 {
 async function runNewChatCommand(accessor: ServicesAccessor, args: unknown[]): Promise<void> {
 	const actionContext = unwrapChatContextMenuActionContext(args[0]);
 	const executeCommandContext = isNewEditSessionActionContext(actionContext) ? actionContext : undefined;
+	const chatViewHostService = accessor.get(IChatViewHostService);
+	const instantiationService = accessor.get(IInstantiationService);
 
-	// For the Chat view, such as from its title, a host that replaces it may start the new chat itself
-	if ((!actionContext || isChatViewTitleActionContext(actionContext)) && accessor.get(IChatViewHostService).newChat()) {
+	// For the Chat view, such as from its title, a host that replaces it may start the new chat itself: once it shows, so that
+	// a request that follows, such as of Run Prompt in New Chat, goes to it
+	if ((!actionContext || isChatViewTitleActionContext(actionContext)) && await chatViewHostService.newChat()) {
 		return;
 	}
 
 	// Context from toolbar or lastFocusedWidget
-	const context = getEditingSessionContext(accessor, [actionContext, ...args.slice(1)]);
-	await runNewChatAction(accessor, context, executeCommandContext);
+	await instantiationService.invokeFunction(accessor => runNewChatAction(accessor, getEditingSessionContext(accessor, [actionContext, ...args.slice(1)]), executeCommandContext));
 }
 
 export const NEW_CHAT_ICON_VARIANTS = [

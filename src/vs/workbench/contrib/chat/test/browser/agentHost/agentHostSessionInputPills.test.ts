@@ -3327,6 +3327,26 @@ suite('AgentHostSessionInputPills', () => {
 		});
 	});
 
+	test('an input that shows only the working set shows the Changes pill again once the working set shows no files, and the pill offers to show the working set again', async () => {
+		const { harness, setOperations } = createSessionWorkingSetPills({ workingSetOnly: true });
+		const operations = [acceptChanges(ChangesetOperationStatus.Idle), discardWorkingSetChanges(ChangesetOperationStatus.Idle)];
+		setOperations(operations);
+		await harness.setWorkingSetEnabled(true);
+		const actions = () => harness.pills.getChangesPillContextMenuActions().map(action => action.label);
+		const withFiles = { hidden: harness.pills.changesPillHidden.get(), actions: actions() };
+		// Keep empties the working set: the session's other changes are reachable through the Changes pill again
+		harness.connection.setState(StateComponents.Changeset, upcastPartial<ChangesetState>({ status: ChangesetStatus.Ready, files: [], operations }));
+		const afterKeep = { hidden: harness.pills.changesPillHidden.get(), actions: actions() };
+		// Show Pill turned the working set off: the Changes pill offers to show it again
+		await harness.setWorkingSetEnabled(false);
+
+		assert.deepStrictEqual({ withFiles, afterKeep, workingSetOff: { hidden: harness.pills.changesPillHidden.get(), actions: actions() } }, {
+			withFiles: { hidden: true, actions: [] },
+			afterKeep: { hidden: false, actions: [] },
+			workingSetOff: { hidden: false, actions: ['Show Working Set'] },
+		});
+	});
+
 	test('opens, keeps and undoes Working Set files through the ambient host of a remote window', async () => {
 		// The ambient host of a remote window resolves as `local` but runs on the remote, so its files aren't on this machine
 		const resourceUris = createEditorRemoteAgentHostResourceUriMapper('wsl+debian', agentHostAuthority('vscode-remote://wsl+debian'));

@@ -203,20 +203,21 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('opens a session as restored when asked to, so that it does not report it as opened', async () => {
+	test('opens a session as restored or committed when asked to, so that it does not report it as opened', async () => {
 		const chatResource = URI.parse('agent-host-copilot:/session-1');
 		const { owner, widget } = sessionOf(chatResource);
-		const opened: (boolean | undefined)[] = [];
+		const opened: string[] = [];
 		const { host } = createHost({
-			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(openOptions?.restore); } },
+			chatPart: { openChat: async (_session, _chat, openOptions) => { opened.push(`restore=${openOptions?.restore} commit=${openOptions?.commit}`); } },
 			sessionsManagementService: { getSessionForChatResource: () => owner },
 			widgets: [widget],
 		});
 
 		await host.openSession(chatResource, { restore: true });
+		await host.openSession(chatResource, { commit: true });
 		await host.openSession(chatResource);
 
-		assert.deepStrictEqual(opened, [true, undefined]);
+		assert.deepStrictEqual(opened, ['restore=true commit=undefined', 'restore=undefined commit=true', 'restore=undefined commit=undefined']);
 	});
 
 	test('deactivated while it loads the session it starts, it releases the session and starts nothing', async () => {
@@ -299,20 +300,34 @@ suite('AgentsChatViewHost', () => {
 		}, { agentHost: true, knownChat: true, knownSession: true, untitledOfOfferedType: true, local: false, extension: false });
 	});
 
-	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled, or the Chat view keeps its New Chat', () => {
+	test('New Chat opens a new-session composer in the chat part, unless chat is hidden or disabled, or the Chat view keeps its New Chat', async () => {
 		const available = createHost();
 		const unavailable = createHost({ chatAvailable: false });
 		const notOwned = createHost({ ownsNewChat: false });
 
 		assert.deepStrictEqual({
-			available: available.host.newChat(), availableCalls: available.calls,
-			unavailable: unavailable.host.newChat(), unavailableCalls: unavailable.calls,
-			notOwned: notOwned.host.newChat(), notOwnedCalls: notOwned.calls,
+			available: await available.host.newChat(), availableCalls: available.calls,
+			unavailable: await unavailable.host.newChat(), unavailableCalls: unavailable.calls,
+			notOwned: await notOwned.host.newChat(), notOwnedCalls: notOwned.calls,
 		}, {
 			available: true, availableCalls: ['openComposer sessionType=undefined newComposer=true'],
 			unavailable: false, unavailableCalls: [],
 			notOwned: false, notOwnedCalls: [],
 		});
+	});
+
+	test('New Chat resolves only once its composer shows, so that a prompt run in a new chat goes to it, not to the chat shown before', async () => {
+		const opening = new DeferredPromise<void>();
+		const steps: string[] = [];
+		const { host } = createHost({ chatPart: { openComposer: async () => { await opening.p; steps.push('composer shows'); } } });
+
+		const newChat = host.newChat().then(taken => steps.push(`New Chat resolves ${taken}`));
+		await timeout(0);
+		steps.push('composer opening');
+		opening.complete();
+		await newChat;
+
+		assert.deepStrictEqual(steps, ['composer opening', 'composer shows', 'New Chat resolves true']);
 	});
 
 	test('reports the chat of the chat part\'s active tab only once the chat part exists, without creating it', () => {

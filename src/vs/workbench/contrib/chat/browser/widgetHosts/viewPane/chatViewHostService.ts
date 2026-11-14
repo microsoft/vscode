@@ -14,7 +14,7 @@ import { IViewDescriptorService, ViewContainerLocation } from '../../../../../co
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
 import { ChatViewId, IChatWidget } from '../../chat.js';
-import { IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession } from '../../chatViewHost.js';
+import { getChatViewHostOpenReason, IChatViewHost, IChatViewHostOpenOptions, IChatViewHostRevealOptions, IChatViewHostService, IChatViewHostSessionStart, IChatViewHostSessionStartOptions, IChatViewHostShownSession, IChatViewNewChatTarget } from '../../chatViewHost.js';
 import { ChatViewPane } from './chatViewPane.js';
 
 /** The Chat view, as the host of its chats. */
@@ -53,24 +53,17 @@ export class ChatViewPaneHost implements IChatViewHost {
 		if (view && !options?.preserveFocus) {
 			view.focus();
 		}
-		if (options?.restore) {
-			view?.reportRestored(sessionResource);
-		} else {
-			view?.reportOpened(sessionResource);
-		}
+		view?.reportShown(sessionResource, getChatViewHostOpenReason(options));
 		return view?.widget;
 	}
 
 	async openSession(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined> {
 		const chatView = await this.viewsService.openView<ChatViewPane>(ChatViewId, !options?.preserveFocus);
 		if (chatView) {
-			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, options?.restore ? 'restore' : 'open');
+			const reason = getChatViewHostOpenReason(options);
+			await chatView.loadSession(sessionResource, options?.sessionTypeSelectionReason, reason);
 			// Also a chat it showed already, which loading does not set again
-			if (options?.restore) {
-				chatView.reportRestored(sessionResource);
-			} else {
-				chatView.reportOpened(sessionResource);
-			}
+			chatView.reportShown(sessionResource, reason);
 			if (!options?.preserveFocus) {
 				chatView.focusInput();
 			}
@@ -78,8 +71,8 @@ export class ChatViewPaneHost implements IChatViewHost {
 		return chatView?.widget;
 	}
 
-	newChat(): boolean {
-		return this.viewsService.isViewVisible(ChatViewId) && !!this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.newChat();
+	async newChat(target?: IChatViewNewChatTarget): Promise<boolean> {
+		return this.viewsService.isViewVisible(ChatViewId) && !!this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.newChat(target);
 	}
 
 	async toggle(): Promise<boolean> {
@@ -278,9 +271,9 @@ export class ChatViewHostService extends Disposable implements IChatViewHostServ
 		return host.startSession(sessionResource, options);
 	}
 
-	newChat(): boolean {
+	async newChat(target?: IChatViewNewChatTarget): Promise<boolean> {
 		const host = this.host;
-		const taken = host.newChat?.() ?? false;
+		const taken = await host.newChat?.(target) ?? false;
 		if (taken) {
 			this.claim(host, true);
 		}
