@@ -579,7 +579,10 @@ suite('Chat window composer', () => {
 		const aimsAt = () => composer.requestedTarget.get()?.folderUri?.path;
 		const retarget = (folder: string, from: string) => ({ done: composer.retargetFolder(URI.file(folder), URI.file(from)), aimsAt: aimsAt() });
 
-		// Submitted: its checks and the draft's preparation are under way, its request not accepted yet
+		// Submitted: its checks, such as for its session to be ready or the host's confirmation, are under way before its send attempt
+		const submitting = composer.input.beginSubmit();
+		const whileChecking = retarget('/repo.worktrees/a', '/repo');
+		// Its send attempt: the draft's preparation is under way, its request not accepted yet
 		const attempt = composer.input.beginSendAttempt({ inputText: 'hello', attachments: [] });
 		const beforeAccepted = retarget('/repo.worktrees/a', '/repo');
 		// Accepted: its request is under way
@@ -589,9 +592,11 @@ suite('Chat window composer', () => {
 		// It did not start its session: the composer shows its draft again and follows its host again
 		onDidEnd.fire({ session: draft, owner: slot, started: false, readopted: false });
 		composer.input.endSendAttempt(attempt);
+		submitting.dispose();
 		const afterEnded = retarget('/repo.worktrees/a', '/repo');
 
-		assert.deepStrictEqual({ beforeAccepted, accepted, afterEnded }, {
+		assert.deepStrictEqual({ whileChecking, beforeAccepted, accepted, afterEnded }, {
+			whileChecking: { done: false, aimsAt: '/repo' },
 			beforeAccepted: { done: false, aimsAt: '/repo' },
 			accepted: { done: false, aimsAt: '/repo' },
 			afterEnded: { done: true, aimsAt: '/repo.worktrees/a' },

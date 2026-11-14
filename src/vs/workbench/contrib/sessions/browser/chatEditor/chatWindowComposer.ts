@@ -312,7 +312,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	retargetFolder(folderUri: URI, from?: URI): boolean {
 		const target = this._requestedTarget.get();
 		const current = target?.folderUri;
-		if (this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
+		if (this.input.isSubmitting || this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
 			|| (from && !extUriBiasedIgnorePathCase.isEqual(current, from)) || extUriBiasedIgnorePathCase.isEqual(current, folderUri)) {
 			return false;
 		}
