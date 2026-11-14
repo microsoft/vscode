@@ -48,7 +48,7 @@ suite('AgentsChatViewHost', () => {
 		const chatPart = upcastPartial<IAgentsChatPartService>({
 			activeChat: constObservable(undefined),
 			show: async (_target, showOptions) => { calls.push(`show preserveFocus=${showOptions?.preserveFocus}`); },
-			openComposer: async (target, openOptions) => { calls.push(`openComposer sessionType=${target?.sessionTypeId} newComposer=${openOptions?.newComposer}`); },
+			openComposer: async (target, openOptions) => { calls.push(`openComposer ${target?.providerId ? `provider=${target.providerId} ` : ''}sessionType=${target?.sessionTypeId} newComposer=${openOptions?.newComposer}`); },
 			getComposerWidget: async () => composerWidget,
 			openChat: async session => { calls.push(`openChat ${session.resource.toString()}`); },
 			isShowing: () => false,
@@ -57,7 +57,7 @@ suite('AgentsChatViewHost', () => {
 		const host = new AgentsChatViewHost(
 			constObservable(options.ownsNewChat ?? true),
 			chatPart,
-			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getSessions: () => [], getAllSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
+			upcastPartial<ISessionsManagementService>({ getSessionForChatResource: () => undefined, getSession: () => undefined, getAllSessionTypes: () => [], getAllProviderSessionTypes: () => [], getSessions: () => [], getAllSessions: () => [], onDidChangeSession: () => toDisposable(() => { }), ...options.sessionsManagementService }),
 			upcastPartial<IChatWidgetService>({ getAllWidgets: () => options.widgets ?? [] }),
 			upcastPartial<IWorkbenchLayoutService>({ isVisible: () => false }),
 			upcastPartial<IWorkspaceContextService>({ getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }),
@@ -159,9 +159,12 @@ suite('AgentsChatViewHost', () => {
 		});
 	});
 
-	test('a new session that did not run is not shown: a composer of its type shows instead, which gets the request back', async () => {
+	test('a new session that did not run is not shown: a composer of its provider\'s type shows instead, which gets the request back', async () => {
 		const untitled = URI.parse('agent-host-copilot:/untitled-1');
-		const { host, calls, composerWidget } = createHost();
+		const { host, calls, composerWidget } = createHost({
+			// The provider's type of these chats differs from their chat session type, as an agent host's does
+			sessionsManagementService: { getAllProviderSessionTypes: () => [{ providerId: 'local-agent-host', sessionType: upcastPartial<ISessionType>({ id: 'claude', chatSessionType: 'agent-host-claude' }) }, { providerId: 'local-agent-host', sessionType: upcastPartial<ISessionType>({ id: 'copilot', chatSessionType: 'agent-host-copilot' }) }] },
+		});
 
 		const start = await host.startSession(untitled, { local: false, importingConversation: false });
 		const shown = await start.complete(untitled, false);
@@ -171,7 +174,7 @@ suite('AgentsChatViewHost', () => {
 		assert.deepStrictEqual({ shown, composer: composer === composerWidget, calls }, {
 			shown: false,
 			composer: true,
-			calls: ['hold agent-host-copilot:/untitled-1', 'openComposer sessionType=agent-host-copilot newComposer=true', 'release agent-host-copilot:/untitled-1'],
+			calls: ['hold agent-host-copilot:/untitled-1', 'openComposer provider=local-agent-host sessionType=copilot newComposer=true', 'release agent-host-copilot:/untitled-1'],
 		});
 	});
 
