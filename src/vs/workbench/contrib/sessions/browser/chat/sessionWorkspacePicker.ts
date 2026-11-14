@@ -41,7 +41,7 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
-import { FolderLocationKind, getCurrentFolderLocationDescription, getNewWorktreeLabel, groupFolderLocations } from '../../../../services/workspaces/common/folderLocationSections.js';
+import { FolderLocationKind, getCurrentFolderLocationDescription, getFolderLocationDetail, getNewWorktreeDetail, getNewWorktreeLabel, groupFolderLocations } from '../../../../services/workspaces/common/folderLocationSections.js';
 import { IGitHubInfo, isActiveSessionStatus, ISessionWorkspace, ISessionWorkspaceBrowseAction, SESSION_WORKSPACE_GROUP_GITHUB, SESSION_WORKSPACE_GROUP_LOCAL, SESSION_WORKSPACE_GROUP_REMOTE } from '../../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { cloneRepository } from '../cloneRepository.js';
@@ -64,7 +64,7 @@ import { type IResolvedFolderWorkspace, SessionWorkspaceFallback } from './sessi
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ADDITIONAL_FOLDER_CONTEXT_ID_PREFIX, ADDITIONAL_REPOSITORY_CONTEXT_ID_PREFIX, getAdditionalFolderContextId, getAdditionalRepositoryContextId } from '../../common/newChatContextIds.js';
 import { registerPickerKeybindingPresentation } from './newChatPickerKeybinding.js';
-import { getNoWorkspaceChoicePresentation } from './noWorkspaceChoice.js';
+import { getNoWorkspaceChoicePresentation, getNoWorkspaceDescription } from './noWorkspaceChoice.js';
 import { createSessionPickerToolbar } from './sessionPickerToolbar.js';
 import { getEnvironmentWorkspaceProvider, ISessionCreationEnvironment, resolveEnvironmentWorkspace } from './sessionEnvironmentPicker.js';
 
@@ -2301,11 +2301,11 @@ export class WorkspacePicker extends Disposable {
 	 * Marks the selected choice with a check in front of each choice's own icon, as a picker of a few choices does, such as
 	 * one restricted to a window's folders.
 	 */
-	private _withSelectionMarks(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
+	/** Shows the items of a picker restricted to its allowed folders by their own icons, without a check mark on the selected one: its trigger shows which it is. */
+	private _withItemIcons(items: IActionListItem<IWorkspacePickerItem>[]): IActionListItem<IWorkspacePickerItem>[] {
 		return items.map(item => item.kind === ActionListItemKind.Action ? {
 			...item,
-			group: { ...item.group, title: item.group?.title ?? '', icon: item.item?.checked ? Codicon.check : Codicon.blank },
-			labelIcon: item.group?.icon,
+			group: { ...item.group, title: item.group?.title ?? '', icon: item.group?.icon ?? Codicon.blank },
 		} : item);
 	}
 
@@ -2896,18 +2896,23 @@ export class WorkspacePicker extends Disposable {
 		this._resolveSelectedAllowedFolder();
 		const folders = this._buildAllowedFolderItems(allowedFolders);
 		if (!folders.some(folder => folder.kind)) {
-			return this._withSelectionMarks(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
+			return this._withItemIcons(this._withNewWorktreeItem(this._withNoWorkspaceItem(folders.map(folder => folder.item))));
 		}
 
-		// No Workspace and the folder first; then, under Worktrees, New Worktree first and the worktrees
+		// No Workspace, the folder and New Worktree first, each with what it does below its name, as the Agents window's
+		// isolation picker shows them; then the worktrees under Worktrees
 		const sections = groupFolderLocations(folders.map(folder => ({ item: folder.item, kind: folder.kind ?? 'folder', current: folder.current })));
-		const items = this._withNoWorkspaceItem(sections.filter(section => section.kind !== 'worktree').flatMap(section => section.items), false);
+		const items = this._withNoWorkspaceItem(sections.filter(section => section.kind !== 'worktree').flatMap(section => section.items).map(item => ({ ...item, detail: getFolderLocationDetail() })), false)
+			.map(item => item.item?.id === 'workspacePicker.chat' ? { ...item, detail: getNoWorkspaceDescription() } : item);
 		const newWorktreeItem = this._getNewWorktreeItem();
-		const worktrees = sections.find(section => section.kind === 'worktree');
-		if (newWorktreeItem || worktrees) {
-			items.push({ kind: ActionListItemKind.Separator, label: worktrees?.title ?? localize('workspacePicker.worktrees', "Worktrees") }, ...(newWorktreeItem ? [newWorktreeItem] : []), ...(worktrees?.items ?? []));
+		if (newWorktreeItem) {
+			items.push({ ...newWorktreeItem, detail: getNewWorktreeDetail() });
 		}
-		return this._withSelectionMarks(items);
+		const worktrees = sections.find(section => section.kind === 'worktree');
+		if (worktrees) {
+			items.push({ kind: ActionListItemKind.Separator, label: worktrees.title }, ...worktrees.items);
+		}
+		return this._withItemIcons(items);
 	}
 
 	/** The folders the picker is restricted to; none restrict it. */

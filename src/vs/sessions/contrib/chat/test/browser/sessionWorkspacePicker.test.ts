@@ -8925,7 +8925,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 		});
 	});
 
-	test('offers No Workspace and the window\'s folder first, then under Worktrees New Worktree first and the worktrees, with the current one first, described as current', async () => {
+	test('offers No Workspace, the window\'s folder and New Worktree first, each with what it does below its name and without a check mark, then under Worktrees the worktrees, with the current one first, described as current', async () => {
 		const noWorkspace = { selected: false };
 		let current = '/local/vscode.worktrees/b';
 		const { picker } = createPicker(['/local/vscode.worktrees/b', '/local/vscode', '/local/vscode.worktrees/a'], noWorkspace, {
@@ -8944,12 +8944,17 @@ suite('WorkspacePicker - Allowed folders', () => {
 		current = '/local/vscode';
 		await picker.dispatchFolder(URI.file('/local/vscode'), 'local-1');
 		const atFolder = items();
+		const actions = picker.getItems().filter(item => item.kind === ActionListItemKind.Action);
+		const details = actions.map(item => item.detail ?? null);
+		const checkMarks = actions.filter(item => item.group?.icon?.id === Codicon.check.id).length;
 
-		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder }, {
-			atWorktree: ['No Workspace', 'local/vscode', '--- Worktrees', 'New Worktree', 'b (Current) *', 'a (feature-a)'],
+		assert.deepStrictEqual({ atWorktree, ariaLabels, atFolder, details, checkMarks }, {
+			atWorktree: ['No Workspace', 'local/vscode', 'New Worktree', '--- Worktrees', 'b (Current) *', 'a (feature-a)'],
 			// Screen readers hear where the window's folder is now, apart from the checked choice
 			ariaLabels: [null, 'b, Current', null],
-			atFolder: ['No Workspace', 'local/vscode (Current) *', '--- Worktrees', 'New Worktree', 'b (feature-b)', 'a (feature-a)'],
+			atFolder: ['No Workspace', 'local/vscode (Current) *', 'New Worktree', '--- Worktrees', 'b (feature-b)', 'a (feature-a)'],
+			details: ['Start without a backing workspace', 'Works in the folder already on this computer', 'Creates a separate copy for this session', null, null],
+			checkMarks: 0,
 		});
 	});
 
@@ -8993,11 +8998,11 @@ suite('WorkspacePicker - Allowed folders', () => {
 		const trigger = container.querySelector<HTMLElement>('.sessions-workspace-picker-trigger [role="button"]')!;
 
 		assert.deepStrictEqual({
-			// Its selected choice is checked, in front of the choice's own icon
+			// By the choice's own icon, without a check mark on the selected one: the trigger shows it
 			items: picker.getItems().map(item => `${item.group?.icon?.id} ${item.labelIcon?.id} ${item.label}${item.description ? ` (${item.description})` : ''}`),
 			trigger: { label: trigger.getAttribute('aria-label'), worktreeIcon: !!trigger.querySelector(`.${ThemeIcon.asClassNameArray(Codicon.gitBranchCheckout).join('.')}`) },
 		}, {
-			items: ['check git-branch-checkout a (feature-a)', 'blank folder local/vscode'],
+			items: ['git-branch-checkout undefined a (feature-a)', 'folder undefined local/vscode'],
 			trigger: { label: 'Workspace: a', worktreeIcon: true },
 		});
 	});
@@ -9021,7 +9026,7 @@ suite('WorkspacePicker - Allowed folders', () => {
 			ariaLabel: trigger.getAttribute('aria-label'),
 			hover: picker.getSelectedLocationDescription() ?? null,
 		});
-		const items = () => picker.getItems().filter(item => item.kind !== ActionListItemKind.Separator).map(item => `${item.labelIcon?.id} ${item.label}${item.item?.checked ? ' *' : ''}`);
+		const items = () => picker.getItems().filter(item => item.kind !== ActionListItemKind.Separator).map(item => `${item.group?.icon?.id} ${item.label}${item.item?.checked ? ' *' : ''}`);
 
 		const atFolder = { items: items(), chip: chip() };
 		await picker.dispatchItem(picker.getItems().find(item => item.label === 'New Worktree')!.item!);
