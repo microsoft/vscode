@@ -36,11 +36,11 @@ import { FindAgentSessionInViewerAction, RefreshAgentSessionsViewerAction } from
 import { ChatViewPane } from '../../../../chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatViewContainerId, ChatViewId, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
-import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { constObservable, ISettableObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { extUri } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
-import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { IChat, ISession, SessionStatus } from '../../../../../services/sessions/common/session.js';
 import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
@@ -258,7 +258,7 @@ suite('ChatViewSessionsGate', () => {
 		const marked: string[] = [];
 		const createSession = (id: string) => {
 			const chat = upcastPartial<IChat>({ resource: URI.parse(`agent-host-copilot:/${id}`), isRead: observableValue(`${id}.isRead`, false), updatedAt: constObservable(new Date(1)) });
-			return upcastPartial<ISession>({ sessionId: id, mainChat: constObservable(chat), loading: constObservable(false) });
+			return upcastPartial<ISession>({ sessionId: id, mainChat: constObservable(chat), loading: constObservable(false), status: constObservable(SessionStatus.Completed) });
 		};
 		const inView = createSession('inView');
 		const inChatPart = createSession('inChatPart');
@@ -271,7 +271,7 @@ suite('ChatViewSessionsGate', () => {
 			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
 				onDidChangeSessions: Event.None,
 				getSessionForChatResource: resource => [inView, inChatPart].map(session => ({ session, chat: session.mainChat.get() })).find(shown => extUri.isEqual(shown.chat.resource, resource)),
-				markRead: async session => { marked.push(session.sessionId); return true; },
+				markRead: async session => { marked.push(session.sessionId); (session.mainChat.get().isRead as ISettableObservable<boolean>).set(true, undefined); return true; },
 			}));
 			const host = mainHost = instantiationService.createInstance(EditorWindowMainSessionHost);
 			instantiationService.stub(ISessionHost, host);
