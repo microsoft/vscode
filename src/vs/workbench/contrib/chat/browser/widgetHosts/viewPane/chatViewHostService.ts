@@ -67,6 +67,10 @@ export class ChatViewPaneHost implements IChatViewHost {
 		return chatView?.widget;
 	}
 
+	newChat(): boolean {
+		return this.viewsService.isViewVisible(ChatViewId) && !!this.viewsService.getViewWithId<ChatViewPane>(ChatViewId)?.newChat();
+	}
+
 	async toggle(): Promise<boolean> {
 		const visible = !this.viewsService.isViewVisible(ChatViewId);
 		this.updatePartVisibility(this.viewDescriptorService.getViewLocationById(ChatViewId), visible);

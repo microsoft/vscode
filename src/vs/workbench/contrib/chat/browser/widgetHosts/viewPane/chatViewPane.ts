@@ -900,6 +900,22 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		}
 	}
 
+	/**
+	 * New Chat of the Chat view: the provided composer starts over, and takes New Chat while it shows in place of the chat.
+	 * Returns whether it took it; otherwise New Chat clears the chat, in whose place the composer then shows.
+	 */
+	newChat(): boolean {
+		if (!this.providedComposer) {
+			return false;
+		}
+		this.providedComposer.newChat();
+		if (!this.composerShown) {
+			return false;
+		}
+		this.providedComposer.focus();
+		return true;
+	}
+
 	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl instanceof AgentSessionsControl ? this.sessionsControl : undefined; }
 	private sessionsListRevealCount = 0;
 
