@@ -231,14 +231,16 @@ suite('AgentHostWorktreeLocations', () => {
 			},
 			{ isWorkspaceTrustEnabled: () => true }
 		));
-		await workspaceEditingService.setFolderLocation(URI.file('/work/impostor'));
+		// No provider knows the impostor: the workspace refuses to move there, and trusts nothing
+		const impostorMove = await workspaceEditingService.setFolderLocation(URI.file('/work/impostor')).then(() => 'moved', () => 'refused');
 		const impostorTrusted = [...trusted];
 		await workspaceEditingService.setFolderLocation(primary);
 		await workspaceEditingService.setFolderLocation(URI.file('/work/vscode.worktrees/feature'));
 
-		assert.deepStrictEqual({ linked: await resolve('/work/vscode.worktrees/feature'), impostor: await resolve('/work/impostor'), impostorTrusted, trusted }, {
+		assert.deepStrictEqual({ linked: await resolve('/work/vscode.worktrees/feature'), impostor: await resolve('/work/impostor'), impostorMove, impostorTrusted, trusted }, {
 			linked: '/work/vscode.worktrees/feature',
 			impostor: 'none',
+			impostorMove: 'refused',
 			impostorTrusted: [],
 			trusted: ['/work/vscode.worktrees/feature'],
 		});

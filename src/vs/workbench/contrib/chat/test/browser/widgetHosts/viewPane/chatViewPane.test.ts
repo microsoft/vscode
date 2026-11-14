@@ -191,6 +191,7 @@ suite('ChatViewPane session transitions', () => {
 		const widget = {
 			get viewModel() { return shown && { model: shown, sessionResource: shown.sessionResource }; },
 			getViewState: () => ({}),
+			restoreViewState: () => { },
 			getInput: () => input,
 			setInput: (value: string) => { input = value; },
 			setModel: (model: IChatModel | undefined) => {
@@ -361,6 +362,8 @@ suite('ChatViewPane session transitions', () => {
 
 	test('through the Chat view host, each open reports the chat it shows exactly once: a chat it loads, the chat it shows already when picked again, to restore, and a committed one', async () => {
 		const rig = createPane();
+		// Each open below loads a chat of its own
+		rig.nextRef.dispose();
 		const savedResource = nextResource.with({ path: '/saved' });
 		const committedResource = nextResource.with({ path: '/committed' });
 		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
