@@ -69,6 +69,7 @@ import { EditorWindowSessionsRuntime, IEditorWindowSessionsRuntime } from './edi
 import { AgentsChatPartFrame, IAgentsChatPartFrame } from '../agentsView/agentsChatPartFrame.js';
 import { AgentsChatPartService, IAgentsChatPartService } from '../agentsView/agentsChatPart.js';
 import { EditorWindowChatPartService, IEditorWindowChatPartService } from '../agentsView/agentsChatPartContribution.js';
+import { EditorWindowComposerFoldersService, IEditorWindowComposerFoldersService } from './editorWindowComposerFolders.js';
 
 // The sessions services of an editor window, for the sessions features it can host. Every one is created only as it is
 // first used, and nothing in the window uses them until such a feature does.
@@ -132,3 +133,5 @@ registerSingleton(IEditorWindowSessionsRuntime, EditorWindowSessionsRuntime, Ins
 registerSingleton(IEditorWindowChatPartService, EditorWindowChatPartService, InstantiationType.Delayed);
 registerSingleton(IAgentsChatPartFrame, AgentsChatPartFrame, InstantiationType.Delayed);
 registerSingleton(IAgentsChatPartService, AgentsChatPartService, InstantiationType.Delayed);
+// The folders that the window's new-session composers offer, which reading does not create the chat part for
+registerSingleton(IEditorWindowComposerFoldersService, EditorWindowComposerFoldersService, InstantiationType.Delayed);
