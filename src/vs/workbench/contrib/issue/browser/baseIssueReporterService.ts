@@ -1704,7 +1704,10 @@ export class BaseIssueReporterService extends Disposable {
 	public addEventListener(elementId: string, eventType: string, handler: (event: Event) => void): void {
 		// eslint-disable-next-line eslint-js/no-restricted-syntax
 		const element = this.getElementById(elementId);
-		element?.addEventListener(eventType, handler);
+    if (element) {
+        element.addEventListener(eventType, handler);
+        this._register({ dispose: () => element.removeEventListener(eventType, handler) });
+        
 	}
 }
 
