@@ -10,6 +10,8 @@ import { onUnexpectedError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { basename, extUriBiasedIgnorePathCase } from '../../../../../../base/common/resources.js';
+import { Schemas } from '../../../../../../base/common/network.js';
+import { getRepositoryRootFromWorktree } from '../../../../../../platform/agentHost/common/worktreePaths.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
@@ -216,6 +218,11 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!primary) {
 			return false;
+		}
+		// A worktree that VS Code created for the folder, `<folder>.worktrees/<name>`, is one at once, also before it is read
+		const repository = folder.scheme === Schemas.file ? getRepositoryRootFromWorktree(folder) : undefined;
+		if (repository && extUriBiasedIgnorePathCase.isEqual(repository, primary)) {
+			return true;
 		}
 		const key = `${primary.toString()}\n${folder.toString()}`;
 		const known = this._provenWorktrees.get(key);
