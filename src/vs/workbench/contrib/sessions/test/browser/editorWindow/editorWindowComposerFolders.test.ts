@@ -35,4 +35,19 @@ suite('EditorWindowComposerFoldersService', () => {
 
 		assert.deepStrictEqual(steps, [['/repo'], ['/repo', '/repo.worktrees/a'], ['/repo', '/repo.worktrees/a'], ['/repo']]);
 	});
+
+	test('retargets every registered composer, of the chat part and of the Chat view alike, until it is no longer registered', () => {
+		const service = new EditorWindowComposerFoldersService(upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<IWorkspace>({ folders: [] }) }));
+		const calls: string[] = [];
+		const composer = (name: string) => ({ retargetFolder: (to: URI, from?: URI) => { calls.push(`${name} ${from?.path} -> ${to.path}`); return true; } });
+
+		const chatPart = service.registerComposer(composer('chat part'));
+		const chatView = service.registerComposer(composer('chat view'));
+		service.retargetComposerFolders(URI.file('/repo.worktrees/a'), URI.file('/repo'));
+		chatPart.dispose();
+		service.retargetComposerFolders(URI.file('/repo'), URI.file('/repo.worktrees/a'));
+		chatView.dispose();
+
+		assert.deepStrictEqual(calls, ['chat part /repo -> /repo.worktrees/a', 'chat view /repo -> /repo.worktrees/a', 'chat view /repo.worktrees/a -> /repo']);
+	});
 });

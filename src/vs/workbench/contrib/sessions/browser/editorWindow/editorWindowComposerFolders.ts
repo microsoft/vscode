@@ -13,6 +13,11 @@ import { IChatWindowComposerInit } from '../chatEditor/chatWindowComposer.js';
 /** The folders new-session composers create sessions in, besides the folder each aims at, and how they show them. */
 export type IEditorWindowComposerFolderOptions = Pick<IChatWindowComposerInit, 'allowedFolders' | 'getFolderPresentation'>;
 
+/** A new-session composer that follows its host to another folder (see `ChatWindowComposerModel.retargetFolder`). */
+export interface IEditorWindowRetargetableComposer {
+	retargetFolder(folderUri: URI, from?: URI): boolean;
+}
+
 export const IEditorWindowComposerFoldersService = createDecorator<IEditorWindowComposerFoldersService>('editorWindowComposerFoldersService');
 
 /**
@@ -28,11 +33,23 @@ export interface IEditorWindowComposerFoldersService {
 
 	/** Has the composers offer the folders `provider` gives until the returned disposable is disposed; the one set last applies. */
 	setComposerFolderOptions(provider: () => IEditorWindowComposerFolderOptions): IDisposable;
+
+	/** Counts `composer` among the window's composers that follow their host to another folder, until the returned disposable is disposed. */
+	registerComposer(composer: IEditorWindowRetargetableComposer): IDisposable;
+
+	/**
+	 * Aims every registered composer still aimed at `from`, as its host aimed it, at `to`, such as the location the window's
+	 * folder moved to: those of the chat part and of the Chat view alike. Not those aiming at a folder the user picked, nor
+	 * those that send.
+	 */
+	retargetComposerFolders(to: URI, from: URI): void;
 }
 
 export class EditorWindowComposerFoldersService implements IEditorWindowComposerFoldersService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _composers = new Set<{ readonly composer: IEditorWindowRetargetableComposer }>();
 
 	/** One per call of {@link setComposerFolderOptions}, also of the same provider. */
 	private readonly _providers: { readonly provider: () => IEditorWindowComposerFolderOptions }[] = [];
@@ -44,6 +61,18 @@ export class EditorWindowComposerFoldersService implements IEditorWindowComposer
 
 	getComposerFolderOptions(): IEditorWindowComposerFolderOptions {
 		return this._providers.at(-1)?.provider() ?? { allowedFolders: this._windowFolders };
+	}
+
+	registerComposer(composer: IEditorWindowRetargetableComposer): IDisposable {
+		const registration = { composer };
+		this._composers.add(registration);
+		return toDisposable(() => this._composers.delete(registration));
+	}
+
+	retargetComposerFolders(to: URI, from: URI): void {
+		for (const { composer } of [...this._composers]) {
+			composer.retargetFolder(to, from);
+		}
 	}
 
 	setComposerFolderOptions(provider: () => IEditorWindowComposerFolderOptions): IDisposable {

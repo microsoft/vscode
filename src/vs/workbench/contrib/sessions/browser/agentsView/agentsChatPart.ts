@@ -137,8 +137,8 @@ export interface IAgentsChatPartService {
 	setComposerFolderOptions(provider: () => IAgentsChatPartComposerFolderOptions): IDisposable;
 
 	/**
-	 * Aims its composers that aim at `from`, the folder their host aimed them at, at `to`, such as the location the window's
-	 * folder moved to: not those aiming at a folder the user picked, nor those that send (see `ChatWindowComposerModel.retargetFolder`).
+	 * Aims the window's composers that aim at `from`, the folder their host aimed them at, at `to`, such as the location the
+	 * window's folder moved to (see `IEditorWindowComposerFoldersService.retargetComposerFolders`).
 	 */
 	retargetComposerFolders(to: URI, from: URI): void;
 }
@@ -303,9 +303,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	}
 
 	retargetComposerFolders(to: URI, from: URI): void {
-		for (const composer of this._composerModels.values()) {
-			composer.retargetFolder(to, from);
-		}
+		this._composerFolders.retargetComposerFolders(to, from);
 	}
 
 	getComposerFolderOptions(): IAgentsChatPartComposerFolderOptions {
@@ -531,6 +529,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		if (composer) {
 			this._composerTabs.set(new Set([...this._composerTabs.get(), chat.input]), undefined);
 			this._composerModels.set(chat.input, composer);
+			// It follows the window's folder with the window's other composers, until its tab disposes it
+			const registration = this._composerFolders.registerComposer(composer);
+			Event.once(composer.onWillDispose)(() => registration.dispose());
 		}
 		// It stays in the chat part: its editor shows there
 		chat.input.setMoveRestriction({
