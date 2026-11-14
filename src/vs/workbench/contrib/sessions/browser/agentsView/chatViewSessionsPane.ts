@@ -55,6 +55,7 @@ import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { SessionsGrouping, SessionsList, SessionsSorting } from '../views/sessionsList.js';
 import { getAgentsChatPartComposerTarget, IAgentsChatPartChat, IAgentsChatPartOpenOptions, IAgentsChatPartService } from './agentsChatPart.js';
 import { AgentsViewNeedsSetup } from './agentsView.js';
+import { IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
 /** How long a session that a composer started takes to show before it is given up on. */
@@ -116,6 +117,7 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IAgentsViewFolderLocationService private readonly _folderLocationService: IAgentsViewFolderLocationService,
 	) {
 		super();
 		this._windowFolders = observableFromEvent(this, _workspaceContextService.onDidChangeWorkspaceFolders, () => _workspaceContextService.getWorkspace().folders.map(folder => folder.uri));
@@ -157,6 +159,10 @@ export class ChatViewSessionsSurface extends Disposable implements IAgentsChatPa
 			this._setChat(resource, undefined);
 		}
 		await this._reveal(options?.preserveFocus);
+		// Try-out stopgap: the window's folder follows the session shown, as in the chat part
+		if (!options?.keepFolder) {
+			void this._folderLocationService.switchToSession(session);
+		}
 	}
 
 	async openComposer(target: INewSessionTarget | undefined, options?: IAgentsChatPartOpenOptions): Promise<void> {
