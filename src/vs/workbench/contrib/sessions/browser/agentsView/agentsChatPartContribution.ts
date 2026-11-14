@@ -139,7 +139,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		// The sessions of its chats are known while it shows, and while its composers hold drafts, also while chats no longer
 		// open in it
 		store.add(this._sessionsRuntime.enable({ viewIds: [] }));
-		const existing = () => this._frame.contentCreated.get() ? this._chatPart() : undefined;
+		const existing = () => this._frame.contentCreated.get() ? this._frame.content.get() : undefined;
 		store.add(this._presenterService.registerComposerHolder({
 			hasComposer: () => !!existing()?.hasComposer(),
 			closeIdleComposers: async () => existing()?.closeIdleComposers(),
@@ -193,10 +193,11 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 
 	/** The chat part as the presenter of the window's sessions; what reads it without needing it does not create it. */
 	private _createPresenter(): IEditorWindowSessionsPresenter {
-		const created = this._frame.contentCreated;
-		const existing = () => created.get() ? this._chatPart() : undefined;
+		// Of the frame: reading it as the chat part is being created does not create it again
+		const { content, contentCreated: created } = this._frame;
+		const existing = () => created.get() ? content.get() : undefined;
 		return {
-			activeChat: derived(reader => created.read(reader) ? this._chatPart().activeChat.read(reader) : undefined),
+			activeChat: derived(reader => created.read(reader) ? content.read(reader)?.activeChat.read(reader) : undefined),
 			openChat: (session, chatResource, options) => this._chatPart().openChat(session, chatResource, options),
 			openComposer: (target, options) => this._chatPart().openComposer(target, options),
 			closeChat: async chatResource => existing()?.closeChat(chatResource),

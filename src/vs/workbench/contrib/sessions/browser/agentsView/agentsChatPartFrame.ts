@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { createDecorator, IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ChatHostPart } from '../../../../browser/parts/chat/chatHostPart.js';
+import type { IAgentsChatPartService } from './agentsChatPart.js';
 
 export const IAgentsChatPartFrame = createDecorator<IAgentsChatPartFrame>('agentsChatPartFrame');
 
@@ -18,12 +19,15 @@ export interface IAgentsChatPartFrame {
 	readonly _serviceBrand: undefined;
 	readonly part: ChatHostPart;
 	/**
-	 * Whether what the chat part shows, `IAgentsChatPartService`, was created: what reads it without needing it, such as
-	 * what the window's chat is, reads it only then, rather than creating it.
+	 * What the chat part shows, `IAgentsChatPartService`, once it was created: what reads it without needing it, such as what
+	 * the window's chat is, reads this instance, rather than creating it. Not the service: it reads as the service is still
+	 * being created, which reading the service then would create again, as another instance.
 	 */
+	readonly content: IObservable<IAgentsChatPartService | undefined>;
+	/** Whether {@link content} was created: what reads the chat part reads {@link content} only then. */
 	readonly contentCreated: IObservable<boolean>;
-	/** Called as `IAgentsChatPartService` is created. */
-	didCreateContent(): void;
+	/** Called by `IAgentsChatPartService` as it is created, with itself. */
+	didCreateContent(content: IAgentsChatPartService): void;
 }
 
 export class AgentsChatPartFrame extends Disposable implements IAgentsChatPartFrame {
@@ -31,15 +35,16 @@ export class AgentsChatPartFrame extends Disposable implements IAgentsChatPartFr
 	declare readonly _serviceBrand: undefined;
 
 	readonly part: ChatHostPart;
-	private readonly _contentCreated = observableValue(this, false);
-	readonly contentCreated: IObservable<boolean> = this._contentCreated;
+	private readonly _content = observableValue<IAgentsChatPartService | undefined>(this, undefined);
+	readonly content: IObservable<IAgentsChatPartService | undefined> = this._content;
+	readonly contentCreated: IObservable<boolean> = derived(this, reader => !!this._content.read(reader));
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
 		this.part = this._register(instantiationService.createInstance(ChatHostPart));
 	}
 
-	didCreateContent(): void {
-		this._contentCreated.set(true, undefined);
+	didCreateContent(content: IAgentsChatPartService): void {
+		this._content.set(content, undefined);
 	}
 }
