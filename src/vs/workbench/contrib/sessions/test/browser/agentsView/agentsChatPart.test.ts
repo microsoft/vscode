@@ -941,7 +941,7 @@ suite('AgentsChatPartService', () => {
 
 		assert.deepStrictEqual({ shown, options: part.options }, {
 			shown: { default: 'single', multiple: 'multiple', multipleWithEditorTabsNone: 'multiple', single: 'single', singleWithEditorTabsMultiple: 'single' },
-			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
+			options: { doubleClickTabToToggleEditorGroupSizes: 'off', showTabs: 'single', singleTabTitleProvidedByEditor: true, tabSizing: 'fixed', tabSizingFixedMinWidth: 80, tabSizingFixedMaxWidth: 160 },
 		});
 	});
 });
