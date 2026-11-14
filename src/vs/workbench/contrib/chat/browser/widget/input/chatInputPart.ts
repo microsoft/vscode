@@ -208,6 +208,9 @@ import { isIChatSessionFileChange2 } from '../../../../../common/chatSessionFile
 
 const $ = dom.$;
 
+/** How long a prompt file or handoff waits for its model to publish before giving up, in milliseconds. */
+const PROMPT_MODEL_WAIT_MS = 10_000;
+
 const INPUT_EDITOR_MAX_HEIGHT = 250;
 // Keep enough vertical space for inline attachment pills.
 const INPUT_EDITOR_MIN_LINE_HEIGHT = 20;
@@ -1667,8 +1670,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._requestProgrammaticLanguageModel(() => this.getModels().find(model => model.identifier === identifier));
 	}
 
+	/**
+	 * Resolves to `false` when none of the names match once every vendor has
+	 * published its models, or after a bounded wait, so an unknown name does not stay pending and block sending.
+	 */
 	public requestModelByQualifiedName(qualifiedModelNames: readonly string[]): Promise<boolean> {
-		return this._requestProgrammaticLanguageModel(() => resolveAgentModelPreference(qualifiedModelNames, this.getModels()));
+		return this._requestProgrammaticLanguageModel(
+			() => resolveAgentModelPreference(qualifiedModelNames, this.getModels()),
+			{ isAbsenceConclusive: () => this.haveAllVendorsPublishedModels(), timeoutMs: PROMPT_MODEL_WAIT_MS },
+		);
+	}
+
+	/** True once there are models and every contributed vendor has resolved its list at least once. */
+	private haveAllVendorsPublishedModels(): boolean {
+		const vendors = this.languageModelsService.getVendors();
+		return vendors.length > 0
+			&& vendors.every(vendor => this.languageModelsService.hasResolvedVendor(vendor.vendor))
+			&& this.getModels().length > 0;
 	}
 
 	get hasPendingProgrammaticModelSelection(): boolean {
@@ -2303,10 +2321,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._modelSelectionController.applyProgrammaticSelection(model);
 	}
 
-	private _requestProgrammaticLanguageModel(resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined): Promise<boolean> {
+	private _requestProgrammaticLanguageModel(resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined, options?: { readonly isAbsenceConclusive?: () => boolean; readonly timeoutMs?: number }): Promise<boolean> {
 		const result = this._modelSelectionController.requestProgrammaticSelection(
 			resolveModel,
 			this._inputModelSessionResource?.toString(),
+			options,
 		);
 		this._updateInputContentContextKeys();
 		void result.finally(() => this._updateInputContentContextKeys());

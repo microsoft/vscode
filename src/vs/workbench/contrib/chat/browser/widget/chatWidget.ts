@@ -2033,6 +2033,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Auto-submit if send flag is true
 			if (handoff.send) {
 				if (modelReady && !await modelReady) {
+					this.logService.warn(`[chat] The handoff model "${handoff.model}" is not available. Not sending the handoff.`);
 					return;
 				}
 				this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit handoff to '${handoff.agent}'`, e));
@@ -3988,7 +3989,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 		if (parseResult.header) {
-			const applied = await this._applyPromptMetadata(parseResult.header, requestInput);
+			const applied = await this._applyPromptMetadata(parseResult.header, requestInput, sessionResource);
 			if (!applied) {
 				return false;
 			}
@@ -4871,7 +4872,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 * mode-switch confirmation dialog), signalling that the caller should abort the
 	 * current input submission.
 	 */
-	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<boolean> {
+	private async _applyPromptMetadata({ agent, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions, sessionResource: URI): Promise<boolean> {
 
 		if (tools !== undefined && !agent && this.input.currentModeKind !== ChatModeKind.Agent) {
 			agent = ChatMode.Agent.name.get();
@@ -4891,7 +4892,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (model !== undefined) {
-			return this.input.requestModelByQualifiedName(model);
+			const applied = await this.input.requestModelByQualifiedName(model);
+			if (!applied) {
+				// Abort only if the chat moved on meanwhile. An unknown model, like one in an agent
+				// file, keeps the selected model rather than blocking this and every later request.
+				if (!isEqual(this.viewModel?.sessionResource, sessionResource)) {
+					return false;
+				}
+				this.logService.warn(`[chat] None of the prompt file models "${model.join(', ')}" is available. Sending with the selected model.`);
+			}
 		}
 
 		return true;

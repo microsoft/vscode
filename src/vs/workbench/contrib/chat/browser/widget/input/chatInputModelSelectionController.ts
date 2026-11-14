@@ -18,8 +18,9 @@
  * they do while waiting: Workbench chat shows a stand-in, since being wrong costs a repaint, while
  * the Agents Window waits, since it writes through to a backend.
  */
+import { disposableTimeout } from '../../../../../../base/common/async.js';
 import { Emitter } from '../../../../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { ILanguageModelChatMetadataAndIdentifier } from '../../../common/languageModels.js';
 import { IIntendedModelHolder } from '../../../common/model/chatModel.js';
@@ -64,6 +65,8 @@ export interface IChatInputModelSelectionRuntime {
 interface IPendingProgrammaticSelection {
 	readonly resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined;
 	readonly conversationKey: string | undefined;
+	/** Whether a model that does not resolve now never will, so waiting for it would block sending. */
+	readonly isAbsenceConclusive?: () => boolean;
 	readonly complete: (applied: boolean) => void;
 }
 
@@ -78,6 +81,8 @@ export class ChatInputModelSelectionController extends Disposable {
 	/** The model {@link currentModel} is shown in place of, see {@link applyEquivalentSelection}. */
 	private _equivalentOf: string | undefined;
 	private _pendingProgrammaticSelection: IPendingProgrammaticSelection | undefined;
+	/** Gives up on {@link _pendingProgrammaticSelection} once its wait is over. */
+	private readonly _pendingProgrammaticSelectionTimeout = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _runtime: IChatInputModelSelectionRuntime,
@@ -183,6 +188,12 @@ export class ChatInputModelSelectionController extends Disposable {
 	requestProgrammaticSelection(
 		resolveModel: () => ILanguageModelChatMetadataAndIdentifier | undefined,
 		conversationKey: string | undefined,
+		options?: {
+			/** Whether a model that does not resolve now never will, so waiting for it would block sending. */
+			readonly isAbsenceConclusive?: () => boolean;
+			/** Gives up after this many milliseconds. Without it the request waits for as long as it takes. */
+			readonly timeoutMs?: number;
+		},
 	): Promise<boolean> {
 		this._clearPendingProgrammaticSelection();
 		this._selectionReason = ModelSelectionReason.ProgrammaticSelection;
@@ -191,11 +202,15 @@ export class ChatInputModelSelectionController extends Disposable {
 			this._pendingProgrammaticSelection = {
 				resolveModel,
 				conversationKey,
+				isAbsenceConclusive: options?.isAbsenceConclusive,
 				complete: applied => {
 					complete(applied);
 					complete = () => { };
 				},
 			};
+			if (options?.timeoutMs !== undefined) {
+				this._pendingProgrammaticSelectionTimeout.value = disposableTimeout(() => this._clearPendingProgrammaticSelection(), options.timeoutMs);
+			}
 			this._reconcilePendingProgrammaticSelection();
 		});
 	}
@@ -583,9 +598,14 @@ export class ChatInputModelSelectionController extends Disposable {
 		}
 		const model = intent.resolveModel();
 		if (!model) {
+			// Give up on a model that will not appear, rather than wait and block sending.
+			if (intent.isAbsenceConclusive?.()) {
+				this._clearPendingProgrammaticSelection();
+			}
 			return false;
 		}
 		this._pendingProgrammaticSelection = undefined;
+		this._pendingProgrammaticSelectionTimeout.clear();
 		intent.complete(true);
 		this.applyProgrammaticSelection(model);
 		return true;
@@ -594,6 +614,7 @@ export class ChatInputModelSelectionController extends Disposable {
 	private _clearPendingProgrammaticSelection(): void {
 		const intent = this._pendingProgrammaticSelection;
 		this._pendingProgrammaticSelection = undefined;
+		this._pendingProgrammaticSelectionTimeout.clear();
 		if (intent) {
 			intent.complete(false);
 			if (this._selectionReason === ModelSelectionReason.ProgrammaticSelection) {
