@@ -28,9 +28,11 @@ import { isSupportedClient } from '../common/env';
  * `chatSetupMicrosoftProbe.ts`.
  */
 const WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS = '_workbenchIncludeUnapprovedAccounts';
+const WORKBENCH_FORCE_REFRESH = '_workbenchForceRefresh';
 
-interface IWorkbenchProbeOptions {
+interface IWorkbenchSessionOptions {
 	readonly [WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS]?: unknown;
+	readonly [WORKBENCH_FORCE_REFRESH]?: unknown;
 }
 
 /**
@@ -187,7 +189,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		// Do NOT use `scopes` beyond this place in the code. Use `scopeData` instead.
 		this._logger.info('[getSessions]', askingForAll ? '[all]' : `[${scopeData.scopeStr}]`, 'starting');
 
-		if (!askingForAll && (options as IWorkbenchProbeOptions)[WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS] === true) {
+		if (!askingForAll && (options as IWorkbenchSessionOptions)[WORKBENCH_INCLUDE_UNAPPROVED_ACCOUNTS] === true) {
 			return this.getSessionsIncludingUnapprovedAccounts(scopeData);
 		}
 
@@ -211,7 +213,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 
 		const resource = options?.resource;
 		const cachedPca = await this._publicClientManager.getOrCreate(scopeData.clientId);
-		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account, resource);
+		const sessions = await this.getAllSessionsForPca(cachedPca, scopeData, options?.account, resource,
+			(options as IWorkbenchSessionOptions)[WORKBENCH_FORCE_REFRESH] === true);
 		this._logger.info(`[getSessions] [${scopeData.scopeStr}] returned ${sessions.length} session(s)`);
 		return sessions;
 
@@ -469,7 +472,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		cachedPca: ICachedPublicClientApplication,
 		scopeData: ScopeData,
 		accountFilter?: AuthenticationSessionAccountInformation,
-		resource?: string
+		resource?: string,
+		refresh = false,
 	): Promise<AuthenticationSession[]> {
 		let filteredAccounts = accountFilter
 			? cachedPca.accounts.filter(a => a.homeAccountId === accountFilter.id)
@@ -506,7 +510,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		return this._eventBufferer.bufferEventsAsync(async () => {
 			for (const account of filteredAccounts) {
 				try {
-					let forceRefresh: true | undefined;
+					let forceRefresh: true | undefined = refresh ? true : undefined;
 					if (scopeData.tenantId) {
 						// If the tenants do not match, then we need to skip the cache
 						// to get a new token for the new tenant

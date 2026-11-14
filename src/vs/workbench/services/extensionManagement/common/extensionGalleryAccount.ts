@@ -9,6 +9,10 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 /** `accessToken` is only carried when the provider authenticates with a bearer. */
 export interface IExtensionGalleryAccount {
 	readonly accessToken?: string;
+	/** Workbench-local principal identity; not included in the process authorization snapshot. */
+	readonly accountId?: string;
+	/** Delay in milliseconds before silently resolving the account again. */
+	readonly refreshAfter?: number;
 }
 
 export const enum ExtensionGalleryAccountStatus {
@@ -31,7 +35,7 @@ export interface IExtensionGalleryAccountProvider {
 	readonly onDidChangeAccount: Event<void>;
 
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
+	getAccount(serviceIndexUrl: string, forceRefresh?: boolean): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive. The provider owns account selection and how the session is obtained. */
 	signIn(): Promise<void>;
@@ -46,9 +50,11 @@ export interface IExtensionGalleryAccountService {
 	readonly accountStatus: ExtensionGalleryAccountStatus;
 	readonly onDidChangeAccountStatus: Event<ExtensionGalleryAccountStatus>;
 	readonly onDidChangeAccount: Event<void>;
+	readonly canRefreshAccessToken: boolean;
+	readonly isRefreshDue: boolean;
 
 	/** Never prompts. Check {@link accountStatus} for whether the account may actually be used. */
-	getAccount(serviceIndexUrl: string): Promise<IExtensionGalleryAccount | undefined>;
+	getAccount(serviceIndexUrl: string, forceRefresh?: boolean): Promise<IExtensionGalleryAccount | undefined>;
 
 	/** Interactive sign-in for whichever provider the deployment configured. */
 	signIn(): Promise<void>;

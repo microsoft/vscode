@@ -71,6 +71,10 @@ export interface IRequestTimings {
 }
 
 export interface IRequestContext {
+	/** Final response URL after redirects, when supplied by the transport. */
+	readonly url?: string;
+	/** Whether the final request is known to retain the supplied Authorization header. */
+	readonly requestHasAuthorization?: boolean;
 	res: {
 		headers: IHeaders;
 		statusCode?: number;
