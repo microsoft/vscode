@@ -16,14 +16,14 @@ import { GitHubService, IGitHubClient, IGitHubRequestProviderScope } from '../..
 import { IGitHubAccountClient } from '../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../platform/github/common/account/accountClient.js';
 import { IGitHubAnonymousClient } from '../../../../platform/github/common/anonymous/anonymous.js';
-import { GitHubAuthorizationContext, GitHubClientOptions, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
+import { GitHubClientOptions, GitHubRequestError } from '../../../../platform/github/common/githubTypes.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ITelemetryService, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from '../../../../platform/telemetry/common/telemetry.js';
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
-import { IAuthenticationService } from '../../authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../common/githubService.js';
+import { AuthenticationSession, IAuthenticationService } from '../../authentication/common/authentication.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../common/githubService.js';
 import { getWorkbenchMissionControlOptions, WorkbenchGitHubCredentialProvider } from './githubCredentialProvider.js';
 
 export class WorkbenchGitHubService extends GitHubService implements IWorkbenchGitHubService {
@@ -95,7 +95,8 @@ export class WorkbenchGitHubService extends GitHubService implements IWorkbenchG
 		return this.acquireClient(options);
 	}
 
-	async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<IGitHubAccountClient> {
+	async acquireAccountApiClient(providerId: string, session: AuthenticationSession, signal: AbortSignal): Promise<IGitHubAccountClient> {
+		const authorization = toGitHubAuthorizationContext(providerId, session);
 		const combinedSignal = AbortSignal.any([signal, this._lifetime.signal]);
 		const options = await withGitHubCredentialDeadline(combinedSignal, signal => this._credentialProvider.resolveClient(authorization, signal));
 		combinedSignal.throwIfAborted();

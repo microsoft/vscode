@@ -36,10 +36,16 @@ import { WelcomeName } from '../../../../../workbench/contrib/sessions/browser/c
 import { IStorageService, InMemoryStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { IGitHubAccountClient } from '../../../../../platform/github/common/account/account.js';
+import { IUsersClient, User } from '../../../../../platform/github/common/core/users.js';
+import { GitHubRequestError } from '../../../../../platform/github/common/githubTypes.js';
+import { AuthenticationSession, IAuthenticationService } from '../../../../../workbench/services/authentication/common/authentication.js';
+import { IWorkbenchGitHubService } from '../../../../../workbench/services/github/common/githubService.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { TestExperimentTriggerTelemetryService } from '../../../../../platform/telemetry/test/common/experimentTriggerTestUtils.js';
-import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
+import { COLLAPSED_SESSION_OPTIONS_SHOW_ICONS_SETTING, COMPARE_AGENTS_OPEN_IN_GRID_SETTING, ENVIRONMENT_PICKER_SETTING, NEW_SESSION_COMPOSER_OPTIONS_EXPANDED_SETTING, NEW_SESSION_WELCOME_NAME_SETTING, WORKSPACE_OPT_OUT_SETTING } from '../../../../../workbench/contrib/sessions/common/chatConstants.js';
 import type { ISessionOptionsIconOnlyPickers } from '../../../../../workbench/contrib/sessions/browser/chat/iconOnlySessionPickers.js';
 import { getNewSessionWelcomePhrases } from '../../../../../workbench/contrib/sessions/common/welcomePhrases.js';
 import { SessionInputPickerVisibility } from '../../../../../workbench/contrib/sessions/common/sessionPickerVisibility.js';
@@ -272,18 +278,19 @@ const refreshGitHubProfileName = Reflect.get(WelcomeName.prototype, '_refreshGit
 	readonly _store: { readonly isDisposed: boolean };
 	_githubProfileAccountKey: string | undefined;
 	readonly _githubProfileName: ReturnType<typeof observableValue<string | undefined>>;
-	readonly configurationService: { getValue<T>(key: string): T };
+	readonly configurationService: { getValue<T>(key: string): T | undefined };
 	readonly defaultAccountService: {
 		currentDefaultAccount: { readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null;
 		getDefaultAccount(): Promise<{ readonly authenticationProvider: { readonly id: string; readonly enterprise: boolean }; readonly sessionId: string } | null>;
 	};
+	readonly logService: Pick<ILogService, 'warn'>;
 	_fetchGitHubProfileName(providerId: string, enterprise: boolean, sessionId: string): Promise<string | undefined>;
 }) => Promise<void>;
 const fetchGitHubProfileName = Reflect.get(WelcomeName.prototype, '_fetchGitHubProfileName') as (this: {
-	readonly authenticationService: { getSessions(): Promise<readonly never[]> };
-	readonly defaultAccountService: { resolveGitHubUrl(path: string): URI | undefined };
-	readonly requestService: { request(): Promise<never> };
-	readonly logService: { warn(message: string): void };
+	readonly authenticationService: Pick<IAuthenticationService, 'getSessions'>;
+	readonly defaultAccountService: Pick<IDefaultAccountService, 'resolveGitHubUrl'>;
+	readonly gitHubService: Pick<IWorkbenchGitHubService, 'acquireAccountApiClient'>;
+	readonly logService: Pick<ILogService, 'warn'>;
 }, providerId: string, enterprise: boolean, sessionId: string) => Promise<string | undefined>;
 
 interface IPromptOptionsWorkspaceHarness {
@@ -2927,6 +2934,7 @@ suite('NewChatWidget', () => {
 					return currentDefaultAccount;
 				},
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			async _fetchGitHubProfileName(providerId: string, _enterprise: boolean, sessionId: string) {
 				profileRequests.push(`${providerId}:${sessionId}`);
 				return 'Octo Cat';
@@ -2970,6 +2978,7 @@ suite('NewChatWidget', () => {
 				get currentDefaultAccount() { return currentDefaultAccount; },
 				async getDefaultAccount() { return currentDefaultAccount; },
 			},
+			logService: { warn: () => assert.fail('Unexpected profile warning') },
 			_fetchGitHubProfileName(providerId: string) {
 				return providerId === 'github' ? githubProfile.p : enterpriseProfile.p;
 			},
@@ -2978,10 +2987,10 @@ suite('NewChatWidget', () => {
 		const publicRefresh = refreshGitHubProfileName.call(harness);
 		currentDefaultAccount = { authenticationProvider: { id: 'github-enterprise', enterprise: true }, sessionId: 'shared-session' };
 		const enterpriseRefresh = refreshGitHubProfileName.call(harness);
-		githubProfile.complete('Public Name');
-		await publicRefresh;
 		enterpriseProfile.complete('Enterprise Name');
 		await enterpriseRefresh;
+		githubProfile.complete('Public Name');
+		await publicRefresh;
 
 		assert.deepStrictEqual({
 			accountKey: harness._githubProfileAccountKey,
@@ -3004,8 +3013,8 @@ suite('NewChatWidget', () => {
 				},
 			},
 			defaultAccountService: { resolveGitHubUrl: () => undefined },
-			requestService: {
-				async request() {
+			gitHubService: {
+				async acquireAccountApiClient() {
 					profileRequests++;
 					throw new Error('Unexpected profile request');
 				},
@@ -3019,6 +3028,176 @@ suite('NewChatWidget', () => {
 			profileRequests: 0,
 			warnings: ['Failed to fetch GitHub profile name because the enterprise URL is unavailable.'],
 		});
+	});
+
+	suite('GitHub welcome profile', () => {
+		const selectedSession: AuthenticationSession = {
+			id: 'welcome-selected-session',
+			account: { id: 'welcome-account', label: 'Welcome Account' },
+			scopes: ['read:user'],
+			accessToken: 'selected-token',
+		};
+
+		function createProfileHarness(session: AuthenticationSession, getAuthenticated: IUsersClient['getAuthenticated']) {
+			const sessions: AuthenticationSession[] = [
+				{ ...session, id: 'other-account-session', account: { id: 'other-account', label: 'Other Account' }, scopes: ['repo'] },
+				{ ...session, id: 'broader-session', scopes: ['repo', 'read:user'] },
+				session,
+			];
+			const authenticationRequests: Parameters<IAuthenticationService['getSessions']>[] = [];
+			const acquisitions: { providerId: string; session: AuthenticationSession }[] = [];
+			const warnings: { message: string; error: Error | undefined }[] = [];
+			let clientDisposals = 0;
+			const harness: ThisParameterType<typeof fetchGitHubProfileName> = {
+				authenticationService: {
+					async getSessions(...args) {
+						authenticationRequests.push(args);
+						return sessions;
+					},
+				},
+				defaultAccountService: { resolveGitHubUrl: () => session.authorizationServer?.toString() },
+				gitHubService: {
+					async acquireAccountApiClient(...args) {
+						assert.ok(args.length === 3);
+						const [providerId, session] = args;
+						acquisitions.push({ providerId, session });
+						return upcastPartial<IGitHubAccountClient>({
+							users: upcastPartial<IUsersClient>({ getAuthenticated }),
+							dispose: () => { clientDisposals++; },
+						});
+					},
+				},
+				logService: { warn: (message, error?: Error) => warnings.push({ message, error }) },
+			};
+			return { harness, sessions, authenticationRequests, acquisitions, warnings, get clientDisposals() { return clientDisposals; } };
+		}
+
+		for (const { providerId, issuer } of [
+			{ providerId: 'github', issuer: undefined },
+			{ providerId: 'github', issuer: URI.parse('https://github.com/login/oauth') },
+			{ providerId: 'github-enterprise', issuer: URI.parse('https://tenant.ghe.com') },
+		]) {
+			test(`uses the exact selected ${providerId} grant with issuer ${issuer ?? 'unset'}`, async () => {
+				const session = { ...selectedSession, authorizationServer: issuer };
+				let disposalsWhileReading: number | undefined;
+				const state = createProfileHarness(session, async () => {
+					await timeout(0);
+					disposalsWhileReading = state.clientDisposals;
+					return upcastPartial<User>({ name: '  Octo Cat  ' });
+				});
+
+				const profileName = await fetchGitHubProfileName.call(state.harness, providerId, providerId === 'github-enterprise', session.id);
+
+				assert.deepStrictEqual({
+					profileName,
+					authenticationRequests: state.authenticationRequests,
+					acquisitions: state.acquisitions,
+					disposalsWhileReading,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					profileName: 'Octo Cat',
+					authenticationRequests: [[providerId, [], { silent: true }]],
+					acquisitions: [{ providerId, session }],
+					disposalsWhileReading: 0,
+					clientDisposals: 1,
+					warnings: [],
+				});
+			});
+		}
+
+		test('does not replace a missing selected session with another grant', async () => {
+			const state = createProfileHarness(selectedSession, async () => {
+				throw new Error('Unexpected profile request');
+			});
+			state.sessions.pop();
+
+			const profileName = await fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id);
+
+			assert.deepStrictEqual({ profileName, acquisitions: state.acquisitions, warnings: state.warnings }, {
+				profileName: undefined,
+				acquisitions: [],
+				warnings: [],
+			});
+		});
+
+		for (const name of ['Octo Cat', undefined]) {
+			test(`evicts failed lookups and caches a successful ${name ? 'named' : 'nameless'} profile`, async () => {
+				const session = { ...selectedSession, id: name ? 'welcome-cache-name' : 'welcome-cache-empty' };
+				const started = new DeferredPromise<void>();
+				const interrupted = new DeferredPromise<User>();
+				let profileRequests = 0;
+				const state = createProfileHarness(session, async () => {
+					if (++profileRequests === 1) {
+						void started.complete();
+						return interrupted.p;
+					}
+					return upcastPartial<User>({ name });
+				});
+				const account = { authenticationProvider: { id: 'github', enterprise: false }, sessionId: session.id };
+				const configurationService = new TestConfigurationService({ [NEW_SESSION_WELCOME_NAME_SETTING]: '' });
+				disposables.add(configurationService.onDidChangeConfigurationEmitter);
+				const harness: ThisParameterType<typeof refreshGitHubProfileName> = {
+					_githubProfileAccountKey: undefined,
+					_githubProfileName: observableValue<string | undefined>('githubProfileName', undefined),
+					enabled: constObservable(true),
+					_store: { isDisposed: false },
+					configurationService,
+					defaultAccountService: {
+						currentDefaultAccount: account,
+						async getDefaultAccount() { return account; },
+					},
+					logService: state.harness.logService,
+					_fetchGitHubProfileName: (providerId, enterprise, sessionId) => fetchGitHubProfileName.call(state.harness, providerId, enterprise, sessionId),
+				};
+
+				const refreshes = [refreshGitHubProfileName.call(harness), refreshGitHubProfileName.call(harness)];
+				await started.p;
+				const renewedSession = { ...session, accessToken: 'renewed-token' };
+				state.sessions[state.sessions.indexOf(session)] = renewedSession;
+				await interrupted.error(new GitHubRequestError('GitHub credential generation was superseded', 'unknown'));
+				await Promise.all(refreshes);
+				const afterFailure = { profileName: harness._githubProfileName.get(), profileRequests, clientDisposals: state.clientDisposals };
+
+				await refreshGitHubProfileName.call(harness);
+				await refreshGitHubProfileName.call(harness);
+
+				assert.deepStrictEqual({
+					afterFailure,
+					profileName: harness._githubProfileName.get(),
+					profileRequests,
+					acquisitions: state.acquisitions,
+					clientDisposals: state.clientDisposals,
+					warnings: state.warnings,
+				}, {
+					afterFailure: { profileName: undefined, profileRequests: 1, clientDisposals: 1 },
+					profileName: name,
+					profileRequests: 2,
+					acquisitions: [{ providerId: 'github', session }, { providerId: 'github', session: renewedSession }],
+					clientDisposals: 2,
+					warnings: [{ message: 'Failed to fetch GitHub profile name.', error: undefined }],
+				});
+			});
+		}
+
+		for (const failure of ['acquisition', 'profile'] as const) {
+			test(`propagates ${failure} errors and releases any acquired client`, async () => {
+				const error = new Error('GitHub profile unavailable');
+				let profileRequests = 0;
+				const state = createProfileHarness(selectedSession, async () => { profileRequests++; throw error; });
+				if (failure === 'acquisition') {
+					state.harness.gitHubService.acquireAccountApiClient = async () => { throw error; };
+				}
+
+				await assert.rejects(fetchGitHubProfileName.call(state.harness, 'github', false, selectedSession.id), error);
+
+				assert.deepStrictEqual({ profileRequests, clientDisposals: state.clientDisposals, warnings: state.warnings }, {
+					profileRequests: failure === 'profile' ? 1 : 0,
+					clientDisposals: failure === 'profile' ? 1 : 0,
+					warnings: [],
+				});
+			});
+		}
 	});
 
 	test('replays a provider change that arrives while creating the draft', async () => {

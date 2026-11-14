@@ -209,10 +209,7 @@ export class BrowserPluginGitCommandService implements IPluginGitService {
 		try {
 			let content: IContentClient;
 			if (session) {
-				const client = lifetime.add(await this._gitHubService.acquireAccountApiClient({
-					providerId: 'github', sessionId: session.id, accountId: session.account.id, scopes: session.scopes,
-					...(session.authorizationServer ? { authorizationServer: session.authorizationServer.toString() } : {}),
-				}, signal));
+				const client = lifetime.add(await this._gitHubService.acquireAccountApiClient('github', session, signal));
 				lifetime.add(client.onDidInvalidate(() => controller.abort(new CancellationError())));
 				content = client.content;
 			} else {

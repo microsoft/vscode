@@ -20,7 +20,7 @@ import { NullLogService } from '../../../../platform/log/common/log.js';
 import { MainThreadGitHub } from '../../browser/mainThreadGitHub.js';
 import { IAuthenticationAccessService } from '../../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { createInternalGitHubModule, ExtHostGitHub } from '../../common/extHostGitHub.js';
 import { SingleProxyRPCProtocol } from '../common/testRPCProtocol.js';
@@ -97,7 +97,10 @@ suite('MainThreadGitHub', () => {
 			},
 		};
 		const gitHubService = upcastPartial<IWorkbenchGitHubService>({
-			acquireAccountApiClient: async authorization => {
+			acquireAccountApiClient: async (...args) => {
+				assert.ok(args.length === 3);
+				const [providerId, session] = args;
+				const authorization = toGitHubAuthorizationContext(providerId, session);
 				acquisitions.push(authorization);
 				await options.acquisitionGate?.();
 				return new AccountClient(authorization, { rest: provider, graphql: provider, onDidInvalidate: onDidInvalidate.event }, toDisposable(() => released.push(authorization.sessionId)));

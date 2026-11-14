@@ -25,7 +25,7 @@ import { GitHubAuthorizationContext, GitHubRequestError } from '../../../../../p
 import { NullLogService } from '../../../../../platform/log/common/log.js';
 import { InMemoryStorageService } from '../../../../../platform/storage/common/storage.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../services/github/common/githubService.js';
 import { BrowserPluginGitCommandService } from '../../browser/pluginGitCommandService.js';
 import { parseGitHubCloneUrl } from '../../browser/githubRepoFetcher.js';
 
@@ -151,7 +151,7 @@ suite('BrowserPluginGitCommandService', () => {
 				grants: github.leases.map(lease => lease.authorization), prompts: authentication.createSessionCalls,
 				content: (await fileService.readFile(URI.joinPath(targetDir, 'private.txt'))).value.toString(),
 			}, {
-				grants: [undefined, { providerId: 'github', sessionId: 'created', accountId: 'octocat', scopes: ['repo'] }],
+				grants: [undefined, { providerId: 'github', sessionId: 'created', accountId: 'octocat', scopes: ['repo'], authorizationServer: undefined }],
 				prompts: 1, content: 'secret',
 			});
 		});
@@ -164,7 +164,7 @@ suite('BrowserPluginGitCommandService', () => {
 				requestGrants: github.requests.map(request => request.authorization?.sessionId),
 				prompts: authentication.createSessionCalls,
 			}, {
-				grants: [{ providerId: 'github', sessionId: 'repository', accountId: 'octocat', scopes: ['repo', 'read:user'] }],
+				grants: [{ providerId: 'github', sessionId: 'repository', accountId: 'octocat', scopes: ['repo', 'read:user'], authorizationServer: undefined }],
 				requestGrants: ['repository', 'repository', 'repository'], prompts: 0,
 			});
 		});
@@ -491,7 +491,10 @@ class StubGitHubService extends mock<IWorkbenchGitHubService>() {
 		this.responses.push({ path, response });
 	}
 
-	override async acquireAccountApiClient(authorization: GitHubAuthorizationContext, signal: AbortSignal): Promise<AccountClient> {
+	override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<AccountClient> {
+		assert.ok(args.length === 3);
+		const [providerId, session, signal] = args;
+		const authorization = toGitHubAuthorizationContext(providerId, session);
 		signal.throwIfAborted();
 		const { provider, lifetime, invalidated } = this.providers(authorization);
 		return this.store.add(new AccountClient(authorization, { rest: provider, graphql: provider, onDidInvalidate: invalidated.event }, lifetime));

@@ -45,7 +45,7 @@ import { ModelCard } from '../../../browser/widget/input/modelPicker/modelPicker
 import { createModelAction } from '../../../browser/widget/input/modelPicker/modelPickerItemPrimitives.js';
 import { getModelConfigSummary } from '../../../browser/widget/input/modelPicker/modelPickerModelConfig.js';
 import { ICloudSandboxTelemetryService, type ICloudSandboxDiscoveryTelemetryData } from '../../../browser/remoteAgentHost/cloudSandboxTelemetry.js';
-import { IWorkbenchGitHubService } from '../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../services/github/common/githubService.js';
 import { ITelemetryService, type ITelemetryData } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { IUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { DidChangeUserDataProfileEvent, IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
@@ -345,7 +345,10 @@ function createService(store: Pick<{ add<T extends { dispose(): void }>(t: T): T
 		}
 	}, undefined, false, options.logService ?? new NullLogService()));
 	instantiationService.stub(IWorkbenchGitHubService, new class extends mock<IWorkbenchGitHubService>() {
-		override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+		override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+			assert.ok(args.length === 3);
+			const [providerId, selectedSession] = args;
+			const authorization = toGitHubAuthorizationContext(providerId, selectedSession);
 			const session = selectedSessions.find(session => session.id === authorization.sessionId && session.account.id === authorization.accountId);
 			assert.ok(session);
 			assert.strictEqual(authorization.providerId, 'github');

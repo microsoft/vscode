@@ -33,9 +33,10 @@ import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyl
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IIssueFormService, ISimilarIssue, IssueReporterData, IssueReporterExtensionData, IssueType } from '../common/issue.js';
-import { getGitHubAuthorization, normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from './issueReporterModel.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { toGitHubAuthorizationContext } from '../../../services/github/common/githubService.js';
 
 const MAX_URL_LENGTH = 7500;
 
@@ -123,11 +124,11 @@ export class BaseIssueReporterService extends Disposable {
 			try {
 				const githubSessions = await this.authenticationService.getSessions('github');
 				const session = githubSessions.find(session => authorization
-					? isEqualAuthorization(authorization, getGitHubAuthorization(session))
+					? isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session))
 					: session.scopes.includes('repo'));
 				githubAccessToken = session?.accessToken ?? '';
 				if (session) {
-					this.data.githubAuthorization ??= getGitHubAuthorization(session);
+					this.data.githubAuthorization ??= toGitHubAuthorizationContext('github', session);
 				}
 			} catch (e) {
 				// Ignore
@@ -1288,10 +1289,11 @@ export class BaseIssueReporterService extends Disposable {
 		let issueUrl: string;
 		try {
 			const sessions = await withGitHubCredentialDeadline(this.disposeSignal, () => this.authenticationService.getSessions('github', [], { silent: true }, true));
-			if (!authorization || !sessions.some(session => isEqualAuthorization(authorization, getGitHubAuthorization(session)))) {
+			const session = authorization && sessions.find(session => isEqualAuthorization(authorization, toGitHubAuthorizationContext('github', session)));
+			if (!session) {
 				throw new GitHubRequestError(localize('issueReporter.githubSessionUnavailable', "The GitHub session selected for this issue report is no longer available. Sign in again or preview the report on GitHub."), 'authentication');
 			}
-			issueUrl = await this.issueFormService.createGitHubIssue(authorization, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
+			issueUrl = await this.issueFormService.createGitHubIssue('github', session, { owner: gitHubDetails.owner, repo: gitHubDetails.repositoryName }, { title: issueTitle, body: issueBody }, this.disposeSignal);
 			this.disposeSignal.throwIfAborted();
 		} catch (error) {
 			this.disposeSignal.throwIfAborted();

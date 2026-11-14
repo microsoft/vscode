@@ -72,7 +72,7 @@ import { TestLifecycleService, TestWorkspaceTrustManagementService } from '../..
 import { IHostService } from '../../../../../../services/host/browser/host.js';
 import { IPowerService } from '../../../../../../services/power/common/powerService.js';
 import { IAuthenticationService } from '../../../../../../services/authentication/common/authentication.js';
-import { IWorkbenchGitHubService } from '../../../../../../services/github/common/githubService.js';
+import { IWorkbenchGitHubService, toGitHubAuthorizationContext } from '../../../../../../services/github/common/githubService.js';
 import { IGitHubAccountClient } from '../../../../../../../platform/github/common/account/account.js';
 import { AccountClient } from '../../../../../../../platform/github/common/account/accountClient.js';
 import { LocalMissionControlRequestProvider } from '../../../../../../../platform/github/common/client/localMissionControlRequestProvider.js';
@@ -3096,7 +3096,10 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				override reportRequest() { }
 			}(),
 			new class extends mock<IWorkbenchGitHubService>() {
-				override async acquireAccountApiClient(authorization: IGitHubAccountClient['authorization']): Promise<IGitHubAccountClient> {
+				override async acquireAccountApiClient(...args: Parameters<IWorkbenchGitHubService['acquireAccountApiClient']>): Promise<IGitHubAccountClient> {
+					assert.ok(args.length === 3);
+					const [providerId, session] = args;
+					const authorization = toGitHubAuthorizationContext(providerId, session);
 					const lifetime = new DisposableStore();
 					const controller = new AbortController();
 					lifetime.add(toDisposable(() => controller.abort()));
