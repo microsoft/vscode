@@ -76,7 +76,7 @@ suite('Agents chat part actions', () => {
 			menus: {
 				sectionToolbar: 'chatIsEnabled && sessionSection.type == \'worktree\'',
 				sectionContext: 'chatIsEnabled && sessionSection.type == \'worktree\'',
-				session: 'chatIsEnabled && !sessionItem.isMultiSelection',
+				session: 'chatIsEnabled',
 			},
 		});
 	});
