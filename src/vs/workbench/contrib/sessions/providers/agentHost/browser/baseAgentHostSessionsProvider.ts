@@ -8070,7 +8070,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		return canvases?.map(canvas => this._toSessionCanvasDefinition(canvas));
 	}
 
-	async openCanvas(sessionId: string, chatResource: URI, canvas: ISessionCanvasDefinition, instanceId: string, options?: ICanvasOpenOptions): Promise<void> {
+	async openCanvas(sessionId: string, chatResource: URI, canvas: Pick<ISessionCanvasDefinition, 'canvasId' | 'extensionId'>, instanceId: string, options?: ICanvasOpenOptions): Promise<void> {
 		const target = this._getCanvasChatTarget(sessionId, chatResource);
 		const connection = this.connection;
 		if (!connection?.openSessionCanvas) {
