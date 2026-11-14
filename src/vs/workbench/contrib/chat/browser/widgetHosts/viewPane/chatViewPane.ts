@@ -68,7 +68,7 @@ import { ChatWidget, layoutChatWidgetForInputHeight } from '../../widget/chatWid
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from '../../viewsWelcome/chatViewWelcomeController.js';
 import { IChatViewsWelcomeDescriptor } from '../../viewsWelcome/chatViewsWelcome.js';
 import { IWorkbenchLayoutService, LayoutSettings, Position } from '../../../../../services/layout/browser/layoutService.js';
-import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from '../../agentSessions/agentSessions.js';
+import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition, IChatViewSessionsControl } from '../../agentSessions/agentSessions.js';
 import { IProgressService } from '../../../../../../platform/progress/common/progress.js';
 import { CHAT_WIDGET_VIEW_STATE_CACHE_LIMIT, ChatViewId, IChatWidgetService, IChatWidgetViewState, setModelPreservingInputTypedWhileLoading } from '../../chat.js';
 import { IActivityService, ProgressBadge } from '../../../../../services/activity/common/activity.js';
@@ -145,7 +145,7 @@ type ChatViewSessionsLayoutClassification = {
 	comment: 'Reports the layout of the sessions list in the chat view, to measure how the sessions list in the chat view is used.';
 };
 
-export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
+export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate, IChatViewSessionsControl {
 
 	private readonly memento: Memento<IChatViewPaneState>;
 	private readonly viewState: IChatViewPaneState;

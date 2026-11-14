@@ -11,134 +11,118 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/actions/common/actions.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { INotificationService } from '../../../../../../platform/notification/common/notification.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
-import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
-import { IViewsService } from '../../../../../services/views/common/viewsService.js';
-import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
-import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
-import { IPaneCompositePartService } from '../../../../../services/panecomposite/browser/panecomposite.js';
-import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
-import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { ContextKeyService } from '../../../../../../platform/contextkey/browser/contextKeyService.js';
-import { RemoteNameContext } from '../../../../../common/contextkeys.js';
-import { ChatEntitlementContextKeys } from '../../../../../services/chat/common/chatEntitlementService.js';
-import { ChatViewContainerId } from '../../../../chat/browser/chat.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
+import { ViewPane } from '../../../../../browser/parts/views/viewPane.js';
+import { ViewPaneContainer } from '../../../../../browser/parts/views/viewPaneContainer.js';
+import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../../../common/views.js';
+import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../../services/editor/common/editorService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
+import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
+import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { ChatViewContainerId, ChatViewId, IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
-import { ChatContextKeys } from '../../../../chat/common/actions/chatContextKeys.js';
+import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { IAgentsChatPartFrame } from '../../../browser/agentsView/agentsChatPartFrame.js';
-import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
+import { IAgentsViewProvidersService } from '../../../browser/agentsView/agentsViewProviders.js';
 import { ChatViewSessionsGate } from '../../../browser/agentsView/chatViewSessionsGate.js';
+import { ChatViewSessionsPane } from '../../../browser/agentsView/chatViewSessionsPane.js';
 import { Menus } from '../../../browser/menus.js';
 import { SessionGroupToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
-import { SessionsViewId } from '../../../browser/views/sessionsView.js';
-import { IExtensionService } from '../../../../../services/extensions/common/extensions.js';
+import { ISessionsManagementService } from '../../../common/sessionsManagement.js';
 
 /** How many items the context menu of a session has: the actions of the sessions list add theirs. */
 function sessionItemMenuItems(): number {
 	return MenuRegistry.getMenuItems(SessionItemContextMenuId).length;
 }
 
+/** The pane of the Chat view, as the chat contributions register it: unless they are loaded, a stand-in. */
+class ChatViewPaneStandIn extends ViewPane { }
+
 suite('ChatViewSessionsGate', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	// The Agents window registers the Sessions view too, as other tests load it: set that registration aside meanwhile.
-	// The Chat view container, where the Sessions view shows, is registered by the chat contributions: unless loaded, a stand-in.
-	let agentsWindowView: { readonly view: IViewDescriptor; readonly container: ViewContainer } | undefined;
-	let chatViewContainerStandIn: ViewContainer | undefined;
+	// The Chat view and its container are registered by the chat contributions: unless they are loaded, stand-ins
+	let standIn: { readonly container?: ViewContainer; readonly view?: IViewDescriptor } = {};
 	setup(() => {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
-		if (!viewContainersRegistry.get(ChatViewContainerId)) {
-			chatViewContainerStandIn = viewContainersRegistry.registerViewContainer({ id: ChatViewContainerId, title: { value: 'Chat', original: 'Chat' }, ctorDescriptor: new SyncDescriptor(ViewPaneContainer) }, ViewContainerLocation.AuxiliaryBar);
-		}
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		const view = viewsRegistry.getView(SessionsViewId);
-		const container = viewsRegistry.getViewContainer(SessionsViewId);
-		agentsWindowView = view && container ? { view, container } : undefined;
-		if (agentsWindowView) {
-			viewsRegistry.deregisterViews([agentsWindowView.view], agentsWindowView.container);
+		const container = viewContainersRegistry.get(ChatViewContainerId) ? undefined : viewContainersRegistry.registerViewContainer({ id: ChatViewContainerId, title: { value: 'Chat', original: 'Chat' }, ctorDescriptor: new SyncDescriptor(ViewPaneContainer) }, ViewContainerLocation.AuxiliaryBar);
+		let view: IViewDescriptor | undefined;
+		if (!viewsRegistry.getView(ChatViewId)) {
+			view = { id: ChatViewId, name: { value: 'Chat', original: 'Chat' }, ctorDescriptor: new SyncDescriptor(ChatViewPaneStandIn) };
+			viewsRegistry.registerViews([view], viewContainersRegistry.get(ChatViewContainerId)!);
 		}
+		standIn = { container, view };
 	});
 	teardown(() => {
-		if (chatViewContainerStandIn) {
-			Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(chatViewContainerStandIn);
-			chatViewContainerStandIn = undefined;
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		if (standIn.view) {
+			viewsRegistry.deregisterViews([standIn.view], viewsRegistry.getViewContainer(ChatViewId)!);
 		}
-		if (agentsWindowView) {
-			Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([agentsWindowView.view], agentsWindowView.container);
+		if (standIn.container) {
+			Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).deregisterViewContainer(standIn.container);
 		}
+		standIn = {};
 	});
 
 	let createdChatParts: number;
+	let hosts: number;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
-	/** Shows the Sessions view, as the user opens it. */
-	function showSessionsView(): void {
-		viewVisibility.fire({ id: SessionsViewId, visible: true });
-	}
-
-	let hosts: number;
-	let hiddenParts: Parts[];
-	let contextKeyService: IContextKeyService;
-	/** Whether chat is installed: without it, chat needs setting up, which the Chat view offers. */
-	let chatInstalled: IContextKey<boolean>;
-
-	function createGate(enabled: boolean, remoteAuthority?: string, auxiliaryBar?: { visible: boolean; containers: string[] }, events?: { readonly partVisibility?: Event<IPartVisibilityChangeEvent>; readonly compositeClose?: Event<{ viewContainerLocation: ViewContainerLocation }>; readonly extensionsRegistered?: Promise<boolean> }, configuration?: Record<string, unknown>): ChatViewSessionsGate {
+	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>): ChatViewSessionsGate {
 		createdChatParts = 0;
 		hosts = 0;
-		hiddenParts = [];
 		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IAgentsChatPartFrame, new SyncDescriptor(class {
 			constructor() {
 				createdChatParts++;
 			}
 		})])));
-		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, [ChatConfiguration.AgentEnabled]: true, ...configuration }));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled, ...configuration }));
 		viewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
 		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: () => false }));
 		instantiationService.stub(IWorkbenchEnvironmentService, upcastPartial<IWorkbenchEnvironmentService>({ remoteAuthority }));
-		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({
-			onDidChangePartVisibility: events?.partVisibility ?? Event.None,
-			isVisible: (part: Parts) => part === Parts.AUXILIARYBAR_PART && !!auxiliaryBar?.visible,
-			setPartHidden: (hidden: boolean, part: Parts) => {
-				if (hidden) {
-					hiddenParts.push(part);
-					if (part === Parts.AUXILIARYBAR_PART && auxiliaryBar) {
-						auxiliaryBar.visible = false;
-					}
-				}
-			},
-		}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
 		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() }));
-		contextKeyService = disposables.add(new ContextKeyService(instantiationService.get(IConfigurationService)));
-		// Where the Sessions view can show: a local window, with agents enabled and chat set up
-		RemoteNameContext.bindTo(contextKeyService).set('');
-		chatInstalled = ChatEntitlementContextKeys.Setup.installed.bindTo(contextKeyService);
-		chatInstalled.set(true);
-		instantiationService.stub(IContextKeyService, contextKeyService);
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ registerHost: () => { hosts++; return toDisposable(() => hosts--); } }));
-		instantiationService.stub(IPaneCompositePartService, upcastPartial<IPaneCompositePartService>({
-			getVisiblePaneCompositeIds: () => auxiliaryBar?.containers ?? [],
-			onDidPaneCompositeClose: (events?.compositeClose ?? Event.None) as IPaneCompositePartService['onDidPaneCompositeClose'],
-		}));
-		instantiationService.stub(IExtensionService, upcastPartial<IExtensionService>({ whenInstalledExtensionsRegistered: () => events?.extensionsRegistered ?? Promise.resolve(true) }));
-		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({}));
+		instantiationService.stub(IWorkspaceContextService, upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) }));
 		instantiationService.stub(IMultiDiffSourceResolverService, upcastPartial<IMultiDiffSourceResolverService>({ registerResolver: () => ({ dispose: () => { } }) }));
+		// What the chat of the Chat view, and its host, take
+		instantiationService.stub(ISessionHost, upcastPartial<ISessionHost>({}));
+		instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({}));
+		instantiationService.stub(IEditorService, upcastPartial<IEditorService>({}));
+		instantiationService.stub(IEditorGroupsService, upcastPartial<IEditorGroupsService>({}));
+		instantiationService.stub(IChatWidgetService, upcastPartial<IChatWidgetService>({}));
+		instantiationService.stub(IChatService, upcastPartial<IChatService>({}));
+		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({}));
+		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
 
-	/** The view containers of its own, which it registers none of, and the Sessions view in the Chat view container. */
+	/** The pane of the Chat view, the view containers of its own, which it registers none of, and the Sessions views. */
 	function registered() {
-		const containers = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).all.filter(container => container.id === 'workbench.view.agents').length;
-		const chatViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(ChatViewContainerId);
-		const view = chatViewContainer ? Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(chatViewContainer).find(view => view.id === SessionsViewId) : undefined;
-		return { containers, view: view && { name: view.name.value, when: view.when?.serialize() } };
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		const chatViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(ChatViewContainerId)!;
+		const chatViews = viewsRegistry.getViews(chatViewContainer);
+		return {
+			chatViewPane: chatViews.find(view => view.id === ChatViewId)?.ctorDescriptor.ctor === ChatViewSessionsPane ? 'sessions' : 'chat',
+			chatContainerViews: chatViews.length,
+			agentsContainers: Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).all.filter(container => container.id === 'workbench.view.agents').length,
+		};
 	}
 
 	test('reads only its setting and registers nothing while the setting is off', () => {
@@ -149,50 +133,37 @@ suite('ChatViewSessionsGate', () => {
 				return super.getValue<T>(arg1, arg2);
 			}
 		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: false });
+		const before = registered();
 		// Any use of the instantiation service fails: with the setting off, the gate creates and invokes nothing
 		disposables.add(new ChatViewSessionsGate(configurationService, upcastPartial<IInstantiationService>({})));
 
-		assert.deepStrictEqual({ ...registered(), reads }, { containers: 0, view: undefined, reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
+		assert.deepStrictEqual({ ...registered(), reads }, { ...before, chatViewPane: 'chat', reads: [ChatConfiguration.ChatViewSessionsListEnabled] });
 	});
 
-	test('registers the Sessions view in the Chat view container, no view container of its own, and not the actions of the list before it shows, while the setting is on', () => {
-		const before = sessionItemMenuItems();
+	test('shows the sessions in the Chat view itself, with a chat host, and the actions of the list only once it shows, while the setting is on', () => {
+		const before = registered();
+		const listActionsBefore = sessionItemMenuItems();
 		const gate = createGate(true);
-		const whileOn = { ...registered(), createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - before };
+		const whileOn = { ...registered(), hosts, createdChatParts, listActionsBeforeShown: sessionItemMenuItems() - listActionsBefore };
 		gate.dispose();
 
-		assert.deepStrictEqual({ whileOn, afterDispose: registered() }, {
-			whileOn: { containers: 0, view: { name: 'Sessions', when: 'chatAgentsViewActive' }, createdChatParts: 1, listActionsBeforeShown: 0 },
-			afterDispose: { containers: 0, view: undefined },
-		});
-	});
-
-	test('leaves the Chat view, and what shows it, while chat needs setting up, and replaces them once it is set up', () => {
-		createGate(true);
-		const state = () => ({ active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), hosts });
-		const setUp = state();
-		chatInstalled.set(false);
-		const needsSetup = state();
-		chatInstalled.set(true);
-
-		assert.deepStrictEqual({ setUp, needsSetup, setUpAgain: state() }, {
-			setUp: { active: true, hosts: 1 },
-			needsSetup: { active: false, hosts: 0 },
-			setUpAgain: { active: true, hosts: 1 },
+		assert.deepStrictEqual({ whileOn, afterDispose: { ...registered(), hosts } }, {
+			whileOn: { ...before, chatViewPane: 'sessions', hosts: 1, createdChatParts: 1, listActionsBeforeShown: 0 },
+			afterDispose: { ...before, chatViewPane: 'chat', hosts: 0 },
 		});
 	});
 
 	test('registers nothing while the Agents view of #347688 is on too, which takes precedence', () => {
-		createGate(true, undefined, undefined, undefined, { 'chat.sessionsView.enabled': true });
+		createGate(true, undefined, { 'chat.sessionsView.enabled': true });
 
-		assert.deepStrictEqual({ active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), createdChatParts, view: registered().view }, { active: undefined, createdChatParts: 0, view: undefined });
+		assert.deepStrictEqual({ ...registered(), hosts, createdChatParts }, { ...registered(), chatViewPane: 'chat', hosts: 0, createdChatParts: 0 });
 	});
 
-	test('registers the actions of the list once the Sessions view first shows', () => {
+	test('registers the actions of the list once the Chat view first shows', () => {
 		const before = sessionItemMenuItems();
 		const gate = createGate(true);
 
-		showSessionsView();
+		viewVisibility.fire({ id: ChatViewId, visible: true });
 		const afterShown = sessionItemMenuItems() > before;
 		gate.dispose();
 
@@ -211,32 +182,17 @@ suite('ChatViewSessionsGate', () => {
 		}, { local: true, remote: false, off: false, agentsWindow: true });
 	});
 
-	test('creates no chat part in a remote window', () => {
+	test('leaves the Chat view as it is in a remote window', () => {
 		createGate(true, 'ssh-remote+host');
 
-		assert.deepStrictEqual({ createdChatParts }, { createdChatParts: 0 });
+		assert.deepStrictEqual({ chatViewPane: registered().chatViewPane, hosts, createdChatParts }, { chatViewPane: 'chat', hosts: 0, createdChatParts: 0 });
 	});
 
-	test('replaces the Chat view in a local window: it hides it, and what would show it shows the chat part', () => {
-		const local = createGate(true);
-		const localState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), hosts };
-		local.dispose();
-		const afterDispose = { hosts };
-		createGate(true, 'ssh-remote+host');
-		const remoteState = { active: contextKeyService.getContextKeyValue(ChatContextKeys.agentsViewActive.key), hosts };
-
-		assert.deepStrictEqual({ localState, afterDispose, remoteState }, {
-			localState: { active: true, hosts: 1 },
-			afterDispose: { hosts: 0 },
-			remoteState: { active: undefined, hosts: 0 },
-		});
-	});
-
-	test('offers no action of the Sessions view that opens the Agents window', () => {
+	test('offers no action of the sessions that opens the Agents window', () => {
 		createGate(true);
-		showSessionsView();
+		viewVisibility.fire({ id: ChatViewId, visible: true });
 
-		const menus = [Menus.SidebarSessionsHeader, Menus.SessionsViewFilter, Menus.SessionItemToolbar, SessionItemContextMenuId, Menus.SessionChatItemContext, Menus.SessionChatItemToolbar, Menus.SessionSectionContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, MenuId.ViewTitle];
+		const menus = [Menus.SidebarSessionsHeader, Menus.SessionsViewFilter, Menus.SessionItemToolbar, SessionItemContextMenuId, Menus.SessionChatItemContext, Menus.SessionChatItemToolbar, Menus.SessionSectionContext, SessionSectionToolbarMenuId, SessionGroupToolbarMenuId, MenuId.ViewTitle, MenuId.AgentSessionsToolbar];
 		const commands = menus.flatMap(menu => MenuRegistry.getMenuItems(menu)).filter(isIMenuItem).map(item => item.command.id);
 		assert.deepStrictEqual(commands.filter(id => id === OPEN_AGENTS_WINDOW_COMMAND_ID || id === OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID), []);
 	});

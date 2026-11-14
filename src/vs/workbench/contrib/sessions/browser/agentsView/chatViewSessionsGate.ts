@@ -4,31 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { sessionsListConfigurationProperties } from '../sessionsConfiguration.js';
-import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { IWorkbenchContribution } from '../../../../common/contributions.js';
-import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor, IViewsRegistry, WindowEnablement } from '../../../../common/views.js';
+import { Extensions as ViewExtensions, IViewsRegistry } from '../../../../common/views.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
-import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
-import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
-import { ISessionsViewOptions, SessionsView, SessionsViewId } from '../views/sessionsView.js';
-import { ChatViewContainerId } from '../../../chat/browser/chat.js';
-import { AgentsViewWhen } from './agentsView.js';
+import { ChatViewId } from '../../../chat/browser/chat.js';
+import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { isChatViewSessionsListEnabled } from '../../../chat/common/constants.js';
+import { registerSessionsListActions, registerSessionsListReadStateMenus, SessionsArchiveActionsContribution } from '../views/sessionsListActions.js';
+import { IAgentsChatPartService } from './agentsChatPart.js';
 import { registerAgentsViewNewSessionActions } from './agentsChatPartActions.js';
+import { AgentsChatPartContribution } from './agentsChatPartContribution.js';
+import { AgentsChatViewHost } from './agentsChatViewHost.js';
+import { ChatViewSessionsPane, ChatViewSessionsSurface } from './chatViewSessionsPane.js';
 
 /** The settings of the sessions list and of the sessions it opens, as the Agents window registers them. */
 const sessionsListConfiguration: IConfigurationNode = {
@@ -36,25 +33,9 @@ const sessionsListConfiguration: IConfigurationNode = {
 	properties: sessionsListConfigurationProperties,
 };
 
-const SESSIONS_VIEW_TITLE = localize2('chatViewSessions.title', "Sessions");
-
-/** The services of the Sessions view, which its constructor takes after its options. */
-type SessionsViewServices = ConstructorParameters<typeof SessionsView> extends [ISessionsViewOptions, ...infer Services] ? Services : never;
-
 /**
- * The Sessions view as it shows in the Chat view container: the actions of its header in its title, without the
- * customizations, and listing the sessions of the window's folders only, while it has folders (`scoped`).
- */
-function createChatViewSessionsView(scoped: IObservable<boolean>): typeof SessionsView {
-	return class ChatViewSessionsView extends SessionsView {
-		constructor(options: IViewletViewOptions, ...services: SessionsViewServices) {
-			super({ ...options, headerInTitle: true, showCustomizations: false, scoped }, ...services);
-		}
-	};
-}
-
-/**
- * Shows the Agents view, with the sessions of the Agents window, in place of the Chat view of an editor window while {@link isChatViewSessionsListEnabled}.
+ * Shows the sessions of the Agents window in the Chat view of an editor window while {@link isChatViewSessionsListEnabled}:
+ * its Sessions section lists them, and it shows their chats and a new-session composer below or beside them.
  * The setting is read once, as the window starts: with it off, this registers nothing and creates no service.
  */
 export class ChatViewSessionsGate extends Disposable implements IWorkbenchContribution {
@@ -75,66 +56,76 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 		configurationRegistry.registerConfiguration(sessionsListConfiguration);
 		this._register(toDisposable(() => configurationRegistry.deregisterConfigurations([sessionsListConfiguration])));
-		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows
-		this.registerOnFirstShown(instantiationService, () => {
-			this._register(registerSessionsListActions());
-			this._register(registerSessionsListReadStateMenus());
-			this._register(registerAgentsViewNewSessionActions());
-			this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
-		});
 
 		instantiationService.invokeFunction(accessor => {
-			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
-			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
-				this._register(instantiationService.createInstance(AgentsChatPartContribution));
-				this.registerView(accessor.get(IWorkspaceContextService));
-				this.replaceChatView(accessor.get(IContextKeyService));
+			// Not in remote windows, whose Chat view stays as it is
+			if (accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
+				return;
 			}
-		});
-	}
+			// The actions of the list and of the sessions it shows, once the Chat view or the chat part first shows
+			this.registerOnFirstShown(instantiationService, () => {
+				this._register(registerSessionsListActions());
+				this._register(registerSessionsListReadStateMenus());
+				this._register(registerAgentsViewNewSessionActions());
+				this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
+			});
+			// The chat part, where the chats of sessions can open too
+			this._register(instantiationService.createInstance(AgentsChatPartContribution));
 
-	/** Registers the Sessions view in the Chat view container, where it shows in place of the Chat view. */
-	private registerView(workspaceContextService: IWorkspaceContextService): void {
-		const container = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).get(ChatViewContainerId);
-		if (!container) {
-			return;
-		}
-		const scoped = observableFromEvent(this, workspaceContextService.onDidChangeWorkspaceFolders, () => workspaceContextService.getWorkspace().folders.length > 0);
-		const view: IViewDescriptor = {
-			id: SessionsViewId,
-			name: SESSIONS_VIEW_TITLE,
-			containerIcon: container.icon,
-			containerTitle: container.title.value,
-			singleViewPaneContainerTitle: SESSIONS_VIEW_TITLE.value,
-			ctorDescriptor: new SyncDescriptor(createChatViewSessionsView(scoped)),
-			canToggleVisibility: false,
-			canMoveView: false,
-			when: ChatContextKeys.agentsViewActive,
-			windowEnablement: WindowEnablement.Editor,
-		};
-		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
-		viewsRegistry.registerViews([view], container);
-		this._register(toDisposable(() => viewsRegistry.deregisterViews([view], container)));
+			const surface = this._register(instantiationService.createInstance(ChatViewSessionsSurface));
+			this.replaceChatViewPane(surface);
+			this.registerChatViewHost(instantiationService, accessor.get(IChatViewHostService), accessor.get(IViewsService), surface);
+		});
 	}
 
 	/**
-	 * The Sessions view replaces the Chat view (`ChatContextKeys.agentsViewActive`) where it shows: not while chat needs
-	 * signing in or setting up, which the Chat view offers, as it does today.
+	 * The Chat view shows the sessions and their chats: its pane is replaced as the window starts, before the view is created,
+	 * and stays so; the view, with its title and its actions, is the Chat view's.
 	 */
-	private replaceChatView(contextKeyService: IContextKeyService): void {
-		const active = ChatContextKeys.agentsViewActive.bindTo(contextKeyService);
-		const keys = new Set(AgentsViewWhen.keys());
-		const update = () => active.set(contextKeyService.contextMatchesRules(AgentsViewWhen));
-		update();
-		this._register(contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(keys)) {
-				update();
-			}
+	private replaceChatViewPane(surface: ChatViewSessionsSurface): void {
+		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		const chatView = viewsRegistry.getView(ChatViewId);
+		const container = viewsRegistry.getViewContainer(ChatViewId);
+		if (!chatView || !container) {
+			return;
+		}
+		const replaced = { ...chatView, ctorDescriptor: new SyncDescriptor(ChatViewSessionsPane, [surface]) };
+		viewsRegistry.deregisterViews([chatView], container);
+		viewsRegistry.registerViews([replaced], container);
+		this._register(toDisposable(() => {
+			viewsRegistry.deregisterViews([replaced], container);
+			viewsRegistry.registerViews([chatView], container);
 		}));
-		this._register(toDisposable(() => active.reset()));
 	}
 
-	/** Runs `register` once, as the Sessions view or the chat part, which shows sessions too, first shows. */
+	/** What would show the Chat view's chats shows those of the Chat view's sessions, as the chat part does. */
+	private registerChatViewHost(instantiationService: IInstantiationService, chatViewHostService: IChatViewHostService, viewsService: IViewsService, surface: ChatViewSessionsSurface): void {
+		const host = instantiationService.createChild(new ServiceCollection([IAgentsChatPartService, surface])).createInstance(AgentsChatViewHost);
+		this._register(chatViewHostService.registerHost({
+			reveal: async preserveFocus => {
+				const widget = await host.reveal(preserveFocus);
+				if (!widget) {
+					// While chat needs setting up, the Chat view shows how to
+					await viewsService.openView(ChatViewId, !preserveFocus);
+				}
+				return widget;
+			},
+			revealIfShowing: (sessionResource, options) => host.revealIfShowing(sessionResource, options),
+			openSession: (sessionResource, options) => host.openSession(sessionResource, options),
+			toggle: async () => {
+				if (viewsService.isViewVisible(ChatViewId)) {
+					viewsService.closeView(ChatViewId);
+					return false;
+				}
+				await viewsService.openView(ChatViewId, true);
+				return true;
+			},
+			startSession: (sessionResource, options) => host.startSession(sessionResource, options),
+		}));
+		this._register(toDisposable(() => host.deactivate()));
+	}
+
+	/** Runs `register` once, as the Chat view or the chat part, which shows sessions too, first shows. */
 	private registerOnFirstShown(instantiationService: IInstantiationService, register: () => void): void {
 		const { viewsService, layoutService, lifecycleService } = instantiationService.invokeFunction(accessor => ({
 			viewsService: accessor.get(IViewsService),
@@ -149,7 +140,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 			}
 		};
 		firstShown.add(viewsService.onDidChangeViewVisibility(e => {
-			if (e.id === SessionsViewId && e.visible) {
+			if (e.id === ChatViewId && e.visible) {
 				shown();
 			}
 		}));
@@ -160,7 +151,7 @@ export class ChatViewSessionsGate extends Disposable implements IWorkbenchContri
 		}));
 		// Either restores shown with the window, without a change of its visibility
 		void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-			if (viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
+			if (viewsService.isViewVisible(ChatViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
 				shown();
 			}
 		});
