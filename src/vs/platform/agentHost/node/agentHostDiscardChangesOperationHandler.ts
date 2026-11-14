@@ -294,7 +294,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		this._throwIfNotCompletedLastTurn(owner, turnId);
 		this._throwIfOutsideWorkingDirectories(resource, resolveChangesetOwnerScope(this._stateManager, owner).workingDirectories, owner);
 
-		const source = this._changesets.openTrackedTurnDatabase(owner, turnId);
+		const source = await this._changesets.openTrackedTurnDatabase(owner, turnId);
 		if (!source) {
 			throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, localize('agentHost.changeset.discardTurnChanges.ambiguousTurn', "Changes from a turn that belongs to more than one chat can't be discarded."));
 		}
@@ -417,7 +417,7 @@ export class AgentHostDiscardChangesOperationHandler implements IChangesetOperat
 		};
 		let discarded = messages.discarded;
 
-		const tracked = this._changesets.openTrackedSessionDatabases(owner);
+		const tracked = await this._changesets.openTrackedSessionDatabases(owner);
 		let discardedChat: ProtocolURI;
 		try {
 			this._throwIfOutsideWorkingDirectories(resource, tracked.workingDirectories, owner);

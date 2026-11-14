@@ -60,7 +60,7 @@ export class AgentHostAcceptChangesOperationHandler implements IChangesetOperati
 		const shownNonce = target.nonce;
 		this._throwIfCancelled(token);
 
-		const tracked = this._changesets.openTrackedSessionDatabases(owner);
+		const tracked = await this._changesets.openTrackedSessionDatabases(owner);
 		const acceptedChats: ProtocolURI[] = [];
 		try {
 			const rowsPerSource: IFileEditRecord[][] = [];
