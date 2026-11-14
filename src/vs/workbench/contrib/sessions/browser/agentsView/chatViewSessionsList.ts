@@ -173,6 +173,10 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 	focus(): void {
 		this._view.value?.focus();
 	}
+
+	newChat(): void {
+		this._createComposer();
+	}
 }
 
 /**

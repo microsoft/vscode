@@ -13,7 +13,7 @@ import { isIMenuItem, MenuId, MenuRegistry } from '../../../../../../platform/ac
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { SyncDescriptor } from '../../../../../../platform/instantiation/common/descriptors.js';
 import { ServiceCollection } from '../../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -31,8 +31,17 @@ import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/b
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../../services/sessions/browser/sessionHost.js';
 import { IViewsService } from '../../../../../services/views/common/viewsService.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { FindAgentSessionInViewerAction, RefreshAgentSessionsViewerAction } from '../../../../chat/browser/agentSessions/agentSessionsActions.js';
+import { ChatViewPane } from '../../../../chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { ChatViewContainerId, ChatViewId, IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { IChatViewHostService } from '../../../../chat/browser/chatViewHost.js';
+import { IChatViewHostService, IChatViewHostShownSession } from '../../../../chat/browser/chatViewHost.js';
+import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
+import { extUri } from '../../../../../../base/common/resources.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { IUriIdentityService } from '../../../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IChat, ISession } from '../../../../../services/sessions/common/session.js';
+import { EditorWindowMainSessionHost } from '../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { ChatConfiguration, OPEN_AGENTS_WINDOW_COMMAND_ID, OPEN_WORKSPACE_IN_AGENTS_WINDOW_COMMAND_ID, surfacesAllLocalAgentHostAgents } from '../../../../chat/common/constants.js';
 import { IMultiDiffSourceResolverService } from '../../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
@@ -93,7 +102,7 @@ suite('ChatViewSessionsGate', () => {
 	let configurationService: TestConfigurationService;
 	let viewVisibility: Emitter<{ id: string; visible: boolean }>;
 
-	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>): ChatViewSessionsGate {
+	function createGate(enabled: boolean, remoteAuthority?: string, configuration?: Record<string, unknown>, stub?: (instantiationService: TestInstantiationService) => void): ChatViewSessionsGate {
 		createdChatParts = 0;
 		hosts = 0;
 		providers = 0;
@@ -137,6 +146,7 @@ suite('ChatViewSessionsGate', () => {
 		instantiationService.stub(INotificationService, upcastPartial<INotificationService>({}));
 		instantiationService.stub(IAgentsChatPartService, upcastPartial<IAgentsChatPartService>({ restore: async () => { } }));
 		instantiationService.stub(IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({}));
+		stub?.(instantiationService);
 		return disposables.add(instantiationService.createInstance(ChatViewSessionsGate));
 	}
 
@@ -237,10 +247,64 @@ suite('ChatViewSessionsGate', () => {
 		}, { local: true, remote: false, off: false, agentsWindow: true });
 	});
 
-	test('leaves the Chat view as it is in a remote window', () => {
+	test('leaves the Chat view as it is in a remote window, with local chats on by default', () => {
+		const before = registered();
 		createGate(true, 'ssh-remote+host');
 
-		assert.deepStrictEqual({ providers, hosts, createdChatParts }, { providers: 0, hosts: 0, createdChatParts: 0 });
+		assert.deepStrictEqual({ providers, hosts, createdChatParts, localChatDefault: registered().localChatDefault }, { providers: 0, hosts: 0, createdChatParts: 0, localChatDefault: before.localChatDefault });
+	});
+
+	test('the chat that the Chat view shows is the chat of the window, marked read while it shows, while the chats open in the Chat view, and the chat part\'s otherwise', () => {
+		const marked: string[] = [];
+		const createSession = (id: string) => {
+			const chat = upcastPartial<IChat>({ resource: URI.parse(`agent-host-copilot:/${id}`), isRead: observableValue(`${id}.isRead`, false), updatedAt: constObservable(new Date(1)) });
+			return upcastPartial<ISession>({ sessionId: id, mainChat: constObservable(chat), loading: constObservable(false) });
+		};
+		const inView = createSession('inView');
+		const inChatPart = createSession('inChatPart');
+		const shownSession = observableValue<IChatViewHostShownSession | undefined>('shownSession', undefined);
+		let mainHost: EditorWindowMainSessionHost | undefined;
+		createGate(true, undefined, { [ChatConfiguration.ChatViewSessionsOpenInChatPart]: false }, instantiationService => {
+			instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: viewVisibility.event, isViewVisible: id => id === ChatViewId }));
+			instantiationService.stub(IUriIdentityService, upcastPartial<IUriIdentityService>({ extUri }));
+			instantiationService.stub(IChatViewHostService, upcastPartial<IChatViewHostService>({ shownSession, registerHost: () => { hosts++; return toDisposable(() => hosts--); } }));
+			instantiationService.stub(ISessionsManagementService, upcastPartial<ISessionsManagementService>({
+				onDidChangeSessions: Event.None,
+				getSessionForChatResource: resource => [inView, inChatPart].map(session => ({ session, chat: session.mainChat.get() })).find(shown => extUri.isEqual(shown.chat.resource, resource)),
+				markRead: async session => { marked.push(session.sessionId); return true; },
+			}));
+			const host = mainHost = instantiationService.createInstance(EditorWindowMainSessionHost);
+			instantiationService.stub(ISessionHost, host);
+		});
+		// The chat part, as its service is created, such as for the folders of the composer, binds its active tab's chat
+		disposables.add(mainHost!.bindShownChat(constObservable({ session: inChatPart, chat: inChatPart.mainChat.get() })));
+		const steps: Record<string, string | undefined> = {};
+		shownSession.set({ resource: inView.mainChat.get().resource, reason: 'open' }, undefined);
+		steps.inView = mainHost!.session.get()?.sessionId;
+		const setOpenInChatPart = (value: boolean) => {
+			configurationService.setUserConfiguration(ChatConfiguration.ChatViewSessionsOpenInChatPart, value);
+			configurationService.onDidChangeConfigurationEmitter.fire(upcastPartial<IConfigurationChangeEvent>({ affectsConfiguration: (key: string) => key === ChatConfiguration.ChatViewSessionsOpenInChatPart }));
+		};
+		setOpenInChatPart(true);
+		steps.inChatPart = mainHost!.session.get()?.sessionId;
+		setOpenInChatPart(false);
+		steps.backInView = mainHost!.session.get()?.sessionId;
+
+		assert.deepStrictEqual({ steps, marked }, { steps: { inView: 'inView', inChatPart: 'inChatPart', backInView: 'inView' }, marked: ['inView'] });
+	});
+
+	test('Refresh and Find of the Chat view act on the shared sessions list that the Chat view shows in place of its own', async () => {
+		const commands: string[] = [];
+		const accessor = upcastPartial<ServicesAccessor>({
+			get: (<T>(id: unknown) => (id === IViewsService
+				// A Chat view with a provided list has no sessions control of its own
+				? upcastPartial<IViewsService>({ getActiveViewWithId: (<V>() => upcastPartial<ChatViewPane>({ agentSessionsControl: undefined }) as V) as IViewsService['getActiveViewWithId'] })
+				: upcastPartial<ICommandService>({ executeCommand: (async (command: string) => { commands.push(command); return undefined; }) as ICommandService['executeCommand'] })) as T) as ServicesAccessor['get'],
+		});
+		await new RefreshAgentSessionsViewerAction().run(accessor);
+		await new FindAgentSessionInViewerAction().run(accessor);
+
+		assert.deepStrictEqual(commands, ['sessionsViewPane.refresh', 'sessionsViewPane.find']);
 	});
 
 	test('offers no action of the sessions that opens the Agents window', () => {
