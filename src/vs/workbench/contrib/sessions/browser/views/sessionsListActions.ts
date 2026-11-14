@@ -811,19 +811,20 @@ export function registerSessionsListReadStateActions(): IDisposable {
 
 /**
  * Adds the menu items and keybindings of Mark as Read and Mark as Unread to the sessions list of an editor window, until
- * the returned disposable is disposed. The menu items run the commands of the agent sessions of the window, which run
- * {@link SESSIONS_LIST_MARK_READ_COMMAND_ID} and {@link SESSIONS_LIST_MARK_UNREAD_COMMAND_ID} for what the list shows; the
- * keybindings run those directly, for the sessions of the list that have focus.
+ * the returned disposable is disposed. Both run {@link SESSIONS_LIST_MARK_READ_COMMAND_ID} and
+ * {@link SESSIONS_LIST_MARK_UNREAD_COMMAND_ID} directly: the menu items for the session or chat they are shown for, the
+ * keybindings for the sessions of the list that have focus.
  */
 export function registerSessionsListReadStateMenus(): IDisposable {
 	const store = new DisposableStore();
-	for (const { id, title, primary, isRead } of SESSIONS_LIST_READ_STATE) {
+	for (const { title, primary, isRead } of SESSIONS_LIST_READ_STATE) {
+		// The list's own commands: the agent sessions' commands expect other arguments and do not know which sessions of the list have focus
+		const commandId = isRead ? SESSIONS_LIST_MARK_READ_COMMAND_ID : SESSIONS_LIST_MARK_UNREAD_COMMAND_ID;
 		for (const { id: menu, ...item } of getSessionsListReadStateMenus(isRead)) {
-			store.add(MenuRegistry.appendMenuItem(menu, { command: { id, title }, ...item }));
+			store.add(MenuRegistry.appendMenuItem(menu, { command: { id: commandId, title }, ...item }));
 		}
-		// The list's own commands: the agent sessions' commands do not know which sessions of the list have focus
 		store.add(KeybindingsRegistry.registerKeybindingRule({
-			id: isRead ? SESSIONS_LIST_MARK_READ_COMMAND_ID : SESSIONS_LIST_MARK_UNREAD_COMMAND_ID,
+			id: commandId,
 			weight: KeybindingWeight.SessionsContrib,
 			when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), SessionsViewFocusedContext, WorkbenchListFocusContextKey),
 			primary,
@@ -897,7 +898,11 @@ function createSessionsListActions(): DisposableStore {
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const view = accessor.get(ISessionsViewLocator)?.getEmbeddedView() ?? await accessor.get(IViewsService).openView<SessionsView>(SessionsViewId);
+			const viewsService = accessor.get(IViewsService);
+			// A view registered with its id opens as a view does, so that it shows; only a view that a host embeds is used as it is
+			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId)
+				? await viewsService.openView<SessionsView>(SessionsViewId)
+				: accessor.get(ISessionsViewLocator)?.getEmbeddedView() ?? await viewsService.openView<SessionsView>(SessionsViewId);
 			view?.showApplicationFilters();
 		}
 	}));
