@@ -32,7 +32,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether chats open in the chat part beside the Chat view, which then shows only its sessions, instead of in the Chat view."),
+			markdownDescription: localize('chat.viewSessions.openInChatPart', "Controls whether chats open in the chat area beside the Chat view, which then shows only its sessions, instead of in the Chat view."),
 		},
 	},
 });
