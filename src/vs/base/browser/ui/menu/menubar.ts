@@ -441,6 +441,12 @@ export class MenuBar extends Disposable {
 	}
 
 	override dispose(): void {
+		// Close an open menu first, so the container (which the host can reuse) is not left marked as open,
+		// and the menu's focused elements are not removed during disposal, which re-enters blur handling
+		if (this.isOpen) {
+			this.setUnfocusedState();
+		}
+
 		super.dispose();
 
 		this.menus.forEach(menuBarMenu => {
@@ -450,9 +456,6 @@ export class MenuBar extends Disposable {
 
 		this.overflowMenu.titleElement.remove();
 		this.overflowMenu.buttonElement.remove();
-
-		// The container belongs to the host and can be reused, so do not leave it marked as open
-		this.container.classList.remove('menu-open');
 
 		dispose(this.overflowLayoutScheduled);
 		this.overflowLayoutScheduled = undefined;
