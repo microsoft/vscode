@@ -15,7 +15,6 @@ import { ContextKeyValue, IContextKey, IContextKeyService } from '../../../../..
 import { IInstantiationService, ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { SESSIONS_CHAT_TABS_SETTING } from '../../../common/sessionConfig.js';
 import { registerSessionsListConfiguration } from '../../../browser/sessionsConfiguration.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
@@ -130,7 +129,7 @@ suite('EditorWindowChatPartService', () => {
 
 	test('registers the setting that its header sets while chats open in it, alone or with the sessions list, which registers it too', () => {
 		const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-		const registered = () => !!registry.getConfigurationProperties()[SESSIONS_CHAT_TABS_SETTING];
+		const registered = () => registry.getConfigurations().some(node => node.id === 'sessionsList');
 		const { service } = createService({ visible: false });
 		const steps = [registered()];
 
