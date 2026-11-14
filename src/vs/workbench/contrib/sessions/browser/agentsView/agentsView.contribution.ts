@@ -20,7 +20,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: false,
 			tags: ['experimental'],
 			experiment: { mode: 'startup' },
-			markdownDescription: localize('chat.sessionsView.enabled', "Controls whether the Sessions view of the Agents window shows in the Primary Side Bar of editor windows."),
+			markdownDescription: localize('chat.sessionsView.enabled', "Controls whether the Sessions view of the Agents window shows in the Primary Side Bar of editor windows. Requires a reload to take effect."),
 		},
 	},
 });

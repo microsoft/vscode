@@ -5,8 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, constObservable, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
-import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
+import { constObservable, IObservable, observableFromEvent } from '../../../../../base/common/observable.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { SyncDescriptor } from '../../../../../platform/instantiation/common/descriptors.js';
@@ -59,9 +58,8 @@ class AgentsViewPaneContainer extends ViewPaneContainer {
 }
 
 /**
- * Shows the Sessions view of the Agents window in an editor window while {@link ChatConfiguration.SessionsViewEnabled} is on,
- * as the setting changes: turned off, all it registered goes, and the Chat view shows again. With it off, this registers
- * nothing and creates no service.
+ * Shows the Sessions view of the Agents window in an editor window while {@link ChatConfiguration.SessionsViewEnabled} is on.
+ * The setting is read once, as the window starts: with it off, this registers nothing and creates no service.
  */
 export class AgentsViewGate extends Disposable implements IWorkbenchContribution {
 
@@ -73,36 +71,30 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 	) {
 		super();
 
-		const enabled = observableConfigValue<boolean>(ChatConfiguration.SessionsViewEnabled, false, configurationService);
-		this._register(autorun(reader => {
-			if (enabled.read(reader) === true) {
-				this.enable(reader.store, instantiationService);
-			}
-		}));
-	}
+		if (configurationService.getValue<boolean>(ChatConfiguration.SessionsViewEnabled) !== true) {
+			return;
+		}
 
-	/** Shows the Sessions view and the chat part, until `store` is disposed, as the setting turns off. */
-	private enable(store: DisposableStore, instantiationService: IInstantiationService): void {
-		this.registerView(store);
+		this.registerView();
 
 		// The settings of the list and of the sessions it opens, as the Agents window has them
-		store.add(registerSessionsListConfiguration());
+		this._register(registerSessionsListConfiguration());
 		// The actions of the list and of the sessions it shows, once the Sessions view or the chat part first shows
-		this.registerOnFirstShown(store, instantiationService, () => {
-			store.add(registerSessionsListActions());
-			store.add(registerSessionsListReadStateMenus());
-			store.add(registerAgentsViewNewSessionActions());
-			store.add(instantiationService.createInstance(SessionsArchiveActionsContribution));
+		this.registerOnFirstShown(instantiationService, () => {
+			this._register(registerSessionsListActions());
+			this._register(registerSessionsListReadStateMenus());
+			this._register(registerAgentsViewNewSessionActions());
+			this._register(instantiationService.createInstance(SessionsArchiveActionsContribution));
 		});
 
 		instantiationService.invokeFunction(accessor => {
 			// The sessions it lists are known while it or the chat part shows
-			store.add(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [SessionsViewId] }));
+			this._register(accessor.get(IEditorWindowSessionsRuntime).enable({ viewIds: [SessionsViewId] }));
 			// The chat part, where sessions open: not in remote windows, where the Sessions view does not show
 			if (!accessor.get(IWorkbenchEnvironmentService).remoteAuthority) {
 				// The chat part docks beside the Sessions view, wherever the user puts it, over a dock of other features
-				store.add(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: constObservable(true) }));
-				this.replaceChatView(store, accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService), accessor.get(IExtensionService));
+				this._register(accessor.get(IEditorWindowChatPartService).enable({ anchorViewId: SessionsViewId, anchorPriority: 2, enabled: constObservable(true) }));
+				this.replaceChatView(accessor.get(IContextKeyService), accessor.get(IWorkbenchLayoutService), accessor.get(IPaneCompositePartService), accessor.get(ILifecycleService), accessor.get(IExtensionService));
 			}
 		});
 	}
@@ -111,12 +103,10 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 	 * The chat part replaces the Chat view: the Chat view does not show (`ChatContextKeys.agentsViewActive`), the keys that
 	 * open it open the chat part, and the Secondary Side Bar, which shows the Chat view by default, does not show empty.
 	 */
-	private replaceChatView(store: DisposableStore, contextKeyService: IContextKeyService, layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService, lifecycleService: ILifecycleService, extensionService: IExtensionService): void {
-		const agentsViewActive = ChatContextKeys.agentsViewActive.bindTo(contextKeyService);
-		agentsViewActive.set(true);
-		store.add(toDisposable(() => agentsViewActive.reset()));
+	private replaceChatView(contextKeyService: IContextKeyService, layoutService: IWorkbenchLayoutService, paneCompositeService: IPaneCompositePartService, lifecycleService: ILifecycleService, extensionService: IExtensionService): void {
+		ChatContextKeys.agentsViewActive.bindTo(contextKeyService).set(true);
 
-		store.add(KeybindingsRegistry.registerKeybindingRule({
+		this._register(KeybindingsRegistry.registerKeybindingRule({
 			...ChatViewOpenKeybindings,
 			id: CHAT_OPEN_ACTION_ID,
 			// Over the Chat view's own; not while chat is hidden or disabled, such as with AI features off
@@ -127,22 +117,22 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		// The Secondary Side Bar shows the Chat view by default: without it, it can have nothing to show, then it does not show,
 		// also as it shows again, such as by its toggle. Its view containers are known once extensions registered theirs, which
 		// the bar of its containers waits for to hide the empty ones, as the Chat view's: it checks once the bar did.
-		const hideEmptyAuxiliaryBar = store.add(new RunOnceScheduler(() => {
+		const hideEmptyAuxiliaryBar = this._register(new RunOnceScheduler(() => {
 			if (layoutService.isVisible(Parts.AUXILIARYBAR_PART) && !paneCompositeService.getVisiblePaneCompositeIds(ViewContainerLocation.AuxiliaryBar).length) {
 				layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			}
 		}, 0));
 		void Promise.all([lifecycleService.when(LifecyclePhase.Restored), extensionService.whenInstalledExtensionsRegistered()]).then(() => {
-			if (store.isDisposed) {
+			if (this._store.isDisposed) {
 				return;
 			}
 			hideEmptyAuxiliaryBar.schedule();
-			store.add(layoutService.onDidChangePartVisibility(e => {
+			this._register(layoutService.onDidChangePartVisibility(e => {
 				if (e.partId === Parts.AUXILIARYBAR_PART && e.visible) {
 					hideEmptyAuxiliaryBar.schedule();
 				}
 			}));
-			store.add(paneCompositeService.onDidPaneCompositeClose(e => {
+			this._register(paneCompositeService.onDidPaneCompositeClose(e => {
 				if (e.viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
 					hideEmptyAuxiliaryBar.schedule();
 				}
@@ -151,15 +141,15 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 	}
 
 	/** Runs `register` once, as the Sessions view or the chat part, which shows sessions too, first shows. */
-	private registerOnFirstShown(store: DisposableStore, instantiationService: IInstantiationService, register: () => void): void {
+	private registerOnFirstShown(instantiationService: IInstantiationService, register: () => void): void {
 		const { viewsService, layoutService, lifecycleService } = instantiationService.invokeFunction(accessor => ({
 			viewsService: accessor.get(IViewsService),
 			layoutService: accessor.get(IWorkbenchLayoutService),
 			lifecycleService: accessor.get(ILifecycleService),
 		}));
-		const firstShown = store.add(new DisposableStore());
+		const firstShown = this._register(new DisposableStore());
 		const shown = () => {
-			if (!firstShown.isDisposed && !store.isDisposed) {
+			if (!firstShown.isDisposed) {
 				firstShown.dispose();
 				register();
 			}
@@ -182,7 +172,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 		});
 	}
 
-	private registerView(store: DisposableStore): void {
+	private registerView(): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 		const container = viewContainersRegistry.registerViewContainer({
 			id: AGENTS_VIEW_CONTAINER_ID,
@@ -195,6 +185,7 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			hideIfEmpty: true,
 			windowEnablement: WindowEnablement.Editor,
 		}, ViewContainerLocation.Sidebar);
+		this._register(toDisposable(() => viewContainersRegistry.deregisterViewContainer(container)));
 
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
 		const view: IViewDescriptor = {
@@ -223,11 +214,9 @@ export class AgentsViewGate extends Disposable implements IWorkbenchContribution
 			windowEnablement: WindowEnablement.Editor,
 		};
 		viewsRegistry.registerViews([view, setupView], container);
-		store.add(toDisposable(() => viewsRegistry.deregisterViews([view, setupView], container)));
-		store.add(viewsRegistry.registerViewWelcomeContent(AGENTS_VIEW_SETUP_VIEW_ID, {
+		this._register(toDisposable(() => viewsRegistry.deregisterViews([view, setupView], container)));
+		this._register(viewsRegistry.registerViewWelcomeContent(AGENTS_VIEW_SETUP_VIEW_ID, {
 			content: localize('agentsView.setup', "Sign in to see your agent sessions and start new ones.\n[Sign In](command:workbench.action.chat.triggerSetup)"),
 		}));
-		// Last, as its views go first
-		store.add(toDisposable(() => viewContainersRegistry.deregisterViewContainer(container)));
 	}
 }
