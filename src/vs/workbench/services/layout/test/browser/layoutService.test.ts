@@ -78,10 +78,12 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 		sideBarPosition = Position.LEFT;
 		panelPosition = Position.BOTTOM;
 		visibleParts = new Set<Parts>();
+		chatPartPosition: Position.LEFT | Position.RIGHT | undefined;
 
 		override isFloatingPanelsEnabled(): boolean { return this.floatingPanelsEnabled; }
 		override isModernUICompact(): boolean { return this.modernUICompact; }
 		override getSideBarPosition(): Position { return this.sideBarPosition; }
+		override getChatPartPosition(): Position.LEFT | Position.RIGHT { return this.chatPartPosition ?? super.getChatPartPosition(); }
 		override getPanelPosition(): Position { return this.panelPosition; }
 		override isVisible(part: Parts): boolean { return this.visibleParts.has(part); }
 	}
@@ -133,7 +135,8 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			// edge; the secondary side bar still owns the right edge.
 			horizontalPanelVisible: owners(s => { s.panelPosition = Position.BOTTOM; s.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART]); }),
 
-			// A chat part sits beside the editor on the side bar's side, inside a vertical panel on that side.
+			// A chat part sits beside the editor on its side (the side bar's by default), inside a vertical panel on that side.
+			chatPartOnAuxiliaryBarSide: owners(s => { s.chatPartPosition = Position.RIGHT; s.visibleParts = new Set([Parts.SIDEBAR_PART, Parts.EDITOR_PART, Parts.CHAT_PART]); }),
 			chatPartOnly: owners(s => { s.visibleParts = new Set([Parts.CHAT_PART, Parts.EDITOR_PART]); }),
 			chatPartOnlySideBarRight: owners(s => { s.sideBarPosition = Position.RIGHT; s.visibleParts = new Set([Parts.CHAT_PART, Parts.EDITOR_PART]); }),
 			chatPartInsideVerticalPanel: owners(s => { s.panelPosition = Position.LEFT; s.visibleParts = new Set([Parts.PANEL_PART, Parts.CHAT_PART, Parts.EDITOR_PART]); }),
@@ -152,6 +155,7 @@ suite('LayoutService - getFloatingOuterEdgeOwners', () => {
 			verticalPanelFull: { left: Parts.ACTIVITYBAR_PART, right: Parts.AUXILIARYBAR_PART },
 			maximizedVerticalPanel: { left: Parts.PANEL_PART, right: Parts.PANEL_PART },
 			horizontalPanelVisible: { left: Parts.SIDEBAR_PART, right: Parts.AUXILIARYBAR_PART },
+			chatPartOnAuxiliaryBarSide: { left: Parts.SIDEBAR_PART, right: Parts.CHAT_PART },
 			chatPartOnly: { left: Parts.CHAT_PART, right: Parts.EDITOR_PART },
 			chatPartOnlySideBarRight: { left: Parts.EDITOR_PART, right: Parts.CHAT_PART },
 			chatPartInsideVerticalPanel: { left: Parts.PANEL_PART, right: Parts.EDITOR_PART },
