@@ -9,7 +9,7 @@ import { AgentSessionSection, IAgentSession, IAgentSessionSection, IMarshalledAg
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
-import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl, IChatViewSessionsControl } from './agentSessions.js';
+import { AGENT_SESSION_DELETE_ACTION_ID, AGENT_SESSION_RENAME_ACTION_ID, AgentSessionChatContextMenu, AgentSessionChatToolbar, AgentSessionProviders, AgentSessionsViewerOrientation, IAgentSessionsControl } from './agentSessions.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -18,7 +18,7 @@ import { getChatSessionType, LocalChatSessionUri } from '../../common/model/chat
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, PreferredGroup, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IView, IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
+import { IViewDescriptorService, ViewContainerLocation } from '../../../../common/views.js';
 import { IWorkbenchLayoutService, Position } from '../../../../services/layout/browser/layoutService.js';
 import { IAgentSessionsService } from './agentSessionsService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -1183,7 +1183,7 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId)?.agentSessionsControl;
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			control.refresh();
 		} else {
@@ -1208,7 +1208,7 @@ export class FindAgentSessionInViewerAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
-		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId)?.agentSessionsControl;
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
 		if (control) {
 			return control.openFind();
 		} else {
@@ -1242,9 +1242,9 @@ abstract class UpdateChatViewWidthAction extends Action2 {
 			await configurationService.updateValue(ChatConfiguration.ChatViewSessionsEnabled, true);
 		}
 
-		let chatView = viewsService.getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId);
+		let chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		if (!chatView) {
-			chatView = await viewsService.openView<IView & IChatViewSessionsControl>(ChatViewId, false);
+			chatView = await viewsService.openView<ChatViewPane>(ChatViewId, false);
 		}
 		if (!chatView) {
 			return; // we need the chat view
@@ -1384,7 +1384,7 @@ export class ToggleAgentSessionsSidebar extends Action2 {
 		const commandService = accessor.get(ICommandService);
 		const viewsService = accessor.get(IViewsService);
 
-		const chatView = viewsService.getActiveViewWithId<IView & IChatViewSessionsControl>(ChatViewId);
+		const chatView = viewsService.getActiveViewWithId<ChatViewPane>(ChatViewId);
 		const currentOrientation = chatView?.getSessionsViewerOrientation();
 
 		if (currentOrientation === AgentSessionsViewerOrientation.SideBySide) {
@@ -1418,7 +1418,7 @@ export class FocusAgentSessionsAction extends Action2 {
 		const configurationService = accessor.get(IConfigurationService);
 		const commandService = accessor.get(ICommandService);
 
-		const chatView = await viewsService.openView<IView & IChatViewSessionsControl>(ChatViewId, true);
+		const chatView = await viewsService.openView<ChatViewPane>(ChatViewId, true);
 		const focused = chatView?.focusSessions();
 		if (focused) {
 			return;
