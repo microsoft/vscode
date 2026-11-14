@@ -392,6 +392,22 @@ suite('AgentsChatPartService', () => {
 		});
 	});
 
+	test('a composer\'s tab gives its title to its pane, as a chat\'s does, whose session header shows for the composer: Close there, on the main chat of its session not sent yet, closes the tab', async () => {
+		const draftChat = upcastPartial<IChat>({ resource: URI.parse('test:/draft') });
+		const draft = upcastPartial<ISession>({ resource: URI.parse('test:/draftSession'), status: constObservable(SessionStatus.Untitled), mainChat: constObservable(draftChat) });
+		const { service, part, layout } = createService({ newSession: constObservable(draft) });
+
+		await service.openComposer(undefined);
+		const input = part.activeGroup.activeEditor;
+		const composing = { rendersTitle: input instanceof ChatEditorInput && input.rendersTitle, showing: service.isShowing(draftChat.resource) };
+		await service.closeChat(draftChat.resource);
+
+		assert.deepStrictEqual({ composing, closed: layout() }, {
+			composing: { rendersTitle: true, showing: false },
+			closed: { groups: [{ tabs: [], active: null }], activeGroup: 0, visible: false },
+		});
+	});
+
 	test('each explicit open of the active chat reports it again, as where its session works may matter again', async () => {
 		const openedSession = buildTestSession({ id: 'reopened', title: 'Reopened' });
 		const main = openedSession.mainChat.chat.resource;
