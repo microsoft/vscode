@@ -297,6 +297,10 @@ suite('ChatViewPane session transitions', () => {
 		const otherReported = shown(restored);
 		restored.pane.reportOpened(nextResource);
 		const reopened = shown(restored);
+		// Picked again, such as after the user moved the window's folder away: reported again
+		const reportedBefore = restored.pane.shownSession.get();
+		restored.pane.reportOpened(nextResource);
+		const reportedAgain = restored.pane.shownSession.get() !== reportedBefore;
 		Object.assign(restored.pane, { chatService: { acquireOrLoadSession: async () => savedReference() } });
 		await restored.pane.loadSession(savedResource);
 		const afterLoad = shown(restored);
@@ -325,10 +329,11 @@ suite('ChatViewPane session transitions', () => {
 		await loading;
 		await restoration;
 
-		assert.deepStrictEqual({ afterRestore, otherReported, reopened, afterLoad, loadedToRestore, reopenedToRestore, superseded: shown(superseded) }, {
+		assert.deepStrictEqual({ afterRestore, otherReported, reopened, reportedAgain, afterLoad, loadedToRestore, reopenedToRestore, superseded: shown(superseded) }, {
 			afterRestore: '/untitled-next restore',
 			otherReported: '/untitled-next restore',
 			reopened: '/untitled-next open',
+			reportedAgain: true,
 			afterLoad: '/saved open',
 			loadedToRestore: '/recalled restore',
 			reopenedToRestore: '/recalled restore',

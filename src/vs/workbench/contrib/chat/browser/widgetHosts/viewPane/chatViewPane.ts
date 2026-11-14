@@ -1505,7 +1505,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	/**
 	 * Reports the chat of `sessionResource` as one that the user brought up, also where the view shows it already, such as
-	 * one it restored that the user picks in a sessions list.
+	 * one it restored, or one the user picks again in a sessions list, which is reported again.
 	 */
 	reportOpened(sessionResource: URI): void {
 		this._reportShown(sessionResource, 'open');
@@ -1521,7 +1521,8 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private _reportShown(sessionResource: URI, reason: 'open' | 'restore'): void {
 		const shown = this._shownSession.get();
-		if (shown && shown.reason !== reason && isEqual(shown.resource, sessionResource)) {
+		// Each time the user opens it, also where it is reported as opened already, as where it works may matter again
+		if (shown && (reason === 'open' || shown.reason !== reason) && isEqual(shown.resource, sessionResource)) {
 			this._shownSession.set({ resource: sessionResource, reason }, undefined);
 		}
 	}

@@ -6,6 +6,7 @@
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { isAbsolute } from '../../../../../../base/common/path.js';
 import { basename, dirname, extUriBiasedIgnorePathCase, joinPath, normalizePath } from '../../../../../../base/common/resources.js';
@@ -15,7 +16,7 @@ import { FileOperationResult, IFileService, toFileOperationResult } from '../../
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { IFolderLocation, IWorkspaceFolderLocationProvider } from '../../../../../../platform/workspace/common/folderLocations.js';
 import { readFolderGitCheckout } from '../../../../../services/workspaces/common/gitFolderCheckout.js';
-import { isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
+import { IChatSessionsService, isLocalAgentHostTarget } from '../../../common/chatSessionsService.js';
 import { IAgentSession } from '../agentSessionsModel.js';
 import { IAgentSessionsService } from '../agentSessionsService.js';
 
@@ -49,25 +50,38 @@ export function getAgentHostSessionWorkingDirectories(sessions: readonly IAgentS
  * window's repository (see `WorkspaceFolderRepositories`), and when that repository's entry for it names its `.git` back.
  * That keeps a folder that only points into the repository from inheriting the primary's trust.
  */
-export class AgentHostWorktreeLocationProvider implements IWorkspaceFolderLocationProvider {
+export class AgentHostWorktreeLocationProvider extends Disposable implements IWorkspaceFolderLocationProvider {
 
 	readonly id = AGENT_HOST_WORKTREE_LOCATIONS_PROVIDER_ID;
 
+	/** The local agent host providers whose sessions the sessions list has resolved. */
+	private readonly _resolvedProviders = new Set<string>();
+
 	constructor(
 		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
 		@IFileService private readonly _fileService: IFileService,
 		@ILogService private readonly _logService: ILogService,
-	) { }
+	) {
+		super();
+		this._register(_agentSessionsService.model.onDidResolve(provider => {
+			if (isLocalAgentHostTarget(provider)) {
+				this._resolvedProviders.add(provider);
+			}
+		}));
+	}
 
 	async provideLocations(primary: URI, token: CancellationToken): Promise<IFolderLocation[]> {
 		const worktreesDir = await this._worktreesDir(primary);
 		if (!worktreesDir || token.isCancellationRequested) {
 			return [];
 		}
-		// Before the sessions list first resolves, it has only the sessions it cached: wait for the ones it has not
+		// Before the sessions list first resolves a local agent host provider, it has only the sessions it cached of it:
+		// wait for that provider, also while others have resolved, and leave the others alone
 		const model = this._agentSessionsService.model;
-		if (!model.resolved) {
-			await raceCancellation(model.resolve(undefined, undefined, 'automatic'), token);
+		const unresolved = this._chatSessionsService.getRegisteredChatSessionItemProviders().filter(provider => isLocalAgentHostTarget(provider) && !this._resolvedProviders.has(provider));
+		if (unresolved.length) {
+			await raceCancellation(model.resolve(unresolved, undefined, 'automatic'), token);
 			if (token.isCancellationRequested) {
 				return [];
 			}
