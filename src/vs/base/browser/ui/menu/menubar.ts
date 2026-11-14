@@ -441,6 +441,13 @@ export class MenuBar extends Disposable {
 	}
 
 	override dispose(): void {
+		// Close an open menu first, so the container (which the host can reuse) is not left marked as open, and the menu's
+		// focused elements are not removed during disposal, which re-enters blur handling. This does not go through the
+		// focus state, so that hosts are not notified (and cannot re-create the menubar) while it is being disposed.
+		if (this.isOpen) {
+			this.cleanupCustomMenu();
+		}
+
 		super.dispose();
 
 		this.menus.forEach(menuBarMenu => {
@@ -989,6 +996,8 @@ export class MenuBar extends Disposable {
 	}
 
 	private cleanupCustomMenu(): void {
+		this.container.classList.remove('menu-open');
+
 		if (this.focusedMenu) {
 			// Remove focus from the menus first
 			if (this.focusedMenu.index === MenuBar.OVERFLOW_INDEX) {
@@ -1021,6 +1030,7 @@ export class MenuBar extends Disposable {
 		const menuHolder = $('div.menubar-menu-items-holder.monaco-menu-container', { 'title': '' });
 
 		customMenu.buttonElement.classList.add('open');
+		this.container.classList.add('menu-open');
 
 		const titleBoundingRect = customMenu.titleElement.getBoundingClientRect();
 		const containerBoundingRect = this.container.getBoundingClientRect();
