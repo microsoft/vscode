@@ -93,7 +93,7 @@ suite('ChatViewHostService', () => {
 				`openView ${ChatViewId} focus=false`, 'loadSession test:/session reason=undefined commit',
 				`setPartHidden false ${Parts.AUXILIARYBAR_PART}`,
 				`openView ${ChatViewId} focus=undefined`, 'beforeOpen', 'suppress', 'progress', 'loadSession test:/session reason=explicitOverride', 'focus',
-				`openView ${ChatViewId} focus=undefined`, 'loadSession test:/moved reason=undefined',
+				`openView ${ChatViewId} focus=undefined`, 'loadSession test:/moved reason=undefined commit',
 				'unsuppress', 'progress done',
 				`openView ${ChatViewId} focus=undefined`, 'startNewLocalSession', 'focus',
 			],

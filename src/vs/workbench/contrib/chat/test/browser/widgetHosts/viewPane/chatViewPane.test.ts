@@ -585,6 +585,38 @@ suite('ChatViewPane session transitions', () => {
 		assert.deepStrictEqual({ stream, shown: rig.pane.shownSession.get()?.reason }, { stream: ['/chat open'], shown: 'open' });
 	});
 
+	test('through the Chat view host, the session that a started chat moves to after its first request stays reported as committed', async () => {
+		const rig = createPane();
+		rig.nextRef.dispose();
+		const untitled = nextResource.with({ path: '/untitled-started' });
+		const committed = nextResource.with({ path: '/committed' });
+		const reference = (resource: URI) => Object.assign(toDisposable(() => { }), { object: upcastPartial<IChatModel>({ sessionResource: resource }) });
+		Object.assign(rig.pane, { chatService: { acquireOrLoadSession: async (resource: URI) => reference(resource) }, focus: () => { } });
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({
+			openView: (async () => rig.pane) as IViewsService['openView'],
+			onDidChangeViewVisibility: Event.None,
+			getViewWithId: (<T>() => rig.pane as T) as IViewsService['getViewWithId'],
+		}));
+		instantiationService.stub(IViewDescriptorService, upcastPartial<IViewDescriptorService>({}));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({}));
+		instantiationService.stub(IProgressService, upcastPartial<IProgressService>({}));
+		const host = instantiationService.createInstance(ChatViewHostService);
+		const start = await host.startSession(untitled, { local: false, importingConversation: false });
+		const stream: string[] = [];
+		store.add(autorun(reader => {
+			const shown = rig.pane.shownSession.read(reader);
+			stream.push(shown ? `${shown.resource.path} ${shown.reason}` : 'none');
+		}));
+		stream.length = 0;
+		// The first request committed the session, which the host shows as committed, then the start moves to it
+		await host.openSession(committed, { preserveFocus: true, commit: true });
+		await start.moved(committed);
+		start.dispose();
+
+		assert.deepStrictEqual(stream, ['/committed commit']);
+	});
+
 	test('cancelling a replacement releases its pending reference before provider activation completes', async () => {
 		const resolving = new DeferredPromise<void>();
 		const rig = createPane(resolving.p);
