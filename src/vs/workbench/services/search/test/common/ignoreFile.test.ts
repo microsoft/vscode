@@ -75,6 +75,54 @@ suite('Parsing .gitignore files', () => {
 		assertIgnoreMatch(i, '/', '/inner/node_modules/');
 	});
 
+	test('exclamation marks inside patterns are literal', () => {
+		assertIgnoreMatch('important!.txt', '/', '/important!.txt');
+		assertNoIgnoreMatch('important!.txt', '/', '/important.txt');
+		assertIgnoreMatch('build!/output.txt', '/', '/build!/output.txt');
+	});
+
+	test('exclamation marks inside directory patterns are literal', () => {
+		assertNoTraverses('build!/', '/', '/build!/');
+		assertIgnoreMatch('build!/', '/', '/build!/output.txt');
+		assertNoIgnoreMatch('build!/', '/', '/build/output.txt');
+		assertNoIgnoreMatch('build!/', '/', '/build!');
+	});
+
+	test('negated patterns preserve subsequent exclamation marks', () => {
+		const rules = '*.txt\n!important!.txt';
+		assertNoIgnoreMatch(rules, '/', '/important!.txt');
+		assertIgnoreMatch(rules, '/', '/important.txt');
+		assertIgnoreMatch(rules, '/', '/other.txt');
+	});
+
+	test('negated directory patterns preserve subsequent exclamation marks', () => {
+		const rules = 'build*/\n!build!/';
+		assertTraverses(rules, '/', '/build!/');
+		assertNoIgnoreMatch(rules, '/', '/build!/output.txt');
+		assertNoTraverses(rules, '/', '/build/');
+	});
+
+	test('negated character classes are not negation patterns', () => {
+		assertIgnoreMatch('[!a].txt', '/', '/b.txt');
+		assertNoIgnoreMatch('[!a].txt', '/', '/a.txt');
+	});
+
+	test('escaped leading exclamation marks are literal', () => {
+		assertIgnoreMatch('\\!important.txt', '/', '/!important.txt');
+		assertNoIgnoreMatch('\\!important.txt', '/', '/important.txt');
+		assertNoTraverses('\\!build/', '/', '/!build/');
+	});
+
+	test('negation can include a filename starting with an exclamation mark', () => {
+		assertNoIgnoreMatch('*.txt\n!!important.txt', '/', '/!important.txt');
+		assertIgnoreMatch('*.txt\n!!important.txt', '/', '/important.txt');
+	});
+
+	test('literal exclamation marks respect case-insensitive matching', () => {
+		assertIgnoreMatch('important!.txt', '/', '/IMPORTANT!.TXT', true);
+		assertNoIgnoreMatch('*.txt\n!important!.txt', '/', '/IMPORTANT!.TXT', true);
+	});
+
 	test('parsing simple gitignore files', () => {
 		let i = 'node_modules\nout\n';
 
