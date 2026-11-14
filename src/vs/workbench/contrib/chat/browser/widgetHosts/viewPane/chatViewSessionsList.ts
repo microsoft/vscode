@@ -11,6 +11,7 @@ import { createDecorator, IInstantiationService } from '../../../../../../platfo
 import { IListStyles } from '../../../../../../base/browser/ui/list/listWidget.js';
 import { IStyleOverride } from '../../../../../../platform/theme/browser/defaultStyles.js';
 import { AgentSessionRefreshReason, IAgentSession } from '../../agentSessions/agentSessionsModel.js';
+import { IChatViewNewChatTarget } from '../../chatViewHost.js';
 
 /** The sessions list that the Chat view shows in its sessions section: its own, or one that a provider gives it. */
 export interface IChatViewSessionsListControl extends IDisposable {
@@ -34,8 +35,11 @@ export interface IChatViewSessionsComposer extends IDisposable {
 	readonly height: IObservable<number>;
 	layout(width: number, height: number): void;
 	focus(): void;
-	/** Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had. */
-	newChat(): void;
+	/**
+	 * Starts over with a new chat, as New Chat of the Chat view does: without the input, the attachments and the target it had,
+	 * aimed at `target` when given, such as the folder and the session type of a new session that a sessions list starts.
+	 */
+	newChat(target?: IChatViewNewChatTarget): void;
 }
 
 /** A sessions list of the Chat view, with how the Chat view shows it. */

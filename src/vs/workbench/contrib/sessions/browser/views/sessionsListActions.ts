@@ -652,6 +652,18 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
 	}
 }
 
+/**
+ * Registers {@link SESSIONS_LIST_MARK_READ_COMMAND_ID} and {@link SESSIONS_LIST_MARK_UNREAD_COMMAND_ID}, which mark what the
+ * sessions list and the chat tabs target read or unread, until the returned disposable is disposed. In an editor window, the
+ * agent sessions' Mark as Read and Mark as Unread run them for such a target, such as a chat tab of the chat part.
+ */
+export function registerSessionsListReadStateCommands(): IDisposable {
+	const store = new DisposableStore();
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_READ_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, true)));
+	store.add(CommandsRegistry.registerCommand(SESSIONS_LIST_MARK_UNREAD_COMMAND_ID, (accessor, context?: ISession | ISession[] | ISessionChatItem) => markSessionListTargetsRead(accessor, context, false)));
+	return store;
+}
+
 abstract class BaseUnarchiveActiveSessionAction extends Action2 {
 
 	constructor(wording: ChatSessionArchiveActionWording) {

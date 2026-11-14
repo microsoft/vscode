@@ -101,10 +101,17 @@ class ChatViewSessionsPresenter implements IEditorWindowSessionsPresenter {
 		await this._chatViewHostService.openSession(chatResource ?? session.mainChat.get().resource, { preserveFocus: options?.preserveFocus });
 	}
 
-	/** A new chat in the Chat view, as its New Chat starts one: the next request does not go to the chat it showed. */
-	async openComposer(_target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
+	/**
+	 * A new chat in the Chat view, as its New Chat starts one: the next request does not go to the chat it showed. The
+	 * composer that the Chat view then shows, such as the one of its sessions list, is aimed at `target`.
+	 */
+	async openComposer(target: INewSessionTarget | undefined, options?: IEditorWindowPresenterOpenOptions): Promise<void> {
 		await this._chatViewHostService.reveal(options?.preserveFocus);
 		await this._commandService.executeCommand(ACTION_ID_NEW_CHAT);
+		// Aimed only after New Chat, which starts its composer over without a target
+		if (target) {
+			await this._chatViewHostService.newChat({ folder: target.folderUri, providerId: target.providerId, sessionType: target.sessionTypeId });
+		}
 	}
 
 	async closeChat(): Promise<void> { }
