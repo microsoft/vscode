@@ -323,7 +323,7 @@ suite('ChatViewSessionsGate', () => {
 		});
 	});
 
-	test('the Chat view keeps its own chat input with the sessions list, for new chats and the chats it shows: the list provides no composer', () => {
+	test('the Chat view keeps its own chat input with the sessions list, for new chats and the chats it shows: the list provides only its control, header and sessions-only state', () => {
 		const view = upcastPartial<SessionsView>({ element: document.createElement('div'), render: () => { }, setVisible: () => { }, dispose: () => { } });
 		const workspaceContextService = upcastPartial<IWorkspaceContextService>({ onDidChangeWorkspaceFolders: Event.None, getWorkspace: () => upcastPartial<ReturnType<IWorkspaceContextService['getWorkspace']>>({ folders: [] }) });
 		const accessor = upcastPartial<ServicesAccessor>({ get: (<T>() => workspaceContextService as T) as ServicesAccessor['get'] });
@@ -335,7 +335,7 @@ suite('ChatViewSessionsGate', () => {
 		const list = new ChatViewSessionsListProvider(sessionsOnly).create(document.createElement('div'), instantiationService, { overrideStyles: {} });
 		disposables.add(list.control);
 
-		assert.deepStrictEqual({ hasHeader: list.hasHeader, sessionsOnly: list.sessionsOnly === sessionsOnly, composer: list.createComposer }, { hasHeader: true, sessionsOnly: true, composer: undefined });
+		assert.deepStrictEqual({ keys: Object.keys(list).sort(), hasHeader: list.hasHeader, sessionsOnly: list.sessionsOnly === sessionsOnly }, { keys: ['control', 'hasHeader', 'sessionsOnly'], hasHeader: true, sessionsOnly: true });
 	});
 });
 
