@@ -28,7 +28,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { ISessionHost } from '../../../../services/sessions/browser/sessionHost.js';
-import { getSessionPresentationWorkspace, IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { IChatWidget } from '../../../chat/browser/chat.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -41,13 +41,13 @@ import { IChatEditorWindow, registerSessionChatViewEditor } from '../chatEditor/
 import { ChatWindowComposerModel, ChatWindowComposers, createChatWindowComposerResource, IChatWindowComposerInit, isChatWindowComposerResource } from '../chatEditor/chatWindowComposer.js';
 import { AgentsChatPartComposerFolders } from './agentsChatPartComposerFolders.js';
 import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessionChatEditorHost.js';
+import { IChatViewHostShownSession } from '../../../chat/browser/chatViewHost.js';
 import { IChatViewFactory } from '../chatViewFactory.js';
 import { INewSessionTarget } from '../parts/chatView.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { AgentsChatPartAction, logAgentsChatPartAction } from './agentsChatPartTelemetry.js';
-import { IAgentsViewFolderLocationService } from './agentsViewFolderLocation.js';
 import { AgentsViewAvailable, InAgentsChatPartContext } from './agentsView.js';
 import { EditorWindowMainSessionHost } from './editorWindowMainSessionHost.js';
 
@@ -90,6 +90,9 @@ export interface IAgentsChatPartService {
 
 	/** The chat of the active tab of the chat part, with its session. */
 	readonly activeChat: IObservable<IAgentsChatPartChat | undefined>;
+
+	/** The chat the active tab shows, and whether the user just brought it up or the chat part restored it ({@link IChatViewHostShownSession}). */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/** Shows `chatResource` of `session`, or its main chat, in the chat part: in its tab, or in a new one. */
 	openChat(session: ISession, chatResource: URI | undefined, options?: IAgentsChatPartOpenOptions): Promise<void>;
@@ -195,11 +198,9 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private readonly _composerModels = new Map<EditorInput, ChatWindowComposerModel>();
 	/** Set while tabs change other than as the user picks one: as chats restore, open or close. Only a picked tab moves the window's folder. */
 	private _restoringChats = false;
-	/**
-	 * The tabs whose session the window's folder moved to as the user opened, picked or sent it, which it follows as their
-	 * session comes to work elsewhere. A tab is followed until it closes, also as its session is replaced.
-	 */
-	private readonly _followedTabs = observableValue<ReadonlySet<EditorInput>>(this, new Set());
+	/** The tab that the user last opened, picked or sent: its chat shows as opened, not as restored. */
+	private readonly _openedInput = observableValue<EditorInput | undefined>(this, undefined);
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 	private _openingChat = false;
 	private _closingTabs = 0;
 	private _composers: ChatWindowComposers | undefined;
@@ -222,7 +223,6 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		@IChatViewFactory private readonly _chatViewFactory: IChatViewFactory,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IAgentsViewFolderLocationService private readonly _folderLocationService: IAgentsViewFolderLocationService,
 	) {
 		super();
 
@@ -238,19 +238,11 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				return input ? this._chats.get(input)?.session.read(reader) : undefined;
 			})));
 		}
-		// The session of the active followed tab that comes to work elsewhere, such as in the new worktree its agent created,
-		// moves the window's folder there too, as opening it did: only of a tab the user opened, picked or sent, not restored
-		let followed: { readonly input: EditorInput; readonly workingDirectory: URI | undefined } | undefined;
-		this._register(autorun(reader => {
+		this.shownSession = derived(this, reader => {
 			const input = this._activeInput.read(reader);
-			const session = input && this._followedTabs.read(reader).has(input) ? this._chats.get(input)?.shown.read(reader)?.session : undefined;
-			const workingDirectory = session && getSessionPresentationWorkspace(session, reader)?.folders[0]?.workingDirectory;
-			const previous = followed;
-			followed = input && session ? { input, workingDirectory } : undefined;
-			if (session && previous && previous.input === input && workingDirectory && !isEqual(previous.workingDirectory, workingDirectory)) {
-				void this._folderLocationService.switchToSession(session, { automatic: true });
-			}
-		}));
+			const chat = input ? this._chats.get(input)?.shown.read(reader)?.chat : undefined;
+			return chat && { resource: chat.resource, reason: this._openedInput.read(reader) === input ? 'open' : 'restore' };
+		});
 
 		// The chats show beside the editor area, whose editors their Session Activity Bars read
 		this._window = {
@@ -320,8 +312,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		const chat = this._findChat(resource) ?? this._addChat(resource, undefined);
 		await this._open(chat, options);
 		if (!this._restoringChats && !options?.keepFolder) {
-			// Opening a session moves the window's folder to where it works, when that is one of the folder's locations
-			this._moveToSession(chat.input, session);
+			this._openedInput.set(chat.input, undefined);
 		}
 	}
 
@@ -537,9 +528,8 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 	private _disposeChat(input: EditorInput, deferred = false): void {
 		this._composerModels.delete(input);
 		this._composerSends.deleteAndDispose(input);
-		const followed = this._followedTabs.get();
-		if (followed.has(input)) {
-			this._followedTabs.set(new Set([...followed].filter(candidate => candidate !== input)), undefined);
+		if (this._openedInput.get() === input) {
+			this._openedInput.set(undefined, undefined);
 		}
 		if (deferred) {
 			const ending = this._chats.deleteAndLeak(input);
@@ -553,7 +543,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 
 	/**
 	 * A composer's foreground send shows its session in the composer's tab from the first send on, without opening it:
-	 * the window's folder moves to where that session works, as opening it does, and follows it. Not as it restores.
+	 * its chat then shows as opened. Not as it restores.
 	 */
 	private _followComposerSends(chat: AgentsChatPartChat): IDisposable {
 		let sent = false;
@@ -564,12 +554,7 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 				sent = true;
 				// A send under way as the window restored was not the user's now
 				if (!this._restoringChats) {
-					this._followTab(chat.input);
-					// Only while its tab shows: a send that completes after the user moved on to another tab leaves the folder
-					// where that tab put it, until the user comes back to this one
-					if (this._activeInput.read(undefined) === chat.input) {
-						void this._folderLocationService.switchToSession(session, { automatic: true });
-					}
+					this._openedInput.set(chat.input, undefined);
 				}
 			}
 		});
@@ -646,27 +631,13 @@ export class AgentsChatPartService extends Disposable implements IAgentsChatPart
 		return part;
 	}
 
-	/** Moves the window's folder to where `session` works, and follows the session of `input`'s tab as it comes to work elsewhere. */
-	private _moveToSession(input: EditorInput, session: ISession): void {
-		this._followTab(input);
-		void this._folderLocationService.switchToSession(session);
-	}
-
-	private _followTab(input: EditorInput): void {
-		const followed = this._followedTabs.get();
-		if (!followed.has(input)) {
-			this._followedTabs.set(new Set([...followed, input]), undefined);
-		}
-	}
-
-	/** A tab the user picked shows its session: the window's folder moves to where that session works, as opening it does. */
+	/** A tab the user picked shows its chat as opened. */
 	private _onDidPickTab(group: IEditorGroup): void {
 		if (this._restoringChats || this._openingChat || this._closingTabs > 0 || !group.activeEditor) {
 			return;
 		}
-		const session = this._chats.get(group.activeEditor)?.shown.get()?.session;
-		if (session) {
-			this._moveToSession(group.activeEditor, session);
+		if (this._chats.get(group.activeEditor)?.shown.get()) {
+			this._openedInput.set(group.activeEditor, undefined);
 		}
 	}
 
