@@ -89,11 +89,15 @@ export function getTerminalInstanceBlocker(instance: Pick<ITerminalInstance, 'ha
 		return 'terminal.idleUnknown';
 	}
 
-	if (commandDetection.executingCommandObject) {
+	// The prompt input model is in the execute state from the command executed (C) sequence to
+	// the next prompt (B), and the command finished (D) sequence starts a new current command
+	// without a start marker. `executingCommandObject` is defined from the prompt (B) on, and
+	// conpty heuristics may not place the executed marker, so neither tells.
+	const { state, prefix, suffix } = commandDetection.promptInputModel;
+	if (state === PromptInputState.Execute && commandDetection.currentCommand?.commandStartMarker) {
 		return 'terminal.runningProcess';
 	}
 
-	const { state, prefix, suffix } = commandDetection.promptInputModel;
 	if (state !== PromptInputState.Input) {
 		return 'terminal.idleUnknown';
 	}
