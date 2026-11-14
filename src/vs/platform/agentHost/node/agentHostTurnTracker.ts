@@ -103,11 +103,9 @@ interface ITurnTiming {
 	readonly clientContext: IAgentHostClientTelemetryContext;
 	telemetryContext: IAgentTelemetryContext | undefined;
 	providerTelemetryContext: IAgentProviderTurnTelemetryContext | undefined;
-	originatingTrigger?: IOriginatingTriggerContext;
 	codexModelProvider?: CodexModelProvider;
 	readonly initiatorClientId: string | undefined;
-	readonly completedModelCallIds: Set<string>;
-	readonly unattributedModelCallIds: Set<string>;
+	readonly completedModelCalls: Map<string, IOriginatingTriggerContext | undefined>;
 	readonly finishedModelCallIds: Set<string>;
 	modelCallDispatchDurationMs: number;
 	timeToFirstEditMs: number | undefined;
@@ -326,8 +324,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			telemetryContext: agent.getTelemetryContext?.(),
 			providerTelemetryContext: captureProviderTurnTelemetryContext(agent),
 			initiatorClientId,
-			completedModelCallIds: new Set(),
-			unattributedModelCallIds: new Set(),
+			completedModelCalls: new Map(),
 			finishedModelCallIds: new Set(),
 			modelCallDispatchDurationMs: 0,
 			timeToFirstEditMs: undefined,
@@ -713,15 +710,8 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 
 	modelCallCompleted(session: string, turnId: string, modelCallId: string, originatingTrigger?: IOriginatingTriggerContext): void {
 		const timing = this._turnTimings.get(this._key(session, turnId));
-		if (timing) {
-			if (!originatingTrigger && !timing.completedModelCallIds.has(modelCallId)) {
-				timing.unattributedModelCallIds.add(modelCallId);
-			}
-			timing.completedModelCallIds.add(modelCallId);
-			if (originatingTrigger) {
-				timing.unattributedModelCallIds.delete(modelCallId);
-				timing.originatingTrigger = mergeOriginatingTriggers(timing.originatingTrigger, originatingTrigger);
-			}
+		if (timing && (originatingTrigger || !timing.completedModelCalls.has(modelCallId))) {
+			timing.completedModelCalls.set(modelCallId, originatingTrigger);
 		}
 	}
 
@@ -853,13 +843,22 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 		}
 		this._disposeTurn(key, timing);
 
+		let originatingTrigger: IOriginatingTriggerContext | undefined;
+		let hasUnattributedModelCall = false;
+		for (const context of timing.completedModelCalls.values()) {
+			if (context) {
+				originatingTrigger = mergeOriginatingTriggers(originatingTrigger, context);
+			} else {
+				hasUnattributedModelCall = true;
+			}
+		}
 		const report: IAgentHostTurnCompletedReport = {
 			clientContext: timing.clientContext,
 			telemetryContext: timing.telemetryContext,
 			providerTelemetryContext: timing.providerTelemetryContext,
-			originatingTrigger: timing.originatingTrigger ? {
-				...timing.originatingTrigger,
-				incomplete: timing.originatingTrigger.incomplete || timing.unattributedModelCallIds.size > 0,
+			originatingTrigger: originatingTrigger ? {
+				...originatingTrigger,
+				incomplete: originatingTrigger.incomplete || hasUnattributedModelCall,
 			} : undefined,
 			codexModelProvider: timing.codexModelProvider,
 			provider: timing.agent.id,
@@ -899,7 +898,7 @@ export class AgentHostTurnTracker extends Disposable implements IAgentHostTurnTr
 			directPromptCacheTokenCount: usage?.directPromptCacheTokenCount,
 			directCompletionTokenCount: usage?.directCompletionTokenCount,
 			directBilledNanoAiu: usage?.directBilledNanoAiu,
-			modelCallCount: timing.completedModelCallIds.size,
+			modelCallCount: timing.completedModelCalls.size,
 		};
 		this._reporter.turnCompleted(report);
 

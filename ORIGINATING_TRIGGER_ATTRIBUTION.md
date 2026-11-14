@@ -90,6 +90,8 @@ sequenceDiagram
 
 ## Telemetry
 
+Turn completion combines the latest attribution for each distinct model call. An exact late repair replaces that call's earlier missing, unknown, or partial snapshot without erasing missingness from other calls. An absent duplicate does not overwrite a known snapshot.
+
 Existing response telemetry carries `originatingTriggerAttribution` (`known`, `multiple`, `partial`, or `unknown`). A complete single cause carries `originatingTriggerId` and `originatingTriggerKind`. Shared or partial causes use the bounded `originatingTriggers` JSON array. `involvesSteering` is a measurement.
 
 Usage remains one fact per model call. Standard/restricted copies and forwarded parent copies must be deduplicated according to their existing event contracts. Exploding a multi-origin array into edges does not make the full cost additive across those edges.

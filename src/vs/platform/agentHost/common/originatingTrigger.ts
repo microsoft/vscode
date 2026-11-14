@@ -48,8 +48,8 @@ export function readOriginatingTrigger(value: object): IOriginatingTriggerContex
 	return parseOriginatingTrigger((value as Record<string, unknown>).originatingTrigger);
 }
 
-export function supportsOriginatingTrigger(value: object): boolean {
-	return (value as Record<string, unknown>).originatingTrigger === true;
+export function supportsOriginatingTrigger(value: object | undefined): boolean {
+	return (value as Record<string, unknown> | undefined)?.originatingTrigger === true;
 }
 
 export function mergeOriginatingTriggers(previous: IOriginatingTriggerContext | undefined, next: IOriginatingTriggerContext): IOriginatingTriggerContext {
