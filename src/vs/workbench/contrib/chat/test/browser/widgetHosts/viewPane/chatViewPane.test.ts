@@ -204,6 +204,60 @@ suite('ChatViewPane sessions refresh', () => {
 		]);
 	});
 
+	test('as the sessions list swaps live, the new list takes focus only if the replaced list had it', () => {
+		const service = store.add(new ChatViewSessionsListService());
+		const focused: string[] = [];
+		const filter = Object.assign(toDisposable(() => { }), { onDidChange: Event.None, isDefault: () => true });
+		const parent = mainWindow.document.body.appendChild(document.createElement('div'));
+		const elsewhere = mainWindow.document.body.appendChild(document.createElement('input'));
+		store.add(toDisposable(() => { parent.remove(); elsewhere.remove(); }));
+		// Each list renders a focusable row into its container
+		const render = (container: HTMLElement, name: string) => {
+			container.appendChild(document.createElement('input'));
+			return upcastPartial<AgentSessionsControl>({ dispose: () => { }, setVisible: () => { }, focus: () => focused.push(name) });
+		};
+		const host = {
+			_register: <T extends { dispose(): void }>(value: T) => store.add(value),
+			instantiationService: {
+				createInstance: (ctor: typeof AgentSessionsControl | typeof AgentSessionsFilter | typeof MenuWorkbenchToolBar, container?: HTMLElement) => {
+					if (ctor === AgentSessionsControl) {
+						return render(container!, 'own');
+					}
+					return ctor === AgentSessionsFilter ? filter : Object.assign(toDisposable(() => { }), { context: undefined });
+				},
+			},
+			hostService: { onDidChangeFocus: Event.None },
+			sessionsListService: service,
+			configurationService: new TestConfigurationService(),
+			onDidChangeBodyVisibility: Event.None,
+			getLocationBasedColors: () => ({ listOverrideStyles: {} }),
+			doUpdateConfiguredSessionsViewerOrientation: () => { },
+			viewPaneContainer: document.createElement('div'),
+			isBodyVisible: () => true,
+			sessionsViewerVisible: true,
+			updateSessionsControlVisibility: () => ({ changed: false, visible: true }),
+			relayout: () => { },
+			sessionsControlContainer: undefined as HTMLElement | undefined,
+		};
+		const createControl = Reflect.get(ChatViewPane.prototype, 'createSessionsControl') as (this: typeof host, parent: HTMLElement) => void;
+		createControl.call(host, parent);
+		const focusList = () => host.sessionsControlContainer!.querySelector('input')!.focus();
+		const steps: string[][] = [];
+
+		// The list has focus: the list that replaces it takes it
+		focusList();
+		const registration = service.registerProvider(upcastPartial<IChatViewSessionsListProvider>({
+			create: container => ({ control: render(container, 'provided'), hasHeader: true, sessionsOnly: constObservable(false) }),
+		}));
+		steps.push(focused.splice(0));
+		// Focus is elsewhere, such as in the chat: it stays there
+		elsewhere.focus();
+		registration.dispose();
+		steps.push(focused.splice(0));
+
+		assert.deepStrictEqual({ steps, focusStayed: mainWindow.document.activeElement === elsewhere }, { steps: [['provided'], []], focusStayed: true });
+	});
+
 	test('sessions layout telemetry reports the settled layout once shown and restored, then only changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		const events: unknown[] = [];
 		const host = {

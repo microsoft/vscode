@@ -29,12 +29,13 @@ suite('ChatViewSessionsListService', () => {
 		assert.deepStrictEqual(steps, [false, true, false, false]);
 	});
 
-	test('reports each change of the provider in use: as one registers, and as the one in use goes, not as another does', () => {
+	test('reports each change of the provider in use: as one registers, and as the one in use goes, not as another does, nor as the one in use registers again', () => {
 		const service = store.add(new ChatViewSessionsListService());
 		let changes = 0;
 		store.add(service.onDidChangeProvider(() => changes++));
 		const steps: number[] = [];
-		const first = service.registerProvider(upcastPartial<IChatViewSessionsListProvider>({}));
+		const provider = upcastPartial<IChatViewSessionsListProvider>({});
+		const first = service.registerProvider(provider);
 		steps.push(changes);
 		const second = service.registerProvider(upcastPartial<IChatViewSessionsListProvider>({}));
 		steps.push(changes);
@@ -42,7 +43,15 @@ suite('ChatViewSessionsListService', () => {
 		steps.push(changes);
 		second.dispose();
 		steps.push(changes);
+		// The same provider registering again, and one of its registrations going, change nothing
+		const again = service.registerProvider(provider);
+		const twice = service.registerProvider(provider);
+		steps.push(changes);
+		twice.dispose();
+		steps.push(changes);
+		again.dispose();
+		steps.push(changes);
 
-		assert.deepStrictEqual(steps, [1, 2, 2, 3]);
+		assert.deepStrictEqual(steps, [1, 2, 2, 3, 4, 4, 5]);
 	});
 });
