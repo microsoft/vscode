@@ -360,12 +360,12 @@ suite('ChatViewSessionsGate', () => {
 	test('New Chat aims the Chat view\'s composer at its target when it has one, and at the window\'s default otherwise', () => {
 		const folder = URI.file('/repo.worktrees/feature');
 		const fallback = { folderUri: URI.file('/repo') };
-		const aimed = getChatViewComposerTarget({ folder, providerId: 'provider', sessionType: 'claude' }, () => fallback);
+		const aimed = getChatViewComposerTarget({ folder, providerId: 'provider', sessionType: 'claude', modelId: 'model', modeId: 'mode', requireDevContainer: true }, () => fallback);
 		assert.deepStrictEqual({
-			aimed: { folder: aimed?.folderUri?.path, providerId: aimed?.providerId, sessionTypeId: aimed?.sessionTypeId },
+			aimed: { folder: aimed?.folderUri?.path, providerId: aimed?.providerId, sessionTypeId: aimed?.sessionTypeId, modelId: aimed?.modelId, modeId: aimed?.modeId, requireDevContainer: aimed?.requireDevContainer },
 			default: getChatViewComposerTarget(undefined, () => fallback)?.folderUri?.path,
 		}, {
-			aimed: { folder: '/repo.worktrees/feature', providerId: 'provider', sessionTypeId: 'claude' },
+			aimed: { folder: '/repo.worktrees/feature', providerId: 'provider', sessionTypeId: 'claude', modelId: 'model', modeId: 'mode', requireDevContainer: true },
 			default: '/repo',
 		});
 	});
