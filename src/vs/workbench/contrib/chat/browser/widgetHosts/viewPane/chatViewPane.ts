@@ -1014,16 +1014,21 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		const sessionsList = this._register(new MutableDisposable<DisposableStore>());
 		sessionsList.value = createSessionsList().store;
 		this._register(this.sessionsListService.onDidChangeProvider(() => {
-			// Focus moves to the list that replaces the one that had it; focus elsewhere, such as in the chat, stays
+			// Focus moves to the list that replaces the one that had it, or to the chat while that list does not show; focus
+			// elsewhere, such as in the chat or an editor, stays
 			const hadFocus = isAncestorOfActiveElement(sessionsControlContainer);
 			sessionsList.clear();
 			const { sessionsControl, store } = createSessionsList();
 			sessionsList.value = store;
 			sessionsControl.setVisible(this.isBodyVisible() && this.sessionsViewerVisible);
-			this.updateSessionsControlVisibility();
+			const { visible } = this.updateSessionsControlVisibility();
 			this.relayout();
 			if (hadFocus) {
-				sessionsControl.focus();
+				if (visible) {
+					sessionsControl.focus();
+				} else {
+					this.focusInput();
+				}
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(() => {
