@@ -1322,7 +1322,11 @@ export class CommandCenter {
 					.filter(r => r.type !== Status.DELETED && r.type !== Status.INDEX_DELETED)
 					.map(r => r.resourceUri);
 			} else if (window.activeTextEditor) {
-				uris = [window.activeTextEditor.document.uri];
+				// When invoked from a keybinding on a git: editor (e.g. the diff of a
+				// committed file), open the working tree file rather than the read-only
+				// git: document.
+				const uri = window.activeTextEditor.document.uri;
+				uris = [isGitUri(uri) ? Uri.file(fromGitUri(uri).path) : uri];
 			}
 		}
 
