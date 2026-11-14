@@ -7,13 +7,21 @@ import assert from 'assert';
 import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IViewletViewOptions } from '../../../../browser/parts/views/viewsViewlet.js';
 import { Extensions as ViewExtensions, IViewContainerDescriptor, IViewsRegistry } from '../../../../common/views.js';
 import { AGENTS_VIEW_SETUP_VIEW_ID, AgentsViewAvailable, AgentsViewNeedsSetup, AgentsViewWhen } from '../../browser/agentsView/agentsView.js';
-import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
+import { createEditorWindowSessionsViewOptions, EDITOR_WINDOW_SESSIONS_GROUPINGS, registerEditorWindowSessionsList, registerEditorWindowSessionsViews } from '../../browser/agentsView/editorWindowSessionsList.js';
 import { SessionsViewId } from '../../browser/views/sessionsView.js';
+import { Event } from '../../../../../base/common/event.js';
+import { upcastPartial } from '../../../../../base/test/common/mock.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
+import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { IWorkbenchLayoutService } from '../../../../services/layout/browser/layoutService.js';
+import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 
 suite('EditorWindowSessionsList', () => {
 
@@ -63,6 +71,28 @@ suite('EditorWindowSessionsList', () => {
 			{ id: SessionsViewId, when: AgentsViewWhen.serialize() },
 			{ id: AGENTS_VIEW_SETUP_VIEW_ID, when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup)?.serialize() },
 		]);
+	});
+
+	test('the settings of the sessions list stay registered while any holder of the list still holds it, such as two views that embed it', () => {
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+		instantiationService.stub(IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: Event.None, isViewVisible: () => false }));
+		instantiationService.stub(IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: Event.None, isVisible: () => false }));
+		instantiationService.stub(ILifecycleService, upcastPartial<ILifecycleService>({ when: () => new Promise<void>(() => { }) }));
+		// The registrations of the sessions list's settings, beyond those of other suites, such as of the Agents window
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const nodes = () => configurationRegistry.getConfigurations().filter(node => node.id === 'sessionsList').length;
+		const initial = nodes();
+		const registered = () => nodes() - initial;
+		const first = registerEditorWindowSessionsList(instantiationService, () => toDisposable(() => { }));
+		const second = registerEditorWindowSessionsList(instantiationService, () => toDisposable(() => { }), 'workbench.panel.chat.view.copilot');
+		const whileBoth = registered();
+		first.dispose();
+		const whileOne = registered();
+		second.dispose();
+
+		// Registered once while either holds it
+		assert.deepStrictEqual({ whileBoth, whileOne, afterBoth: registered() }, { whileBoth: 1, whileOne: 1, afterBoth: 0 });
 	});
 
 	function localize2Value(value: string) {
