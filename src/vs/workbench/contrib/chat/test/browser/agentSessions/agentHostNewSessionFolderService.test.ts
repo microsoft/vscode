@@ -76,6 +76,27 @@ suite('AgentHostNewSessionFolderService', () => {
 		});
 	});
 
+	test('No Workspace replaces a session\'s folder without becoming the window\'s default, and a folder picked again replaces it', () => {
+		const changes: string[] = [];
+		cleanup.add(service.onDidChangeFolder(uri => changes.push(uri.path)));
+
+		service.setFolder(sessionA, folderB);
+		service.setNoWorkspace(sessionA);
+		service.setNoWorkspace(sessionA); // same value: no event
+		const noWorkspace = { folder: service.getFolder(sessionA), isNoWorkspace: service.isNoWorkspace(sessionA), primary: service.resolveNewSessionPrimary(sessionA), otherSession: service.isNoWorkspace(sessionB), defaultFolder: service.getDefaultFolder()?.path };
+		service.setFolder(sessionA, folderB);
+		const folderAgain = { folder: service.getFolder(sessionA)?.path, isNoWorkspace: service.isNoWorkspace(sessionA) };
+		service.setNoWorkspace(sessionA);
+		service.clear(sessionA);
+
+		assert.deepStrictEqual({ noWorkspace, folderAgain, cleared: service.isNoWorkspace(sessionA), changes }, {
+			noWorkspace: { folder: undefined, isNoWorkspace: true, primary: undefined, otherSession: false, defaultFolder: '/repoB' },
+			folderAgain: { folder: '/repoB', isNoWorkspace: false },
+			cleared: false,
+			changes: ['/untitled-a', '/untitled-a', '/untitled-a', '/untitled-a', '/untitled-a'],
+		});
+	});
+
 	test('clears the chosen folder when its session is disposed', () => {
 		const changes: string[] = [];
 		cleanup.add(service.onDidChangeFolder(uri => changes.push(uri.toString())));

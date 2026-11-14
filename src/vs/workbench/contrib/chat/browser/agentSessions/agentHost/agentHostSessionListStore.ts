@@ -12,7 +12,7 @@ import { AgentSession, type IAgentSessionMetadata } from '../../../../../../plat
 import { IAgentHostConnectionsService, IAgentHostSessionSchemeAlias } from '../../../../../../platform/agentHost/common/agentHostConnectionsService.js';
 import type { IAgentHostResourceUriMapper } from '../../../../../../platform/agentHost/common/agentHostUri.js';
 import { ActionType, type IIsArchivedChangedAction, type IIsReadChangedAction, type INotification, type SessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { readSessionMatchesByProjectRoot, readSessionMultiRootMetadata, readSessionWorkspaceless, SessionStatus, type SessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IWorkspaceContextService, type IWorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { Schemas } from '../../../../../../base/common/network.js';
@@ -117,7 +117,7 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly retainSession?: (session: URI) => boolean;
 			/**
 			 * Also lists a session whose project (repository root) is a folder of the window, such as one working in a
-			 * worktree of it, while true.
+			 * worktree of it, and a session without a workspace, such as a quick chat, while true.
 			 */
 			readonly matchProjectRoot?: IObservable<boolean>;
 		} = {},
@@ -536,7 +536,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
-		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);
+		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary) || this._matchesWorkspaceless(entry.summary);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -561,6 +561,11 @@ export class AgentHostSessionListStore extends Disposable {
 		// Also the folder's own location while it is at another, such as a worktree of it: the window's workspace
 		return workspace.folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri))
 			|| (!workspace.configuration && !!workspace.uri && extUriBiasedIgnorePathCase.isEqual(project, workspace.uri));
+	}
+
+	/** Whether the session has no workspace, which every window lists while matching by project (`matchProjectRoot`). */
+	private _matchesWorkspaceless(summary: SessionSummary): boolean {
+		return !!this._options.matchProjectRoot?.get() && readSessionWorkspaceless(summary._meta) && !readSessionMultiRootMetadata(summary._meta);
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {

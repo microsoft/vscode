@@ -7793,6 +7793,36 @@ suite('AgentHostChatContribution', () => {
 			});
 		}));
 
+		test('newChatSessionItem carries No Workspace forward to the session, also under the retained backend identity, rather than a folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, newSessionFolderService } = createTestServices(disposables, undefined, undefined, undefined, undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, [URI.file('/workspace')]);
+			const untitledResource = URI.parse('agent-host-copilot:/untitled-no-workspace');
+			newSessionFolderService.setNoWorkspace(untitledResource);
+			let allocatedResource: URI | undefined;
+			instantiationService.stub(IAgentHostUntitledProvisionalSessionService, {
+				tryRebind: async (_oldResource: URI, newResource: URI) => {
+					allocatedResource = newResource;
+					return URI.parse('ahp-session:/retained-no-workspace');
+				},
+				getProvisionalWorkingDirectories: () => undefined,
+			} as Partial<IAgentHostUntitledProvisionalSessionService> as IAgentHostUntitledProvisionalSessionService);
+			const listController = createSessionListController(disposables, instantiationService, agentHostService);
+
+			const item = await listController.newChatSessionItem({ prompt: 'Hello', untitledResource }, CancellationToken.None);
+			assert.ok(item && allocatedResource);
+
+			assert.deepStrictEqual({
+				resource: item.resource.toString(),
+				noWorkspace: newSessionFolderService.isNoWorkspace(item.resource),
+				folder: newSessionFolderService.getFolder(item.resource),
+				oldAllocationNoWorkspace: newSessionFolderService.isNoWorkspace(allocatedResource),
+			}, {
+				resource: 'agent-host-copilot:/retained-no-workspace',
+				noWorkspace: true,
+				folder: undefined,
+				oldAllocationNoWorkspace: false,
+			});
+		}));
+
 		test('newChatSessionItem skips rebind when no untitled provisional resource is provided', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
@@ -19510,6 +19540,30 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectories?.[0]?.toString(), URI.file('/custom/working/dir').toString());
+		}));
+
+		test('handler creates a session the user chose No Workspace for without a working directory, and others in the window\'s folder', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const folder = URI.file('/workspace');
+			const { instantiationService, agentHostService, chatAgentService, newSessionFolderService } = createTestServices(disposables, undefined, undefined, undefined, undefined, false, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, [folder]);
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'no-workspace-test',
+				sessionType: 'no-workspace-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+			const noWorkspace = URI.from({ scheme: 'no-workspace-test', path: '/new-no-workspace' });
+			newSessionFolderService.setNoWorkspace(noWorkspace);
+
+			for (const sessionResource of [noWorkspace, URI.from({ scheme: 'no-workspace-test', path: '/new-in-folder' })]) {
+				const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'no-workspace-test', sessionResource });
+				fire({ type: 'chat/turnComplete', endedAt: '2025-01-01T00:00:00.000Z', session, turnId } as ChatAction);
+				await turnPromise;
+			}
+
+			assert.deepStrictEqual(agentHostService.createSessionCalls.map(call => call.workingDirectories?.map(directory => directory.toString())), [undefined, [folder.toString()]]);
 		}));
 
 		test('handler forwards request session config to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

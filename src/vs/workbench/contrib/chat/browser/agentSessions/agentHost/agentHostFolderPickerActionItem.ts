@@ -147,6 +147,9 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	private _selectedFolder(): URI | undefined {
 		const folders = this._workspaceContextService.getWorkspace().folders;
 		const sessionResource = this._sessionResource();
+		if (sessionResource && this._newSessionFolderService.isNoWorkspace(sessionResource)) {
+			return undefined;
+		}
 		const stored = sessionResource ? this._newSessionFolderService.getFolder(sessionResource) : undefined;
 		// Stale workspace selections are cleared by the folder service; standalone selections remain valid.
 		if (stored) {
@@ -169,15 +172,16 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
 		const selected = this._selectedFolder();
 		const folder = selected && this._workspaceContextService.getWorkspace().folders.find(f => f.uri.toString() === selected.toString());
-		// With worktree support, by its icon only, a folder or a worktree, but New Worktree by its name
-		const chip = selected && this._worktree?.isActive() ? this._worktree.getChip(selected) : undefined;
+		// With worktree support, by its icon only, a folder or a worktree, but New Worktree and No Workspace by their names
+		const chip = this._worktree?.isActive() && this._worktree.isNoWorkspaceSelected() ? this._worktree.getNoWorkspaceChip()
+			: selected && this._worktree?.isActive() ? this._worktree.getChip(selected) : undefined;
 		const label = chip ? chip.description : folder ? folder.name : (selected ? basename(selected) : localize('agentHost.selectFolder', "Folder"));
 		const shownLabel = chip ? chip.label : label;
 		const compact = this.pickerOptions.compact.get();
 		element.classList.toggle('icon-only', compact || !shownLabel);
 		dom.reset(
 			element,
-			...renderLabelWithIcons(chip?.icon === Codicon.worktree ? `$(${Codicon.worktree.id})` : `$(folder-compact)`),
+			...renderLabelWithIcons(chip?.icon === Codicon.worktree || chip?.icon === Codicon.comment ? `$(${chip.icon.id})` : `$(folder-compact)`),
 			...(!compact && shownLabel ? [dom.$('span.chat-input-picker-label', undefined, shownLabel)] : []),
 		);
 		// Set the aria label after the visible text is in place: the base class
@@ -213,6 +217,10 @@ export class AgentHostFolderPickerActionItem extends ChatInputPickerActionViewIt
 	 * Returns `undefined` when no folder is selected so no hover is shown.
 	 */
 	private _buildHoverContent(): IManagedHoverTooltipMarkdownString | undefined {
+		if (this._worktree.isActive() && this._worktree.isNoWorkspaceSelected()) {
+			const { description } = this._worktree.getNoWorkspaceChip();
+			return { markdown: new MarkdownString().appendText(description), markdownNotSupportedFallback: description };
+		}
 		const selected = this._selectedFolder();
 		if (!selected) {
 			return undefined;
