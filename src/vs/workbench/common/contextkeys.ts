@@ -176,6 +176,7 @@ export const NotificationsToastsVisibleContext = new RawContextKey<boolean>('not
 //#region < --- Auxiliary Bar --- >
 
 export const ActiveAuxiliaryContext = new RawContextKey<string>('activeAuxiliary', '', localize('activeAuxiliary', "The identifier of the active auxiliary panel"));
+export const AuxiliaryBarMaximizeHiddenContext = new RawContextKey<boolean>('auxiliaryBarMaximizeHidden', false, localize('auxiliaryBarMaximizeHidden', "Whether the active view container of the secondary side bar does not offer to maximize it"));
 export const AuxiliaryBarFocusContext = new RawContextKey<boolean>('auxiliaryBarFocus', false, localize('auxiliaryBarFocus', "Whether the auxiliary bar has keyboard focus"));
 export const AuxiliaryBarVisibleContext = new RawContextKey<boolean>('auxiliaryBarVisible', false, localize('auxiliaryBarVisible', "Whether the auxiliary bar is visible"));
 export const SecondarySideBarVisibleContext = new RawContextKey<boolean>('secondarySideBarVisible', false, localize('secondarySideBarVisible', "Whether the layout surface representing the secondary side bar is visible"));

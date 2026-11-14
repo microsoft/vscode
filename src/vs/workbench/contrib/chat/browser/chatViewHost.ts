@@ -4,12 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { SessionTypeSelectionReason } from '../common/constants.js';
 import { IChatWidget } from './chat.js';
 
 export const IChatViewHostService = createDecorator<IChatViewHostService>('chatViewHostService');
+
+/** The chat that a host shows ({@link IChatViewHost.shownSession}), and why it shows it. */
+export interface IChatViewHostShownSession {
+	readonly resource: URI;
+	/**
+	 * `open` when the user brought the chat up, such as by picking it in the sessions list or starting a new chat;
+	 * `commit` when the first request of a new chat made it the session it became, which the user did not pick; `restore`
+	 * when the host shows a chat that it does not bring up for the user, such as the chat it last showed as the window
+	 * starts, or one opened with {@link IChatViewHostOpenOptions.restore}.
+	 */
+	readonly reason: 'open' | 'commit' | 'restore';
+}
 
 /** How {@link IChatViewHost.reveal} shows the host. */
 export interface IChatViewHostRevealOptions {
@@ -24,6 +37,45 @@ export interface IChatViewHostRevealOptions {
 export interface IChatViewHostOpenOptions {
 	readonly preserveFocus?: boolean;
 	readonly sessionTypeSelectionReason?: SessionTypeSelectionReason;
+	/**
+	 * Shows the session as one the host restores ({@link IChatViewHostShownSession.reason} `restore`) rather than one
+	 * the user opens, such as the chat that was last shown where the user moved the window's folder.
+	 */
+	readonly restore?: boolean;
+	/**
+	 * Shows the session as the one that the first request of the chat it shows made of it ({@link IChatViewHostShownSession.reason}
+	 * `commit`), rather than one the user opens.
+	 */
+	readonly commit?: boolean;
+}
+
+/** Why a host shows a session that it opens with `options`. */
+export function getChatViewHostOpenReason(options: IChatViewHostOpenOptions | undefined): IChatViewHostShownSession['reason'] {
+	return options?.commit ? 'commit' : options?.restore ? 'restore' : 'open';
+}
+
+/** What a new chat aims at, such as the folder and the session type of a new session that a sessions list starts. */
+export interface IChatViewNewChatTarget {
+	/** The folder the session of the new chat works in. */
+	readonly folder?: URI;
+	readonly providerId?: string;
+	readonly sessionType?: string;
+	/** The model the new chat starts with, where its session type offers it. */
+	readonly modelId?: string;
+	/** The mode the new chat shows, such as an agent's custom agent, where its session type offers it. */
+	readonly modeId?: string;
+	/** Whether the session of the new chat runs in a Dev Container. */
+	readonly requireDevContainer?: boolean;
+}
+
+/** How {@link IChatViewHost.newChat} starts a new chat. */
+export interface IChatViewHostNewChatOptions {
+	readonly preserveFocus?: boolean;
+	/**
+	 * Starts the new chat in the host's own view, also where New Chat would leave it to the chat widget it acts on, such as the
+	 * Chat view that shows a chat: a new session that a sessions list starts, rather than New Chat of a chat widget.
+	 */
+	readonly ownChat?: boolean;
 }
 
 /** How {@link IChatViewHost.startSession} starts a session that its caller may send a first request to. */
@@ -70,6 +122,19 @@ export interface IChatViewHost {
 	toggle(): Promise<boolean>;
 	/** Starts showing the session of `sessionResource`, which its caller may send a first request to. */
 	startSession(sessionResource: URI, options: IChatViewHostSessionStartOptions): Promise<IChatViewHostSessionStart>;
+	/**
+	 * Whether the host shows the chat of `sessionResource`. A host that does not leaves revealing, opening and starting it to
+	 * the Chat view, such as a host that shows only some kinds of chats; without it, the host shows every chat.
+	 */
+	canShow?(sessionResource: URI): boolean;
+	/**
+	 * Starts a new chat in the host, as New Chat of the Chat view does, aimed at `target` when given, and resolves to whether
+	 * it takes it once its new chat shows, so that a request that follows goes to it. A host that does not implement it leaves
+	 * New Chat to the chat widget it acts on.
+	 */
+	newChat?(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
+	/** The chat the host shows; a host that does not implement it reports none. */
+	readonly shownSession?: IObservable<IChatViewHostShownSession | undefined>;
 }
 
 /**
@@ -80,6 +145,23 @@ export interface IChatViewHostService extends IChatViewHost {
 	readonly _serviceBrand: undefined;
 
 	revealIfShowing(sessionResource: URI, options?: IChatViewHostOpenOptions): Promise<IChatWidget | undefined>;
+
+	/** A new chat of its own (`ownChat`) that the host in use leaves to the Chat view starts in the Chat view. */
+	newChat(target?: IChatViewNewChatTarget, options?: IChatViewHostNewChatOptions): Promise<boolean>;
+
+	/** Whether a registered host replaces the Chat view, which then shows only the chats the host leaves to it. */
+	readonly replaced: IObservable<boolean>;
+	/**
+	 * Whether the Chat view hosts the chat that was opened or started last: it does by default, and for a chat the host that
+	 * replaces it leaves to it. Then the Chat view shows that chat, not only its sessions.
+	 */
+	readonly chatViewHosts: IObservable<boolean>;
+	/**
+	 * The chat that the host that showed a chat last shows: the one that opened or started a chat last, the Chat view for the
+	 * chats the host in use leaves to it, or the one that restored its chat last. None while that host does not report one
+	 * ({@link IChatViewHost.shownSession}).
+	 */
+	readonly shownSession: IObservable<IChatViewHostShownSession | undefined>;
 
 	/**
 	 * Replaces the Chat view with `host` until the returned disposable is disposed. The host registered last is the one in
