@@ -237,6 +237,34 @@ suite('git smoke test', function () {
 		}
 	});
 
+	test('discards only the selected tracked file with pathspec characters', async function () {
+		const directory = file('tracked files with spaces');
+		const literalPath = path.join(directory, '[target]');
+		const globMatchPath = path.join(directory, 't');
+		const paths = [literalPath, globMatchPath];
+
+		fs.mkdirSync(directory);
+		for (const filePath of paths) {
+			fs.writeFileSync(filePath, 'initial contents');
+		}
+		await repository.add(paths);
+		await repository.commit('add tracked pathspec fixtures');
+
+		try {
+			for (const filePath of paths) {
+				fs.writeFileSync(filePath, 'working tree changes');
+			}
+			await repository.status();
+
+			await repository.clean([literalPath]);
+
+			assert.strictEqual(fs.readFileSync(literalPath, 'utf8'), 'initial contents');
+			assert.strictEqual(fs.readFileSync(globMatchPath, 'utf8'), 'working tree changes');
+		} finally {
+			await repository.clean(paths);
+		}
+	});
+
 	// diabled because of https://github.com/microsoft/vscode/issues/327142
 	test.skip('opens notebook diff and file from active notebook editor', async function () {
 		const committed = JSON.stringify({ cells: [{ cell_type: 'code', source: ['x = 1'], metadata: {}, outputs: [], execution_count: null }], metadata: {}, nbformat: 4, nbformat_minor: 5 });
