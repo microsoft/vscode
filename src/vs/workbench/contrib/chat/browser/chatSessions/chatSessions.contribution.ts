@@ -1003,6 +1003,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		if (contribution.onDidChangeRequiresCopilotSignIn) {
 			disposables.add(contribution.onDidChangeRequiresCopilotSignIn(() => this._onDidChangeAvailability.fire()));
 		}
+		if (contribution.onDidChangeAvailability) {
+			disposables.add(contribution.onDidChangeAvailability(() => this._onDidChangeAvailability.fire()));
+		}
 		this._updateHasCanDelegateProvidersContextKey();
 		this._onDidChangeAvailability.fire();
 

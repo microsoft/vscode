@@ -10,10 +10,11 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../../base/co
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
-import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxDraftPreparationService, ICloudSandboxPreparedReservation, ICloudSandboxSubmittedDraft, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
+import { CloudSandboxAuthenticationRequiredError, CloudSandboxEarlyPreparationSettingId, CloudSandboxEnabledSettingId, CloudSandboxRequestError, ICloudSandboxApiService, ICloudSandboxCreatedSession, ICloudSandboxDraftPreparationService, ICloudSandboxPreparedReservation, ICloudSandboxSubmittedDraft, isCloudSandboxEnabled } from '../../../../../platform/agentHost/common/cloudSandboxAgentHost.js';
 import { RemoteAgentHostsEnabledSettingId } from '../../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ChatAIDisabledSettingId } from '../../../../../platform/chat/common/chatSettings.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { logSettingExperimentTrigger } from '../../../../../platform/telemetry/common/experimentTrigger.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
@@ -25,7 +26,7 @@ const UNUSED_RESERVATION_LIFETIME_MS = 5 * 60_000;
 const RESERVATION_WAIT_TIMEOUT_MS = 5 * 60_000;
 const LOG_PREFIX = '[CloudSandboxPreparation]';
 
-type PreparationSkipReason = 'featureDisabled' | 'aiDisabled' | 'aiHidden' | 'workspaceUntrusted' | 'settingDisabled' | 'unavailable';
+type PreparationSkipReason = 'featureDisabled' | 'aiDisabled' | 'aiHidden' | 'accountUnavailable' | 'workspaceUntrusted' | 'settingDisabled' | 'unavailable';
 type PreparationReleaseReason = 'expired' | 'repositoryChanged' | 'accountChanged' | 'disabled' | 'discarded' | 'reservationFailed' | 'sendAborted' | 'returnedBeforeSubmit';
 
 interface IPreparation {
@@ -64,12 +65,20 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IDefaultAccountService private readonly _defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 		this._lifecycle = new CloudSandboxLifecycleTelemetry(_telemetryService);
 		const updateEnablement = () => {
 			if (!this._isEnabled()) {
 				void this.clear();
+			}
+			if (!this._cloudSessionsEnabled) {
+				for (const entry of this._entries.values()) {
+					if (entry !== 'unavailable' && entry.state === 'taking') {
+						entry.source.cancel();
+					}
+				}
 			}
 		};
 		this._register(this._configurationService.onDidChangeConfiguration(event => {
@@ -82,6 +91,10 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		}));
 		this._register(this._chatEntitlementService.onDidChangeSentiment(updateEnablement));
 		this._register(this._workspaceTrustService.onDidChangeTrust(updateEnablement));
+		this._register(this._defaultAccountService.onDidChangeDefaultAccount(updateEnablement));
+		void this._defaultAccountService.getDefaultAccount().then(updateEnablement, error => {
+			this._logService.error(`${LOG_PREFIX} Failed to initialize account:`, error);
+		});
 		this._register(this._api.onDidChangeAccount(accountKey => {
 			for (const entry of this._entries.values()) {
 				if (typeof entry === 'string' || entry.accountKey === undefined || entry.accountKey === accountKey) {
@@ -106,6 +119,9 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		if (this._chatEntitlementService.sentiment.hidden) {
 			return 'aiHidden';
 		}
+		if (!this._cloudSessionsEnabled) {
+			return 'accountUnavailable';
+		}
 		if (!this._workspaceTrustService.isWorkspaceTrusted()) {
 			return 'workspaceUntrusted';
 		}
@@ -114,6 +130,16 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 
 	private _isEnabled(): boolean {
 		return this._unavailableReason() === undefined && this._configurationService.getValue<boolean>(CloudSandboxEarlyPreparationSettingId) === true;
+	}
+
+	private get _cloudSessionsEnabled(): boolean {
+		return this._defaultAccountService.currentDefaultAccount?.entitlementsData?.cloud_sessions_enabled !== false;
+	}
+
+	private _assertCloudSessionsEnabled(): void {
+		if (!this._cloudSessionsEnabled) {
+			throw new CloudSandboxRequestError(undefined, localize('cloudSessions.unavailable', "Cloud session creation is not available for your account."), undefined, { code: 'feature_disabled' });
+		}
 	}
 
 	prepare(draftResource: URI, repoNwo?: string): void {
@@ -185,8 +211,11 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 
 	private async _reserve(entry: IPreparation): Promise<ICloudSandboxPreparedReservation> {
 		this._checkCancellation(entry.source.token);
+		await raceCancellationError(this._defaultAccountService.getDefaultAccount(), entry.source.token);
+		this._assertCloudSessionsEnabled();
 		const accountKey = await raceCancellationError(this._api.getAccountKey(), entry.source.token);
 		this._checkCancellation(entry.source.token);
+		this._assertCloudSessionsEnabled();
 		if (!accountKey) {
 			throw new CloudSandboxAuthenticationRequiredError();
 		}
@@ -198,8 +227,12 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 
 	async take(draftResource: URI, token: CancellationToken): Promise<ICloudSandboxPreparedReservation | undefined> {
 		this._checkCancellation(token);
+		this._assertCloudSessionsEnabled();
 		const entry = this._entries.get(draftResource);
 		if (!entry || entry === 'unavailable') {
+			await raceCancellationError(this._defaultAccountService.getDefaultAccount(), token);
+			this._checkCancellation(token);
+			this._assertCloudSessionsEnabled();
 			this._logService.info(`${LOG_PREFIX} event=sendWithoutReservation reason=${this._skipReasons.get(draftResource) ?? (entry ? 'unavailable' : 'notStarted')}`);
 			this._entries.set(draftResource, 'unavailable');
 			return undefined;
@@ -230,11 +263,14 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 			}
 		}, RESERVATION_WAIT_TIMEOUT_MS));
 		try {
+			await raceCancellationError(this._defaultAccountService.getDefaultAccount(), entry.source.token);
+			this._assertCloudSessionsEnabled();
 			this._checkCancellation(entry.source.token);
 			let prepared: ICloudSandboxPreparedReservation;
 			try {
 				prepared = await raceCancellationError(entry.reservation, entry.source.token);
 			} catch (error) {
+				this._assertCloudSessionsEnabled();
 				this._checkCancellation(entry.source.token);
 				if (isCancellationError(error) || error instanceof CloudSandboxAuthenticationRequiredError) {
 					throw error;
@@ -253,6 +289,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 		} catch (error) {
 			void this._release(entry, 'sendAborted');
 			this._checkCancellation(token);
+			this._assertCloudSessionsEnabled();
 			if (timedOut) {
 				this._logService.warn(`${LOG_PREFIX} Reservation wait timed out; continuing with normal task creation.`, error);
 				this._logEvent(entry, 'sendFallback', `reason=waitTimedOut waitMs=${Math.max(0, Date.now() - waitStartedAt)}`);
@@ -271,6 +308,7 @@ export class CloudSandboxDraftPreparationService extends Disposable implements I
 	private async _verifyAccount(prepared: ICloudSandboxPreparedReservation, token: CancellationToken): Promise<void> {
 		this._checkCancellation(token);
 		const accountKey = await raceCancellationError(this._api.getAccountKey(), token);
+		this._assertCloudSessionsEnabled();
 		this._checkCancellation(token);
 		if (accountKey !== prepared.expectedAccountKey) {
 			throw new CancellationError();

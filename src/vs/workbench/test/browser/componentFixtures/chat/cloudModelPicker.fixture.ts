@@ -7,6 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
+import { IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { AccountClient } from '../../../../../platform/github/common/account/accountClient.js';
 import { ApiRequest, ApiResponse, IApiRequestProvider } from '../../../../../platform/github/common/client/request.js';
 import { parse } from '../../../../../platform/github/common/client/schema.js';
@@ -71,6 +72,7 @@ async function renderCloudPicker(context: ComponentFixtureContext, view: 'list' 
 			}
 		}(),
 		new TestUserDataProfileService(),
+		new class extends mock<IDefaultAccountService>() { }(),
 	));
 	const catalog = await api.listModels(CancellationToken.None);
 	const provider = context.disposableStore.add(new AgentHostLanguageModelProvider('cloud-sandbox', 'cloud-models'));

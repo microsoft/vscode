@@ -57,6 +57,7 @@ import { ConfigurationTarget, IConfigurationService } from '../../../../../../..
 import { ChatAIDisabledSettingId } from '../../../../../../../platform/chat/common/chatSettings.js';
 import { ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { IDefaultAccountService } from '../../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
@@ -699,6 +700,7 @@ async function createContribution(store: Pick<DisposableStore, 'add'>, sessions:
 		}
 	}());
 	instantiationService.stub(ILogService, options?.logService ?? new NullLogService());
+	instantiationService.stub(IDefaultAccountService, { currentDefaultAccount: null, onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
 	const preparation = options?.draftPreparation ?? store.add(instantiationService.createInstance(CloudSandboxDraftPreparationService));
 	instantiationService.stub(ICloudSandboxDraftPreparationService, preparation);
 
@@ -3115,6 +3117,7 @@ suite('CloudSandboxAgentHostContribution discovery refresh', () => {
 				override readonly currentProfile = upcastPartial<IUserDataProfile>({ id: 'test-profile' });
 				override readonly onDidChangeCurrentProfile = Event.None;
 			}(),
+			new class extends mock<IDefaultAccountService>() { }(),
 		));
 		const checkpoints: (string | null)[] = [null];
 		const checkpoint = () => new Date(Date.parse(new Date().toUTCString()) - 60_000).toISOString();
