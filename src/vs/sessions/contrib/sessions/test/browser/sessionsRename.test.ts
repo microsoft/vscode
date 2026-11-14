@@ -34,6 +34,7 @@ import { ISessionsListPresentation, SessionNameKind } from '../../../../../workb
 import { ISessionGroupsService } from '../../../../../workbench/contrib/sessions/browser/sessionGroupsService.js';
 import { ISessionsPartService } from '../../../../../workbench/services/sessions/browser/sessionsPartService.js';
 import { ISessionsService } from '../../../../../workbench/contrib/sessions/browser/sessionsService.js';
+import { IChatViewFactory } from '../../../../../workbench/contrib/sessions/browser/chatViewFactory.js';
 import { ISessionHost, SessionHostKind } from '../../../../../workbench/services/sessions/browser/sessionHost.js';
 import { ISessionsManagementService } from '../../../../../workbench/contrib/sessions/common/sessionsManagement.js';
 import { ChatInteractivity, IChat, ISession, SessionStatus } from '../../../../../workbench/services/sessions/common/session.js';
@@ -983,6 +984,7 @@ suite('Sessions rename', () => {
 			instantiationService.stub(IEnvironmentService, { isBuilt: true, isExtensionDevelopment: false });
 			instantiationService.stub(IChatEntitlementService, { sentiment: { hidden: false } });
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
+			instantiationService.stub(IChatViewFactory, { newSessionInput: undefined });
 			instantiationService.stub(IAccessibilityService, { isScreenReaderOptimized: () => false });
 			let fallbackFocusCount = 0;
 			const fallbackView = new class extends mock<SessionView>() {

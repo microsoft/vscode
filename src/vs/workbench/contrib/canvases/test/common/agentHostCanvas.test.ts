@@ -28,12 +28,12 @@ suite('AgentHost canvases', () => {
 	};
 	const resource = URI.parse('ahp-canvas:/host-specific/opaque-reference');
 	const state: CanvasState = {
-		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', url: 'https://example.test/preview',
+		instanceId: 'preview', extensionId: 'project:preview', extensionName: 'Preview Extension', canvasId: 'preview', uri: 'https://example.test/preview',
 	};
 
 	test('subscribes to advertised resources, updates source state and releases removed channels', () => {
 		const changed = store.add(new Emitter<CanvasState>());
-		let current = state;
+		let current: CanvasState = JSON.parse('{"instanceId":"preview","extensionId":"project:preview","canvasId":"preview","url":"https://example.test/legacy"}');
 		let active = 0;
 		const requested: string[] = [];
 		const connection = new class extends mock<IAgentConnection>() {
@@ -60,15 +60,26 @@ suite('AgentHost canvases', () => {
 		let canvases: readonly ICanvas[] | undefined;
 		store.add(autorun(reader => { canvases = context.canvases.read(reader); }));
 		const initial = canvases?.[0].source?.toString();
-		current = { ...state, url: undefined };
+		current = JSON.parse('{"instanceId":"preview","extensionId":"project:preview","canvasId":"preview","url":"https://example.test/updated"}');
+		changed.fire(current);
+		const updated = canvases?.[0].source?.toString();
+		current = { ...state, uri: undefined };
 		changed.fire(current);
 		const unavailable = canvases?.[0].source;
 		references.set(undefined, undefined);
 		const unknown = canvases;
 		references.set([], undefined);
-		assert.deepStrictEqual({ requested, initial, unavailable, unknown, empty: canvases, active }, {
-			requested: [resource.toString()], initial: 'https://example.test/preview', unavailable: undefined, unknown: undefined, empty: [], active: 0,
+		assert.deepStrictEqual({ requested, initial, updated, unavailable, unknown, empty: canvases, active }, {
+			requested: [resource.toString()], initial: 'https://example.test/legacy', updated: 'https://example.test/updated', unavailable: undefined, unknown: undefined, empty: [], active: 0,
 		});
+	});
+
+	test('prefers the canonical canvas URI and does not fall back when it is unsupported', () => {
+		const sources = [
+			'{"uri":"https://example.test/canonical","url":"https://example.test/legacy"}',
+			'{"uri":"file:///unsupported","url":"https://example.test/legacy"}',
+		].map(fields => new AgentHostCanvas(resource, JSON.parse(fields), new NullLogService()).source?.toString());
+		assert.deepStrictEqual(sources, ['https://example.test/canonical', undefined]);
 	});
 
 	test('retains pending identity without inventing a source or instance ID', () => {
@@ -308,8 +319,8 @@ suite('AgentHost canvases', () => {
 		const log = new class extends NullLogService {
 			override warn(message: string): void { warnings.push(message); }
 		}();
-		const invalid = new AgentHostCanvas(resource, { ...state, url: 'file:///private/token=secret' }, log);
-		const emptyAuthority = new AgentHostCanvas(resource, { ...state, url: 'http:/private/token=secret' }, log);
+		const invalid = new AgentHostCanvas(resource, { ...state, uri: 'file:///private/token=secret' }, log);
+		const emptyAuthority = new AgentHostCanvas(resource, { ...state, uri: 'http:/private/token=secret' }, log);
 		assert.deepStrictEqual({ invalid: invalid.source, emptyAuthority: emptyAuthority.source, warnings }, {
 			invalid: undefined, emptyAuthority: undefined, warnings: ['[AgentHostCanvas] Unsupported canvas source', '[AgentHostCanvas] Unsupported canvas source'],
 		});

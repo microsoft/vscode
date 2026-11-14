@@ -158,14 +158,14 @@ await joinSession({
 				const result = await open(name, { kind: 'consent', consentId: asked.consent.id, optionId });
 				steps.push(`${name} ${optionId}: ${result.kind}${result.kind === 'consentDenied' ? ` (retryable: ${result.retryable})` : ''}`);
 			};
-			const latestUrl = (name: string) => canvases.findLast(canvas => canvas.instanceId === name)?.url;
+			const latestUrl = (name: string) => canvases.findLast(canvas => canvas.instanceId === name)?.uri;
 
 			await answer('allowed-canvas', AgentExtensionConsentOption.Allow);
 			await answer('declined-canvas', AgentExtensionConsentOption.NotNow);
 			const beforeRetry = canvases.length;
 			await answer('declined-canvas', AgentExtensionConsentOption.Allow, true);
 			// The retry replaced the runtime: the allowed canvas reopens in the background without asking again.
-			await retry(async () => assert.ok(canvases.slice(beforeRetry).some(canvas => canvas.instanceId === 'allowed-canvas' && canvas.url)), 200, 150);
+			await retry(async () => assert.ok(canvases.slice(beforeRetry).some(canvas => canvas.instanceId === 'allowed-canvas' && canvas.uri)), 200, 150);
 
 			assert.deepStrictEqual({ steps, allowed: latestUrl('allowed-canvas'), declined: latestUrl('declined-canvas'), unexpectedRequests }, {
 				steps: [

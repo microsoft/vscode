@@ -526,7 +526,7 @@ session = await joinSession({
 
 			assert.deepStrictEqual({
 				openCanvasSucceeded: openCanvasComplete.result.success,
-				canvas: { instanceId: canvas.instanceId, url: canvas.url },
+				canvas: { instanceId: canvas.instanceId, uri: canvas.uri },
 				referencesContainOnlyResource: canvasAction.canvases?.every(reference => Object.keys(reference).length === 1),
 				extensionEnvironment: JSON.parse(await readFile(join(extensionDir, 'observed-environment.json'), 'utf8')),
 				providerTurn: {
@@ -535,7 +535,7 @@ session = await joinSession({
 				},
 			}, {
 				openCanvasSucceeded: true,
-				canvas: { instanceId: 'proof-instance', url: 'http://127.0.0.1:43119/proof-instance' },
+				canvas: { instanceId: 'proof-instance', uri: 'http://127.0.0.1:43119/proof-instance' },
 				referencesContainOnlyResource: true,
 				extensionEnvironment: { copilotHome: URI.joinPath(URI.file(suiteHome), '.copilot').fsPath },
 				providerTurn: {
@@ -619,12 +619,12 @@ await joinSession({
 			}, 90_000)).action;
 			assert.ok(canvasAction.type === ActionType.ChatCanvasesChanged && canvasAction.canvases?.[0]);
 			const state = (await client.call<SubscribeResult>('subscribe', { channel: canvasAction.canvases[0].resource })).snapshot?.state;
-			assert.ok(state && hasKey(state, { url: true }));
+			assert.ok(state && hasKey(state, { uri: true }));
 			await client.waitForNotification(n => isActionNotification(n, ActionType.ChatTurnComplete) && (getActionEnvelope(n).action as ChatTurnCompleteAction).turnId === 'turn-env-canvas', 90_000);
 			assert.deepStrictEqual({
 				consent: { title: consentReady.confirmationTitle, message: consentReady.invocationMessage, options: consentReady.options?.map(option => option.id) },
 				openCanvasSucceeded: openCanvasComplete.result.success,
-				url: (state as CanvasState).url,
+				uri: (state as CanvasState).uri,
 			}, {
 				consent: {
 					title: 'Allow env-canvas to Read Sensitive Environment Variables?',
@@ -632,7 +632,7 @@ await joinSession({
 					options: ['allow-once', 'not-now'],
 				},
 				openCanvasSucceeded: true,
-				url: 'http://127.0.0.1:43119/env-instance?env=visible',
+				uri: 'http://127.0.0.1:43119/env-instance?env=visible',
 			});
 		} finally {
 			if (previousCanvasesEnabled !== undefined) {

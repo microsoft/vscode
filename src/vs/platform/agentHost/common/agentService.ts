@@ -1267,6 +1267,8 @@ export interface IAgentService {
 	readonly onDidNotification: Event<INotification>;
 
 	readonly automationCapabilities: AutomationCapabilities | undefined;
+	/** Whether scheduled chats can target an existing chat. */
+	readonly automationsSupportExistingConversation?: boolean;
 	/** Whether chats of one session may use different agents (the `multipleChatProviders.enabled` host setting). */
 	readonly multipleChatProvidersEnabled?: boolean;
 	/** Turns the `multipleChatProviders.enabled` host setting on, as a client mirroring it would. */

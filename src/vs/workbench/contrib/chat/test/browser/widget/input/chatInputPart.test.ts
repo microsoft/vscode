@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import sinon from 'sinon';
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../../../../base/browser/window.js';
 import { DeferredPromise, retry, timeout } from '../../../../../../../base/common/async.js';
@@ -31,6 +32,7 @@ import { MenuEntryActionViewItem } from '../../../../../../../platform/actions/b
 import { CommandsRegistry, ICommandService } from '../../../../../../../platform/commands/common/commands.js';
 import { ContextKeyService } from '../../../../../../../platform/contextkey/browser/contextKeyService.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ITextDiffEditorPane, IUntypedEditorInput, isResourceDiffEditorInput, isResourceEditorInput } from '../../../../../../common/editor.js';
 import { EditorInput } from '../../../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../../../services/editor/common/editorService.js';
@@ -52,8 +54,10 @@ import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ChatMode } from '../../../../common/chatModes.js';
 import { emptySessionEntryDiff, hasUndecidedChatEditingResourceContextKey, IChatEditingSession, IEditSessionEntryDiff, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../../../common/editing/chatEditingService.js';
 import { LocalChatSessionUri } from '../../../../common/model/chatUri.js';
-import { IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
-import { createChatReferenceVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { ChatAttachmentWidgetRegistry, IChatAttachmentWidgetInstance, IChatAttachmentWidgetRegistry, IChatImageAttachmentEditor } from '../../../../browser/attachments/chatAttachmentWidgetRegistry.js';
+import { ChatAttachmentModel } from '../../../../browser/attachments/chatAttachmentModel.js';
+import { ImageAttachmentWidget } from '../../../../browser/attachments/chatAttachmentWidgets.js';
+import { createChatReferenceVariableEntry, IImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
 import { MockChatModel } from '../../../common/model/mockChatModel.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { ChatPlanReviewData } from '../../../../common/model/chatProgressTypes/chatPlanReviewData.js';
@@ -1220,6 +1224,33 @@ suite('ChatInputPart', () => {
 		render(undefined, editedRequestSession);
 
 		assert.deepStrictEqual(createdFor, [restoredSession.toString(), restoredSession.toString(), editedRequestSession.toString()]);
+	});
+
+	test('image actions use the entry-owned editor without requiring a screenshot service', async () => {
+		const results: { hasMarkUp: boolean; edited: boolean }[] = [];
+		for (const editing of [false, true]) {
+			const attachment: IImageVariableEntry = { id: 'image', name: 'image.png', kind: 'image', value: new Uint8Array() };
+			const attachmentModel = upcastPartial<ChatAttachmentModel>({ attachments: [attachment] });
+			let edited = false;
+			const imageEditor: IChatImageAttachmentEditor | undefined = editing ? {
+				edit: async (model, entry) => { edited = model === attachmentModel && entry === attachment; },
+				createMarkUp: () => assert.fail('The input action must not open carousel markup'),
+			} : undefined;
+			const instantiationService = store.add(new TestInstantiationService());
+			const createInstance = sinon.stub(instantiationService, 'createInstance').returns(upcastPartial<ImageAttachmentWidget>({}));
+			store.add(toDisposable(() => createInstance.restore()));
+			const inputPart = Object.assign(Object.create(ChatInputPart.prototype), {
+				_currentLanguageModel: constObservable(undefined),
+				_attachmentModel: attachmentModel,
+				_chatAttachmentWidgetRegistry: Object.assign(new ChatAttachmentWidgetRegistry(), { imageEditor }),
+				instantiationService,
+			}) as ChatInputPart;
+			inputPart.createAttachmentWidget(attachment, dom.$('div'), { shouldFocusClearButton: false, supportsDeletion: true });
+			const options = createInstance.firstCall.args[4] as ConstructorParameters<typeof ImageAttachmentWidget>[3];
+			await options.markUp?.();
+			results.push({ hasMarkUp: !!options.markUp, edited });
+		}
+		assert.deepStrictEqual(results, [{ hasMarkUp: false, edited: false }, { hasMarkUp: true, edited: true }]);
 	});
 
 	for (const { name, options, padding, minimumLines } of [

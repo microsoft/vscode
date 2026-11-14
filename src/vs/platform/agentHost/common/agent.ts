@@ -26,7 +26,7 @@ import type { IMcpServerConfiguration } from '../../mcp/common/mcpPlatformTypes.
 import type { AuthenticateTarget, ResolveSessionConfigResult, SessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { CanvasState } from './state/protocol/channels-canvas/state.js';
 import { subagentChatUri, type ChatUriFormat } from './agentHostChatMinting.js';
-import { ProtectedResourceMetadata, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
+import { ProtectedResourceMetadata, type AnnotationsSummary, type BackgroundWork, type Changeset, type ChatInteractivity, type ChatOrigin, type ConfigSchema, type MessageAttachment, type ModelSelection, type AgentSelection, type SessionActiveClient, type SessionOrigin, type ToolCallPendingConfirmationState, type ToolDefinition, ChangesSummary } from './state/protocol/state.js';
 import type { ActionOrigin, AuthRequiredParams, SessionAction, ChatAction, ProgressParams } from './state/sessionActions.js';
 import { AHP_CHAT_SCHEME, ChatInputResponseKind, ChatOriginKind, SessionStatus, type AgentCapabilities, type ClientPluginCustomization, type Customization, type ErrorInfo, type ISessionFolderPickerDecision, type Message, type PendingMessage, type ChatInputAnswer, type SessionMeta, type ToolCallResult, type Turn, type PolicyState, type IModelRoutedInfo } from './state/sessionState.js';
 import type { IAgentDecisionsRequest, IAgentDecisionsResult } from './agentDecisions.js';
@@ -232,6 +232,12 @@ export interface IAgentImportedChat {
 export interface IAgentChatHistoryChange {
 	readonly chat: URI;
 	readonly turns: readonly Turn[];
+	/**
+	 * The provider reloaded the chat from storage, so {@link turns} replace the host's turns instead of being merged
+	 * with them: turns that ran live have host-generated ids, while reloaded turns take the provider's. The turn running
+	 * when the change arrives, and any later turn, is kept after them.
+	 */
+	readonly replace?: boolean;
 }
 
 /** Returns the candidate session URI keys already present in the host registry. */
@@ -264,6 +270,7 @@ export interface IAgentSessionChatMetadata {
 
 export interface IAgentSessionMetadata extends Omit<IAgentChatMetadata, 'chat'> {
 	readonly session: URI;
+	readonly annotations?: AnnotationsSummary;
 	/** Host-advertised agent identity; older cached metadata may omit it. */
 	readonly provider?: string;
 	readonly origin?: SessionOrigin;

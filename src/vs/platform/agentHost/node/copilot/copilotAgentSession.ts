@@ -1207,6 +1207,19 @@ type CopilotActivitySource = 'intent' | 'command' | 'fusion' | 'localModel';
 const managedSettingsPermissionRetryTimeoutMs = 3000;
 const MAX_PROJECTED_CANVASES = 8;
 
+const SESSION_TAKEOVER_QUESTION_ID = 'sessionInUse';
+const SESSION_TAKEOVER_OPTION_ID = 'takeOver';
+const SESSION_TAKEOVER_CANCEL_OPTION_ID = 'cancel';
+
+/** Whether the answer to {@link CopilotAgentSession.askToTakeOverSessionInUse} takes the session over. */
+function isSessionTakeoverAccepted(response: ChatInputResponseKind, answers: Record<string, ChatInputAnswer> | undefined): boolean {
+	const answer = answers?.[SESSION_TAKEOVER_QUESTION_ID];
+	return response === ChatInputResponseKind.Accept
+		&& answer?.state !== ChatInputAnswerState.Skipped
+		&& answer?.value.kind === ChatInputAnswerValueKind.Selected
+		&& answer.value.value === SESSION_TAKEOVER_OPTION_ID;
+}
+
 /**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
@@ -1503,6 +1516,8 @@ export class CopilotAgentSession extends Disposable {
 			readonly questionId: string;
 		}
 	>();
+	/** Pending questions whether to take over this session from another process ({@link askToTakeOverSessionInUse}). */
+	private readonly _pendingSessionTakeovers = new PendingRequestRegistry<boolean>();
 	/** File edit tracker for this session. */
 	private readonly _editTracker: FileEditTracker;
 	private readonly _grepSearchNudge: CopilotGrepSearchNudge;
@@ -5411,7 +5426,7 @@ export class CopilotAgentSession extends Disposable {
 
 	/** Releases this session's canvases and hands them over without sources, so a replacement runtime can keep their channels. */
 	takeCanvasProjection(): ICopilotCanvasHandoff | undefined {
-		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { url: _url, ...canvas }, input }) => ({
+		const projections = [...this._canvasByInstanceId.values()].map(({ resource, canvas: { uri: _uri, ...canvas }, input }) => ({
 			resource,
 			canvas,
 			...(input !== undefined ? { input } : {}),
@@ -5869,10 +5884,10 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	private _projectOpenedCanvas(data: SessionEventPayload<'session.canvas.opened'>['data']): void {
-		const url = this._canvasSource(data.url);
+		const uri = this._canvasSource(data.url);
 		const existing = this._canvasByInstanceId.get(data.instanceId);
 		if (existing
-			&& existing.canvas.url === url
+			&& existing.canvas.uri === uri
 			&& existing.canvas.extensionId === data.extensionId
 			&& existing.canvas.extensionName === data.extensionName
 			&& existing.canvas.canvasId === data.canvasId
@@ -5905,7 +5920,7 @@ export class CopilotAgentSession extends Disposable {
 			canvasId: data.canvasId,
 			...(data.title !== undefined ? { title: data.title } : {}),
 			...(data.status !== undefined ? { status: data.status } : {}),
-			...(url !== undefined ? { url } : {}),
+			...(uri !== undefined ? { uri } : {}),
 		};
 		const projection: ICopilotCanvasProjection = {
 			resource: existing?.resource ?? buildCanvasUri(this._chatChannelUri, generateUuid()),
@@ -10342,6 +10357,52 @@ export class CopilotAgentSession extends Disposable {
 	}
 
 	/**
+	 * Asks in the running turn whether to take over this session, which another process is running. Resolves
+	 * `undefined` when the chat can't ask: without a running turn, in Autopilot, or with auto-reply.
+	 */
+	askToTakeOverSessionInUse(): Promise<boolean> | undefined {
+		if (!this.hasActiveTurn || this._isAutopilotMode() || this._isAutoReplyEnabled()) {
+			return undefined;
+		}
+		const requestId = generateUuid();
+		const answer = this._pendingSessionTakeovers.register(requestId);
+		this._emitAction({
+			type: ActionType.ChatInputRequested,
+			request: withChatInputRequestPurpose({
+				id: requestId,
+				questions: [{
+					kind: ChatInputQuestionKind.SingleSelect,
+					id: SESSION_TAKEOVER_QUESTION_ID,
+					title: localize('copilotAgent.sessionInUse.title', "Session Open in Another Process"),
+					message: localize('copilotAgent.sessionInUse.message', "This session is open in another Copilot CLI process. If you continue here while it's open there, both processes write to the session."),
+					required: true,
+					allowFreeformInput: false,
+					options: [
+						{ id: SESSION_TAKEOVER_OPTION_ID, label: localize('copilotAgent.sessionInUse.takeOver', "Take Over"), description: localize('copilotAgent.sessionInUse.takeOverDescription', "Continue here from the session's latest history"), recommended: true },
+						{ id: SESSION_TAKEOVER_CANCEL_OPTION_ID, label: localize('copilotAgent.sessionInUse.cancel', "Cancel"), description: localize('copilotAgent.sessionInUse.cancelDescription', "Don't send this message") },
+					],
+				}],
+			}, ChatInputRequestPurpose.Elicitation),
+		});
+		return answer;
+	}
+
+	/** Ends the running turn as cancelled without sending it to the runtime. */
+	cancelTurnBeforeSend(): void {
+		const turn = this._currentTurn.value;
+		if (!turn) {
+			return;
+		}
+		this._emitAction({ type: ActionType.ChatTurnCancelled, turnId: turn.id, duration: turn.duration });
+		this._clearActiveTurn();
+	}
+
+	/** Lets go of the running turn without ending it, so the session that replaces this one continues it. */
+	releaseTurnForReplacement(): void {
+		this._clearActiveTurn();
+	}
+
+	/**
 	 * Asks the user for an answer that `sudo -A`, `ssh`, or `git` needs. The answer arrives through
 	 * {@link answerShellAuthentication}, never through chat state.
 	 */
@@ -10387,6 +10448,10 @@ export class CopilotAgentSession extends Disposable {
 		}
 
 		if (this._pendingShellAuthentications.respond(requestId, { answer: undefined, completedByClient: true })) {
+			return true;
+		}
+
+		if (this._pendingSessionTakeovers.respond(requestId, isSessionTakeoverAccepted(response, answers))) {
 			return true;
 		}
 
@@ -13927,10 +13992,10 @@ export class CopilotAgentSession extends Disposable {
 			if (!projection) {
 				return;
 			}
-			const { url, ...canvas } = projection.canvas;
+			const { uri, ...canvas } = projection.canvas;
 			const unavailable: ICopilotCanvasProjection = { resource: projection.resource, canvas, ...(projection.input !== undefined ? { input: projection.input } : {}) };
 			this._canvasByInstanceId.set(canvas.instanceId, unavailable);
-			if (url !== undefined) {
+			if (uri !== undefined) {
 				this._publishCanvasState(unavailable);
 			}
 		}));
@@ -14415,6 +14480,7 @@ export class CopilotAgentSession extends Disposable {
 		this._computerUseSetup?.()?.cancelChat(this._computerUseSetupChat);
 		this._computerUseActivation.cancel();
 		this._cancelPendingPlanReviews();
+		this._pendingSessionTakeovers.denyAll(false);
 		this._cancelPendingMcpAuthRequests();
 		this._cancelPendingMcpSamplings();
 		this._cancelPendingClientToolCalls();

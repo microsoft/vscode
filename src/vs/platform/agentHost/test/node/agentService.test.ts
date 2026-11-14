@@ -48,7 +48,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { workspacelessChatsRoot, workspacelessScratchDir } from '../../common/workspacelessScratchDir.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { createInMemoryFileService } from '../../../files/test/common/inMemoryFileService.js';
-import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat } from '../../common/agent.js';
+import { AgentPermissionKind, AgentChatMigrationDeferred, AgentSession, type AgentChatMigrationResult, type AuthenticateParams, type IAgentResolveChatConfigParams, AgentWorkingDirectoryChangedError, GITHUB_COPILOT_PROTECTED_RESOURCE, GITHUB_REPO_PROTECTED_RESOURCE, SubagentChatSignal, resolveAgentChatContext, resolveAgentChatOrigin, resolveSessionBackedStorage, type IAgent, type IAgentAdoptedWorktree, type IAgentChatAdoptionResult, type IAgentChatCanvasWatchHost, type IAgentChatContext, type IAgentChatDataChange, type IAgentChatMetadata, type IAgentChatMetadataOptions, type IAgentChats, type IAgentCreateChatForkSource, type IAgentCreateChatOptions, type IAgentCreateChatRequestOptions, type IAgentCapabilities, type IAgentCreateChatResult, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentDiscoveredChat, type IAgentListedChat, type IAgentLegacyChat, type IAgentMaterializeChatEvent, type IAgentSessionMetadata, type IAgentSpawnChatEvent, fixedChatOwnerRef, type IAgentImportChatOptions, type IAgentImportedChat, type IAgentChatHistoryChange } from '../../common/agent.js';
 import { AgentHostPrewarmSessionsSettingId, IConnectionTrackerService } from '../../common/agentService.js';
 import { AgentHostClientType } from '../../common/agentHostClientInfo.js';
 import { AgentHostActiveAgentTitleGenerationConfigKey, platformRootSchema, platformSessionSchema, AgentHostDeferredTitleGenerationConfigKey, AgentHostTitleGenerationConfigKey, AgentHostAutoArchiveMergedSessionsAfterDaysConfigKey, AgentHostAutoDeleteArchivedMergedSessionsAfterDaysConfigKey, AgentHostArtifactIntegrationsConfigKey, AgentHostArtifactToolsConfigKey, AgentHostAutoAttachPullRequestsConfigKey, AgentHostChatResourcesConfigKey, AgentHostCanvasesEnabledConfigKey, AgentHostExternalSessionsMode, AgentHostPrewarmSessionsConfigKey, AgentHostShowExternalSessionsConfigKey, AgentHostWorkspaceTrustConfigKey } from '../../common/agentHostSchema.js';
@@ -1804,7 +1804,7 @@ suite('AgentService (node dispatcher)', () => {
 		const session = await service.createSession({ legacyChatUris: true, provider: 'copilot' });
 		const chat = URI.parse(buildDefaultChatUri(session.toString()));
 		const resource = buildCanvasUri(chat, 'preview');
-		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', url: 'https://example.test/preview' };
+		const canvas: CanvasState = { instanceId: 'preview', extensionId: 'example:provider', canvasId: 'preview', uri: 'https://example.test/preview' };
 		const stateManager = getStateManager(service);
 		stateManager.setCanvasState(chat.toString(), resource.toString(), canvas);
 		service.restoreSession = async () => { throw new Error('Canvas subscriptions must not restore a provider'); };
@@ -1815,7 +1815,7 @@ suite('AgentService (node dispatcher)', () => {
 		await assert.rejects(service.subscribe(resource, 'missing-viewer'),
 			error => error instanceof ProtocolError && error.code === AhpErrorCodes.NotFound);
 		service.unsubscribe(resource, 'canvas-viewer');
-		assert.deepStrictEqual(snapshot.state, canvas);
+		assert.deepStrictEqual(snapshot.state, { ...canvas, url: 'https://example.test/preview' });
 	});
 
 	test('subscribing checks writer ownership and Retry refreshes shared input state without a turn', async () => {
@@ -15078,10 +15078,13 @@ suite('AgentService (node dispatcher)', () => {
 				renamed: renamed?.title,
 				directories: [renamed?.workingDirectories, metadata?.workingDirectories],
 				notified: additions.some(notification => notification.summary.resource === session.toString()),
+				annotations: additions.find(notification => notification.summary.resource === session.toString())?.summary.annotations,
 				materialized: !!getStateManager(svc).getSessionState(session.toString()),
 			}, {
 				initial: 'Initial title', external: true, recency: new Date(now + 60_000).toISOString(), renamed: 'Renamed',
-				directories: [['file:///new-project'], ['file:///moved-project']], notified: true, materialized: false,
+				directories: [['file:///new-project'], ['file:///moved-project']], notified: true,
+				annotations: { resource: buildAnnotationsUri(session.toString()), annotationCount: 0, entryCount: 0 },
+				materialized: false,
 			});
 		});
 
@@ -15162,6 +15165,48 @@ suite('AgentService (node dispatcher)', () => {
 				visible: ['First message', 'Local request', 'Sent later in ChatGPT'], reselected: ['First message', 'Local request', 'Sent later in ChatGPT'], whileActive: 'local', draft: 'Unsent draft',
 			});
 		});
+
+		for (const turnEndsFirst of [false, true]) {
+			testWithExternalSessionClock(`a replacing history change replaces the turns before the running turn${turnEndsFirst ? ', which ends before the change applies,' : ' once it ends'} without duplicating live turns`, async () => {
+				const svc = createExternalSessionService();
+				setExternalSessionsMode(svc, AgentHostExternalSessionsMode.Last30Days, 1);
+				const historyChanges = disposables.add(new Emitter<IAgentChatHistoryChange>());
+				const agent = disposables.add(new class extends TimedExternalAgent { readonly onDidChangeChatHistory = historyChanges.event; }('codex'));
+				const turn = (id: string, text: string): Turn => ({ id, state: TurnState.Complete, message: { text, origin: { kind: MessageKind.User } }, responseParts: [], usage: undefined });
+				agent.chats.getMessages = async () => [turn('first', 'First message')];
+				registerTestAgentProvider(svc, agent);
+				await svc.listSessions();
+				svc.markStartupComplete();
+				await svc.whenDeferredWorkSettled();
+				const session = agent.addSession('external-replaced-history', Date.now(), undefined, 'External history');
+				agent.fireDiscoveredChats((await agent.listExternalChats()).map(chat => ({ ...chat, external: true })));
+				await (svc as unknown as { _providerDiscoveryRegistrations: ReadonlyMap<string, Promise<void>> })._providerDiscoveryRegistrations.get(agent.id);
+				await svc.whenCatalogReconciliationIdle();
+				await waitForSessionListReconciliation(svc);
+				const chat = URI.parse(buildDefaultChatUri(session));
+				await svc.subscribe(chat, 'history-viewer');
+				const manager = getStateManager(svc);
+				manager.dispatchServerAction(chat.toString(), chatTurnStarted('live', 'Sent here'));
+				manager.dispatchServerAction(chat.toString(), chatTurnComplete('live', 1));
+				manager.dispatchServerAction(chat.toString(), chatTurnStarted('running', 'Taking over'));
+
+				historyChanges.fire({ chat, turns: [turn('first', 'First message'), turn('stored-live', 'Sent here'), turn('elsewhere', 'Sent in the CLI')], replace: true });
+				if (turnEndsFirst) {
+					manager.dispatchServerAction(chat.toString(), chatTurnComplete('running', 1));
+				}
+				await timeout(0);
+				const firstUpdate = manager.getChatState(chat.toString())?.turns.map(turn => turn.message.text);
+				if (!turnEndsFirst) {
+					manager.dispatchServerAction(chat.toString(), chatTurnComplete('running', 1));
+					await timeout(0);
+				}
+
+				assert.deepStrictEqual({ firstUpdate, after: manager.getChatState(chat.toString())?.turns.map(turn => `${turn.id}: ${turn.message.text}`) }, {
+					firstUpdate: turnEndsFirst ? ['First message', 'Sent here', 'Sent in the CLI', 'Taking over'] : ['First message', 'Sent here'],
+					after: ['first: First message', 'stored-live: Sent here', 'elsewhere: Sent in the CLI', 'running: Taking over'],
+				});
+			});
+		}
 
 		testWithExternalSessionClock('hydrated discovery refreshes surfaced titles without changing recency or custom titles', async () => {
 			class LazyTitleAgent extends TimedExternalAgent {
@@ -24427,7 +24472,7 @@ suite('AgentService (node dispatcher)', () => {
 			const agent = new MockAgent('copilot');
 			disposables.add(toDisposable(() => agent.dispose()));
 			registerTestAgentProvider(localService, agent);
-			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot' });
+			const session = await localService.createSession({ legacyChatUris: true, provider: 'copilot', session: URI.parse('ahp-session:/annotations-migration') });
 			const annotationsUri = buildAnnotationsUri(session.toString());
 			// The shape written before annotations carried an origin: a
 			// top-level `turnId` and no owning session.
@@ -41374,7 +41419,7 @@ suite('AgentService (node dispatcher)', () => {
 				const internals = service as unknown as {
 					_postChatNotice: AgentService['_postChatNotice'];
 					_pendingChatHistories: Map<string, { readonly provider: IAgent; readonly chat: URI; readonly turns: readonly Turn[] }>;
-					_refreshChatHistory(provider: IAgent, chat: URI, turns: readonly Turn[]): Promise<void>;
+					_refreshChatHistory(change: { readonly chat: URI }): Promise<void>;
 				};
 				internals._postChatNotice(peer.toString(), {
 					kind: ResponsePartKind.SystemNotification,
@@ -41384,7 +41429,7 @@ suite('AgentService (node dispatcher)', () => {
 				const provider = getTestAgentHostProviderService(service).getProviderForSession(source)!;
 				internals._pendingChatHistories.set(peer.toString(), { provider, chat: peer, turns: [] });
 				const refreshed: string[] = [];
-				stub(internals, '_refreshChatHistory').callsFake(async (_provider, chat) => { refreshed.push(chat.toString()); });
+				stub(internals, '_refreshChatHistory').callsFake(async ({ chat }) => { refreshed.push(chat.toString()); });
 
 				await service.moveChat(source, peer, { kind: 'session', session: target, after: undefined });
 				const beforeTurnEnds = { refreshed: [...refreshed], noticed: stateManager.getChatState(peer.toString())?.turns.length };
@@ -45389,7 +45434,6 @@ suite('AgentService (node dispatcher)', () => {
 			const sourceDir = URI.file('/source/repo');
 			const worktreeDir = URI.file('/source/repo.worktrees/feature');
 			const gitStateCalls: Array<{ resource: string; baseBranch: string | undefined }> = [];
-			const secondGitStateCall = new DeferredPromise<void>();
 			const diffCalls: string[] = [];
 			const gitService = createNoopGitService();
 			gitService.getRepositoryRoot = async () => sourceDir;
@@ -45399,9 +45443,6 @@ suite('AgentService (node dispatcher)', () => {
 			gitService.getBranches = async () => [{ ref: 'refs/heads/main', name: 'main', kind: GitRefType.Head }];
 			gitService.getSessionGitState = async (resource, baseBranch) => {
 				gitStateCalls.push({ resource: resource.toString(), baseBranch });
-				if (gitStateCalls.length === 2) {
-					secondGitStateCall.complete();
-				}
 				return { branchName: 'feature', baseBranchName: 'main', uncommittedChanges: 1 };
 			};
 			gitService.computeSessionFileDiffs = async resource => {
@@ -45443,9 +45484,6 @@ suite('AgentService (node dispatcher)', () => {
 					&& uncommittedState.operations.some(operation => operation.id === 'discard-changes');
 			}, 'the uncommitted changeset should be ready with its operations');
 
-			// The base branch now comes from the store, so the second Git state refresh may land after the uncommitted state is ready.
-			await secondGitStateCall.p;
-
 			const sourceFile = URI.joinPath(sourceDir, 'dirty.ts').toString();
 			const uncommittedStateBeforeMaterialization = getStateManager(localService).getChangesetState(uncommittedChangeset);
 			const beforeMaterialization = {
@@ -45473,8 +45511,8 @@ suite('AgentService (node dispatcher)', () => {
 			}, {
 				beforeMaterialization: {
 					workingDirectory: sourceDir.toString(),
+					// The session and its default chat refresh the same folder together and share one read of it.
 					gitStateCalls: [
-						{ resource: sourceDir.toString(), baseBranch: undefined },
 						{ resource: sourceDir.toString(), baseBranch: undefined },
 					],
 					diffCalls: [sourceDir.toString()],
@@ -45906,13 +45944,9 @@ suite('AgentService (node dispatcher)', () => {
 
 		const workingDirectory = URI.file('/workspace');
 		const gitCalls: string[] = [];
-		const secondGitStateCall = new DeferredPromise<void>();
 		const gitService = createNoopGitService();
 		gitService.getSessionGitState = async resource => {
 			gitCalls.push(resource.toString());
-			if (gitCalls.length === 2) {
-				secondGitStateCall.complete();
-			}
 			return {
 				hasGitHubRemote: false,
 				branchName: 'main',
@@ -45937,7 +45971,6 @@ suite('AgentService (node dispatcher)', () => {
 		const defaultChat = buildDefaultChatUri(workspaceSession);
 		const uncommittedUri = buildUncommittedChangesetUri(defaultChat);
 		localService.addSubscriber(URI.parse(uncommittedUri), 'client-1');
-		await secondGitStateCall.p;
 		await waitForCondition(getStateManager(localService).onDidEmitEnvelope, () => getStateManager(localService).getChangesetState(uncommittedUri)?.operations?.some(operation => operation.id === 'commit') === true, 'the uncommitted changeset should offer a commit');
 
 		const workspaceState = getStateManager(localService).getSessionState(workspaceSession.toString());
@@ -45952,7 +45985,8 @@ suite('AgentService (node dispatcher)', () => {
 			lifecycle: SessionLifecycle.Creating,
 			sessionChangesets: [],
 			chatChangesets: ['uncommitted'],
-			gitCalls: [workingDirectory.toString(), workingDirectory.toString()],
+			// The session and its default chat refresh the same folder together and share one read of it.
+			gitCalls: [workingDirectory.toString()],
 			hasCommit: true,
 		});
 		localService.unsubscribe(URI.parse(uncommittedUri), 'client-1');
