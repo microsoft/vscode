@@ -381,6 +381,8 @@ export interface IChatInputPartOptions {
 	 * When true, the secondary toolbar (permissions picker) is hidden.
 	 */
 	isSessionsWindow?: boolean;
+	/** Whether it shows its session's working set also while {@link isSessionsWindow} is set; never in the Agents window. */
+	sessionWorkingSet?: boolean;
 	/**
 	 * Total horizontal gutter (in pixels) reserved outside the input box when
 	 * computing the editor width. Defaults account for the `.interactive-input-part`
@@ -5543,10 +5545,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Whether this input can show the session working set. Only the editor
-	 * window offers it; the Agents window doesn't, even in a chat editor.
+	 * window offers it, also to a session's chat that asks for it; the Agents
+	 * window doesn't, even in a chat editor.
 	 */
 	get supportsSessionWorkingSet(): boolean {
-		return this.options.renderWorkingSet && !this.options.isSessionsWindow && !this.environmentService.isSessionsWindow;
+		return (this.options.sessionWorkingSet || (this.options.renderWorkingSet && !this.options.isSessionsWindow)) && !this.environmentService.isSessionsWindow;
 	}
 
 	renderChatEditingSessionState(chatEditingSession: IChatEditingSession | null) {
