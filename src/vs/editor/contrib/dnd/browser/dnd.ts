@@ -3,16 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import './dnd.css';
 import { ICodeEditor, IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent, MouseTargetType } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { CodeEditorWidget } from '../../../browser/widget/codeEditor/codeEditorWidget.js';
-import { EditorOption } from '../../../common/config/editorOptions.js';
 import { CursorChangeReason } from '../../../common/cursorEvents.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
@@ -21,7 +18,7 @@ import { IEditorContribution, IEditorDecorationsCollection, ScrollType } from '.
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { DragAndDropCommand } from './dragAndDropCommand.js';
 
-function hasTriggerModifier(e: IKeyboardEvent | IMouseEvent): boolean {
+function hasTriggerModifier(e: IMouseEvent): boolean {
 	if (isMacintosh) {
 		return e.altKey;
 	} else {
@@ -36,9 +33,6 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	private readonly _editor: ICodeEditor;
 	private _dragSelection: Selection | null;
 	private readonly _dndDecorationIds: IEditorDecorationsCollection;
-	private _mouseDown: boolean;
-	private _modifierPressed: boolean;
-	static readonly TRIGGER_KEY_VALUE = isMacintosh ? KeyCode.Alt : KeyCode.Ctrl;
 
 	static get(editor: ICodeEditor): DragAndDropController | null {
 		return editor.getContribution<DragAndDropController>(DragAndDropController.ID);
@@ -48,65 +42,21 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 		super();
 		this._editor = editor;
 		this._dndDecorationIds = this._editor.createDecorationsCollection();
-		this._register(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 		this._register(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
 		this._register(this._editor.onMouseDrag((e: IEditorMouseEvent) => this._onEditorMouseDrag(e)));
 		this._register(this._editor.onMouseDrop((e: IPartialEditorMouseEvent) => this._onEditorMouseDrop(e)));
 		this._register(this._editor.onMouseDropCanceled(() => this._onEditorMouseDropCanceled()));
-		this._register(this._editor.onKeyDown((e: IKeyboardEvent) => this.onEditorKeyDown(e)));
-		this._register(this._editor.onKeyUp((e: IKeyboardEvent) => this.onEditorKeyUp(e)));
 		this._register(this._editor.onDidBlurEditorWidget(() => this.onEditorBlur()));
 		this._register(this._editor.onDidBlurEditorText(() => this.onEditorBlur()));
-		this._mouseDown = false;
-		this._modifierPressed = false;
 		this._dragSelection = null;
 	}
 
 	private onEditorBlur() {
 		this._removeDecoration();
 		this._dragSelection = null;
-		this._mouseDown = false;
-		this._modifierPressed = false;
-	}
-
-	private onEditorKeyDown(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
-			return;
-		}
-
-		if (hasTriggerModifier(e)) {
-			this._modifierPressed = true;
-		}
-
-		if (this._mouseDown && hasTriggerModifier(e)) {
-			this._editor.updateOptions({
-				mouseStyle: 'copy'
-			});
-		}
-	}
-
-	private onEditorKeyUp(e: IKeyboardEvent): void {
-		if (!this._editor.getOption(EditorOption.dragAndDrop) || this._editor.getOption(EditorOption.columnSelection)) {
-			return;
-		}
-
-		if (hasTriggerModifier(e)) {
-			this._modifierPressed = false;
-		}
-
-		if (this._mouseDown && e.keyCode === DragAndDropController.TRIGGER_KEY_VALUE) {
-			this._editor.updateOptions({
-				mouseStyle: 'default'
-			});
-		}
-	}
-
-	private _onEditorMouseDown(mouseEvent: IEditorMouseEvent): void {
-		this._mouseDown = true;
 	}
 
 	private _onEditorMouseUp(mouseEvent: IEditorMouseEvent): void {
-		this._mouseDown = false;
 		// Whenever users release the mouse, the drag and drop operation should finish and the cursor should revert to text.
 		this._editor.updateOptions({
 			mouseStyle: 'text'
@@ -152,7 +102,6 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 
 		this._removeDecoration();
 		this._dragSelection = null;
-		this._mouseDown = false;
 	}
 
 	private _onEditorMouseDrop(mouseEvent: IPartialEditorMouseEvent): void {
@@ -180,15 +129,12 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 				(<CodeEditorWidget>this._editor).setSelections(newSelections || [], 'mouse', CursorChangeReason.Explicit);
 			} else if (!this._dragSelection.containsPosition(newCursorPosition) ||
 				(
-					(
-						hasTriggerModifier(mouseEvent.event) ||
-						this._modifierPressed
-					) && (
+					hasTriggerModifier(mouseEvent.event) && (
 						this._dragSelection.getEndPosition().equals(newCursorPosition) || this._dragSelection.getStartPosition().equals(newCursorPosition)
 					) // we allow users to paste content beside the selection
 				)) {
 				this._editor.pushUndoStop();
-				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, hasTriggerModifier(mouseEvent.event) || this._modifierPressed));
+				this._editor.executeCommand(DragAndDropController.ID, new DragAndDropCommand(this._dragSelection, newCursorPosition, hasTriggerModifier(mouseEvent.event)));
 				this._editor.pushUndoStop();
 			}
 		}
@@ -199,7 +145,6 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 
 		this._removeDecoration();
 		this._dragSelection = null;
-		this._mouseDown = false;
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
@@ -233,8 +178,6 @@ export class DragAndDropController extends Disposable implements IEditorContribu
 	public override dispose(): void {
 		this._removeDecoration();
 		this._dragSelection = null;
-		this._mouseDown = false;
-		this._modifierPressed = false;
 		super.dispose();
 	}
 }
