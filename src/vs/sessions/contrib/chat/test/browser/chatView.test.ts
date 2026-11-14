@@ -20,6 +20,7 @@ import { autorun, constObservable, derived, IObservable, IReader, ISettableObser
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock, upcastPartial } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
@@ -1298,7 +1299,7 @@ suite('Sessions - Chat View', () => {
 	}
 
 	/** Reaches the provider-replacement reload without standing up the widget's service graph. */
-	function createProviderReplacementView(resource: URI, configurationService = new TestConfigurationService()) {
+	function createProviderReplacementView(resource: URI, configurationService = new TestConfigurationService(), listedChats: URI[] = [resource]) {
 		const loads: URI[] = [];
 		const cleared: URI[] = [];
 		const loading: boolean[] = [];
@@ -1324,6 +1325,7 @@ suite('Sessions - Chat View', () => {
 			_openDiagnostics: disposables.add(new MutableDisposable()),
 			chatOpenDiagnosticsService: disposables.add(new ChatOpenDiagnosticsService(new NullLogService())),
 			chatService: { onDidDisposeSession: onDidDisposeSession.event },
+			sessionsManagementService: { getSessionForChatResource: (chatResource: URI) => listedChats.some(listed => isEqual(listed, chatResource)) ? {} : undefined },
 			logService: new class extends NullLogService {
 				override warn(message: string): void { warnings.push(message); }
 			}(),
@@ -1342,6 +1344,7 @@ suite('Sessions - Chat View', () => {
 			_currentChatResource: URI | undefined;
 			_trackUnregisteredContentProvider(removedSessionTypes: readonly string[]): void;
 			_reloadChatForReplacedProvider(addedSessionTypes: readonly string[]): void;
+			_reloadChatForRemovedSessionItems(removedResources: readonly URI[]): void;
 			_retryUnresolvedChatLoad(addedSessionTypes: readonly string[]): void;
 			dispose(): void;
 		};
@@ -1403,6 +1406,39 @@ suite('Sessions - Chat View', () => {
 			loads: [resource],
 			preservedInputModels: [reference.object.inputModel],
 		});
+	});
+
+	test('reloads a bound chat that its provider\'s list drops while its session still lists it, so its input does not stay hidden', async () => {
+		// A list that drops a chat disposes the content its model was loaded from, which turns the model read-only
+		const resource = URI.parse('agent-host-copilotcli:/shown');
+		const { view, loads, cleared, reference, preservedInputModels, onDidDisposeSession } = createProviderReplacementView(resource);
+		reference.object.inputModel.setState({ inputText: 'Unsent draft' });
+
+		view._reloadChatForRemovedSessionItems([URI.parse('agent-host-copilotcli:/other')]);
+		const otherRemoved = { cleared: [...cleared], loads: [...loads] };
+		view._reloadChatForRemovedSessionItems([resource]);
+		// Dropped again while it waits for the old model to go: one reload
+		view._reloadChatForRemovedSessionItems([resource]);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ otherRemoved, cleared, loads, preserved: preservedInputModels[0] === reference.object.inputModel }, {
+			otherRemoved: { cleared: [], loads: [] },
+			cleared: [resource],
+			loads: [resource],
+			preserved: true,
+		});
+	});
+
+	test('does not reload a dropped chat that its session no longer lists, such as a deleted one', async () => {
+		const resource = URI.parse('agent-host-copilotcli:/deleted');
+		const { view, loads, cleared, modelRef, reference, onDidDisposeSession } = createProviderReplacementView(resource, undefined, []);
+
+		view._reloadChatForRemovedSessionItems([resource]);
+		onDidDisposeSession.fire({ sessionResources: [resource], reason: 'disposed' });
+		await timeout(0);
+
+		assert.deepStrictEqual({ cleared, loads, sameModel: modelRef.value === reference }, { cleared: [], loads: [], sameModel: true });
 	});
 
 	test('reloads a chat whose provider was replaced while its first load was still in flight', async () => {
