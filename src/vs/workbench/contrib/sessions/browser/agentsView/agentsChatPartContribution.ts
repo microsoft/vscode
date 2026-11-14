@@ -23,6 +23,7 @@ import { IAgentsChatPartFrame } from './agentsChatPartFrame.js';
 import { IChatViewHostService } from '../../../chat/browser/chatViewHost.js';
 import { AgentsChatViewHost } from './agentsChatViewHost.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
+import { SessionsViewId } from '../views/sessionsView.js';
 
 /**
  * The chat part of an editor window with the Sessions view. Created as the window starts, before its grid, which then has a
@@ -53,6 +54,8 @@ export class AgentsChatPartContribution extends Disposable {
 
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		instantiationService.invokeFunction(accessor => accessor.get(IAgentsChatPartFrame).part);
+		// It docks beside the sessions list, wherever the user puts it
+		layoutService.setChatPartAnchor({ viewId: SessionsViewId });
 
 		this._register(registerAgentsChatPartActions());
 
