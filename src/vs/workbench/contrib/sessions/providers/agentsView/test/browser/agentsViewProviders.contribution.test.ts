@@ -4,83 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { Emitter } from '../../../../../../../base/common/event.js';
-import { IDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../../../../base/common/platform.js';
 import { upcastPartial } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
-import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../platform/instantiation/common/instantiation.js';
-import { IViewsService } from '../../../../../../services/views/common/viewsService.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../../../services/layout/browser/layoutService.js';
-import { ILifecycleService } from '../../../../../../services/lifecycle/common/lifecycle.js';
-import { ChatConfiguration } from '../../../../../chat/common/constants.js';
-import { SessionsViewId } from '../../../../browser/views/sessionsView.js';
-import { AGENTS_VIEW_PROVIDERS_RELEASE_DELAY, AgentsViewProvidersContribution, AgentsViewProvidersService } from '../../browser/agentsViewProviders.contribution.js';
-import { IAgentsChatPartService } from '../../../../browser/agentsView/agentsChatPart.js';
-import { IAgentsViewProvidersService } from '../../../../browser/agentsView/agentsViewProviders.js';
+import { AGENTS_VIEW_PROVIDERS_RELEASE_DELAY, AgentsViewProvidersService } from '../../browser/agentsViewProviders.contribution.js';
+import { IEditorWindowComposerHolder, IEditorWindowSessionsPresenterService } from '../../../../browser/editorWindow/editorWindowSessionsPresenter.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { runWithFakedTimers } from '../../../../../../../base/test/common/virtualScheduling/index.js';
-
-suite('AgentsViewProvidersContribution', () => {
-
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	function configuration(enabled: boolean, reads: string[]): IConfigurationService {
-		return new class extends TestConfigurationService {
-			override getValue<T>(arg1?: string | IConfigurationOverrides, arg2?: IConfigurationOverrides): T | undefined {
-				reads.push(String(arg1));
-				return super.getValue<T>(arg1, arg2);
-			}
-		}({ [ChatConfiguration.ChatViewSessionsListEnabled]: enabled });
-	}
-
-	test('reads only its setting and does nothing else while the setting is off', () => {
-		const reads: string[] = [];
-		// Any use of the instantiation service fails: with the setting off, the contribution creates and invokes nothing
-		disposables.add(new AgentsViewProvidersContribution(configuration(false, reads), upcastPartial<IInstantiationService>({})));
-
-		assert.deepStrictEqual(reads, [ChatConfiguration.ChatViewSessionsListEnabled]);
-	});
-
-	test('holds the providers while the Sessions view or the chat part shows, as the window restores too', async () => {
-		const events: string[] = [];
-		const state = { sessionsView: false, chatPart: true };
-		const onDidChangeViewVisibility = disposables.add(new Emitter<{ id: string; visible: boolean }>());
-		const onDidChangePartVisibility = disposables.add(new Emitter<{ partId: string; visible: boolean }>());
-		const services = new Map<unknown, unknown>([
-			[IViewsService, upcastPartial<IViewsService>({ onDidChangeViewVisibility: onDidChangeViewVisibility.event, isViewVisible: id => id === SessionsViewId && state.sessionsView })],
-			[IWorkbenchLayoutService, upcastPartial<IWorkbenchLayoutService>({ onDidChangePartVisibility: onDidChangePartVisibility.event, isVisible: part => part === Parts.CHAT_PART && state.chatPart })],
-			[ILifecycleService, upcastPartial<ILifecycleService>({ when: () => Promise.resolve() })],
-			[IAgentsViewProvidersService, upcastPartial<IAgentsViewProvidersService>({ acquire: () => { events.push('acquire'); return toDisposable(() => events.push('release')); } })],
-		]);
-		const instantiationService = upcastPartial<IInstantiationService>({
-			invokeFunction: <R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R => fn(upcastPartial<ServicesAccessor>({ get: <T>(id: unknown): T => services.get(id) as T }), ...args),
-		});
-		const contribution = disposables.add(new AgentsViewProvidersContribution(configuration(true, []), instantiationService));
-		const step = (label: string, action: () => void) => { events.push(`-- ${label}`); action(); };
-
-		// The window restores with the chat part shown
-		await Promise.resolve();
-		step('Sessions view shows', () => { state.sessionsView = true; onDidChangeViewVisibility.fire({ id: SessionsViewId, visible: true }); });
-		step('chat part hides', () => { state.chatPart = false; onDidChangePartVisibility.fire({ partId: Parts.CHAT_PART, visible: false }); });
-		step('other views and parts', () => { onDidChangeViewVisibility.fire({ id: 'other', visible: true }); onDidChangePartVisibility.fire({ partId: Parts.EDITOR_PART, visible: true }); });
-		step('Sessions view hides', () => { state.sessionsView = false; onDidChangeViewVisibility.fire({ id: SessionsViewId, visible: false }); });
-		step('chat part shows', () => { state.chatPart = true; onDidChangePartVisibility.fire({ partId: Parts.CHAT_PART, visible: true }); });
-		contribution.dispose();
-
-		assert.deepStrictEqual(events, [
-			'acquire',
-			'-- Sessions view shows',
-			'-- chat part hides',
-			'-- other views and parts',
-			'-- Sessions view hides', 'release',
-			'-- chat part shows', 'acquire',
-			'release',
-		]);
-	});
-});
 
 suite('AgentsViewProvidersService', () => {
 
@@ -99,7 +31,7 @@ suite('AgentsViewProvidersService', () => {
 		const instantiationService = upcastPartial<IInstantiationService>({
 			invokeFunction: <R, TS extends unknown[] = []>(fn: (accessor: ServicesAccessor, ...args: TS) => R, ...args: TS): R => fn(upcastPartial<ServicesAccessor>({ get: <T>(): T => providersInstantiationService as T }), ...args),
 		});
-		const chatPart = upcastPartial<IAgentsChatPartService>({
+		const holder = upcastPartial<IEditorWindowComposerHolder>({
 			hasComposer: () => composer.open,
 			// Closing an editor is asynchronous, as its group confirms it first
 			closeIdleComposers: async () => {
@@ -110,7 +42,7 @@ suite('AgentsViewProvidersService', () => {
 				}
 			},
 		});
-		return disposables.add(new AgentsViewProvidersService(instantiationService, chatPart));
+		return disposables.add(new AgentsViewProvidersService(instantiationService, upcastPartial<IEditorWindowSessionsPresenterService>({ hasComposer: () => holder.hasComposer(), closeIdleComposers: () => holder.closeIdleComposers() })));
 	}
 
 	test('registers the providers while held, and releases them a while after nothing holds them', () => runWithFakedTimers({}, async () => {

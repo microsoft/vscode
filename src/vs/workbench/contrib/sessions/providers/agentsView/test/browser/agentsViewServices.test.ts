@@ -7,6 +7,8 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { getSingletonServiceDescriptors } from '../../../../../../../platform/instantiation/common/extensions.js';
 import { _util, ServiceIdentifier } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { EditorWindowMainSessionHost } from '../../../../browser/agentsView/editorWindowMainSessionHost.js';
 import { ChatView, NewChatView } from '../../../../browser/chat/chatView.js';
 import { NewChatInSessionWidget } from '../../../../browser/chat/newChatInSessionWidget.js';
 import { NewChatWidget } from '../../../../browser/chat/newChatWidget.js';
@@ -16,8 +18,6 @@ import { ChatEditorContent } from '../../../../browser/chatEditor/chatEditorCont
 import { ChatGroupView } from '../../../../browser/parts/chatGroupView.js';
 import { SessionsList } from '../../../../browser/views/sessionsList.js';
 import { SessionsView } from '../../../../browser/views/sessionsView.js';
-import { AgentsChatViewHost } from '../../../../browser/agentsView/agentsChatViewHost.js';
-import { AgentsChatPartContribution } from '../../../../browser/agentsView/agentsChatPartContribution.js';
 import { SessionArchiveNudge } from '../../../../browser/chat/sessionArchiveNudge.js';
 import { SessionChatInputToolbar } from '../../../../browser/chat/sessionChatInputToolbar.js';
 import { SessionInputBanners } from '../../../../browser/sessionInputBanners/sessionInputBanners.js';
@@ -36,7 +36,6 @@ import { SessionStorageCleanupNotice } from '../../../../browser/views/sessionSt
 import { ResponseSelectionSideChatController } from '../../../../../chat/browser/responseSelectionSideChatController.js';
 // What an editor window registers for its sessions: the shared editor-window services and the Agents view's
 import '../../../../browser/editorWindow/editorWindowSessions.contribution.js';
-import '../../../../browser/agentsView/agentsView.contribution.js';
 import '../../browser/agentsViewProviders.contribution.js';
 
 /**
@@ -59,11 +58,11 @@ const CORE_SERVICES = new Set([
 	'workspaceContextService', 'workspacesService', 'workspaceTrustManagementService', 'workspaceTrustRequestService',
 ]);
 
-suite('Agents view services', () => {
+suite('Editor window sessions services', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('an editor window registers every sessions service that its sessions list, chats and chat part depend on', () => {
+	test('an editor window registers every sessions service that its sessions list and chats depend on', () => {
 		const registered = new Map(getSingletonServiceDescriptors().map(([id, descriptor]) => [id.toString(), descriptor]));
 		const missing = new Set<string>();
 		const seen = new Set<unknown>();
@@ -85,7 +84,7 @@ suite('Agents view services', () => {
 		// The views, and what they create as they show a session, such as a chat's input toolbar: their services are checked
 		// as they are created, not as the views that create them are
 		const roots = [
-			SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer, AgentsChatViewHost, AgentsChatPartContribution,
+			SessionsView, SessionsList, ChatView, ChatGroupView, ChatEditorView, ChatEditorContent, NewChatWidget, NewChatInSessionWidget, SharedChatInputComposer,
 			NewChatView, SessionChatInputToolbar, SessionInputBanners, SessionArchiveNudge, SessionStatusIcon, ResponseSelectionSideChatController,
 			SessionHeader, ChatCompositeBar, ChatHeader, ChatViewSessionActivityBar, RemoteHostUnavailableEmptyState, SessionReadOnlyBanner, SessionRemoteConnection,
 			SessionsListNotification, SessionsInboxScope, SessionStorageCleanupNotice, SessionsListFilters,
@@ -95,5 +94,14 @@ suite('Agents view services', () => {
 		}
 
 		assert.deepStrictEqual([...missing].sort(), []);
+	});
+
+	test('the session host of an editor window, created as the window starts, does nothing until a feature binds what it shows', () => {
+		// Records every use of its only service: it neither listens to it nor reads it until something reads the host
+		const used: string[] = [];
+		const contextKeyService = new Proxy({}, { get: (_target, property) => { used.push(String(property)); return undefined; } }) as IContextKeyService;
+		const host = new EditorWindowMainSessionHost(contextKeyService);
+
+		assert.deepStrictEqual({ used, content: host.content.get(), session: host.session.get(), chat: host.chat.get() }, { used: [], content: { kind: 'empty' }, session: undefined, chat: undefined });
 	});
 });
