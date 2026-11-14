@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IRevertOptions, isResourceEditorInput, IUntypedEditorInput } from '../editor.js';
-import { EditorInput } from './editorInput.js';
+import { DEFAULT_EDITOR_ASSOCIATION, findViewStateForEditor, GroupIdentifier, IRevertOptions, isResourceEditorInput, IUntypedEditorInput } from '../editor.js';
+import { EditorInput, IUntypedEditorOptions } from './editorInput.js';
 import { AbstractResourceEditorInput } from './resourceEditorInput.js';
 import { URI } from '../../../base/common/uri.js';
 import { ITextFileService, ITextFileSaveOptions, ILanguageSupport } from '../../services/textfile/common/textfiles.js';
@@ -20,6 +20,7 @@ import { createTextBufferFactory } from '../../../editor/common/model/textModel.
 import { IFilesConfigurationService } from '../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextResourceConfigurationService } from '../../../editor/common/services/textResourceConfiguration.js';
 import { ICustomEditorLabelService } from '../../services/editor/common/customEditorLabelService.js';
+import { ITextResourceEditorInput } from '../../../platform/editor/common/editor.js';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -188,6 +189,31 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		}
 
 		return model;
+	}
+
+	override toUntyped(options?: IUntypedEditorOptions): ITextResourceEditorInput | undefined {
+		// Model-only resources cannot be recreated from their URI once disposed.
+		if (this.resource.scheme === Schemas.inMemory || !this.textModelService.canHandleResource(this.resource)) {
+			return undefined;
+		}
+
+		const untypedInput: ITextResourceEditorInput = {
+			resource: this.resource,
+			label: this.name,
+			description: this.description,
+			options: {
+				override: this.editorId
+			}
+		};
+
+		if (typeof options?.preserveViewState === 'number') {
+			untypedInput.options = {
+				...untypedInput.options,
+				viewState: findViewStateForEditor(this, options.preserveViewState, this.editorService)
+			};
+		}
+
+		return untypedInput;
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
