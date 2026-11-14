@@ -90,7 +90,7 @@ class ChatViewComposerEntry extends SessionChatEditorEntry {
 
 /** What a new composer of the Chat view aims at: `target` of New Chat when given, or else the window's default (`fallback`). */
 export function getChatViewComposerTarget(target: IChatViewNewChatTarget | undefined, fallback: () => INewSessionTarget | undefined): INewSessionTarget | undefined {
-	return target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType } : fallback();
+	return target ? { folderUri: target.folder, providerId: target.providerId, sessionTypeId: target.sessionType, modelId: target.modelId, modeId: target.modeId, requireDevContainer: target.requireDevContainer } : fallback();
 }
 
 /**
