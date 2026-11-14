@@ -212,18 +212,16 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 
 	/**
 	 * Whether `folder` is a worktree of the window's folder, as its location providers resolve it, such as by git's links
-	 * between them: not yet known, it is not, and the chip shows it again once it is.
+	 * between them. Until they answer, a folder named like a worktree VS Code creates for the window's folder,
+	 * `<folder>.worktrees/<name>`, is assumed to be one and any other folder is not; the chip shows the answer once it settles.
 	 */
 	private _isProvenWorktree(folder: URI): boolean {
 		const primary = this._workspaceContextService.getWorkspace().uri;
 		if (!primary) {
 			return false;
 		}
-		// A worktree that VS Code created for the folder, `<folder>.worktrees/<name>`, is one at once, also before it is read
 		const repository = folder.scheme === Schemas.file ? getRepositoryRootFromWorktree(folder) : undefined;
-		if (repository && extUriBiasedIgnorePathCase.isEqual(repository, primary)) {
-			return true;
-		}
+		const assumed = !!repository && extUriBiasedIgnorePathCase.isEqual(repository, primary);
 		const key = `${primary.toString()}\n${folder.toString()}`;
 		const known = this._provenWorktrees.get(key);
 		if (known === undefined) {
@@ -234,7 +232,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 					return;
 				}
 				this._provenWorktrees.set(key, worktree);
-				if (worktree) {
+				if (worktree !== assumed) {
 					this._onDidChange.fire();
 				}
 			};
@@ -243,7 +241,7 @@ export class AgentHostWorktreeFolderChoices extends Disposable {
 				onUnexpectedError(error);
 			});
 		}
-		return known === true;
+		return known === undefined || known === 'resolving' ? assumed : known;
 	}
 
 	/** The session's isolation property and values, with whether it can work in a new worktree. */
