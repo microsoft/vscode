@@ -117,6 +117,21 @@ suite('AgentsChatPartComposerFolders', () => {
 		assert.deepStrictEqual(snapshot(), { folders: ['/work/vscode.worktrees/a', '/work/vscode'], presentations: ['feature-a', null] });
 	});
 
+	test('in a window at a worktree, the primary folder presents as a folder and the current worktree as the current worktree', async () => {
+		const { composerFolders } = create({ folders: [{ uri: '/work/vscode.worktrees/a', primaryUri: '/work/vscode' }], currentLocation: worktree('/work/vscode.worktrees/a', 'feature-a') });
+		await timeout(0);
+		const present = (path: string) => {
+			const presentation = composerFolders.getPresentation(URI.file(path));
+			return { kind: presentation?.kind, current: presentation?.current };
+		};
+
+		assert.deepStrictEqual({ primary: present('/work/vscode'), current: present('/work/vscode.worktrees/a'), other: present('/work/vscode.worktrees/b') }, {
+			primary: { kind: 'folder', current: false },
+			current: { kind: 'worktree', current: true },
+			other: { kind: 'worktree', current: false },
+		});
+	});
+
 	test('offers only the window\'s folders where its folder cannot move: several folders, a remote window, no folder', async () => {
 		const multiRoot = create({ folders: [{ uri: '/work/vscode' }, { uri: '/work/tools' }] });
 		const remote = create({ folders: [{ uri: '/work/vscode' }], remote: true });

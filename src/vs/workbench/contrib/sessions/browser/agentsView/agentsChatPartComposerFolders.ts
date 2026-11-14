@@ -10,6 +10,7 @@ import { Disposable, MutableDisposable, toDisposable } from '../../../../../base
 import { IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { IFolderLocation, IWorkspaceFolderLocationService } from '../../../../../platform/workspace/common/folderLocations.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 
@@ -66,9 +67,26 @@ export class AgentsChatPartComposerFolders extends Disposable {
 		return folder && primary && { location: folder.uri, primary };
 	}
 
-	/** How a composer shows `folderUri` when it is another location of the window's folder: by its name and branch. */
-	getPresentation(folderUri: URI): IFolderLocation | undefined {
-		return this._locations.get().find(location => extUriBiasedIgnorePathCase.isEqual(location.uri, folderUri));
+	/**
+	 * How a composer shows `folderUri`: another location of the window's folder by its name and branch, and, for a window
+	 * whose folder can move, whether it is the primary folder or a worktree of it and whether the window's folder is there now.
+	 */
+	getPresentation(folderUri: URI): IAllowedFolderPresentation | undefined {
+		const location = this._locations.get().find(candidate => extUriBiasedIgnorePathCase.isEqual(candidate.uri, folderUri));
+		const folder = this._movableFolder();
+		const workspace = this._workspaceContextService.getWorkspace();
+		if (!folder || !workspace.uri) {
+			return location;
+		}
+		// The primary folder, and any other folder of a window with several, show as folders; the other locations as worktrees.
+		// The movable folder is the window's first.
+		const isFolder = extUriBiasedIgnorePathCase.isEqual(folderUri, workspace.uri)
+			|| workspace.folders.slice(1).some(windowFolder => extUriBiasedIgnorePathCase.isEqual(windowFolder.uri, folderUri));
+		return {
+			...location,
+			kind: isFolder ? 'folder' : 'worktree',
+			current: extUriBiasedIgnorePathCase.isEqual(folderUri, folder.uri),
+		};
 	}
 
 	/** Reads the locations of the window's folder again, such as a worktree an agent created since. */
