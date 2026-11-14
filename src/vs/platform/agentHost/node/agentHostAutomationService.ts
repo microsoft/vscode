@@ -213,6 +213,12 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 			...(stored.catalog._meta ? { _meta: stored.catalog._meta } : {}),
 		} : undefined;
 		this._manualRunRequests = new Map(stored?.manualRunRequests?.map(request => [request.requestId, request]));
+		// Run Now's start exemption must survive a restart for pending runs it reused.
+		for (const request of this._manualRunRequests.values()) {
+			if (this._runs.get(request.run)?.lifecycle.status === AutomationRunStatus.Pending) {
+				this._manuallyRequestedRuns.add(request.run);
+			}
+		}
 		if (this._catalog) {
 			this._stateManager.setAutomationCatalogState(this._catalog);
 		}
@@ -1152,6 +1158,10 @@ export class AgentHostAutomationService extends Disposable implements IAgentHost
 		}
 		const activeRun = this._activeRunFor(automation.resource);
 		if (activeRun) {
+			const nextRequests = new Map(this._manualRunRequests);
+			nextRequests.set(params.requestId, { requestId: params.requestId, automation: params.automation, run: activeRun.resource });
+			await this._persist(catalog, this._runs, nextRequests);
+			this._manualRunRequests = nextRequests;
 			if (activeRun.lifecycle.status !== AutomationRunStatus.Pending) {
 				return { run: activeRun };
 			}

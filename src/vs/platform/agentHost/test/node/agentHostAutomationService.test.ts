@@ -1569,6 +1569,69 @@ suite('AgentHostAutomationService', () => {
 		})));
 	});
 
+	for (const initiallyAvailable of [false, true]) {
+		test(`persists a manual request that reuses a ${initiallyAvailable ? 'running' : 'pending'} run across completion and restart`, async () => {
+			const session = URI.parse('mock:/reused-request');
+			const started = new DeferredPromise<void>();
+			let available = initiallyAvailable;
+			let createCalls = 0;
+			const execution: Partial<IAgentHostAutomationExecution> = {
+				isSessionTemplateAvailable: () => available,
+				createSession: async () => {
+					createCalls++;
+					stateManager.createSession({
+						resource: session.toString(), provider: 'mock', title: '', status: SessionStatus.Idle,
+						createdAt: new Date().toISOString(), modifiedAt: new Date().toISOString(),
+						defaultChat: buildDefaultChatUri(session.toString()),
+					});
+					return session;
+				},
+				startSession: async (createdSession, message) => {
+					stateManager.dispatchServerAction(buildDefaultChatUri(createdSession), {
+						type: ActionType.ChatTurnStarted, turnId: 'reused-turn', startedAt: new Date().toISOString(), message,
+					});
+					if (!started.isSettled) {
+						await started.complete();
+					}
+				},
+			};
+			const service = createService(execution);
+			await enableAndCreate(service);
+			const params: RunAutomationParams = {
+				channel: AUTOMATION_CATALOG_URI, automation: createAction().resource, requestId: 'initial-request',
+			};
+			const first = await service.runAutomation(params);
+			if (initiallyAvailable) {
+				await started.p;
+			}
+			const reusedParams = { ...params, requestId: 'reused-request' };
+			const reused = await service.runAutomation(reusedParams);
+			available = true;
+			service.handleAgentsChanged();
+			await started.p;
+			const completed = terminalRun(first.resource);
+			stateManager.dispatchServerAction(buildDefaultChatUri(session), {
+				type: ActionType.ChatTurnComplete, turnId: 'reused-turn', duration: 0,
+			});
+			await completed;
+			const replayed = await service.runAutomation(reusedParams);
+			service.dispose();
+			const restored = createService(execution);
+			const replayedAfterRestart = await restored.runAutomation(reusedParams);
+			assert.deepStrictEqual({
+				reused: reused.resource,
+				replayed: replayed.resource,
+				replayedAfterRestart: replayedAfterRestart.resource,
+				createCalls,
+			}, {
+				reused: first.resource,
+				replayed: first.resource,
+				replayedAfterRestart: first.resource,
+				createCalls: 1,
+			});
+		});
+	}
+
 	for (const hasMessageModel of [false, true]) {
 		test(hasMessageModel ? 'preserves an explicit Automation message model' : 'records the Automation model configuration on its first turn', async () => {
 			const session = URI.parse('mock:/model-configuration-run');
@@ -3541,6 +3604,54 @@ suite('AgentHostAutomationService', () => {
 				});
 			}));
 		}
+
+		test('a retried Run Now still starts the pending scheduled run it reused after a restart while scheduled work is held', () => runWithFakedTimers({ useFakeTimers: true, startTime: wokeAt, maxTaskCount: 100 }, async () => {
+			const scheduledRun: AutomationRunState = {
+				resource: 'ahp-automation-run:/scheduled',
+				automation: 'ahp-automation:/review-changes',
+				origin: { kind: AutomationRunOriginKind.Trigger, triggerId: 'hourly', scheduledFor: '2026-01-01T01:00:00.000Z' },
+				lifecycle: { status: AutomationRunStatus.Pending, createdAt: '2026-01-01T01:00:00.000Z' },
+				sessions: [],
+			};
+			storageService.set('automations', {
+				catalog: {
+					automations: [{
+						resource: scheduledRun.automation,
+						definition: {
+							...definition(),
+							triggers: [{ id: 'hourly', kind: AutomationTriggerKind.Schedule, schedule: { expression: '0 * * * *', timeZone: 'UTC' } }],
+						},
+						nextRunAt: '2026-01-01T02:00:00.000Z',
+						runs: [],
+						operations: [AutomationOperation.Update, AutomationOperation.Run],
+						createdAt: '2026-01-01T00:00:00.000Z',
+						modifiedAt: '2026-01-01T00:00:00.000Z',
+						_meta: { 'vscode.scheduleCursors': { hourly: '2026-01-01T02:00:00.000Z' } },
+					}],
+				},
+				runs: [scheduledRun],
+				manualRunRequests: [],
+			});
+			await storageService.whenIdle();
+			const available = observableValue('available', false);
+			const { started, execution } = startRecorder('reused-scheduled-run-restart');
+			systemWake.setFullyAwake(false);
+			systemWake.setFullyAwake(true);
+			systemWake.setNetworkOnline(false);
+			const params: RunAutomationParams = { channel: 'ahp-automations://', automation: scheduledRun.automation, requestId: 'reuse-scheduled-run' };
+			const service = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+			const reused = await service.runAutomation(params);
+			service.dispose();
+
+			const restored = createService({ ...execution, isSessionTemplateAvailable: (_template, reader) => available.read(reader) });
+			const retried = await restored.runAutomation(params);
+			available.set(true, undefined);
+			await timeout(1_000);
+
+			assert.deepStrictEqual({ reused: reused.resource, retried: retried.resource, started: started.isSettled }, {
+				reused: scheduledRun.resource, retried: scheduledRun.resource, started: true,
+			});
+		}));
 
 		test('a due schedule whose claim waits behind another change still waits for readiness', () => runWithFakedTimers({ useFakeTimers: true, startTime: Date.UTC(2026, 0, 1, 0, 59), maxTaskCount: 100 }, async () => {
 			const { started, execution } = startRecorder('queued-claim');
