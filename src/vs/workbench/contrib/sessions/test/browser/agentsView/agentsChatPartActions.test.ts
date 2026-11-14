@@ -33,6 +33,7 @@ import { Menus } from '../../../browser/menus.js';
 import { INewSessionTarget } from '../../../browser/parts/chatView.js';
 import { ISessionSection, SessionItemContextMenuId, SessionSectionToolbarMenuId } from '../../../browser/views/sessionsList.js';
 import { buildTestSession } from '../../common/testSessionBuilder.js';
+import { ChatViewId } from '../../../../chat/browser/chat.js';
 
 suite('Agents chat part actions', () => {
 
@@ -166,6 +167,14 @@ suite('Agents chat part actions', () => {
 			calls: ['aiCustomization.openManagementEditor agent-host-copilot:/one'],
 			several: 'rejected',
 		});
+	});
+
+	test('New Session shows in the header of the sessions list, but not in the Chat view\'s, whose title has New Chat already', () => {
+		store.add(registerAgentsChatPartActions());
+		const when = MenuRegistry.getMenuItems(Menus.SidebarSessionsHeader).filter(isIMenuItem).find(item => item.command.id === 'workbench.action.agentsView.newSession')?.when;
+		const shows = (view: string) => !!when?.evaluate({ getValue: <T>(key: string) => (key === 'view' ? view : key === ChatContextKeys.enabled.key ? true : undefined) as T });
+
+		assert.deepStrictEqual({ agentsView: shows('workbench.view.agents.sessions'), chatView: shows(ChatViewId) }, { agentsView: true, chatView: false });
 	});
 
 	test('a new session of the chat part aims at the window\'s folder of the active editor, else at its first', () => {

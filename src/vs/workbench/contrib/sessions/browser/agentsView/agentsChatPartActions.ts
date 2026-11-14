@@ -7,6 +7,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ChatViewId } from '../../../chat/browser/chat.js';
 import { ContextKeyExpr, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -63,7 +64,8 @@ export function registerAgentsChatPartActions(): IDisposable {
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ChatContextKeys.enabled,
-				menu: [{ id: Menus.SidebarSessionsHeader, group: 'navigation', order: 0, when: ChatContextKeys.enabled }],
+				// Not in the header of the sessions list of the Chat view, whose title has New Chat already
+				menu: [{ id: Menus.SidebarSessionsHeader, group: 'navigation', order: 0, when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals('view', ChatViewId)) }],
 			});
 		}
 		async run(accessor: ServicesAccessor): Promise<void> {
