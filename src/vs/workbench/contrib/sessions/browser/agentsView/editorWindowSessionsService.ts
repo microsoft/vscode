@@ -121,18 +121,23 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 
 	//#region Sessions and chats: shown by the presenter
 
+	/** Increases with each {@link openSession}, which shows its session only while it is the latest. */
+	private _openGeneration = 0;
+
 	showSession(sessionResource: URI, options?: { preserveFocus?: boolean }): void {
 		void this.openSession(sessionResource, options);
 	}
 
 	async openSession(sessionResource: URI, options?: IOpenSessionOptions): Promise<void> {
+		// A later open supersedes this one while it resolves or waits for its session: the user's latest pick shows
+		const open = ++this._openGeneration;
 		// Its session is known only while the providers are held: until it shows, such as in the chat part, which holds them then
 		const hold = this._providers.acquire();
 		try {
 			// Providers redirect superseded resources, such as of a session they adopted, and leave unfamiliar ones unchanged
 			const resolved = await this._sessionsManagementService.resolveSessionResource(sessionResource, 'open');
-			const session = await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved));
-			if (session) {
+			const session = open === this._openGeneration ? await waitForAgentsViewSession(this._sessionsManagementService, () => this._sessionsManagementService.getSession(resolved)) : undefined;
+			if (session && open === this._openGeneration) {
 				await this._openSession(session, options);
 			}
 		} finally {
@@ -151,7 +156,10 @@ export class EditorWindowSessionsService extends Disposable implements ISessions
 				this._sessionOpenTelemetryService.sessionResolved(attempt, session.resource, session.providerId, this._presenter.isShowing(chatResource), session.loading.get());
 				await this._presenter.openChat(session, undefined, { preserveFocus: options?.preserveFocus });
 				this._sessionOpenTelemetryService.sessionActivated(attempt, chatResource);
-				await waitForState(session.loading, loading => !loading, undefined, cts.token);
+				// Only while it loads: waitForState keeps its cancellation listener when the state holds already
+				if (session.loading.get()) {
+					await waitForState(session.loading, loading => !loading, undefined, cts.token);
+				}
 				this._sessionOpenTelemetryService.sessionLoaded(attempt);
 			});
 		} catch (error) {
