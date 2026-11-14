@@ -38,6 +38,12 @@ export interface IEditorWindowChatPartOptions {
 	 * its chats, and the chat part does not restore and hides, as the window gets ready and as this turns false.
 	 */
 	readonly enabled: IObservable<boolean>;
+	/**
+	 * Whether New Chat of the Chat view opens a new-session composer in the chat part while chats open in it; otherwise the
+	 * Chat view keeps its own New Chat. True by default. While several features enable the chat part, it does while one of
+	 * those that have it enabled says so.
+	 */
+	readonly ownsNewChat?: boolean;
 }
 
 export const IEditorWindowChatPartService = createDecorator<IEditorWindowChatPartService>('editorWindowChatPartService');
@@ -67,6 +73,7 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 	/** One per call of {@link enable}, also of the same options: each is removed by its own disposal only. */
 	private readonly _owners = observableValue<readonly { readonly options: IEditorWindowChatPartOptions }[]>(this, []);
 	readonly enabled: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.options.enabled.read(reader)));
+	private readonly _ownsNewChat: IObservable<boolean> = derived(this, reader => this._owners.read(reader).some(owner => owner.options.enabled.read(reader) && owner.options.ownsNewChat !== false));
 
 	/** What the chat part does while a feature enabled it. */
 	private readonly _active = this._register(new MutableDisposable<DisposableStore>());
@@ -111,8 +118,6 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 		// The part, before the workbench creates its grid: reading it creates the delayed frame
 		void this._frame.part;
 
-		store.add(registerAgentsChatPartActions());
-
 		// The Changes editor that the pills of the chats open in the editor area, as the Agents window registers it
 		store.add(Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 			EditorPaneDescriptor.create(SessionChangesEditor, SessionChangesEditor.ID, localize('sessionChangesEditor.label', "Changes")),
@@ -145,7 +150,9 @@ export class EditorWindowChatPartService extends Disposable implements IEditorWi
 			if (!this.enabled.read(reader)) {
 				return;
 			}
-			const host = this._instantiationService.createInstance(AgentsChatViewHost);
+			// Its actions, such as to close it, only while chats open in it
+			reader.store.add(registerAgentsChatPartActions());
+			const host = this._instantiationService.createInstance(AgentsChatViewHost, this._ownsNewChat);
 			reader.store.add(this._chatViewHostService.registerHost(host));
 			// Unregistered, what the host is still doing does not open the chat part
 			reader.store.add(toDisposable(() => host.deactivate()));

@@ -11,7 +11,7 @@ import { derived, IObservable, observableValue } from '../../../../../base/commo
 import { parse, stringify } from '../../../../../base/common/marshalling.js';
 import { extUriBiasedIgnorePathCase } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IFolderLocation } from '../../../../../platform/workspace/common/folderLocations.js';
+import { IAllowedFolderPresentation } from '../chat/sessionWorkspacePicker.js';
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -189,7 +189,7 @@ export interface IChatWindowComposerInit {
 	 */
 	readonly allowedFolders?: IObservable<readonly URI[]>;
 	/** How it shows one of its {@link allowedFolders}, such as a linked checkout of the window's folder. */
-	readonly getFolderPresentation?: (folderUri: URI) => IFolderLocation | undefined;
+	readonly getFolderPresentation?: (folderUri: URI) => IAllowedFolderPresentation | undefined;
 }
 
 /**
@@ -230,11 +230,18 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
+	private readonly _onDidRetarget = this._register(new Emitter<INewSessionTarget>());
+	/** Fires as its host aims it at another folder ({@link retargetFolder}), for which it creates its draft. */
+	readonly onDidRetarget = this._onDidRetarget.event;
+
+	/** The folder its host aimed it at: while it aims at that one, the user did not pick another. */
+	private _hostFolder: URI | undefined;
+
 	/** The custom group of the sessions list that the sessions it sends join. */
 	readonly groupId: string | undefined;
 
 	readonly allowedFolders: IObservable<readonly URI[]> | undefined;
-	private readonly _getFolderPresentation: ((folderUri: URI) => IFolderLocation | undefined) | undefined;
+	private readonly _getFolderPresentation: ((folderUri: URI) => IAllowedFolderPresentation | undefined) | undefined;
 
 	constructor(
 		readonly resource: URI,
@@ -254,6 +261,7 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 			return folders.length && targetFolder && !folders.some(folder => extUriBiasedIgnorePathCase.isEqual(folder, targetFolder)) ? [...folders, targetFolder] : folders;
 		});
 		this._requestedTarget.set(init.target, undefined);
+		this._hostFolder = init.target?.folderUri;
 		this.input = new ComposerInputSnapshot(init.input);
 		this.slot = this._register(_sessionsManagementService.createNewSessionSlot({ readoptOnFailure: session => this._isRequested(session) }));
 		this._register(sessionGroupsService.setDraftSlotGroup(this.slot.id, init.groupId));
@@ -295,7 +303,26 @@ export class ChatWindowComposerModel extends Disposable implements INewSessionDr
 		}
 	}
 
-	getFolderPresentation(folderUri: URI): IFolderLocation | undefined {
+	/**
+	 * Aims it at `folderUri`, such as the location the window's folder moved to, while it aims at the folder its host
+	 * aimed it at (`from`, when given): not at one the user picked, and not while it sends: from the user's submit, through
+	 * the checks and preparation before its request is accepted, until that request ends. Returns whether it does.
+	 */
+	retargetFolder(folderUri: URI, from?: URI): boolean {
+		const target = this._requestedTarget.get();
+		const current = target?.folderUri;
+		if (this.input.get().attempt || this._sending.get() || !target || !current || !this._hostFolder || !extUriBiasedIgnorePathCase.isEqual(current, this._hostFolder)
+			|| (from && !extUriBiasedIgnorePathCase.isEqual(current, from)) || extUriBiasedIgnorePathCase.isEqual(current, folderUri)) {
+			return false;
+		}
+		const retargeted = { ...target, folderUri };
+		this._hostFolder = folderUri;
+		this._requestedTarget.set(retargeted, undefined);
+		this._onDidRetarget.fire(retargeted);
+		return true;
+	}
+
+	getFolderPresentation(folderUri: URI): IAllowedFolderPresentation | undefined {
 		return this._getFolderPresentation?.(folderUri);
 	}
 
