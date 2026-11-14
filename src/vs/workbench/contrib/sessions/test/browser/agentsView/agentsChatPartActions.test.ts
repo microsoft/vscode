@@ -146,7 +146,8 @@ suite('Agents chat part actions', () => {
 		const peer = session.chats.get('peer')!.chat;
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID)!.handler(accessor, session.session, undefined));
 		await instantiationService.invokeFunction(accessor => CommandsRegistry.getCommand(AGENTS_CHAT_PART_CLOSE_CHAT_COMMAND_ID)!.handler(accessor, session.session, peer));
-		const added = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).filter(item => !before.has(item));
+		// Its commands, and the View Mode submenu: other features add submenus of their own, such as how the chat part shows its chats
+		const added = MenuRegistry.getMenuItems(Menus.SessionBarToolbar).filter(item => !before.has(item) && (isIMenuItem(item) || item.submenu === MenuId.ChatViewMode));
 		const keys: Record<string, boolean> = { [ChatContextKeys.enabled.key]: true, [SessionIsCreatedContext.key]: true, [SessionSupportsRenameContext.key]: true };
 		const shown = (inChatPart: boolean) => added
 			.filter(item => item.when?.evaluate({ getValue: <T>(key: string) => (key === InAgentsChatPartContext.key ? inChatPart : keys[key]) as T }) ?? true)
