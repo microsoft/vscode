@@ -28,7 +28,7 @@ import { SessionChatEditorEntry, waitForSessionChat } from '../chatEditor/sessio
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionsProvidersService } from '../sessionsProvidersService.js';
 import { IEditorWindowComposerFoldersService } from '../editorWindow/editorWindowComposerFolders.js';
-import { getEditorWindowComposerTarget } from '../editorWindow/editorWindowSessionsPresenter.js';
+import { getEditorWindowComposerTarget, IEditorWindowComposerHolder, IEditorWindowSessionsPresenterService } from '../editorWindow/editorWindowSessionsPresenter.js';
 import { ISessionsManagementService } from '../../common/sessionsManagement.js';
 import { SessionsView } from '../views/sessionsView.js';
 import { createEditorWindowSessionsScope, createEditorWindowSessionsView } from './editorWindowSessionsList.js';
@@ -88,6 +88,21 @@ class ChatViewComposerEntry extends SessionChatEditorEntry {
 }
 
 /**
+ * The composer of the Chat view as a holder of the window's sessions providers (see `IEditorWindowComposerHolder`): it has a
+ * composer while it shows one, and closes it, with `close`, once nothing is typed or attached and no send is under way.
+ */
+export function createChatViewComposerHolder(model: () => Pick<ChatWindowComposerModel, 'isPristine'> | undefined, close: () => void): IEditorWindowComposerHolder {
+	return {
+		hasComposer: () => !!model(),
+		closeIdleComposers: async () => {
+			if (model()?.isPristine()) {
+				close();
+			}
+		},
+	};
+}
+
+/**
  * Creates the model of a composer of the Chat view, aimed at `target`, with the folders the window's composers offer, such
  * as the worktrees of its folder: the window's folders unless a feature offers others. Until `folders` is disposed, it
  * follows the window's folder as it moves, as the chat part's composers do.
@@ -118,6 +133,8 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 	private readonly _entry = this._register(new MutableDisposable<ChatViewComposerEntry>());
 	private readonly _entryStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly _window: IChatEditorWindow;
+	/** The model of the composer it shows, while it shows one. */
+	private _model: ChatWindowComposerModel | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -128,9 +145,12 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorWindowSessionsPresenterService presenterService: IEditorWindowSessionsPresenterService,
 	) {
 		super();
 		_container.classList.add('chat-view-sessions-composer');
+		// Its draft holds the window's sessions providers while it lives; one with nothing typed goes as they are released
+		this._register(presenterService.registerComposerHolder(createChatViewComposerHolder(() => this._model, () => this._closeComposer())));
 		this._composers = this._register(_instantiationService.createInstance(ChatWindowComposers, async (resource: URI) => (await waitForSessionChat(this._sessionsManagementService, resource, SESSION_TIMEOUT))?.session));
 		// It shows beside the editor area, whose editors its Session Activity Bar reads
 		this._window = {
@@ -145,6 +165,7 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 
 	private _createComposer(): void {
 		const resource = createChatWindowComposerResource();
+		this._model = undefined;
 		const { composer, folders } = createChatViewComposerModel(this._composers, this._composerFolders, resource, getEditorWindowComposerTarget(this._workspaceContextService, this._editorService), session => this._open(session, undefined, false));
 		const entry = this._instantiationService.createInstance(ChatViewComposerEntry, resource, composer, constObservable(this._window));
 		this._view.clear();
@@ -156,6 +177,7 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 
 		const store = this._entryStore.value = new DisposableStore();
 		store.add(folders);
+		this._model = composer;
 		// Its content, at the bottom of its view, gives the composer its height
 		const observer = store.add(new MutableDisposable());
 		store.add(autorun(reader => {
@@ -182,11 +204,28 @@ class ChatViewSessionsComposer extends Disposable implements IChatViewSessionsCo
 	}
 
 	layout(width: number, height: number): void {
+		this._ensureComposer();
 		this._view.value?.layout(width, height, 0, 0);
 	}
 
 	focus(): void {
+		this._ensureComposer();
 		this._view.value?.focus();
+	}
+
+	/** A composer closed while idle shows again as the Chat view shows it. */
+	private _ensureComposer(): void {
+		if (!this._entry.value) {
+			this._createComposer();
+		}
+	}
+
+	private _closeComposer(): void {
+		this._model = undefined;
+		this._entryStore.clear();
+		this._view.clear();
+		this._entry.clear();
+		this._container.replaceChildren();
 	}
 
 	newChat(): void {

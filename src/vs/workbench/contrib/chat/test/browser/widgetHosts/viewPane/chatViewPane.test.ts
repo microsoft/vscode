@@ -100,13 +100,16 @@ suite('ChatViewPane sessions refresh', () => {
 		assert.deepStrictEqual(visibility, [true, false]);
 	});
 
-	test('a provided composer shows in place of the chat while the chat is a new chat, and never without one', () => {
+	test('a provided composer shows in place of the chat while the chat is a new chat, and never without one or while the Chat view shows only the sessions', () => {
 		let empty = true;
 		let title = '';
-		const host: { providedComposer: object | undefined; composerShown: boolean; viewPaneContainer: HTMLElement; _widget: object; relayout(): void } = {
-			providedComposer: {},
+		const sessionsOnly = observableValue('sessionsOnly', false);
+		const host: { providedComposer: object | undefined; providedSessionsList: { sessionsOnly: typeof sessionsOnly }; composerShown: boolean; viewPaneContainer: HTMLElement; element: HTMLElement; _widget: object; relayout(): void } = {
+			providedComposer: { focus: () => { } },
+			providedSessionsList: { sessionsOnly },
 			composerShown: false,
 			viewPaneContainer: document.createElement('div'),
+			element: document.createElement('div'),
 			_widget: { get viewModel() { return { model: { title } }; }, isEmpty: () => empty },
 			relayout: () => { },
 		};
@@ -123,22 +126,60 @@ suite('ChatViewPane sessions refresh', () => {
 		empty = true;
 		title = '';
 		step();
+		sessionsOnly.set(true, undefined);
+		step();
+		sessionsOnly.set(false, undefined);
 		const withoutComposer = { ...host, providedComposer: undefined, composerShown: false };
 		update.call(withoutComposer);
-		assert.deepStrictEqual({ states, withoutComposer: withoutComposer.composerShown }, { states: [true, false, true], withoutComposer: false });
+		assert.deepStrictEqual({ states, withoutComposer: withoutComposer.composerShown }, { states: [true, false, true, false], withoutComposer: false });
 	});
 
-	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat', () => {
+	test('New Chat starts the provided composer over, and is the composer\'s while it shows in place of the chat, superseding a chat still loading or restoring', () => {
 		const calls: string[] = [];
 		const composer = { newChat: () => calls.push('newChat'), focus: () => calls.push('focus') };
-		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: { providedComposer: typeof composer | undefined; composerShown: boolean; loadSessionCts: { value: undefined } }) => boolean;
-		const loadSessionCts = { value: undefined };
+		const cancellable = (name: string) => ({ value: { cancel: () => calls.push(`cancel ${name}`) } });
+		type Host = { providedComposer: typeof composer | undefined; composerShown: boolean; loadSessionCts: ReturnType<typeof cancellable>; _applyModelCts: ReturnType<typeof cancellable> };
+		const newChat = Reflect.get(ChatViewPane.prototype, 'newChat') as (this: Host) => boolean;
+		const host = (providedComposer: typeof composer | undefined, composerShown: boolean): Host => ({ providedComposer, composerShown, loadSessionCts: cancellable('load'), _applyModelCts: cancellable('restore') });
 		const results = {
-			shown: newChat.call({ providedComposer: composer, composerShown: true, loadSessionCts }),
-			hidden: newChat.call({ providedComposer: composer, composerShown: false, loadSessionCts }),
-			withoutComposer: newChat.call({ providedComposer: undefined, composerShown: false, loadSessionCts }),
+			shown: newChat.call(host(composer, true)),
+			hidden: newChat.call(host(composer, false)),
+			withoutComposer: newChat.call(host(undefined, false)),
 		};
-		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['newChat', 'focus', 'newChat'] });
+		assert.deepStrictEqual({ results, calls }, { results: { shown: true, hidden: false, withoutComposer: false }, calls: ['cancel load', 'cancel restore', 'newChat', 'focus', 'newChat'] });
+	});
+
+	test('as New Chat clears a chat with focus in the Chat view, the composer that shows in its place takes focus', () => {
+		const focused: string[] = [];
+		const element = mainWindow.document.body.appendChild(document.createElement('div'));
+		const input = element.appendChild(document.createElement('textarea'));
+		let empty = false;
+		const host = {
+			providedComposer: { focus: () => focused.push('composer') },
+			providedSessionsList: { sessionsOnly: constObservable(false) },
+			composerShown: false,
+			viewPaneContainer: document.createElement('div'),
+			element,
+			_widget: { get viewModel() { return { model: { title: '' } }; }, isEmpty: () => empty },
+			relayout: () => { },
+		};
+		const update = Reflect.get(ChatViewPane.prototype, 'updateComposerVisibility') as (this: typeof host) => void;
+		try {
+			update.call(host);
+			input.focus();
+			// New Chat clears the chat
+			empty = true;
+			update.call(host);
+			// Shown again, without focus in the Chat view
+			empty = false;
+			update.call(host);
+			input.blur();
+			empty = true;
+			update.call(host);
+		} finally {
+			element.remove();
+		}
+		assert.deepStrictEqual(focused, ['composer']);
 	});
 
 	test('the Chat view takes the sessions list of the provider registered last, and its own once none is', () => {
