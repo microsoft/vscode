@@ -337,6 +337,26 @@ export function lineRangeMappingFromRangeMappings(alignments: readonly RangeMapp
 		));
 	}
 
+	// After grouping and joining, adjacent changes may still touch or have unequal gaps
+	// (e.g., when getLineRangeMapping's line adjustments expand a group's joined range).
+	// Merge any such adjacent changes to maintain the invariant.
+	for (let i = 1; i < changes.length; i++) {
+		const prev = changes[i - 1];
+		const cur = changes[i];
+		const originalGap = cur.original.startLineNumber - prev.original.endLineNumberExclusive;
+		const modifiedGap = cur.modified.startLineNumber - prev.modified.endLineNumberExclusive;
+		if (originalGap < 1 || modifiedGap < 1 || originalGap !== modifiedGap) {
+			// Merge cur into prev
+			changes[i - 1] = new DetailedLineRangeMapping(
+				prev.original.join(cur.original),
+				prev.modified.join(cur.modified),
+				(prev.innerChanges || []).concat(cur.innerChanges || []),
+			);
+			changes.splice(i, 1);
+			i--; // Re-check from the same position
+		}
+	}
+
 	assertFn(() => {
 		if (!dontAssertStartLine && changes.length > 0) {
 			if (changes[0].modified.startLineNumber !== changes[0].original.startLineNumber) {
