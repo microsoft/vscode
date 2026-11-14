@@ -283,6 +283,12 @@ suite('AgentHostChatInputPicker - combined mode and permissions', () => {
 				hoverOptions.set(target, options);
 				return toDisposable(() => hoverOptions.delete(target));
 			},
+			setupManagedHover: (_delegate, target, content) => {
+				hoverTargets.push(target);
+				const options = typeof content === 'function' ? () => ({ content: content() }) : () => ({ content });
+				hoverOptions.set(target, options);
+				return toDisposable(() => hoverOptions.delete(target));
+			},
 		});
 		instantiationService.set(IOpenerService, NullOpenerService);
 		instantiationService.set(IDialogService, new TestDialogService(undefined, { result: true }));
