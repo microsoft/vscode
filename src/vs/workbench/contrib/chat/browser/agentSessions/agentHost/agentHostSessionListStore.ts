@@ -136,6 +136,18 @@ export class AgentHostSessionListStore extends Disposable {
 
 		this._register(this._connection.onDidNotification(n => this._onNotification(n)));
 
+		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
+		if (this._options.matchProjectRoot) {
+			this._register(runOnChange(this._options.matchProjectRoot, () => {
+				if (this._options.filterToWorkspace === false) {
+					return;
+				}
+				this._cacheValid = false;
+				this._filterEntriesToWorkspace();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
+
 		// Sessions may have changed on the host while the connection was down.
 		if (this._connection.onDidReconnect) {
 			this._register(this._connection.onDidReconnect(() => {
@@ -161,18 +173,6 @@ export class AgentHostSessionListStore extends Disposable {
 		// Also as the window's workspace changes without its folders, such as as Save Workspace As turns a folder into a
 		// workspace file: the locations its folder had are no longer its own
 		this._register(this._workspaceContextService.onDidChangeWorkbenchState(onDidChangeWorkspace));
-
-		// Matching by project narrows the list as it turns off, and widens it as it turns on, which only the host's list supplies
-		if (this._options.matchProjectRoot) {
-			this._register(runOnChange(this._options.matchProjectRoot, () => {
-				if (this._options.filterToWorkspace === false) {
-					return;
-				}
-				this._cacheValid = false;
-				this._filterEntriesToWorkspace();
-				void this.refresh(CancellationToken.None);
-			}));
-		}
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -549,7 +549,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (this._options.filterToWorkspace === false) {
 			return true;
 		}
-		const inWorkspace = this._computeSessionInWorkspace(entry);
+		const inWorkspace = this._computeSessionInWorkspace(entry) || this._matchesProjectRoot(entry.summary);
 		// A legacy session is matched by its repository root, which must be a local
 		// path; a remote project (e.g. an `https://` repo URL) silently matches
 		// nothing. Excluding one is legitimate, so only report the broken input, and
@@ -559,6 +559,18 @@ export class AgentHostSessionListStore extends Disposable {
 			this._logService.warn(`[AgentHost] legacy session ${entry.summary.resource} has a non-local project '${entry.summary.project.uri}' and cannot be matched to a workspace folder`);
 		}
 		return inWorkspace;
+	}
+
+	/**
+	 * Whether the session's project is a folder of the window, while matching by project (`matchProjectRoot`). Not a session
+	 * of a multi-root workspace, which only the windows of its workspace file list.
+	 */
+	private _matchesProjectRoot(summary: SessionSummary): boolean {
+		if (!summary.project?.uri || !this._options.matchProjectRoot?.get() || readSessionMultiRootMetadata(summary._meta)) {
+			return false;
+		}
+		const project = URI.parse(summary.project.uri);
+		return this._workspaceContextService.getWorkspace().folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri));
 	}
 
 	private _computeSessionInWorkspace(entry: IAgentHostSessionListEntry): boolean {
@@ -581,7 +593,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories) || this._matchesProjectRoot(entry.summary, folders);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._matchesAnyLocation(workingDirectories);
 	}
 
 	private _trackFolderLocation(): void {
@@ -621,14 +633,6 @@ export class AgentHostSessionListStore extends Disposable {
 			this._mutationGeneration++;
 			this._onDidChangeSessions.fire({ removed });
 		}
-	}
-
-	private _matchesProjectRoot(summary: SessionSummary, folders: readonly IWorkspaceFolder[]): boolean {
-		if (!summary.project?.uri || !this._options.matchProjectRoot?.get()) {
-			return false;
-		}
-		const project = URI.parse(summary.project.uri);
-		return folders.some(folder => extUriBiasedIgnorePathCase.isEqual(project, folder.uri));
 	}
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
