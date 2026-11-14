@@ -80,23 +80,29 @@ export function createBlobWorker(blobUrl: string, options?: WorkerOptions): Work
 	return new Worker(ttPolicy ? ttPolicy.createScriptURL(blobUrl) as unknown as string : blobUrl, { ...options, type: 'module' });
 }
 
-function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerLoadingFailedErrorMessage: string | undefined): string {
+export function getWorkerBootstrapUrl(label: string, workerScriptUrl: string, workerLoadingFailedErrorMessage: string | undefined): string {
 	if (/^((http:)|(https:)|(file:))/.test(workerScriptUrl) && workerScriptUrl.substring(0, globalThis.origin.length) !== globalThis.origin) {
 		// this is the cross-origin case
 		// i.e. the webpage is running at a different origin than where the scripts are loaded from
 	} else {
-		const start = workerScriptUrl.lastIndexOf('?');
-		const end = workerScriptUrl.lastIndexOf('#', start);
-		const params = start > 0
-			? new URLSearchParams(workerScriptUrl.substring(start + 1, ~end ? end : undefined))
+		const fragmentStart = workerScriptUrl.indexOf('#');
+		if (fragmentStart !== -1) {
+			workerScriptUrl = workerScriptUrl.substring(0, fragmentStart);
+		}
+		const queryStart = workerScriptUrl.indexOf('?');
+		const params = queryStart !== -1
+			? new URLSearchParams(workerScriptUrl.substring(queryStart + 1))
 			: new URLSearchParams();
+		if (queryStart !== -1) {
+			workerScriptUrl = workerScriptUrl.substring(0, queryStart);
+		}
 
 		COI.addSearchParam(params, true, true);
 		const search = params.toString();
 		if (!search) {
 			workerScriptUrl = `${workerScriptUrl}#${label}`;
 		} else {
-			workerScriptUrl = `${workerScriptUrl}?${params.toString()}#${label}`;
+			workerScriptUrl = `${workerScriptUrl}?${search}#${label}`;
 		}
 	}
 
