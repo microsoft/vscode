@@ -472,10 +472,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 		}
 		// The location the user picked again, and its chat, stay the most recent
 		this._rememberSession(folder.uri, last);
-		if (!extUriBiasedIgnorePathCase.isEqual(last, this._shown?.resource)) {
-			// Shown as restored, so that it keeps the folder where the user moved it, also where it works elsewhere now
-			this._chatViewHostService.openSession(last, { preserveFocus: true, restore: true }).catch(error => this._logService.trace('[worktree] could not open the last chat of the folder\'s location', error));
-		}
+		// Shown as restored, so that it keeps the folder where the user moved it, also where it works elsewhere now; the chat
+		// shown already is reported as restored without loading it again
+		const options = { preserveFocus: true, restore: true };
+		const showing = extUriBiasedIgnorePathCase.isEqual(last, this._shown?.resource)
+			? this._chatViewHostService.revealIfShowing(last, options)
+			: this._chatViewHostService.openSession(last, options);
+		showing.catch(error => this._logService.trace('[worktree] could not open the last chat of the folder\'s location', error));
 	}
 
 	private _markTerminals(): void {
@@ -578,6 +581,13 @@ export class AgentHostWorktreeContribution extends Disposable implements IWorkbe
 	}
 
 	private _storeLastSessions(): void {
+		// Only the remembered sessions are known to have been listed
+		const remembered = [...this._lastSessions.values()];
+		for (const resource of [...this._listedSessions]) {
+			if (!remembered.some(candidate => extUriBiasedIgnorePathCase.isEqual(candidate, resource))) {
+				this._listedSessions.delete(resource);
+			}
+		}
 		const entries = [...this._lastSessions].map(([known, resource]) => [known.toString(), resource.toString()]);
 		this._storageService.store(LAST_SESSIONS_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}

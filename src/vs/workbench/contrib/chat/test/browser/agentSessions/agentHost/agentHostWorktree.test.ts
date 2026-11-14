@@ -81,6 +81,12 @@ suite('AgentHostWorktree', () => {
 				shownSession.set({ resource, reason: openOptions?.restore ? 'restore' : 'open' }, undefined);
 				return undefined;
 			},
+			// Reports the chat it shows already as asked, without loading it again
+			revealIfShowing: async (resource: URI, openOptions?: { readonly restore?: boolean }) => {
+				opened.push(`${resource.path} (shown already${openOptions?.restore ? ', restore' : ''})`);
+				shownSession.set({ resource, reason: openOptions?.restore ? 'restore' : 'open' }, undefined);
+				return undefined;
+			},
 		}));
 		instantiationService.stub(IChatSessionsService, upcastPartial<IChatSessionsService>({ onDidCommitSession: onDidCommitSession.event }));
 		instantiationService.stub(IAgentSessionsService, upcastPartial<IAgentSessionsService>({
@@ -450,5 +456,40 @@ suite('AgentHostWorktree', () => {
 		feature.userMovesTo(primary);
 
 		assert.deepStrictEqual(feature.marks.at(-1), 'marked');
+	});
+
+	test('the last chat of where the user moves the folder, shown already before its working directory is known, keeps the folder there as that becomes known', async () => {
+		const feature = createWorktree({ enabled: true });
+		feature.workingDirectories.set(agentSession('r').toString(), worktree.fsPath);
+		feature.show(agentSession('r'));
+		await settle();
+		feature.show(localChat);
+		await settle();
+		// Shown again before the sessions list knows where it works, such as after a reload
+		feature.workingDirectories.delete(agentSession('r').toString());
+		feature.show(agentSession('r'));
+		await settle();
+		feature.userMovesTo(worktree);
+		await settle();
+		feature.workingDirectories.set(agentSession('r').toString(), created.fsPath);
+		feature.onDidChangeSessions.fire();
+		await settle();
+
+		assert.deepStrictEqual({ moves: feature.moves, opened: feature.opened }, {
+			moves: ['/work/vscode.worktrees/feature', '/work/vscode'],
+			opened: ['/r (shown already, restore)'],
+		});
+	});
+
+	test('keeps track only of the sessions it remembers', async () => {
+		const feature = createWorktree({ enabled: true, at: worktree });
+		for (let i = 0; i < 25; i++) {
+			feature.workingDirectories.set(agentSession(`s${i}`).toString(), worktree.fsPath);
+			feature.show(agentSession(`s${i}`));
+			await settle();
+		}
+		const listed = Reflect.get(feature.contribution, '_listedSessions') as { readonly size: number };
+
+		assert.deepStrictEqual({ listed: listed.size, last: feature.contribution.getLastSession(worktree)?.path }, { listed: 1, last: '/s24' });
 	});
 });
