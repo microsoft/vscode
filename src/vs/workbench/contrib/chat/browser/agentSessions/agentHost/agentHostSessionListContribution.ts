@@ -21,6 +21,7 @@ import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWor
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
 import { MovedChatEditorRetargeter } from './agentHostChatMoveEditors.js';
 import { AgentHostSessionListStore } from './agentHostSessionListStore.js';
+import { AgentHostWorktreeSessionListScope } from './agentHostWorktreeSessionListScope.js';
 
 export class AgentHostSessionListContribution extends Disposable implements IWorkbenchContribution {
 
@@ -74,7 +75,9 @@ export class AgentHostSessionListContribution extends Disposable implements IWor
 			return;
 		}
 		this._initialized = true;
-		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService) }));
+		// With worktree support, also the sessions of the repositories of the window's folders and their worktrees
+		const scope = this._register(this._instantiationService.createInstance(AgentHostWorktreeSessionListScope));
+		const sessionListStore = this._register(this._instantiationService.createInstance(AgentHostSessionListStore, this._agentHostService, { retainUnlistedProvider: provider => isLocalAgentHostProviderDisabledByPolicy(provider, this._configurationService), scope }));
 		this._sessionListStore = sessionListStore;
 
 		this._register(this._agentHostService.rootState.onDidChange(rootState => {

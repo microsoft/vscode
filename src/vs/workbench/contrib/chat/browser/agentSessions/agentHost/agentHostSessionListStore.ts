@@ -37,6 +37,17 @@ export interface IAgentHostSessionListConnection {
 }
 
 /**
+ * More sessions that a window lists besides those working in its folders, such as the sessions of the git repositories
+ * of its folders and their worktrees. Only reads what it knows already: no I/O per session.
+ */
+export interface IAgentHostSessionListScope {
+	/** Whether a session working in `workingDirectories`, of the repository `project`, is listed too. */
+	includes(workingDirectories: readonly URI[], project: URI | undefined): boolean;
+	/** Fires as what it includes changes, such as as the worktrees of the window's folders become known. */
+	readonly onDidChange: Event<void>;
+}
+
+/**
  * Provider-tagged backend session entry owned by the shared session-list store.
  */
 export interface IAgentHostSessionListEntry {
@@ -115,6 +126,8 @@ export class AgentHostSessionListStore extends Disposable {
 			readonly retainUnlistedProvider?: (provider: string) => boolean;
 			/** Retain unlisted sessions whose existence is owned by another inventory. */
 			readonly retainSession?: (session: URI) => boolean;
+			/** Also lists the sessions it includes, in a window with folders. */
+			readonly scope?: IAgentHostSessionListScope;
 		} = {},
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ILogService private readonly _logService: ILogService,
@@ -143,6 +156,18 @@ export class AgentHostSessionListStore extends Disposable {
 			this._filterEntriesToWorkspace();
 			void this.refresh(CancellationToken.None);
 		}));
+
+		// What the scope includes can narrow, such as a worktree that is gone, or widen, which only the host's list supplies
+		if (this._options.scope) {
+			this._register(this._options.scope.onDidChange(() => {
+				if (this._options.filterToWorkspace === false) {
+					return;
+				}
+				this._cacheValid = false;
+				this._filterEntriesToWorkspace();
+				void this.refresh(CancellationToken.None);
+			}));
+		}
 	}
 
 	getSessions(provider: string): readonly IAgentHostSessionListEntry[] {
@@ -550,7 +575,7 @@ export class AgentHostSessionListStore extends Disposable {
 		if (folders.length === 0) {
 			return true;
 		}
-		return this._matchesAnyFolder(workingDirectories, folders);
+		return this._matchesAnyFolder(workingDirectories, folders) || this._isInScope(entry.summary);
 	}
 
 	private _filterEntriesToWorkspace(): void {
@@ -567,6 +592,15 @@ export class AgentHostSessionListStore extends Disposable {
 			this._mutationGeneration++;
 			this._onDidChangeSessions.fire({ removed });
 		}
+	}
+
+	private _isInScope(summary: SessionSummary): boolean {
+		const scope = this._options.scope;
+		if (!scope) {
+			return false;
+		}
+		const project = summary.project?.uri ? URI.parse(summary.project.uri) : undefined;
+		return scope.includes(summary.workingDirectories?.map(directory => URI.parse(directory)) ?? [], project);
 	}
 
 	private _matchesAnyFolder(workingDirectories: readonly URI[], folders: readonly IWorkspaceFolder[]): boolean {
