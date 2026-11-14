@@ -2161,6 +2161,7 @@
     "@types/vscode-webview": "^1.57.0",
     "@vscode/hubrpc": "0.0.2-20",
     "@vscode/markdown-it-katex": "^1.1.1",
+    "esbuild": "0.28.1",
     "json5": "^2.2.3",
     "lodash.throttle": "^4.1.1",
     "mocha": "^10.8.2",

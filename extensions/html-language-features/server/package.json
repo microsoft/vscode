@@ -19,7 +19,8 @@
   },
   "devDependencies": {
     "@types/node": "24.x",
-    "glob": "^5.0.13"
+    "glob": "^5.0.13",
+    "typescript": "catalog:"
   },
   "scripts": {
     "compile": "pnpm exec gulp compile-extension:html-language-features-server",

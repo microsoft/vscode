@@ -162,6 +162,12 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    typescript:
+      specifier: ^6.0.3
+      version: 6.0.3
+
 overrides:
   node-gyp-build: 4.8.1
   kerberos@2.1.1>node-addon-api: 7.1.0
@@ -735,7 +741,7 @@ importers:
   extensions:
     dependencies:
       typescript:
-        specifier: ^6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
     devDependencies:
       '@parcel/watcher':
@@ -744,9 +750,6 @@ importers:
       esbuild:
         specifier: 0.28.1
         version: 0.28.1
-      minimatch:
-        specifier: ^3.1.5
-        version: 3.1.5
       path-browserify:
         specifier: ^1.0.1
         version: 1.0.1
@@ -1405,6 +1408,9 @@ importers:
       '@types/sinon':
         specifier: ^10.0.2
         version: 10.0.2
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       sinon:
         specifier: ^12.0.1
         version: 12.0.1
@@ -1439,6 +1445,9 @@ importers:
       '@types/node':
         specifier: 24.x
         version: 24.12.4
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       tslib:
         specifier: ^2.6.3
         version: 2.8.1
@@ -1470,6 +1479,9 @@ importers:
       glob:
         specifier: ^5.0.13
         version: 5.0.15
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   extensions/ipynb:
     dependencies:
@@ -1639,6 +1651,9 @@ importers:
       '@vscode/markdown-it-katex':
         specifier: ^1.1.1
         version: 1.1.1
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -1742,6 +1757,9 @@ importers:
       '@vscode/hubrpc':
         specifier: 0.0.2-54
         version: 0.0.2-54(zod@4.4.3)
+      esbuild:
+        specifier: 0.28.1
+        version: 0.28.1
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
@@ -1980,6 +1998,9 @@ importers:
       tslib:
         specifier: ^2.6.3
         version: 2.8.1
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   extensions/vscode-api-tests:
     devDependencies:
