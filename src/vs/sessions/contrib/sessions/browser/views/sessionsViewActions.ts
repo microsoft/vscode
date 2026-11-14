@@ -38,9 +38,10 @@ import { INewSessionComposerService } from '../../../../../workbench/contrib/ses
 import { WorkspaceSelectionOrigin } from '../../../../../workbench/services/sessions/common/workspaceSelection.js';
 import { AICustomizationManagementCommands } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 
-import { SessionsArchiveActionsContribution, registerSessionsListActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
+import { SessionsArchiveActionsContribution, registerSessionsListActions, registerSessionsListReadStateActions } from '../../../../../workbench/contrib/sessions/browser/views/sessionsListActions.js';
 
 registerSessionsListActions();
+registerSessionsListReadStateActions();
 
 const CLOSE_SESSION_COMMAND_ID = 'sessionsViewPane.closeSession';
 registerAction2(class CloseSessionAction extends Action2 {

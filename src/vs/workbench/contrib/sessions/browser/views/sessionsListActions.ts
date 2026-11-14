@@ -25,7 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../pla
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { WorkbenchListFocusContextKey } from '../../../../../platform/list/browser/listService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { FocusedViewContext, IsSessionsWindowContext } from '../../../../common/contextkeys.js';
+import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { SessionsCategories } from '../../common/categories.js';
 import { SESSIONS_LIST_GROUP_EXTERNAL_SESSIONS_SETTING } from '../../common/sessionConfig.js';
 import { ACKNOWLEDGE_INBOX_SESSION_COMMAND_ID, ARCHIVE_CHAT_COMMAND_ID, ARCHIVE_SESSION_COMMAND_ID, ARCHIVE_SESSION_GROUP_COMMAND_ID, ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, HIDE_AUTOMATION_SESSION_FROM_LIST_COMMAND_ID, HOLD_INBOX_SESSION_COMMAND_ID, MARK_SESSION_READ_COMMAND_ID, MARK_SESSION_UNREAD_COMMAND_ID, RENAME_SESSION_COMMAND_ID, RESUME_INBOX_SESSION_COMMAND_ID, SHOW_AUTOMATION_SESSION_IN_LIST_COMMAND_ID, SHOW_SESSION_APPLICATION_FILTERS_COMMAND_ID, UNARCHIVE_CHAT_COMMAND_ID, UNARCHIVE_SESSION_COMMAND_ID } from '../../common/sessionCommands.js';
@@ -35,7 +35,7 @@ import { getChatCapabilities, IChat, ISession, SessionStatus } from '../../../..
 import { ISessionGroupsService } from '../sessionGroupsService.js';
 import { ISessionsListModelService } from '../sessionsListModelService.js';
 import { ISessionComparisonService } from '../../common/sessionComparison.js';
-import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext } from '../views/sessionsView.js';
+import { IsWorkspaceGroupCappedContext, SessionsViewCompactContext, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext, sessionsViewOffersGrouping, EditorWindowSessionsContext, SessionsViewFocusedContext, getActiveSessionsView, getSessionsViewResolver, ISessionsViewLocator } from '../views/sessionsView.js';
 import { Menus, SessionHeaderMenus } from '../menus.js';
 import { SESSIONS_LIST_MARK_READ_COMMAND_ID, SESSIONS_LIST_MARK_UNREAD_COMMAND_ID } from '../../../../common/chatSessionCommands.js';
 import { ISessionsNavigationService } from '../sessionsNavigationService.js';
@@ -57,7 +57,7 @@ async function archiveSessionsWithUndo(
 	wording: ChatSessionArchiveActionWording,
 	sessionsManagementService: ISessionsManagementService,
 	groupsService: ISessionGroupsService,
-	viewsService: IViewsService,
+	getSessionsView: () => SessionsView | undefined,
 	comparisonService: ISessionComparisonService,
 ): Promise<void> {
 	const archived: { session: ISession; groupId: string | undefined }[] = [];
@@ -81,7 +81,7 @@ async function archiveSessionsWithUndo(
 			const message = wording === ChatSessionArchiveActionWording.MarkAsDone
 				? localize('sessionsMarkedDone', "{0} marked done", archived.length)
 				: localize('sessionsArchived', "{0} archived", archived.length);
-			viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
+			getSessionsView()?.listNotification?.show({
 				message,
 				help: localize('archiveNoticeHelp', "This notice appears after marking sessions done or archiving them. Undo restores the sessions and their previous custom groups, if those groups still exist. It does not restart stopped requests."),
 				undo: async () => {
@@ -113,12 +113,12 @@ async function archiveSessionsWithUndo(
 /**
  * Deletes a custom group and offers Undo when subgroups or nested sections are affected.
  */
-function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, viewsService: IViewsService): void {
+function deleteSessionGroupWithUndo(groupId: string, groupsService: ISessionGroupsService, getSessionsView: () => SessionsView | undefined): void {
 	const deleted = groupsService.deleteGroup(groupId);
 	if (!deleted || (deleted.groups.length < 2 && deleted.sectionMembership.size === 0)) {
 		return;
 	}
-	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
+	getSessionsView()?.listNotification?.show({
 		message: deleted.groups.length === 1
 			? localize('sessionGroupDeleted', "Group deleted")
 			: localize('sessionGroupsDeleted', "{0} groups deleted", deleted.groups.length),
@@ -211,7 +211,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const groupsService = accessor.get(ISessionGroupsService);
-		const viewsService = accessor.get(IViewsService);
+		const getSessionsView = getSessionsViewResolver(accessor);
 		const comparisonService = accessor.get(ISessionComparisonService);
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
@@ -236,7 +236,7 @@ abstract class BaseArchiveSectionAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, viewsService, comparisonService);
+		await archiveSessionsWithUndo(context.sessions, this.wording, sessionsManagementService, groupsService, getSessionsView, comparisonService);
 	}
 }
 
@@ -290,7 +290,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		const groupsService = accessor.get(ISessionGroupsService);
-		const viewsService = accessor.get(IViewsService);
+		const getSessionsView = getSessionsViewResolver(accessor);
 		const comparisonService = accessor.get(ISessionComparisonService);
 		const comparison = context.comparison ? comparisonService.getComparison(context.comparison.id) : undefined;
 		// A group's sessions include those of its subgroups.
@@ -326,7 +326,7 @@ abstract class BaseArchiveSessionsInGroupAction extends Action2 {
 			}
 		}
 
-		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, viewsService, comparisonService);
+		await archiveSessionsWithUndo(sessions, this.wording, sessionsManagementService, groupsService, getSessionsView, comparisonService);
 	}
 }
 
@@ -357,10 +357,10 @@ function getSessionActionTargets(accessor: ServicesAccessor, context?: ISession 
 }
 
 function getFocusedSessionListTargets(accessor: ServicesAccessor): readonly ISession[] | undefined {
-	return accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedSessions();
+	return getActiveSessionsView(accessor)?.sessionsControl?.getFocusedSessions();
 }
 
-function triageSessions(modelService: ISessionsListModelService, viewsService: IViewsService, sessions: readonly ISession[], action: SessionInboxAction): void {
+function triageSessions(modelService: ISessionsListModelService, getSessionsView: () => SessionsView | undefined, sessions: readonly ISession[], action: SessionInboxAction): void {
 	const targets = sessions.filter(session => !session.isArchived.get());
 	if (!targets.length) {
 		return;
@@ -374,7 +374,7 @@ function triageSessions(modelService: ISessionsListModelService, viewsService: I
 		status(message);
 		return;
 	}
-	viewsService.getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.show({
+	getSessionsView()?.listNotification?.show({
 		message,
 		help: localize('inboxTriageHelp', "This changes only Inbox mode. It does not stop or archive sessions. Undo restores the previous triage state unless it has changed since."),
 		showCountdown: true,
@@ -604,7 +604,7 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 			keybinding: {
 				primary: KeyMod.Shift | KeyMod.Alt | (direction === 'up' ? KeyCode.UpArrow : KeyCode.DownArrow),
 				weight: KeybindingWeight.SessionsContrib,
-				when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created), direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
+				when: ContextKeyExpr.and(SessionsViewFocusedContext, WorkbenchListFocusContextKey, SessionsListFocusedChatItemContext, ContextKeyExpr.equals(SessionsViewSortingContext.key, SessionsSorting.Created), direction === 'up' ? SessionChatItemCanMoveUpContext : SessionChatItemCanMoveDownContext),
 			},
 			menu: [{
 				id: Menus.SessionChatItemContext,
@@ -616,7 +616,7 @@ abstract class BaseMoveSessionListChatAction extends Action2 {
 	}
 
 	override run(accessor: ServicesAccessor, context?: ISessionChatItem): void {
-		const sessionsList = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl;
+		const sessionsList = getActiveSessionsView(accessor)?.sessionsControl;
 		const target = context ?? sessionsList?.getFocusedChatItem();
 		if (target) {
 			sessionsList?.moveChat(target, this.direction);
@@ -638,7 +638,7 @@ async function markSessionListTargetsRead(accessor: ServicesAccessor, context: I
 		return;
 	}
 	if (!context) {
-		const chats = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.getFocusedChatItems() ?? [];
+		const chats = getActiveSessionsView(accessor)?.sessionsControl?.getFocusedChatItems() ?? [];
 		if (chats.length > 0) {
 			for (const chat of chats) {
 				await setSessionListChatReadState(sessionsManagementService, chat, isRead);
@@ -794,7 +794,7 @@ export function registerSessionsListReadStateActions(): IDisposable {
 					title,
 					keybinding: {
 						weight: KeybindingWeight.SessionsContrib,
-						when: ContextKeyExpr.and(IsSessionsWindowContext, FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+						when: ContextKeyExpr.and(IsSessionsWindowContext, SessionsViewFocusedContext, WorkbenchListFocusContextKey),
 						primary,
 					},
 					menu: getSessionsListReadStateMenus(isRead),
@@ -825,7 +825,7 @@ export function registerSessionsListReadStateMenus(): IDisposable {
 		store.add(KeybindingsRegistry.registerKeybindingRule({
 			id: isRead ? SESSIONS_LIST_MARK_READ_COMMAND_ID : SESSIONS_LIST_MARK_UNREAD_COMMAND_ID,
 			weight: KeybindingWeight.SessionsContrib,
-			when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+			when: ContextKeyExpr.and(IsSessionsWindowContext.negate(), SessionsViewFocusedContext, WorkbenchListFocusContextKey),
 			primary,
 		}));
 	}
@@ -869,7 +869,7 @@ function createSessionsListActions(): DisposableStore {
 		type: AccessibleViewType.Help,
 		priority: 110,
 		when: SessionsListNotificationFocused,
-		getProvider: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.listNotification?.getAccessibilityHelp(),
+		getProvider: accessor => getActiveSessionsView(accessor)?.listNotification?.getAccessibilityHelp(),
 	}));
 
 	store.add(CommandsRegistry.registerCommand(ARCHIVE_SESSIONS_WITH_UNDO_COMMAND_ID, (accessor, sessions: readonly ISession[]) => archiveSessionsWithUndo(
@@ -877,14 +877,14 @@ function createSessionsListActions(): DisposableStore {
 		getChatSessionArchiveActionWording(accessor.get(IConfigurationService)),
 		accessor.get(ISessionsManagementService),
 		accessor.get(ISessionGroupsService),
-		accessor.get(IViewsService),
+		getSessionsViewResolver(accessor),
 		accessor.get(ISessionComparisonService),
 	)));
 
 	store.add(CommandsRegistry.registerCommand(DELETE_SESSION_GROUP_WITH_UNDO_COMMAND_ID, (accessor, groupId: string) => deleteSessionGroupWithUndo(
 		groupId,
 		accessor.get(ISessionGroupsService),
-		accessor.get(IViewsService),
+		getSessionsViewResolver(accessor),
 	)));
 
 	store.add(registerAction2(class ShowSessionApplicationFiltersAction extends Action2 {
@@ -897,7 +897,7 @@ function createSessionsListActions(): DisposableStore {
 		}
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
-			const view = await accessor.get(IViewsService).openView<SessionsView>(SessionsViewId);
+			const view = accessor.get(ISessionsViewLocator)?.getEmbeddedView() ?? await accessor.get(IViewsService).openView<SessionsView>(SessionsViewId);
 			view?.showApplicationFilters();
 		}
 	}));
@@ -1010,7 +1010,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor): void {
-			accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.setGrouping(SessionsGrouping.Inbox);
+			getActiveSessionsView(accessor)?.setGrouping(SessionsGrouping.Inbox);
 		}
 	}));
 
@@ -1025,8 +1025,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setSorting(SessionsSorting.Created);
 		}
 	}));
@@ -1042,8 +1041,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setSorting(SessionsSorting.Updated);
 		}
 	}));
@@ -1059,8 +1057,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setGrouping(SessionsGrouping.Workspace);
 		}
 	}));
@@ -1076,8 +1073,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setGrouping(SessionsGrouping.Repository);
 		}
 	}));
@@ -1093,8 +1089,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setGrouping(SessionsGrouping.Date);
 		}
 	}));
@@ -1110,7 +1105,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setGrouping(SessionsGrouping.Environment);
 		}
 	}));
@@ -1131,8 +1126,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.toggleCompact();
 		}
 	}));
@@ -1153,8 +1147,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.sessionsControl?.setWorkspaceGroupCapped(true);
 			IsWorkspaceGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(true);
 		}
@@ -1176,8 +1169,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.sessionsControl?.setWorkspaceGroupCapped(false);
 			IsWorkspaceGroupCappedContext.bindTo(accessor.get(IContextKeyService)).set(false);
 		}
@@ -1193,8 +1185,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.sessionsControl?.collapseAllSections();
 		}
 	}));
@@ -1210,8 +1201,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			return view?.sessionsControl?.refresh();
 		}
 	}));
@@ -1226,15 +1216,14 @@ function createSessionsListActions(): DisposableStore {
 				keybinding: {
 					// The list has its own find widget, so it takes over the keybindings of the tree's (`list.find`).
 					weight: KeybindingWeight.SessionsContrib,
-					when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+					when: ContextKeyExpr.and(SessionsViewFocusedContext, WorkbenchListFocusContextKey),
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyF,
 					secondary: [KeyCode.F3],
 				},
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			return view?.openFind();
 		}
 	}));
@@ -1242,9 +1231,9 @@ function createSessionsListActions(): DisposableStore {
 	store.add(KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'sessionsViewPane.closeFind',
 		weight: KeybindingWeight.SessionsContrib,
-		when: ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey, SessionsListSearchOpenContext),
+		when: ContextKeyExpr.and(SessionsViewFocusedContext, WorkbenchListFocusContextKey, SessionsListSearchOpenContext),
 		primary: KeyCode.Escape,
-		handler: accessor => accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.closeFind(),
+		handler: accessor => getActiveSessionsView(accessor)?.sessionsControl?.closeFind(),
 	}));
 
 	store.add(registerAction2(class DeleteEmptySessionGroupAction extends Action2 {
@@ -1304,8 +1293,7 @@ function createSessionsListActions(): DisposableStore {
 				return;
 			}
 			const sessions = Array.isArray(context) ? context : [context];
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			for (const session of sessions) {
 				view?.sessionsControl?.pinSession(session);
 			}
@@ -1343,8 +1331,7 @@ function createSessionsListActions(): DisposableStore {
 				return;
 			}
 			const sessions = Array.isArray(context) ? context : [context];
-			const viewsService = accessor.get(IViewsService);
-			const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			for (const session of sessions) {
 				view?.sessionsControl?.unpinSession(session);
 			}
@@ -1369,7 +1356,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'done');
+			triageSessions(accessor.get(ISessionsListModelService), getSessionsViewResolver(accessor), getSessionActionTargets(accessor, context), 'done');
 		}
 	}));
 
@@ -1389,7 +1376,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), undefined);
+			triageSessions(accessor.get(ISessionsListModelService), getSessionsViewResolver(accessor), getSessionActionTargets(accessor, context), undefined);
 		}
 	}));
 
@@ -1412,7 +1399,7 @@ function createSessionsListActions(): DisposableStore {
 			const sessions = getSessionActionTargets(accessor, context);
 			const quickInput = accessor.get(IQuickInputService);
 			const modelService = accessor.get(ISessionsListModelService);
-			const viewsService = accessor.get(IViewsService);
+			const getSessionsView = getSessionsViewResolver(accessor);
 			const now = new Date();
 			const morning = (days: number) => new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, 9).getTime();
 			const picked = await quickInput.pick([
@@ -1447,7 +1434,7 @@ function createSessionsListActions(): DisposableStore {
 			} else {
 				action = picked.value;
 			}
-			triageSessions(modelService, viewsService, sessions, action);
+			triageSessions(modelService, getSessionsView, sessions, action);
 		}
 	}));
 
@@ -1497,7 +1484,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		run(accessor: ServicesAccessor, context?: ISession | ISession[]): void {
-			triageSessions(accessor.get(ISessionsListModelService), accessor.get(IViewsService), getSessionActionTargets(accessor, context), 'hold');
+			triageSessions(accessor.get(ISessionsListModelService), getSessionsViewResolver(accessor), getSessionActionTargets(accessor, context), 'hold');
 		}
 	}));
 
@@ -1567,7 +1554,7 @@ function createSessionsListActions(): DisposableStore {
 		weight: KeybindingWeight.SessionsContrib,
 		when: ContextKeyExpr.and(
 			IsSessionsWindowContext,
-			FocusedViewContext.isEqualTo(SessionsViewId),
+			SessionsViewFocusedContext,
 			WorkbenchListFocusContextKey,
 		),
 		primary: KeyCode.Delete,
@@ -1630,7 +1617,7 @@ function createSessionsListActions(): DisposableStore {
 			if (!context) {
 				return;
 			}
-			accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.openSession(context.session);
+			getActiveSessionsView(accessor)?.sessionsControl?.openSession(context.session);
 		}
 	}));
 
@@ -1658,7 +1645,7 @@ function createSessionsListActions(): DisposableStore {
 					weight: KeybindingWeight.SessionsContrib,
 					// In the sessions list of either window; in a chat's input only in the Agents window
 					when: ContextKeyExpr.or(
-						ContextKeyExpr.and(FocusedViewContext.isEqualTo(SessionsViewId), WorkbenchListFocusContextKey),
+						ContextKeyExpr.and(SessionsViewFocusedContext, WorkbenchListFocusContextKey),
 						ContextKeyExpr.and(IsSessionsWindowContext, ChatContextKeys.inChatSession, SessionSupportsRenameContext),
 					),
 				},
@@ -1677,7 +1664,7 @@ function createSessionsListActions(): DisposableStore {
 				return;
 			}
 			if (focusedSessions?.includes(session)) {
-				const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+				const view = getActiveSessionsView(accessor);
 				if (view?.sessionsControl?.beginRenameSession(session)) {
 					return;
 				}
@@ -1806,7 +1793,7 @@ function createSessionsListActions(): DisposableStore {
 			});
 		}
 		override run(accessor: ServicesAccessor) {
-			const view = accessor.get(IViewsService).getViewWithId<SessionsView>(SessionsViewId);
+			const view = getActiveSessionsView(accessor);
 			view?.setGrouping(SessionsGrouping.Worktree);
 		}
 	}));

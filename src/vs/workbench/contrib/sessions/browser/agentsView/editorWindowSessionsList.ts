@@ -105,8 +105,9 @@ export function registerEditorWindowSessionsViews(container: IViewContainerDescr
 /**
  * Registers the settings of the sessions list, marks the window as showing it ({@link EditorWindowSessionsContext}), and registers its actions and those of the sessions it shows once the Sessions view or the
  * chat part first shows. `registerMore` registers the actions of the chat part, which this does not know.
+ * `viewId` is the view whose first show registers them: the Sessions view, or the view that embeds it, such as the Chat view.
  */
-export function registerEditorWindowSessionsList(instantiationService: IInstantiationService, registerMore: () => IDisposable): IDisposable {
+export function registerEditorWindowSessionsList(instantiationService: IInstantiationService, registerMore: () => IDisposable, viewId: string = SessionsViewId): IDisposable {
 	const store = new DisposableStore();
 	const contextKeyService = instantiationService.invokeFunction(accessor => accessor.get(IContextKeyService));
 	EditorWindowSessionsContext.bindTo(contextKeyService).set(true);
@@ -114,7 +115,7 @@ export function registerEditorWindowSessionsList(instantiationService: IInstanti
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	configurationRegistry.registerConfiguration(sessionsListConfiguration);
 	store.add(toDisposable(() => configurationRegistry.deregisterConfigurations([sessionsListConfiguration])));
-	store.add(registerOnFirstShown(instantiationService, () => {
+	store.add(registerOnFirstShown(instantiationService, viewId, () => {
 		store.add(registerSessionsListActions());
 		store.add(registerSessionsListReadStateMenus());
 		store.add(registerMore());
@@ -123,8 +124,8 @@ export function registerEditorWindowSessionsList(instantiationService: IInstanti
 	return store;
 }
 
-/** Runs `register` once, as the Sessions view or the chat part, which shows sessions too, first shows. */
-function registerOnFirstShown(instantiationService: IInstantiationService, register: () => void): IDisposable {
+/** Runs `register` once, as the view of `viewId` or the chat part, which shows sessions too, first shows. */
+function registerOnFirstShown(instantiationService: IInstantiationService, viewId: string, register: () => void): IDisposable {
 	const { viewsService, layoutService, lifecycleService } = instantiationService.invokeFunction(accessor => ({
 		viewsService: accessor.get(IViewsService),
 		layoutService: accessor.get(IWorkbenchLayoutService),
@@ -138,7 +139,7 @@ function registerOnFirstShown(instantiationService: IInstantiationService, regis
 		}
 	};
 	firstShown.add(viewsService.onDidChangeViewVisibility(e => {
-		if (e.id === SessionsViewId && e.visible) {
+		if (e.id === viewId && e.visible) {
 			shown();
 		}
 	}));
@@ -149,7 +150,7 @@ function registerOnFirstShown(instantiationService: IInstantiationService, regis
 	}));
 	// Either restores shown with the window, without a change of its visibility
 	void lifecycleService.when(LifecyclePhase.Restored).then(() => {
-		if (viewsService.isViewVisible(SessionsViewId) || layoutService.isVisible(Parts.CHAT_PART)) {
+		if (viewsService.isViewVisible(viewId) || layoutService.isVisible(Parts.CHAT_PART)) {
 			shown();
 		}
 	});

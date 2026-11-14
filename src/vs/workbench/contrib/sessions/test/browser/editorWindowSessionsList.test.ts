@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { toDisposable } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -46,8 +47,18 @@ suite('EditorWindowSessionsList', () => {
 
 	test('registers the Sessions view and the setup view in the container', () => {
 		const container = { id: 'test.editorWindowSessionsList', title: localize2Value('Chat'), icon: undefined } as unknown as IViewContainerDescriptor;
+		const registry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
+		// Another suite may have registered the Agents window's own Sessions view, as ids are registered once
+		const existing = registry.getView(SessionsViewId);
+		const existingContainer = registry.getViewContainer(SessionsViewId);
+		if (existing && existingContainer) {
+			registry.deregisterViews([existing], existingContainer);
+		}
 		store.add(registerEditorWindowSessionsViews(container, observableValue('scoped', false)));
-		const views = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViews(container).map(view => ({ id: view.id, when: view.when?.serialize() }));
+		if (existing && existingContainer) {
+			store.add(toDisposable(() => registry.registerViews([existing], existingContainer)));
+		}
+		const views = registry.getViews(container).map(view => ({ id: view.id, when: view.when?.serialize() }));
 		assert.deepStrictEqual(views, [
 			{ id: SessionsViewId, when: AgentsViewWhen.serialize() },
 			{ id: AGENTS_VIEW_SETUP_VIEW_ID, when: ContextKeyExpr.and(AgentsViewAvailable, AgentsViewNeedsSetup)?.serialize() },
